@@ -3,19 +3,16 @@
  *
  * Kept apart from `number-health.ts` (the assessor) because the two have
  * opposite failure postures and mixing them would blur that. The assessor may
- * fail loudly: it is a cron, and a cron that silently stops is what #387
- * exists to catch. This must NEVER fail loudly — it decorates the numbers
+ * fail loudly: it is a cron, and a cron that fails is reported. This must
+ * NEVER fail loudly: it decorates the numbers
  * list, which the composer's "text from" picker reads, and a reputation lookup
  * has no business being able to stop somebody texting a customer.
- *
- * `api_number_health` already flattens 'watch' to 'healthy', so nothing here
- * can leak an internal state to a customer even by accident.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** What the owner is told about one number. */
 export interface NumberHealthView {
-  /** 'healthy' | 'degraded'. 'watch' is internal and never appears here. */
+  /** 'healthy' | 'degraded'. */
   state: string;
   /** 0-1 over the assessment window, or null when there was too little to say. */
   delivery_rate: number | null;

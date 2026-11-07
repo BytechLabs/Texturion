@@ -153,8 +153,6 @@ export async function sendMissedCallText(
     fromNumberE164: string;
     callerE164: string;
     callId: string;
-    /** Set by the call engine; see PushDelivery.recordAttemptsInBackground. */
-    recordAttemptsInBackground?: boolean;
   },
 ): Promise<MissedCallTextOutcome> {
   /**
@@ -357,7 +355,6 @@ export async function sendMissedCallText(
         conversationId: outcome.conversationId,
         callerE164: args.callerE164,
         textStatus: textSent ? "sent" : "failed",
-        recordAttemptsInBackground: args.recordAttemptsInBackground,
       },
       db,
     );

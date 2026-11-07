@@ -87,11 +87,11 @@ describe("check-deploy-env-branches refuses every way of reading DEPLOY_ENV", ()
     expect(offences([{ path: "apps/api/src/index.ts", text }])).toHaveLength(1);
   });
 
-  it("the production-only question, asked anywhere but the Telnyx gauges", () => {
-    const text = `import { productionWatchRefusal } from "../environments/policy";`;
-    expect(offences([{ path: "apps/api/src/observability/telnyx-spend.ts", text }])).toEqual([]);
+  it("the FCM credential question, asked anywhere but the FCM sender", () => {
+    const text = `import { fcmCredential } from "../environments/policy";`;
+    expect(offences([{ path: "apps/api/src/notifications/fcm.ts", text }])).toEqual([]);
     expect(offences([{ path: "apps/api/src/telnyx/sync.ts", text }]).map((o) => o.rule)).toEqual([
-      expect.stringMatching(/^imports productionWatchRefusal, which names the deployment/),
+      expect.stringMatching(/^imports fcmCredential, which names the deployment/),
     ]);
   });
 

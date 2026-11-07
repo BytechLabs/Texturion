@@ -26,21 +26,19 @@ Three signals, any of which is enough:
 | **Absolute floor with no baseline** | Under 70% and no history | A **recycled** number arrives pre-poisoned — we do not know what the last holder did with it |
 | **Replies collapsed while delivery looks fine** | Zero inbound against an established reply rate | The tell for **silent filtering**: accepted, billed, dropped. No delivery-rate check catches this |
 
-Two states above healthy, with **different audiences**:
-
-- **`watch`** — real signal, thin sample. **Internal only. The customer is never
-  told.** It exists so we are looking before we are sure.
-- **`degraded`** — enough volume and a large enough fall that ordinary variance
-  does not explain it. **This is the only state a customer sees.**
-
-The split is the whole design. At our size a number sends a few dozen texts a
-week; three failures is an ordinary Tuesday. Telling somebody their business
-line is flagged over that would cost us the account — and the one time it was
+A number is **`healthy`** or **`degraded`**, and nothing in between.
+`degraded` means enough volume and a large enough fall that ordinary variance
+does not explain it, and the customer sees it. Below 20 settled sends in the
+window there is no verdict at all. At our size a number sends a few dozen texts
+a week; three failures is an ordinary Tuesday. Telling somebody their business
+line is flagged over that would cost us the account, and the one time it was
 real, nobody would believe it.
 
-Only **transitions** are emailed. A known-bad number does not mail us every
-morning until somebody mutes the mailbox. Recoveries are emailed too: a recovery
-is the only evidence that a remediation actually worked.
+Only **transitions** are reported. Each move into or out of `degraded` is one
+`ops:number-health` notice, which PostHog files under one issue: an error when a
+number became degraded, a warning when one recovered. A known-bad number does
+not report again every morning. Recoveries are reported because a recovery is
+the only evidence that a remediation actually worked.
 
 ---
 
@@ -51,8 +49,8 @@ naming the state, how long, and the remediation path. Never a silent
 degradation — the house style is honest failure, applied to a number instead of
 a send.
 
-A `watch` number shows **nothing**. `api_number_health` flattens it to
-`healthy` server-side, so a client cannot leak it by accident.
+A healthy number shows **nothing**. `api_number_health` returns only the two
+states, and the details only for a degraded number.
 
 ---
 

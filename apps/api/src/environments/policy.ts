@@ -9,11 +9,8 @@ import { deployEnv } from "./mode";
  * rig to run production's code. Production and local get the permissive answer
  * from every function below except the start-up refusals: production refuses a
  * redirected vendor host and a database on the rig, and local refuses anything
- * that says it is really the rig. The one other exception is
- * `productionWatchRefusal`, which keeps a watch of production's Telnyx account
- * in production and so refuses on a laptop too. `policy.test.ts` asserts the
- * inert answer for every export, so a new function cannot quietly widen
- * anything.
+ * that says it is really the rig. `policy.test.ts` asserts the inert answer for
+ * every export, so a new function cannot quietly widen anything.
  */
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
@@ -97,8 +94,8 @@ export function deployPostureRefusals(env: Env): string[] {
     if (isRigOrLoopbackHost(env.SUPABASE_URL)) {
       refusals.push("SUPABASE_URL is a rig or loopback database");
     }
-    // Every error report, heartbeat and gauge goes through this key, and
-    // PostHog's alerts cannot tell a quiet Worker from one that sends nothing.
+    // Every error report and event goes through this key, and PostHog's alerts
+    // cannot tell a quiet Worker from one that sends nothing.
     if (env.POSTHOG_API_KEY === undefined) {
       refusals.push("POSTHOG_API_KEY is unset, so production would report nothing");
     }
@@ -155,21 +152,6 @@ export function telemetryEnvironment(env: Env): "production" | "rig" | "local" {
 
 export function servesRigRoutes(env: Env): boolean {
   return deployEnv(env) === "rig";
-}
-
-/**
- * Whether a watch that reads production's own Telnyx account (PW01) may run
- * here. Null means it may, which is production alone.
- *
- * The one answer that is not permissive on a laptop, and it is still a
- * restriction: the rig shares the account but production's resources are not
- * the rig's to judge, and a laptop holding a production key would judge
- * production's wiring against its own API_ORIGIN and report every URL wrong.
- */
-export function productionWatchRefusal(env: Env): string | null {
-  return deployEnv(env) === "production"
-    ? null
-    : "this watch reads production's Telnyx account and runs only in production";
 }
 
 /**

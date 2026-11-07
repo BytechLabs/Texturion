@@ -77,11 +77,6 @@ export const CALL_WRAPUP_FEATURE = "call_wrapup";
  */
 export const CALL_WRAPUP_MONTHLY_CAP = 1500;
 
-/** Fire the one-shot ops alert at 80% of the cap (alert BEFORE the cap). */
-export const CALL_WRAPUP_ALERT_THRESHOLD = Math.floor(
-  CALL_WRAPUP_MONTHLY_CAP * 0.8,
-);
-
 /**
  * Longest dictation we will transcribe, in seconds.
  *
@@ -120,7 +115,6 @@ export const CALL_WRAPUP_FEATURE_SPEC: AiFeatureSpec = {
   label: "call wrap-up dictation",
   cap: CALL_WRAPUP_MONTHLY_CAP,
   unitCostCents: AI_UNIT_COST_CENTS.call_wrapup,
-  alertThreshold: CALL_WRAPUP_ALERT_THRESHOLD,
   stops:
     "wrap-ups can still be typed into the note composer, just not dictated.",
   timeoutMs: CALL_WRAPUP_TIMEOUT_MS,

@@ -11,6 +11,7 @@
 --   AO-3  spend and value land on the SAME row
 --   AO-4  an outcome arriving with no prior reservation still counts
 --   AO-5  the report is tenant-scoped, states its denominator, and returns no rate
+--   AO-6  the reservation names the one request that reaches the cap
 --
 -- One transaction, rolled back. Fixtures use an 'ae' id prefix (uuids are hex, so
 -- 'ai' is not a legal prefix).
@@ -116,7 +117,7 @@ declare
   v_rows integer;
   u      public.company_ai_usage%rowtype;
 begin
-  perform public.ai_usage_reserve(co, 'suggest_reply', 1500, 1200);
+  perform public.ai_usage_reserve(co, 'suggest_reply', 1500);
 
   select count(*) into v_rows from public.company_ai_usage
    where company_id = co and feature = 'suggest_reply';
@@ -216,5 +217,48 @@ begin
 end $$;
 
 select 'ai_outcomes.test.sql: AO-1..AO-5 PASSED' as result;
+
+-- ===========================================================================
+-- AO-6. The request whose unit takes the count to the cap is the one that
+--       reaches it: the count before is under the cap and the count after is
+--       at it, in the same statement, so the notice goes out once a month per
+--       feature with nothing stored to say it went. The deployed Worker's
+--       four-argument call is still answered until it is replaced.
+-- ===========================================================================
+do $$
+declare
+  co uuid := 'ae000000-0000-4000-8000-0000000000b1';
+  r  jsonb;
+  v_reached int := 0;
+begin
+  for i in 1..4 loop
+    r := public.ai_usage_reserve(co, 'call_wrapup', 3);
+    if (r->>'reached_cap')::boolean then
+      v_reached := v_reached + 1;
+      if (r->>'count')::int is distinct from 3 or (r->>'over_cap')::boolean then
+        raise exception 'AO-6 FAILED: the cap was reached by %, want the third, within the cap', r;
+      end if;
+    end if;
+  end loop;
+  if (r->>'over_cap')::boolean is not true then
+    raise exception 'AO-6 FAILED: the fourth request was not over the cap: %', r;
+  end if;
+  if v_reached is distinct from 1 then
+    raise exception 'AO-6 FAILED: % request(s) reached the cap, want exactly 1', v_reached;
+  end if;
+
+  r := public.ai_usage_reserve(co, 'call_wrapup', 3, 2);
+  if (r->>'count')::int is distinct from 5 or (r->>'over_cap')::boolean is not true
+     or (r->>'reached_cap')::boolean or r ? 'should_alert' then
+    raise exception 'AO-6 FAILED: the four-argument call answered %', r;
+  end if;
+
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'company_ai_usage'
+                and column_name = 'alerted_at') then
+    raise exception 'AO-6 FAILED: company_ai_usage still keeps a notice stamp';
+  end if;
+  raise notice 'AO-6 PASSED: exactly one request reaches the cap, and the old call still works';
+end $$;
 
 rollback;

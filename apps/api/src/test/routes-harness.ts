@@ -91,11 +91,11 @@ export function supabaseStub(env: Env): SupabaseStub {
   }[] = [];
 
   /**
-   * Endpoints that hang off EVERY email send and assert nothing about the test
-   * that triggered them: the #386 suppression lookup before, the #387
-   * delivery-channel heartbeat after.
+   * Endpoints that hang off common paths and assert nothing about the test
+   * that triggered them, such as the #386 suppression lookup before every
+   * email send.
    *
-   * Registered LAST, so a suite that wants to assert on either still can by
+   * Registered LAST, so a suite that wants to assert on one still can by
    * calling `on()` for it — explicit handlers win. An empty suppression list
    * means nothing is blocked, which is the state every existing test was
    * written against.
@@ -250,13 +250,13 @@ export function supabaseStub(env: Env): SupabaseStub {
     },
     {
       // #452: the high-priority push meter hangs off every HIGH send the same
-      // way. The default verdict is "allowed, no alert", which IS the shipped
-      // behaviour every pre-#452 test was written against — a suite that wants
-      // to assert on the meter, or drive a degrade, registers its own handler
-      // and wins.
+      // way. The default verdict is "allowed, ceiling not reached", which IS the
+      // shipped behaviour every pre-#452 test was written against. A suite that
+      // wants to assert on the meter, or drive a degrade, registers its own
+      // handler and wins.
       method: "POST",
       matcher: "/rest/v1/rpc/claim_high_priority_push",
-      respond: () => ({ allowed: true, alert: null }),
+      respond: () => ({ allowed: true, reached_cap: false }),
     },
     {
       // #581: every AI feature now asks whether the workspace is still paying
@@ -280,14 +280,6 @@ export function supabaseStub(env: Env): SupabaseStub {
         call.url.searchParams.get("select") === "subscription_status"
           ? [{ subscription_status: "active" }]
           : undefined,
-    },
-    {
-      // D142: every push fan-out writes its evidence after the sends. The
-      // ambient answer is "written"; the ledger's own suites register this
-      // path and assert on it.
-      method: "POST",
-      matcher: "/rest/v1/push_attempts",
-      respond: () => new Response(null, { status: 201 }),
     },
     {
       // D142: on the rig the Worker asks its database whether the destination

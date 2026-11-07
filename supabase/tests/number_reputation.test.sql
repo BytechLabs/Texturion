@@ -7,8 +7,8 @@
 -- been flagged as spam" would cost us the customer over a false alarm, and
 -- then nobody would believe the one that was real.
 --
--- So: a thin sample must stay quiet, a healthy number must stay quiet, 'watch'
--- must never reach a customer, and a genuinely collapsed number must be caught.
+-- So: a thin sample must stay quiet, a healthy number must stay quiet, a small
+-- fall must stay quiet, and a genuinely collapsed number must be caught.
 --
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run with:
@@ -59,7 +59,10 @@ values
    'da000000-0000-4000-8000-0000000000c1'::uuid, 'active', 'CA', '+14165550002', 'k2'),
   -- thin sample, terrible rate
   ('da000000-0000-4000-8000-00000000a3a3'::uuid,
-   'da000000-0000-4000-8000-0000000000c1'::uuid, 'active', 'CA', '+14165550003', 'k3');
+   'da000000-0000-4000-8000-0000000000c1'::uuid, 'active', 'CA', '+14165550003', 'k3'),
+  -- a real fall, too small to be degraded
+  ('da000000-0000-4000-8000-00000000a4a4'::uuid,
+   'da000000-0000-4000-8000-0000000000c1'::uuid, 'active', 'CA', '+14165550104', 'k4');
 
 insert into public.contacts (id, company_id, phone_e164) values
   ('da000000-0000-4000-8000-0000000000e1'::uuid,
@@ -72,7 +75,9 @@ values
   ('da000000-0000-4000-8000-00000000b2b2'::uuid, 'da000000-0000-4000-8000-0000000000c1'::uuid,
    'da000000-0000-4000-8000-0000000000e1'::uuid, 'da000000-0000-4000-8000-00000000a2a2'::uuid, 'open'),
   ('da000000-0000-4000-8000-00000000b3b3'::uuid, 'da000000-0000-4000-8000-0000000000c1'::uuid,
-   'da000000-0000-4000-8000-0000000000e1'::uuid, 'da000000-0000-4000-8000-00000000a3a3'::uuid, 'open');
+   'da000000-0000-4000-8000-0000000000e1'::uuid, 'da000000-0000-4000-8000-00000000a3a3'::uuid, 'open'),
+  ('da000000-0000-4000-8000-00000000b4b4'::uuid, 'da000000-0000-4000-8000-0000000000c1'::uuid,
+   'da000000-0000-4000-8000-0000000000e1'::uuid, 'da000000-0000-4000-8000-00000000a4a4'::uuid, 'open');
 
 -- Helper: N messages of a given direction/status at an age in days.
 create or replace function pg_temp.seed(
@@ -113,6 +118,13 @@ select pg_temp.seed('da000000-0000-4000-8000-00000000b2b2'::uuid, 'outbound', 'f
 select pg_temp.seed('da000000-0000-4000-8000-00000000b3b3'::uuid, 'outbound', 'delivered', 1, 2);
 select pg_temp.seed('da000000-0000-4000-8000-00000000b3b3'::uuid, 'outbound', 'failed', 3, 2);
 
+-- n4: 98% before, 85% now. Thirteen points is real and short of the fifteen
+-- that make a number degraded.
+select pg_temp.seed('da000000-0000-4000-8000-00000000b4b4'::uuid, 'outbound', 'delivered', 17, 2);
+select pg_temp.seed('da000000-0000-4000-8000-00000000b4b4'::uuid, 'outbound', 'failed', 3, 2);
+select pg_temp.seed('da000000-0000-4000-8000-00000000b4b4'::uuid, 'outbound', 'delivered', 98, 14);
+select pg_temp.seed('da000000-0000-4000-8000-00000000b4b4'::uuid, 'outbound', 'failed', 2, 14);
+
 -- ---------------------------------------------------------------------------
 -- The assessment itself.
 -- ---------------------------------------------------------------------------
@@ -151,32 +163,27 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 'watch' is ours. The customer never sees it.
+-- A number is healthy or degraded. A small fall is healthy, and the state
+-- column holds nothing else.
 -- ---------------------------------------------------------------------------
 
 do $$
 declare
-  v_visible text;
+  v_state text;
 begin
-  update public.number_health set state = 'watch'
-   where phone_number_id = 'da000000-0000-4000-8000-00000000a1a1'::uuid;
-
-  select state into v_visible
-    from public.api_number_health('da000000-0000-4000-8000-0000000000c1'::uuid)
-   where phone_number_id = 'da000000-0000-4000-8000-00000000a1a1'::uuid;
-
-  if v_visible is distinct from 'healthy' then
-    raise exception
-      'watch must read as healthy to the owner, got % — a maybe-degraded '
-      'warning on a thin signal is how a false alarm becomes a cancellation',
-      v_visible;
+  select state into v_state from public.number_health
+   where phone_number_id = 'da000000-0000-4000-8000-00000000a4a4'::uuid;
+  if v_state is distinct from 'healthy' then
+    raise exception 'a 13-point fall short of degraded must read healthy, got %', v_state;
   end if;
 
-  -- Put it back. This block forced a state the data does not support, and
-  -- leaving it would make the NEXT block see a watch->healthy transition that
-  -- the assessor was right to report.
-  update public.number_health set state = 'healthy'
-   where phone_number_id = 'da000000-0000-4000-8000-00000000a1a1'::uuid;
+  begin
+    update public.number_health set state = 'watch'
+     where phone_number_id = 'da000000-0000-4000-8000-00000000a1a1'::uuid;
+    raise exception 'number_health accepted a state other than healthy or degraded';
+  exception when check_violation then
+    null;
+  end;
 end $$;
 
 -- ---------------------------------------------------------------------------

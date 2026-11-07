@@ -1221,13 +1221,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
     },
 
     async terminalMergeEvent(payload, opts) {
-      await handleTerminalCallEvent(
-        env,
-        db,
-        "call.hangup",
-        payload as never,
-        { ...opts, recordAttemptsInBackground: true },
-      );
+      await handleTerminalCallEvent(env, db, "call.hangup", payload as never, opts);
     },
 
     async terminalMergeSynthetic(machine, outcome, briAnsweredAtIso) {
@@ -1286,7 +1280,6 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         fromNumberE164: machine.businessNumberE164,
         callerE164: machine.callerE164,
         callId: machine.callSessionId,
-        recordAttemptsInBackground: true,
       });
       if (!textBack.alerted && thread?.eventInserted && thread.conversationId) {
         try {
@@ -1297,7 +1290,6 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
               conversationId: thread.conversationId,
               callerE164: machine.callerE164,
               textStatus: "none",
-              recordAttemptsInBackground: true,
             },
             db,
           );

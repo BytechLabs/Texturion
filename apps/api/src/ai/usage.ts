@@ -34,7 +34,7 @@ export interface AiOutcomeLine {
 export interface AiFeatureUsage {
   /** The ledger key, so a client can match a row without matching on copy. */
   key: string;
-  /** Plain label, the same words the cap alert uses. */
+  /** Plain label, the same words the cap notice uses. */
   label: string;
   used: number;
   cap: number;

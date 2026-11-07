@@ -21,7 +21,7 @@
  * value somebody typed is not evidence. A dispatch that types the ratios
  * skips this read and overrides it.
  *
- * One statement returns counts only, and the session runs call-trace.mjs's
+ * One statement returns counts only, and the session runs agent-diag.mjs's
  * self-check first, so a login that could reach anything beyond `ops_diag`,
  * or write, is refused before the read. Nothing here prints a row, a host or
  * psql's own words: the log is public, and psql names the login, which
@@ -30,7 +30,7 @@
  * Without AGENT_DIAG_DATABASE_URL nothing is filed. A stale reserve refuses
  * paid dials; an invented one would admit them.
  */
-import { agentDiagConnection, runPsql, sessionSql } from "../../../scripts/ops/call-trace.mjs";
+import { agentDiagConnection, runPsql, sessionSql } from "../../../scripts/ops/agent-diag.mjs";
 import {
   MIN_RATIO_SAMPLE,
   SHORT_CALL_SECONDS,
@@ -244,7 +244,7 @@ interface PsqlResult {
 
 export type PsqlRunner = (sql: string, env: Record<string, string>) => PsqlResult;
 
-// call-trace.mjs is untyped JavaScript; this is the one way it is called here.
+// agent-diag.mjs is untyped JavaScript; this is the one way it is called here.
 const psqlOf = runPsql as unknown as (sql: string, env: Record<string, string>, options: { args: string[] }) => PsqlResult;
 const realPsql: PsqlRunner = (sql, env) => psqlOf(sql, env, { args: ["-q", "-A", "-t"] });
 
@@ -266,7 +266,7 @@ export function readProduction(url: string | undefined, psql: PsqlRunner = realP
   }
   if (result.status !== 0) {
     const why = /REFUSED/.test(result.stderr ?? "")
-      ? "the agent_diag self-check refused this login; see scripts/ops/call-trace.mjs --self-check"
+      ? "the agent_diag self-check refused this login; see scripts/ops/agent-diag.mjs --self-check"
       : `psql exited ${result.status}`;
     return { ok: false, lines: [`::error title=Production not read::${why}`] };
   }

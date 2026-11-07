@@ -4,11 +4,11 @@
  * Every AI cost center — task enrichment, drafted replies, voicemail
  * transcription, and whatever comes next — runs through `runAiFeature`. It is
  * the only place that calls `env.AI.run`, so a feature cannot reach the model
- * without also going through the company's opt-in, its own monthly cap, the
- * alert before that cap, and the timeout.
+ * without also going through the company's opt-in, its own monthly cap, and
+ * the timeout.
  *
  * Why a gate and not just shared helpers: the helpers already existed
- * (`loadAiSettings` / `reserveAiUsage` / `sendAiCapAlert`) and each caller
+ * (`loadAiSettings` / `reserveAiUsage`) and each caller
  * assembled them itself, which meant each caller could assemble them WRONGLY.
  * The sequence was hand-written a third time for the voicemail backfill, and
  * "spend first, check later" is one transposed line away in every copy. With a
@@ -22,7 +22,7 @@
  *   4. Reserve one unit against THIS feature's monthly cap. A reservation that
  *      errors counts as over cap: a broken ledger costs a suggestion, never an
  *      unbounded bill.
- *   5. Alert once at the threshold, BEFORE the cap bites. Never blocks.
+ *   5. The request that reaches the cap sends one notice. Never blocks.
  *   6. Over cap → `over_cap`, model not called.
  *   7. Build the model input — never before here, see {@link AiInput}.
  *   8. Call the model, raced against the feature's timeout.
@@ -30,7 +30,7 @@
  * Per-feature keys keep the buckets separate, so a runaway in one cost center
  * cannot starve another.
  */
-import { loadAiSettings, reserveAiUsage, sendAiCapAlert, type CompanyAiSettings } from "./settings";
+import { loadAiSettings, reportAiCapReached, reserveAiUsage, type CompanyAiSettings } from "./settings";
 import type { getDb } from "../db";
 import type { Env } from "../env";
 import { isKilled } from "../flags/evaluate";
@@ -55,7 +55,7 @@ export interface AiFeatureSpec {
    * declared, not in a document someone has to remember.
    */
   key: AiCostFeature;
-  /** Human label for the ops alert ("voicemail transcript"). */
+  /** Human label for the cap notice ("voicemail transcript"). */
   label: string;
   /** Hard monthly cap per company. */
   cap: number;
@@ -67,15 +67,13 @@ export interface AiFeatureSpec {
    * point it declares its cap, so the two are read together. A test asserts the
    * two agree, so the duplication cannot drift.
    *
-   * Before this existed, every AI feature declared a cap, an alert and a
-   * timeout — all of which bound BLAST RADIUS — and nothing that answered
+   * Before this existed, every AI feature declared a cap and a timeout, both
+   * of which bound BLAST RADIUS, and nothing that answered
    * "does this tenant still make money". The caps guaranteed the loss was
    * bounded; they said nothing about whether it was happening.
    */
   unitCostCents: number;
-  /** Alert threshold, below the cap. */
-  alertThreshold: number;
-  /** Plain sentence for the alert: what the company loses at the cap. */
+  /** Plain sentence for the cap notice: what the company loses at the cap. */
   stops: string;
   /** Never let a model call outlive this. */
   timeoutMs: number;
@@ -209,8 +207,8 @@ export async function runAiFeature(
     // AFTER the opt-in, so a workspace that switched the feature off hears
     // about its own switch rather than about its card. BEFORE the reservation,
     // so a dead workspace's month is not walked down by requests that were
-    // never going to be answered — the ledger is what the cap alert reads, and
-    // it should count spending, not refusals.
+    // never going to be answered: the ledger is what the cap reads, and it
+    // should count spending, not refusals.
     if (!(await mayStillSpend(db, companyId, spec))) {
       return { ok: false, reason: "subscription_inactive" };
     }
@@ -219,20 +217,17 @@ export async function runAiFeature(
       companyId,
       feature: spec.key,
       cap: spec.cap,
-      alertThreshold: spec.alertThreshold,
     });
-    if (reservation.should_alert) {
-      // Never blocks the call it is warning about.
-      await sendAiCapAlert(env, {
+    if (reservation.reached_cap) {
+      // Never blocks the call that reached it, which is still within the cap.
+      await reportAiCapReached(env, {
         companyId,
         label: spec.label,
-        count: reservation.count,
         cap: spec.cap,
-        alertThreshold: spec.alertThreshold,
         stops: spec.stops,
       }).catch((cause) => {
         console.error(
-          `ai cap alert failed for ${companyId}/${spec.key}:`,
+          `ai cap notice failed for ${companyId}/${spec.key}:`,
           cause instanceof Error ? cause.message : String(cause),
         );
       });

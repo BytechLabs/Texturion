@@ -37,7 +37,7 @@ import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { claimHighPriority } from "./high-priority";
 import {
-  recordPushAttemptsInBackground,
+  recordPushAttempts,
   timedPush,
   type PushAttempt,
 } from "./push-attempts";
@@ -113,9 +113,7 @@ export async function notifyCallEnd(
   } catch (cause) {
     void captureException(env, cause, { source: "call-session-do" });
   } finally {
-    // Not awaited, for the same reason as the ring's: this runs in the call's
-    // serialized queue.
-    recordPushAttemptsInBackground(env, db, attempts);
+    recordPushAttempts(env, attempts);
   }
 }
 
@@ -199,7 +197,6 @@ async function deliverCallEnd(
               channel: "webpush",
               platform: "web",
               priority: "high",
-              targetId: sub.id,
             },
             () =>
               sendWebPush(
@@ -259,7 +256,6 @@ async function deliverCallEnd(
             channel: "fcm",
             platform: device.platform,
             priority: "high",
-            targetId: device.id,
           },
           () =>
             sendFcm(

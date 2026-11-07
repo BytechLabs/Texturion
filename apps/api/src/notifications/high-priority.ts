@@ -8,9 +8,9 @@
  * budget denominated in platform goodwill rather than dollars — which is why
  * it went four features deep without anybody counting it.
  *
- * `ai/run.ts` makes every AI cost centre declare a cap and an alert threshold
- * before it may spend. This is the same discipline for the same reason; the
- * only difference is the currency.
+ * `ai/run.ts` makes every AI cost centre declare a cap before it may spend.
+ * This is the same discipline for the same reason; the only difference is the
+ * currency.
  *
  * EVERY high-priority request in the codebase goes through `claimHighPriority`
  * — the shared fan-out in `deliver.ts`, and the two pipelines in
@@ -79,12 +79,12 @@ export const HIGH_PRIORITY_PUSH_DAILY_LIMIT = 2000;
 export interface HighPriorityClaim {
   /** False means: send this delivery at NORMAL instead. Never "do not send". */
   allowed: boolean;
-  /** 80 or 100 the first time the day's ledger crosses that mark, else null. */
-  alert: 80 | 100 | null;
+  /** True for the one claim that took the day's demand to the ceiling. */
+  reachedCap: boolean;
 }
 
 /** Fail-open: metering must never be the reason a phone does not ring. */
-const OPEN: HighPriorityClaim = { allowed: true, alert: null };
+const OPEN: HighPriorityClaim = { allowed: true, reachedCap: false };
 
 /**
  * Claim `sends` native device sends at HIGH priority for one company.
@@ -110,11 +110,11 @@ export async function claimHighPriority(
       p_default_limit: HIGH_PRIORITY_PUSH_DAILY_LIMIT,
     });
     if (error) throw new Error(error.message);
-    const row = (data ?? {}) as { allowed?: boolean; alert?: number | null };
+    const row = (data ?? {}) as { allowed?: boolean; reached_cap?: boolean };
     return {
       // An absent verdict reads as allowed, matching the fail-open posture.
       allowed: row.allowed !== false,
-      alert: row.alert === 80 || row.alert === 100 ? row.alert : null,
+      reachedCap: row.reached_cap === true,
     };
   } catch (cause) {
     console.error(
@@ -134,31 +134,26 @@ export async function claimHighPriority(
 export const HIGH_PRIORITY_CEILING_KEY = "high-priority-push-ceiling";
 
 /**
- * The notice at 80% and at 100% of the ceiling. Ops-only, deliberately: this is
- * our standing with Google, not the customer's bill, and there is nothing an
- * owner could do about it, the same call #448 made for per-dial fees.
+ * The notice when a workspace reaches the ceiling. Ops-only, deliberately:
+ * this is our standing with Google, not the customer's bill, and there is
+ * nothing an owner could do about it, the same call #448 made for per-dial
+ * fees.
  *
- * Exactly-once is the ledger stamp's guarantee, inside `claim_high_priority_push`,
- * so the claim that crosses a rung is the only one that sends.
+ * `claim_high_priority_push` names the one claim whose sends took the day's
+ * count to the ceiling, so this is sent once a day per workspace.
  */
-export async function reportHighPriorityPushAlert(
+export async function reportHighPriorityCeilingReached(
   env: Env,
   request: HighPriorityRequest,
-  threshold: 80 | 100,
 ): Promise<void> {
   await opsNotice(env, {
     key: HIGH_PRIORITY_CEILING_KEY,
-    level: threshold === 100 ? "error" : "warning",
-    summary:
-      threshold === 100
-        ? "A workspace reached the daily high-priority push ceiling"
-        : "A workspace used 80% of the daily high-priority push ceiling",
+    level: "error",
+    summary: "A workspace reached the daily high-priority push ceiling",
     detail:
-      `company ${request.companyId}, reason ${request.reason}, ${threshold}% of ` +
-      `${HIGH_PRIORITY_PUSH_DAILY_LIMIT}. ` +
-      (threshold === 100
-        ? "Further lead notifications today go at NORMAL priority: still sent, but they will not wake a phone out of Doze."
-        : "Past the ceiling, lead notifications go at NORMAL priority for the rest of the local day."),
+      `company ${request.companyId}, reason ${request.reason}, ceiling ` +
+      `${HIGH_PRIORITY_PUSH_DAILY_LIMIT}. Further lead notifications today go at ` +
+      "NORMAL priority: still sent, but they will not wake a phone out of Doze.",
     action:
       "High-priority push is rationed by Google and Apple, and overuse is penalised " +
       "app-wide. Check whether this is a busy crew (raise companies.high_priority_push_limit) " +
@@ -168,8 +163,8 @@ export async function reportHighPriorityPushAlert(
 }
 
 /**
- * Claim, then alert if the claim crossed a rung. The one call every sender
- * makes; returns the urgency to actually send at.
+ * Claim, then send the notice if this claim reached the ceiling. The one call
+ * every sender makes; returns the urgency to actually send at.
  */
 export async function resolveHighPriority(
   env: Env,
@@ -178,8 +173,8 @@ export async function resolveHighPriority(
   sends: number,
 ): Promise<"normal" | "high"> {
   const claim = await claimHighPriority(db, request, sends);
-  if (claim.alert !== null) {
-    await reportHighPriorityPushAlert(env, request, claim.alert);
+  if (claim.reachedCap) {
+    await reportHighPriorityCeilingReached(env, request);
   }
   return claim.allowed ? "high" : "normal";
 }

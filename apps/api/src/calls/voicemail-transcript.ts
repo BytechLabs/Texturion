@@ -12,7 +12,7 @@ import type { AiFeatureSpec } from "../ai/run";
  * This module holds the deterministic pieces — the limits, the model envelope
  * reader, and the sanitizer — so they are unit-testable with no AI binding. The
  * caller (messaging/inbound-ring.ts) owns the I/O: the settings gate, the
- * monthly-cap reservation, the `env.AI.run` call with a timeout, and the alert.
+ * monthly-cap reservation, and the `env.AI.run` call with a timeout.
  *
  * Posture (cost-protection mandate):
  *   - Naturally bounded (one call per voicemail, voicemails bounded by inbound
@@ -58,11 +58,6 @@ export const VOICEMAIL_TRANSCRIPT_FEATURE = "voicemail_transcript";
  */
 export const VOICEMAIL_TRANSCRIPT_MONTHLY_CAP = 500;
 
-/** Fire the one-shot ops alert at 80% of the cap (alert BEFORE the cap). */
-export const VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD = Math.floor(
-  VOICEMAIL_TRANSCRIPT_MONTHLY_CAP * 0.8,
-);
-
 /**
  * Longest recording we will transcribe. Voicemail greetings cap the recording
  * well under this; anything longer is a stuck recording, and paying per audio
@@ -77,14 +72,13 @@ export const VOICEMAIL_TRANSCRIPT_TIMEOUT_MS = 20_000;
  * Everything this cost center is allowed to do, declared once. Both places that
  * transcribe (the recording arriving, and opening one that never got words)
  * hand this to `runAiFeature`, so neither can spend without the opt-in, the
- * cap, the alert and the timeout.
+ * cap and the timeout.
  */
 export const VOICEMAIL_TRANSCRIPT_FEATURE_SPEC: AiFeatureSpec = {
   key: VOICEMAIL_TRANSCRIPT_FEATURE,
   label: "voicemail transcript",
   cap: VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
   unitCostCents: AI_UNIT_COST_CENTS.voicemail_transcript,
-  alertThreshold: VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
   stops:
     "new voicemails are still recorded and playable, just not transcribed.",
   timeoutMs: VOICEMAIL_TRANSCRIPT_TIMEOUT_MS,

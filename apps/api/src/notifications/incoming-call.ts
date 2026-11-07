@@ -29,7 +29,7 @@ import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { claimHighPriority } from "./high-priority";
 import {
-  recordPushAttemptsInBackground,
+  recordPushAttempts,
   timedPush,
   type PushAttempt,
 } from "./push-attempts";
@@ -148,10 +148,7 @@ export async function notifyIncomingCall(
     void captureException(env, cause, { source: "api" });
     return { unreachableUserIds: [] };
   } finally {
-    // D142: not awaited. The DO holds this call's queue until the report comes
-    // back, and the answer claim waiting behind it must not also wait on the
-    // evidence about the ring.
-    recordPushAttemptsInBackground(env, db, attempts);
+    recordPushAttempts(env, attempts);
   }
 }
 
@@ -234,7 +231,6 @@ async function deliverIncomingCallPush(
             channel: "webpush",
             platform: "web",
             priority: "high",
-            targetId: sub.id,
           },
           () => sendWebPush(env, sub, payload, CALL_PUSH_TTL_SECS, "high"),
         );
@@ -320,7 +316,6 @@ async function deliverIncomingCallPush(
             channel: "fcm",
             platform: device.platform,
             priority: "high",
-            targetId: device.id,
           },
           () =>
             sendFcm(

@@ -20,12 +20,9 @@ import type { Env } from "../env";
 import { outboundDestinationRefusal } from "../environments/policy";
 import { classifySendFailure } from "@loonext/shared";
 import { isKilled } from "../flags/evaluate";
-import { channelHeartbeat } from "../observability/heartbeat";
-import { noticeMessagingSpendCap } from "../observability/telnyx-spend";
 import { TELNYX_TIMEOUT_MS, telnyxMediaUrl, telnyxUrl } from "../telnyx/client";
 import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
-import { MESSAGING_SPEND_LIMIT_CODE } from "../telnyx/spend-limits";
 import { recordCarrierOptOut } from "./opt-out";
 import type { GateResult, MessageRow } from "./types";
 
@@ -874,19 +871,7 @@ export async function dispatchOutbound(
     });
   }
 
-  // #642: Telnyx's own daily cap on this workspace's messaging profile. The
-  // row above already carries the honest failure; this is the operator's
-  // signal, distinct from a send that merely failed.
-  if (!result.ok && result.errorCode === MESSAGING_SPEND_LIMIT_CODE) {
-    await noticeMessagingSpendCap(env, db, {
-      companyId: message.company_id,
-      messageId: message.id,
-    });
-  }
-
   if (result.ok) {
-    // D146: the carrier took a text, so the channel is carrying something.
-    channelHeartbeat(env, "channel:telnyx-send");
     // §12 step 18: after the accepted send is durably recorded (instant
     // no-op when analytics is off).
     await captureFirstOutboundSent(env, db, row);

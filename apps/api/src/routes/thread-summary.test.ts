@@ -151,7 +151,7 @@ interface StubOptions {
   spam?: boolean;
   settings?: { summarize_threads: boolean } | null;
   messages?: Row[];
-  reserve?: { count: number; over_cap: boolean; should_alert: boolean } | Response;
+  reserve?: { count: number; over_cap: boolean; reached_cap: boolean } | Response;
   /** An open opt-out row for this contact, or none. */
   optOut?: { source: string; created_at: string } | null;
   /** Force the opt-out read to fail, so carrier truth cannot be established. */
@@ -240,7 +240,7 @@ function stubs(options: StubOptions = {}): SupabaseStub {
       : undefined,
   );
   sb.on("POST", "/rest/v1/rpc/ai_usage_reserve", () =>
-    options.reserve ?? { count: 1, over_cap: false, should_alert: false },
+    options.reserve ?? { count: 1, over_cap: false, reached_cap: false },
   );
   return sb;
 }
@@ -360,7 +360,7 @@ describe("nothing is spent before the free gates", () => {
 
   it("does not call the model when the monthly cap is spent", async () => {
     const sb = stubs({
-      reserve: { count: 501, over_cap: true, should_alert: false },
+      reserve: { count: 501, over_cap: true, reached_cap: false },
     });
     const { ai, run } = mockAi(CITED);
     const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
@@ -390,7 +390,7 @@ describe("the burst limiters, which the monthly cap cannot stand in for", () => 
    * WHY A SECOND KIND OF LIMIT EXISTS. The cap is a per-company MONTHLY ceiling
    * and it is spent in whatever order requests arrive, so on its own a stuck
    * retry loop or a stolen token spends the crew's whole month in a few
-   * seconds, and the cap alert is the first anybody hears of it. The limiters
+   * seconds, and the cap notice is the first anybody hears of it. The limiters
    * bound the RATE; the cap bounds the TOTAL.
    *
    * Both were previously deletable from the route with every test still green,

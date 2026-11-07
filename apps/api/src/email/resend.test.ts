@@ -9,14 +9,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { emailTextFooter } from "./html";
 import { sendEmail } from "./resend";
 import { endpoint, makeHarness } from "../test/billing-support";
+import { eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { completeEnv, stubFetch } from "../test/support";
 import { stripComments } from "../test/source-tree";
 import type { Env } from "../env";
+
+vi.mock("../observability/capture", async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
 
 const env = completeEnv();
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  resetCaptures();
 });
 
 describe("sendEmail", () => {
@@ -49,6 +55,31 @@ describe("sendEmail", () => {
       text: "Hi there" + emailTextFooter(),
       reply_to: "support@loonext.com",
     });
+  });
+
+  it("sends one email_sent event per send, under the system id and with nothing else", async () => {
+    const harness = makeHarness([
+      endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "em_1" })),
+    ]);
+    stubFetch(harness.route);
+
+    await sendEmail(env, { to: ["a@example.com", "b@example.com"], subject: "s", html: "h", text: "t" });
+
+    expect(eventsCaptured("email_sent")).toEqual([
+      { event: "email_sent", distinctId: "loonext-api", properties: {} },
+    ]);
+  });
+
+  it("sends no email_sent for a send Resend refused", async () => {
+    const harness = makeHarness([
+      endpoint("POST", /api\.resend\.com\/emails/, () => new Response("{}", { status: 422 })),
+    ]);
+    stubFetch(harness.route);
+
+    await expect(
+      sendEmail(env, { to: "x@example.com", subject: "s", html: "h", text: "t" }),
+    ).rejects.toThrow(/HTTP 422/);
+    expect(eventsCaptured("email_sent")).toEqual([]);
   });
 
   it("passes multiple recipients through as-is", async () => {

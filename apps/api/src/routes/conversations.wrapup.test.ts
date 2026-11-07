@@ -8,7 +8,7 @@
  *   - IT WAS THE ONE MEMBER-TRIGGERED AI PATH WITH NO BURST GATE. Every sibling
  *     asks a company-keyed limiter and a member-keyed one; this asked neither,
  *     so one member in a loop could spend the crew's whole month of wrap-ups
- *     and the cap alert was the first anyone would hear of it.
+ *     and the cap notice was the first anyone would hear of it.
  *   - THE MODEL INPUTS WERE BUILT EAGERLY, before any cap was consulted — and
  *     they are the most expensive inputs the product builds (a base64 copy of
  *     up to 8 MB, plus a fallback shape that spreads the same bytes into an
@@ -84,7 +84,7 @@ function fakeLimiter(
 interface StubOptions {
   /** `companies.subscription_status`. */
   subscription?: string;
-  reserve?: { count: number; over_cap: boolean; should_alert: boolean };
+  reserve?: { count: number; over_cap: boolean; reached_cap: boolean };
 }
 
 /** A stub whose conversation exists, whose member is an owner, and which pays. */
@@ -111,7 +111,7 @@ function stubReady(options: StubOptions = {}): SupabaseStub {
   ]);
   sb.on("GET", "/rest/v1/company_ai_settings", () => []);
   sb.on("POST", "/rest/v1/rpc/ai_usage_reserve", () =>
-    options.reserve ?? { count: 1, over_cap: false, should_alert: false },
+    options.reserve ?? { count: 1, over_cap: false, reached_cap: false },
   );
   return sb;
 }
@@ -231,7 +231,7 @@ describe("what a refused dictation costs to refuse (#581)", () => {
     // unbuilt here.
     built.length = 0;
     const sb = stubReady({
-      reserve: { count: 1501, over_cap: true, should_alert: false },
+      reserve: { count: 1501, over_cap: true, reached_cap: false },
     });
     const { ai, run } = mockAi();
 

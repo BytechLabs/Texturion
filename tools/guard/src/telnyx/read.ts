@@ -25,27 +25,6 @@ function requireOneFilter(request: TelnyxRequest, names: readonly string[]): voi
 const inGroup = (item: Item, request: TelnyxRequest) =>
   item.billing_group_id === request.view.record.billing_group_id;
 
-/** A read of one partition resource by id: refused before Telnyx is asked unless the id is one of `ids`. */
-function onePartitionResource(ids: (request: TelnyxRequest) => (string | null)[]): ReadRule {
-  return {
-    async prepare(request) {
-      if (!ids(request).includes(request.ids[0])) throw new Refusal("read.not_in_partition");
-    },
-    keep: (item, request) => item.id === request.ids[0],
-  };
-}
-
-/** A webhook delivery is kept only when the event it carried names a nonprod connection or profile. */
-function deliveryInPartition(item: Item, request: TelnyxRequest): boolean {
-  const webhook = item.webhook as { payload?: Item } | undefined;
-  const payload = webhook?.payload ?? {};
-  const { connections, messagingProfiles } = request.view;
-  return (
-    (typeof payload.connection_id === "string" && connections.has(payload.connection_id)) ||
-    (typeof payload.messaging_profile_id === "string" && messagingProfiles.has(payload.messaging_profile_id))
-  );
-}
-
 export const READ_RULES: Readonly<Record<string, ReadRule>> = {
   "GET /v2/phone_numbers": {
     async prepare(request) {
@@ -88,25 +67,6 @@ export const READ_RULES: Readonly<Record<string, ReadRule>> = {
     keep: (item, request) =>
       typeof item.messaging_profile_id === "string" && request.view.messagingProfiles.has(item.messaging_profile_id),
   },
-
-  // From the rig, each answers for the partition only.
-  "GET /v2/call_control_applications/:id": onePartitionResource(({ view }) => [
-    view.record.connections.voice,
-    view.record.connections.robot,
-  ]),
-  "GET /v2/credential_connections/:id": onePartitionResource(({ view }) => [
-    view.record.connections.webrtc,
-    view.record.connections.sentinel,
-  ]),
-  // #642: the daily spend limit on production's own outbound voice profile.
-  // From the rig it answers for the partition's profiles only.
-  "GET /v2/outbound_voice_profiles/:id": onePartitionResource(({ view }) =>
-    Object.values(view.record.outbound_voice_profiles ?? {}),
-  ),
-  "GET /v2/messaging_profiles": {
-    keep: (item, request) => typeof item.id === "string" && request.view.messagingProfiles.has(item.id),
-  },
-  "GET /v2/webhook_deliveries": { keep: deliveryInPartition },
 };
 
 export const handleRead: Handler = async (request) => {

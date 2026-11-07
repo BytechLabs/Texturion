@@ -151,39 +151,6 @@ begin
 end $$;
 
 -- ===========================================================================
--- BD-5. api_dispute_health reports the COST, not just the count.
---
---       The issue's whole argument is arithmetic: $29 clawed back plus a $15
---       fee is $44 out on a sale that nets $27.71. A health report that omits
---       the fee understates the damage by more than half.
--- ===========================================================================
-do $$
-declare h jsonb;
-begin
-  h := public.api_dispute_health(now(), 120);
-
-  if (h->>'disputes')::int is distinct from 2 then
-    raise exception 'BD-5 FAILED: expected 2 disputes in the window, got %', h->>'disputes';
-  end if;
-  if (h->>'unattributed')::int is distinct from 1 then
-    raise exception 'BD-5 FAILED: the unattributable one was not counted: %', h;
-  end if;
-  -- 2900 + 9900 amounts, 1500 + 1500 fees.
-  if (h->>'cost_cents')::int is distinct from 15800 then
-    raise exception 'BD-5 FAILED: cost was % cents, expected 15800 (amounts + fees)', h->>'cost_cents';
-  end if;
-
-  -- Outside the window is outside the number.
-  update public.billing_disputes set opened_at = now() - interval '400 days';
-  h := public.api_dispute_health(now(), 120);
-  if (h->>'disputes')::int is distinct from 0 then
-    raise exception 'BD-5 FAILED: old disputes leaked into the window: %', h;
-  end if;
-
-  raise notice 'BD-5 PASSED: health reports the clawback AND the fee';
-end $$;
-
--- ===========================================================================
 -- BD-6. Grants and RLS. This table names which customers charged back, across
 --       every tenant — the last thing one company should be able to read
 --       about another.
@@ -195,7 +162,7 @@ begin
     from information_schema.role_routine_grants g
     join pg_proc p on p.proname = g.routine_name
    where g.routine_schema = 'public'
-     and p.proname in ('record_billing_dispute', 'api_dispute_health')
+     and p.proname = 'record_billing_dispute'
      and g.grantee in ('PUBLIC', 'anon', 'authenticated');
   if bad is not null then
     raise exception 'BD-6 FAILED: dispute functions are reachable: %', bad;

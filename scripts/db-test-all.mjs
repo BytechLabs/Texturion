@@ -174,12 +174,8 @@ const SUITES = [
   // D142: the rig's database texts and dials only its own numbers, and
   // production's is unchanged.
   "rig_destination_gate",
-  // D142: push and ring evidence holds nothing personal, for 14 days.
-  "push_evidence",
   // D142: agent_diag reads the non-personal views and nothing else.
   "agent_diag",
-  // #642/#643: Telnyx spend and voice-capacity reads.
-  "telnyx_spend_reads",
 ];
 
 const args = process.argv.slice(2);

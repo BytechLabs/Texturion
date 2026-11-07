@@ -92,7 +92,7 @@ function companyRoute(): Stub {
 
 /** ai_usage_reserve RPC → the reservation verdict, and how often it was asked. */
 function reserveRoute(
-  verdict: { count: number; over_cap: boolean; should_alert: boolean },
+  verdict: { count: number; over_cap: boolean; reached_cap: boolean },
 ): Stub & { calls: () => number } {
   let calls = 0;
   const stub = stubRoute(rpcMatch(baseEnv, "ai_usage_reserve"), () => {
@@ -157,7 +157,7 @@ describe("POST /v1/tasks/enrich", () => {
       jwksRoute(auth),
       membersRoute(),
       settingsRoute({ enrich_task_address: true, enrich_task_due: true }).route,
-      reserveRoute({ count: 1, over_cap: false, should_alert: false }).route,
+      reserveRoute({ count: 1, over_cap: false, reached_cap: false }).route,
       companyRoute().route,
     );
 
@@ -182,7 +182,7 @@ describe("POST /v1/tasks/enrich", () => {
     const reserve = reserveRoute({
       count: 1,
       over_cap: false,
-      should_alert: false,
+      reached_cap: false,
     });
     stubFetch(
       jwksRoute(auth),
@@ -208,7 +208,7 @@ describe("POST /v1/tasks/enrich", () => {
       membersRoute(),
       settingsRoute({ enrich_task_address: true, enrich_task_due: true }).route,
       companyRoute().route,
-      reserveRoute({ count: 1001, over_cap: true, should_alert: false }).route,
+      reserveRoute({ count: 1001, over_cap: true, reached_cap: false }).route,
     );
 
     // Signal-bearing text so it reaches the cap (a no-signal task skips earlier).
@@ -226,7 +226,7 @@ describe("POST /v1/tasks/enrich", () => {
       jwksRoute(auth),
       membersRoute(),
       settingsRoute({ enrich_task_address: true, enrich_task_due: true }).route,
-      reserveRoute({ count: 2, over_cap: false, should_alert: false }).route,
+      reserveRoute({ count: 2, over_cap: false, reached_cap: false }).route,
       companyRoute().route,
     );
 
@@ -245,7 +245,7 @@ describe("POST /v1/tasks/enrich", () => {
     const reserve = reserveRoute({
       count: 1,
       over_cap: false,
-      should_alert: false,
+      reached_cap: false,
     });
     stubFetch(
       jwksRoute(auth),
@@ -266,7 +266,7 @@ describe("POST /v1/tasks/enrich", () => {
     const reserve = reserveRoute({
       count: 1,
       over_cap: false,
-      should_alert: false,
+      reached_cap: false,
     });
     stubFetch(
       jwksRoute(auth),
@@ -291,7 +291,7 @@ describe("POST /v1/tasks/enrich", () => {
     const reserve = reserveRoute({
       count: 1,
       over_cap: false,
-      should_alert: false,
+      reached_cap: false,
     });
     stubFetch(
       jwksRoute(auth),

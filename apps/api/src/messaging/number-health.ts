@@ -14,11 +14,10 @@
  *   - only TRANSITIONS are announced. The RPC returns just the numbers whose
  *     state changed, so a known-bad number does not send a notice every
  *     morning until somebody starts ignoring them.
- *   - 'watch' is a notice to US. 'degraded' also becomes a banner the customer sees.
- *     A maybe-degraded warning on a thin sample is how a false alarm turns
- *     into a cancellation, so the customer only ever hears the confident one.
+ *   - a number is healthy or degraded, and 'degraded' is also a banner the
+ *     customer sees, so only a move into or out of it is news.
  *   - RECOVERY is announced too. A number that came back is the only evidence
- *     that a remediation worked, and it closes the loop on an alert somebody
+ *     that a remediation worked, and it closes the loop on an issue somebody
  *     is still worrying about.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -39,13 +38,6 @@ interface HealthTransition {
   detail: string | null;
 }
 
-const STATE_RANK: Record<string, number> = { healthy: 0, watch: 1, degraded: 2 };
-
-/** Did this transition make things worse? Recovery reads differently. */
-function isWorsening(row: HealthTransition): boolean {
-  return (STATE_RANK[row.state] ?? 0) > (STATE_RANK[row.was] ?? 0);
-}
-
 export async function runNumberHealthJob(
   env: Env,
   _now: Date = new Date(),
@@ -54,11 +46,11 @@ export async function runNumberHealthJob(
   const { data, error } = await db.rpc("api_assess_number_health");
   if (error) throw new Error(`number health assessment failed: ${error.message}`);
 
+  // A number is healthy or degraded, so every transition enters or leaves
+  // 'degraded'.
   const transitions = (data ?? []) as HealthTransition[];
   if (transitions.length === 0) return transitions;
-
-  const worse = transitions.filter(isWorsening);
-  const better = transitions.filter((row) => !isWorsening(row));
+  const degraded = transitions.filter((row) => row.state === "degraded");
 
   const line = (row: HealthTransition) => {
     const rate = row.delivery_rate === null ? "?" : `${Math.round(row.delivery_rate * 100)}%`;
@@ -68,24 +60,16 @@ export async function runNumberHealthJob(
     return `phone_number ${row.phone_number_id}: ${row.was} to ${row.state}, ${rate} (${base})${row.detail ? `; ${row.detail}` : ""}`;
   };
 
-  const degraded = transitions.filter((row) => row.state === "degraded").length;
-  const lines = [
-    ...worse.map((row) => `worse: ${line(row)}`),
-    ...better.map((row) => `recovered: ${line(row)}`),
-  ];
-
   await opsNotice(env, {
     key: "number-health",
-    level: degraded > 0 ? "error" : "warning",
+    level: degraded.length > 0 ? "error" : "warning",
     summary:
-      degraded > 0
+      degraded.length > 0
         ? "A number is now DEGRADED, and its customer can see it"
-        : worse.length > 0
-          ? "A number's delivery health got worse"
-          : "A number's delivery health recovered",
-    detail: lines.join("; "),
+        : "A number's delivery health recovered",
+    detail: transitions.map(line).join("; "),
     action:
-      worse.length > 0
+      degraded.length > 0
         ? "A labelled number does not recover on its own and the registry paperwork " +
           "takes days, so start now rather than when the customer calls. " +
           "docs/NUMBER-REPUTATION.md has the remediation path."

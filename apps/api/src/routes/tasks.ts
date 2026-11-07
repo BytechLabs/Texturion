@@ -789,8 +789,8 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
     contactAddress: ctx.contactAddress,
   });
 
-  // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap,
-  // the alert before the cap, and the timeout. Any refusal degrades to "no
+  // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap
+  // and the timeout. Any refusal degrades to "no
   // enrichment" — make-a-task never waits on it and never fails because of it.
   const enriched = await runAiFeature(env, db, {
     companyId,

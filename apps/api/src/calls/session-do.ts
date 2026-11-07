@@ -28,12 +28,7 @@ import {
   VOICEMAIL_INBOUND_STATE,
 } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
-import {
-  captureEvent,
-  captureException,
-  SYSTEM_DISTINCT_ID,
-  type WaitUntil,
-} from "../observability/capture";
+import { captureException, type WaitUntil } from "../observability/capture";
 import {
   parseOutboundPlacerState,
   parseOutboundSessionId,
@@ -132,10 +127,6 @@ interface CallPayload {
 function callPayload(event: TelnyxEvent): CallPayload | undefined {
   return event.data?.payload as unknown as CallPayload | undefined;
 }
-
-/** The Worker pings every six hours; seven leaves an hour of slack. */
-export const HEARTBEAT_KEY = "channel:call-session-do";
-export const HEARTBEAT_GRACE_MINUTES = 420;
 
 /** Alarm bucket keys — the reducer's AlarmKind plus the two shell-owned ones. */
 type AlarmSlot = AlarmKind | "journal-resume" | "mirror-retry";
@@ -439,24 +430,6 @@ export class CallSessionDO extends DurableObject<Env> {
       if (!(await this.load())) return;
       await this.admitAndDrain({ type: "clear-intent" }, null);
     });
-  }
-
-  /**
-   * The six-hourly proof that this object can still reach PostHog, sent from
-   * inside it: the Worker's own heartbeats say nothing about this isolate.
-   * PostHog's "Heartbeat overdue" alert fires when it stops (D146).
-   *
-   * Outside `enqueue`, like any diagnostic: it touches no session state and
-   * must not wait behind a live call.
-   */
-  async heartbeat(): Promise<void> {
-    await captureEvent(
-      this.validatedEnv(),
-      "ops_heartbeat",
-      SYSTEM_DISTINCT_ID,
-      { key: HEARTBEAT_KEY, grace_minutes: HEARTBEAT_GRACE_MINUTES },
-      this.keepAlive,
-    );
   }
 
   /**
@@ -1083,11 +1056,6 @@ export class CallSessionDO extends DurableObject<Env> {
           `dropping non-terminal command (cap-and-drop)`,
       );
       return false;
-    }
-    if (machine.telnyxCommandCount === Math.floor(cap / 2)) {
-      this.rt.warn(
-        `calls-v3 command count at 50% of cap ${cap} for ${machine.callSessionId} (alert-before-the-cap)`,
-      );
     }
     return true;
   }

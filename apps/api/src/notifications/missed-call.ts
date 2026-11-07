@@ -42,8 +42,6 @@ export interface MissedCallNotificationInput {
    * 'sent' tells the crew to call back instead.
    */
   textStatus: "sent" | "failed" | "none";
-  /** Set by the call engine; see PushDelivery.recordAttemptsInBackground. */
-  recordAttemptsInBackground?: boolean;
 }
 
 interface ConversationView {
@@ -198,7 +196,6 @@ export async function notifyMissedCall(
     ...(routing.reason === "narrowed"
       ? { overridesQuietHours: { reason: "on_call_page" as const } }
       : {}),
-    recordAttemptsInBackground: input.recordAttemptsInBackground,
     failures,
   });
 

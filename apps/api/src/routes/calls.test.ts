@@ -1230,7 +1230,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     sb.on("POST", "/rest/v1/rpc/ai_usage_reserve", () => ({
       count: 501,
       over_cap: true,
-      should_alert: false,
+      reached_cap: false,
     }));
     const res = await play(sb, [listRoute(), signRoute()]);
 

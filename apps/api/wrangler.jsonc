@@ -67,7 +67,6 @@
       "0 15 * * *", // subscription reconcile
       "45 15 * * *", // opt-out reconciliation against the carrier list (daily)
       "30 15 * * *", // webhook_events ledger retention (daily)
-      "15 */6 * * *", // D146 the call Durable Object's heartbeat (six-hourly)
       // #482 response-time recap (monthly, 1st). Its own minute so it never
       // shares a tick with the daily jobs above — this one fans out across
       // every active tenant, and a slow run must not delay grace & release.
@@ -138,7 +137,7 @@
         // company's bill), but nothing stopped ONE member spending the whole
         // crew's month: a runaway client, a stuck retry loop, or a stolen token
         // could exhaust every draft and every enrichment for everyone else, and
-        // the first anyone knew was the cap alert. Keyed on company + user, and
+        // the first anyone knew was the cap notice. Keyed on company + user, and
         // set below the company limit so a single person cannot be the entire
         // burst. Optional in src/env.ts → dev/tests skip it.
         "name": "AI_MEMBER_RATE_LIMITER",
@@ -282,6 +281,18 @@
         "type": "ratelimit",
         "namespace_id": "1012",
         "simple": { "limit": 60, "period": 60 }
+      },
+      {
+        // D142: the ring-beacon relay, keyed on company + user. Each beacon is
+        // a PostHog event a member's own device sends, so a client stuck in a
+        // loop would otherwise spend the project's event quota. A ring reaches
+        // at most six stages on each device, so 20 a minute covers a member on
+        // three devices; past it a beacon is answered and dropped. Optional in
+        // src/env.ts, like the others.
+        "name": "RING_BEACON_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1014",
+        "simple": { "limit": 20, "period": 60 }
       }
     ]
   },

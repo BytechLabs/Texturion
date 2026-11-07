@@ -4,7 +4,6 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
 import { captureEvent, SYSTEM_DISTINCT_ID } from "../observability/capture";
-import { countWebhookRejection } from "../observability/webhook-rejections";
 
 /**
  * #386 — the Resend webhook: the half of email that was never wired up.
@@ -112,12 +111,7 @@ resendWebhookRoute.post("/", async (c) => {
   // the secret is set, whereas trusting an unsigned body would let anybody
   // suppress any address in the product.
   if (!env.RESEND_WEBHOOK_SECRET) {
-    // #581/16: counted, like a bad signature is. This is the MOST likely Resend
-    // misconfiguration — a secret cleared or never copied into an environment — and it
-    // returned before the counter, so the one arrangement the alarm exists to catch
-    // was the one arrangement that recorded nothing at all. Every delivery is refused
-    // either way; what differs is whether anybody finds out.
-    countWebhookRejection(c, "resend");
+    console.warn("resend webhook refused: RESEND_WEBHOOK_SECRET is not set");
     return c.json({ error: "resend webhooks are not configured" }, 503);
   }
 
@@ -134,9 +128,7 @@ resendWebhookRoute.post("/", async (c) => {
     new Date(),
   );
   if (!ok) {
-    // #308: counted, because a rotated secret otherwise means we refuse every
-    // bounce and complaint Resend sends and nothing anywhere says so.
-    countWebhookRejection(c, "resend");
+    console.warn("resend webhook refused: signature verification failed");
     return c.json({ error: "signature verification failed" }, 400);
   }
 
@@ -218,8 +210,7 @@ export async function processResendEvent(env: Env, event: ResendEvent): Promise<
   }
 
   // D146: the domain's bounce and complaint rates are PostHog's to watch, set
-  // against the `channel:resend-send` heartbeat each send makes. The address
-  // stays here.
+  // against the `email_sent` event each send makes. The address stays here.
   if (kind !== "delivered") {
     void captureEvent(env, "email_bounced", SYSTEM_DISTINCT_ID, {
       kind: kind === "bounced" ? "bounce" : "complaint",

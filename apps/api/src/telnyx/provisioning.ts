@@ -4,7 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { telnyxRequest, TelnyxApiError } from "./client";
 import { provisioningDelayedCopy } from "./emails";
 import {
-  ownershipReportDue,
   ownsTelnyxNumber,
   partitionOrderFields,
   reportOwnershipMismatch,
@@ -1305,8 +1304,8 @@ async function fetchTelnyxNumber(
  *
  * A D142 partition refusal is not one of those failures. It has already
  * raised the mismatch alert, no retry can clear it, and failing the batch
- * would block the grace job's campaign deactivation and withhold its heartbeat
- * until someone edits the portal. The row stays un-released, so the next
+ * would block the grace job's campaign deactivation until someone edits the
+ * portal. The row stays un-released, so the next
  * daily pass tries it again, and the reconcile sweep keeps paging about it.
  */
 export async function releaseCompanyNumbers(
@@ -1585,9 +1584,7 @@ export async function reconcileNumbers(
         `${summary.mismatched} of them this environment's own — counted, not acted on`,
     );
   }
-  if (mismatched.length > 0 && ownershipReportDue(now)) {
-    await reportOwnershipMismatch(env, mismatched, "the reconcile sweep");
-  }
+  await reportOwnershipMismatch(env, mismatched, "the reconcile sweep");
   return summary;
 }
 

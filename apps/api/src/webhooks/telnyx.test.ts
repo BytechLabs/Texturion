@@ -27,7 +27,6 @@ import {
   type Stub,
 } from "../test/messaging-support";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
-import { channelBeats } from "../observability/heartbeat";
 import { eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { telnyxWebhookRoute } from "./telnyx";
 
@@ -51,7 +50,6 @@ beforeEach(async () => {
   privateKey = keys.privateKey;
   env = { ...completeEnv(), TELNYX_PUBLIC_KEY: keys.publicKeyB64 };
   resetCaptures();
-  channelBeats.reset();
 });
 
 afterEach(() => {
@@ -273,25 +271,6 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     await second.flush();
 
     expect(threadRpc.calls).toHaveLength(1); // first delivery only
-  });
-
-  it("beats the channel heartbeat once per fresh delivery, never on a duplicate", async () => {
-    const ledger = ledgerStubs();
-    serve(ledger.insert, ledger.stamp);
-    const event = {
-      data: {
-        event_type: "message.some_future_thing",
-        id: "e5e5e5e5-0000-4000-8000-000000000005",
-        payload: {},
-      },
-    };
-
-    await (await deliver(event)).flush();
-    await (await deliver(event)).flush();
-
-    expect(eventsCaptured("ops_heartbeat").map((beat) => beat.properties)).toEqual([
-      { key: "channel:telnyx-webhook", grace_minutes: 780 },
-    ]);
   });
 
   it("sends call_received under the workspace that owns the called number", async () => {

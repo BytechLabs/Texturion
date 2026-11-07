@@ -218,6 +218,14 @@ const MAX_PROPERTY_WORDS = 3;
 const MAX_PROPERTY_LENGTH = 64;
 
 /**
+ * A value that is wholly a uuid or a UTC ISO timestamp. Either can hold a run
+ * of ten digits and hyphens, which the phone rule reads as a number, and
+ * neither can name or reach a person.
+ */
+const UTC_INSTANT = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z/;
+const IDENTIFIER_OR_INSTANT = new RegExp(`^(?:${UUID_PATTERN.source}|${UTC_INSTANT.source})$`);
+
+/**
  * Drop any property that looks like a person and hand `report` a message
  * naming the key and the offence, never the value: reporting a leak by
  * repeating it would be worse than the leak.
@@ -233,7 +241,7 @@ export function scrubProperties(
 ): Record<string, unknown> {
   const safe: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(properties)) {
-    if (typeof value !== "string") {
+    if (typeof value !== "string" || IDENTIFIER_OR_INSTANT.test(value)) {
       // Numbers, booleans and null cannot carry a body, an address or a name.
       safe[key] = value;
       continue;

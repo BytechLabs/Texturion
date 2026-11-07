@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * D142 FA13: give agent_diag a new random password and leave the login where
- * call-trace.mjs looks for it. An agent runs this; nobody sees the password.
+ * agent-diag.mjs looks for it. An agent runs this; nobody sees the password.
  *
  *   node scripts/ops/set-agent-diag-password.mjs --target production --dry-run
  *   node scripts/ops/set-agent-diag-password.mjs --target production --check
@@ -32,14 +32,14 @@
  * 20261031100000). And a production database where agent_diag can reach
  * pg_net, which a migration cannot close on Supabase; on the local stack,
  * which installs pg_net, that is a warning. These run when a password is set
- * or checked. call-trace.mjs checks the same hazards from inside every
+ * or checked. agent-diag.mjs checks the same hazards from inside every
  * agent_diag session it opens, so one that appears later, such as pg_net
- * enabled from the dashboard, stops the next trace.
+ * enabled from the dashboard, stops the next session.
  *
  * --dry-run connects to nothing and writes nothing. --check runs the same
  * refusals read-only and changes nothing. --withdraw sets the password to
  * NULL, so agent_diag cannot log in at all, and deletes the local login file:
- * what to run when call-trace reports the login is no longer safe.
+ * what to run when agent-diag.mjs reports the login is no longer safe.
  *
  * NOT IN CI. ops.yml has no password action: the password is born where it
  * is used, and a runner would add a copy of it, a ciphertext in a public
@@ -53,7 +53,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { agentDiagEnvFile, runPsql } from "./call-trace.mjs";
+import { agentDiagEnvFile, runPsql } from "./agent-diag.mjs";
 import { fail, parseArgs } from "./lib.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -400,8 +400,8 @@ function main() {
   console.log(`  The login is in ${out}${restricted ? ", readable by you only" : "; its permissions could NOT be narrowed, so restrict it by hand"}.`);
   console.log(
     out === resolve(agentDiagEnvFile(home))
-      ? "  call-trace.mjs reads it from there when AGENT_DIAG_DATABASE_URL is unset.\n"
-      : `  call-trace.mjs reads only ${agentDiagEnvFile(home)}; to use this login, set AGENT_DIAG_DATABASE_URL from it.\n`,
+      ? "  agent-diag.mjs reads it from there when AGENT_DIAG_DATABASE_URL is unset.\n"
+      : `  agent-diag.mjs reads only ${agentDiagEnvFile(home)}; to use this login, set AGENT_DIAG_DATABASE_URL from it.\n`,
   );
 }
 

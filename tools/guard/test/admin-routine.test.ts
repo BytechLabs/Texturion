@@ -209,26 +209,6 @@ describe("guard.yml's admin routines", () => {
     expect(outcome.lines[1]).toMatch(/^::error title=Ordering stopped again::/);
   });
 
-  it("run and accept the key inventory, printing counts, never ids", async () => {
-    const h = await ready();
-    h.telnyx.apiKeys = [{ id: "key-production" }, { id: "key-guard" }];
-    h.telnyx.lists.oauth_grants.push({ id: "grant-1" });
-    const run = await runRoutine("key-inventory", throughEdge(h));
-    expect(run.ok).toBe(true);
-    expect(JSON.parse(run.lines[0])).toEqual({
-      sources: { api_keys: 2, oauth_clients: 0, oauth_grants: 1, audit_findings: 0 },
-      unexpected: { no_accepted_baseline: 1 },
-    });
-    const accept = await runRoutine("accept-key-inventory", throughEdge(h));
-    expect(JSON.parse(accept.lines[0])).toEqual({ accepted: { api_keys: 2, oauth_clients: 0, oauth_grants: 1 } });
-
-    h.telnyx.apiKeys.push({ id: "key-unexpected" });
-    const again = await runRoutine("key-inventory", throughEdge(h));
-    expect(JSON.parse(again.lines[0]).unexpected).toEqual({ api_key: 1 });
-    expect(again.lines[1]).toMatch(/^::warning /);
-    assertPublicSafe([...run.lines, ...accept.lines, ...again.lines]);
-  });
-
   it("file production's measurements, which admission then reads", async () => {
     const h = await ready();
     await h.store.delete(ADMISSION_KEYS.reserve);
@@ -490,7 +470,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
     ];
     expect(lines).toEqual([
       "::error title=Production not read::psql exited 2",
-      "::error title=Production not read::the agent_diag self-check refused this login; see scripts/ops/call-trace.mjs --self-check",
+      "::error title=Production not read::the agent_diag self-check refused this login; see scripts/ops/agent-diag.mjs --self-check",
     ]);
     expect(lines.join("\n")).not.toMatch(/abcdefghijklmnopqrst|pooler|public\.calls/);
   });

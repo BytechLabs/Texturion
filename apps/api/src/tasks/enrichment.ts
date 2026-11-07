@@ -6,7 +6,7 @@
  * construction, strict output parsing/validation, provenance mapping, and
  * timezone-aware due resolution — so they are exhaustively unit-testable with no
  * AI binding. The route (routes/tasks.ts) owns the I/O: settings gate, rate +
- * monthly-cap reservation, the `env.AI.run` call with a timeout, and the alert.
+ * monthly-cap reservation, and the `env.AI.run` call with a timeout.
  *
  * Security posture (BINDING, #214 + cost-protection mandate):
  *   - The task text is attacker-controllable. The model output is DATA, never an
@@ -33,10 +33,6 @@ export const ENRICHMENT_MODEL = "@cf/meta/llama-3.2-1b-instruct";
  * "no enrichment" — task creation is never affected.
  */
 export const ENRICHMENT_MONTHLY_CAP = 1000;
-/** Fire the one-shot ops alert at 80% of the cap (alert BEFORE the cap). */
-export const ENRICHMENT_ALERT_THRESHOLD = Math.floor(
-  ENRICHMENT_MONTHLY_CAP * 0.8,
-);
 /** Reject task text longer than this before spending an AI call on it. */
 export const ENRICHMENT_MAX_INPUT_CHARS = 4000;
 
@@ -46,14 +42,13 @@ export const ENRICHMENT_TIMEOUT_MS = 8000;
 /**
  * Everything this cost center may do, declared once and handed to
  * `runAiFeature` — the one door onto the model, which owns the opt-in, the
- * cap, the alert and the timeout so no caller can assemble them wrongly.
+ * cap and the timeout so no caller can assemble them wrongly.
  */
 export const ENRICHMENT_FEATURE_SPEC: AiFeatureSpec = {
   key: "enrich",
   label: "task enrichment",
   cap: ENRICHMENT_MONTHLY_CAP,
   unitCostCents: AI_UNIT_COST_CENTS.enrich,
-  alertThreshold: ENRICHMENT_ALERT_THRESHOLD,
   stops: "make-a-task simply stops pre-filling the address and due date.",
   timeoutMs: ENRICHMENT_TIMEOUT_MS,
   // Either half being on is reason enough to ask; the response carries only

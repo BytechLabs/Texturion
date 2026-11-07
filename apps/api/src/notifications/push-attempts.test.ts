@@ -1,16 +1,14 @@
 /**
- * D142: the push_attempts ledger, including the rule that the evidence can
+ * D142: the push_attempt event, including the rule that the evidence can
  * never be the reason a push fails.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getDb } from "../db";
-import { supabaseStub } from "../test/routes-harness";
-import { eventsCaptured, noticesCaptured, resetCaptures } from "../test/capture-mock";
-import { completeEnv, stubFetch } from "../test/support";
+import { scrubProperties } from "../observability/scrub";
+import { eventsCaptured, resetCaptures } from "../test/capture-mock";
+import { completeEnv } from "../test/support";
 import {
   classifyPushResponse,
-  PUSH_ATTEMPTS_WRITE_TIMEOUT_MS,
   recordPushAttempts,
   timedPush,
   type PushAttempt,
@@ -26,19 +24,17 @@ const env = completeEnv();
 const TARGET: PushTarget = {
   companyId: "c1000000-0000-4000-8000-00000000000c",
   userId: "a1000000-0000-4000-8000-00000000000a",
-  callSessionId: "v3:session-1",
+  callSessionId: "4f6a1c2e-8b3d-4e5f-9a0b-1c2d3e4f5a6b",
   purpose: "ring",
   channel: "fcm",
   platform: "android",
   priority: "high",
-  targetId: "d1000000-0000-4000-8000-00000000000d",
 };
 
 beforeEach(() => {
   resetCaptures();
 });
 afterEach(() => {
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -115,186 +111,56 @@ describe("recordPushAttempts", () => {
     startedAt: Date.parse("2026-10-31T14:00:00.000Z"),
   };
 
-  it("writes one insert with the table's columns and nothing else", async () => {
-    const sb = supabaseStub(env);
-    sb.on("POST", "/rest/v1/push_attempts", () => new Response(null, { status: 201 }));
-    stubFetch(sb.route);
+  it("sends one push_attempt per attempt, under the workspace, with the contract's fields", () => {
+    recordPushAttempts(env, [attempt, { ...attempt, platform: "ios", httpStatus: null }]);
 
-    await recordPushAttempts(env, getDb(env), [attempt, { ...attempt, platform: "ios" }]);
-
-    const inserts = sb.find("POST", "/rest/v1/push_attempts");
-    expect(inserts).toHaveLength(1);
-    expect(inserts[0].body).toEqual([
+    expect(eventsCaptured("push_attempt")).toEqual([
       {
-        company_id: TARGET.companyId,
-        user_id: TARGET.userId,
-        call_session_id: "v3:session-1",
-        purpose: "ring",
-        channel: "fcm",
-        platform: "android",
-        priority: "high",
-        response_class: "accepted",
-        http_status: 200,
-        latency_ms: 88,
-        target_id: TARGET.targetId,
-        attempted_at: "2026-10-31T14:00:00.000Z",
-      },
-      expect.objectContaining({ platform: "ios" }),
-    ]);
-  });
-
-  it("sends a ring_push_sent event for each ring push that reached a live channel", async () => {
-    const sb = supabaseStub(env);
-    sb.on("POST", "/rest/v1/push_attempts", () => new Response(null, { status: 201 }));
-    stubFetch(sb.route);
-
-    await recordPushAttempts(env, getDb(env), [
-      attempt,
-      { ...attempt, platform: "ios" },
-      { ...attempt, responseClass: "gone" },
-      { ...attempt, purpose: "call_end" },
-    ]);
-
-    expect(eventsCaptured("ring_push_sent")).toEqual([
-      { event: "ring_push_sent", distinctId: TARGET.companyId, properties: { platform: "android" } },
-      { event: "ring_push_sent", distinctId: TARGET.companyId, properties: { platform: "ios" } },
-    ]);
-  });
-
-  it("writes nothing for an empty fan-out", async () => {
-    stubFetch(); // any request fails the test
-    await recordPushAttempts(env, getDb(env), []);
-  });
-
-  it("sends one notice an hour per isolate, with the code and never the row", async () => {
-    const sb = supabaseStub(env);
-    sb.on("POST", "/rest/v1/push_attempts", () =>
-      Response.json(
-        {
-          code: "23514",
-          message: 'new row violates check constraint; Failing row contains (v3:session-1, +16135550142)',
+        event: "push_attempt",
+        distinctId: TARGET.companyId,
+        properties: {
+          purpose: "ring",
+          channel: "fcm",
+          platform: "android",
+          priority: "high",
+          response_class: "accepted",
+          http_status: 200,
+          latency_ms: 88,
+          call_session_id: TARGET.callSessionId,
+          user_id: TARGET.userId,
+          attempted_at: "2026-10-31T14:00:00.000Z",
         },
-        { status: 400 },
-      ),
-    );
-    stubFetch(sb.route);
-
-    vi.useFakeTimers({ toFake: ["Date"] });
-    try {
-      vi.setSystemTime(new Date("2026-11-03T10:00:00Z"));
-      await recordPushAttempts(env, getDb(env), [attempt]);
-      await recordPushAttempts(env, getDb(env), [attempt]);
-      vi.setSystemTime(new Date("2026-11-03T10:59:00Z"));
-      await recordPushAttempts(env, getDb(env), [attempt]);
-      expect(noticesCaptured("push-attempts-ledger")).toHaveLength(1);
-
-      vi.setSystemTime(new Date("2026-11-03T11:01:00Z"));
-      await recordPushAttempts(env, getDb(env), [attempt]);
-    } finally {
-      vi.useRealTimers();
-    }
-
-    const notices = noticesCaptured("push-attempts-ledger");
-    expect(notices).toHaveLength(2);
-    const detail = String(notices[0].detail);
-    expect(detail).toContain("23514");
-    expect(detail).not.toContain("5550142");
-    expect(detail).not.toContain("session-1");
-  });
-
-  it("logs a member who left mid-send without a notice: a race, not a broken ledger", async () => {
-    const sb = supabaseStub(env);
-    sb.on("POST", "/rest/v1/push_attempts", () =>
-      Response.json(
-        { code: "23503", message: 'insert violates foreign key constraint "push_attempts_member_fk"' },
-        { status: 409 },
-      ),
-    );
-    stubFetch(sb.route);
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    await recordPushAttempts(env, getDb(env), [attempt]);
-
-    expect(noticesCaptured()).toHaveLength(0);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("left mid-send"));
-  });
-
-  it("records a send slower than the latency ceiling at the ceiling", async () => {
-    const sb = supabaseStub(env);
-    sb.on("POST", "/rest/v1/push_attempts", () => new Response(null, { status: 201 }));
-    stubFetch(sb.route);
-
-    await recordPushAttempts(env, getDb(env), [{ ...attempt, latencyMs: 900_000 }]);
-
-    const [request] = sb.find("POST", "/rest/v1/push_attempts");
-    expect(request.body).toEqual([expect.objectContaining({ latency_ms: 600_000 })]);
-  });
-
-  it("logs a transport failure without a notice, and never throws", async () => {
-    stubFetch(); // the insert's fetch rejects
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    await expect(recordPushAttempts(env, getDb(env), [attempt])).resolves.toBeUndefined();
-
-    expect(noticesCaptured()).toHaveLength(0);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("not recorded"));
-  });
-
-  it("logs a database's 5xx without a notice: weather, not a refusal", async () => {
-    const sb = supabaseStub(env);
-    sb.on("POST", "/rest/v1/push_attempts", () =>
-      Response.json({ code: "57014", message: "canceling statement due to statement timeout" }, { status: 503 }),
-    );
-    stubFetch(sb.route);
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    await recordPushAttempts(env, getDb(env), [attempt]);
-
-    expect(noticesCaptured()).toHaveLength(0);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("HTTP 503"));
-  });
-
-  it("gives up on a write the database never answers", async () => {
-    // AbortSignal.timeout is native and fake timers do not drive it, so the
-    // deadline is handed a signal the test can fire.
-    const deadline = new AbortController();
-    const timeout = AbortSignal.timeout.bind(AbortSignal);
-    const asked: number[] = [];
-    vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
-      asked.push(ms);
-      return ms === PUSH_ATTEMPTS_WRITE_TIMEOUT_MS ? deadline.signal : timeout(ms);
-    });
-    // Held here because a Request's signal follows the caller's only weakly:
-    // once nothing references the Request, a collection drops it and the
-    // abort below would never reach the pending fetch.
-    let pending: Request | undefined;
-    stubFetch(
-      (_url, request) =>
-        new Promise<Response>((_resolve, reject) => {
-          pending = request;
-          request.signal.addEventListener("abort", () => reject(request.signal.reason));
-        }),
-    );
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    const write = recordPushAttempts(env, getDb(env), [attempt]);
-    await vi.waitFor(() => expect(pending).toBeDefined());
-    expect(asked).toContain(PUSH_ATTEMPTS_WRITE_TIMEOUT_MS);
-    deadline.abort(new DOMException("deadline", "TimeoutError"));
-
-    await expect(write).resolves.toBeUndefined();
-    expect(noticesCaptured()).toHaveLength(0);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("no answer"));
-  });
-
-  it("survives a client that throws outright", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const broken = {
-      from: () => {
-        throw new Error("not a client");
       },
-    } as never;
-    await expect(recordPushAttempts(env, broken, [attempt])).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalled();
+      expect.objectContaining({
+        properties: expect.objectContaining({ platform: "ios", http_status: null }),
+      }),
+    ]);
+  });
+
+  it("keeps an alert's missing call session as null", () => {
+    recordPushAttempts(env, [{ ...attempt, purpose: "alert", callSessionId: null }]);
+
+    const [{ properties }] = eventsCaptured("push_attempt");
+    expect(properties).toMatchObject({ purpose: "alert", call_session_id: null });
+  });
+
+  it("sends nothing for an empty fan-out", () => {
+    recordPushAttempts(env, []);
+    expect(eventsCaptured()).toEqual([]);
+  });
+
+  it("never sends a negative latency", () => {
+    recordPushAttempts(env, [{ ...attempt, latencyMs: -3 }]);
+    expect(eventsCaptured("push_attempt")[0].properties.latency_ms).toBe(0);
+  });
+
+  it("sends every field through the PostHog scrubber unchanged", () => {
+    recordPushAttempts(env, [attempt, { ...attempt, callSessionId: null, httpStatus: null }]);
+
+    for (const { properties } of eventsCaptured("push_attempt")) {
+      const report = vi.fn();
+      expect(scrubProperties("push_attempt", properties, report)).toEqual(properties);
+      expect(report).not.toHaveBeenCalled();
+    }
   });
 });

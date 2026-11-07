@@ -176,7 +176,7 @@ export function captureException(
 
 /**
  * A condition the product handles that a person must act on: a chargeback, a
- * port-out, a cost cap nearing. One PostHog issue per key. Send it once, when
+ * port-out, a cost cap reached. One PostHog issue per key. Send it once, when
  * the condition starts, not on every request it refuses afterwards.
  */
 export function opsNotice(

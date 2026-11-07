@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import {
-  CALL_WRAPUP_ALERT_THRESHOLD,
   CALL_WRAPUP_FEATURE_SPEC,
   CALL_WRAPUP_MAX_BYTES,
   CALL_WRAPUP_MAX_CHARS,
@@ -105,8 +104,7 @@ describe("CALL_WRAPUP_FEATURE_SPEC", () => {
     );
   });
 
-  it("alerts before the cap rather than at it", () => {
-    expect(CALL_WRAPUP_ALERT_THRESHOLD).toBeLessThan(CALL_WRAPUP_MONTHLY_CAP);
+  it("is capped at the monthly cap it declares", () => {
     expect(CALL_WRAPUP_FEATURE_SPEC.cap).toBe(CALL_WRAPUP_MONTHLY_CAP);
   });
 

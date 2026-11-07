@@ -10,9 +10,7 @@ import { readFileSync } from "node:fs";
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { CRON_GRACE_MINUTES, pingCallSessionObject } from "./observability/heartbeat";
-import { runTelnyxCapacityGauge } from "./observability/telnyx-capacity";
-import { runTelnyxSpendGauges } from "./observability/telnyx-spend";
+import { CRON_SCHEDULES } from "./crons/schedules";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
 import {
@@ -475,7 +473,6 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
         "0 15 * * *", // subscription reconcile
         "45 15 * * *", // opt-out reconciliation against the carrier (#331)
         "30 15 * * *", // webhook_events ledger retention
-        "15 */6 * * *", // D146 the call Durable Object's heartbeat
         "35 14 1 * *", // #482 response-time recap (monthly, 1st)
       ].sort(),
     );
@@ -545,7 +542,6 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runUsageAlertsJob,
       runOverageWarningJob,
       sweepStaleCalls, // #133: stale-calls sweeper (in-flight >4h → missed)
-      runTelnyxSpendGauges, // #642: today's spend against Telnyx's daily limits
       // #224: retires payment requests past their 14-day expiry, so a thread
       // stops showing "Waiting" for a link that no longer opens.
       expirePaymentRequests,
@@ -558,8 +554,6 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       // #235: per-number reputation, on the same daily trigger as the other
       // slow reconciles.
       runNumberHealthJob,
-      // #643: ring audience plus calls up, against the concurrent call limit.
-      runTelnyxCapacityGauge,
       // #303: each workspace's day of sending, day-scale by construction.
       runAupSignalsJob,
     ]);
@@ -604,8 +598,6 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       // eligible for a window it had not yet been told about.
       runRetentionEnforceJob,
     ]);
-    // D146: the call Durable Object's heartbeat, alone on its six-hourly trigger.
-    expect(runs("15 */6 * * *")).toEqual([pingCallSessionObject]);
   });
 
   it("names every job distinctly, so an exception says which one failed", () => {
@@ -639,13 +631,8 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     }
   });
 
-  it("gives every trigger a heartbeat grace the overdue alert's 35-day window can see", () => {
-    // The alert reads 35 days of heartbeats. A grace past that would make a
-    // stopped trigger indistinguishable from one that never existed.
-    expect(Object.keys(CRON_GRACE_MINUTES).sort()).toEqual(Object.keys(CRON_JOBS).sort());
-    for (const [cron, grace] of Object.entries(CRON_GRACE_MINUTES)) {
-      expect(grace, cron).toBeLessThan(35 * 24 * 60);
-      expect(grace, cron).toBeGreaterThan(0);
-    }
+  it("keys CRON_JOBS by exactly the schedule list scheduled() accepts", () => {
+    expect([...CRON_SCHEDULES].sort()).toEqual(wranglerCrons().sort());
+    expect(Object.keys(CRON_JOBS).sort()).toEqual([...CRON_SCHEDULES].sort());
   });
 });

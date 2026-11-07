@@ -24,7 +24,6 @@ import {
   type PlanId,
   STORAGE_ABUSE_TIERS_GB,
 } from "./plans";
-import { sendFleetStorageGauge } from "./fleet-storage";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
@@ -33,7 +32,7 @@ import { captureEvent, captureException } from "../observability/capture";
 
 /** Ledger-backed thresholds (SPEC §6 `usage_alerts.threshold in (80,100)`). */
 export type UsageAlertThreshold = 80 | 100;
-export const USAGE_ALERT_THRESHOLDS: readonly UsageAlertThreshold[] = [80, 100];
+export const USAGE_ALERT_PERCENTS: readonly UsageAlertThreshold[] = [80, 100];
 
 /**
  * The budget a threshold is measured against. `segments` is the per-period
@@ -385,20 +384,6 @@ export async function runUsageAlertsJob(
 
   const failures: unknown[] = [];
 
-  // #240: the fleet number, once per run rather than per company — it is not a
-  // per-tenant fact, and summing what this capped loop happened to visit would
-  // under-report exactly as the fleet grew past the point where it matters.
-  //
-  // Reported on its own rather than added to `failures`: this job exists to
-  // warn tenants about their own overage, and the aggregate error below counts
-  // COMPANIES. Folding a fleet gauge into that number would fail the run for
-  // something no tenant is affected by and misreport how many of them broke.
-  try {
-    await sendFleetStorageGauge(env);
-  } catch (cause) {
-    void captureException(env, cause, { source: "cron", job: "job:usage-alerts" });
-  }
-
   for (const company of (data ?? []) as ActiveCompanyRow[]) {
     try {
       const { data: sum, error: sumError } = await db.rpc(
@@ -414,7 +399,7 @@ export async function runUsageAlertsJob(
       const used = Number(sum);
       const included = PLAN_INCLUDED_SEGMENTS[company.plan];
 
-      for (const threshold of USAGE_ALERT_THRESHOLDS) {
+      for (const threshold of USAGE_ALERT_PERCENTS) {
         // Integer math: 80% of 500 = 400 segments, no float edge.
         if (used * 100 >= included * threshold) {
           await recordAndSendAlert(
@@ -474,7 +459,7 @@ export async function runUsageAlertsJob(
       const includedVoiceMinutes = PLAN_VOICE_MINUTES[company.plan];
       const usedVoiceSeconds = Number(voiceSeconds);
       const includedVoiceSeconds = includedVoiceMinutes * 60;
-      for (const threshold of USAGE_ALERT_THRESHOLDS) {
+      for (const threshold of USAGE_ALERT_PERCENTS) {
         if (usedVoiceSeconds * 100 >= includedVoiceSeconds * threshold) {
           await recordAndSendAlert(
             env,
@@ -607,7 +592,7 @@ export async function runUsageAlertsJob(
       }
       const usedEgress = Number(egressBytes);
       const egressAllowance = EGRESS_ALLOWANCE_BYTES;
-      for (const threshold of USAGE_ALERT_THRESHOLDS) {
+      for (const threshold of USAGE_ALERT_PERCENTS) {
         if (usedEgress * 100 >= egressAllowance * threshold) {
           await recordAndSendAlert(
             env,

@@ -52,7 +52,6 @@ import {
   sanitizeSummary,
   selectSummaryWindow,
   summaryEnvelopeShape,
-  THREAD_SUMMARY_ALERT_THRESHOLD,
   THREAD_SUMMARY_CONTEXT_MESSAGES,
   THREAD_SUMMARY_FEATURE_SPEC,
   THREAD_SUMMARY_MAX_LINE_CHARS,
@@ -885,11 +884,6 @@ describe("the cost centre declares a bounded worst case", () => {
     expect(THREAD_SUMMARY_FEATURE_SPEC.unitCostCents).toBe(
       AI_UNIT_COST_CENTS.thread_summary,
     );
-  });
-
-  it("alerts before the cap bites, never at it", () => {
-    expect(THREAD_SUMMARY_ALERT_THRESHOLD).toBeLessThan(THREAD_SUMMARY_MONTHLY_CAP);
-    expect(THREAD_SUMMARY_ALERT_THRESHOLD).toBeGreaterThan(0);
   });
 
   it("keeps the input ceiling that the price was derived from", () => {

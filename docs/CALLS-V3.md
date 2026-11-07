@@ -1753,7 +1753,6 @@ be reconstructed by reading the code:
 |---|---|---|
 | FIFO admission-wait > `QUEUE_LATENCY_WARN_MS` | `session-do.ts:170` | §17.5's drift alarm for the webhook-ack budget (worst case ~3–4s behind a 24-target dial) |
 | Telnyx command cap **exceeded** — cap-and-drop | `session-do.ts:790` | the §13 hard cap; the drop still happens, but nobody learns a session hit it |
-| Telnyx command count at **50% of cap** | `session-do.ts:797` | the alert-before-the-cap half, which is the only warning that arrives while there is still time to act |
 | Mirror write failed (per attempt) | `session-do.ts:815`, `:870` | §2.2 mirror failures — the call row drifting from the DO's truth |
 | Mirror **gave up** after `MAX_MIRROR_ATTEMPTS` | `session-do.ts:873` | a call that will be missing from the log entirely |
 | Reducer-emitted warning effects | `session-do.ts:748` | every state-machine warning the reducer chooses to raise |
@@ -1767,13 +1766,10 @@ instrumentation layer that a refactor could lose. The Sentry wrapper this
 replaced never covered RPC, which is how every call event enters the object, so
 `channel:do-sentry` had never passed in production (D146).
 
-**What proves it carries.** The `15 */6 * * *` trigger asks the reserved instance
-`__heartbeat__`, which can never collide with a session id, for its
-`heartbeat()`. That RPC sends `ops_heartbeat` with the key
-`channel:call-session-do` and a 420-minute grace from inside the object's own
-isolate, through the same capture path as every warning above. PostHog's
-"Heartbeat overdue" alert fires when it stops arriving. Without `CALL_SESSIONS`
-bound there is no object to ask, and the job logs that and returns.
+**What proves it carries.** Real calls do. Every call event reaches the object
+over RPC and reports through the same capture path as the warnings above, and
+Cloudflare records each Durable Object invocation in Workers Observability.
+Nothing probes the object on a timer (D146).
 
 ---
 

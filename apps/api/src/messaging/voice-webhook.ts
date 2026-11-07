@@ -753,8 +753,6 @@ export async function handleTerminalCallEvent(
   opts?: {
     outboundSessionId?: string;
     outboundAnsweredAtIso?: string | null;
-    /** Set by the call engine; see PushDelivery.recordAttemptsInBackground. */
-    recordAttemptsInBackground?: boolean;
   },
 ): Promise<void> {
   const callId =
@@ -930,7 +928,6 @@ export async function handleTerminalCallEvent(
     fromNumberE164: ourNumberE164,
     callerE164: finalCaller,
     callId,
-    recordAttemptsInBackground: opts?.recordAttemptsInBackground,
   });
 
   // #132: the crew alert is a MISSED-CALL behavior, not a TEXT-BACK behavior —
@@ -950,7 +947,6 @@ export async function handleTerminalCallEvent(
           conversationId: thread.conversationId,
           callerE164: call?.caller_e164 ?? finalCaller,
           textStatus: "none",
-          recordAttemptsInBackground: opts?.recordAttemptsInBackground,
         },
         db,
       );

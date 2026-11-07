@@ -4,10 +4,8 @@ import {
   sanitizeTranscript,
   shouldTranscribe,
   transcriptText,
-  VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
   VOICEMAIL_TRANSCRIPT_MAX_CHARS,
   VOICEMAIL_TRANSCRIPT_MAX_SECONDS,
-  VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
   fallbackTranscriptInput,
   transcriptInput,
 } from "./voicemail-transcript";
@@ -80,15 +78,6 @@ describe("sanitizeTranscript", () => {
   it("leaves an ordinary transcript untouched", () => {
     const said = "Hi, it's Dana. The tap upstairs is leaking again.";
     expect(sanitizeTranscript({ text: said })).toBe(said);
-  });
-});
-
-describe("cost posture", () => {
-  it("alerts before the cap, not at it", () => {
-    expect(VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD).toBeLessThan(
-      VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
-    );
-    expect(VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD).toBeGreaterThan(0);
   });
 });
 

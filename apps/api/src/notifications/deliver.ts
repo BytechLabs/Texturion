@@ -31,7 +31,6 @@ import { isFcmConfigured, sendFcm } from "./fcm";
 import { resolveHighPriority, type HighPriorityRequest } from "./high-priority";
 import {
   recordPushAttempts,
-  recordPushAttemptsInBackground,
   timedPush,
   type PushAttempt,
 } from "./push-attempts";
@@ -235,13 +234,6 @@ export interface PushDelivery {
    * to the on-call member is the second without being the first.
    */
   overridesQuietHours?: { reason: "on_call_page" | "escalation" };
-  /**
-   * D142: record the push_attempts rows without waiting for the write. Only
-   * the call engine sets it: its effects run one at a time, so an awaited
-   * write would hold the call-end push behind it. A Worker request must leave
-   * it unset, because it may be cut off once it has answered.
-   */
-  recordAttemptsInBackground?: boolean;
   /**
    * Every failure lands here rather than throwing, so one dead device cannot
    * stop the rest of the fan-out. The caller decides what a non-empty list
@@ -539,11 +531,7 @@ export async function deliverPush(
   try {
     await fanOutPush(env, db, delivery, attempts);
   } finally {
-    if (delivery.recordAttemptsInBackground) {
-      recordPushAttemptsInBackground(env, db, attempts);
-    } else {
-      await recordPushAttempts(env, db, attempts);
-    }
+    recordPushAttempts(env, attempts);
   }
 }
 
@@ -675,7 +663,6 @@ async function fanOutPush(
           channel: "webpush",
           platform: "web",
           priority,
-          targetId: subscription.id,
         },
         () =>
           sendWebPush(
@@ -756,7 +743,6 @@ async function fanOutPush(
           channel: "fcm",
           platform: device.platform,
           priority: urgency,
-          targetId: device.id,
         },
         () =>
           sendFcm(

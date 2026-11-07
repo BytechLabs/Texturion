@@ -12,7 +12,6 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { rejectionGate } from "../observability/webhook-rejections";
 import { captured, eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
@@ -146,7 +145,6 @@ vi.mock("../observability/capture", async () =>
 
 beforeEach(() => {
   resetCaptures();
-  rejectionGate.reset();
 });
 
 describe("processResendEvent", () => {
@@ -242,26 +240,14 @@ describe("processResendEvent", () => {
   });
 });
 
-describe("#581/16 — an unconfigured secret is a rotation, and says so", () => {
-  /**
-   * Refusing outright is right: trusting an unsigned body would let anybody suppress
-   * any address in the product. What was wrong is that this arm returned BEFORE the
-   * rejection counter, so the most likely Resend misconfiguration — a secret cleared,
-   * or never copied into an environment, reported nothing at all.
-   *
-   * Every delivery is refused either way; what differs is whether anybody finds out
-   * before we have spent a week not suppressing hard-bounced addresses.
-   */
-  it("reports the refusal, so the PostHog alert can see it", async () => {
-
+describe("#581/16: an unconfigured secret", () => {
+  it("refuses every delivery rather than trust an unsigned body", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const unconfigured = { ...env, RESEND_WEBHOOK_SECRET: undefined };
     const res = await resendWebhookRoute.request(
       "/",
       {
         method: "POST",
-        // Resend signs with ITS key; ours is the one that is missing. The header is
-        // present, which is what tells the counter this was a real delivery rather
-        // than somebody poking the endpoint.
         headers: { "svix-signature": "v1,whatever", "svix-id": "msg_1" },
         body: JSON.stringify({ type: "email.bounced" }),
       },
@@ -269,8 +255,8 @@ describe("#581/16 — an unconfigured secret is a rotation, and says so", () => 
     );
 
     expect(res.status).toBe(503);
-    expect(eventsCaptured("webhook_rejected").map((event) => event.properties)).toEqual([
-      { provider: "resend" },
-    ]);
+    expect(captured).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("RESEND_WEBHOOK_SECRET"));
+    warn.mockRestore();
   });
 });

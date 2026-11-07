@@ -1315,12 +1315,12 @@ A secret an environment lacks falls back to a repository secret of the same name
 node scripts/ops/set-agent-diag-password.mjs --target production --dry-run
 node scripts/ops/set-agent-diag-password.mjs --target production --check
 node scripts/ops/set-agent-diag-password.mjs --target production
-node scripts/ops/call-trace.mjs --self-check
+node scripts/ops/agent-diag.mjs --self-check
 ```
 
 - `--dry-run` connects to nothing. `--check` is read-only, and refuses until the migration is live.
 - The script generates the password, sends the database only its SCRAM-SHA-256 verifier, and writes the login to `~/.loonext/agent-diag.env`, readable by that user only. Nobody sees the password, and no CI job creates or sets it. Running it again rotates it.
-- If `call-trace` ever refuses the login as unsafe, withdraw it: `node scripts/ops/set-agent-diag-password.mjs --target production --withdraw`.
+- If `agent-diag.mjs --self-check` ever refuses the login as unsafe, withdraw it: `node scripts/ops/set-agent-diag-password.mjs --target production --withdraw`.
 - An agent then copies the same login into environment `guard` as `AGENT_DIAG_DATABASE_URL`, for the guard's daily measurements run (section 3.5), without printing it: `gh secret set --env guard -f ~/.loonext/agent-diag.env`. That run is the one CI job that receives the login.
 - After every rotation the agent runs that command again. After a withdrawal it deletes the copy: `gh secret delete AGENT_DIAG_DATABASE_URL --env guard`. A stale copy fails the measurements run, and once the reserve is 36 hours old every paid dial is refused.
 

@@ -18,7 +18,6 @@ const SPEC: AiFeatureSpec = {
   key: "suggest_reply",
   label: "test feature",
   cap: 100,
-  alertThreshold: 80,
   stops: "the thing stops.",
   timeoutMs: 50,
   unitCostCents: 0.04,
@@ -50,7 +49,7 @@ const SETTINGS = {
  * billing gate pass on a settings row.
  */
 function fakeDb(options: {
-  reserve?: { count: number; over_cap: boolean; should_alert: boolean };
+  reserve?: { count: number; over_cap: boolean; reached_cap: boolean };
   reserveError?: boolean;
   /** `companies.subscription_status`. Undefined means the row is absent. */
   subscription?: string;
@@ -79,7 +78,7 @@ function fakeDb(options: {
             data: options.reserve ?? {
               count: 1,
               over_cap: false,
-              should_alert: false,
+              reached_cap: false,
             },
             error: null,
           },
@@ -147,19 +146,34 @@ describe("runAiFeature", () => {
     expect((db as unknown as { rpc: ReturnType<typeof vi.fn> }).rpc).not.toHaveBeenCalled();
   });
 
-  it("sends one notice when the ledger says this unit crossed the threshold, and still runs", async () => {
+  it("sends one notice when the ledger says this unit reached the cap, and still runs it", async () => {
     const run = vi.fn(async () => ({ text: "hello" }));
     const result = await runAiFeature(
       envWith(run),
-      fakeDb({ reserve: { count: 80, over_cap: false, should_alert: true } }),
+      fakeDb({ reserve: { count: 100, over_cap: false, reached_cap: true } }),
       { companyId: "c1", spec: SPEC, model: "@cf/test", input: {}, settings: SETTINGS },
     );
 
     expect(result).toEqual({ ok: true, raw: { text: "hello" } });
-    const notices = noticesCaptured("ai-cap-nearing");
+    const notices = noticesCaptured("ai-cap-reached");
     expect(notices).toHaveLength(1);
-    expect(notices[0].detail).toContain("company c1 has used 80 of 100");
+    expect(notices[0].detail).toContain("company c1 has used all 100");
     expect(notices[0].detail).toContain("the thing stops.");
+  });
+
+  it("asks the ledger for the cap alone, with no threshold below it", async () => {
+    const db = fakeDb();
+    await runAiFeature(envWith(vi.fn(async () => ({}))), db, {
+      companyId: "c1",
+      spec: SPEC,
+      model: "@cf/test",
+      input: {},
+      settings: SETTINGS,
+    });
+    expect((db as unknown as { rpc: ReturnType<typeof vi.fn> }).rpc).toHaveBeenCalledWith(
+      "ai_usage_reserve",
+      { p_company_id: "c1", p_feature: "suggest_reply", p_cap: 100 },
+    );
   });
 
   it("sends no notice for a unit the ledger does not flag", async () => {
@@ -177,12 +191,13 @@ describe("runAiFeature", () => {
     const run = vi.fn();
     const result = await runAiFeature(
       envWith(run),
-      fakeDb({ reserve: { count: 101, over_cap: true, should_alert: false } }),
+      fakeDb({ reserve: { count: 101, over_cap: true, reached_cap: false } }),
       { companyId: "c1", spec: SPEC, model: "@cf/test", input: {}, settings: SETTINGS },
     );
 
     expect(result).toEqual({ ok: false, reason: "over_cap" });
     expect(run).not.toHaveBeenCalled();
+    expect(noticesCaptured()).toEqual([]);
   });
 
   it("treats a broken ledger as over cap, never as permission", async () => {
@@ -384,7 +399,7 @@ describe("runAiFeature", () => {
     const build = vi.fn(() => ({ audio: "x" }));
     const result = await runAiFeature(
       envWith(vi.fn()),
-      fakeDb({ reserve: { count: 101, over_cap: true, should_alert: false } }),
+      fakeDb({ reserve: { count: 101, over_cap: true, reached_cap: false } }),
       { companyId: "c1", spec: SPEC, model: "@cf/test", input: build, settings: SETTINGS },
     );
 

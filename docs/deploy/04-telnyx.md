@@ -347,26 +347,27 @@ curl -s -X PATCH -H "Authorization: Bearer $TELNYX_API_KEY" -H "Content-Type: ap
 ```
 
 To revert, send `"daily_spend_limit_enabled": false` with the before values
-above. Reverting removes the vendor-side cap, and the hourly gauge below reports
-the missing limit until it is back. Raising a limit is fine and is not drift;
-record the new figure and the reason here.
+above. Reverting removes the vendor-side cap. Raising a limit is fine and is not
+drift; record the new figure and the reason here.
 
-### What the API Worker sends to PostHog (production only)
+### Who hears about it
 
-The gauges read only and refuse to run anywhere but production
-(`productionWatchRefusal`). The thresholds live in PostHog's "Limits and rates"
-alert, not here (D146, docs/MONITORING.md).
+Telnyx does, and nothing of ours does (D146). Over a limit, Telnyx refuses the
+call or the text itself and emails the account owner. A text it refuses fails on
+the thread as an ordinary failed message with code `40333`, and the API sends no
+notice of its own.
 
-| Sent | Job | When | What it carries |
-|---|---|---|---|
-| `ops_gauge` `telnyx-spend-voice` | `job:telnyx-spend-gauges` | hourly | Today's voice spend, the tightest enforced limit across production's outbound voice profiles (`null` when one has none), and the USD 25.00 floor. The alert fires at 70% of the limit, and on a limit that is missing or below the floor. |
-| `ops_gauge` `telnyx-spend-messaging` | `job:telnyx-spend-gauges` | hourly | The messaging profile closest to trouble: one with no enforced limit, or one Telnyx no longer lists, first; otherwise the one with the largest share of its limit spent today. One gauge for the fleet. |
-| notice `telnyx-messaging-spend-cap` | the send path | the day's first refusal | A send is refused with `40333` and no other text of that workspace was refused that UTC day. The customer sees an ordinary failed message, not a vendor limit. |
+The account's Telnyx notifications, read from `GET /v2/notification_settings` on
+2026-11-07:
 
-Spend is the cost ledger's (`provider_costs` for voice, `messages.provider_cost`
-for texts, through `api_telnyx_spend_since`), which trails a message by its
-delivery report and covers only legs that resolve to a company. It can run behind
-Telnyx's own meter, which is why the alert is at 70% and not at the cap.
+| Notification | State | What it covers |
+|---|---|---|
+| Low Available Credit | enabled | The balance running down |
+| Account Disabled Due to Insufficient Balance | enabled | The balance running out |
+| Messaging Profile Activity | not enabled | A messaging profile changed or deleted, which is how a removed limit would be seen |
+
+Nothing warns before a limit is reached. The hourly spend gauge that alerted at
+70% of a limit is gone, and that early warning is a known gap.
 
 ---
 
@@ -401,33 +402,16 @@ readable states it; the limits are.
 
 | Limit | Value | Basis |
 |---|---|---|
-| Concurrent calls, account-wide | **10** | Measured (above). Held in `TELNYX_CONCURRENT_CALL_LIMIT`, `apps/api/src/telnyx/account-limits.ts`. |
+| Concurrent calls, account-wide | **10** | Measured (above), and recorded here. The rig's guard keeps its own evidence for the figure (`tools/guard/src/state/concurrency.ts`). |
 | Outbound calls an hour (10) and a day (100) | **Do not apply** | Telnyx documents them for the Paid level only, and the measured concurrent limit rules Paid out. No direct measurement of an hourly or daily cap exists: if a dial is ever refused for rate with code `90103` and HTTP 429, treat this decision as wrong and re-open it. The rig's guard keeps assuming the Paid values as ceilings (`docs/RIG.md` section 3.5), which only makes the rig more cautious. |
 | Automated-call announcement | **Does not apply** | A Paid-level behaviour. If a customer ever hears it, the account is at Paid or below and every row here is wrong. |
 
-### The capacity check
+### Nothing prices production's calls against it
 
-`job:telnyx-capacity-gauge` (daily, 13:00 UTC) reads `api_voice_capacity_read`
-and sends the worst case as the `ops_gauge` `telnyx-concurrent-legs` against the
-limit; PostHog's "Limits and rates" alert fires at 70% of it, before production's
-calls can exceed the limit. The worst case it prices:
-
-```
-legs needed = 1 (the new call's customer leg)
-            + the largest ring audience of any active number
-            + 2 x the most answered calls ever up at once in 28 days
-```
-
-A number's ring audience is its text-level members who hold a telephony
-credential, or the most ring legs one call opened in 28 days, whichever is
-larger (the same definition as the rig's reserve, `docs/RIG.md` section 3.5).
-Telnyx's docs do not say whether SIP-URI ring legs count against the limit, so
-they are counted. With a limit of 10, a five-member crew leaves room for two
-calls already up.
-
-When the account's level changes, change `TELNYX_CONCURRENT_CALL_LIMIT` and the
-table above together. The rig's room formula (`docs/RIG.md` section 4.1) reads the
-same number.
+Telnyx has no API or notification for the concurrent call limit, and the API no
+longer models it, so that is a known gap. A leg Telnyx refuses for the limit
+reaches PostHog as an exception from the call path. When the account's level
+changes, update the table above.
 
 Next: [05 — Workers deploy](./05-workers-deploy.md).
 

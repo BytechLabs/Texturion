@@ -71,7 +71,7 @@ interface StubOptions {
   messages?: { direction: string; body: string | null }[];
   /** Ledger answer, or a Response to stand in for an unreachable ledger. */
   reserve?:
-    | { count: number; over_cap: boolean; should_alert: boolean }
+    | { count: number; over_cap: boolean; reached_cap: boolean }
     | Response;
   businessHours?: Record<string, { open: string; close: string }> | null;
 }
@@ -129,7 +129,7 @@ function stubs(options: StubOptions = {}): SupabaseStub {
   // PostgREST for columns that have never existed.
   sb.on("GET", "/rest/v1/contacts", () => [{ name: "Dana Reyes" }]);
   sb.on("POST", "/rest/v1/rpc/ai_usage_reserve", () =>
-    options.reserve ?? { count: 1, over_cap: false, should_alert: false },
+    options.reserve ?? { count: 1, over_cap: false, reached_cap: false },
   );
   return sb;
 }
@@ -276,7 +276,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
   it("over the monthly cap, it stops calling the model", async () => {
     const { ai, run } = mockAi(TWO_REPLIES);
     const sb = stubs({
-      reserve: { count: 1501, over_cap: true, should_alert: false },
+      reserve: { count: 1501, over_cap: true, reached_cap: false },
     });
     const res = await suggest(sb, { ...env, AI: ai });
 

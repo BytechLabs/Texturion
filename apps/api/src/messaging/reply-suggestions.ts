@@ -11,7 +11,7 @@
  * to" gate, prompt construction, and strict output parsing + sanitation — so
  * they are exhaustively unit-testable with no AI binding. The route
  * (routes/conversations.ts) owns the I/O: settings gate, burst limiter, the
- * monthly cap reservation, the `env.AI.run` call with a timeout, and the alert.
+ * monthly cap reservation, and the `env.AI.run` call with a timeout.
  *
  * Security + brand posture (BINDING, cost-protection mandate + #214 precedent):
  *   - The thread is attacker-controllable: a customer can text us anything,
@@ -62,10 +62,6 @@ export const SUGGEST_REPLY_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
  * completely unaffected.
  */
 export const SUGGEST_REPLY_MONTHLY_CAP = 1500;
-/** Fire the one-shot ops alert at 80% of the cap (alert BEFORE the cap). */
-export const SUGGEST_REPLY_ALERT_THRESHOLD = Math.floor(
-  SUGGEST_REPLY_MONTHLY_CAP * 0.8,
-);
 /** The usage-ledger key for this cost center (company_ai_usage.feature). */
 export const SUGGEST_REPLY_FEATURE = "suggest_reply";
 /** Never leave the composer hanging: race the model against this timeout. */
@@ -106,14 +102,13 @@ export const SUGGEST_REPLY_MAX_CHARS = 320;
 /**
  * Everything this cost center may do, declared once and handed to
  * `runAiFeature` — the one door onto the model, which owns the opt-in, the
- * cap, the alert and the timeout so no caller can assemble them wrongly.
+ * cap and the timeout so no caller can assemble them wrongly.
  */
 export const SUGGEST_REPLY_FEATURE_SPEC: AiFeatureSpec = {
   key: "suggest_reply",
   label: "reply drafting",
   cap: SUGGEST_REPLY_MONTHLY_CAP,
   unitCostCents: AI_UNIT_COST_CENTS.suggest_reply,
-  alertThreshold: SUGGEST_REPLY_ALERT_THRESHOLD,
   stops: "the composer simply stops offering drafts.",
   timeoutMs: SUGGEST_REPLY_TIMEOUT_MS,
   enabled: (settings) => settings.suggest_replies,

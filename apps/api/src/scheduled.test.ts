@@ -1,14 +1,13 @@
 /**
- * D146: what a cron trigger reports. The trigger sends its own `ops_heartbeat`
- * whatever its jobs do, each failing job is one exception naming it, and the
- * six-hourly trigger asks the call Durable Object for its heartbeat.
+ * D146: what a cron trigger reports. Each failing job is one exception naming
+ * it, and a trigger refused before its jobs run is one exception naming the
+ * cron. Cloudflare records every invocation itself.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getEnv, type Bindings, type Env } from "./env";
+import { getEnv, type Bindings } from "./env";
 import { handler, runScheduledJobs } from "./index";
-import { HEARTBEAT_SESSION_NAME, pingCallSessionObject } from "./observability/heartbeat";
-import { captured, eventsCaptured, exceptionsCaptured, resetCaptures } from "./test/capture-mock";
+import { captured, exceptionsCaptured, resetCaptures } from "./test/capture-mock";
 import { testExecutionContext } from "./test/messaging-support";
 import { supabaseStub } from "./test/routes-harness";
 import { rigEnv } from "./test/rig-env";
@@ -30,9 +29,7 @@ afterEach(() => {
 });
 
 describe("a cron trigger", () => {
-  it("sends its heartbeat even when its jobs do not run", async () => {
-    // A rig whose database gate is off refuses every job, and the trigger
-    // still fired, which is all the heartbeat says.
+  it("runs no job on a rig whose database is not in rig mode", async () => {
     const bindings = rigEnv();
     const sb = supabaseStub(getEnv(bindings));
     sb.on("POST", "/rest/v1/rpc/rig_database_posture", () => ({ deploy_env: "", endpoints: 0 }));
@@ -47,16 +44,10 @@ describe("a cron trigger", () => {
       ),
     ).rejects.toThrow(/rig cron not run/);
 
-    expect(eventsCaptured("ops_heartbeat")).toEqual([
-      {
-        event: "ops_heartbeat",
-        distinctId: "loonext-api",
-        properties: { key: "cron:*/5_*_*_*_*", grace_minutes: 30 },
-      },
-    ]);
+    expect(captured).toEqual([]);
   });
 
-  it("refuses a schedule it has no jobs for, reporting it instead of saying it fired", async () => {
+  it("refuses a schedule it has no jobs for, and reports it", async () => {
     const { ctx } = testExecutionContext();
     await expect(
       handler.scheduled(
@@ -65,7 +56,6 @@ describe("a cron trigger", () => {
         ctx,
       ),
     ).rejects.toThrow(/No scheduled jobs are mapped/);
-    expect(eventsCaptured("ops_heartbeat")).toEqual([]);
     expect(captured).toHaveLength(1);
     const [failure] = exceptionsCaptured();
     expect(String(failure.error)).toContain("No scheduled jobs are mapped");
@@ -82,7 +72,6 @@ describe("a cron trigger", () => {
         ctx,
       ),
     ).rejects.toThrow(/Environment validation failed/);
-    expect(eventsCaptured("ops_heartbeat")).toEqual([]);
     const [failure] = exceptionsCaptured();
     expect(String(failure.error)).toContain("Environment validation failed");
     expect(failure.context).toEqual({ source: "cron", cron: "*/5 * * * *" });
@@ -142,43 +131,5 @@ describe("runScheduledJobs", () => {
   it("reports nothing when every job succeeds", async () => {
     await runScheduledJobs(env, "0 13 * * *", [{ key: "job:fine", run: async () => {} }], now);
     expect(captured).toEqual([]);
-  });
-});
-
-describe("the call Durable Object's heartbeat", () => {
-  it("asks the reserved instance, never a session's", async () => {
-    const heartbeat = vi.fn(async () => {});
-    const names: string[] = [];
-    const namespace = {
-      idFromName: (name: string) => {
-        names.push(name);
-        return { name };
-      },
-      get: () => ({ heartbeat }),
-    };
-    const env = { ...getEnv(completeEnv()), CALL_SESSIONS: namespace } as unknown as Env;
-
-    await pingCallSessionObject(env);
-
-    expect(names).toEqual([HEARTBEAT_SESSION_NAME]);
-    expect(heartbeat).toHaveBeenCalledOnce();
-  });
-
-  it("fails the run when the object does not answer, so the missing beat is not the only trace", async () => {
-    const namespace = {
-      idFromName: () => ({}),
-      get: () => ({
-        heartbeat: async () => {
-          throw new Error("object unavailable");
-        },
-      }),
-    };
-    const env = { ...getEnv(completeEnv()), CALL_SESSIONS: namespace } as unknown as Env;
-
-    await expect(pingCallSessionObject(env)).rejects.toThrow(/object unavailable/);
-  });
-
-  it("does nothing where the binding is absent", async () => {
-    await expect(pingCallSessionObject(getEnv(completeEnv()))).resolves.toBeUndefined();
   });
 });

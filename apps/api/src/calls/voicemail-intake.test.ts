@@ -192,12 +192,6 @@ describe("the cost posture", () => {
     );
   });
 
-  it("alerts before the cap bites", () => {
-    expect(VOICEMAIL_INTAKE_FEATURE_SPEC.alertThreshold).toBeLessThan(
-      VOICEMAIL_INTAKE_FEATURE_SPEC.cap,
-    );
-  });
-
   it("is off until a business turns it on", () => {
     // The one AI feature in the product that defaults off, because it is the
     // one that changes what a stranger hears (D89). A default flipped by

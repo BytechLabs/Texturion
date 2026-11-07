@@ -2,7 +2,7 @@ import { SUPPORT_EMAIL } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { channelHeartbeat } from "../observability/heartbeat";
+import { captureEvent, SYSTEM_DISTINCT_ID } from "../observability/capture";
 import { emailTextFooter } from "./html";
 
 export interface SendEmailInput {
@@ -175,10 +175,9 @@ export async function sendEmail(
     throw new Error("Resend send failed: response carried no email id.");
   }
 
-  // Nothing else records that an email was sent, so this is where the
-  // channel's heartbeat is taken. Never awaited: a heartbeat must not be the
-  // reason a notification is reported as failed.
-  channelHeartbeat(env, "channel:resend-send");
+  // The denominator for PostHog's bounce and complaint rates: one event per
+  // send. Never awaited, so it cannot be the reason a send is reported failed.
+  void captureEvent(env, "email_sent", SYSTEM_DISTINCT_ID, {});
 
   return { id: payload.id };
 }

@@ -22,8 +22,8 @@ begin;
 -- refused read cannot be the test.
 
 -- ===========================================================================
--- Fixtures: a workspace with a call, a ring leg, a push attempt and a beacon,
--- and personal data planted where a careless view would pick it up.
+-- Fixtures: a workspace with a call and a ring leg, and personal data planted
+-- where a careless view would pick it up.
 -- ===========================================================================
 insert into auth.users (id, email, raw_user_meta_data)
 values ('d1a90000-0000-4000-8000-0000000000a1', 'owner@agent-diag.test',
@@ -61,20 +61,6 @@ values ('v3:agent-diag-session', 'v3:agent-diag-leg-1',
         'd1a90000-0000-4000-8000-000000000001', 'd1a90000-0000-4000-8000-0000000000a1',
         'answered');
 
-insert into public.push_attempts
-  (company_id, user_id, call_session_id, purpose, channel, platform, priority,
-   response_class, http_status, latency_ms, target_id)
-values ('d1a90000-0000-4000-8000-000000000001', 'd1a90000-0000-4000-8000-0000000000a1',
-        'v3:agent-diag-session', 'ring', 'fcm', 'android', 'high', 'accepted', 200, 120,
-        'd1a90000-0000-4000-8000-0000000000c1');
-
-insert into public.ring_beacons
-  (company_id, user_id, auth_session_id, call_session_id, platform, stage,
-   app_version, os, permissions, standby_bucket)
-values ('d1a90000-0000-4000-8000-000000000001', 'd1a90000-0000-4000-8000-0000000000a1',
-        'd1a90000-0000-4000-8000-0000000000b1', 'v3:agent-diag-session', 'android',
-        'ringing_shown', '1.42.0', 'android-15', '{"notifications":"granted"}', 'active');
-
 -- ===========================================================================
 -- AD-1. A plain login: no attribute that outranks a grant, and a member of no
 -- role it could borrow privileges from.
@@ -89,7 +75,7 @@ begin
     raise exception 'AD-1 FAILED: role agent_diag does not exist';
   end if;
   if r.rolcanlogin is distinct from true then
-    raise exception 'AD-1 FAILED: agent_diag cannot log in, so call-trace cannot use it';
+    raise exception 'AD-1 FAILED: agent_diag cannot log in, so the guard''s measurements cannot use it';
   end if;
   if r.rolsuper or r.rolcreaterole or r.rolcreatedb or r.rolreplication or r.rolbypassrls then
     raise exception 'AD-1 FAILED: agent_diag holds a role attribute that bypasses grants';
@@ -170,8 +156,7 @@ declare
   v_tables  text[] := array[
     'public.messages', 'public.contacts', 'public.contact_phones',
     'public.phone_numbers', 'public.webhook_events', 'public.webhook_deliveries',
-    'public.calls', 'public.conversations', 'public.push_attempts',
-    'public.ring_beacons', 'auth.users'];
+    'public.calls', 'public.conversations', 'auth.users'];
   v_read    text[] := array[]::text[];
 begin
   foreach v_table in array v_tables loop
@@ -240,7 +225,7 @@ begin
   select count(*) into v_views
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'ops_diag' and c.relkind = 'v';
-  if v_views < 6 then
+  if v_views < 4 then
     raise exception 'AD-5 FAILED: only % ops_diag views found', v_views;
   end if;
 
@@ -277,8 +262,8 @@ end $$;
 
 -- ===========================================================================
 -- AD-6. The workspace hash is the documented one: sha256 over the uuid's
--- text, first 16 hex characters. call-trace.mjs's test pins the same vector,
--- so a hash typed into an issue finds the same workspace on both sides.
+-- text, first 16 hex characters, so a hash typed into an issue finds the same
+-- workspace wherever it is computed.
 -- ===========================================================================
 do $$
 begin
@@ -305,8 +290,7 @@ declare
   v_plants  text[] := array[
     '5550177', '5550188', 'Planted Caller Name', 'Planted Company Name',
     'Planted Owner Name', 'plantedsipusername', 'agent-diag.test',
-    'd1a90000-0000-4000-8000-000000000001', 'd1a90000-0000-4000-8000-0000000000a1',
-    'd1a90000-0000-4000-8000-0000000000b1', 'd1a90000-0000-4000-8000-0000000000c1'];
+    'd1a90000-0000-4000-8000-000000000001', 'd1a90000-0000-4000-8000-0000000000a1'];
   v_leaked  text[] := array[]::text[];
   v_missing text;
 begin
@@ -319,15 +303,10 @@ begin
     v_dump := v_dump || ' ' || v_part;
   end loop;
 
-  select count(*) into v_rows from ops_diag.push_attempts
+  select count(*) into v_rows from ops_diag.call_legs
    where company_ref = '36e0f2739806ec8a' and call_session_id = 'v3:agent-diag-session';
   if v_rows is distinct from 1 then
-    raise exception 'AD-7 FAILED: the fixture push attempt read back % time(s) under its hash', v_rows;
-  end if;
-  select count(*) into v_rows from ops_diag.ring_beacons
-   where company_ref = '36e0f2739806ec8a' and stage = 'ringing_shown';
-  if v_rows is distinct from 1 then
-    raise exception 'AD-7 FAILED: the fixture beacon read back % time(s)', v_rows;
+    raise exception 'AD-7 FAILED: the fixture leg read back % time(s) under its hash', v_rows;
   end if;
   select count(*) into v_rows from ops_diag.call_sessions
    where company_ref = '36e0f2739806ec8a' and outcome = 'answered';
@@ -468,8 +447,8 @@ end $$;
 -- transaction and every transaction to 60 seconds at most, and keep it
 -- read-only, and no per-database setting for agent_diag overrides them: one
 -- set with ALTER ROLE ... IN DATABASE takes precedence at login. A session
--- can still change them; this proves an honest client such as call-trace.mjs
--- gets them, and call-trace checks its own session too.
+-- can still change them; this proves an honest client such as the guard's
+-- measurement job gets them, and that job checks its own session too.
 -- ===========================================================================
 do $$
 declare

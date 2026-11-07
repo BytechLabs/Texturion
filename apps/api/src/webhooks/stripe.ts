@@ -66,7 +66,6 @@ import {
 } from "../telnyx/provisioning";
 import { submitRegistration } from "../telnyx/registration";
 import { enableVoiceForCompany } from "../telnyx/voice";
-import { countWebhookRejection } from "../observability/webhook-rejections";
 import { processConnectEvent } from "./stripe-connect";
 
 /**
@@ -122,9 +121,7 @@ stripeWebhookRoute.post("/", async (c) => {
     }
   }
   if (!event) {
-    // #308: counted. A rotated Stripe secret silently stops every billing
-    // state change reaching us, which looks exactly like nobody subscribing.
-    countWebhookRejection(c, "stripe");
+    console.warn("stripe webhook refused: signature verification failed");
     return c.json({ error: "signature verification failed" }, 400);
   }
 

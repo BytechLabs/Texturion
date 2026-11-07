@@ -210,18 +210,14 @@ describe("opsNotice", () => {
 
 describe("captureEvent", () => {
   it("sends the event under the given identity, with the deployment", async () => {
-    await captureEvent(env(), "ops_heartbeat", "loonext-api", {
-      key: "channel:call-session-do",
-      grace_minutes: 420,
-    }, () => {});
+    await captureEvent(env(), "email_bounced", "loonext-api", { kind: "bounce" }, () => {});
 
     const [{ event }] = sent;
     expect(event).toMatchObject({
-      event: "ops_heartbeat",
+      event: "email_bounced",
       distinct_id: "loonext-api",
       properties: {
-        key: "channel:call-session-do",
-        grace_minutes: 420,
+        kind: "bounce",
         environment: "production",
         $process_person_profile: false,
       },
@@ -243,6 +239,32 @@ describe("captureEvent", () => {
     const report = sent.find(({ event }) => event.event === "$exception");
     expect(report?.body).toContain("'to'");
     expect(report?.body).not.toContain("6135551234");
+    log.mockRestore();
+  });
+
+  it("keeps a uuid and a UTC instant whole, though each holds a phone-shaped run", async () => {
+    const { waitUntil, pending } = invocation();
+    const properties = {
+      user_id: "a1000000-0000-4000-8000-00000000000a",
+      attempted_at: "2026-10-31T14:00:00.000Z",
+    };
+    await captureEvent(env(), "push_attempt", COMPANY, properties, waitUntil);
+    await Promise.all(pending);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].event.properties).toMatchObject(properties);
+  });
+
+  it("still drops a phone number written beside a uuid", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { waitUntil, pending } = invocation();
+    await captureEvent(env(), "push_attempt", COMPANY, {
+      call_session_id: `a1000000-0000-4000-8000-00000000000a ${PHONE}`,
+    }, waitUntil);
+    await Promise.all(pending);
+
+    const event = sent.find(({ event }) => event.event === "push_attempt");
+    expect(event?.event.properties).not.toHaveProperty("call_session_id");
     log.mockRestore();
   });
 });

@@ -473,7 +473,7 @@ const envSchema = z.object({
    * The monthly caps are a COMPANY ceiling, which is right, but they let one
    * member spend the whole crew's month: a runaway client, a stuck retry, or a
    * stolen token could exhaust every draft and enrichment for everyone else,
-   * and the cap alert was the first anyone heard of it. OPTIONAL, like the
+   * and the cap notice was the first anyone heard of it. OPTIONAL, like the
    * others.
    */
   AI_MEMBER_RATE_LIMITER: rateLimiterSchema.optional(),
@@ -535,6 +535,13 @@ const envSchema = z.object({
    * network allowed. Optional, like every other limiter here.
    */
   CONTACT_IMPORT_RATE_LIMITER: rateLimiterSchema.optional(),
+
+  /**
+   * D142: the ring-beacon relay, keyed on company + user. Each beacon becomes a
+   * PostHog event, so this bounds what one looping client can send. Optional,
+   * like every other limiter here.
+   */
+  RING_BEACON_RATE_LIMITER: rateLimiterSchema.optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

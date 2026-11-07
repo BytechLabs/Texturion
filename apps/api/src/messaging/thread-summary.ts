@@ -170,11 +170,6 @@ export const THREAD_SUMMARY_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
  */
 export const THREAD_SUMMARY_MONTHLY_CAP = 500;
 
-/** Fire the one-shot ops alert at 80% of the cap (alert BEFORE the cap). */
-export const THREAD_SUMMARY_ALERT_THRESHOLD = Math.floor(
-  THREAD_SUMMARY_MONTHLY_CAP * 0.8,
-);
-
 /** The usage-ledger key for this cost center (company_ai_usage.feature). */
 export const THREAD_SUMMARY_FEATURE = "thread_summary";
 
@@ -349,15 +344,14 @@ export const THREAD_SUMMARY_MAX_LINES = 7;
 
 /**
  * Everything this cost center may do, declared once and handed to
- * `runAiFeature` — the one door onto the model, which owns the opt-in, the cap,
- * the alert before the cap, and the timeout.
+ * `runAiFeature`, the one door onto the model, which owns the opt-in, the cap
+ * and the timeout.
  */
 export const THREAD_SUMMARY_FEATURE_SPEC: AiFeatureSpec = {
   key: "thread_summary",
   label: "thread catch-up",
   cap: THREAD_SUMMARY_MONTHLY_CAP,
   unitCostCents: AI_UNIT_COST_CENTS.thread_summary,
-  alertThreshold: THREAD_SUMMARY_ALERT_THRESHOLD,
   stops: "threads are still completely readable, they just do not get a catch-up.",
   timeoutMs: THREAD_SUMMARY_TIMEOUT_MS,
   enabled: (settings) => settings.summarize_threads,

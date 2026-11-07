@@ -7,7 +7,6 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { notifyIncomingCall } from "../notifications/incoming-call";
-import { pushAttemptsSettled } from "../notifications/push-attempts";
 import { parseOptionalJsonBody } from "./core/http";
 
 /**
@@ -64,9 +63,6 @@ rigRoutes.post(
       caller: body.caller ?? null,
       callSessionId: sessionId,
     });
-    // The ring records its evidence in the background, which a request may cut
-    // off once it has answered, and that evidence is what this route is for.
-    c.executionCtx.waitUntil(pushAttemptsSettled());
     return c.json(
       {
         session_id: sessionId,

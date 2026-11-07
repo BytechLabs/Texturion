@@ -1,5 +1,6 @@
 -- #452 — HIGH-priority push is a rationed resource: a counter, a shared
--- ceiling over the attacker-drivable bucket, and an alert before the ceiling.
+-- ceiling over the attacker-drivable bucket, and the one claim that reaches
+-- the ceiling named so the API can say so once.
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run: psql -v ON_ERROR_STOP=1 -f supabase/tests/high_priority_push.test.sql
 -- The whole suite runs in one transaction and ROLLS BACK — it never pollutes
@@ -78,14 +79,14 @@ begin
   if (r->>'allowed')::boolean is not true or (r->>'sends')::int is distinct from 4 then
     raise exception 'HP-2 FAILED: first lead claim: %', r;
   end if;
-  if r->>'alert' is not null then
-    raise exception 'HP-2 FAILED: alerted at 4/10: %', r;
+  if (r->>'reached_cap')::boolean is not false then
+    raise exception 'HP-2 FAILED: 4/10 reported the ceiling: %', r;
   end if;
 
-  -- 8/10 crosses the 80% rung.
+  -- 8/10 is short of the ceiling, and there is no rung below it.
   r := public.claim_high_priority_push(co, 'lead', 4, 10);
-  if (r->>'sends')::int is distinct from 8 or (r->>'alert')::int is distinct from 80 then
-    raise exception 'HP-2 FAILED: expected 8 sends + the 80 rung: %', r;
+  if (r->>'sends')::int is distinct from 8 or (r->>'reached_cap')::boolean is not false then
+    raise exception 'HP-2 FAILED: expected 8 sends and no notice: %', r;
   end if;
 
   -- A DIFFERENT reason reads the SAME running total: 8 < 10, so this claim is
@@ -97,14 +98,15 @@ begin
   if (r->>'sends')::int is distinct from 11 then
     raise exception 'HP-2 FAILED: lead_chase must share the lead counter: %', r;
   end if;
-  if (r->>'alert')::int is distinct from 100 then
-    raise exception 'HP-2 FAILED: expected the 100 rung at 11/10: %', r;
+  -- 8 before is under the ceiling and 11 after is past it: this claim reached it.
+  if (r->>'reached_cap')::boolean is not true then
+    raise exception 'HP-2 FAILED: the claim from 8 to 11 of 10 must report the ceiling: %', r;
   end if;
 end $$;
 
 -- ===========================================================================
--- HP-3. Past the ceiling: refused, but STILL COUNTED, and the rungs are
---       one-shot.
+-- HP-3. Past the ceiling: refused, but STILL COUNTED, and the ceiling is
+--       reported once.
 --
 --       Counting refused demand is the point of the `degraded` column — a big
 --       degraded number is how anyone learns the ceiling is too low or the
@@ -123,19 +125,19 @@ begin
   if (r->>'sends')::int is distinct from 13 then
     raise exception 'HP-3 FAILED: refused demand must still be counted: %', r;
   end if;
-  if r->>'alert' is not null then
-    raise exception 'HP-3 FAILED: the 100 rung must be one-shot: %', r;
+  if (r->>'reached_cap')::boolean is not false then
+    raise exception 'HP-3 FAILED: the ceiling must be reported once: %', r;
   end if;
 
-  -- A second refusal still alerts nothing.
+  -- A second refusal still reports nothing.
   r := public.claim_high_priority_push(co, 'lead', 2, 10);
-  if r->>'alert' is not null then
-    raise exception 'HP-3 FAILED: repeat alert at 15/10: %', r;
+  if (r->>'reached_cap')::boolean is not false then
+    raise exception 'HP-3 FAILED: reported again at 15/10: %', r;
   end if;
 end $$;
 
 -- ===========================================================================
--- HP-4. The uncapped reasons are never refused and never alert.
+-- HP-4. The uncapped reasons are never refused and never reach a ceiling.
 --
 --       ring/call_end need a phone call to have actually happened, and a ring
 --       delivered at NORMAL priority is not a ring. emergency needs one of the
@@ -154,8 +156,8 @@ begin
     if (r->>'allowed')::boolean is not true then
       raise exception 'HP-4 FAILED: % must never be capped: %', reason, r;
     end if;
-    if r->>'alert' is not null then
-      raise exception 'HP-4 FAILED: % must never alert: %', reason, r;
+    if (r->>'reached_cap')::boolean is not false then
+      raise exception 'HP-4 FAILED: % must never reach a ceiling: %', reason, r;
     end if;
     if r->>'limit' is not null then
       raise exception 'HP-4 FAILED: % must report no limit: %', reason, r;
@@ -195,9 +197,9 @@ begin
 end $$;
 
 -- ===========================================================================
--- HP-6. The budget row records the ceiling that was IN FORCE, and both stamps.
---       A row read weeks later has to say what the limit WAS, not what it is
---       now — the #343 lesson.
+-- HP-6. The budget row records the ceiling that was IN FORCE and nothing about
+--       notices. A row read weeks later has to say what the limit WAS, not
+--       what it is now (the #343 lesson).
 -- ===========================================================================
 do $$
 declare
@@ -211,9 +213,10 @@ begin
   if b.day_limit is distinct from 10 then
     raise exception 'HP-6 FAILED: day_limit = % (want 10)', b.day_limit;
   end if;
-  if b.warned_at is null or b.capped_at is null then
-    raise exception 'HP-6 FAILED: both rungs must be stamped (warned=%, capped=%)',
-      b.warned_at, b.capped_at;
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'high_priority_push_budget'
+                and column_name in ('warned_at', 'capped_at')) then
+    raise exception 'HP-6 FAILED: the budget row still keeps a notice stamp';
   end if;
   -- The business's day, not UTC's (D15/#343): a Vancouver company rolling over
   -- at 5pm local is the bug that keying on UTC caused last time.

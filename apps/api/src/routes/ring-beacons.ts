@@ -14,14 +14,17 @@
  * Platform and build come from the X-Client and X-App-Version headers,
  * validated as the session ledger validates them so the two cannot disagree.
  *
+ * A RELAY. Each beacon becomes one `ring_beacon` event in PostHog, under the
+ * workspace's id, where it is joined to the server's `push_attempt` events on
+ * call_session_id. Nothing is stored here.
+ *
  * BEST-EFFORT. Clients fire and forget and never wait on this before ringing.
  * Device-state fields that do not parse are dropped rather than refused, so a
  * newer client reporting an unknown state still records its stage.
  *
- * CAPPED. Each beacon costs a count and an insert under a session id the
- * client names, so a member records at most RING_BEACON_DAILY_CAP per
- * workspace in any 24 hours. Past it the beacon is dropped with a 202; the
- * operator is alerted at 80% and at the cap.
+ * RATE LIMITED. RING_BEACON_RATE_LIMITER bounds what one member can send, so
+ * a client stuck in a loop cannot spend the project's event quota. Past it the
+ * beacon is dropped with a 202.
  */
 import { Hono } from "hono";
 import { z } from "zod";
@@ -29,10 +32,9 @@ import { z } from "zod";
 import { requireCapability } from "../auth/company";
 import { requestAppVersion, requestClient } from "../auth/request-origin";
 import type { AppEnv } from "../context";
-import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
-import { captureEvent, opsNotice } from "../observability/capture";
+import { captureEvent } from "../observability/capture";
 import { parseJsonBody } from "./core/http";
 
 /**
@@ -59,7 +61,7 @@ export const RING_BEACON_PERMISSIONS = [
   "battery_unrestricted",
 ] as const;
 
-export const RING_BEACON_PERMISSION_STATES = [
+const RING_BEACON_PERMISSION_STATES = [
   "granted",
   "denied",
   "prompt",
@@ -78,15 +80,6 @@ export const RING_BEACON_STANDBY_BUCKETS = [
 ] as const;
 
 /**
- * Per member, per workspace, per rolling 24 hours. A crew member on two phones
- * and a browser taking sixty calls a day writes a few hundred; this is several
- * times that, so only a broken or hostile client reaches it.
- */
-export const RING_BEACON_DAILY_CAP = 1500;
-const RING_BEACON_WARN_AT = RING_BEACON_DAILY_CAP * 0.8;
-const RING_BEACON_CAP_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-/**
  * How far a device clock may disagree with ours before its timestamp is thrown
  * away. Beacons are sent as they happen, so anything older than a day is a
  * wrong clock rather than a slow network.
@@ -98,17 +91,16 @@ const PLATFORMS = new Set(["web", "android", "ios"]);
 
 /**
  * The OS strings the three clients send, lowercased: an SDK level, an iOS
- * version, or the platform a browser names itself by. The ring_beacons CHECK
- * is the same pattern (push-evidence-schema.test.ts), so a value outside it is
- * dropped here rather than failing the insert.
+ * version, or the platform a browser names itself by. Anything else is
+ * dropped, so the field never carries free text.
  */
-export const RING_BEACON_OS_SHAPE =
+const RING_BEACON_OS_SHAPE =
   /^(android-[0-9]{1,3}|ios-[0-9]{1,2}(\.[0-9]{1,2}){0,2}|web(-(android|chrome-os|chromium-os|fuchsia|ios|linux|macos|unknown|windows))?)$/;
 
 const beaconSchema = z.object({
   // Telnyx session ids and the server's versioned ones both carry a hyphen or
-  // a colon. All digits is a phone number in the wrong field, which this table
-  // must never hold.
+  // a colon. All digits is a phone number in the wrong field, which must never
+  // reach PostHog.
   call_session_id: z
     .string()
     .min(1)
@@ -174,62 +166,29 @@ ringBeaconsRoutes.post("/ring-beacons", requireCapability("conversations.send"),
   }
   const body = await parseJsonBody(c, beaconSchema);
   const env = getEnv(c.env);
-  const db = getDb(env);
   const companyId = c.get("companyId");
   const userId = c.get("userId");
-  const nowMs = Date.now();
 
-  const { count, error: countError } = await db
-    .from("ring_beacons")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", companyId)
-    .eq("user_id", userId)
-    .gte("created_at", new Date(nowMs - RING_BEACON_CAP_WINDOW_MS).toISOString());
-  if (countError) {
-    throw new Error(`ring beacon cap count failed: ${countError.message}`);
+  if (env.RING_BEACON_RATE_LIMITER) {
+    const { success } = await env.RING_BEACON_RATE_LIMITER.limit({
+      key: `ring-beacon:${companyId}:${userId}`,
+    });
+    if (!success) return c.json({ recorded: false }, 202);
   }
-  const recent = count ?? 0;
 
-  if (recent >= RING_BEACON_DAILY_CAP) return c.json({ recorded: false }, 202);
-
-  const { error } = await db.from("ring_beacons").insert({
-    company_id: companyId,
-    user_id: userId,
-    auth_session_id: c.get("sessionId") ?? null,
-    call_session_id: body.call_session_id,
+  void captureEvent(env, "ring_beacon", companyId, {
     platform,
-    stage: body.stage,
-    occurred_at: believableTimestamp(body.occurred_at, nowMs),
     app_version: requestAppVersion(c),
+    stage: body.stage,
+    call_session_id: body.call_session_id,
+    user_id: userId,
+    occurred_at: believableTimestamp(body.occurred_at, Date.now()),
     os: body.os ?? null,
     permissions: knownPermissions(body.permissions),
     standby_bucket: body.standby_bucket ?? null,
     power_save: body.power_save ?? null,
     device_idle: body.device_idle ?? null,
     screen_locked: body.screen_locked ?? null,
-  });
-  if (error) throw new Error(`ring beacon insert failed: ${error.message}`);
-
-  // Two notices, so the first one comes while every beacon is still kept. A
-  // dropped beacon leaves the count where it was, so the ones refused after the
-  // cap say nothing.
-  const written = recent + 1;
-  if (written === RING_BEACON_WARN_AT || written === RING_BEACON_DAILY_CAP) {
-    const atCap = written === RING_BEACON_DAILY_CAP;
-    await opsNotice(env, {
-      key: "ring-beacon-cap",
-      summary: atCap
-        ? "A member reached the daily ring-beacon cap; further beacons are dropped"
-        : "A member is nearing the daily ring-beacon cap",
-      detail: `company ${companyId}: ${written} of ${RING_BEACON_DAILY_CAP} beacons in 24h`,
-      action:
-        "Look for a client stuck in a loop on that workspace. Rings are unaffected; only the evidence is.",
-    });
-  }
-  void captureEvent(env, "ring_beacon", companyId, {
-    platform,
-    app_version: requestAppVersion(c),
-    stage: body.stage,
   });
 
   return c.json({ recorded: true }, 202);

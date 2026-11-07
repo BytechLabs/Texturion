@@ -1,11 +1,11 @@
 /**
  * The shared plumbing every AI cost center uses: the company's opt-in toggles,
- * the atomic monthly reservation, and the one-shot alert-before-cap.
+ * the atomic monthly reservation, and the notice when a cap is reached.
  *
  * #214 (task enrichment) grew these privately inside routes/tasks.ts. Reply
  * suggestions needs exactly the same three things, so they live here once —
  * and the reservation is now keyed per FEATURE, so each cost center gets its
- * own bucket, its own cap, and its own alert instead of sharing one counter.
+ * own bucket and its own cap instead of sharing one counter.
  *
  * The rule every caller follows (cost-protection mandate): reserve BEFORE
  * spending, skip the model when the reservation says over-cap, and treat a
@@ -117,7 +117,8 @@ export async function loadAiSettings(
 export interface AiReservation {
   count: number;
   over_cap: boolean;
-  should_alert: boolean;
+  /** True for the one request whose unit took the count to the cap. */
+  reached_cap: boolean;
 }
 
 /**
@@ -132,45 +133,40 @@ export async function reserveAiUsage(
     companyId: string;
     feature: string;
     cap: number;
-    alertThreshold: number;
   },
 ): Promise<AiReservation> {
   const { data, error } = await db.rpc("ai_usage_reserve", {
     p_company_id: args.companyId,
     p_feature: args.feature,
     p_cap: args.cap,
-    p_alert_threshold: args.alertThreshold,
   });
   if (error || !data) {
-    return { count: 0, over_cap: true, should_alert: false };
+    return { count: 0, over_cap: true, reached_cap: false };
   }
   return data as AiReservation;
 }
 
 /**
- * The one-shot notice, sent the first time a company crosses a feature's
- * alert threshold in a month (the ledger's `should_alert` is true once).
- * `stops` says in plain language what the company loses at the cap, so whoever
- * reads it knows the blast radius without opening the code.
+ * The notice for the request that took a company to a feature's monthly cap,
+ * so it is sent once a month per feature. `stops` says in plain language what
+ * the company loses from now on, so whoever reads it knows the blast radius
+ * without opening the code.
  */
-export async function sendAiCapAlert(
+export async function reportAiCapReached(
   env: Env,
   args: {
     companyId: string;
     label: string;
-    count: number;
     cap: number;
-    alertThreshold: number;
     stops: string;
   },
 ): Promise<void> {
   await opsNotice(env, {
-    key: "ai-cap-nearing",
-    summary: `A workspace is nearing its monthly AI ${args.label} cap`,
+    key: "ai-cap-reached",
+    summary: `A workspace reached its monthly AI ${args.label} cap`,
     detail:
-      `company ${args.companyId} has used ${args.count} of ${args.cap} AI ` +
-      `${args.label} calls this month (noticing at ${args.alertThreshold}). ` +
-      `At the cap, ${args.stops}`,
+      `company ${args.companyId} has used all ${args.cap} AI ${args.label} calls ` +
+      `this month. From now on, ${args.stops}`,
     action: "Review whether this volume looks abusive.",
   });
 }

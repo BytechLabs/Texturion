@@ -1466,7 +1466,6 @@ describe("D142 — the shared-account partition", () => {
   const RIG_GROUP = "bg-nonprod";
   /** A company only the OTHER environment's database knows. */
   const STRANGER_COMPANY = "33333333-3333-4333-8333-333333333333";
-  const ALERT_DUE = new Date("2026-10-30T06:00:00.000Z");
 
   beforeEach(() => {
     resetCaptures();
@@ -1510,7 +1509,7 @@ describe("D142 — the shared-account partition", () => {
       let logged: string;
       let summary: Awaited<ReturnType<typeof reconcileNumbers>>;
       try {
-        summary = await reconcileNumbers(env, ALERT_DUE);
+        summary = await reconcileNumbers(env);
         logged = log.mock.calls.flat().join("\n");
       } finally {
         log.mockRestore();
@@ -1544,7 +1543,7 @@ describe("D142 — the shared-account partition", () => {
       }));
       telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
 
-      const summary = await reconcileNumbers(env, ALERT_DUE);
+      const summary = await reconcileNumbers(env);
 
       expect(summary.foreign).toBe(1);
       expect(summary.orphansReleased).toBe(0);
@@ -1568,7 +1567,7 @@ describe("D142 — the shared-account partition", () => {
         meta: { total_pages: 1 },
       }));
 
-      const summary = await reconcileNumbers(env, ALERT_DUE);
+      const summary = await reconcileNumbers(env);
 
       expect(summary.foreign).toBe(3);
       expect(summary.mismatched).toBe(1);
@@ -1582,7 +1581,7 @@ describe("D142 — the shared-account partition", () => {
       expect(JSON.stringify(alerts[0])).not.toContain("+1212555");
     });
 
-    it("reports a standing mismatch on the first sweep of every sixth hour, not on each", async () => {
+    it("reports a standing mismatch on every sweep that finds it, and leaves grouping to PostHog", async () => {
       const { env, rest, telnyx } = setup();
       insertSettled(rest);
       telnyx.on("GET", /^\/v2\/phone_numbers$/, () => ({
@@ -1592,14 +1591,11 @@ describe("D142 — the shared-account partition", () => {
         meta: { total_pages: 1 },
       }));
 
-      for (const quiet of ["2026-10-30T06:15:00.000Z", "2026-10-30T06:45:00.000Z", "2026-10-30T07:00:00.000Z", "2026-10-30T11:30:00.000Z"]) {
-        const summary = await reconcileNumbers(env, new Date(quiet));
+      for (let sweep = 0; sweep < 3; sweep += 1) {
+        const summary = await reconcileNumbers(env);
         expect(summary.mismatched).toBe(1);
       }
-      expect(mismatchAlerts()).toEqual([]);
-
-      await reconcileNumbers(env, new Date("2026-10-30T12:00:00.000Z"));
-      expect(mismatchAlerts()).toHaveLength(1);
+      expect(mismatchAlerts()).toHaveLength(3);
     });
 
     it("pages for a number one of our rows claims by id or E.164, with no customer_reference at all", async () => {
@@ -1628,7 +1624,7 @@ describe("D142 — the shared-account partition", () => {
         meta: { total_pages: 1 },
       }));
 
-      const summary = await reconcileNumbers(env, ALERT_DUE);
+      const summary = await reconcileNumbers(env);
 
       expect(summary.foreign).toBe(3);
       expect(summary.mismatched).toBe(2);
@@ -1663,7 +1659,7 @@ describe("D142 — the shared-account partition", () => {
         meta: { total_pages: 1 },
       }));
 
-      const summary = await reconcileNumbers(env, ALERT_DUE);
+      const summary = await reconcileNumbers(env);
 
       expect(summary.mismatched).toBe(1);
       expect(mismatchAlerts()).toHaveLength(1);
@@ -1691,7 +1687,7 @@ describe("D142 — the shared-account partition", () => {
       }));
       telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
 
-      const summary = await reconcileNumbers(env, ALERT_DUE);
+      const summary = await reconcileNumbers(env);
 
       expect(summary.foreign).toBe(2);
       expect(summary.mismatched).toBe(1);
@@ -1853,8 +1849,8 @@ describe("D142 — the shared-account partition", () => {
     });
 
     it("a refusal does not fail the grace batch: no retry can fix it, and the company's other numbers are still released", async () => {
-      // A failed batch would block the grace job's campaign deactivation and
-      // withhold its heartbeat until someone edits the portal.
+      // A failed batch would block the grace job's campaign deactivation until
+      // someone edits the portal.
       const { env, rest, telnyx } = setup();
       insertHeld(rest, "pn-1", "+12125550001");
       insertHeld(rest, "pn-2", "+12125550002");

@@ -14,14 +14,7 @@ import {
   type ExceptionContext,
   type WaitUntil,
 } from "./observability/capture";
-import {
-  cronHeartbeat,
-  isCronSchedule,
-  pingCallSessionObject,
-  type CronSchedule,
-} from "./observability/heartbeat";
-import { runTelnyxCapacityGauge } from "./observability/telnyx-capacity";
-import { runTelnyxSpendGauges } from "./observability/telnyx-spend";
+import { isCronSchedule, type CronSchedule } from "./crons/schedules";
 import { runResponseTimeRecapJob } from "./reports/monthly-recap";
 import {
   runOverageWarningJob,
@@ -576,11 +569,8 @@ const job = (key: `job:${string}`, run: ScheduledJob): CronEntry => ({ key, run 
  * Every job is idempotent and clock-injected where it needs a clock, so the
  * trigger's own scheduledTime is passed through. Exported so tests can assert
  * this map stays in lockstep with wrangler.jsonc and the §11 schedule set.
- */
-/**
- * Keyed by `CronSchedule`, which is derived from `CRON_GRACE_MINUTES`: adding
- * a trigger here without first saying how long its silence may last does not
- * compile.
+ * Keyed by `CronSchedule` (crons/schedules.ts), so a schedule without jobs
+ * does not compile.
  */
 export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // #388: the unanswered-lead ladder. Every minute, because the rungs are at
@@ -689,12 +679,6 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #133: flip call sessions wedged in-flight >4h to 'missed' so /calls
     // stays honest and the per-conversation dial guard re-opens.
     job("job:sweep-stale-calls", sweepStaleCalls),
-    // #642: today's Telnyx spend against its own daily limits, as gauges.
-    // Hourly because the limits reset at 00:00 UTC and an afternoon's runaway
-    // should be seen while there is still a cap left to save. Each run reads
-    // the limits too, so one removed or lowered in the portal shows within
-    // the hour.
-    job("job:telnyx-spend-gauges", runTelnyxSpendGauges),
     // #224: retire payment requests past their expiry, so a thread stops
     // showing "Waiting" for a link that no longer opens.
     job("job:expire-payment-requests", expirePaymentRequests),
@@ -717,10 +701,6 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // slow reconciles — the windows it compares are 7 and 28 days, so running
     // it more often would cost queries to learn the same answer.
     job("job:number-health", runNumberHealthJob),
-    // #643: the worst-case call legs against Telnyx's concurrent call limit,
-    // as a gauge. Daily: the inputs (crew size, number access) move by
-    // deliberate edits, and the 28-day peak moves slowly.
-    job("job:telnyx-capacity-gauge", runTelnyxCapacityGauge),
     // #303: each workspace's day of sending, as an `aup_signals` event. Daily
     // because the signals are day-scale by construction.
     job("job:aup-signals", runAupSignalsJob),
@@ -756,10 +736,6 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // would always arrive after that. The usage_alerts ledger, keyed on the UTC
   // day, keeps it to one warning per crew per day.
   "25 * * * *": [job("job:carrier-ceiling", runCarrierCeilingJob)],
-  // D146: the call Durable Object's own heartbeat, sent from inside it. The
-  // Worker's heartbeats say nothing about the object's isolate, which is where
-  // every call event is handled.
-  "15 */6 * * *": [job("job:call-session-heartbeat", pingCallSessionObject)],
   "30 15 * * *": [
     job("job:prune-webhook-events", pruneWebhookEvents),
     // #581: the widget's proof-of-number rows. Beside the others because it is
@@ -877,15 +853,14 @@ export const handler = {
 
   /**
    * Cron entry point (SPEC §11): validate the environment (a misconfigured
-   * Worker fails loudly on its first trigger), send the trigger's heartbeat,
-   * then run every job mapped to the schedule that fired.
+   * Worker fails loudly on its first trigger), then run every job mapped to
+   * the schedule that fired.
    */
   async scheduled(controller, env, ctx) {
     const cron = controller.cron;
     const waitUntil: WaitUntil = (promise) => ctx.waitUntil(promise);
     // These two refusals happen before any job runs, so they are reported here
-    // or nowhere: every trigger of the cron would fail with only the missing
-    // heartbeat to show for it.
+    // or nowhere.
     const refuseRun = (error: Error): never => {
       reportUnexpected(env, error, { source: "cron", cron }, waitUntil);
       throw error;
@@ -904,12 +879,6 @@ export const handler = {
       );
     }
     const now = new Date(controller.scheduledTime);
-
-    // The trigger FIRED, and that is what the heartbeat says, before the jobs
-    // run and whether or not any of them throws. A job that throws is an
-    // exception; a schedule that stops firing leaves no exception at all, and
-    // the missing heartbeat is the only trace it leaves.
-    void cronHeartbeat(validated, cron, waitUntil);
 
     const rigRefusal = await rigDatabaseRefusal(validated);
     if (rigRefusal !== null) throw new Error(`rig cron not run: ${rigRefusal}`);

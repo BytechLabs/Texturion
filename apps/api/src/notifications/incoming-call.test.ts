@@ -14,7 +14,6 @@ import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { encodeBase64Url } from "./webpush";
 import { notifyIncomingCall } from "./incoming-call";
-import { pushAttemptsSettled } from "./push-attempts";
 
 vi.mock("../observability/capture", async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
@@ -26,10 +25,7 @@ const USER_A = "aaaaaaaa-0000-4000-8000-00000000000a";
 const USER_B = "bbbbbbbb-0000-4000-8000-00000000000b";
 const PUSH_ORIGIN = "https://fcm.googleapis.com";
 
-// The fan-out writes its evidence in the background; let it land in this
-// test's stubs rather than the next one's.
-afterEach(async () => {
-  await pushAttemptsSettled();
+afterEach(() => {
   vi.unstubAllGlobals();
 });
 beforeEach(() => {

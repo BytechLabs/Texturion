@@ -1,24 +1,18 @@
 /**
  * D146: the Durable Object reports to PostHog itself, with its own env and its
- * own `waitUntil`. Under Sentry it did not: the wrapper made a client for
- * fetch and alarm only, so every warning raised through RPC, which is how call
- * events arrive, went nowhere for three months.
+ * own `waitUntil`, so a warning raised through RPC, which is how call events
+ * arrive, is reported like one raised in fetch or alarm.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getEnv, type Env } from "../env";
 import { buildMemberRingState } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
-import {
-  captured,
-  eventsCaptured,
-  exceptionsCaptured,
-  resetCaptures,
-} from "../test/capture-mock";
+import { captured, exceptionsCaptured, resetCaptures } from "../test/capture-mock";
 import { completeEnv } from "../test/support";
 
 import type { SessionRuntime } from "./runtime";
-import { CallSessionDO, HEARTBEAT_GRACE_MINUTES, HEARTBEAT_KEY } from "./session-do";
+import { CallSessionDO } from "./session-do";
 import { ctx, makeRuntime, makeStorage, SESSION } from "./session-do-fake";
 
 vi.mock("../observability/capture", async () =>
@@ -52,30 +46,6 @@ function expectDurableObjectEnv(env: Env) {
 
 beforeEach(() => {
   resetCaptures();
-});
-
-describe("CallSessionDO heartbeat", () => {
-  it("sends one ops_heartbeat from inside the object, with its env", async () => {
-    const { instance, waitUntil } = makeDO();
-
-    await instance.heartbeat();
-
-    expect(captured).toHaveLength(1);
-    const [heartbeat] = eventsCaptured("ops_heartbeat");
-    expect(heartbeat).toEqual({
-      event: "ops_heartbeat",
-      distinctId: "loonext-api",
-      properties: { key: HEARTBEAT_KEY, grace_minutes: HEARTBEAT_GRACE_MINUTES },
-    });
-    expect(HEARTBEAT_KEY).toBe("channel:call-session-do");
-    expect(HEARTBEAT_GRACE_MINUTES).toBe(420);
-    const [entry] = captured;
-    expectDurableObjectEnv(entry.env);
-
-    const sending = Promise.resolve();
-    entry.waitUntil?.(sending);
-    expect(waitUntil).toHaveBeenCalledWith(sending);
-  });
 });
 
 describe("a warning raised inside onTelnyxEvent", () => {

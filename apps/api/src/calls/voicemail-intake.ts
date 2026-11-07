@@ -69,11 +69,6 @@ export const VOICEMAIL_INTAKE_FEATURE = "voicemail_intake";
  */
 export const VOICEMAIL_INTAKE_MONTHLY_CAP = 500;
 
-/** Fire the one-shot ops alert at 80% of the cap (alert BEFORE the cap). */
-export const VOICEMAIL_INTAKE_ALERT_THRESHOLD = Math.floor(
-  VOICEMAIL_INTAKE_MONTHLY_CAP * 0.8,
-);
-
 /** Cap the model's output — the JSON object is four short strings. */
 export const VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS = 256;
 
@@ -85,15 +80,14 @@ export const VOICEMAIL_INTAKE_TIMEOUT_MS = 10_000;
 
 /**
  * Everything this cost centre may do, declared once and handed to
- * `runAiFeature` — the one door onto the model, which owns the opt-in, the cap,
- * the alert and the timeout.
+ * `runAiFeature`, the one door onto the model, which owns the opt-in, the cap
+ * and the timeout.
  */
 export const VOICEMAIL_INTAKE_FEATURE_SPEC: AiFeatureSpec = {
   key: VOICEMAIL_INTAKE_FEATURE,
   label: "voicemail intake",
   cap: VOICEMAIL_INTAKE_MONTHLY_CAP,
   unitCostCents: AI_UNIT_COST_CENTS.voicemail_intake,
-  alertThreshold: VOICEMAIL_INTAKE_ALERT_THRESHOLD,
   stops:
     "new voicemails are still recorded, transcribed and readable — just not " +
     "broken out into what and where.",

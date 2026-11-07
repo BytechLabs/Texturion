@@ -1,10 +1,7 @@
 import { HEADER } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
-import type { TelnyxRequest } from "../src/telnyx/forward";
-import { loadPartition } from "../src/telnyx/partition";
-import { READ_RULES } from "../src/telnyx/read";
-import { lease, N, ready, registerViaEdge, ruleOf, type Harness } from "./support";
+import { lease, N, ready, registerViaEdge, ruleOf } from "./support";
 
 type Listing = { data: Record<string, unknown>[] };
 
@@ -160,69 +157,7 @@ describe("the owned set, when Telnyx ignores the group filter", () => {
   });
 });
 
-describe("read rules for the production watches' reads", () => {
-  async function read(h: Harness, key: string, ids: string[], data: unknown): Promise<unknown> {
-    const view = await loadPartition(h.ctx);
-    const request = {
-      ctx: h.ctx,
-      caller: "rig-api",
-      method: "GET",
-      path: "/v2/x",
-      query: new URLSearchParams(),
-      ids,
-      entry: { key } as TelnyxRequest["entry"],
-      body: undefined,
-      bodyInvalid: false,
-      lease: null,
-      idempotencyKey: null,
-      view,
-    } satisfies TelnyxRequest;
-    const rule = READ_RULES[key];
-    await rule.prepare?.(request);
-    const items = Array.isArray(data) ? data : [data];
-    const kept = [];
-    for (const item of items) if (await rule.keep(item as Record<string, unknown>, request)) kept.push(item);
-    return kept;
-  }
-
-  it("read one nonprod app or connection by id, and refuse production's before asking", async () => {
-    const h = await ready();
-    expect(await read(h, "GET /v2/call_control_applications/:id", ["conn-voice"], { id: "conn-voice" })).toHaveLength(1);
-    await expect(read(h, "GET /v2/call_control_applications/:id", ["conn-prod-voice"], {})).rejects.toMatchObject({
-      rule: "read.not_in_partition",
-    });
-    expect(await read(h, "GET /v2/credential_connections/:id", ["conn-webrtc"], { id: "conn-webrtc" })).toHaveLength(1);
-    await expect(read(h, "GET /v2/credential_connections/:id", ["conn-prod-webrtc"], {})).rejects.toMatchObject({
-      rule: "read.not_in_partition",
-    });
-  });
-
-  it("read one nonprod outbound voice profile by id, and refuse production's before asking", async () => {
-    const h = await ready();
-    expect(await read(h, "GET /v2/outbound_voice_profiles/:id", ["ovp-voice"], { id: "ovp-voice" })).toHaveLength(1);
-    await expect(read(h, "GET /v2/outbound_voice_profiles/:id", ["ovp-prod"], {})).rejects.toMatchObject({
-      rule: "read.not_in_partition",
-    });
-  });
-
-  it("keep only nonprod profiles and deliveries for nonprod resources", async () => {
-    const h = await ready();
-    expect(await read(h, "GET /v2/messaging_profiles", [], [{ id: "prof-qa-w" }, { id: "prof-prod" }])).toEqual([
-      { id: "prof-qa-w" },
-    ]);
-    const deliveries = [
-      { id: "d1", webhook: { payload: { connection_id: "conn-voice" } } },
-      { id: "d2", webhook: { payload: { connection_id: "conn-prod-voice" } } },
-      { id: "d3", webhook: { payload: { messaging_profile_id: "prof-robot" } } },
-      { id: "d4", webhook: { payload: { messaging_profile_id: "prof-prod" } } },
-      { id: "d5" },
-    ];
-    expect(((await read(h, "GET /v2/webhook_deliveries", [], deliveries)) as { id: string }[]).map((item) => item.id)).toEqual([
-      "d1",
-      "d3",
-    ]);
-  });
-
+describe("every read", () => {
   it("never return a credential-named field, whatever the read", async () => {
     const h = await ready();
     h.telnyx.numbers[0].v1_secret = "fake-v1-secret";

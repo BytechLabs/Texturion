@@ -132,8 +132,25 @@ Named here rather than left to be rediscovered:
 - **A stuck port-in.** Telnyx dashboard plus state fixes. The port saga has its
   own resume path (`pollPortRequests`); reach for that first.
 - **"My texts stopped arriving."** Investigation, not a fix — start with the
-  Loonext health dashboard in PostHog: `webhook_rejected` by provider (#308)
-  and `message_outcome` by country (#379).
+  Loonext health dashboard in PostHog: `message_outcome` by country (#379).
+  Webhook deliveries we refused are HTTP 400s on `/webhooks/*` in the API
+  Worker's Workers Logs.
+- **"My phone didn't ring."** Two reads, both built in, joined on the call
+  session id. The call and its legs, as `agent_diag` in psql, after
+  `node scripts/ops/agent-diag.mjs --self-check` passes:
+  `select * from ops_diag.call_sessions where call_session_id = '<id>';` and
+  `select * from ops_diag.call_legs where call_session_id = '<id>' order by
+  created_at;` (or `where company_ref = ops_diag.ref('<workspace id>')` for a
+  workspace's recent calls). Then what each push did and how far each device
+  got, in PostHog's SQL editor: `select timestamp, event, properties.platform,
+  properties.purpose, properties.response_class, properties.http_status,
+  properties.stage, properties.user_id from events where event in
+  ('push_attempt', 'ring_beacon') and properties.call_session_id = '<id>' and
+  properties.environment = 'production' order by timestamp`. No push for a
+  member means none was sent; an accepted push with no `push_received` beacon
+  means the provider never delivered it; `push_received` with no
+  `ringing_shown` means the device did not ring; `ringing_shown` with no
+  `answered` puts it in answering or audio.
 - **Anything touching money.** Refunds and proration go through Stripe's own
   dashboard, which has its own audit trail and does not need ours.
 

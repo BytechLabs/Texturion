@@ -31,8 +31,6 @@ import { getEnv, type Env } from "../env";
 import { refuseStrangerInbound } from "../environments/inbound";
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
 import { captureEvent } from "../observability/capture";
-import { channelHeartbeat } from "../observability/heartbeat";
-import { countWebhookRejection } from "../observability/webhook-rejections";
 import type { TelnyxEvent } from "../messaging/types";
 import { verifyTelnyxWebhook } from "../telnyx/verify";
 
@@ -47,10 +45,7 @@ telnyxWebhookRoute.post("/", async (c) => {
     | TelnyxEvent
     | null;
   if (!event) {
-    // #308: a rejection is a `return`, not a throw, so nothing reports it and
-    // "we are receiving and discarding every delivery" produced no signal at
-    // all. Reported, never awaited into the response path.
-    countWebhookRejection(c, "telnyx");
+    console.warn("telnyx webhook refused: signature verification failed");
     return c.json({ error: "signature verification failed" }, 400);
   }
 
@@ -85,13 +80,9 @@ telnyxWebhookRoute.post("/", async (c) => {
     throw new Error(`webhook_events insert failed: ${error.message}`);
   }
 
-  // D146: a fresh delivery is the channel carrying something. A duplicate POST
-  // says nothing new, so it neither beats nor counts a call twice.
-  if (data && data.length > 0) {
-    channelHeartbeat(env, "channel:telnyx-webhook", (promise) => c.executionCtx.waitUntil(promise));
-    if (eventType === "call.initiated") {
-      c.executionCtx.waitUntil(reportCallReceived(env, db, event));
-    }
+  // A duplicate POST says nothing new, so it never counts a call twice.
+  if (data && data.length > 0 && eventType === "call.initiated") {
+    c.executionCtx.waitUntil(reportCallReceived(env, db, event));
   }
 
   // #216: call.cost is a BILLING event (fired per leg at call end), not a

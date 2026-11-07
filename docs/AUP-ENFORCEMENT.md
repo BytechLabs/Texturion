@@ -18,24 +18,26 @@ bug in this file.
 
 ## What raises a case
 
-`apps/api/src/messaging/aup-watch.ts` runs on a schedule, reads
-`api_aup_signals`, and emails ops when a workspace trips its conjunction. It
-**never acts**, by design: a roofer after a storm is statistically
+`apps/api/src/messaging/aup-watch.ts` runs daily, reads `api_aup_signals`, and
+sends each workspace's day of sending to PostHog as one `aup_signals` event. The
+PostHog "Limits and rates" alert holds the thresholds below and asks a person to
+look when a workspace trips one; nothing here sends an email. It **never acts**,
+by design: a roofer after a storm is statistically
 indistinguishable from a mass marketer, and the cost of suspending the roofer on
 the busiest day of their year is far greater than the cost of a carrier
 conversation about the marketer.
 
-The signals, and the thresholds as built:
+The signals, and the thresholds the alert holds:
 
 | Signal | Threshold | What it means |
 |---|---|---|
-| Velocity | `VELOCITY_MULTIPLE = 5` times the workspace's own median day | Above its OWN baseline, not an absolute number, because a small crew's normal is a small number |
-| Floor | `MIN_SENDS_TO_JUDGE = 100` | Below this nothing is judged; a quiet workspace tripling from 3 to 9 is noise |
-| Fan-out | `FRESH_RATIO = 0.8` to previously-uncontacted numbers | Reaching strangers at scale is the shape mass marketing makes |
-| Opt-outs | `OPT_OUT_ALARM = 10` | The recipients' own verdict, and one of two signals needing no interpretation |
-| Opt-out RATE | `OPT_OUT_RATIO_ALARM = 0.03` above 50 sends | Catches the small workspace an absolute count is blindest to — the shape a bought list makes |
-| Rejection RATE | `BLOCK_RATIO_ALARM = 0.02` above 50 sends | The same reading for the carrier's verdict |
-| Carrier blocks | `SPAM_BLOCK_ALARM = 5` | The network's verdict. Lower than the opt-out bar because carrier filtering applies to the SENDING POOL, so these are already spending every other customer's deliverability |
+| Velocity | 5 times the workspace's own median day | Above its OWN baseline, not an absolute number, because a small crew's normal is a small number |
+| Floor | 100 sends in the day | Below this nothing is judged; a quiet workspace tripling from 3 to 9 is noise |
+| Fan-out | 80% to previously-uncontacted numbers | Reaching strangers at scale is the shape mass marketing makes |
+| Opt-outs | 10 in the day | The recipients' own verdict, and one of two signals needing no interpretation |
+| Opt-out RATE | 3% above 50 sends | Catches the small workspace an absolute count is blindest to, the shape a bought list makes |
+| Rejection RATE | 2% above 50 sends | The same reading for the carrier's verdict |
+| Carrier blocks | 5 in the day | The network's verdict. Lower than the opt-out bar because carrier filtering applies to the SENDING POOL, so these are already spending every other customer's deliverability |
 
 Velocity and fan-out are a **conjunction**, not independent triggers. Volume
 alone is a busy day; reaching new numbers alone is a new workspace doing exactly
@@ -122,7 +124,8 @@ Honest state, so nobody assumes a lever exists:
   that cries wolf is one people stop reading.
 - **Signup screening exists, and it FLAGS rather than declines.**
   `screenBusinessName` (packages/shared) matches the workspace name against the
-  categories §4 prohibits and emails ops before the number is provisioned. It
+  categories §4 prohibits and sends one `ops:aup-signup-screen` notice to
+  PostHog before the number is provisioned. It
   never blocks the signup: a name is weak evidence — "Colt Plumbing" is a
   plumber — and refusing on a keyword would turn away a real customer at the
   moment they are deciding whether to trust us, with nobody to argue to.
@@ -142,9 +145,8 @@ Honest state, so nobody assumes a lever exists:
   verdict signals rather than new data. A count answers the wrong question for
   half our customers: ten opt-outs against ten thousand sends is a good week,
   ten against forty is a workspace texting people who never asked. Above
-  `RATIO_MIN_SENDS = 50`, an opt-out rate of 3% or a carrier-rejection rate of
-  2% is reported — but only when the COUNT alarm has not already said it, so
-  one workspace never produces the same fact twice in different arithmetic.
+  50 sends, an opt-out rate of 3% or a carrier-rejection rate of 2% trips the
+  alert, which lists a workspace once however many of its signals it trips.
 
   The floor is the whole trick. Without it, one opt-out from three sends is
   33% and every quiet workspace trips on its first unsubscribe. Carrier-

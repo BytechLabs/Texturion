@@ -11,7 +11,6 @@ import { getDb } from "../db";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { callEndAlert, notifyCallEnd } from "./call-end";
-import { pushAttemptsSettled } from "./push-attempts";
 import { encodeBase64Url } from "./webpush";
 
 vi.mock("../observability/capture", async () =>
@@ -23,10 +22,7 @@ const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const USER_A = "aaaaaaaa-0000-4000-8000-00000000000a";
 const PUSH_ORIGIN = "https://fcm.googleapis.com";
 
-// The fan-out writes its evidence in the background; let it land in this
-// test's stubs rather than the next one's.
-afterEach(async () => {
-  await pushAttemptsSettled();
+afterEach(() => {
   vi.unstubAllGlobals();
 });
 

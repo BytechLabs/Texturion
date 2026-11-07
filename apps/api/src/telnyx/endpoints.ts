@@ -66,18 +66,6 @@ export const TELNYX_ENDPOINTS = [
   { method: "POST", path: "/v2/calls/:id/actions/speak", policy: "leg-command" },
   { method: "POST", path: "/v2/calls/:id/actions/transfer", policy: "dial" },
 
-  // PW01 reads production's own wiring, and only production runs it
-  // (environments/policy.ts productionWatchRefusal), so these never come from
-  // the rig. If one ever did, the guard's read filter must drop every resource
-  // and delivery that is not nonprod: a delivery carries its event's payload.
-  { method: "GET", path: "/v2/call_control_applications/:id", policy: "read" },
-  { method: "GET", path: "/v2/credential_connections/:id", policy: "read" },
-
-  // #642 reads the daily spend limit on production's own profiles, from the
-  // same production-only watches as PW01. Same rule if one ever came from the
-  // rig: the guard's read filter drops every resource that is not nonprod.
-  { method: "GET", path: "/v2/outbound_voice_profiles/:id", policy: "read" },
-
   // Porting and hosted-messaging paperwork.
   { method: "POST", path: "/v2/documents", policy: "refused" },
   { method: "GET", path: "/v2/documents/:id/download", policy: "refused" },
@@ -106,7 +94,6 @@ export const TELNYX_ENDPOINTS = [
 
   // Always sent with a messaging-profile filter; the guard refuses it without one.
   { method: "GET", path: "/v2/messaging_optouts", policy: "read" },
-  { method: "GET", path: "/v2/messaging_profiles", policy: "read" },
   { method: "POST", path: "/v2/messaging_profiles", policy: "provisioning" },
 
   { method: "POST", path: "/v2/number_orders", policy: "provisioning" },

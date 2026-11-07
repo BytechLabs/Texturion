@@ -129,14 +129,4 @@ describe("loadNumberHealth", () => {
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
   });
-
-  it("cannot leak the internal 'watch' state even if the RPC returned one", async () => {
-    // Defence in depth: api_number_health already flattens watch to healthy.
-    // If that ever regressed, this stops it reaching a customer's screen.
-    const { db } = stub([
-      { phone_number_id: "n1", state: "watch", delivery_rate: 0.8, degraded_since: "x", detail: "d" },
-    ]);
-
-    expect(await loadNumberHealth(db, "c1")).toEqual(new Map());
-  });
 });

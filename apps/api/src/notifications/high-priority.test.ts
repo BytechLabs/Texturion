@@ -1,6 +1,6 @@
 /**
- * #452 — HIGH-priority push is a rationed resource, so it gets a counter, a
- * shared ceiling and an alert.
+ * #452: HIGH-priority push is a rationed resource, so it gets a counter and a
+ * shared ceiling.
  *
  * What this suite pins:
  *   - every HIGH request claims the meter, with the DEVICE count (the unit the
@@ -11,16 +11,12 @@
  *   - a refused claim does NOT degrade Web Push, which nobody rations;
  *   - a meter failure fails OPEN and is reported, because a counter must never
  *     be the reason a phone does not ring;
- *   - crossing a rung sends one ops notice, and nothing reaches the owner.
+ *   - the claim that reaches the ceiling sends one ops notice, and nothing
+ *     reaches the owner.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  captured,
-  exceptionsCaptured,
-  noticesCaptured,
-  resetCaptures,
-} from "../test/capture-mock";
+import { exceptionsCaptured, noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
@@ -102,7 +98,7 @@ async function world(options: {
   sb.on("POST", "/rest/v1/rpc/claim_high_priority_push", () =>
     options.claimStatus !== undefined
       ? new Response("boom", { status: options.claimStatus })
-      : (options.claim ?? { allowed: true, alert: null }),
+      : (options.claim ?? { allowed: true, reached_cap: false }),
   );
   sb.on("GET", "/rest/v1/company_members", () => [{ user_id: USER }]);
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, () => ({
@@ -185,7 +181,7 @@ describe("#452 — the meter on high-priority push", () => {
   it("degrades to NORMAL past the ceiling and still reaches every device", async () => {
     // The one cost centre where cap-and-drop is wrong: dropping the alert
     // loses the lead, degrading it loses only the Doze wake.
-    const w = await world({ claim: { allowed: false, alert: null } });
+    const w = await world({ claim: { allowed: false, reached_cap: false } });
     const priorities = await nativePriorities(w, {
       companyId: COMPANY,
       reason: "lead",
@@ -197,7 +193,7 @@ describe("#452 — the meter on high-priority push", () => {
   it("does not degrade Web Push, which nobody rations", async () => {
     // RFC 8030 urgency is not a budget with anyone. Degrading it would save
     // nothing and cost a wake.
-    const w = await world({ claim: { allowed: false, alert: null } });
+    const w = await world({ claim: { allowed: false, reached_cap: false } });
     await nativePriorities(w, { companyId: COMPANY, reason: "lead" });
 
     expect(w.webPush.map((p) => p.urgency)).toEqual(["high"]);
@@ -222,35 +218,27 @@ describe("#452 — the meter on high-priority push", () => {
     });
   });
 
-  it("sends one notice at 80%, and no email to anyone", async () => {
+  it("sends one notice when the claim reaches the ceiling, and no email to anyone", async () => {
     // Our standing with Google is our cost, not the customer's bill, and
     // there is nothing an owner could do about it — the #448 posture.
-    const w = await world({ claim: { allowed: true, alert: 80 } });
+    const w = await world({ claim: { allowed: true, reached_cap: true } });
     await nativePriorities(w, { companyId: COMPANY, reason: "lead" });
 
     const notices = noticesCaptured("high-priority-push-ceiling");
     expect(notices).toHaveLength(1);
-    expect(notices[0].level).toBe("warning");
+    expect(notices[0].level).toBe("error");
+    expect(notices[0].summary).toContain("reached the daily high-priority push ceiling");
     expect(notices[0].detail).toContain(COMPANY);
+    expect(notices[0].detail).toContain("NORMAL priority");
     expect(notices[0].detail).not.toContain("owner@team.example");
     expect(w.resend).toEqual([]);
   });
 
-  it("says plainly at 100% that leads now ride NORMAL", async () => {
-    const w = await world({ claim: { allowed: true, alert: 100 } });
-    await nativePriorities(w, { companyId: COMPANY, reason: "lead" });
-
-    const [notice] = noticesCaptured("high-priority-push-ceiling");
-    expect(notice.level).toBe("error");
-    expect(notice.summary).toContain("reached the daily high-priority push ceiling");
-    expect(notice.detail).toContain("NORMAL priority");
-  });
-
-  it("sends nothing when no rung was crossed", async () => {
-    const w = await world({ claim: { allowed: true, alert: null } });
+  it("sends nothing for a claim that did not reach the ceiling", async () => {
+    const w = await world({ claim: { allowed: true, reached_cap: false } });
     await nativePriorities(w, { companyId: COMPANY, reason: "emergency" });
 
-    expect(captured).toEqual([]);
+    expect(noticesCaptured()).toEqual([]);
     expect(w.resend).toEqual([]);
   });
 });
@@ -266,7 +254,7 @@ describe("claimHighPriority", () => {
       { companyId: COMPANY, reason: "ring" },
       0,
     );
-    expect(claim).toEqual({ allowed: true, alert: null });
+    expect(claim).toEqual({ allowed: true, reachedCap: false });
     expect(w.sb.find("POST", "/rest/v1/rpc/claim_high_priority_push")).toEqual(
       [],
     );

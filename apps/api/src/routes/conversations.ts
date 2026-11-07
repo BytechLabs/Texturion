@@ -1370,7 +1370,7 @@ conversationsRoutes.post(
     // And per MEMBER. The monthly cap is a company ceiling, so without this one
     // member could spend the whole crew's month on their own: a runaway client,
     // a stuck retry, or a stolen token exhausts everyone else's drafts and the
-    // cap alert is the first anyone hears of it.
+    // cap notice is the first anyone hears of it.
     if (env.AI_MEMBER_RATE_LIMITER) {
       const { success } = await env.AI_MEMBER_RATE_LIMITER.limit({
         key: `${companyId}:${c.get("userId")}`,
@@ -1436,8 +1436,8 @@ conversationsRoutes.post(
       draft,
     });
 
-    // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap,
-    // the alert before the cap, and the timeout.
+    // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap
+    // and the timeout.
     const run = await runAiFeature(env, db, {
       companyId,
       spec: SUGGEST_REPLY_FEATURE_SPEC,
@@ -1750,8 +1750,8 @@ conversationsRoutes.post(
       now: new Date(),
     });
 
-    // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap,
-    // the alert before the cap, and the timeout.
+    // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap
+    // and the timeout.
     const run = await runAiFeature(env, db, {
       companyId,
       spec: THREAD_SUMMARY_FEATURE_SPEC,
@@ -2035,7 +2035,7 @@ conversationsRoutes.post(
     // route had NEITHER — the only member-triggered AI path in the product
     // without a burst gate, so one member holding a button in a loop (or a
     // stuck client, or a stolen token) could spend the crew's whole month of
-    // wrap-ups in minutes and the cap alert was the first anyone heard of it.
+    // wrap-ups in minutes and the cap notice was the first anyone heard of it.
     //
     // SHARED buckets rather than a namespace of this route's own, deliberately.
     // AI_REPLY_RATE_LIMITER carries drafting's name and thread catch-up already
@@ -2066,7 +2066,7 @@ conversationsRoutes.post(
 
     const settings = await loadAiSettings(db, companyId);
     // One door onto the model (ai/run.ts): it owns the opt-in, the billing
-    // standing, the monthly cap, the alert before the cap, and the timeout.
+    // standing, the monthly cap and the timeout.
     const run = await runAiFeature(env, db, {
       companyId,
       spec: CALL_WRAPUP_FEATURE_SPEC,
