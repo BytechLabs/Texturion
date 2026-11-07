@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 
 import { useNumbers } from "@/lib/api/numbers";
 
+import { InitialsAvatar } from "./initials-avatar";
 import { MemberMenu } from "./member-menu";
 import { isNavActive } from "./nav";
 import { useNavCounts } from "./use-nav-counts";
@@ -331,30 +332,31 @@ export function Sidebar({
 
   const memberTile = (
     <MemberMenu>
+      {/* Named by what it shows (the member, their role) and then what it
+          opens, so the name holds the visible words in order (WCAG 2.5.3).
+          The space after the name keeps it and the role two words. */}
       <button
         type="button"
-        aria-label={t("shell.accountAndSettings")}
         className={cn(
           "flex items-center rounded-[9px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
           collapsed ? "size-10 justify-center" : "w-full gap-2.5 px-1.5 py-1 text-left",
         )}
       >
-        <span
-          aria-hidden
+        <InitialsAvatar
+          initials={avatarInitials(displayName || membership.name)}
           className="grid size-7 shrink-0 place-items-center rounded-full bg-app-tint text-[11px] font-semibold text-app-olive-deep"
-        >
-          {avatarInitials(displayName || membership.name)}
-        </span>
+        />
         {!collapsed && (
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[12.5px] font-semibold text-app-ink">
               {displayName || t("shell.you")}
-            </span>
+            </span>{" "}
             <span className="block truncate text-[11px] text-app-muted-2">
               {roleLabel}
             </span>
           </span>
         )}
+        <span className="sr-only">{t("shell.accountAndSettings")}</span>
       </button>
     </MemberMenu>
   );
@@ -430,10 +432,11 @@ export function Sidebar({
               </TooltipContent>
             </Tooltip>
           ) : (
+            // Named by its own text, ⌘K included: every word it shows is in
+            // its name (WCAG 2.5.3).
             <button
               type="button"
               onClick={openCommand}
-              aria-label={t("shell.search")}
               aria-keyshortcuts="Meta+K Control+K"
               className="mb-1 flex h-9 items-center gap-[11px] rounded-[9px] px-[11px] text-[13.5px] font-medium text-app-muted outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
             >

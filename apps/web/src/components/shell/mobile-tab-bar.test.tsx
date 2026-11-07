@@ -51,7 +51,8 @@ describe("MobileTabBar (#100)", () => {
     // The avatar cell: initials + the "You" label, a button (not a link).
     expect(html).toContain("RE");
     expect(html).toContain("You");
-    expect(html).toContain("Account and settings");
+    // Its name starts with the word it shows (WCAG 2.5.3).
+    expect(html).toContain('aria-label="You, account and settings"');
     // The old More → /settings tab is gone (#100); Settings lives in the sheet.
     expect(html).not.toContain(">More<");
   });

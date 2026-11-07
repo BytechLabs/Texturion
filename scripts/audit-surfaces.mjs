@@ -40,7 +40,9 @@ export const SURFACES = [
     // The see-through account surface IS the #116 bug. Opening it is the point:
     // this is the one entry here that audits a subtree rendered OUTSIDE
     // `.app-scope`, which is the only place the cascade fault can happen.
-    open: ['[aria-label="Account and settings"]'],
+    // Found by role and name: the trigger is named by the member it shows,
+    // then "Account and settings".
+    open: ["role=button[name=/Account and settings$/]"],
   },
   {
     path: "/inbox",

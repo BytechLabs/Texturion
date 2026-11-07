@@ -47,8 +47,9 @@ export const shellEn = {
   switchWorkspace: "Switch workspace",
   workspaceNamed: "Workspace: {name}",
   accountAndSettings: "Account and settings",
-  accountAndSettingsUnread:
-    "Account and settings, {count} unread notifications",
+  // The phone's account tab reads "You" on screen, so its name starts there.
+  youAccount: "You, account and settings",
+  youAccountUnread: "You, account and settings, {count} unread notifications",
   accountSheetDescription:
     "Workspace, business numbers, notifications, theme, and sign out.",
   businessNumbers: "Business numbers",
@@ -414,8 +415,8 @@ export const shellFr: Translated<typeof shellEn> = {
   switchWorkspace: "Changer d'espace de travail",
   workspaceNamed: "Espace de travail : {name}",
   accountAndSettings: "Compte et paramètres",
-  accountAndSettingsUnread:
-    "Compte et paramètres, {count} notifications non lues",
+  youAccount: "Vous, compte et paramètres",
+  youAccountUnread: "Vous, compte et paramètres, {count} notifications non lues",
   accountSheetDescription:
     "Espace de travail, numéros d'entreprise, notifications, thème et " +
     "déconnexion.",

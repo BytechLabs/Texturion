@@ -190,35 +190,31 @@ export const ConversationRow = memo(function ConversationRow({
         })
       : "";
 
+  const rowLabel = `${t("inbox.rowAriaConversationWith", { name })}${
+    unread ? t("inbox.rowAriaUnread") : ""
+  }${pinned ? t("inbox.rowAriaPinned") : ""}${
+    snippet?.direction === "note" ? t("inbox.rowAriaInternalNote") : ""
+  }${
+    assigneeName ? t("inbox.rowAriaAssignedTo", { name: assigneeName }) : ""
+  }${spamView ? t("inbox.rowAriaSpam") : ""}${
+    snoozedUntil
+      ? `${t("inbox.rowAriaSnoozed", {
+          until: deferralReturnLabel(snoozedUntil, "back", t),
+        })}${conversation.snooze_note ? `, ${conversation.snooze_note}` : ""}`
+      : ""
+  }${attachmentNote}${previewText ? `. ${previewText}` : ""}`;
+
   return (
-    <Link
-      href={`/inbox/${conversation.id}`}
-      aria-current={active ? "page" : undefined}
-      // An explicit aria-label overrides the row's inner text for screen
-      // readers, so EVERY state a sighted user sees (unread, pinned, internal
-      // note, assignee, spam) plus the latest message must be folded in here —
-      // otherwise those indicators (and the sr-only assignee span below) are
-      // silent for AT.
-      aria-label={`${t("inbox.rowAriaConversationWith", { name })}${
-        unread ? t("inbox.rowAriaUnread") : ""
-      }${pinned ? t("inbox.rowAriaPinned") : ""}${
-        snippet?.direction === "note" ? t("inbox.rowAriaInternalNote") : ""
-      }${
-        assigneeName
-          ? t("inbox.rowAriaAssignedTo", { name: assigneeName })
-          : ""
-      }${spamView ? t("inbox.rowAriaSpam") : ""}${
-        snoozedUntil
-          ? `${t("inbox.rowAriaSnoozed", {
-              until: deferralReturnLabel(snoozedUntil, "back", t),
-            })}${
-              conversation.snooze_note ? `, ${conversation.snooze_note}` : ""
-            }`
-          : ""
-      }${attachmentNote}${previewText ? `. ${previewText}` : ""}`}
+    // The link is the contact's name, stretched over the card by its ::after,
+    // so the whole card still opens (and middle-clicks) the thread while the
+    // link's own text is just the name its label starts with (WCAG 2.5.3).
+    // Everything else on the card is hidden from screen readers because the
+    // label carries it: EVERY state a sighted user sees (unread, pinned,
+    // internal note, assignee, spam, snooze) plus the latest message.
+    <div
       style={{ height: ROW_HEIGHT }}
       className={cn(
-        "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring",
         active
           ? "border-app-line bg-app-paper"
           : "border-transparent hover:border-app-line-soft hover:bg-app-hover",
@@ -237,17 +233,23 @@ export const ConversationRow = memo(function ConversationRow({
 
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
-          <span
+          <Link
+            href={`/inbox/${conversation.id}`}
+            aria-current={active ? "page" : undefined}
+            aria-label={rowLabel}
+            // The time's own tooltip sits under the stretched link, so the
+            // exact time of the last message is the link's tooltip instead.
+            title={formatAbsoluteDateTime(conversation.last_message_at, undefined, t.locale)}
             className={cn(
               // §2.2 weight ceiling (#65): unread 600 vs read 500 — hierarchy
               // from one weight step, never 700.
-              "truncate text-[14px] text-app-ink",
+              "truncate text-[14px] text-app-ink outline-none after:absolute after:inset-0 after:rounded-app-card",
               unread ? "font-semibold" : "font-medium",
             )}
           >
             {name}
-          </span>
-          <span className="flex shrink-0 items-center gap-1">
+          </Link>
+          <span aria-hidden className="flex shrink-0 items-center gap-1">
             {/* #414 ask 2 — "visibly flagged in the inbox". A fourth quiet
                 icon beside the pin and the clip would blend into the row's
                 own rhythm, which is the opposite of what this state needs.
@@ -266,16 +268,14 @@ export const ConversationRow = memo(function ConversationRow({
                 aria-label={t("inbox.rowPinnedAria")}
               />
             )}
-            <span
-              className="text-[11.5px] tabular-nums text-app-muted-2"
-              title={formatAbsoluteDateTime(conversation.last_message_at, undefined, t.locale)}
-            >
+            <span className="text-[11.5px] tabular-nums text-app-muted-2">
               {formatRelativeTime(conversation.last_message_at, undefined, t)}
             </span>
           </span>
         </span>
 
         <span
+          aria-hidden
           // #61: --app-muted now clears AA on the white active card too
           // (5.87:1), so the old hardcoded darker hex for the active row is
           // gone — one token, both states, both themes.
@@ -305,7 +305,7 @@ export const ConversationRow = memo(function ConversationRow({
         </span>
 
         {(tags.length > 0 || spamView || assigneeName || snoozedUntil) && (
-          <span className="mt-[7px] flex flex-wrap items-center gap-[5px]">
+          <span aria-hidden className="mt-[7px] flex flex-wrap items-center gap-[5px]">
             {/* The return time IS the row's reason for being in this view, so
                 it leads — "Snoozed" without a when is the vanishing act #293
                 calls worse than the problem. */}
@@ -332,14 +332,13 @@ export const ConversationRow = memo(function ConversationRow({
               <TagChip key={tag.id} tag={tag} emphasis={i === 0 && !spamView} />
             ))}
             {assigneeName && (
+              // The chip shows only initials, so pointer users read the name
+              // from its tooltip; it sits above the stretched link so the
+              // tooltip can open. Screen readers hear it in the row's label.
               <span
                 title={t("inbox.rowAssignedToTitle", { name: assigneeName })}
-                className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted"
+                className="relative z-[1] inline-flex items-center gap-1 rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted"
               >
-                {/* The chip shows only initials (title tooltip for pointer
-                    users); the full name is announced to AT via the row's
-                    aria-label, so no sr-only span here — it would be dead code
-                    (the aria-label overrides all descendants). */}
                 {avatarInitials(assigneeName)}
               </span>
             )}
@@ -351,9 +350,9 @@ export const ConversationRow = memo(function ConversationRow({
       {unread && (
         <span
           aria-hidden
-          className="absolute right-3 top-[14px] size-2 rounded-full bg-primary"
+          className="pointer-events-none absolute right-3 top-[14px] size-2 rounded-full bg-primary"
         />
       )}
-    </Link>
+    </div>
   );
 });

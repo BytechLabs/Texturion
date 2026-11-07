@@ -11,6 +11,7 @@ import { useForYouNotificationsRealtime } from "@/lib/realtime/for-you-notificat
 import { cn } from "@/lib/utils";
 
 
+import { InitialsAvatar } from "./initials-avatar";
 import { MobileAccountSheet } from "./mobile-account-sheet";
 import { isNavActive, MOBILE_NAV } from "./nav";
 import { useNavCounts } from "./use-nav-counts";
@@ -70,11 +71,15 @@ export function MobileTabBar() {
                 aria-label={
                   showCount ? t("shell.navCount", { label, count }) : undefined
                 }
+                // The label comes first in the markup and the column is
+                // reversed, so the tab's text reads "For you 3" in the order its
+                // aria-label says it (WCAG 2.5.3) while the icon still sits on top.
                 className={cn(
-                  "flex min-h-12 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors duration-150 ease-out",
+                  "flex min-h-12 flex-col-reverse items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors duration-150 ease-out",
                   active ? "text-app-olive-deep" : "text-app-muted",
                 )}
               >
+                {label}{" "}
                 <span className="relative">
                   <Icon className="size-5" strokeWidth={1.75} aria-hidden />
                   {showCount && (
@@ -86,7 +91,6 @@ export function MobileTabBar() {
                     </span>
                   )}
                 </span>
-                {label}
               </Link>
             );
           })}
@@ -97,8 +101,8 @@ export function MobileTabBar() {
             type="button"
             aria-label={
               unreadCount > 0
-                ? t("shell.accountAndSettingsUnread", { count: unreadCount })
-                : t("shell.accountAndSettings")
+                ? t("shell.youAccountUnread", { count: unreadCount })
+                : t("shell.youAccount")
             }
             aria-haspopup="dialog"
             aria-expanded={sheetOpen}
@@ -106,12 +110,10 @@ export function MobileTabBar() {
             className="flex min-h-12 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-app-muted transition-colors duration-150 ease-out"
           >
             <span className="relative">
-              <span
-                aria-hidden
+              <InitialsAvatar
+                initials={avatarInitials(displayName || membership.name)}
                 className="grid size-5 place-items-center rounded-full bg-app-tint text-[9px] font-semibold text-app-olive-deep"
-              >
-                {avatarInitials(displayName || membership.name)}
-              </span>
+              />
               {unreadCount > 0 && (
                 <span
                   aria-hidden
