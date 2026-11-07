@@ -654,6 +654,72 @@ begin
   raise notice 'F6 PASSED: api_prune_webhook_events prunes only processed rows past the window, oldest-first, bounded';
 end $$;
 
+-- ===========================================================================
+-- F7. A browser role executes no SECURITY DEFINER function in public, of any
+--     name, except is_company_topic_member (the realtime topic policies call
+--     it as the signed-in user; keep in sync with migration
+--     20261108100500_a_browser_cannot_call_a_definer_function.sql). F5 alone
+--     passed on a CLI database whose default privileges differ from hosted
+--     Supabase's, so this also checks the defaults grant no browser role by
+--     name, and proves `revoke ... from public` closes a new function.
+-- ===========================================================================
+do $$
+declare
+  leaked text;
+  bad text := '';
+  checked int;
+begin
+  select string_agg(a.grantee::regrole::text, ', ')
+    into leaked
+  from pg_catalog.pg_default_acl d
+  cross join lateral aclexplode(d.defaclacl) a
+  where d.defaclrole = 'postgres'::regrole
+    and d.defaclnamespace in (0, 'public'::regnamespace)
+    and d.defaclobjtype = 'f'
+    and a.privilege_type = 'EXECUTE'
+    and a.grantee in ('anon'::regrole, 'authenticated'::regrole);
+  if leaked is not null then
+    raise exception 'F7 FAILED: new public functions default to EXECUTE for %', leaked;
+  end if;
+
+  create function public.f7_new_definer() returns int
+    language sql security definer set search_path = '' as 'select 1';
+  revoke execute on function public.f7_new_definer() from public;
+  if has_function_privilege('anon', 'public.f7_new_definer()', 'execute')
+     or has_function_privilege('authenticated', 'public.f7_new_definer()', 'execute') then
+    raise exception 'F7 FAILED: a new SECURITY DEFINER function revoked from public is still executable by a browser role';
+  end if;
+  if not has_function_privilege('service_role', 'public.f7_new_definer()', 'execute') then
+    raise exception 'F7 FAILED: a new function is not executable by service_role';
+  end if;
+
+  select count(*),
+         coalesce(string_agg(
+           case when has_function_privilege('anon', p.oid, 'execute') then ' anon:' || p.proname else '' end
+           || case when has_function_privilege('authenticated', p.oid, 'execute') then ' authenticated:' || p.proname else '' end,
+           ''), '')
+    into checked, bad
+  from pg_catalog.pg_proc p
+  join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.prokind = 'f'
+    and p.prosecdef
+    and p.proowner = 'postgres'::regrole
+    and p.proname not in ('is_company_topic_member', 'f7_new_definer')
+    and not exists (
+      select 1 from pg_catalog.pg_depend d
+      where d.classid = 'pg_catalog.pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e'
+    );
+  if checked < 100 then
+    raise exception 'F7 FAILED: expected 100+ SECURITY DEFINER functions in public, found %', checked;
+  end if;
+  if bad <> '' then
+    raise exception 'F7 FAILED: browser roles can execute:%', bad;
+  end if;
+
+  raise notice 'F7 PASSED: % SECURITY DEFINER functions are closed to anon and authenticated, and revoking public closes a new one', checked;
+end $$;
+
 rollback;
 
 select 'ALL API FUNCTION TESTS PASSED' as result;
