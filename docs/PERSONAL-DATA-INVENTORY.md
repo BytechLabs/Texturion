@@ -161,6 +161,21 @@ property passes the API's scrubber (`apps/api/src/observability/scrub.ts`).
 PostHog keeps events for its retention window, one year on the free plan
 (posthog.com/docs/data/events-retention, read 2026-11-07).
 
+The call and text lifecycle events (`call_started`, `call_ended`,
+`call_outcome_revised`, `message_sent`, `message_received`, docs/MONITORING.md)
+are the same class: the workspace id, the call session id, directions,
+outcomes, durations, a two-letter country from the area code, provider error
+codes and segment and media counts. Never the number or the body.
+
+PostHog's Postgres source, once the founder connects it, reads the
+`ops_metrics` views as the login `posthog_reader` (D146): open and stuck calls
+by workspace and call id with their states and timings, bytes per Storage
+bucket and per day, and text counts per hour. No number, name, body, object
+path or payload, and `posthog_reader` can read no table, so it never reaches
+the personal tables beneath the views (`supabase/tests/posthog_reader.test.sql`).
+The views keep nothing; erasing a workspace's rows removes them from the next
+read.
+
 ## 6. No personal data
 
 `app_release_policy`, `company_modules`, `conversation_reads`,

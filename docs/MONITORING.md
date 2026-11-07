@@ -28,12 +28,16 @@ already do (D8). Alerts only read `environment = 'production'`.
 |---|---|---|---|
 | `$exception` | every client, through PostHog's SDKs | `$exception_list`, `$exception_level`, `source`, `release`, and `route`, `cron`, `job` or `company_id` where they apply | every caught or uncaught error |
 | `$exception` (ops notice) | API Worker and Durable Object | the above plus `$exception_fingerprint`, `ops_key`, `detail`, `action` | a condition the product handles that a person must act on: a chargeback, a port-out, a carrier suspension, a cost cap reached, the Telnyx messaging spend limit refusing a text |
+| `message_sent` | API Worker, at the one send path (`dispatchOutbound`) | `direction` (`outbound`), `status` (`accepted`, `refused`), and when refused `error_code` (Telnyx's code, `rate_limited` for our own limiter, or null for a network failure) and `reason` (the carrier-failure reason); `country`, `segments` (as metered at submit, an MMS as 3), `media_count` | a text was submitted to Telnyx, or our rate limiter stopped it first |
+| `message_received` | API Worker, inbound pipeline | `direction` (`inbound`), `country` (the sender's), `segments` (Telnyx's parts), `media_count` | an inbound text was threaded for the first time; a sweeper replay sends nothing |
 | `message_outcome` | API Worker, Telnyx status webhook | `status` (`delivered`, `failed`), `country` (two letters) | an outbound text reached a final status |
 | `email_sent` | API Worker | none | Resend accepted an email; the denominator of the bounce and complaint rates |
 | `email_bounced` | API Worker, Resend webhook | `kind` (`bounce`, `complaint`) | Resend reported a bounce or a complaint |
 | `push_attempt` | API Worker and Durable Object | `purpose` (`ring`, `call_end`, `alert`), `channel`, `platform`, `priority`, `response_class` (`accepted`, `gone`, `unauthorized`, `rejected`, `throttled`, `provider_error`, `transport_error`), `http_status`, `latency_ms`, `call_session_id`, `user_id` (not in production), `attempted_at` | every push the server sent, one event per device |
 | `ring_beacon` | API Worker, relaying the apps | `platform`, `app_version`, `stage`, `call_session_id`, `user_id` (not in production), `occurred_at`, and the device state the app reports (`os`, `permissions`, `standby_bucket`, `power_save`, `device_idle`, `screen_locked`) | a device reported a ring stage; a Workers rate limiting binding bounds each member's beacons |
-| `call_received` | API Worker | none | an inbound call reached a workspace; the alert reads a workspace that took eight calls and then none for 14 days |
+| `call_started` | call Durable Object | `direction` (`inbound`, `outbound`), `call_session_id` | the call engine took a new call: its session began |
+| `call_ended` | call Durable Object | the above plus `outcome` (`answered`, `voicemail`, `missed`), `duration_seconds` (initiation to end, ring time included), `ended_by` (the engine event that ended it, such as `inbound-hangup`, `outbound-hangup`, `alarm-janitor`) | the call first reached an ended state |
+| `call_outcome_revised` | call Durable Object | `direction`, `call_session_id`, `outcome`, `previous_outcome` | an ended call's outcome changed: a voicemail ends `missed` at the hangup and becomes `voicemail` when its recording is saved, and a hangup that proves an answer upgrades `missed` to `answered` |
 | `aup_signals` | API Worker, daily cron | the counts and ratios `api_aup_signals` returns, never content or names | once a day for each workspace that sent texts that day |
 | `usage_threshold_crossed`, `overage_projected` | API Worker crons | `threshold` on the first | the existing customer warnings fired |
 | `$csp_violation` | browsers, to PostHog's CSP endpoint | PostHog's own CSP fields | dormant: no CSP header is sent, in any environment, until `CSP_STAGING=report-only` is set; then sampled at 10% |
@@ -42,6 +46,18 @@ The funnel events from D8 (`checkout_completed`, `first_outbound_sent`,
 `registration_submitted`, `registration_approved`) are otherwise unchanged,
 and now carry `environment` too. Earlier ones do not, and the rules read a
 missing `environment` as production.
+
+The call events come from the Durable Object because it owns every inbound and
+outbound call's state: each is sent once, after the transition that caused it
+is stored, and a journal resumed after a crash replays effects without
+reporting again. `call_session_id` is the uuid `push_attempt` and
+`ring_beacon` carry, so the three join. A call's latest outcome is its
+`call_outcome_revised` if it has one, else its `call_ended`. `call_started`
+replaced `call_received`, which the API Worker's webhook sent for each new
+inbound call until the release after 2026-11-07; its events stay in PostHog,
+and the queries that read call history (the call-silence rule and the two
+inbound tiles on "Loonext calls") read `call_received` or an inbound
+`call_started`, so a call is never counted under both names.
 
 ### Fingerprints
 
@@ -88,7 +104,9 @@ stops ingesting at the limit rather than billing. Expected: a few thousand
 events a month today, and well under 1k exceptions. At 200 active workspaces
 (about 60k texts, 10k calls and 20k emails a month) the outcome, push, ring,
 send and call events bring it to about 300k events; `push_attempt` adds
-roughly one event per push, ring, call end or alert, to each device. Ten
+roughly one event per push, ring, call end or alert, to each device. The
+lifecycle events add one `message_sent` or `message_received` per text and two
+or three events per call, about 90k more, so near 400k in all. Ten
 thousand exceptions a month would mean something is badly wrong.
 
 Reaching the limit stops ingestion for the rest of the month, errors included,
@@ -101,7 +119,8 @@ exception quota.
 Created through PostHog's API and kept there, not in this repository. Project
 498129 on PostHog Cloud US, on the free plan with no billing subscription and
 no custom limit, so ingestion stops at the quota instead of billing. The free
-plan allows five alerts; three are used.
+plan allows five alerts and all five are used (see "Alerts"); a sixth check
+goes into an existing SQL alert, as stuck calls did.
 
 Error tracking has exception autocapture on, a rate limit of 100 events an hour
 for each issue and 2,000 an hour for the whole project. Its own destinations
@@ -122,9 +141,10 @@ empty until it deploys.
 
 | Dashboard | Tiles |
 |---|---|
+| [Operations](https://us.posthog.com/project/498129/dashboard/2317534) | see below |
 | [Loonext health](https://us.posthog.com/project/498129/dashboard/2296136) | open error issues, exceptions by source, free-tier use this month, activation funnel, texting registration |
 | [Loonext errors](https://us.posthog.com/project/498129/dashboard/2296137) | top issues, ops notices, exceptions by release and source, new issues per week, cron job failures, exceptions per hour |
-| [Loonext calls](https://us.posthog.com/project/498129/dashboard/2296139) | calls per day and per workspace, ring pushes (`push_attempt` for rings, `gone` left out) against rings shown by platform, ring stages by platform and version |
+| [Loonext calls](https://us.posthog.com/project/498129/dashboard/2296139) | inbound calls per day and per workspace (`call_received` or an inbound `call_started`), ring pushes (`push_attempt` for rings, `gone` left out) against rings shown by platform, ring stages by platform and version |
 | [Loonext texting](https://us.posthog.com/project/498129/dashboard/2296140) | outcomes per day, delivery rate by country, registrations waiting over seven days, AUP signals per workspace |
 | [Loonext email](https://us.posthog.com/project/498129/dashboard/2296141) | sends per day (`email_sent`), bounces and complaints per day, bounce and complaint rates |
 | [Loonext billing and spend](https://us.posthog.com/project/498129/dashboard/2296142) | usage thresholds crossed, cost warnings (dials, inbound volume, storage, projection), checkouts and plan changes |
@@ -132,17 +152,45 @@ empty until it deploys.
 The older [Loonext funnel and activation](https://us.posthog.com/project/498129/dashboard/2287762)
 dashboard (D8) is unchanged; some of its insights are reused above.
 
+#### Operations
+
+What an operator watches, from the events the API Worker and the call Durable
+Object send (#675). Pinned in the project. Rows, top to bottom:
+
+| Row | Tiles (insight short id) |
+|---|---|
+| Now | calls in progress (`JVeKhsOD`): a `call_started` in the last 2 h 15 min with no `call_ended`; stuck calls, 7 days (`BxQ8jziJ`): started longer ago than that with no `call_ended`; active workspaces, 7 days (`NMIAikEO`); open error issues (`CMLHdkYf`, reused) |
+| Calls | open calls with minutes running and in progress or stuck (`fgOVUlCb`); started and ended per hour, 48 hours (`SYEyjpJu`); outcome mix by direction, 7 days, each call's latest outcome (`hGWcS6fz`); length distribution, 7 days (`4728e7x5`); inbound and outbound per day, 30 days (`cNkDRTCN`); the 20 longest calls, 7 days (`eyx7AwTB`); ring pushes and rings shown, 14 days (`K45v7Jqq`, reused) |
+| Texts | sent, refused and received per hour, 48 hours (`7uwR43uJ`); delivered and failed per day, 30 days (`SPaW2eEW`, reused); failure rate by country with refusals at submit, 7 days (`RjiW2Krr`); refusals at submit by reason and code, 7 days (`yWaayoz6`); segments sent and received per day, 30 days (`DhoWZj9X`) |
+| Platform | active workspaces per day, 30 days (`bmeqVfZQ`); exceptions per hour, 7 days (`IF7x6iE1`, reused); ops notices, 30 days (`rmxHT9Ph`, reused); free-tier use this month (`1Qi3m3oS`, reused) |
+
+Every tile ran without error when it was made (2026-11-07). The fourteen new
+ones read `call_started`, `call_ended`, `call_outcome_revised`, `message_sent`
+or `message_received`, which production does not send until the API release
+after 2026-11-07 deploys, so they show zero or nothing until then; the
+failure-rate tile's `message_outcome` columns and the reused tiles have data
+now. Their logic was proven on events tagged `environment = 'synthetic'` (see
+"Threshold tests").
+
+"In progress" here is what the events say. The state of record, from the
+database, is the Postgres source's (below); the two disagree only when an
+event was lost. Webhook rejections and Telnyx spend have no tile: D147 moved
+them to Cloudflare's monitor M3 and to Telnyx's own limit and notices.
+
 ### Alerts
 
-Each alert is checked hourly and emails the PostHog login of the project owner.
-The query behind each is a saved insight named `Alert: ...`, which the alert
-link opens.
+Each alert is checked hourly, except the text failure rate, which is checked
+daily, and emails the PostHog login of the project owner. The query behind
+each is a saved insight named `Alert: ...`, which the alert link opens. Five
+alerts, the free plan's limit.
 
 | Alert | Fires when | Insight |
 |---|---|---|
 | [New or returning error issue](https://us.posthog.com/project/498129/insights/r0XtuRNs?alert_id=01a1a018-ca3b-0000-34f1-ae643b2cabaf) | an active issue's first production event, or its first after 24 quiet hours, was in the last 70 minutes; and for every ops notice (`ops_key`) in the last 70 minutes, since each one is something a person must act on | SQL over `$exception` joined to `system.error_tracking_issues`, one row per issue or notice |
-| [Limits and rates](https://us.posthog.com/project/498129/insights/s980Sfcg?alert_id=01a1a016-711c-0000-7002-59894c7a1757) | every hour: a workspace's `aup_signals` crossing the AUP thresholds; a `voice_dials`, `inbound_volume`, `cost_projection` or `storage_abuse` warning; a registration submitted seven days ago and not approved; a workspace that took eight or more calls and none for 14 days; a workspace that paid ten days ago and has sent no text. Once a day, in the 07:00 UTC check, for conditions that stay true: a country's delivery rate under 80% (ten or more outcomes in a day); bounces over 2% or complaints over 0.05% of `email_sent` (a week, 100 or more sends); a platform's rings shown 15 points below its own previous seven days, counting `push_attempt` rows for rings that were not `gone` (30 or more in each); the month's events at 700k or exceptions at 70k | SQL, one row per breach |
+| [Limits and rates](https://us.posthog.com/project/498129/insights/s980Sfcg?alert_id=01a1a016-711c-0000-7002-59894c7a1757) | every hour: a workspace's `aup_signals` crossing the AUP thresholds; a `voice_dials`, `inbound_volume`, `cost_projection` or `storage_abuse` warning; a registration submitted seven days ago and not approved; a workspace that took eight or more inbound calls (`call_received` or an inbound `call_started`) and none for 14 days; a call whose `call_started` is between 2 h 15 min and 3 h 25 min old with no `call_ended`, so each stuck call is reported in the hour it passes the API's two-hour ceiling; a workspace that paid ten days ago and has sent no text. Once a day, in the 07:00 UTC check, for conditions that stay true: a country's delivery rate under 80% (ten or more outcomes in a day); bounces over 2% or complaints over 0.05% of `email_sent` (a week, 100 or more sends); a platform's rings shown 15 points below its own previous seven days, counting `push_attempt` rows for rings that were not `gone` (30 or more in each); the month's events at 700k or exceptions at 70k | SQL, one row per breach |
 | [Exception spike](https://us.posthog.com/project/498129/insights/MOIssrNk?alert_id=01a1a016-75c1-0000-e9bd-92c2192a47ae) | PostHog's z-score anomaly detector (threshold 0.95, window 72 hours) flags the last completed hour of production exceptions | trend of `$exception` per hour |
+| [Call volume anomaly](https://us.posthog.com/project/498129/insights/PXO7yvDW?alert_id=01a1b5b3-894e-0000-70ae-b598823b4138) | the z-score detector (threshold 0.99, window 168 hours, so a week of the day's own rhythm is the baseline) flags the last completed hour of production `call_started` | trend of `call_started` per hour |
+| [Text failure rate anomaly](https://us.posthog.com/project/498129/insights/pHckgm3W?alert_id=01a1b5b3-8aed-0000-c0ee-950399dc2982) | checked daily: the z-score detector (threshold 0.95, window 30 days) flags yesterday's share of production `message_outcome` events that failed | trend of failed over all `message_outcome`, per day |
 
 The AUP thresholds are the ones the old `aup-watch.ts` used: 100 or more sent
 in 24 hours with a baseline above zero, five times that baseline and a fresh
@@ -189,6 +237,14 @@ it, and the threshold test below fired it. On a series that is mostly zero a
 single exception scores low and a burst of several scores high, which is what
 the alert is for; a first-ever error is the job of the "new" alert.
 
+The same holds for the two lifecycle detectors. Call volume is near zero in
+production today, so the first busy hours after the release will score as
+anomalies until a week of real calls is the baseline. The text failure rate is
+a daily series because an hour holds too few texts for a share to mean
+anything; a day with no outcomes reads 0. A refusal at submit is not in it,
+because a refused text never reaches a final status; the "Texts: refused at
+submit" tile shows those.
+
 #### Threshold tests (2026-11-03)
 
 Each real alert was recreated with its threshold lowered so it fired on data
@@ -224,11 +280,136 @@ was 100%" for a day of 30 ring pushes and 10 rings shown against a baseline of
 filters the same rows read 30% of 90 and breached. Both returned nothing with
 the hour gate set to another hour.
 
+The Operations tiles and the stuck-calls rule (#675) were proven the same way
+on 2026-11-07, on fourteen events tagged `synthetic_run = 'ops675-a'`: five
+calls (one open for 10 minutes, one open for 3 hours, an answered inbound call
+of 300 seconds, a voicemail that ended `missed` at 80 seconds and was revised
+to `voicemail`, and an answered outbound call of 45 seconds) and five texts.
+Every tile gave the expected rows: one call in progress and one stuck, outcome
+mix inbound answered 1, inbound voicemail 1, outbound answered 1, lengths
+"30 s to 2 min" 2 and "5 to 15 min" 1, the longest calls with the voicemail's
+revised outcome, and Canada at 50% failed over two outcomes beside one US text
+refused with 40002 as `content_blocked`. The stuck rule returned the 3-hour call
+alone, and on a second run (`ops675-b`) returned a call started 170 minutes ago
+with no end and nothing for one started at the same time that had ended.
+PostHog's alert simulator, run on the same synthetic series, flagged the two
+hours of synthetic calls with the call-volume detector and the day of
+synthetic failures with the failure-rate detector.
+
 Every error issue that tests or retired checks left in the project is
 suppressed, so none counts as open.
 
 Changing an alert's threshold or config does not re-check it at once; the next
 check is the hourly one. A newly created alert is checked within a minute.
+
+### Postgres source (not connected yet)
+
+What is true right now, rather than what happened, is in the database: which
+calls the record still shows open, and how many bytes the buckets hold. PostHog
+reads it through its own Postgres source, live, from five views in the
+`ops_metrics` schema (migration `20261108100400`), as the login
+`posthog_reader`. No job of ours reads or stores anything: a view is computed
+when PostHog queries it.
+
+| View | Columns | Rows |
+|---|---|---|
+| `calls_in_progress` | `call_id`, `call_session_id`, `workspace_id`, `direction`, `state`, `started_at`, `answered_at`, `seconds_running` | calls with no outcome whose engine state is not ended |
+| `stuck_calls` | the above plus `reason` | `open_past_ceiling`: still open 15 minutes past the API's two-hour hang-up ceiling; `ended_without_outcome`: the engine ended it and the outcome write is missing past the sweep's five minutes |
+| `storage_in_use` | `bucket_id`, `objects`, `bytes` | every Storage bucket, from `storage.objects` |
+| `storage_added_by_day` | `day`, `bucket_id`, `objects`, `bytes` | bytes added per UTC day over 90 days that are still stored (a deleted object leaves its day's total) |
+| `message_counts_by_hour` | `hour`, `direction`, `status`, `messages`, `segments` | texts per hour over 35 days, from the record |
+
+The workspace and call ids are the ones PostHog's events already carry; no
+view has a number, name, body, object path or payload.
+`supabase/tests/posthog_reader.test.sql` holds every view in the schema to
+that, and holds `posthog_reader` to `SELECT` on these views and nothing else:
+no other table in any schema, no routine, no `CREATE` or `TEMP`, read-only by
+default, at most five connections, and 30 s statements in 60 s transactions.
+The migration gives it no password, so it cannot log in until one is set.
+
+**Connecting it is the founder's** (setting a production password and entering
+it into PostHog):
+
+1. In Supabase, open the production project's SQL editor and run
+   `alter role posthog_reader password '<new password>';` with a new random
+   password from the password manager. It lives only there and in PostHog.
+2. In PostHog, **Data pipelines → Sources → New source → Postgres**, and
+   choose **Live query** (direct connection) rather than import.
+3. Connection: host is the project's **session pooler** host (Supabase,
+   **Connect → Session pooler**, `aws-<n>-<region>.pooler.supabase.com`), port
+   `5432`, database `postgres`, user `posthog_reader.<project ref>` (the pooler
+   names a login with the project ref after a dot), the password from step 1,
+   SSL required. Schema: `ops_metrics`.
+4. Tables: tick all five views above and every column of each. None is
+   personal; that is what the SQL test proves.
+5. Check: in PostHog's SQL editor, pick the new connection and run
+   `select count(*) from ops_metrics.storage_in_use`. A number is a working
+   source.
+
+To withdraw it: `alter role posthog_reader nologin;` (or a new password), then
+delete the source in PostHog.
+
+**Tiles to add once it is connected.** Each is SQL sent as written to the
+connection (PostHog's raw mode, `sendRawQuery`), so it is Postgres, not HogQL.
+Through the API an insight is `{"kind": "DataVisualizationNode", "source":
+{"kind": "HogQLQuery", "connectionId": "<source id>", "sendRawQuery": true,
+"query": "..."}}`. Add them to Operations.
+
+Storage in use against the 100 GB Supabase Pro includes:
+
+```sql
+select round(coalesce(sum(bytes), 0) / 1073741824.0, 2) as gib_in_use,
+       round(100 * coalesce(sum(bytes), 0) / (100 * 1073741824.0), 1) as percent_of_included
+from ops_metrics.storage_in_use
+```
+
+Storage by bucket:
+
+```sql
+select bucket_id, objects, round(bytes / 1073741824.0, 3) as gib
+from ops_metrics.storage_in_use
+order by bytes desc
+```
+
+Storage added per day, 90 days:
+
+```sql
+select day, round(sum(bytes) / 1073741824.0, 3) as gib_added, sum(objects) as objects_added
+from ops_metrics.storage_added_by_day
+group by day
+order by day
+```
+
+Calls in progress now, from the record:
+
+```sql
+select call_session_id, direction, state, workspace_id, started_at,
+       round(seconds_running / 60.0, 1) as minutes_running
+from ops_metrics.calls_in_progress
+order by started_at
+```
+
+Stuck calls, from the record:
+
+```sql
+select reason, call_session_id, direction, state, workspace_id, started_at,
+       round(seconds_running / 60.0, 1) as minutes_running
+from ops_metrics.stuck_calls
+order by started_at
+```
+
+Texts per hour from the record, 48 hours:
+
+```sql
+select hour, direction, sum(messages) as messages, sum(segments) as segments
+from ops_metrics.message_counts_by_hour
+where hour > now() - interval '48 hours'
+group by hour, direction
+order by hour
+```
+
+Each ran as `posthog_reader` against the local database with the migration
+applied, on 2026-11-07. None has run in PostHog, because no source exists.
 
 ### Limits and caveats
 
@@ -236,6 +417,11 @@ check is the hourly one. A newly created alert is checked within a minute.
   and the registration rule, the no-first-text rule and the registration tile
   read them as production. The rig sends no funnel events, so none of them is
   the rig's.
+- "In progress" and "stuck" from events rest on `call_ended` arriving. A
+  capture lost on the way (PostHog unreachable for the Durable Object) shows an
+  ended call as stuck; the Postgres source's `stuck_calls` is the record. A
+  call the Durable Object adopted from its database row, with no stored state
+  of its own, sends `call_ended` and no `call_started`.
 - An issue someone resolved and that comes back is active again and counts in
   "Open error issues", but "New or returning" cannot see a resolution, so it
   reports the return only if the issue had been quiet for 24 hours. A burst is
@@ -348,6 +534,8 @@ its own dashboard.
   `ops_key`; the issue's history is the incident record.
 - **Is everything running**: the Loonext health dashboard. Cloudflare's monitors
   would add the cron triggers once created.
+- **What is happening now** (calls open and stuck, texts, workspaces): the
+  Operations dashboard.
 - **Raw logs for one request or cron run**: Cloudflare Workers Logs for the
   `loonext-api` and `loonext-web` Workers.
 - **Vendor-side state**: the Telnyx, Resend, Stripe and Supabase dashboards
@@ -373,7 +561,8 @@ What that leaves uncovered, plainly:
   before. The AI, high-priority push and ring-beacon caps report only when
   reached; Cloudflare's billing budget alerts cover the Workers AI bill.
 - **Call capacity.** Telnyx offers no API or alert for concurrent call legs;
-  a refused leg shows as an exception from the call path.
+  a refused leg shows as an exception from the call path. The Operations
+  dashboard counts our own open calls, not the legs Telnyx allows.
 - **Backups and the Postgres image.** No alert when Supabase backups stop and
   no notice when it changes its Postgres image: the Backups page is read by
   hand, and `scripts/pin-postgres-image.mjs` re-pins when Supabase
