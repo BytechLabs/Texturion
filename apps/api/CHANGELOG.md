@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.2](https://github.com/BytechLabs/Texturion/compare/api-v0.20.1...api-v0.20.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* Nothing changes for customers: error and health monitoring moved to PostHog, so the team is told about problems sooner.
+
 ## [0.20.1](https://github.com/BytechLabs/Texturion/compare/api-v0.20.0...api-v0.20.1) (2026-11-02)
 
 
