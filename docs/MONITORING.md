@@ -302,7 +302,7 @@ suppressed, so none counts as open.
 Changing an alert's threshold or config does not re-check it at once; the next
 check is the hourly one. A newly created alert is checked within a minute.
 
-### Postgres source (not connected yet)
+### Postgres source
 
 What is true right now, rather than what happened, is in the database: which
 calls the record still shows open, and how many bytes the buckets hold. PostHog
@@ -325,35 +325,38 @@ view has a number, name, body, object path or payload.
 that, and holds `posthog_reader` to `SELECT` on these views and nothing else:
 no other table in any schema, no routine, no `CREATE` or `TEMP`, read-only by
 default, at most five connections, and 30 s statements in 60 s transactions.
-The migration gives it no password, so it cannot log in until one is set.
+The migration gives it no password; production's was set on 2026-11-07.
 
-**Connecting it is the founder's** (setting a production password and entering
-it into PostHog):
+**Connected on 2026-11-07.** The source is `loonext_ops` (PostHog id
+`01a1b823-6368-0000-6ccf-69c2d7d928bc`), a live query (`access_method:
+direct`) on the five views, as `posthog_reader.<project ref>` through the
+session pooler (`aws-0-us-east-1.pooler.supabase.com:5432`, database
+`postgres`, schema `ops_metrics`). Through PostHog,
+`select count(*) from ops_metrics.storage_in_use` answered 3.
 
-1. In Supabase, open the production project's SQL editor and run
-   `alter role posthog_reader password '<new password>';` with a new random
-   password from the password manager. It lives only there and in PostHog.
-2. In PostHog, **Data pipelines → Sources → New source → Postgres**, and
-   choose **Live query** (direct connection) rather than import.
-3. Connection: host is the project's **session pooler** host (Supabase,
-   **Connect → Session pooler**, `aws-<n>-<region>.pooler.supabase.com`), port
-   `5432`, database `postgres`, user `posthog_reader.<project ref>` (the pooler
-   names a login with the project ref after a dot), the password from step 1,
-   SSL required. Schema: `ops_metrics`.
-4. Tables: tick all five views above and every column of each. None is
-   personal; that is what the SQL test proves.
-5. Check: in PostHog's SQL editor, pick the new connection and run
-   `select count(*) from ops_metrics.storage_in_use`. A number is a working
-   source.
+The password is 32 random bytes. It was set as a SCRAM-SHA-256 verifier rather
+than as text, because production logs every DDL statement
+(`log_statement = ddl`) and `alter role ... password '<text>'` would write it
+to the log. It lives in PostHog and, as a recovery copy, in the GitHub
+`production` environment secret `POSTHOG_READER_DB_PASSWORD`.
+
+To rotate it: set a new verifier with `alter role posthog_reader password
+'SCRAM-SHA-256$4096:...'`, then update the source's password in PostHog
+(**Data pipelines → Sources → loonext_ops**) and the GitHub secret. Through the
+API, the create call takes `payload` with `host`, `port`, `database`,
+`user`, `password`, `schema`, `verify_server_certificate: "false"` and a
+`schemas` list with `sync_type: "full_refresh"` for each view (the views have
+no primary key). An `ssh_tunnel` key, even disabled, makes it report `host`
+and `port` missing.
 
 To withdraw it: `alter role posthog_reader nologin;` (or a new password), then
 delete the source in PostHog.
 
-**Tiles to add once it is connected.** Each is SQL sent as written to the
+**Tiles on Operations from the source.** Each is SQL sent as written to the
 connection (PostHog's raw mode, `sendRawQuery`), so it is Postgres, not HogQL.
 Through the API an insight is `{"kind": "DataVisualizationNode", "source":
 {"kind": "HogQLQuery", "connectionId": "<source id>", "sendRawQuery": true,
-"query": "..."}}`. Add them to Operations.
+"query": "..."}}`.
 
 Storage in use against the 100 GB Supabase Pro includes:
 
@@ -409,7 +412,8 @@ order by hour
 ```
 
 Each ran as `posthog_reader` against the local database with the migration
-applied, on 2026-11-07. None has run in PostHog, because no source exists.
+applied, on 2026-11-07, then in PostHog against production, where all six
+answered and became Operations tiles (insights 13815253, 13815255 to 13815259).
 
 ### Limits and caveats
 

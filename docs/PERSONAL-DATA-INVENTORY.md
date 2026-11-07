@@ -167,7 +167,7 @@ are the same class: the workspace id, the call session id, directions,
 outcomes, durations, a two-letter country from the area code, provider error
 codes and segment and media counts. Never the number or the body.
 
-PostHog's Postgres source, once the founder connects it, reads the
+PostHog's Postgres source (connected 2026-11-07) reads the
 `ops_metrics` views as the login `posthog_reader` (D146): open and stuck calls
 by workspace and call id with their states and timings, bytes per Storage
 bucket and per day, and text counts per hour. No number, name, body, object
