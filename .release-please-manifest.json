@@ -1,5 +1,5 @@
 {
-  "apps/api": "0.20.3",
+  "apps/api": "0.21.0",
   "apps/web": "0.20.1",
   "packages/shared": "0.14.0",
   "apps/android": "0.17.3",
