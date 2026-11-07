@@ -176,6 +176,9 @@ const SUITES = [
   "rig_destination_gate",
   // D142: agent_diag reads the non-personal views and nothing else.
   "agent_diag",
+  // D146: posthog_reader, PostHog's Postgres source login, reads ops_metrics
+  // and nothing else.
+  "posthog_reader",
 ];
 
 const args = process.argv.slice(2);
