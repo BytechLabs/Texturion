@@ -81,6 +81,16 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@cloudflare/workers-types"
         update-types: ["version-update:semver-major"]
+      # The Node types describe the Node that runs our scripts and CI (22, the
+      # `engines` floor and every `node-version` in the workflows). A newer major
+      # types APIs Node 22 does not have, so it moves when the runtime moves.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # typescript-eslint 8.72 accepts TypeScript below 6.1, and TypeScript 7
+      # drops the compiler API it is built on. Lift this once its peer range
+      # includes 7; TypeScript 6 still arrives as its own PR.
+      - dependency-name: typescript
+        versions: [">=7.0.0"]
     labels: ["dependencies", "P3"]
     commit-message:
       prefix: chore
