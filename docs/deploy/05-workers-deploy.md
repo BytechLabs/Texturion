@@ -273,7 +273,8 @@ Steps in the deploy itself (`.github/workflows/ship.yml` → the `backend` job):
 3. `supabase link --project-ref <ref>` → `supabase db push` (**migrations first**).
 4. The API Worker: `wrangler deploy --dry-run --outdir=dist` builds it,
    `posthog-cli sourcemap inject` and `upload` give it chunk ids and upload its
-   maps (a warning instead when `POSTHOG_CLI_TOKEN` is unset), and
+   maps (a warning instead when `POSTHOG_CLI_TOKEN` is unset; a failed upload
+   with a bad token is an annotation, not a red job), and
    `wrangler deploy dist/index.js --no-bundle --var GIT_SHA:<sha> --var DEPLOY_ENV:production`
    deploys it as built.
 5. `pnpm --filter @loonext/web run deploy` (OpenNext build + deploy).

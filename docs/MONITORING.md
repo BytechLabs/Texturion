@@ -51,7 +51,9 @@ maps are uploaded for the web app, the API Worker and both mobile apps, so
 their frames read as source. The API Worker is deployed as built, with the
 chunk ids `posthog-cli sourcemap inject` adds, and its maps are uploaded under
 release `loonext-api` at `GIT_SHA`. Every upload needs `POSTHOG_CLI_TOKEN`;
-without it the step warns and the frames are the bundle's.
+without it the step warns and the frames are the bundle's. A token that is set
+but revoked or wrong fails the step without failing the deploy, so look for the
+step's annotation on a release run.
 
 A notice is sent once, when the condition starts: the request that reaches a
 cap, the transition into a bad state. Requests refused after that send nothing.
