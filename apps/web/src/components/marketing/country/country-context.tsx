@@ -52,14 +52,12 @@ export interface CountryLabel {
   label: string;
   /** The compact label for the nav bar, e.g. "US". */
   short: string;
-  /** A screen-reader-friendly long form used in aria strings. */
-  aria: string;
 }
 
 /** The two choices, in control order (US first: the larger market, the default). */
 export const COUNTRY_OPTIONS: readonly CountryLabel[] = [
-  { id: "us", label: "United States", short: "US", aria: "United States" },
-  { id: "ca", label: "Canada", short: "CA", aria: "Canada" },
+  { id: "us", label: "United States", short: "US" },
+  { id: "ca", label: "Canada", short: "CA" },
 ] as const;
 
 interface CountryContextValue {

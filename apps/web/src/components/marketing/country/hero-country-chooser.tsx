@@ -44,7 +44,6 @@ export function HeroCountryChooser({ className }: { className?: string }) {
           <button
             key={option.id}
             type="button"
-            aria-label={option.aria}
             onClick={() => setCountry(option.id)}
             className={cn(
               "frn-focus font-body-mkt rounded-full bg-[color:var(--fr-card)] px-4 py-1.5 text-sm font-semibold text-[color:var(--fr-ink)] transition-colors duration-200 ease-out",

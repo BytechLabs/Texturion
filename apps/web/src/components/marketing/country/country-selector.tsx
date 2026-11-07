@@ -63,7 +63,6 @@ export function CountrySelector({
             type="button"
             role="radio"
             aria-checked={selected}
-            aria-label={option.aria}
             tabIndex={selected ? 0 : -1}
             onClick={() => select(option.id)}
             onKeyDown={onKeyDown}
@@ -78,7 +77,15 @@ export function CountrySelector({
                 : "text-[color:var(--fr-ink-70)] hover:text-[color:var(--fr-ink)]",
             )}
           >
-            {fullLabels ? option.label : option.short}
+            {fullLabels ? (
+              option.label
+            ) : (
+              // Named "US, United States": it starts with the letters a voice-control user sees (WCAG 2.5.3).
+              <>
+                {option.short}
+                <span className="sr-only">, {option.label}</span>
+              </>
+            )}
           </button>
         );
       })}

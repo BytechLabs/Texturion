@@ -183,11 +183,9 @@ describe("<CountrySelector> (the nav radiogroup)", () => {
     expect(html).toContain('role="radiogroup"');
     expect(html.match(/role="radio"/g)).toHaveLength(2);
     expect(html).toContain('role="radio" aria-checked="true"');
-    // Compact mode: short labels visible, full names in aria for the SR.
-    expect(html).toContain(">US<");
-    expect(html).toContain(">CA<");
-    expect(html).toContain('aria-label="United States"');
-    expect(html).toContain('aria-label="Canada"');
+    expect(html).toContain('US<span class="sr-only">, United States</span>');
+    expect(html).toContain('CA<span class="sr-only">, Canada</span>');
+    expect(html).not.toContain("aria-label=\"United States\"");
   });
 
   it("full-label mode renders the long names for the mobile sheet", () => {
@@ -202,13 +200,8 @@ describe("<CountrySelector> (the nav radiogroup)", () => {
         <CountrySelector />
       </CountryProvider>,
     );
-    // The Canada radio carries aria-label="Canada" and is the checked one.
-    expect(html).toContain(
-      'aria-checked="true" aria-label="Canada"',
-    );
-    expect(html).toContain(
-      'aria-checked="false" aria-label="United States"',
-    );
+    expect(html).toMatch(/aria-checked="true"[^>]*>CA</);
+    expect(html).toMatch(/aria-checked="false"[^>]*>US</);
   });
 });
 
