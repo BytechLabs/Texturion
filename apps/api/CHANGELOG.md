@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/BytechLabs/Texturion/compare/api-v0.20.3...api-v0.21.0) (2026-11-07)
+
+
+### Features
+
+* **api:** send call and text lifecycle events to posthog ([8244fa1](https://github.com/BytechLabs/Texturion/commit/8244fa19dd2aa2f7231c66761e13030123cf1680))
+
 ## [0.20.3](https://github.com/BytechLabs/Texturion/compare/api-v0.20.2...api-v0.20.3) (2026-11-07)
 
 
