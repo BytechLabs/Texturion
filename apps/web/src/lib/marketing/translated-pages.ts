@@ -64,16 +64,6 @@ export const TRANSLATED_PAGES: readonly {
     en: "/legal/vulnerability-disclosure",
     fr: "/fr/divulgation-vulnerabilites",
   },
-  {
-    en: "/status/subscribed",
-    fr: "/fr/etat-du-service/abonnement-confirme",
-    index: false,
-  },
-  {
-    en: "/status/unsubscribed",
-    fr: "/fr/etat-du-service/desabonnement-confirme",
-    index: false,
-  },
   { en: "/unsubscribe", fr: "/fr/desabonnement", index: false },
 ];
 

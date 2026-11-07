@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createTileHealth, TILE_ERROR_THRESHOLD } from "./tile-health";
+import { reportClientError } from "@/lib/observability/errors";
+import { scrubUnknown } from "@/lib/observability/scrub";
+
+import { createTileHealth, reportTileFailure, TILE_ERROR_THRESHOLD } from "./tile-health";
+
+vi.mock("@/lib/observability/errors", () => ({ reportClientError: vi.fn() }));
 
 /**
  * #428 ask 4 — noticing that the basemap stopped drawing.
@@ -70,6 +75,22 @@ describe("createTileHealth", () => {
     expect(onUnhealthy).toHaveBeenCalledWith({
       errors: TILE_ERROR_THRESHOLD,
       sample: null,
+    });
+  });
+});
+
+describe("reportTileFailure", () => {
+  it("sends one exception naming the count and the first failing tile", () => {
+    reportTileFailure({ errors: 7, sample: "https://tiles.example.com/1/2/3.png?key=secret" });
+
+    expect(reportClientError).toHaveBeenCalledTimes(1);
+    const [error, properties] = vi.mocked(reportClientError).mock.calls[0];
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Basemap tiles are not loading");
+    // Under a URL key, so the scrubber cuts the query that carries a provider's key.
+    expect(scrubUnknown(properties)).toEqual({
+      tile_errors: "7",
+      tile_url: "https://tiles.example.com/1/2/3.png",
     });
   });
 });

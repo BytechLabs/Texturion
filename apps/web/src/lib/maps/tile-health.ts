@@ -19,6 +19,7 @@
  * turn an outage into a telemetry bill. One report per page carries the same
  * information: the provider is not serving us.
  */
+import { reportClientError } from "@/lib/observability/errors";
 
 /**
  * How many tile errors before it counts as "the basemap is not working".
@@ -29,6 +30,24 @@
  * incidental noise and well below a viewport's worth of tiles.
  */
 export const TILE_ERROR_THRESHOLD = 6;
+
+/**
+ * The PostHog exception for a map whose tiles stopped loading. The tile URL
+ * travels under a URL key, so the scrubber cuts the query string where a
+ * provider's API key would be.
+ */
+export function reportTileFailure({
+  errors,
+  sample,
+}: {
+  errors: number;
+  sample: string | null;
+}): void {
+  reportClientError(new Error("Basemap tiles are not loading"), {
+    tile_errors: String(errors),
+    tile_url: sample ?? "none",
+  });
+}
 
 export interface TileHealthReporter {
   /** Called once, when the threshold is first crossed. */

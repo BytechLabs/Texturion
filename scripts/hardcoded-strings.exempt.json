@@ -254,6 +254,12 @@
         "VAPID public key is not an uncompressed P-256 point.",
         "Browser returned an incomplete push subscription."
       ]
+    },
+    "lib/maps/tile-health.ts": {
+      "why": "The Error message is the title of the PostHog exception sent when a map's basemap stops loading; the reader sees the translated tasks.mapTilesFailing notice instead. Translating it would split one issue into one per locale without changing anything a customer reads.",
+      "literals": [
+        "Basemap tiles are not loading"
+      ]
     }
   },
   "shared": {

@@ -154,7 +154,8 @@ export async function middleware(request: NextRequest) {
   // absent for exactly the signed-in users it exists to protect.
   if (policy !== null) {
     response.headers.set(CSP_HEADER, policy);
-    response.headers.set("Reporting-Endpoints", reportingEndpointsHeader());
+    const endpoints = reportingEndpointsHeader();
+    if (endpoints !== null) response.headers.set("Reporting-Endpoints", endpoints);
   }
   return response;
 }

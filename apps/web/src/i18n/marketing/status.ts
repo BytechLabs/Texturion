@@ -39,46 +39,8 @@ export const statusEn = {
     "Delivery depends on the phone companies and carriers, which we don't control. When they have trouble, texts can be delayed even though Loonext is up.",
   brokenBefore: "Seeing something broken that this page doesn't mention? Email",
   brokenAfter: "and a person will take a look.",
-  subscribeHeading: "Get told instead of checking",
-  subscribeIntro:
-    "We'll email you when there's an incident and again when it's resolved. That's all it is: no newsletter, and one-click unsubscribe on every message.",
-  emailAddress: "Email address",
-  emailPlaceholder: "you@company.com",
-  sending: "Sending...",
-  emailMe: "Email me",
-  confirmFallback: "Check your email for a link to confirm.",
-  errorFallback: "That didn't go through. Try again in a moment.",
-  invalidEmail: "That doesn't look like an email address.",
-  unavailable: "Status updates by email aren't available right now.",
-  listFull: "The status list is full right now. Email support and we'll add you.",
   incidentFallback:
     "A service incident is in progress. We are updating this page as we learn more.",
-  confirmEmailSubject: "Confirm your Loonext status updates",
-  confirmEmailIntro:
-    "You asked to be emailed when Loonext has a service incident.",
-  confirmEmailAction: "Confirm that here:",
-  confirmEmailIgnore:
-    "If that wasn't you, ignore this email — nothing happens until the link is\nopened, and the request expires on its own within a day.",
-  incidentEmailSubject: "Loonext service incident",
-  incidentEmailBody:
-    "This is what's on our status page right now, written by hand as we learn\nmore. We'll email again when it's resolved.",
-  resolvedEmailSubject: "Loonext incident resolved",
-  resolvedEmailBody:
-    "The incident we emailed you about is over. The written report goes on the\nstatus page once we've finished it.",
-  unsubscribeLabel: "Unsubscribe",
-  subscribedMetadataTitle: "You're subscribed",
-  subscribedMetadataDescription:
-    "You'll get an email when Loonext has a service incident.",
-  subscribedTitle: "You're on the list.",
-  subscribedBody:
-    "We'll email you when there's a service incident, and again when it's resolved. Nothing else: no newsletter, no product announcements.",
-  subscribedDetailBefore:
-    "Every one of those emails has an unsubscribe link, and it works in one click with nothing to confirm. If you'd rather we took you off now, email",
-  unsubscribedMetadataTitle: "Unsubscribed",
-  unsubscribedMetadataDescription: "You're off the Loonext status email list.",
-  unsubscribedTitle: "Unsubscribed.",
-  unsubscribedBody:
-    "You won't get status emails from us again. Your address is gone, not flagged.",
 } as const;
 
 export const statusFr: Translated<typeof statusEn> = {
@@ -119,49 +81,8 @@ export const statusFr: Translated<typeof statusEn> = {
     "La livraison dépend des compagnies de téléphone et des fournisseurs, que nous ne contrôlons pas. Lorsqu'ils éprouvent un problème, les textos peuvent être retardés même si Loonext fonctionne.",
   brokenBefore: "Vous voyez un problème absent de cette page? Écrivez à",
   brokenAfter: "et une personne vérifiera.",
-  subscribeHeading: "Soyez avisé plutôt que de vérifier",
-  subscribeIntro:
-    "Nous vous écrirons lorsqu'un incident survient, puis lorsqu'il est réglé. Rien d'autre : aucune infolettre et un désabonnement en un clic dans chaque message.",
-  emailAddress: "Adresse courriel",
-  emailPlaceholder: "vous@entreprise.ca",
-  sending: "Envoi...",
-  emailMe: "M'aviser par courriel",
-  confirmFallback: "Vérifiez votre courriel pour confirmer votre abonnement.",
-  errorFallback: "L'envoi n'a pas fonctionné. Réessayez dans un instant.",
-  invalidEmail: "Cette adresse courriel ne semble pas valide.",
-  unavailable:
-    "Les avis d'état du service par courriel ne sont pas offerts pour le moment.",
-  listFull:
-    "La liste d'état du service est pleine pour le moment. Écrivez au soutien et nous vous ajouterons.",
   incidentFallback:
     "Un incident de service est en cours. Nous mettons cette page à jour à mesure que nous en apprenons davantage.",
-  confirmEmailSubject: "Confirmez vos avis d'état du service Loonext",
-  confirmEmailIntro:
-    "Vous avez demandé à recevoir un courriel lorsqu'un incident touche le service Loonext.",
-  confirmEmailAction: "Confirmez votre abonnement ici :",
-  confirmEmailIgnore:
-    "Si vous n'avez pas fait cette demande, ignorez ce courriel : rien ne se passe tant que le lien n'est pas ouvert, et la demande expire d'elle-même dans un jour.",
-  incidentEmailSubject: "Incident de service Loonext",
-  incidentEmailBody:
-    "Voici ce qui est affiché sur notre page d'état du service en ce moment. Le texte est mis à jour à la main à mesure que nous en apprenons davantage. Nous vous écrirons de nouveau lorsque l'incident sera réglé.",
-  resolvedEmailSubject: "Incident Loonext réglé",
-  resolvedEmailBody:
-    "L'incident au sujet duquel nous vous avons écrit est terminé. Le rapport écrit sera publié sur la page d'état du service lorsqu'il sera prêt.",
-  unsubscribeLabel: "Se désabonner",
-  subscribedMetadataTitle: "Abonnement confirmé",
-  subscribedMetadataDescription:
-    "Vous recevrez un courriel lors d'un incident de service Loonext.",
-  subscribedTitle: "Vous êtes sur la liste.",
-  subscribedBody:
-    "Nous vous écrirons lorsqu'un incident de service survient, puis lorsqu'il est réglé. Rien d'autre : aucune infolettre ni annonce de produit.",
-  subscribedDetailBefore:
-    "Chacun de ces courriels contient un lien de désabonnement qui fonctionne en un clic, sans confirmation. Si vous préférez que nous vous retirions maintenant, écrivez à",
-  unsubscribedMetadataTitle: "Désabonnement confirmé",
-  unsubscribedMetadataDescription:
-    "Votre adresse a été retirée de la liste d'état du service Loonext.",
-  unsubscribedTitle: "Vous êtes désabonné.",
-  unsubscribedBody:
-    "Vous ne recevrez plus nos courriels sur l'état du service. Votre adresse a été supprimée, pas simplement marquée.",
 };
 
 const COPY = { en: statusEn, "fr-CA": statusFr } as const;

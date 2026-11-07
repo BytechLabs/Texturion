@@ -11,7 +11,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   CSP_HEADER,
-  CSP_REPORT_PATH,
   createNonce,
   cspStagingEnabled,
   nonceContentSecurityPolicy,
@@ -23,8 +22,8 @@ describe("the staging switch", () => {
     // Not a feature flag hedging a risk — the policy is report-only and blocks
     // nothing. It is a COST control: this app ships 93 prerendered HTML files
     // whose inline scripts can carry no nonce, so leaving it on would have
-    // every visitor POST a violation report about a fault already measured on
-    // the build, at our own open endpoint.
+    // every visitor send PostHog a violation report about a fault already
+    // measured on the build.
     expect(cspStagingEnabled({})).toBe(false);
     expect(cspStagingEnabled({ CSP_STAGING: "" })).toBe(false);
     expect(cspStagingEnabled({ CSP_STAGING: "true" })).toBe(false);
@@ -54,7 +53,7 @@ describe("the nonce", () => {
 });
 
 describe("the policy", () => {
-  const policy = nonceContentSecurityPolicy("TESTNONCE");
+  const policy = nonceContentSecurityPolicy("TESTNONCE", "phc_test");
 
   it("admits this render's inline scripts and nothing else's", () => {
     expect(policy).toContain("script-src 'self' 'nonce-TESTNONCE' 'strict-dynamic'");
@@ -70,7 +69,7 @@ describe("the policy", () => {
     // And no `https:` fallback, which is the other way the recipe is commonly
     // watered down — it re-admits every host on the internet for any browser
     // that does not understand strict-dynamic.
-    expect(policy).not.toContain(" https:");
+    expect(policy).not.toMatch(/ https:(?:;|\s|$)/);
   });
 
   it("names worker-src, because the service worker is how push arrives", () => {
@@ -90,16 +89,23 @@ describe("the policy", () => {
     expect(policy.split("; ").length).toBeGreaterThan(3);
   });
 
-  it("sends reports to our own origin, in both spellings", () => {
+  it("sends reports to PostHog's CSP endpoint, in both spellings", () => {
     // `report-uri` is deprecated and is what Safari and older Chrome actually
     // use; `report-to` is the replacement. Sending one collects from half the
     // browsers and looks like a quiet policy.
-    expect(policy).toContain(`report-uri ${CSP_REPORT_PATH}`);
-    expect(policy).toContain("report-to csp");
-    expect(reportingEndpointsHeader()).toBe(`csp="${CSP_REPORT_PATH}"`);
-    // Relative, so it is same-origin on the app host, the marketing host, the
-    // blog host and localhost without any of them knowing about the others.
-    expect(CSP_REPORT_PATH.startsWith("/")).toBe(true);
+    const endpoint = "https://us.i.posthog.com/report/?token=phc_test&sample_rate=0.1";
+    expect(policy).toContain(`report-uri ${endpoint}`);
+    expect(policy).toContain("report-to posthog");
+    expect(reportingEndpointsHeader("phc_test")).toBe(`posthog="${endpoint}"`);
+  });
+
+  it("names no report destination when the build has no PostHog key", () => {
+    const unkeyed = nonceContentSecurityPolicy("TESTNONCE", undefined);
+
+    expect(unkeyed).not.toContain("report-uri");
+    expect(unkeyed).not.toContain("report-to");
+    expect(unkeyed).toContain("script-src 'self' 'nonce-TESTNONCE' 'strict-dynamic'");
+    expect(reportingEndpointsHeader(undefined)).toBeNull();
   });
 
   it("is staged report-only, so a mistake here cannot break a page", () => {

@@ -24,16 +24,12 @@
  * mistake `security-headers.test.ts` already has a test for.
  *
  * ---------------------------------------------------------------------------
- * REPORT-ONLY FIRST, AND THE COLLECTOR IS OURS
+ * REPORT-ONLY FIRST, AND THE REPORTS GO TO POSTHOG
  *
- * #577 asks for report-only staging, and the last pass rightly refused to do it
- * with nowhere to send reports: a third-party collector's client path is
- * blocked by ad blockers for a large share of real users, so the violation
- * data would be silently partial, which is worse than knowing it is absent.
- *
- * The way out is that the collector does not have to be a third party. Reports
- * go to `/api/csp-report` on the SAME origin, which no blocker touches and no
- * CORS rule governs, and the route logs them where every other Worker log goes.
+ * #577 asks for report-only staging. Violations go to PostHog's CSP endpoint
+ * (D147), sampled at `CSP_REPORT_SAMPLE_RATE`. A build with no PostHog key
+ * names no report destination, so a violation shows only in the browser's
+ * console.
  *
  * ---------------------------------------------------------------------------
  * AND THE FINDING THAT DECIDES WHETHER THIS CAN EVER BE ENFORCED
@@ -78,11 +74,21 @@
  * So the conclusion above stands with a second, independent reason: an
  * enforcing `script-src` needs these routes rendered per request. That is
  * still a product decision, and it is now one nobody has to re-derive.
- * * Staging it live regardless would mean a violation report POSTed by every
- * visitor on every page for a fault we already know about — an open endpoint we
- * point at ourselves. Hence the switch: the machinery is complete and tested,
- * and turning it on is deliberate.
+ *
+ * Staging it live regardless would mean a violation report from every visitor
+ * on every page for a fault we already know about, spending PostHog's monthly
+ * event quota. Hence the switch: the machinery is complete and tested, and
+ * turning it on is deliberate.
  */
+
+import { POSTHOG_HOST } from "@/lib/analytics/posthog";
+import { clientEnv } from "@/public-env";
+
+/** The `Reporting-Endpoints` group name `report-to` refers to. */
+export const CSP_REPORT_GROUP = "posthog";
+
+/** The share of violations PostHog keeps. */
+const CSP_REPORT_SAMPLE_RATE = 0.1;
 
 /**
  * Whether to send the policy at all.
@@ -112,14 +118,12 @@ export function createNonce(): string {
 }
 
 /**
- * The path a violation report is POSTed to. Same-origin and relative, so it
- * works unchanged on the app host, the marketing host, the blog host and
- * localhost — none of which needs to know the others exist.
+ * PostHog's CSP report endpoint for one project. The slash before the query is
+ * part of the documented URL.
  */
-export const CSP_REPORT_PATH = "/api/csp-report";
-
-/** The `Reporting-Endpoints` group name `report-to` refers to. */
-export const CSP_REPORT_GROUP = "csp";
+function cspReportUri(projectKey: string): string {
+  return `${POSTHOG_HOST}/report/?token=${encodeURIComponent(projectKey)}&sample_rate=${CSP_REPORT_SAMPLE_RATE}`;
+}
 
 /**
  * The nonce-bearing policy.
@@ -150,22 +154,32 @@ export const CSP_REPORT_GROUP = "csp";
  * would refuse to register the service worker — which is how the app receives
  * push. The one directive whose omission would break a shipped feature.
  */
-export function nonceContentSecurityPolicy(nonce: string): string {
-  return [
+export function nonceContentSecurityPolicy(
+  nonce: string,
+  projectKey: string | undefined = clientEnv.NEXT_PUBLIC_POSTHOG_KEY,
+): string {
+  const directives = [
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "worker-src 'self'",
+  ];
+  if (projectKey) {
     // Both spellings. `report-uri` is deprecated and is what Safari and older
     // Chrome actually send to; `report-to` is the replacement and needs the
     // `Reporting-Endpoints` header below to mean anything. Sending one would
     // silently collect from half the browsers.
-    `report-uri ${CSP_REPORT_PATH}`,
-    `report-to ${CSP_REPORT_GROUP}`,
-  ].join("; ");
+    directives.push(`report-uri ${cspReportUri(projectKey)}`, `report-to ${CSP_REPORT_GROUP}`);
+  }
+  return directives.join("; ");
 }
 
-/** The `Reporting-Endpoints` header value naming the group `report-to` uses. */
-export function reportingEndpointsHeader(): string {
-  return `${CSP_REPORT_GROUP}="${CSP_REPORT_PATH}"`;
+/**
+ * The `Reporting-Endpoints` header value naming the group `report-to` uses, or
+ * null when there is no PostHog project to report to.
+ */
+export function reportingEndpointsHeader(
+  projectKey: string | undefined = clientEnv.NEXT_PUBLIC_POSTHOG_KEY,
+): string | null {
+  return projectKey ? `${CSP_REPORT_GROUP}="${cspReportUri(projectKey)}"` : null;
 }
 
 /**

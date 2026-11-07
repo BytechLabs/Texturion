@@ -22,7 +22,7 @@ import {
   NO_BASEMAP_NOTICE,
   readBasemap,
 } from "@/lib/maps/basemap";
-import { createTileHealth } from "@/lib/maps/tile-health";
+import { createTileHealth, reportTileFailure } from "@/lib/maps/tile-health";
 
 import { taskThreadHref } from "../task-format";
 import { mapsDirectionsHref, type LocatedTask } from "./map-types";
@@ -139,14 +139,9 @@ export function MapIsland({
   const health = useMemo(
     () =>
       createTileHealth({
-        onUnhealthy: ({ errors, sample }) => {
+        onUnhealthy: (info) => {
           setTilesFailing(true);
-          // Client error tracking is unreliable here (ad blockers), so this is a console
-          // marker a support session can find, plus the visible notice below. The
-          // point is that SOMEBODY knows, not that it retries.
-          console.error(
-            `#428 basemap tiles are not loading (${errors} failures). Sample: ${sample ?? "n/a"}`,
-          );
+          reportTileFailure(info);
         },
       }),
     [],
