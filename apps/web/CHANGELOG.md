@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.1](https://github.com/BytechLabs/Texturion/compare/web-v0.20.0...web-v0.20.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **api:** tell PostHog when Telnyx refuses a text at its spend limit ([d9d32af](https://github.com/BytechLabs/Texturion/commit/d9d32afc3e0ef9a7f8c4c80889812e39fedf8b06))
+
 ## [0.20.0](https://github.com/BytechLabs/Texturion/compare/web-v0.19.2...web-v0.20.0) (2026-11-02)
 
 
