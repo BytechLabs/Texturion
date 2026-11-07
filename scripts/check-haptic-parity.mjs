@@ -67,7 +67,6 @@ const AREAS = {
   calls: "Calls",
   compose: "Compose",
   contacts: "Contacts",
-  diagnostics: "Diagnostics",
   foryou: "ForYou",
   inbox: "Inbox",
   notifications: "Notifications",
@@ -96,8 +95,6 @@ const SILENT_ON_IOS = {
   // The object is now empty, which is the state this ledger was written to
   // reach rather than a sign it stopped working — every removal here was a
   // real iOS surface being wired, which is the only way the guard permits one.
-  // `diagnostics` left on 2026-08-14: sharing a report taps, and both clears
-  // reject, matching what Android already did with the same two actions.
   // `notifications` left on 2026-08-14: the preference toggles, the retry and
   // the on-call silence confirm all fire now — the last a reject(), because it
   // is the one press on that screen somebody can regret.

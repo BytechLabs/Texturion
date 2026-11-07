@@ -70,8 +70,7 @@ export type SettingsSectionId =
   | "webhooks"
   // #243: the workspace API keys. Beside Connections because they are the two
   // halves of one subject — what leaves the building, and what may reach in.
-  | "apiKeys"
-  | "diagnostics";
+  | "apiKeys";
 
 /**
  * The capability a section needs to be worth showing.
@@ -90,7 +89,6 @@ const SECTION_CAPABILITY: Record<SettingsSectionId, Capability> = {
   help: "workspace.access",
   // Everybody paying for the product is entitled to know it got better.
   whatsNew: "workspace.access",
-  diagnostics: "workspace.access",
 
   // The business's, each behind the axis that actually governs it.
   workspace: "settings.manage",

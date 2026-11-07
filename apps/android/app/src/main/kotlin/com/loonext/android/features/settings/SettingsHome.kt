@@ -31,7 +31,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.CreditCard
@@ -59,8 +58,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -314,7 +311,6 @@ fun SettingsHome(
     section: SettingsSection?,
     onOpenSection: (SettingsSection) -> Unit,
     onSignOut: () -> Unit,
-    onOpenDiagnostics: () -> Unit = {},
 ) {
     val repo = remember(graph) { SettingsRepository(graph.api) }
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
@@ -336,35 +332,6 @@ fun SettingsHome(
             role = role,
             showMessage = { message -> scope.launch { snackbar.showSnackbar(message) } },
         )
-    }
-
-    // #198 easter egg: seven quick taps on the version footer (2s between
-    // taps) flips the persisted devMode pref. Silent while counting — no
-    // haptics, no ripple, nothing for stray taps; only the 7th speaks.
-    val devMode by graph.prefs.devMode.collectAsState(initial = false)
-    var versionTaps by remember { mutableIntStateOf(0) }
-    var lastVersionTapMs by remember { mutableLongStateOf(0L) }
-    val onVersionTap: () -> Unit = {
-        val nowMs = System.currentTimeMillis()
-        versionTaps = if (nowMs - lastVersionTapMs <= 2_000L) versionTaps + 1 else 1
-        lastVersionTapMs = nowMs
-        if (versionTaps >= 7) {
-            versionTaps = 0
-            val next = !devMode
-            scope.launch {
-                graph.prefs.setDevMode(next)
-                snackbar.showSnackbar(
-                    AppStrings.translate(
-                        locale,
-                        if (next) {
-                            "settingsMore.diagnosticsUnlocked"
-                        } else {
-                            "settingsMore.diagnosticsHidden"
-                        },
-                    ),
-                )
-            }
-        }
     }
 
     // #176 cache-first: the company view paints instantly from StoreCache on
@@ -435,7 +402,6 @@ fun SettingsHome(
                                 .all().size
                         },
                         usage = usage,
-                        devMode = devMode,
                         onOpen = onOpenSection,
                         onCopyNumber = { number ->
                             copyToClipboard(context, clipLabel, number)
@@ -443,8 +409,6 @@ fun SettingsHome(
                                 AppStrings.translate(locale, "settingsMore.numberCopied"),
                             )
                         },
-                        onOpenDiagnostics = onOpenDiagnostics,
-                        onVersionTap = onVersionTap,
                         // #515: the handover addressed to the reader. A slot
                         // rather than a scope parameter so the index stays a
                         // pure layout that previews without an AppGraph.
@@ -557,11 +521,8 @@ internal fun SettingsIndex(
     /** How many messages are still waiting for signal, read when the sheet opens. */
     unsentCount: suspend () -> Int,
     usage: Usage?,
-    devMode: Boolean,
     onOpen: (SettingsSection) -> Unit,
     onCopyNumber: (String) -> Unit,
-    onOpenDiagnostics: () -> Unit,
-    onVersionTap: () -> Unit,
     ownershipPrompt: @Composable () -> Unit = {},
 ) {
     // #180: the hub already scrolls at any height; condense the inter-card
@@ -608,73 +569,13 @@ internal fun SettingsIndex(
                 )
             }
         }
-        // #198: the unlocked Diagnostics row — quiet, last, its own card so
-        // the everyday section list never changes shape.
-        if (devMode) {
-            PaperCard(Modifier.fillMaxWidth()) {
-                DiagnosticsIndexRow(onOpenDiagnostics)
-            }
-        }
-        VersionFooter(onVersionTap)
+        VersionFooter()
     }
 }
 
-/** The dev-mode Diagnostics entry (#198) — same row grammar, muted voice. */
+/** The quiet version line at the hub's foot. */
 @Composable
-private fun DiagnosticsIndexRow(onOpen: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable { onOpen() }
-            .padding(horizontal = 15.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier
-                .size(36.dp)
-                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.Outlined.BugReport,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp),
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                t("settingsMore.diagnostics"),
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
-            )
-            Text(
-                t("settingsMore.diagnosticsBlurb"),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 1.dp),
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Icon(
-            Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
-
-/**
- * The quiet version line at the hub's foot — also the #198 easter-egg target
- * (seven quick taps). Deliberately no ripple and no haptic: a stray tap must
- * look and feel like nothing at all.
- */
-@Composable
-private fun VersionFooter(onTap: () -> Unit) {
-    val interaction = remember { MutableInteractionSource() }
+private fun VersionFooter() {
     Text(
         loonextWordmark(suffix = " ${BuildConfig.VERSION_NAME}"),
         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -682,14 +583,7 @@ private fun VersionFooter(onTap: () -> Unit) {
         textAlign = TextAlign.Center,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp)
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                onClick = onTap,
-            )
-            // Inside the clickable, so the tap area is 24dp rather than the 16dp line.
-            .padding(vertical = 4.dp),
+            .padding(top = 12.dp, bottom = 4.dp),
     )
 }
 
@@ -1151,13 +1045,10 @@ private fun SettingsIndexPreview() {
                 me = previewMe(),
                 role = "owner",
                 usage = previewUsage(),
-                devMode = false,
                 onHandOver = {},
                 unsentCount = { 0 },
                 onOpen = {},
                 onCopyNumber = {},
-                onOpenDiagnostics = {},
-                onVersionTap = {},
             )
         }
     }

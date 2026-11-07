@@ -65,10 +65,6 @@ export const WEB_SECTION_ROUTES: Record<
   // reach back in.
   webhooks: "route",
   apiKeys: "route",
-  // A phone-only screen: what this build is, what it last synced, what it can
-  // reach. The browser answers all three itself (the URL bar, devtools, the
-  // network tab), so the web has never had a page for it.
-  diagnostics: "not-on-web",
 };
 
 /** Where a section's route lives. Sections may override the default slug path. */

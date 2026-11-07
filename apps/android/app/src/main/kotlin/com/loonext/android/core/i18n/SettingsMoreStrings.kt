@@ -627,10 +627,6 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.sectionHelpBlurb" to "Get in touch when something isn't right",
         "settingsMore.sectionWhatsNew" to "What's new",
         "settingsMore.sectionWhatsNewBlurb" to "What shipped recently, and where to find it",
-        "settingsMore.diagnostics" to "Diagnostics",
-        "settingsMore.diagnosticsBlurb" to "Call flow, crash reports, device",
-        "settingsMore.diagnosticsUnlocked" to "Diagnostics unlocked",
-        "settingsMore.diagnosticsHidden" to "Diagnostics hidden",
         "settingsMore.captionSpendingCap" to "SPENDING CAP",
         "settingsMore.captionPacing" to "PACING AHEAD",
         "settingsMore.captionFairUse" to "FAIR USE",
@@ -1927,11 +1923,6 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.sectionWhatsNew" to "Nouveautés",
         "settingsMore.sectionWhatsNewBlurb" to
             "Ce qui a été livré récemment, et où le trouver",
-        "settingsMore.diagnostics" to "Diagnostics",
-        "settingsMore.diagnosticsBlurb" to
-            "Déroulement des appels, rapports de plantage, appareil",
-        "settingsMore.diagnosticsUnlocked" to "Diagnostics déverrouillés",
-        "settingsMore.diagnosticsHidden" to "Diagnostics masqués",
         "settingsMore.captionSpendingCap" to "PLAFOND DE DÉPENSES",
         "settingsMore.captionPacing" to "RYTHME ÉLEVÉ",
         "settingsMore.captionFairUse" to "USAGE RAISONNABLE",

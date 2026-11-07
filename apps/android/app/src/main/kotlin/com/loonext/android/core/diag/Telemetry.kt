@@ -10,9 +10,11 @@ import com.posthog.android.PostHogAndroidConfig
 
 /**
  * Error tracking in PostHog (D146): uncaught JVM exceptions and the failures
- * [CrashDiagnostics.recordNonFatal] records reach the same PostHog project as
- * the web app and the API. Nothing else is sent: no screen views, lifecycle
- * events, deep links, push tokens, session replay or person profiles (D8).
+ * the app catches and lives through ([captureNonFatal]) reach the same PostHog
+ * project as the web app and the API. Crashes and ANRs also appear in Google
+ * Play Console's Android vitals. Nothing else is sent: no screen views,
+ * lifecycle events, deep links, push tokens, session replay or person
+ * profiles (D8).
  *
  * The project key comes from the build (`-PloonextPostHogKey`), which only the
  * release workflow passes, so a local or rig build without it sends nothing.
@@ -33,10 +35,6 @@ object Telemetry {
 
     internal val isStarted: Boolean get() = started
 
-    /**
-     * Must run before [CrashDiagnostics.install], so the crash-file handler
-     * chains into PostHog's and a crash is both written to the device and sent.
-     */
     fun setup(app: Application) {
         val key = BuildConfig.POSTHOG_PROJECT_KEY
         if (key.isBlank()) return

@@ -35,7 +35,6 @@ const ALL: SettingsSectionId[] = [
   "devices",
   "help",
   "whatsNew",
-  "diagnostics",
 ];
 
 /** What is a member's own, and therefore theirs to open. */
@@ -48,7 +47,6 @@ const PERSONAL: SettingsSectionId[] = [
   // #321: everybody paying for the product is entitled to know it got
   // better, so this is personal like the five above it.
   "whatsNew",
-  "diagnostics",
 ];
 
 describe("canSeeSettingsSection", () => {

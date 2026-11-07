@@ -244,13 +244,10 @@ class AccessibilityAuditTest {
                     me = previewMe(),
                     role = "owner",
                     usage = previewUsage(),
-                    devMode = false,
                     onHandOver = {},
                     unsentCount = { 0 },
                     onOpen = {},
                     onCopyNumber = {},
-                    onOpenDiagnostics = {},
-                    onVersionTap = {},
                 )
             }
         }

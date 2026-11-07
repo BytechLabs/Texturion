@@ -14,11 +14,12 @@ import com.loonext.android.core.data.MeRepository
 import com.loonext.android.core.data.NotificationsRepository
 import com.loonext.android.core.data.SearchRepository
 import com.loonext.android.core.data.TasksRepository
-import com.loonext.android.core.diag.CrashDiagnostics
+import com.loonext.android.core.diag.Telemetry
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.realtime.RealtimeClient
 import com.loonext.android.core.update.UpdateRepository
 import com.loonext.android.features.settings.SettingsRepository
+import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -54,20 +55,16 @@ class AppGraph(
     private val supabaseUrl: String = BuildConfig.SUPABASE_URL,
     private val apiUrl: String = BuildConfig.API_URL,
 ) {
-    /** Crash capture + call-in-flight marker (#168A/D) — see [LoonextApp]. */
-    val diagnostics: CrashDiagnostics = CrashDiagnostics.get(app)
-
     /**
      * #168A: without a CoroutineExceptionHandler, ONE uncaught exception in
      * any child coroutine reaches the default handler and Android kills the
      * process (SupervisorJob only isolates siblings — it does not swallow).
-     * The handler records the stack for the next-launch share sheet and the
-     * app lives on.
+     * The handler reports the failure to PostHog and the app lives on.
      */
     val appScope = CoroutineScope(
         SupervisorJob() + Dispatchers.Default +
             CoroutineExceptionHandler { _, error ->
-                diagnostics.recordNonFatal("app", error)
+                Telemetry.captureNonFatal("app", error)
             },
     )
 
@@ -250,19 +247,12 @@ class LoonextApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // D146: PostHog's crash handler goes in first, so the one below chains
-        // into it and a crash is both written to the device and reported.
-        com.loonext.android.core.diag.Telemetry.setup(this)
-        // Then (#168 part A): chain the default uncaught-exception handler so
-        // every crash — main thread, SDK worker, timer thread — appends its
-        // stack to filesDir/crash-reports/latest.txt (last 20 kept, #197)
-        // BEFORE the platform handler runs (crash dialog/ANR semantics stay
-        // intact). The founder's device has no adb; this file + MainActivity's
-        // share prompt + the Diagnostics screen are the forensics channel.
-        CrashDiagnostics.install(this, BuildConfig.VERSION_NAME)
-        // #198: the call-flow evidence channel — file sink wired before any
-        // telephony code (including an FCM-woken cold process) can log.
-        com.loonext.android.core.diag.CallFlowLog.install(java.io.File(filesDir, "diag"))
+        // D146: PostHog's crash handler first, before any other code can throw.
+        Telemetry.setup(this)
+        // D147: crash stacks and call traces an earlier build kept on the
+        // device. PostHog and logcat hold them now, so nothing reads these.
+        File(filesDir, "crash-reports").deleteRecursively()
+        File(filesDir, "diag").deleteRecursively()
         graph = AppGraph(this)
         com.loonext.android.push.ensureChannels(this)
     }

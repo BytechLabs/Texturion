@@ -43,10 +43,6 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     /// Directly after Connections because the two are one subject seen from
     /// opposite ends, and somebody setting up an integration needs both.
     case apiKeys
-    /// #337: hidden until seven taps on the version footer unlock it, the same
-    /// gesture and the same copy as Android's. Below Help because that is the
-    /// order of escalation: try the humans first.
-    case diagnostics
 
     var id: String { rawValue }
 
@@ -63,7 +59,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     var needs: String {
         switch self {
         // Yours by being in the workspace at all.
-        case .profile, .notifications, .devices, .help, .whatsNew, .diagnostics:
+        case .profile, .notifications, .devices, .help, .whatsNew:
             Capability.workspaceAccess
         // #286: reading who is in the crew, and changing who is in it, are
         // different rights. A new member could do neither — "identify the owner
@@ -119,7 +115,6 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .whatsNew: "settingsMore.sectionWhatsNew"
         case .webhooks: "webhooks.navWebhooks"
         case .apiKeys: "apiKeys.navApiKeys"
-        case .diagnostics: "settingsMore.diagnostics"
         }
     }
 
@@ -142,7 +137,6 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .whatsNew: "settingsMore.sectionWhatsNewBlurb"
         case .webhooks: "webhooks.navWebhooksDesc"
         case .apiKeys: "apiKeys.navApiKeysDesc"
-        case .diagnostics: "settingsMore.sectionDiagnosticsBlurb"
         }
     }
 
@@ -177,7 +171,6 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .whatsNew: "sparkles"
         case .webhooks: "powerplug"
         case .apiKeys: "key"
-        case .diagnostics: "stethoscope"
         }
     }
 }
@@ -212,11 +205,6 @@ struct SettingsHome: View {
     @State private var refreshKey = 0
     @State private var toast: String?
     @State private var toastTask: Task<Void, Never>?
-    // #337: the version-footer easter egg. `diagnosticsUnlocked` mirrors the
-    // persisted flag so the index re-renders the moment it flips.
-    @State private var versionTaps = 0
-    @State private var lastVersionTap = Date.distantPast
-    @State private var diagnosticsUnlocked = DiagnosticsAccess.isUnlocked
     /// #330: the truck-phone handover, and what it would cost right now.
     @State private var askingToHandOver = false
     @State private var unsentAtHandover = 0
@@ -296,8 +284,7 @@ struct SettingsHome: View {
 
     // MARK: - Index
 
-    /// Every section this role may see, plus Diagnostics once it has been
-    /// unlocked (#337).
+    /// Every section this role may see.
     ///
     /// #461: a member used to see all of them and could act on almost none —
     /// a plan they cannot change, a registration they cannot file, roles they
@@ -311,27 +298,9 @@ struct SettingsHome: View {
     /// BUSINESS still asks the capability table.
     private var visibleSections: [SettingsSection] {
         SettingsSection.allCases.filter { section in
-            guard section != .diagnostics || diagnosticsUnlocked else { return false }
-            return section.needs == Capability.workspaceAccess
+            section.needs == Capability.workspaceAccess
                 || MemberRole.has(role, section.needs)
         }
-    }
-
-    /// The seven-tap gesture. Taps must be within `tapWindow` of each other, so
-    /// scrolling past the footer and touching it twice an hour apart never
-    /// counts toward anything.
-    private func registerVersionTap() {
-        let now = Date()
-        versionTaps = now.timeIntervalSince(lastVersionTap) <= DiagnosticsAccess.tapWindow
-            ? versionTaps + 1
-            : 1
-        lastVersionTap = now
-        guard versionTaps >= DiagnosticsAccess.tapsToUnlock else { return }
-        versionTaps = 0
-        let next = !diagnosticsUnlocked
-        DiagnosticsAccess.isUnlocked = next
-        diagnosticsUnlocked = next
-        scope.showMessage(DiagnosticsAccess.message(unlocked: next))
     }
 
     private func indexList(_ company: CompanyView) -> some View {
@@ -366,13 +335,7 @@ struct SettingsHome: View {
                         .buttonStyle(.plain)
                     }
                 }
-                // #337: the easter egg. Seven quick taps flips the pref, and the
-                // counting is SILENT -- no haptic, no ripple, nothing for a
-                // stray tap. Only the seventh says anything, and it says exactly
-                // what Android says.
                 VersionFooter()
-                    .contentShape(Rectangle())
-                    .onTapGesture { registerVersionTap() }
             }
             .padding(.horizontal, 18)
             .padding(.top, 8)
@@ -577,8 +540,6 @@ struct SettingsHome: View {
                     WebhooksSectionView(scope: scope)
                 case .apiKeys:
                     ApiKeysSectionView(scope: scope)
-                case .diagnostics:
-                    DiagnosticsSectionView(graph: graph, companyId: companyId)
                 }
             }
             .padding(.vertical, 10)

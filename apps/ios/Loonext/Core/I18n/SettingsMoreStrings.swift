@@ -1221,7 +1221,6 @@ private let settingsMoreIosHelpFr: [String: String] = [
 ]
 
 private let settingsMoreIosHomeEn: [String: String] = [
-    "settingsMore.diagnostics": "Diagnostics",
     "settingsMore.sectionAi": "Lou",
     "settingsMore.sectionAiBlurb":
         "Loonext's assistant: drafts replies and fills in task details",
@@ -1232,8 +1231,6 @@ private let settingsMoreIosHomeEn: [String: String] = [
         "Missed-call text-back, voicemail, screening, caller ID",
     "settingsMore.sectionDevices": "Signed-in devices",
     "settingsMore.sectionDevicesBlurb": "Every browser and phone with access right now",
-    "settingsMore.sectionDiagnosticsBlurb":
-        "Build, connection, and recent events on this phone",
     "settingsMore.sectionHelp": "Help",
     "settingsMore.sectionHelpBlurb": "Get in touch when something isn't right",
     "settingsMore.sectionHours": "Business hours & away reply",
@@ -1261,7 +1258,6 @@ private let settingsMoreIosHomeEn: [String: String] = [
 ]
 
 private let settingsMoreIosHomeFr: [String: String] = [
-    "settingsMore.diagnostics": "Diagnostics",
     "settingsMore.sectionAi": "Lou",
     "settingsMore.sectionAiBlurb":
         "L'assistant de Loonext : rédige des réponses et remplit les "
@@ -1274,8 +1270,6 @@ private let settingsMoreIosHomeFr: [String: String] = [
     "settingsMore.sectionDevices": "Appareils connectés",
     "settingsMore.sectionDevicesBlurb":
         "Chaque navigateur et téléphone qui a accès en ce moment",
-    "settingsMore.sectionDiagnosticsBlurb":
-        "Version, connexion et événements récents sur ce téléphone",
     "settingsMore.sectionHelp": "Aide",
     "settingsMore.sectionHelpBlurb": "Écrivez-nous quand quelque chose ne va pas",
     "settingsMore.sectionHours": "Heures d'ouverture et réponse d'absence",

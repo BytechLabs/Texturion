@@ -2,8 +2,8 @@ package com.loonext.android.core.i18n
 
 /**
  * #228 — the app's PLUMBING, in both languages: the shell around every screen,
- * the You sheet, the joining orientation and its notification ask, the app lock,
- * and the developer Diagnostics surface.
+ * the You sheet, the joining orientation and its notification ask, and the app
+ * lock.
  *
  * These are the words nobody opens the app to read, which is exactly why they
  * matter: a French reader who meets an English tab bar, an English Sign out and
@@ -165,54 +165,6 @@ object ShellStrings : AppStrings.Section {
             "This is not the language your customers are texted in. That one " +
             "belongs to the workspace, under Workspace.",
         "shell.languageSaved" to "Language updated.",
-
-        // ── Diagnostics (#198), the developer surface behind seven taps ───────
-        "shell.diagCallFlow" to "Call flow",
-        "shell.diagShare" to "Share",
-        "shell.diagShareAll" to "Share all",
-        "shell.diagNoCallEvents" to "No call events yet this session.",
-        "shell.diagCrashReports" to "Crash reports",
-        "shell.diagNoCrashReports" to "No crash reports on this device.",
-        "shell.diagDetailsInside" to "Details inside",
-        "shell.diagOnThread" to "on {thread}",
-        "shell.diagUnknownTime" to "Unknown time",
-        "shell.diagDeleteTitle" to "Delete this crash report?",
-        "shell.diagDeleteBody" to
-            "It is removed from this device only and cannot be recovered.",
-        "shell.diagKeep" to "Keep",
-        "shell.diagDevice" to "Device",
-        "shell.diagAppVersion" to "App version",
-        "shell.diagSdk" to "SDK {sdk} (Android {release})",
-        "shell.diagPushToken" to "Push token",
-        "shell.diagRegistered" to "Registered",
-        "shell.diagNotRegistered" to "Not registered",
-        "shell.diagAllowed" to "Allowed",
-        "shell.diagBlocked" to "Blocked",
-        "shell.diagSocket" to "Softphone socket",
-        "shell.diagSocketReady" to "Ready",
-        "shell.diagSocketConnecting" to "Connecting",
-        "shell.diagSocketDisconnected" to "Disconnected",
-        "shell.diagSocketNotRunning" to "Not running",
-        "shell.diagExport" to "Export everything",
-        "shell.diagExportCaption" to
-            "Device facts, call flow, and crash reports in one share",
-        /** The pushed route's own header. Spelled the same in both languages. */
-        "shell.diagnostics" to "Diagnostics",
-
-        /*
-         * ── After a crash (#168A) ─────────────────────────────────────────────
-         *
-         * The founder's device has no adb, so the report is offered through the
-         * share sheet once. The SUBJECT of that share stays English and is not
-         * in this catalogue — it lands in a support inbox beside a stack trace,
-         * where a translated label is harder to find and no easier to read. See
-         * the note on `shareText` in DiagnosticsScreen for the same rule.
-         */
-        "shell.crashTitle" to "The app closed unexpectedly",
-        "shell.crashBody" to
-            "A crash report was saved on this device. " +
-            "Sharing it helps us find and fix the problem.",
-        "shell.crashShare" to "Share crash report",
 
         // ── The FAB and the one route header that is ours ─────────────────────
         "shell.newConversation" to "New conversation",
@@ -429,50 +381,6 @@ object ShellStrings : AppStrings.Section {
             "Ce n'est pas la langue des textos envoyés à vos clients. Celle-là " +
             "appartient à l'espace de travail, sous Espace de travail.",
         "shell.languageSaved" to "Langue mise à jour.",
-
-        "shell.diagCallFlow" to "Déroulement des appels",
-        "shell.diagShare" to "Partager",
-        "shell.diagShareAll" to "Tout partager",
-        "shell.diagNoCallEvents" to "Aucun événement d'appel pour cette session.",
-        "shell.diagCrashReports" to "Rapports de plantage",
-        "shell.diagNoCrashReports" to "Aucun rapport de plantage sur ce téléphone.",
-        "shell.diagDetailsInside" to "Détails à l'intérieur",
-        "shell.diagOnThread" to "sur {thread}",
-        "shell.diagUnknownTime" to "Heure inconnue",
-        "shell.diagDeleteTitle" to "Supprimer ce rapport de plantage ?",
-        "shell.diagDeleteBody" to
-            "Il est retiré de ce téléphone seulement et ne peut pas être récupéré.",
-        "shell.diagKeep" to "Conserver",
-        "shell.diagDevice" to "Appareil",
-        "shell.diagAppVersion" to "Version de l'application",
-        "shell.diagSdk" to "SDK {sdk} (Android {release})",
-        "shell.diagPushToken" to "Jeton de notification",
-        "shell.diagRegistered" to "Enregistré",
-        "shell.diagNotRegistered" to "Non enregistré",
-        "shell.diagAllowed" to "Autorisées",
-        "shell.diagBlocked" to "Bloquées",
-        // The four values agree with "connexion" (feminine) in the label above
-        // them, and none of them repeats that word — "Connexion : Connexion" is
-        // a row that has told the reader nothing.
-        "shell.diagSocket" to "Connexion du téléphone logiciel",
-        "shell.diagSocketReady" to "Prête",
-        "shell.diagSocketConnecting" to "En cours d'établissement",
-        "shell.diagSocketDisconnected" to "Déconnectée",
-        "shell.diagSocketNotRunning" to "Inactive",
-        "shell.diagExport" to "Tout exporter",
-        "shell.diagExportCaption" to
-            "Les données de l'appareil, le déroulement des appels et les rapports " +
-            "de plantage en un seul partage",
-        "shell.diagnostics" to "Diagnostics",
-
-        // ── After a crash (#168A) ─────────────────────────────────────────────
-        // "rapport de plantage" and "sur ce téléphone" are the words the
-        // Diagnostics rows above already use for the same two things.
-        "shell.crashTitle" to "L'application s'est fermée de façon inattendue",
-        "shell.crashBody" to
-            "Un rapport de plantage a été enregistré sur ce téléphone. " +
-            "Le partager nous aide à trouver et à corriger le problème.",
-        "shell.crashShare" to "Partager le rapport de plantage",
 
         "shell.newConversation" to "Nouvelle conversation",
 

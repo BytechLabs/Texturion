@@ -239,17 +239,6 @@ const SURFACES = [
     ios: "Compose",
   },
   {
-    key: "diagnostics",
-    // #337 built this for iOS after #198 shipped it Android-only. Web has no
-    // equivalent and needs none: a browser has devtools, a network tab and a
-    // console, and the whole reason this surface exists is that a phone in a
-    // truck has none of those.
-    web: null,
-    webReason: "the browser already has devtools, a console and a network tab",
-    android: "diagnostics",
-    ios: "Diagnostics",
-  },
-  {
     key: "push",
     // APNs token lifecycle. Android's equivalent is not under features/ at all
     // (com.loonext.android.push), and web push rides the service worker.

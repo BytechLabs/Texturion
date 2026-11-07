@@ -28,9 +28,7 @@ extension Error {
     /// An app update is named because it is the one action that genuinely might
     /// help — a Worker ahead of this build is the commonest cause, and the phones
     /// ship on their own cadence — and it is named as a possibility rather than a
-    /// promise. The Diagnostics screen is deliberately NOT mentioned: it is behind
-    /// a seven-tap unlock, so pointing anybody at it would be directions to a door
-    /// they cannot see.
+    /// promise.
     ///
     /// Word for word the same as the Android twin in `ui/common/Ui.kt`.
     ///

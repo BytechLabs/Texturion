@@ -51,21 +51,9 @@
         "Can't reach Loonext. Check your connection."
       ]
     },
-    "com/loonext/android/features/diagnostics/DiagnosticsScreen.kt": {
-      "why": "These values belong to the support artifact produced by the developer-only Diagnostics screen, not to its rendered controls (which already use the EN/fr-CA catalogue). The share subjects and export header deliberately stay stable so reports can be searched together, the empty-log sentence is export content sent to that same support channel, and the SimpleDateFormat pattern is executable formatting syntax whose quoted word cannot safely be handed to translation.",
-      "literals": [
-        "Loonext call flow log",
-        "No call events recorded.",
-        "Loonext Android crash reports",
-        "Loonext Android crash report",
-        "Loonext Android diagnostics",
-        "MMM d, yyyy 'at' h:mm a"
-      ]
-    },
     "com/loonext/android/MainActivity.kt": {
-      "why": "The ViewModel factory string is a private crash invariant that cannot be rendered. The crash-report subject is the stable label attached to an English stack trace sent into the support inbox; the visible dialog, body, button and chooser label all use catalogue copy. Translating either literal would change only incident evidence, not customer UI.",
+      "why": "The ViewModel factory string is a private crash invariant that cannot be rendered. Translating it would change only incident evidence in PostHog, not customer UI.",
       "literals": [
-        "Loonext Android crash report",
         "Unknown ViewModel: $modelClass"
       ]
     },
@@ -112,18 +100,6 @@
       "why": "This stable diagnostic is paired with shell.authAppleNotConfigured, which is what customer surfaces resolve in the app locale. Translating the diagnostic would fragment searchable setup incidents while leaving the visible copy unchanged.",
       "literals": [
         "Apple sign-in isn't set up for this app yet."
-      ]
-    },
-    "Core/Diagnostics/CrashDiagnostics.swift": {
-      "why": "This is a sentinel inside the English crash artifact sent to support when MetricKit cannot provide a stack, not rendered interface copy. Keeping it stable makes diagnostic reports searchable across device locales.",
-      "literals": [
-        "(call stack unavailable)"
-      ]
-    },
-    "Core/Diagnostics/DiagnosticsReport.swift": {
-      "why": "This is the stable header of the support artifact exported from the developer diagnostics surface, not one of that surface's rendered controls. Translating it would vary incident evidence by device locale without localising UI.",
-      "literals": [
-        "Loonext iOS diagnostics\\n"
       ]
     },
     "Core/JSONValue.swift": {

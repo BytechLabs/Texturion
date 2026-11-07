@@ -80,7 +80,6 @@ import com.loonext.android.features.contacts.ContactDetailScreen
 import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.features.contacts.sync.ContactsActionKind
 import com.loonext.android.features.contacts.sync.contactsActionKind
-import com.loonext.android.features.diagnostics.DiagnosticsScreen
 import com.loonext.android.features.inbox.InboundMessageToastHost
 import com.loonext.android.features.inbox.InboxDestination
 import com.loonext.android.features.notifications.NotificationsScreen
@@ -359,9 +358,6 @@ class MainActivity : FragmentActivity() {
                         // inbox — the gate turns the card off itself instead.
                         AppLockGate(graph.prefs) {
                             Root(graph, deepLinks)
-                            // #168A: no adb on the founder's device — if the last run
-                            // crashed, offer the saved report once via the share sheet.
-                            CrashReportPrompt(graph.diagnostics)
                             // #339: ambient when an update is merely available; a full
                             // stop only below the server-set floor (D71). Last in the
                             // stack so the block genuinely covers everything.
@@ -407,54 +403,6 @@ class MainActivity : FragmentActivity() {
             ContactsActionKind.TEXT -> DeepLink.ComposeTo(number)
         }
     }
-}
-
-/**
- * #168 part A: the post-crash share prompt. When crash-reports/latest.txt
- * holds a crash the user hasn't seen, a small dismissible dialog offers an
- * ACTION_SEND chooser with the report text. Either choice marks the report
- * surfaced — it never nags twice for the same crash.
- */
-@Composable
-private fun CrashReportPrompt(diagnostics: com.loonext.android.core.diag.CrashDiagnostics) {
-    val context = LocalContext.current
-    var report by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { diagnostics.store.unsurfacedReport() }.getOrNull()
-        }
-    }
-    val text = report ?: return
-    // #228: hoisted, because the chooser's title is set inside an onClick —
-    // which is a plain lambda and cannot call `t()`. Same string either way: the
-    // button and the sheet it opens should not be two different sentences.
-    val shareLabel = t("shell.crashShare")
-    val dismiss = {
-        diagnostics.store.markSurfaced()
-        report = null
-    }
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = dismiss,
-        title = { Text(t("shell.crashTitle")) },
-        text = { Text(t("shell.crashBody")) },
-        confirmButton = {
-            TextButton(onClick = {
-                dismiss()
-                val send = Intent(Intent.ACTION_SEND)
-                    .setType("text/plain")
-                    // The SUBJECT stays English: it lands in a support inbox
-                    // beside the stack trace it names, where a translated label
-                    // is harder to find and no easier to read. Same rule as
-                    // DiagnosticsScreen's share.
-                    .putExtra(Intent.EXTRA_SUBJECT, "Loonext Android crash report")
-                    .putExtra(Intent.EXTRA_TEXT, text)
-                runCatching {
-                    context.startActivity(Intent.createChooser(send, shareLabel))
-                }
-            }) { Text(shareLabel) }
-        },
-        dismissButton = { TextButton(onClick = dismiss) { Text(t("common.dismiss")) } },
-    )
 }
 
 /** ViewModel factory over the hand-rolled graph. */
@@ -576,10 +524,6 @@ private sealed interface Overlay {
     /** [section] opens straight at one section, for a surface that is offering
      *  a specific setting as the fix for what the reader is looking at. */
     data class Settings(val section: SettingsSection? = null) : Overlay
-
-    /** #198: the dev Diagnostics surface, reached from the settings hub's
-     *  easter-egg row only — never from primary navigation. */
-    data object Diagnostics : Overlay
 }
 
 @Composable
@@ -1044,16 +988,8 @@ private fun ReadyShell(
                                 section = section,
                                 onOpenSection = { section = it },
                                 onSignOut = root::signOut,
-                                onOpenDiagnostics = { push(Overlay.Diagnostics) },
                             )
                         }
-                    }
-
-                    Overlay.Diagnostics -> OverlayScaffold(
-                        t("shell.diagnostics"),
-                        onBack = { pop() },
-                    ) {
-                        DiagnosticsScreen(graph = graph, modifier = it)
                     }
                 }
             }
@@ -1134,7 +1070,7 @@ private fun OverlayScaffold(
                 }
             }
             // #180: cap + centre the hosted route body on wide viewports so
-            // settings / notifications / diagnostics don't stretch; no-op on
+            // settings and notifications don't stretch; no-op on
             // phones. The header above stays full-width.
             content(Modifier.fillMaxSize().contentMaxWidth())
         }

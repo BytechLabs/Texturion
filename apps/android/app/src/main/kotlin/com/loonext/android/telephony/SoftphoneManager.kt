@@ -7,8 +7,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.loonext.android.core.diag.CallFlowLog
-import com.loonext.android.core.diag.CrashDiagnostics
-import com.loonext.android.core.diag.PostCrashHonesty
+import com.loonext.android.core.diag.Telemetry
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.model.MessageLocale
@@ -48,8 +47,7 @@ import java.util.Collections
  *
  * Crash-safe at every telephony boundary (#168A): a supervised scope with a
  * `CoroutineExceptionHandler`, per-emission guards, and `runCatching` around
- * every platform touch. The #168 crash-diagnostics hardening + #168D
- * call-in-flight marker are kept.
+ * every platform touch, and the #168D call-in-flight marker.
  */
 class SoftphoneManager private constructor(
     private val appContext: Context,
@@ -79,7 +77,7 @@ class SoftphoneManager private constructor(
         fun peek(): SoftphoneManager? = instance
     }
 
-    private val diagnostics = CrashDiagnostics.get(appContext)
+    private val callMarker = CallInFlightMarker(appContext.filesDir)
 
     /** Ring beacons ride the app's session and HTTP client, never its errors list. */
     private val beaconApi: ApiClient = api
@@ -104,13 +102,13 @@ class SoftphoneManager private constructor(
     /**
      * #168A: an uncaught failure in ANY child coroutine used to reach the
      * default handler — Android kills the process for uncaught coroutine
-     * exceptions — taking a live call down with it. The handler records the
-     * stack (shareable next launch) and lets the process live.
+     * exceptions — taking a live call down with it. The handler reports the
+     * failure to PostHog and lets the process live.
      */
     private val scope = CoroutineScope(
         SupervisorJob() + Dispatchers.Main.immediate +
             CoroutineExceptionHandler { _, error ->
-                diagnostics.recordNonFatal("softphone", error)
+                Telemetry.captureNonFatal("softphone", error)
             },
     )
     private val sdk = TelnyxSdkClient(appContext, scope)
@@ -137,7 +135,7 @@ class SoftphoneManager private constructor(
         context = appContext,
         scope = scope,
         bridge = TelecomBridge(),
-        onFailure = { tag, error -> diagnostics.recordNonFatal(tag, error) },
+        onFailure = Telemetry::captureNonFatal,
     )
 
     /** Call ids the USER (or an OS reject) tore down — so a leg→scope mirror
@@ -165,7 +163,7 @@ class SoftphoneManager private constructor(
         runCatching { CallNotifier.sweepStale(appContext) }
         watchNetwork()
         watchForeground()
-        core.onInternalFailure = { tag, error -> diagnostics.recordNonFatal(tag, error) }
+        core.onInternalFailure = Telemetry::captureNonFatal
         core.onRingMeSent = { session -> beacon(RingBeaconStage.RING_ME_SENT, session) }
         // #168A: per-emission guards — one bad snapshot must not kill the
         // collector (all future syncs) or the process.
@@ -176,7 +174,7 @@ class SoftphoneManager private constructor(
                 } catch (cause: CancellationException) {
                     throw cause
                 } catch (cause: Exception) {
-                    diagnostics.recordNonFatal("core-event", cause)
+                    Telemetry.captureNonFatal("core-event", cause)
                 }
             }
         }
@@ -187,7 +185,7 @@ class SoftphoneManager private constructor(
                 } catch (cause: CancellationException) {
                     throw cause
                 } catch (cause: Exception) {
-                    diagnostics.recordNonFatal("sync-platform", cause)
+                    Telemetry.captureNonFatal("sync-platform", cause)
                 }
             }
         }
@@ -365,12 +363,12 @@ class SoftphoneManager private constructor(
         if (postCrashChecked) return
         postCrashChecked = true
         runCatching {
-            val markerSetAt = diagnostics.callMarker.setAtMs() ?: return
+            val markerSetAt = callMarker.setAtMs() ?: return
             val interrupted = PostCrashHonesty.callInterruptedByCrash(
                 markerSetAtMs = markerSetAt,
-                lastCrashAtMs = diagnostics.store.lastCrashAtMs(),
+                lastCrashAtMs = PostCrashHonesty.lastCrashAtMs(appContext),
             )
-            diagnostics.callMarker.clear()
+            callMarker.clear()
             if (interrupted) {
                 core.reportUiError(copy("telephony.interruptedByCrash"))
             }
@@ -432,7 +430,7 @@ class SoftphoneManager private constructor(
         CallFlowLog.log("answer", "answerIncoming requested sess=${CallFlowLog.tail(session)}")
         runCatching {
             markedCallInFlight = true
-            diagnostics.callMarker.set()
+            callMarker.set()
         }
         val handled = runCatching { registry.answerFromNotification(session) }.getOrDefault(false)
         // No registry entry (cold process, or the OS call already cleaned up):
@@ -451,7 +449,7 @@ class SoftphoneManager private constructor(
             // outlived it). Starting the foreground service here would hold the
             // process, the mic and an "Ongoing call" row forever with no call and
             // nothing left to stop it. Reap the ghost instead.
-            runCatching { markedCallInFlight = false; diagnostics.callMarker.clear() }
+            runCatching { markedCallInFlight = false; callMarker.clear() }
             runCatching { CallNotifier.cancelIncomingForSession(appContext, session) }
             // #195 F6: only release the process/mic hold when NOTHING is live —
             // mirror the syncPlatform guard. A ghost answer for one session must
@@ -514,7 +512,7 @@ class SoftphoneManager private constructor(
         // this issue chases happened between accept and ACTIVE.
         runCatching {
             markedCallInFlight = true
-            diagnostics.callMarker.set()
+            callMarker.set()
         }
         // Every accept path must re-assert the FGS: one started at ring time (before
         // RECORD_AUDIO existed) is phoneCall-only and carries no background mic right.
@@ -646,7 +644,7 @@ class SoftphoneManager private constructor(
                 // The customer session (for server-side ops) is filled in by the
                 // core's post-answer resolveSession; the leg's own BYE and the
                 // §5 ring-window backstop cover teardown.
-                diagnostics.recordNonFatal(
+                Telemetry.captureNonFatal(
                     "incoming-header-absent",
                     IllegalStateException(
                         "inbound leg presented without a correlated session (header absent, by-leg unresolved) — best-effort",
@@ -701,7 +699,7 @@ class SoftphoneManager private constructor(
                     CallDirection.OUTBOUND -> registry.driveOutbound(call.id, legState)
                 }
             }
-        }.onFailure { diagnostics.recordNonFatal("sync-scope", it) }
+        }.onFailure { Telemetry.captureNonFatal("sync-scope", it) }
         liveLegSessions = liveInbound.keys.toSet()
 
         // The ongoing-call surface is the FOREGROUND SERVICE's notification — there
@@ -744,7 +742,7 @@ class SoftphoneManager private constructor(
                 // the microphone for the answer.
                 CallForegroundService.stop(appContext)
             }
-        }.onFailure { diagnostics.recordNonFatal("sync-notification", it) }
+        }.onFailure { Telemetry.captureNonFatal("sync-notification", it) }
 
         // #168D: the 'call in flight' marker — up while any answered/placed leg
         // lives, down when the line clears (only this process's own stamp).
@@ -757,10 +755,10 @@ class SoftphoneManager private constructor(
             val lineIdle = snapshot.calls.none { it.phase != CallPhase.ENDED }
             if (anyInFlight && !markedCallInFlight) {
                 markedCallInFlight = true
-                diagnostics.callMarker.set()
+                callMarker.set()
             } else if (lineIdle && markedCallInFlight) {
                 markedCallInFlight = false
-                diagnostics.callMarker.clear()
+                callMarker.clear()
             }
         }
 

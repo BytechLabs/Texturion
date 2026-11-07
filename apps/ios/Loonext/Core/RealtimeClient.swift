@@ -327,46 +327,6 @@ actor RealtimeClient {
         pushAccessToken()
     }
 
-    /// #337 — what this socket would say about itself, in one word a person
-    /// can read down a phone line.
-    ///
-    /// Reported rather than inferred from the outside: "is realtime working" has
-    /// been the question behind several iOS bugs (the parked reconnect most
-    /// recently), and every answer available to a caller today is a guess made
-    /// from whether events have arrived lately.
-    ///
-    /// The number-topic counts are included because #480 made them the thing
-    /// that can be partially wrong: a company topic that joined while a number
-    /// topic silently did not is a live socket delivering three quarters of the
-    /// events, which looks healthy from every other angle.
-    func stateLabel(locale: String = MessageLocale.en) -> String {
-        guard socket != nil else {
-            return AppStrings.translate(
-                locale,
-                everJoined
-                    ? "shell.diagRealtimeDisconnected"
-                    : "shell.diagRealtimeNotStarted"
-            )
-        }
-        guard joined else {
-            return AppStrings.translate(locale, "shell.diagRealtimeConnecting")
-        }
-        let want = numberIds.count
-        let have = confirmedNumberTopics.count
-        if want != have {
-            return AppStrings.translate(
-                locale,
-                "shell.diagRealtimeJoinedPartial",
-                ["have": String(have), "want": String(want)]
-            )
-        }
-        return AppStrings.translate(
-            locale,
-            have == 1 ? "shell.diagRealtimeJoinedOne" : "shell.diagRealtimeJoinedMany",
-            ["count": String(have)]
-        )
-    }
-
     func disconnect() {
         DiagnosticsLog.record(.realtime, "disconnect")
         companyId = nil

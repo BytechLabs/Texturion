@@ -31,7 +31,6 @@ class AppPrefs(private val context: Context) {
     private object Keys {
         val ACTIVE_COMPANY = stringPreferencesKey("active_company_id")
         val THEME = stringPreferencesKey("theme") // system | light | dark
-        val DEV_MODE = booleanPreferencesKey("dev_mode")
         // #289: full-size photos wait for Wi-Fi. Device-scoped, not
         // workspace-scoped — it is about THIS phone's data plan, and the same
         // person on a laptop has a different answer.
@@ -69,11 +68,6 @@ class AppPrefs(private val context: Context) {
 
     val theme: Flow<String> =
         context.appPrefs.data.map { it[Keys.THEME] ?: "system" }
-
-    /** The Diagnostics easter egg (#198): seven quick taps on the settings
-     *  version line flips this; when true the hub shows a Diagnostics row. */
-    val devMode: Flow<Boolean> =
-        context.appPrefs.data.map { it[Keys.DEV_MODE] ?: false }
 
     /**
      * #289: wait for Wi-Fi before fetching a FULL-SIZE photo. Default off —
@@ -138,10 +132,6 @@ class AppPrefs(private val context: Context) {
                 prefs[Keys.WORKSPACE_LOCALE] = locale
             }
         }
-    }
-
-    suspend fun setDevMode(enabled: Boolean) {
-        context.appPrefs.edit { it[Keys.DEV_MODE] = enabled }
     }
 
     suspend fun setAppLockEnabled(enabled: Boolean) {

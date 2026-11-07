@@ -60,9 +60,7 @@ sealed interface LoadState<out T> {
  *
  * An app update is named because it is the one action that genuinely might help —
  * a server ahead of this build is the commonest cause — and it is named as a
- * possibility rather than a promise. The Diagnostics screen is deliberately NOT
- * mentioned: it is hidden until unlocked, so pointing anybody at it would be
- * directions to a door they cannot see.
+ * possibility rather than a promise.
  *
  * ## #228 — whose sentence the reader gets
  *

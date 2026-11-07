@@ -100,7 +100,7 @@ fun ReferralShareBlock(link: String?, code: String) {
 }
 
 /**
- * The chooser. Same shape as the diagnostics and crash-report shares.
+ * The share chooser.
  *
  * `runCatching` because a device with no app that accepts text/plain would
  * otherwise crash the settings screen — a stripped fleet tablet is rare and a

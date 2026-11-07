@@ -2,8 +2,7 @@ import Foundation
 
 /// #228 — the app's PLUMBING, in both languages: the front door, the shell
 /// around every screen, the You sheet, the update notice, the two-factor wall,
-/// the joining orientation and its notification ask, the app lock, and the
-/// developer Diagnostics surface.
+/// the joining orientation and its notification ask, and the app lock.
 ///
 /// These are the words nobody opens the app to read, which is exactly why they
 /// matter: a French reader who meets an English sign-in screen, an English tab
@@ -377,37 +376,6 @@ enum ShellStrings {
 
             // ── A voicemail's words, and lifting them off the screen (#566) ───
             "shell.copyTranscript": "Copy transcript",
-
-            // ── Diagnostics (#337/#485), the developer surface behind seven taps
-            "shell.diagTitle": "Diagnostics",
-            "shell.diagDevice": "Device",
-            "shell.diagRecentEvents": "Recent events",
-            "shell.diagNoEvents": "Nothing recorded on this device.",
-            "shell.diagCrashes": "Crashes",
-            // Says WHY it might be empty. MetricKit hands crashes over on
-            // Apple's schedule, not ours, so a list that is empty right after a
-            // crash means "not delivered yet" — and without this line it reads
-            // as "the capture is broken".
-            "shell.diagNoCrashes":
-                "None captured. iOS hands crash reports over on its "
-                + "own schedule, usually within a day, so a crash "
-                + "from just now may not be here yet.",
-            "shell.diagShareEverything": "Share everything",
-            "shell.diagShareCaption": "Device facts and recent events in one message",
-            "shell.diagClearEvents": "Clear events",
-            "shell.diagClearTitle": "Clear recorded events?",
-            "shell.diagClearBody":
-                "This is the only copy. Share it first if somebody asked for it.",
-            "shell.diagClearAll": "Clear events and crashes",
-            "shell.diagKeep": "Keep",
-            "shell.diagBuild": "build {version}",
-            "shell.diagNoReason": "No reason reported",
-            "shell.diagRealtimeNotStarted": "Not started",
-            "shell.diagRealtimeDisconnected": "Disconnected",
-            "shell.diagRealtimeConnecting": "Connecting",
-            "shell.diagRealtimeJoinedOne": "Joined (1 number topic)",
-            "shell.diagRealtimeJoinedMany": "Joined ({count} number topics)",
-            "shell.diagRealtimeJoinedPartial": "Joined ({have}/{want} number topics)",
         ],
         frCA: [
             "shell.meteredHint": "Vous êtes sur les données mobiles. Touchez pour charger la photo en pleine résolution.",
@@ -681,34 +649,6 @@ enum ShellStrings {
             "shell.pushGenericBody": "Vous avez une nouvelle notification.",
 
             "shell.copyTranscript": "Copier la transcription",
-
-            "shell.diagTitle": "Diagnostics",
-            "shell.diagDevice": "Appareil",
-            "shell.diagRecentEvents": "Événements récents",
-            "shell.diagNoEvents": "Rien n'a été enregistré sur ce téléphone.",
-            "shell.diagCrashes": "Plantages",
-            "shell.diagNoCrashes":
-                "Aucun rapport capturé. iOS transmet les rapports de plantage selon "
-                + "son propre calendrier, généralement en moins d'une journée : un "
-                + "plantage tout juste survenu peut ne pas encore figurer ici.",
-            "shell.diagShareEverything": "Tout partager",
-            "shell.diagShareCaption":
-                "Les données de l'appareil et les événements récents en un seul message",
-            "shell.diagClearEvents": "Effacer les événements",
-            "shell.diagClearTitle": "Effacer les événements enregistrés ?",
-            "shell.diagClearBody":
-                "C'est la seule copie. Partagez-la d'abord si quelqu'un vous l'a demandée.",
-            "shell.diagClearAll": "Effacer les événements et les plantages",
-            "shell.diagKeep": "Conserver",
-            "shell.diagBuild": "version {version}",
-            "shell.diagNoReason": "Aucune raison signalée",
-            "shell.diagRealtimeNotStarted": "Pas démarrée",
-            "shell.diagRealtimeDisconnected": "Déconnectée",
-            "shell.diagRealtimeConnecting": "Connexion en cours",
-            "shell.diagRealtimeJoinedOne": "Connectée (1 canal de numéro)",
-            "shell.diagRealtimeJoinedMany": "Connectée ({count} canaux de numéro)",
-            "shell.diagRealtimeJoinedPartial":
-                "Connectée ({have}/{want} canaux de numéro)",
         ]
     )
 }

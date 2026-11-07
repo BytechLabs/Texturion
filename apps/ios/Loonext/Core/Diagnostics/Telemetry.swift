@@ -5,10 +5,8 @@ import PostHog
 /// signals, uncaught NSExceptions) reach the same PostHog project as the web
 /// app and the API, symbolicated from the dSYMs the release workflow uploads.
 /// Nothing else is sent: no screen views, lifecycle events, push tokens,
-/// session replay or person profiles (D8).
-///
-/// The MetricKit log in ``CrashDiagnostics`` stays: it is what a person can
-/// read and share from the Diagnostics screen without us.
+/// session replay or person profiles (D8). App Store Connect and Xcode
+/// Organizer show Apple's own crash and hang reports beside them.
 ///
 /// The project key comes from the build (`POSTHOG_PROJECT_KEY`), which only
 /// the release workflow sets, so a local build sends nothing.
@@ -27,8 +25,6 @@ enum Telemetry {
     nonisolated(unsafe) private static let urlQuery =
         try? NSRegularExpression(pattern: #"(https?://[^\s?#]*)[?#]\S*"#)
 
-    /// Must run before ``CrashDiagnostics/start()``, so the exception handler
-    /// installed there chains into PostHog's.
     static func setup(bundle: Bundle = .main) {
         guard
             let key = bundle.object(forInfoDictionaryKey: "PostHogProjectKey") as? String,

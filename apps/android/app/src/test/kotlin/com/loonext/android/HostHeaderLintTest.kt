@@ -22,7 +22,7 @@ class HostHeaderLintTest {
     /**
      * Every source that renders INSIDE OverlayScaffold (the host wraps these
      * routes with the one header): all settings sources, the calls log
-     * screen, notifications, and diagnostics. Bare routes that own their
+     * screen, and notifications. Bare routes that own their
      * single header (thread, task, contact, compose) are deliberately absent.
      */
     private fun hostedSources(): Map<String, String> {
@@ -32,12 +32,8 @@ class HostHeaderLintTest {
                 out["features/settings/${file.name}"] = file.readText()
             }
         }
-        for (relative in listOf(
-            "features/notifications/NotificationsScreen.kt",
-            "features/diagnostics/DiagnosticsScreen.kt",
-        )) {
-            out[relative] = readMainSource(relative)
-        }
+        val notifications = "features/notifications/NotificationsScreen.kt"
+        out[notifications] = readMainSource(notifications)
         return out
     }
 

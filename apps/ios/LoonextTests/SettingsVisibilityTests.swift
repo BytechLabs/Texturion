@@ -16,7 +16,7 @@ final class SettingsVisibilityTests: XCTestCase {
     private let personal: Set<SettingsSection> = [
         // #321: everybody paying for the product is entitled to know it
         // got better, so What's new is personal like the rest.
-        .profile, .notifications, .devices, .help, .whatsNew, .diagnostics,
+        .profile, .notifications, .devices, .help, .whatsNew,
     ]
 
     /// #286: the business's, but open to every role, because reading who is in
@@ -26,8 +26,7 @@ final class SettingsVisibilityTests: XCTestCase {
     /// exactly that reason: it is not theirs, it is one they may read.
     private let readableByAll: Set<SettingsSection> = [.team]
 
-    /// The same rule `SettingsHome.visibleSections` applies, minus the
-    /// seven-tap diagnostics unlock, which is a gesture rather than a role.
+    /// The same rule `SettingsHome.visibleSections` applies.
     private func visible(_ role: String?) -> Set<SettingsSection> {
         Set(
             SettingsSection.allCases.filter { section in
