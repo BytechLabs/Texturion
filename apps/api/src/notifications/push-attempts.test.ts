@@ -264,18 +264,21 @@ describe("recordPushAttempts", () => {
       asked.push(ms);
       return ms === PUSH_ATTEMPTS_WRITE_TIMEOUT_MS ? deadline.signal : timeout(ms);
     });
-    let reached = false;
+    // Held here because a Request's signal follows the caller's only weakly:
+    // once nothing references the Request, a collection drops it and the
+    // abort below would never reach the pending fetch.
+    let pending: Request | undefined;
     stubFetch(
       (_url, request) =>
         new Promise<Response>((_resolve, reject) => {
-          reached = true;
+          pending = request;
           request.signal.addEventListener("abort", () => reject(request.signal.reason));
         }),
     );
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const write = recordPushAttempts(env, getDb(env), [attempt]);
-    await vi.waitFor(() => expect(reached).toBe(true));
+    await vi.waitFor(() => expect(pending).toBeDefined());
     expect(asked).toContain(PUSH_ATTEMPTS_WRITE_TIMEOUT_MS);
     deadline.abort(new DOMException("deadline", "TimeoutError"));
 
