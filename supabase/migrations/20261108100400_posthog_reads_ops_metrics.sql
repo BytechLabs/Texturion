@@ -47,8 +47,10 @@ where c.outcome is null
 -- A call that should have finished on the record and has not:
 --   open_past_ceiling      still open fifteen minutes after the two-hour
 --                          ceiling at which the API hangs it up;
---   ended_without_outcome  the engine ended it, and the outcome write was lost
---                          for longer than the sweep's five minutes.
+--   ended_without_outcome  the engine ended it and its outcome was never
+--                          written, fifteen minutes or more after it started.
+--                          The hourly stale-call sweep fills such an outcome
+--                          in from the state.
 create view ops_metrics.stuck_calls with (security_barrier = true) as
 select
   c.id              as call_id,

@@ -314,7 +314,7 @@ when PostHog queries it.
 | View | Columns | Rows |
 |---|---|---|
 | `calls_in_progress` | `call_id`, `call_session_id`, `workspace_id`, `direction`, `state`, `started_at`, `answered_at`, `seconds_running` | calls with no outcome whose engine state is not ended |
-| `stuck_calls` | the above plus `reason` | `open_past_ceiling`: still open 15 minutes past the API's two-hour hang-up ceiling; `ended_without_outcome`: the engine ended it and the outcome write is missing past the sweep's five minutes |
+| `stuck_calls` | the above plus `reason` | `open_past_ceiling`: still open 15 minutes past the API's two-hour hang-up ceiling; `ended_without_outcome`: the engine ended it and its outcome was never written, shown from 15 minutes after the call started until the hourly stale-call sweep fills it in |
 | `storage_in_use` | `bucket_id`, `objects`, `bytes` | every Storage bucket, from `storage.objects` |
 | `storage_added_by_day` | `day`, `bucket_id`, `objects`, `bytes` | bytes added per UTC day over 90 days that are still stored (a deleted object leaves its day's total) |
 | `message_counts_by_hour` | `hour`, `direction`, `status`, `messages`, `segments` | texts per hour over 35 days, from the record |
