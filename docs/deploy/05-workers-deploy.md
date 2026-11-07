@@ -271,8 +271,11 @@ Steps in the deploy itself (`.github/workflows/ship.yml` → the `backend` job):
    separate workflow reacting to one, so there is no other commit it could get.
 2. `pnpm install --frozen-lockfile`.
 3. `supabase link --project-ref <ref>` → `supabase db push` (**migrations first**).
-4. `pnpm --filter @loonext/api exec wrangler deploy --var GIT_SHA:<sha> --var DEPLOY_ENV:production`
-   (API Worker).
+4. The API Worker: `wrangler deploy --dry-run --outdir=dist` builds it,
+   `posthog-cli sourcemap inject` and `upload` give it chunk ids and upload its
+   maps (a warning instead when `POSTHOG_CLI_TOKEN` is unset), and
+   `wrangler deploy dist/index.js --no-bundle --var GIT_SHA:<sha> --var DEPLOY_ENV:production`
+   deploys it as built.
 5. `pnpm --filter @loonext/web run deploy` (OpenNext build + deploy).
 6. Purge the Cloudflare cache — the marketing apex is edge-cached for an hour, so
    a deploy stays hidden behind stale HTML without it.

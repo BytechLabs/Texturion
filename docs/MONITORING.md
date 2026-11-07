@@ -47,9 +47,11 @@ An ops notice sets `$exception_fingerprint` to `ops:<key>`: `key` is lowercase
 words joined by hyphens, names the problem and never an id, an amount or a
 date, so every occurrence of one problem is one PostHog issue. Ids go in
 properties. Ordinary errors set no fingerprint and PostHog groups them by stack. Source
-maps are uploaded for the web app and both mobile apps, so their frames read
-as source; the API Worker's are not uploaded yet, so its frames are the
-bundle's.
+maps are uploaded for the web app, the API Worker and both mobile apps, so
+their frames read as source. The API Worker is deployed as built, with the
+chunk ids `posthog-cli sourcemap inject` adds, and its maps are uploaded under
+release `loonext-api` at `GIT_SHA`. Every upload needs `POSTHOG_CLI_TOKEN`;
+without it the step warns and the frames are the bundle's.
 
 A notice is sent once, when the condition starts: the request that reaches a
 cap, the transition into a bad state. Requests refused after that send nothing.

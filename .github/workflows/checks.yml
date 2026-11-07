@@ -794,6 +794,31 @@ jobs:
       - name: Validate api Worker (wrangler deploy --dry-run)
         run: pnpm --filter @loonext/api exec wrangler deploy --dry-run --outdir=dist
 
+      # D146: ship.yml deploys that output as built, with --no-bundle, after
+      # `posthog-cli sourcemap inject` gives it a chunk id. The same inject runs
+      # here and the injected Worker is started, so a broken inject or a bundle
+      # that no longer loads fails here rather than in a release. Nothing is
+      # uploaded: the placeholder only gets the CLI past its credential check.
+      - name: Inject PostHog chunk ids into the api Worker and run it
+        env:
+          POSTHOG_CLI_API_KEY: phx_ci_placeholder
+          POSTHOG_CLI_PROJECT_ID: "0"
+        run: |
+          dist="$PWD/apps/api/dist"
+          # Inside a checkout the CLI reads a release from git and asks PostHog for it.
+          (cd "$RUNNER_TEMP" && npx --yes @posthog/cli@0.18.10 sourcemap inject --directory "$dist")
+          grep -q '^//# chunkId=' "$dist/index.js"
+          grep -q '"chunk_id"' "$dist/index.js.map"
+          pnpm --filter @loonext/api exec wrangler deploy dist/index.js --no-bundle --dry-run
+          # --local: Workers AI has no local emulation and would need account credentials.
+          pnpm --filter @loonext/api exec wrangler dev dist/index.js --no-bundle --local --port 8787 --ip 127.0.0.1 &
+          for i in $(seq 1 30); do
+            curl -sS -o /dev/null http://127.0.0.1:8787/ 2>/dev/null && break
+            sleep 2
+          done
+          # No root route, so the Worker's own 404 envelope proves the bundle loaded and answered.
+          curl -sS http://127.0.0.1:8787/ | grep -q '"code":"not_found"'
+
       # #320: contrast measured on RENDERED OUTPUT, in both themes.
       #
       # The token suites prove the palette is legal; they cannot prove it

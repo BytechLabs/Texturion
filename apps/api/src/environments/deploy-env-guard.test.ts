@@ -215,7 +215,7 @@ describe("everything that is not production or the rig runs as local", () => {
     expect(stamping).toEqual(["ship.yml"]);
     const ship = readFileSync(join(workflows, "ship.yml"), "utf8");
     expect(ship).toMatch(
-      /wrangler deploy \\\s*\n\s*--var GIT_SHA:"\$\{\{ github\.sha \}\}" \\\s*\n\s*--var DEPLOY_ENV:production\s*\n/,
+      /wrangler deploy dist\/index\.js --no-bundle \\\s*\n\s*--var GIT_SHA:"\$\{\{ github\.sha \}\}" \\\s*\n\s*--var DEPLOY_ENV:production\s*\n/,
     );
   });
 });

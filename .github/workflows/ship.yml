@@ -148,6 +148,31 @@ jobs:
           supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
           supabase db push
 
+      # D146: deployed as built (--no-bundle below), so the bundle Cloudflare
+      # runs carries the chunk ids whose maps the next step uploads.
+      - name: Build api Worker
+        run: pnpm --filter @loonext/api exec wrangler deploy --dry-run --outdir=dist
+
+      - name: Upload api source maps to PostHog
+        # A symbol upload must not hold back a release whose migrations have
+        # already run, and the bundle deploys the same either way.
+        continue-on-error: true
+        env:
+          POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_TOKEN }}
+          POSTHOG_CLI_TOKEN: ${{ secrets.POSTHOG_CLI_TOKEN }}
+          POSTHOG_CLI_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          POSTHOG_CLI_ENV_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+        run: |
+          if [ -z "$POSTHOG_CLI_API_KEY" ] || [ -z "$POSTHOG_CLI_PROJECT_ID" ]; then
+            echo "::warning title=API source maps not uploaded::POSTHOG_CLI_TOKEN or POSTHOG_PROJECT_ID is not set, so API errors in PostHog will show bundled stacks."
+            exit 0
+          fi
+          dist=apps/api/dist
+          npx --yes @posthog/cli@0.18.10 sourcemap inject --directory "$dist" \
+            --release-name loonext-api --release-version "${{ github.sha }}"
+          npx --yes @posthog/cli@0.18.10 sourcemap upload --directory "$dist" \
+            --release-name loonext-api --release-version "${{ github.sha }}" --delete-after
+
       # GIT_SHA is the release on every exception: it maps a production error
       # back to the exact commit that shipped it.
       #
@@ -157,7 +182,7 @@ jobs:
       # Unset, the Worker runs as `local`.
       - name: Deploy api Worker
         run: |
-          pnpm --filter @loonext/api exec wrangler deploy \
+          pnpm --filter @loonext/api exec wrangler deploy dist/index.js --no-bundle \
             --var GIT_SHA:"${{ github.sha }}" \
             --var DEPLOY_ENV:production
 

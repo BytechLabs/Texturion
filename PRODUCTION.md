@@ -184,7 +184,7 @@ Set under repo → Settings → Secrets and variables → Actions. Consumed by
 | `NEXT_PUBLIC_APP_ORIGIN` | Web build var (§4, optional — enables host split) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Web build var (§4, optional) |
 | `NEXT_PUBLIC_POSTHOG_KEY` | Web build var (§4, optional): analytics and error tracking, and the project key the mobile builds, the guard and the edge send with |
-| `POSTHOG_CLI_TOKEN`, `POSTHOG_PROJECT_ID` | Optional: PostHog symbol uploads (web source maps, the Android R8 mapping, iOS dSYMs). Unset, each upload step prints a warning |
+| `POSTHOG_CLI_TOKEN`, `POSTHOG_PROJECT_ID` | Optional: PostHog symbol uploads (web and API Worker source maps, the Android R8 mapping, iOS dSYMs). Unset, each upload step prints a warning |
 
 > **Client telemetry (D146):** `ship.yml` passes the `NEXT_PUBLIC_*` build vars,
 > including `NEXT_PUBLIC_POSTHOG_KEY`, which stays optional: leave the Actions
