@@ -101,12 +101,10 @@ export function buildRouter(rig: Rig, run: RunStarter = runStarter(rig.config)):
     if (typeof scenario !== "string" || !rig.registry().byId.has(scenario)) throw new Error("scenario.run takes a registered { scenario }");
     return run(scenario);
   });
-  const { store } = rig.config;
   const methods = triageMethods({
     unresolved: () => rig.verdicts.unresolved(),
     run: async (scenario) => run(scenario),
     evidence: (runId) => ({ verdicts: rig.verdicts.forRun(runId), evidence: rig.verdicts.evidence(runId) }),
-    app: () => ({ appId: store.read("rig-app-id"), privateKey: store.read("rig-app-key"), repo: rig.config.repo }),
   });
   for (const [name, handler] of Object.entries(methods)) router.register(name, handler, ["triage", "rig"]);
   return router;

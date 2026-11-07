@@ -35,10 +35,10 @@ export function githubHeaders(token: string): Record<string, string> {
   };
 }
 
-/** A token for this one call sequence: issues on the one repository, nothing else. */
+/** A token for this one call sequence: the named permissions on the one repository, nothing else. */
 export async function installationToken(
   credentials: AppCredentials,
-  options: { fetch?: typeof fetch; now?: number; permissions?: Record<string, "read" | "write"> } = {},
+  options: { fetch?: typeof fetch; now?: number; permissions: Record<string, "read" | "write"> },
 ): Promise<string> {
   const doFetch = options.fetch ?? fetch;
   const [owner, name] = splitRepo(credentials.repo);
@@ -50,7 +50,7 @@ export async function installationToken(
   const minted = await doFetch(`${GITHUB_API}/app/installations/${id}/access_tokens`, {
     method: "POST",
     headers: { ...githubHeaders(jwt), "content-type": "application/json" },
-    body: JSON.stringify({ repositories: [name], permissions: options.permissions ?? { issues: "write" } }),
+    body: JSON.stringify({ repositories: [name], permissions: options.permissions }),
   });
   if (!minted.ok) throw new Error(`github app: minting a token returned ${minted.status}`);
   const { token } = (await minted.json()) as { token?: string };

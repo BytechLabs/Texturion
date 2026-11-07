@@ -89,7 +89,7 @@ export interface AttestOptions {
 
 class Unreadable extends Error {}
 
-/** The repository whose guard.yml is attested, and whose issues triage files; RIG_REPO names another. */
+/** The repository whose guard.yml is attested; RIG_REPO names another. */
 export function rigRepo(env: NodeJS.ProcessEnv): string {
   return env.RIG_REPO ?? "BytechLabs/Texturion";
 }

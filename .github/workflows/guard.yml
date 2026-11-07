@@ -189,11 +189,8 @@ jobs:
       # keys (FA3, FA6, FA8) are pasted into the Worker directly and never pass
       # through here.
       #
-      # The message names the commit, so the hourly attestation can tell a
-      # deployment from this workflow (a main commit) from any other by reading
-      # the live deployment with guard-attest-read. wrangler prints the new
-      # version id in this public log; the attestation does not rest on it
-      # being secret.
+      # The message names the commit, so a person reading the live deployment
+      # can tell a deployment from this workflow (a main commit) from any other.
       #
       # The guard binds the edge's EdgeForGuard and the edge binds the guard.
       # FA4 creates both Workers before either token exists, so each target is

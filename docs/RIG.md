@@ -25,7 +25,7 @@ Two independent reviews scored three no-new-account designs, and both chose this
 
 > **Amendment, 2026-10-30 (binding; it overrides anything below that disagrees).** The founder's standing directives are "don't ask me" and "the entire thing must be human free", and agents were given production credentials on purpose. So:
 > - **FA1 and FA2 are optional hardening, not prerequisites.** No phase waits on them. Production writes do not move behind approvals, and agents keep the access they have today.
-> - **What that means for the guard.** While agents act under the founder's GitHub identity, an approval gate on the `guard` environment cannot stop an agent. Agents already hold production keys with more reach than the guard's key, so the guard does not widen the trust boundary. What it does is narrow what *test code* can do. Its protection therefore rests on its own code: policy unit tests, the two-way registry check, start-up refusals, hourly attestation, the weekly key inventory and the CI guards. `guard.yml` deploys from `main` after those tests pass, the same way `ship.yml` ships production.
+> - **What that means for the guard.** While agents act under the founder's GitHub identity, an approval gate on the `guard` environment cannot stop an agent. Agents already hold production keys with more reach than the guard's key, so the guard does not widen the trust boundary. What it does is narrow what *test code* can do. Its protection therefore rests on its own code: policy unit tests, the two-way registry check, start-up refusals and the CI guards. `guard.yml` deploys from `main` after those tests pass, the same way `ship.yml` ships production.
 > - **Not adopted:** the decision-record rule that agents run only in a Windows user without production write keys, and the do-not-build row "production write keys in an agent's reach". Both stay available if the founder later chooses FA1 and FA2.
 > - **FA13 and FA14 become agent actions:** the one ops write and the guard deployments.
 > - **Why this is the right trade, and not merely an allowed one.** A tap per production write is the recurring human act the human-free directive rules out. The FA1 findings are still true and worth knowing: agents run as the founder, can drive the founder's Chrome through Claude in Chrome, and can read production keys in settings and in `apps/api/.dev.vars`.
@@ -694,7 +694,6 @@ R00 compares Play services with the minimum the installed nonprod build declares
 - The only credential on the rig that can read PostHog is the query-only personal key; none can change PostHog.
 - **One project, three environments (FA7 substitution).** Rig and synthetic events go to the production project with the environments `rig` and `synthetic`. Every PostHog alert reads `environment = 'production'`, so neither can fire one (docs/MONITORING.md).
 - The rig VM sends nothing to production's environment. A guard whose live deployment is not `guard.yml`'s from `main` fails R00 (section 3.5); it is not sent anywhere.
-- Each run posts an informational `synthetic/full-matrix` commit status through the rig's GitHub App.
 
 **What rigd runs.** rigd keeps the edge uplink (it writes `state/uplink.json` at least every minute, which R00 reads), the lease watchdog, which runs a lease's undo once it is 15 minutes old, a refresh of the store from the edge's sealed bundle every 6 hours, and the rpc commands. It judges nothing on a timer. R00 reads the local API's exceptions from PostHog when `rig health` runs (the last 24 hours, explained by `tools/rig/crons.json` and by G01's attempts, `tools/rig/rigd/src/api-exceptions.ts`), and attests the guard's version then too.
 
@@ -702,9 +701,9 @@ R00 compares Play services with the minimum the installed nonprod build declares
 1. reads unresolved failures from the rig's verdict store;
 2. re-runs the scenario;
 3. attaches evidence;
-4. opens or updates one issue labelled `synthetic` through the rig App.
+4. reports what it found to whoever asked, in its answer.
 
-Issue numbers stay out of commit trailers. Triage can only run while the workstation is on, which is also when the rig runs.
+The rig files no GitHub issues. A failure that survives its retry is in PostHog under environment `synthetic`, and a person who wants a tracked issue opens one from that PostHog issue. Triage can only run while the workstation is on, which is also when the rig runs.
 
 **Rig-authored code.** The rig App can open branches and pull requests; a ruleset keeps it off `main`. Workstation agents never auto-merge a rig-authored PR. They review the diff as untrusted input and re-run the checks themselves first.
 
