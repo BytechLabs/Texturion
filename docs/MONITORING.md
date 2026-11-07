@@ -137,7 +137,7 @@ link opens.
 | Alert | Fires when | Insight |
 |---|---|---|
 | [New or returning error issue](https://us.posthog.com/project/498129/insights/r0XtuRNs?alert_id=01a1a018-ca3b-0000-34f1-ae643b2cabaf) | an active issue's first production event, or its first after 24 quiet hours, was in the last 70 minutes; and for every ops notice (`ops_key`) in the last 70 minutes, since each one is something a person must act on | SQL over `$exception` joined to `system.error_tracking_issues`, one row per issue or notice |
-| [Heartbeat overdue](https://us.posthog.com/project/498129/insights/2nEDGd2v?alert_id=01a1a016-6c56-0000-622c-9eb2e7f7d0c7) | an `ops_heartbeat` key has been silent longer than the largest `grace_minutes` it carried, for up to 48 hours past it (a key retired on purpose stops on its own) | SQL, one row per overdue key |
+| [Heartbeat overdue](https://us.posthog.com/project/498129/insights/2nEDGd2v?alert_id=01a1a016-6c56-0000-622c-9eb2e7f7d0c7) | a scheduled `ops_heartbeat` key (`cron:*`, `channel:call-session-do`) has been silent longer than the largest `grace_minutes` it carried, for up to 48 hours past it (a key retired on purpose stops on its own) | SQL, one row per overdue key |
 | [Limits and rates](https://us.posthog.com/project/498129/insights/s980Sfcg?alert_id=01a1a016-711c-0000-7002-59894c7a1757) | every hour: a gauge at 90% of its limit, or with its limit missing or under the expected floor; three `webhook_rejected` from one provider in an hour; a workspace's `aup_signals` crossing the AUP thresholds; a `voice_dials`, `inbound_volume`, `cost_projection` or `storage_abuse` warning; a registration submitted seven days ago and not approved; a workspace that took eight or more calls and none for 14 days; a workspace that paid ten days ago and has sent no text. Once a day, in the 07:00 UTC check, for conditions that stay true: a gauge at 70%; a country's delivery rate under 80% (ten or more outcomes in a day); bounces over 2% or complaints over 0.05% of sends (a week, 100 or more sends); a platform's rings shown 15 points below its own previous seven days (30 or more pushes in each); the month's events at 700k or exceptions at 70k | SQL, one row per breach |
 | [Exception spike](https://us.posthog.com/project/498129/insights/MOIssrNk?alert_id=01a1a016-75c1-0000-e9bd-92c2192a47ae) | PostHog's z-score anomaly detector (threshold 0.95, window 72 hours) flags the last completed hour of production exceptions | trend of `$exception` per hour |
 
@@ -226,6 +226,13 @@ check is the hourly one. A newly created alert is checked within a minute.
   and the registration rule, the no-first-text rule and the registration tile
   read them as production. The rig sends no funnel events, so none of them is
   the rig's.
+- "Heartbeat overdue" reads only the keys that beat on a schedule: every
+  `cron:` key and `channel:call-session-do`. The traffic channels
+  (`channel:telnyx-send`, `channel:telnyx-webhook`, `channel:resend-send`) beat
+  only when they carry something, and production carried no texts in the 30
+  days to 2026-11-07, so their silence cannot tell a broken path from a quiet
+  one. They are on the dashboard; a send that fails is an exception, and failed
+  outcomes count in "Limits and rates".
 - A key reports as overdue for up to 48 hours past its grace, and a key never
   seen cannot be overdue. The longest grace (the monthly cron) is 33 days and
   the alert looks back 35.
@@ -238,9 +245,10 @@ check is the hourly one. A newly created alert is checked within a minute.
   rest, so a flood of ordinary exceptions can drop a notice that arrives in the
   same hour. The limits are there to protect the 100k monthly quota.
 - The Telnyx wiring check (webhook URLs and number settings in Telnyx's portal)
-  is gone. A webhook that stops arriving shows as `channel:telnyx-webhook`
-  going quiet for 13 hours, and texts that stop leaving as
-  `channel:telnyx-send` going quiet for 7.
+  is gone. A webhook that stops arriving shows on the dashboard as
+  `channel:telnyx-webhook` going quiet, and texts that stop leaving as
+  `channel:telnyx-send` going quiet, but neither alerts: a webhook pointed at
+  the wrong URL raises nothing until a customer's text or call goes missing.
 - The email authentication check is gone with no replacement; Resend's
   dashboard shows domain authentication.
 - A path that answers 200 and does nothing is caught only by the outcome
