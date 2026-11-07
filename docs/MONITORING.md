@@ -13,9 +13,10 @@ already records about the Workers, but none exists yet (see "In Cloudflare"). Th
 of ours decides that something is broken, schedules a check, keeps monitoring
 state, throttles a notice or sends an alert email.
 
-Sentry, the ops email and the liveness checker are gone from the code. The
-Worker secrets `SENTRY_DSN`, `OPS_ALERT_EMAIL` and `OPS_ALERT_WEBHOOK_SECRET`
-are deleted by hand in Cloudflare.
+Sentry, the ops email and the liveness checker are gone from the code. Their
+secrets are gone too (checked 2026-11-07): the API Worker holds no
+`SENTRY_DSN`, `OPS_ALERT_EMAIL` or `OPS_ALERT_WEBHOOK_SECRET`, and no GitHub
+environment holds a Sentry DSN or `OPS_ALERT_WEBHOOK_SECRET`.
 
 ## What we send
 
