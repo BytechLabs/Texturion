@@ -208,7 +208,8 @@ jobs:
             exit 0
           fi
           assets=apps/web/.open-next/assets/_next/static
-          npx --yes @posthog/cli@0.18.10 sourcemap inject --directory "$assets"
+          npx --yes @posthog/cli@0.18.10 sourcemap inject --directory "$assets" \
+            --release-name loonext-web --release-version "${{ github.sha }}"
           npx --yes @posthog/cli@0.18.10 sourcemap upload --directory "$assets" \
             --release-name loonext-web --release-version "${{ github.sha }}" --delete-after
 
