@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1](https://github.com/BytechLabs/Texturion/compare/api-v0.21.0...api-v0.21.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **api:** placing or ringing a call no longer raises a false warning ([d2f29f0](https://github.com/BytechLabs/Texturion/commit/d2f29f0cb22e3a25a10bbabff4e5b985185b048f))
+
 ## [0.21.0](https://github.com/BytechLabs/Texturion/compare/api-v0.20.3...api-v0.21.0) (2026-11-07)
 
 
