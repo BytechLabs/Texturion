@@ -25,10 +25,10 @@ import { describe, expect, it } from "vitest";
 
 const SRC = join(import.meta.dirname, "..");
 /**
- * The OTHER worker that mails (#477). Scanned too, because a guard that stops
- * at the apps/api boundary is how "the product gives one answer" stayed true
- * only inside one worker: `apps/web/src/lib/marketing/status-mailer.ts` posts
- * to Resend directly and was sending no Reply-To at all.
+ * The OTHER worker that has mailed (#477). Scanned too, because a guard that
+ * stops at the apps/api boundary is how "the product gives one answer" stayed
+ * true only inside one worker: its status mailer posted to Resend directly
+ * and sent no Reply-To at all.
  */
 const WEB_MARKETING = join(SRC, "..", "..", "web", "src", "lib", "marketing");
 
@@ -74,11 +74,11 @@ describe("#252 the reply posture is stated once", () => {
   });
 
   it("every path to Resend stamps a Reply-To, not just the main one", () => {
-    // The invariant is product-wide or it is not an invariant. Two files post
-    // to Resend: apps/api's `sendEmail` and the marketing worker's tiny direct
-    // client. A reader of either one alone would conclude replies are handled.
-    // Test scaffolding names the same URL in order to INTERCEPT it, so match on
-    // sending rather than mentioning: a real sender POSTs, a stub matches.
+    // The invariant is product-wide or it is not an invariant, so every file
+    // in either tree that posts to Resend is held to it. Today that is
+    // apps/api's `sendEmail` alone. Test scaffolding names the same URL in
+    // order to INTERCEPT it, so match on sending rather than mentioning: a
+    // real sender POSTs, a stub matches.
     const isScaffolding = (path: string) =>
       /[\\/]test[\\/]|test-support|harness/.test(path);
     const posters = sources()
@@ -93,7 +93,7 @@ describe("#252 the reply posture is stated once", () => {
           /method:\s*"POST"/.test(text)
         );
       });
-    expect(posters.length).toBeGreaterThan(1);
+    expect(posters.length).toBeGreaterThan(0);
     const missing = posters.filter(
       (path) => !/reply_to/.test(readFileSync(path, "utf8")),
     );
