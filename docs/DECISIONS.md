@@ -6147,9 +6147,12 @@ twelve-month interval and every one of those moves with it:
   We would have taken a year's money and then stopped the product working.
 - **Overage collects once, at the end.** Metered items invoice at period end,
   so twelve months of carrier cost would sit uncollected. `billing_thresholds`
-  — Stripe's mechanism for invoicing mid-period when usage crosses an amount —
-  **does not exist in the pinned SDK (22.3.0)**, so there is no supported way
-  to pull that forward.
+  is Stripe's mechanism for invoicing mid-period when usage crosses an amount.
+  *Corrected 2026-11-07:* this bullet first said the pinned SDK lacked it. It
+  does not: Stripe removed it in 2025-03-31.basil and restored it in
+  2025-05-28.basil, and stripe 22.3.0 types it on subscription create and
+  update. It is untested here, and pulling collection forward would not answer
+  the allowance or plan-change problems either side of this bullet.
 - **Every plan-change path assumes a month.** Upgrades prorate onto an invoice
   issued now; downgrades ride a subscription schedule to `current_period_end`.
   On an annual interval a Starter who hires a fourth person in month two either

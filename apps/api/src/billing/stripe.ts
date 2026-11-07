@@ -13,8 +13,9 @@ import type { Env } from "../env";
  *   WebCrypto (`constructEventAsync`); the sync Node-crypto variant fails on
  *   Workers (SPEC §7, §10).
  *
- * No `apiVersion` override: the pinned stripe package (22.3.0) speaks its own
- * pinned API version (2026-06-24.dahlia) and its types match it.
+ * No `apiVersion` override: each stripe package release pins one API version
+ * and its types describe that version, so requests and types always agree.
+ * Webhook payloads use the webhook endpoint's own version instead.
  */
 const clients = new WeakMap<Env, Stripe>();
 

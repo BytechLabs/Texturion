@@ -59,7 +59,7 @@ const VOICE_OVERAGE_CENTS_PER_SECOND = "0.016666666667";
 const VOICE_OVERAGE_CENTS_PER_SECOND_CAD = "0.025";
 
 /**
- * A decimal inside `currency_options`. stripe 22.3.0's request schema models
+ * A decimal inside `currency_options`. stripe-node's request schema models
  * `currency_options` as an array, so it never converts a Decimal under the
  * currency key, and the object is sent field by field, which Stripe refuses as
  * "Invalid decimal". The wire value is the decimal's string.
