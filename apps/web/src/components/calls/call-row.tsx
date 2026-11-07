@@ -90,6 +90,7 @@ export function CallRow({ call }: { call: Call }) {
   const t = useT();
   const name = callerName(call, t);
   const screening = screeningLabel(call.screening_result, t);
+  const threaded = Boolean(call.conversation_id);
   const body = (
     <>
       <span
@@ -104,9 +105,28 @@ export function CallRow({ call }: { call: Call }) {
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
           <span className="truncate text-[14px] font-medium text-app-ink">
-            {name}
+            {call.conversation_id ? (
+              // Only the name is the link, stretched over the whole row, so the
+              // voicemail player below is not nested inside a link and the
+              // link text is the start of its own accessible name.
+              <Link
+                href={`/inbox/${call.conversation_id}`}
+                aria-label={t("shell.callFromAria", {
+                  name,
+                  outcome: callOutcomeLabel(call).toLowerCase(),
+                })}
+                className="outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+              >
+                {name}
+              </Link>
+            ) : (
+              name
+            )}
           </span>
-          <span className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2">
+          <span
+            aria-hidden={threaded || undefined}
+            className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2"
+          >
             {formatRelativeTime(call.started_at, undefined, t)}
           </span>
         </span>
@@ -132,7 +152,10 @@ export function CallRow({ call }: { call: Call }) {
               {screening}
             </span>
           )}
-          <OutcomePill call={call} />
+          {/* The link label already says the outcome. */}
+          <span aria-hidden={threaded || undefined} className="contents">
+            <OutcomePill call={call} />
+          </span>
           {/* #133: an unthreaded row (anonymous caller / no open thread) is
               deliberately not a link — say why, quietly.
 
@@ -157,7 +180,7 @@ export function CallRow({ call }: { call: Call }) {
         </span>
         {/* D43: the message itself, playable in place. */}
         {call.outcome === "voicemail" && call.voicemail_seconds ? (
-          <span className="mt-1.5 block">
+          <span className="relative z-[1] mt-1.5 block">
             <VoicemailPlayer
               callSessionId={call.call_session_id}
               seconds={call.voicemail_seconds}
@@ -188,26 +211,19 @@ export function CallRow({ call }: { call: Call }) {
     </>
   );
 
+  // Threaded rows are cards: hover lives on the card, and the name link
+  // stretches over it and draws the focus ring on that stretch.
   const rowClass =
-    "flex items-start gap-[11px] border-b border-app-line-soft p-[11px] last:border-b-0";
-  // Threaded calls open their conversation; an unthreaded row (anonymous
-  // caller, or an answered call with no open thread) is plain — no dead link.
-  if (call.conversation_id) {
-    return (
-      <Link
-        href={`/inbox/${call.conversation_id}`}
-        aria-label={t("shell.callFromAria", {
-          name,
-          outcome: callOutcomeLabel(call).toLowerCase(),
-        })}
-        className={cn(
-          rowClass,
-          "transition-colors duration-150 hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        )}
-      >
-        {body}
-      </Link>
-    );
-  }
-  return <div className={rowClass}>{body}</div>;
+    "relative flex items-start gap-[11px] border-b border-app-line-soft p-[11px] last:border-b-0";
+  return (
+    <div
+      className={cn(
+        rowClass,
+        threaded &&
+          "transition-colors duration-150 hover:bg-app-hover",
+      )}
+    >
+      {body}
+    </div>
+  );
 }

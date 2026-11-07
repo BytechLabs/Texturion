@@ -131,11 +131,13 @@ export function TaskAssignee({
   return (
     <span className="flex min-w-0 items-center gap-1.5">
       <MemberAvatar name={name} />
-      {showName && (
-        <span className="truncate text-[13px] text-muted-foreground">
-          {name}
-        </span>
-      )}
+      <span
+        className={
+          showName ? "truncate text-[13px] text-muted-foreground" : "sr-only"
+        }
+      >
+        {name}
+      </span>
     </span>
   );
 }

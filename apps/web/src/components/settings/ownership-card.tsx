@@ -1,7 +1,7 @@
 "use client";
 
 import { ShieldAlert } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 
 import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
@@ -52,6 +52,8 @@ import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
  */
 export function OwnershipCard({ members }: { members: Member[] }) {
   const t = useT();
+  const backupId = useId();
+  const handOverId = useId();
   const ownership = useOwnership();
   const act = useOwnershipAction();
   // #581/#7: handing a business over is refused until the server knows who is
@@ -218,11 +220,11 @@ export function OwnershipCard({ members }: { members: Member[] }) {
           <>
             <div className="space-y-2 border-t pt-4">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span className="text-sm font-medium">
+                <label htmlFor={backupId} className="text-sm font-medium">
                   {t("settingsMore.ownershipBackupOwner")}
-                </span>
+                </label>
                 {state.backup_member_id === null && (
-                  <span className="text-xs text-amber-600 dark:text-amber-500">
+                  <span className="text-xs text-app-amber-ink">
                     {t("settingsMore.ownershipNobodyNamed")}
                   </span>
                 )}
@@ -247,7 +249,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                   )
                 }
               >
-                <SelectTrigger className="w-full sm:w-72">
+                <SelectTrigger id={backupId} className="w-full sm:w-72">
                   <SelectValue
                     placeholder={t("settingsMore.ownershipChooseTeammate")}
                   />
@@ -273,9 +275,9 @@ export function OwnershipCard({ members }: { members: Member[] }) {
 
             {state.can_offer && others.length > 0 && (
               <div className="space-y-2 border-t pt-4">
-                <span className="text-sm font-medium">
+                <label htmlFor={handOverId} className="block text-sm font-medium">
                   {t("settingsMore.ownershipHandOverTitle")}
-                </span>
+                </label>
                 <p className="text-sm text-muted-foreground">
                   {t("settingsMore.ownershipHandOverBody")}
                 </p>
@@ -285,7 +287,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                     disabled={act.isPending}
                     onValueChange={setOfferTo}
                   >
-                    <SelectTrigger className="w-full sm:w-72">
+                    <SelectTrigger id={handOverId} className="w-full sm:w-72">
                       <SelectValue
                         placeholder={t("settingsMore.ownershipChooseTeammate")}
                       />

@@ -375,9 +375,10 @@ export const MessageBubble = memo(function MessageBubble({
             )}
           >
             {/* Amber internal-note label on the amber-tint card — with the
-                author, so a shared inbox knows whose note this is. */}
+                author, so a shared inbox knows whose note this is. The ink
+                token, not the amber accent, which is only 3.6:1 on the fill. */}
             {note && (
-              <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber">
+              <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber-ink">
                 <Lock className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
                 <span className="truncate">
                   {t("thread.internalNote")}
@@ -391,11 +392,12 @@ export const MessageBubble = memo(function MessageBubble({
                 <NoteTaskChip task={message.task} />
               </div>
             )}
-            {/* D14 done: strikethrough + 55% opacity, 150ms ease-out. */}
+            {/* D14 done: strikethrough in the muted text token, 150ms ease-out.
+                Fading it with opacity dropped it below 4.5:1. */}
             <span
               className={cn(
-                "transition-opacity duration-150 ease-out",
-                done && "line-through opacity-55",
+                "transition-colors duration-150 ease-out",
+                done && "text-app-muted-2 line-through",
               )}
             >
               {message.body}

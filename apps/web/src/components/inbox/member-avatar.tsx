@@ -3,7 +3,7 @@
 import { avatarInitials } from "@loonext/shared";
 import { useMemo } from "react";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { InitialsAvatar } from "@/components/shell/initials-avatar";
 import { useT } from "@/i18n/provider";
 import { useMembers } from "@/lib/api/team";
 import { cn } from "@/lib/utils";
@@ -32,7 +32,11 @@ export function useMemberNames(): Map<string, string> {
   }, [members.data, fallback]);
 }
 
-/** Assignee avatar (G4: 18px in list rows; larger in menus). */
+/**
+ * Assignee avatar (G4: 18px in list rows; larger in menus). Every caller shows
+ * the name beside it or says it to screen readers, so the initials are drawn
+ * and hidden rather than read out as letters.
+ */
 export function MemberAvatar({
   name,
   className,
@@ -41,10 +45,12 @@ export function MemberAvatar({
   className?: string;
 }) {
   return (
-    <Avatar className={cn("size-[18px]", className)}>
-      <AvatarFallback className="bg-primary/10 text-[9px] font-medium text-primary">
-        {avatarInitials(name)}
-      </AvatarFallback>
-    </Avatar>
+    <InitialsAvatar
+      initials={avatarInitials(name)}
+      className={cn(
+        "flex size-[18px] shrink-0 select-none items-center justify-center rounded-full bg-primary/10 text-[9px] font-medium text-primary",
+        className,
+      )}
+    />
   );
 }

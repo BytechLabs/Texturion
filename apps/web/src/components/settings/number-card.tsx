@@ -85,7 +85,7 @@ function StatusBadge({ number }: { number: PhoneNumberSummary }) {
       return number.failure_reason === "timeout" ? (
         amber(t("settingsMore.numberStatusActionNeeded"))
       ) : (
-        <Badge className="border-transparent bg-destructive/10 text-destructive">
+        <Badge variant="outline" className="border-destructive text-foreground">
           {t("settingsMore.numberStatusSetupFailed")}
         </Badge>
       );

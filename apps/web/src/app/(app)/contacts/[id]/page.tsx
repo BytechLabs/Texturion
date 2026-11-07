@@ -353,7 +353,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           <Copy strokeWidth={1.75} />
         </Button>
         {contact.opted_out && (
-          <Badge className="border-transparent bg-destructive/10 text-destructive">
+          <Badge variant="outline" className="border-destructive text-foreground">
             {t("appShell.contactOptedOutBadge")}
           </Badge>
         )}

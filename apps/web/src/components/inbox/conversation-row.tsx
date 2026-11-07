@@ -208,13 +208,14 @@ export const ConversationRow = memo(function ConversationRow({
     // The link is the contact's name, stretched over the card by its ::after,
     // so the whole card still opens (and middle-clicks) the thread while the
     // link's own text is just the name its label starts with (WCAG 2.5.3).
+    // Its focus ring is drawn on that ::after, around the whole card.
     // Everything else on the card is hidden from screen readers because the
     // label carries it: EVERY state a sighted user sees (unread, pinned,
     // internal note, assignee, spam, snooze) plus the latest message.
     <div
       style={{ height: ROW_HEIGHT }}
       className={cn(
-        "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring",
+        "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out",
         active
           ? "border-app-line bg-app-paper"
           : "border-transparent hover:border-app-line-soft hover:bg-app-hover",
@@ -243,7 +244,7 @@ export const ConversationRow = memo(function ConversationRow({
             className={cn(
               // §2.2 weight ceiling (#65): unread 600 vs read 500 — hierarchy
               // from one weight step, never 700.
-              "truncate text-[14px] text-app-ink outline-none after:absolute after:inset-0 after:rounded-app-card",
+              "truncate text-[14px] text-app-ink outline-none after:absolute after:inset-0 after:rounded-app-card focus-visible:after:ring-2 focus-visible:after:ring-ring",
               unread ? "font-semibold" : "font-medium",
             )}
           >

@@ -186,7 +186,6 @@ export const contactsEn = {
     "Every person who texts your business number is added automatically, or " +
     "bring your list over in one go.",
   fieldLastActivity: "Last activity",
-  openContact: "Open {name}",
   noTextingActivity: "No texting activity yet",
   loadMore: "Load more",
 
@@ -608,7 +607,6 @@ export const contactsFr: Translated<typeof contactsEn> = {
     "Chaque personne qui texte le numéro de votre entreprise est ajoutée " +
     "automatiquement, ou importez votre liste d'un coup.",
   fieldLastActivity: "Dernière activité",
-  openContact: "Ouvrir {name}",
   noTextingActivity: "Aucun échange de textos pour l'instant",
   loadMore: "Afficher plus",
 

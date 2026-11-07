@@ -1,6 +1,7 @@
 "use client";
 
 import { Search, Users } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -150,27 +151,36 @@ export function ContactsTable({
                 {rows.map((contact) => (
                   <TableRow
                     key={contact.id}
-                    tabIndex={0}
-                    role="link"
-                    aria-label={t("contacts.openContact", {
-                      name: contactDisplayName(contact),
-                    })}
                     className="cursor-pointer"
-                    onClick={() => router.push(`/contacts/${contact.id}`)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        router.push(`/contacts/${contact.id}`);
+                    // Mouse convenience only. Keyboard and screen reader users
+                    // get the real link in the name cell, so the row itself
+                    // stays a plain table row.
+                    onClick={(event) => {
+                      if (
+                        event.defaultPrevented ||
+                        event.metaKey ||
+                        event.ctrlKey ||
+                        event.shiftKey ||
+                        event.altKey ||
+                        (event.target as HTMLElement).closest("a,button")
+                      ) {
+                        return;
                       }
+                      router.push(`/contacts/${contact.id}`);
                     }}
                   >
                     <TableCell className="font-medium">
                       <span className="flex items-center gap-2">
-                        {contactDisplayName(contact)}
+                        <Link
+                          href={`/contacts/${contact.id}`}
+                          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          {contactDisplayName(contact)}
+                        </Link>
                         {contact.opted_out && (
                           // G6 opted-out badge — same treatment as the
                           // contact detail header.
-                          <Badge className="border-transparent bg-destructive/10 text-destructive">
+                          <Badge variant="outline" className="border-destructive text-foreground">
                             {t("contacts.optedOut")}
                           </Badge>
                         )}
@@ -179,11 +189,11 @@ export function ContactsTable({
                     <TableCell className="tabular-nums text-muted-foreground">
                       {formatPhone(contact.phone_e164)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-tertiary">
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
                       {/* Conversation activity (G6), never updated_at — a
                           CSV re-import or notes edit must not read as a
-                          fresh text (G10). Timestamps recede to tertiary
-                          (§2.1) — meta, not content. */}
+                          fresh text (G10). Timestamps recede to the muted
+                          colour: tertiary fails contrast on card. */}
                       {contact.last_activity_at ? (
                         <span
                           title={formatAbsoluteDateTime(

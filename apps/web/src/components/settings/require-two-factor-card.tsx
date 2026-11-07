@@ -128,6 +128,7 @@ export function RequireTwoFactorCard({
             </p>
           </div>
           <Switch
+            className="tap-target"
             checked={required}
             disabled={setMfa.isPending}
             aria-label={t("settingsMore.mfaSwitchAria")}
