@@ -8,8 +8,8 @@ The API Worker, the call Durable Object, the web app, both mobile apps and the
 rig tools send exceptions and a small set of events to the Loonext PostHog
 project, and both Workers keep their logs in Cloudflare Workers Logs. PostHog
 groups the exceptions into issues, its dashboards show health, and its alerts
-email the project owner. Cloudflare's monitors watch what Cloudflare already
-records about the Workers. The other vendors send their own notices. No code
+email the project owner. Cloudflare's monitors are meant to watch what Cloudflare
+already records about the Workers, but none exists yet (see "In Cloudflare"). The other vendors send their own notices. No code
 of ours decides that something is broken, schedules a check, keeps monitoring
 state, throttles a notice or sends an alert email.
 
@@ -36,7 +36,7 @@ already do (D8). Alerts only read `environment = 'production'`.
 | `call_received` | API Worker | none | an inbound call reached a workspace; the alert reads a workspace that took eight calls and then none for 14 days |
 | `aup_signals` | API Worker, daily cron | the counts and ratios `api_aup_signals` returns, never content or names | once a day for each workspace that sent texts that day |
 | `usage_threshold_crossed`, `overage_projected` | API Worker crons | `threshold` on the first | the existing customer warnings fired |
-| `$csp_violation` | browsers, to PostHog's CSP endpoint | PostHog's own CSP fields | only while `CSP_STAGING=report-only` is set, sampled at 10% |
+| `$csp_violation` | browsers, to PostHog's CSP endpoint | PostHog's own CSP fields | dormant: no CSP header is sent, in any environment, until `CSP_STAGING=report-only` is set; then sampled at 10% |
 
 The funnel events from D8 (`checkout_completed`, `first_outbound_sent`,
 `registration_submitted`, `registration_approved`) are otherwise unchanged,
@@ -251,8 +251,11 @@ check is the hourly one. A newly created alert is checked within a minute.
   dashboard shows domain authentication.
 - A path that answers 200 and does nothing is caught only by the outcome
   events or a customer.
-- CSP violations are sampled at 10% by PostHog's endpoint, and only arrive
-  during a staging window.
+- CSP violation reporting is off. No CSP header is sent until the founder sets
+  `CSP_STAGING=report-only`, so a policy break produces no event today. Once on,
+  PostHog's endpoint samples it at 10%.
+- Cron triggers are not watched until the Cloudflare monitors below are created
+  (see "In Cloudflare").
 
 Muting a problem is suppressing its issue in PostHog error tracking. Resolving
 it there makes the next occurrence reopen it, which PostHog shows on the issue
@@ -266,8 +269,9 @@ on and persisted, invocation logs, head sampling 1, traces off), so every
 request, cron run and Durable Object call is in **Workers & Pages → Workers
 Logs** and in the SQL API's `events.workersInvocations` and `logs.workersLogs`.
 
-Cloudflare's monitors (Notifications, alert type `custom_analytics`, source
-`sql_api`, threshold detection) run a SQL API query on a schedule and email
+The Cloudflare monitors below are the planned watch and are **not live**.
+A monitor (Notifications, alert type `custom_analytics`, source
+`sql_api`, threshold detection) runs a SQL API query on a schedule and email
 when the value crosses the threshold. With no timestamp in the query, Cloudflare
 supplies a window that ends at the check and spans its interval. `<account>` is
 the account tag. Each query below was run through the SQL API on 2026-11-07:
@@ -296,12 +300,13 @@ All four email the address the account's billing budget alerts use. Those
 three `billing_budget_alert` policies ($1 and two at $10) are the warning
 before the Workers AI bill grows.
 
-**Not created yet.** `CLOUDFLARE_API_TOKEN` can read notification policies but
+**Not live.** Nothing described in this section exists on the account yet.
+`CLOUDFLARE_API_TOKEN` can read notification policies but
 not write them: the create call answered 403 on 2026-11-07. Until the founder
 creates the four in the dashboard (**Notifications → Monitors → Create a
 Monitor**, custom SQL, Threshold, with the queries above; **Notifications →
 Add → Incident Alert** with the four components), nothing watches the cron
-triggers.
+triggers: if they stop, or a job stops running without throwing, no one is told.
 
 ## Vendor notices
 
@@ -337,8 +342,8 @@ its own dashboard.
 
 - **Something broke**: PostHog, Error tracking. Filter by `source` or
   `ops_key`; the issue's history is the incident record.
-- **Is everything running**: the Loonext health dashboard, and Cloudflare's
-  monitors.
+- **Is everything running**: the Loonext health dashboard. Cloudflare's monitors
+  would add the cron triggers once created.
 - **Raw logs for one request or cron run**: Cloudflare Workers Logs for the
   `loonext-api` and `loonext-web` Workers.
 - **Vendor-side state**: the Telnyx, Resend, Stripe and Supabase dashboards

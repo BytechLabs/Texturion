@@ -1,23 +1,14 @@
 /**
- * #428 ask 4 — a map that stops drawing tiles must be visible to US, not just to
- * the customer.
+ * #428 ask 4: tells the customer that the basemap is not drawing.
  *
- * THE FAILURE SHAPE. A tile provider that blocks or rate-limits us returns errors
- * for tile requests, and Leaflet's answer is to leave those squares blank. Markers
- * still plot, the page still loads, nothing throws. A blocked basemap is
- * indistinguishable from a map with no pins — which is precisely how the OSM
- * violation could have run for months without anybody noticing, and it is the same
- * absence-shaped failure #387 exists for.
+ * A tile provider that blocks or rate-limits us returns errors for tile requests
+ * and Leaflet leaves those squares blank. Markers still plot and nothing throws,
+ * so without a notice the map looks like one with no pins. The threshold below
+ * decides when the page shows that notice; it is product behaviour (D147).
  *
- * WHAT THIS IS NOT. It is not a retry, and it is not a fallback to another
- * provider. Leaflet already retries as the user pans, and a silent fallback would
- * recreate the original problem (the compliant path becoming the one nobody is on).
- * The only job here is to NOTICE.
- *
- * WHY IT REPORTS ONCE PER SESSION. A blocked provider fails every tile in the
- * viewport, so a naive reporter would send dozens of identical events per pan and
- * turn an outage into a telemetry bill. One report per page carries the same
- * information: the provider is not serving us.
+ * The PostHog exception sent when the notice first shows is plain instrumentation:
+ * the SDK cannot see a blank tile on its own. No retry and no fallback provider,
+ * so a silent switch cannot hide that the compliant path is broken.
  */
 import { reportClientError } from "@/lib/observability/errors";
 
