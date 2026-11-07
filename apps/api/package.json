@@ -20,11 +20,11 @@
   },
   "dependencies": {
     "@loonext/shared": "workspace:*",
-    "@supabase/supabase-js": "2.110.0",
-    "hono": "^4.13.11",
-    "jose": "6.2.3",
+    "@supabase/supabase-js": "2.119.0",
+    "hono": "^4.13.16",
+    "jose": "6.2.15",
     "posthog-node": "5.56.2",
-    "stripe": "22.3.0",
+    "stripe": "23.1.0",
     "zod": "^4.6.6"
   },
   "devDependencies": {
