@@ -100,19 +100,22 @@ node scripts/ops/prod-dump-scale.mjs   # read-only; writes nothing to disk
 
 ### PITR status — a fact, with a date
 
-Recorded rather than assigned as a chore, and now **re-checked weekly by CI**
-rather than by anybody remembering: `.github/workflows/backup-posture.yml` runs
-the posture script every Monday.
+Re-checked by hand: run the posture script, or open Database > Backups in the
+Supabase dashboard, which lists the same snapshots. Nothing of ours runs it on a
+schedule, and Supabase sends no alert when a daily backup fails, so a stopped
+backup is found by the next person who looks (a named gap, not a monitor to
+build).
 
 | Checked | By | Plan | PITR | Backups retained |
 |---|---|---|---|---|
-| **2026-08-14** | `scripts/ops/verify-backup-posture.mjs` (Management API) | Supabase Pro, us-east-1 | **OFF** | 6 daily physical, oldest 2026-08-07, newest 1.1h old |
+| **2026-11-07** | `scripts/ops/verify-backup-posture.mjs` (Management API) | not read; us-east-1 | **OFF** | 8 daily physical, all COMPLETED, oldest 2026-10-31, newest 2.1h old |
+| 2026-08-14 | `scripts/ops/verify-backup-posture.mjs` (Management API) | Supabase Pro, us-east-1 | **OFF** | 6 daily physical, oldest 2026-08-07, newest 1.1h old |
 | 2026-07-30 | same | same | OFF | 7 daily physical, oldest 2026-07-23, newest 23.8h old |
 
 That last column is a **count of the snapshots the API returned**, not a retention
 setting — the script reads no retention policy, and calling it "retention" implied
-a configured guarantee where there is only an observed list. The count has now been 8, then 7, then **6** across three observations
-(2026-07-29, 2026-07-30, 2026-08-14), which is a rolling window doing what it
+a configured guarantee where there is only an observed list. The count has been 8, then 7, then **6**, then 8 again across four observations
+(2026-07-29, 2026-07-30, 2026-08-14, 2026-11-07), which is a rolling window doing what it
 does — and exactly why a number here needs a date beside it. Quoting any one of
 them as "we retain N days" would be inventing a guarantee out of a reading.
 
@@ -120,28 +123,23 @@ The *newest* figure moves just as much and for a duller reason: 23.8h on one
 reading and 1.1h on the next says only where in the daily cycle the script ran.
 It bounds the RPO; it is not the RPO.
 
-**What the weekly job alarms on, and what it deliberately ignores.** It runs the
-script in `--monitor` mode, which fails only if backups have *stopped* — none at
-all, or the newest older than 36 hours. It does **not** fail because PITR is off:
-that is a recorded founder decision with a price attached, not news, and a
-scheduled job that is red every week for a reason everybody already knows is a job
-people learn to scroll past. The thing worth alarming on is the daily snapshot
-quietly failing, because that is the change nobody would otherwise notice until a
-recovery. PITR turning *on* is reported loudly and fails nothing — it is good news
-whose correct response is editing this table and D74.
+**What to look for on a re-check.** Backups that have *stopped*: none listed, or
+the newest older than about a day and a half. PITR being off is a recorded founder
+decision with a price attached, not news. PITR turning *on* is good news whose
+correct response is editing this table and D74.
 
 **PITR is not enabled.** The worst case this section told the reader to assume
 turned out to be the actual case, which is why assuming it was the right
 instruction — and why leaving the row blank was not.
 
 It did not need a dashboard visit after all. `scripts/ops/verify-backup-posture.mjs`
-asks the Management API directly, read-only, with the token CI already holds.
+asks the Management API directly, read-only, with a Supabase access token.
 **Run it before answering any question about RPO** — including a security
 questionnaire. In its default mode it **exits non-zero while PITR is off**, which
 is what makes it usable as a gate on such an answer rather than merely
-informative. It does not, on its own, stop the tighter claim reappearing in a
-document; the weekly job above is what keeps this table from going stale, and
-nothing mechanically prevents somebody writing "5 minutes" in new prose.
+informative. It does not stop the tighter claim reappearing in a document: a dated
+row in the table above is what a reader can check, and nothing mechanically
+prevents somebody writing "5 minutes" in new prose.
 
 One limit worth knowing: the script asserts the PITR **boolean**, not the
 24-hour figure. "Up to 24 hours" follows from PITR being off plus a daily

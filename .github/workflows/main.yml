@@ -1,11 +1,13 @@
 name: Main
 
-# THE ONLY PIPELINE FOR `main`. Three jobs, in order, and each one's name says
+# THE ONLY PIPELINE FOR `main`. Four jobs, in order, and each one's name says
 # what it is for:
 #
 #   Gate              — does this commit pass everything? (calls checks.yml, the
 #                       same gate a pull request runs, so a PR and a merge
 #                       cannot be checked differently)
+#   iOS package       beside Gate, and Version & changelog waits for both: does
+#   lockfile          the committed Package.resolved match what Xcode resolves?
 #   Version &         — release-please. On almost every push this only REWRITES
 #   changelog           the open release pull request and ships nothing. On the
 #                       push that IS that PR merging, it cuts the versions,
@@ -87,6 +89,52 @@ jobs:
     secrets: inherit
 
   # ---------------------------------------------------------------------------
+  # The iOS app's Swift packages, resolved the way Xcode resolves them for the
+  # build. The committed Package.resolved is what GitHub's dependency graph,
+  # and with it Dependabot alerts, reads for Swift; XcodeGen writes the rest of
+  # the project from apps/ios/project.yml.
+  # ---------------------------------------------------------------------------
+  swift-lockfile:
+    name: iOS package lockfile
+    if: github.event_name == 'push'
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Select Xcode 26
+        run: |
+          ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::No Xcode 26 on this image, see the list above; bump runs-on to a newer macOS image."
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project Loonext.xcodeproj
+
+      - name: Upload the resolved packages
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-package-resolved
+          path: apps/ios/Loonext.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
   # Keeps the release PR current, and on the merge of that PR, cuts the
   # versions, changelogs, tags and GitHub Releases.
   #
@@ -97,7 +145,7 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: Version & changelog
-    needs: gate
+    needs: [gate, swift-lockfile]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:

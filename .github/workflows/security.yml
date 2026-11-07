@@ -24,8 +24,9 @@ name: Security
 #   * everything else reports rather than blocks.
 #
 # Deploys are not gated on this file. checks.yml is the merge gate; this runs
-# alongside it and on a schedule, because a dependency becomes vulnerable while
-# nobody is touching the repo.
+# alongside it. A dependency that becomes vulnerable while nobody is touching
+# the repo is GitHub's to report: Dependabot alerts and security updates read
+# the dependency graph.
 # ---------------------------------------------------------------------------
 on:
   # #493: the release-please pull request is skipped at JOB level, not here.
@@ -50,21 +51,9 @@ on:
   push:
     branches: [main]
   schedule:
-    # Weekly, Monday morning, off the hour. A CVE published on Wednesday should
-    # not wait for somebody to open a pull request.
-    #
-    # A red run here is not a notification. A job that fails on this schedule, or
-    # on a manual run, gets its own issue from scheduled-failures.yml, opened once
-    # and closed when the job passes again.
+    # Weekly, Monday morning, off the hour, so CodeQL's newest queries also
+    # reach code nobody has touched. Findings land as code scanning alerts.
     - cron: "37 6 * * 1"
-  # #601: so the scheduled jobs can be RUN rather than waited for.
-  #
-  # `Dependency graph is on` is the loud half of a check that steps aside on
-  # pull requests, and it went a full release cycle having never executed once —
-  # a safeguard nobody has watched fire is a safeguard nobody should be relying
-  # on. It is also the only way to confirm the setting is fixed on the day
-  # somebody flips it, rather than the following Monday.
-  workflow_dispatch:
 
 concurrency:
   group: security-${{ github.workflow }}-${{ github.ref }}
@@ -243,127 +232,13 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      # -------------------------------------------------------------------
-      # #601: ASK WHETHER THIS CAN RUN BEFORE FAILING SOMEBODY'S PULL REQUEST.
-      #
-      # The graph is off at the ORGANISATION level, so the action below answers
-      # every pull request with "Dependency review is not supported on this
-      # repository" — and has done since the day it was added. A check that is
-      # red on every pull request, about a setting no contributor can change,
-      # teaches everybody to merge past a red mark. That is worse than not
-      # having it, and it is how the one red that mattered would get merged too.
-      #
-      # So the gate runs when it can and annotates when it cannot. The half that
-      # must not go quiet — that the graph is off AT ALL — is the scheduled
-      # `dependency-graph` job below, which fails for as long as it is true.
-      # Skipping here is only safe BECAUSE that job exists; delete one and the
-      # other stops being honest.
-      # -------------------------------------------------------------------
-      - name: Can dependency review see anything?
-        id: graph
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          if gh api "repos/${GITHUB_REPOSITORY}/dependency-graph/sbom" >/dev/null 2>&1; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Dependency review did not run::The dependency graph is off for this repository, so no dependency in this change was checked against the advisory database. This is an organisation setting and not something this pull request can fix — see the weekly Security run."
-          fi
-
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0 (was a BRANCH ref)
-        if: steps.graph.outputs.available == 'true'
         with:
           # HIGH, not LOW. See D68: the floor is the whole design.
           fail-on-severity: high
           # A licence that would force us to publish customer-facing code is a
           # different kind of problem, and it is cheap to notice here.
           deny-licenses: AGPL-3.0, AGPL-3.0-only, AGPL-3.0-or-later
-
-  # ---------------------------------------------------------------------------
-  # #601: the loud half of the job above.
-  #
-  # Scheduled only, so it gates no merge — the same shape as `iOS package
-  # advisories`, and for the same reason: "I could not check" is a different
-  # sentence from "there is nothing to find".
-  #
-  # Its failure opens an issue through scheduled-failures.yml. The red run is not
-  # the notification, because a job that is red on purpose hides the next job
-  # that goes red (D140).
-  #
-  # It stays red for as long as the dependency graph is off, which is the point.
-  # The pull-request gate is allowed to step aside precisely because this does
-  # not.
-  # ---------------------------------------------------------------------------
-  dependency-graph:
-    name: Dependency graph is on
-    # Scheduled OR asked for. Never on a pull request: this reports on a
-    # repository setting, and failing somebody's change over one is the exact
-    # thing the job beside it exists to stop doing.
-    if: >-
-      !(github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.head_ref, 'release-please--')) &&
-      (github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-      - name: Check the dependency graph answers
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/check-dependency-graph.mjs
-
-  # ---------------------------------------------------------------------------
-  # The installed tree, on a schedule. Reports rather than blocks: an advisory
-  # published against a transitive dependency is not the fault of the pull
-  # request that happens to be open when it lands. On a scheduled run, the report
-  # is an issue from scheduled-failures.yml, not the red run.
-  # ---------------------------------------------------------------------------
-  audit:
-    name: pnpm audit
-    # #493: skip the WORK for a release-please pull request.
-    #
-    # This does NOT stop the parked `action_required` run appearing — that is a
-    # run-level gate GitHub applies before any job condition is evaluated, so
-    # nothing in this file can prevent it. Two attempts proved that: a
-    # `branches-ignore` on the trigger (which filters the BASE branch and never
-    # matched) and then this condition, after which a release PR still parked
-    # two runs fifteen minutes later. The lever is a repository Actions setting,
-    # not a workflow file.
-    #
-    # Kept because it is still correct and still cheap: if those runs are ever
-    # approved or the approval requirement is lifted, they skip instead of
-    # re-running a gate that already passed on the push that produced the PR.
-    #
-    # #581: the branch NAME cannot be the whole test — on a fork pull request the
-    # contributor picks it, and a skipped job reports as a pass. The repository
-    # comparison is the half no submitter can satisfy; it is null on push and on
-    # the schedule, so this job still runs there exactly as it did when the name
-    # was the only test. Full reason on the `on:` block above.
-    if: >-
-      !(github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.head_ref, 'release-please--'))
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
-      # Deliberately NO `cache: pnpm`: this job never installs, so the store
-      # path does not exist and the action's post-step fails the whole job
-      # trying to save a cache of nothing. `pnpm audit` resolves the tree from
-      # the lockfile alone, which is the reason there is no install here.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-
-      # Production dependencies only, high and above. Dev-only advisories are
-      # real but they are not reachable by a customer, and mixing them in is
-      # exactly how the signal gets drowned.
-      - name: Audit production dependencies
-        run: pnpm audit --prod --audit-level high
 
   # ---------------------------------------------------------------------------
   # Static analysis, pointed at the code where a mistake costs the most: auth,
@@ -406,51 +281,3 @@ jobs:
       - uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6
         with:
           category: "/language:javascript-typescript"
-
-  # ---------------------------------------------------------------------------
-  # The gap Dependabot cannot cover, covered honestly.
-  #
-  # The two iOS SPM dependencies are declared in apps/ios/project.yml and
-  # resolved by Xcode at build time — there is no Package.swift or committed
-  # Package.resolved for Dependabot to read. So this asks GitHub's advisory
-  # database about them directly, on the same weekly cadence.
-  #
-  # Scheduled only, so it still cannot fail a merge. What changed in #581 is what
-  # it does when it cannot get an answer: the script used to log the failed lookup
-  # and finish on "No HIGH or CRITICAL advisories", so two dead network calls read
-  # exactly like two clean packages. It now retries, and then FAILS, and that
-  # failure opens an issue through scheduled-failures.yml: "I could not check" is
-  # a different sentence from "there is nothing to find".
-  # ---------------------------------------------------------------------------
-  swift-advisories:
-    name: iOS package advisories
-    # #493: skip the WORK for a release-please pull request.
-    #
-    # This does NOT stop the parked `action_required` run appearing — that is a
-    # run-level gate GitHub applies before any job condition is evaluated, so
-    # nothing in this file can prevent it. Two attempts proved that: a
-    # `branches-ignore` on the trigger (which filters the BASE branch and never
-    # matched) and then this condition, after which a release PR still parked
-    # two runs fifteen minutes later. The lever is a repository Actions setting,
-    # not a workflow file.
-    #
-    # Kept because it is still correct and still cheap: if those runs are ever
-    # approved or the approval requirement is lifted, they skip instead of
-    # re-running a gate that already passed on the push that produced the PR.
-    #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: >-
-      !(github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.head_ref, 'release-please--')) &&
-      github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-      - name: Check the pinned Swift packages for advisories
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/check-swift-advisories.mjs

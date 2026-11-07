@@ -3360,7 +3360,7 @@ The owner of every finding is the founder, because there is nobody else.
 | New dependency with an advisory | `dependency-review-action` on PRs | **yes** | HIGH |
 | Installed tree | `pnpm audit --prod`, PR + weekly | no | HIGH |
 | Static analysis | CodeQL, default `security` suite | no | GitHub default |
-| iOS SPM packages | `scripts/check-swift-advisories.mjs`, weekly | no | HIGH |
+| iOS SPM packages | scripts/check-swift-advisories.mjs, weekly (deleted 2026-11-07) | no | HIGH |
 | Dependency updates | Dependabot, grouped, weekly/monthly | no | — |
 
 **Response window.** CRITICAL: same day, and it may ship outside the release
@@ -3395,7 +3395,7 @@ that switches itself off when a secret is missing is not a check.
 needs a `Package.swift` or a committed `Package.resolved`, and this project has
 neither — the two SPM dependencies live in `apps/ios/project.yml` and are
 resolved by Xcode at build time. Rather than leave the Swift surface unscanned
-and unmentioned, `scripts/check-swift-advisories.mjs` reads those pins and asks
+and unmentioned, scripts/check-swift-advisories.mjs (deleted 2026-11-07) reads those pins and asks
 GitHub's advisory database directly, weekly. It produces no pull request, so it
 is genuinely less than the other three ecosystems get. It is also the honest
 version of what we have, written down in `.github/dependabot.yml` at the point
@@ -7957,7 +7957,7 @@ be answered honestly.
 | Question | Where it is asked | Blocks a merge? |
 |---|---|---|
 | Does this change add a dependency with a HIGH advisory or an AGPL licence? | `Dependency review`, pull request | **yes — when the graph can answer.** Otherwise it emits a warning annotation and steps aside |
-| Is the dependency graph on at all? | `scripts/check-dependency-graph.mjs`, weekly schedule | no — but it **fails for as long as the answer is no** |
+| Is the dependency graph on at all? | scripts/check-dependency-graph.mjs (deleted 2026-11-07), weekly schedule | no — but it **fails for as long as the answer is no** |
 
 **Why not leave it failing.** A check that is red on every pull request, about a
 repository setting no contributor can change, teaches everybody to merge past a
@@ -8860,15 +8860,15 @@ never-clearing shape intact.
 
 **Decision.** Every scheduled or manually started run of a workflow that has a
 schedule is read job by job, on the default branch only, by
-`scripts/report-scheduled-failures.mjs` through
-`.github/workflows/scheduled-failures.yml` (`workflow_run`). A failing job with no
+scripts/report-scheduled-failures.mjs through
+.github/workflows/scheduled-failures.yml (`workflow_run`; both deleted 2026-11-07). A failing job with no
 open issue gets one; that is the only notification. While the job keeps failing,
 only the issue body's "latest failing run" block is rewritten and nobody is
 notified again. The first passing run closes the issue with one comment. Issues
 are found by a hidden marker naming the workflow and job, never by title, and
 only bot-opened issues count. A job that disappears closes its issue as not
 planned. The `workflows:` list must name every workflow with a schedule, and
-`packages/shared/src/scheduled-failures.test.ts` fails when it does not.
+packages/shared/src/scheduled-failures.test.ts (deleted 2026-11-07) failed when it did not.
 
 **Why.** Security's weekly run was red on purpose while the dependency graph was
 off (#601), and its comments said the red run was the notification. On

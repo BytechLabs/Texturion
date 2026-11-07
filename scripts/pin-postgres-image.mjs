@@ -7,8 +7,9 @@
  * file from the linked project, which is why a linked workstation matched
  * production and CI (never linked, `.temp` is gitignored) did not. This writes
  * the same file from `supabase/postgres-version`, the committed copy of
- * production's version. `scripts/ops/check-postgres-image.mjs` keeps that copy
- * in step with production.
+ * production's version. When Supabase announces an upgrade of production's
+ * image, write the new tag into that file by hand; Settings > Infrastructure in
+ * the Supabase dashboard shows the version production runs.
  *
  * Usage:  node scripts/pin-postgres-image.mjs            write the pin
  *         node scripts/pin-postgres-image.mjs --print    print the pinned version

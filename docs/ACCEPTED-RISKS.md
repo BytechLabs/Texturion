@@ -110,7 +110,7 @@ trigger on purpose, so neither can be revisited without the other.
 
 | | |
 |---|---|
-| **Exposure** | Point-in-time recovery is not enabled on the production database, so the recoverable window is the last daily backup — up to 24 hours of messages, not the five minutes PITR would give. |
+| **Exposure** | Point-in-time recovery is not enabled on the production database, so the recoverable window is the last daily backup — up to 24 hours of messages, not the five minutes PITR would give. Nothing alerts if the daily backups themselves stop: Supabase offers no backup-failure alert, so the check is the Database > Backups page or the script below, run by hand. |
 | **Bound** | RTO is unaffected. This is data loss on a restore, not availability, and it applies to a disaster scenario rather than ordinary operation. |
 | **Why accepted** | PITR is a paid tier on a database that currently holds one production workspace's traffic. The cost is real and the exposure scales with customers rather than with time. |
 | **Trigger to revisit** | **Whichever comes first:** (a) any paying customer beyond the founder's own workspace — at that point the 24 hours belongs to somebody who did not choose it; (b) a DPA or questionnaire asks for an RPO, since the honest answer is this entry; (c) a near-miss that would have needed a restore. |
