@@ -103,15 +103,14 @@ it should be answered from fact before this is signed.
 
 **One historical note, and why it is not a disclosure clause.** Between
 2026-07-01 and 2026-08-09 our error-reporting breadcrumbs recorded full
-outbound URLs including query strings. The cause is fixed, nothing is being
-added, and those events age out by 2026-11-07 at the outside. The product was
-not publicly available in that window, so the data involved is our own test
-traffic and that of workspaces the founder controls — there is no customer
-whose data this concerns and therefore nothing for this contract to disclose to
-one. Recorded as R10 in `docs/ACCEPTED-RISKS.md`, which is the honest place
-for it.
+outbound URLs including query strings. The cause is fixed, those events left
+the error tracker's retention on 2026-11-07, and that error tracker is no
+longer used. The product was not publicly available in that window, so the
+data involved is our own test traffic and that of workspaces the founder
+controls — there is no customer whose data this concerns and therefore nothing
+for this contract to disclose to one.
 
-> Source: SPEC §10, `docs/ACCEPTED-RISKS.md` R10
+> Source: SPEC §10
 
 ## 6. Sub-processors
 

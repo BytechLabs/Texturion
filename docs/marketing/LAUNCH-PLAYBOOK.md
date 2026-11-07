@@ -53,8 +53,7 @@ SEO foundation (all free, founder accounts required):
 - [ ] Cloudflare Caching → Configuration → toggle **Crawler Hints** ON
       (IndexNow pings Bing and friends on content changes; Google ignores it).
 - [ ] Cloudflare **Web Analytics**: add loonext.com (free, cookie-free,
-      ad-blocker-proof second lens next to GA4; our own Sentry history proves
-      the ad-blocker blind spot is real).
+      ad-blocker-proof second lens next to GA4).
 - [ ] Ahrefs Webmaster Tools (free tier): verify via the GSC connection, run
       the site audit, turn on backlink alerts.
 
