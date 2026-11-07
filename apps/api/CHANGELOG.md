@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.2](https://github.com/BytechLabs/Texturion/compare/api-v0.20.1...api-v0.20.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **api:** the Worker entry exports only handlers, so it boots again ([c024fe2](https://github.com/BytechLabs/Texturion/commit/c024fe246d6016ffb250ec98c186407e522bd220))
+
 ## [0.20.1](https://github.com/BytechLabs/Texturion/compare/api-v0.20.0...api-v0.20.1) (2026-11-02)
 
 
