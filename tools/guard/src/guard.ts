@@ -13,7 +13,6 @@ import {
 import { handleAdmin } from "./admin";
 import { parseCaller, ROUTE_CALLERS, routeOf, type GuardCaller } from "./caller";
 import type { Ctx } from "./context";
-import { runKeyInventory } from "./inventory";
 import { PAID_DIALS_PER_DAY, PAID_DIALS_PER_HOUR, PREEMPT_POLL_MS } from "./limits";
 import { json, refuse, Refusal } from "./refusal";
 import { limitProbeDue, runLimitProbe } from "./setup/limit-probe";
@@ -76,7 +75,6 @@ function accountRateWire(state: PaidState): NonNullable<GuardHealth["account_rat
  * so every count, lease and ledger entry is decided in one place.
  */
 export const CRONS = {
-  keyInventory: "0 6 * * 1",
   upkeep: "7 * * * *",
 } as const;
 
@@ -371,15 +369,6 @@ export class Guard {
 
   async cron(expression: string): Promise<void> {
     const { ctx } = this;
-    if (expression === CRONS.keyInventory) {
-      try {
-        await runKeyInventory(ctx);
-      } catch (cause) {
-        const rule = cause instanceof Refusal ? cause.rule : cause instanceof Error ? cause.message : String(cause);
-        console.error(`guard: key inventory not run: ${rule}`);
-      }
-      return;
-    }
     if (expression !== CRONS.upkeep) {
       console.error(`guard: no job for cron ${expression}`);
       return;

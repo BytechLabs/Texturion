@@ -49,7 +49,7 @@ export function buildCapture(projectKey: string, event: ProductionEvent, now: nu
 /**
  * Best effort, and never thrown: this runs inside refusals and crons, where a
  * failed notice must not become a second failure. Returns whether PostHog
- * accepted it, so a caller that must know (the key inventory) can say so.
+ * accepted it.
  */
 export async function sendProductionEvent(ctx: Ctx, event: ProductionEvent): Promise<boolean> {
   const projectKey = ctx.config.posthogProjectKey;

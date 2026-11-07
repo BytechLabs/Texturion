@@ -53,8 +53,6 @@ on:
           - setup
           - order-standing
           - resume-ordering
-          - key-inventory
-          - accept-key-inventory
           - reattach
           - measurements
           - limit-probe

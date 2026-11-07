@@ -29,8 +29,6 @@
 
   "triggers": {
     "crons": [
-      // The weekly key inventory (Monday 06:00 UTC).
-      "0 6 * * 1",
       // Upkeep: the first order's read-back, the daily balance sample, the
       // robot-mailbox arrival deadline, expired legs, the monthly limit probe.
       "7 * * * *"

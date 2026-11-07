@@ -266,15 +266,9 @@
     },
     {
       "config": "tools/guard/wrangler.jsonc",
-      "cron": "0 6 * * 1",
-      "class": "skip",
-      "reason": "The guard's weekly Telnyx key inventory, a Cloudflare cron on loonext-telnyx-guard that the rig box never fires. It reports to production's PostHog as [\"ops\",\"telnyx-key-inventory\"], never to the rig's."
-    },
-    {
-      "config": "tools/guard/wrangler.jsonc",
       "cron": "7 * * * *",
       "class": "skip",
-      "reason": "The guard's hourly upkeep on Cloudflare (expired legs, the robot mailbox's arrival deadline, the first order's read-back, the balance sample and the monthly cap), which the rig box never fires. What it raises goes to production's PostHog under the guard's own keys (telnyx-guard-order-group, telnyx-balance-low, telnyx-guard-detach), never to the rig's."
+      "reason": "The guard's hourly upkeep on Cloudflare (expired legs, the robot mailbox's arrival deadline, the first order's read-back, the balance sample and the monthly cap), which the rig box never fires. What it raises goes to production's PostHog under the guard's own keys (telnyx-guard-order-group, telnyx-guard-detach), never to the rig's. A low Telnyx balance is Telnyx's own Low Available Credit notification."
     }
   ]
 }

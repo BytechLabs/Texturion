@@ -7,7 +7,7 @@
  * Its output lands in a public Actions log, so it prints states, reason codes,
  * roles and counts: never an id, a phone number, an address or a token.
  *
- *   ROUTINE=check|setup|order-standing|resume-ordering|key-inventory|accept-key-inventory|reattach|measurements|limit-probe|health
+ *   ROUTINE=check|setup|order-standing|resume-ordering|reattach|measurements|limit-probe|health
  *   resume-ordering only: RESUME_BY, the dispatching GitHub login; RESUME_REASON, why a person lifts the stop.
  *   EDGE_ORIGIN, GUARD_ADMIN_TOKEN
  *   measurements only: RESERVE_LEGS; CALLS, ABANDONED and SHORT together; WINDOW_START_HOUR;
@@ -30,8 +30,6 @@ export const ROUTINES = [
   "setup",
   "order-standing",
   "resume-ordering",
-  "key-inventory",
-  "accept-key-inventory",
   "reattach",
   "measurements",
   "limit-probe",
@@ -89,20 +87,6 @@ function strings(value: unknown): string[] {
 function safety(value: unknown): { state: string; reasons: string[] } {
   const item = (value ?? {}) as Item;
   return { state: typeof item.state === "string" ? item.state : "unknown", reasons: strings(item.reasons) };
-}
-
-/** Counts per credential kind (`api_key:<id>` counts as one api_key); the ids stay out. */
-function kinds(found: string[]): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const entry of found) {
-    const kind = entry === "no_accepted_baseline" || entry === "inventory_unreadable" ? entry : entry.split(":")[0];
-    out[kind] = (out[kind] ?? 0) + 1;
-  }
-  return out;
-}
-
-function sizes(record: Item, fields: readonly string[]): Record<string, number | null> {
-  return Object.fromEntries(fields.map((field) => [field, Array.isArray(record[field]) ? (record[field] as unknown[]).length : null]));
 }
 
 async function check(post: Post): Promise<Outcome> {
@@ -201,31 +185,6 @@ async function resumeOrdering(post: Post, resume: Resume): Promise<Outcome> {
     lines.push("::error title=Ordering stopped again::The read-back still could not confirm the first order; see health's ordering.stopped_reason.");
   }
   return { ok: state !== "failed", lines };
-}
-
-async function keyInventory(post: Post): Promise<Outcome> {
-  const answer = await post("/key-inventory/run");
-  if (!ok(answer)) return failed("Key inventory failed", answer);
-  const body = answer.body as { unexpected?: unknown; inventory?: Item | null };
-  const found = strings(body.unexpected);
-  const lines = [
-    JSON.stringify({
-      sources: body.inventory ? sizes(body.inventory, ["api_keys", "oauth_clients", "oauth_grants", "audit_findings"]) : null,
-      unexpected: kinds(found),
-    }),
-  ];
-  if (found.length > 0) {
-    lines.push(
-      "::warning title=Key inventory is not clean::The guard raised ['ops','telnyx-key-inventory']. Revoke what nobody made on purpose, then dispatch accept-key-inventory.",
-    );
-  }
-  return { ok: true, lines };
-}
-
-async function acceptKeyInventory(post: Post): Promise<Outcome> {
-  const answer = await post("/key-inventory/accept");
-  if (!ok(answer)) return failed("Key inventory not accepted", answer);
-  return { ok: true, lines: [JSON.stringify({ accepted: sizes(answer.body as Item, ["api_keys", "oauth_clients", "oauth_grants"]) })] };
 }
 
 async function reattach(post: Post): Promise<Outcome> {
@@ -359,10 +318,6 @@ export async function runRoutine(
       return orderStanding(post, wait);
     case "resume-ordering":
       return resumeOrdering(post, resume);
-    case "key-inventory":
-      return keyInventory(post);
-    case "accept-key-inventory":
-      return acceptKeyInventory(post);
     case "reattach":
       return reattach(post);
     case "measurements":

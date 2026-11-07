@@ -6,7 +6,7 @@ import { harness } from "./support";
 describe("production ops notices", () => {
   it("post to PostHog's capture endpoint with the public project key only", async () => {
     const h = harness();
-    expect(await sendProductionEvent(h.ctx, { key: "telnyx-key-inventory", summary: "x" })).toBe(true);
+    expect(await sendProductionEvent(h.ctx, { key: "telnyx-guard-detach", summary: "x" })).toBe(true);
     const [sent] = h.outbound;
     expect(sent.url).toBe(POSTHOG_CAPTURE_URL);
     expect(sent.headers.get("content-type")).toBe("application/json");

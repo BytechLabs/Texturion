@@ -1,5 +1,4 @@
 import type { Ctx } from "./context";
-import { acceptInventory, runKeyInventory } from "./inventory";
 import { COST_USD, MAX_NUMBERS_HELD, MIN_RATIO_SAMPLE, SEARCH_INTERVAL_MS } from "./limits";
 import { json, Refusal } from "./refusal";
 import { runLimitProbe } from "./setup/limit-probe";
@@ -311,13 +310,6 @@ export async function handleAdmin(ctx: Ctx, request: Request, path: string): Pro
       const usage = typeof body.usage_usd === "number" && body.usage_usd >= 0 ? body.usage_usd : null;
       if (!month || usage === null) throw new Refusal("request.body_invalid");
       return json(await reconcile(ctx, month, usage));
-    }
-    case "POST /key-inventory/run":
-      return json(await runKeyInventory(ctx));
-    case "POST /key-inventory/accept": {
-      const baseline = await acceptInventory(ctx);
-      if (!baseline) throw new Refusal("request.body_invalid");
-      return json(baseline);
     }
     case "POST /mail/resume":
       await resumeMail(ctx);
