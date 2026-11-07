@@ -162,6 +162,13 @@ export const accessibilityVerifiedFr: Record<
     sourceHolds:
       "Interactive targets measured at 375px against 2.5.8's 24px floor; .tap-target (44px) credited above it",
   },
+  "2.5.3 Label in Name": {
+    criterion: "**2.5.3** Étiquette dans le nom",
+    holds:
+      "Le nom accessible de chaque commande contient les mots qu'elle affiche, dans l'ordre, pour qu'une personne qui utilise la commande vocale puisse dire ce qu'elle voit. Chaque rangée en forme de carte est un lien sur son titre étendu à toute la carte, et les initiales sont dessinées en CSS comme une photo",
+    sourceHolds:
+      "Every control's accessible name contains the words it shows, in order, so a voice-control user can say what they see. Card rows are a link on their title stretched over the card, and initials are drawn by CSS like a photo",
+  },
   "4.1.2 Name, Role, Value — names": {
     criterion: "**4.1.2** Nom, rôle et valeur — noms",
     holds:
