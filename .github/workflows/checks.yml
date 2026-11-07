@@ -805,8 +805,11 @@ jobs:
           POSTHOG_CLI_PROJECT_ID: "0"
         run: |
           dist="$PWD/apps/api/dist"
-          # Inside a checkout the CLI reads a release from git and asks PostHog for it.
-          (cd "$RUNNER_TEMP" && npx --yes @posthog/cli@0.18.10 sourcemap inject --directory "$dist")
+          # The CLI reads a release from a git checkout, or from GITHUB_ACTIONS and
+          # GITHUB_SHA, and asks PostHog for it. With neither it injects chunk ids
+          # only, and the dead host fails any lookup here instead of reaching PostHog.
+          (cd "$RUNNER_TEMP" && env -u GITHUB_ACTIONS -u GITHUB_SHA \
+            npx --yes @posthog/cli@0.18.10 --host http://127.0.0.1:9 sourcemap inject --directory "$dist")
           grep -q '^//# chunkId=' "$dist/index.js"
           grep -q '"chunk_id"' "$dist/index.js.map"
           pnpm --filter @loonext/api exec wrangler deploy dist/index.js --no-bundle --dry-run
