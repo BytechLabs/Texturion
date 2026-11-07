@@ -21,6 +21,7 @@ import { Hono } from "hono";
 
 import {
   dispatchInboundCallEvent,
+  isMemberDeliveryLeg,
   shouldRouteToDO,
   warnIfEchoDropped,
 } from "../calls/webhook-router";
@@ -98,6 +99,11 @@ telnyxWebhookRoute.post("/", async (c) => {
       if (recorded) await stampProcessed(db, eventId);
     }
     return c.json({ received: true });
+  }
+
+  if (isMemberDeliveryLeg(event as TelnyxEvent)) {
+    if (data && data.length > 0) await stampProcessed(db, eventId);
+    return c.json({ received: true, ignored: true });
   }
 
   // Calls v3 (#170 §7.2): inbound-family call.* events are ADMITTED to the DO

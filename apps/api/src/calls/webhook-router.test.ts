@@ -23,6 +23,7 @@ import {
 import type { TelnyxEvent } from "../messaging/types";
 
 import {
+  isMemberDeliveryLeg,
   isSessionFamilyCallEvent,
   sessionKeyFor,
   shouldRouteToDO,
@@ -46,6 +47,48 @@ const OP = buildOutboundPlacerState(S, "placer-1");
 function ev(eventType: string, payload: Record<string, unknown>): TelnyxEvent {
   return { data: { id: "x", event_type: eventType, payload } as never };
 }
+
+// The leg Telnyx creates on the WebRTC credential connection when we dial a
+// member's credential, as production reported it on 2026-11-07: untagged, no
+// direction after call.initiated, `to` the credential's user name.
+function deliveryLeg(eventType: string, extra: Record<string, unknown> = {}): TelnyxEvent {
+  return ev(eventType, {
+    to: "gencredExampleUser",
+    from: "+15551230000",
+    client_state: null,
+    call_control_id: "v3:delivery-leg",
+    call_session_id: "fd924c46-dadc-11f1-980e-22f42f0310d9",
+    connection_id: "3000000000000000002",
+    flow_destination: "telnyx_sip_uri_cred_connection",
+    custom_headers: [{ name: "X-Loonext-Session", value: S }],
+    ...extra,
+  });
+}
+
+describe("isMemberDeliveryLeg — the far side of a leg we dialed to a member", () => {
+  it("matches every lifecycle event of the delivery leg", () => {
+    expect(isMemberDeliveryLeg(deliveryLeg("call.initiated", { direction: "incoming" }))).toBe(true);
+    for (const type of ["call.answered", "call.bridged", "call.hangup"]) {
+      expect(isMemberDeliveryLeg(deliveryLeg(type))).toBe(true);
+    }
+  });
+
+  it("never matches the tagged leg we dialed, though it has the same flow destination", () => {
+    const placer = deliveryLeg("call.hangup", {
+      client_state: OP,
+      to: "sip:gencredExampleUser@sip.telnyx.com",
+    });
+    expect(isMemberDeliveryLeg(placer)).toBe(false);
+    expect(shouldRouteToDO(placer)).toBe(true);
+  });
+
+  it("never matches a call to a phone number or an outgoing leg", () => {
+    expect(isMemberDeliveryLeg(deliveryLeg("call.initiated", { direction: "incoming", to: "+15551230000" }))).toBe(false);
+    expect(isMemberDeliveryLeg(deliveryLeg("call.initiated", { direction: "outgoing" }))).toBe(false);
+    expect(isMemberDeliveryLeg(ev("call.initiated", { direction: "incoming", to: "+15551230000" }))).toBe(false);
+    expect(isMemberDeliveryLeg(deliveryLeg("message.received"))).toBe(false);
+  });
+});
 
 describe("isSessionFamilyCallEvent — #211 arity routing (unconditional)", () => {
   it("a 4-part oc leg is DO-owned for ALL THREE lifecycle events", () => {

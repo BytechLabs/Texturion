@@ -49,6 +49,30 @@ function decodePrefix(clientState: string | null | undefined): string | null {
   }
 }
 
+/**
+ * True for the far side of a leg we dialed to a member's SIP credential (an op
+ * placer leg, a brm ring): Telnyx reports that delivery as a second, untagged
+ * leg on the WebRTC credential connection. It is never a customer call and no
+ * DO owns it. A customer always calls one of our E.164 numbers, so a `to` that
+ * is a phone number never matches.
+ */
+export function isMemberDeliveryLeg(event: TelnyxEvent): boolean {
+  if (!event.data?.event_type?.startsWith("call.")) return false;
+  const payload = (event.data?.payload ?? {}) as {
+    client_state?: string | null;
+    direction?: string;
+    flow_destination?: string;
+    to?: string;
+  };
+  return (
+    !payload.client_state &&
+    payload.direction !== "outgoing" &&
+    payload.flow_destination === "telnyx_sip_uri_cred_connection" &&
+    typeof payload.to === "string" &&
+    !payload.to.startsWith("+")
+  );
+}
+
 /** True when the DO owns this call.* event (§7.2 inbound family + #211
  *  outbound oc sessions). */
 export function isSessionFamilyCallEvent(event: TelnyxEvent): boolean {

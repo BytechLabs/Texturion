@@ -6,6 +6,7 @@
 import { recordVoiceCost } from "../billing/provider-costs";
 import {
   dispatchInboundCallEvent,
+  isMemberDeliveryLeg,
   shouldRouteToDO,
 } from "../calls/webhook-router";
 import { getDb } from "../db";
@@ -57,6 +58,8 @@ export async function dispatchTelnyxEvent(
     return;
   }
   if (eventType.startsWith("call.")) {
+    // The edge stamps these on arrival; a replayed one still has nothing to do.
+    if (isMemberDeliveryLeg(event)) return;
     // Calls v3 (#170 §7.2): every inbound and outbound CALL is a CallSessionDO
     // session. This branch is the SWEEPER-replay path (the edge admits live
     // events directly); a replay re-enters the DO and no-ops on dedup / guards or

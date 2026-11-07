@@ -27,7 +27,7 @@ import {
   type Stub,
 } from "../test/messaging-support";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
-import { eventsCaptured, resetCaptures } from "../test/capture-mock";
+import { eventsCaptured, exceptionsCaptured, resetCaptures } from "../test/capture-mock";
 import { telnyxWebhookRoute } from "./telnyx";
 
 vi.mock("../observability/capture", async () =>
@@ -325,6 +325,46 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
 
     expect(eventsCaptured()).toEqual([]);
     expect(numberLookup.calls).toHaveLength(0);
+  });
+
+  it("stamps the member delivery leg of a call we dialed and sends it nowhere", async () => {
+    const ledger = ledgerStubs();
+    serve(ledger.insert, ledger.stamp);
+    const sessions: string[] = [];
+    env.CALL_SESSIONS = {
+      idFromName: (name: string) => name,
+      get: (name: string) => {
+        sessions.push(name);
+        return { onTelnyxEvent: async () => true };
+      },
+    } as unknown as Env["CALL_SESSIONS"];
+    const leg = (eventType: string, id: string, extra: Record<string, unknown> = {}) => ({
+      data: {
+        event_type: eventType,
+        id,
+        payload: {
+          to: "gencredExampleUser",
+          from: "+16135550100",
+          client_state: null,
+          call_control_id: "v3:delivery-leg",
+          call_session_id: "fd924c46-dadc-11f1-980e-22f42f0310d9",
+          flow_destination: "telnyx_sip_uri_cred_connection",
+          ...extra,
+        },
+      },
+    });
+
+    const initiated = await deliver(
+      leg("call.initiated", "e8e8e8e8-0000-4000-8000-000000000008", { direction: "incoming" }),
+    );
+    expect(await initiated.response.json()).toEqual({ received: true, ignored: true });
+    await initiated.flush();
+    await (await deliver(leg("call.hangup", "e9e9e9e9-0000-4000-8000-000000000009"))).flush();
+
+    expect(ledger.insert.calls).toHaveLength(2);
+    expect(ledger.stamp.calls).toHaveLength(2);
+    expect(sessions).toEqual([]);
+    expect(exceptionsCaptured()).toEqual([]);
   });
 
   it("acks unknown event types as no-ops and stamps them processed", async () => {
