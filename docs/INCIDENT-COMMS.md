@@ -2,10 +2,11 @@
 
 **Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
 
-Detection is PostHog's (D146, docs/MONITORING.md): error tracking holds every
-exception and ops notice, its "Heartbeat overdue" alert catches the failures that
-are *absences* rather than throws (#387), and the kill switches in
-`docs/ROLLBACK.md` stop the bleeding in about ten seconds without a deploy.
+Detection is the vendors' (D146, D147, docs/MONITORING.md): PostHog's error
+tracking holds every exception and ops notice, Cloudflare's monitors catch the
+failures that are *absences* rather than throws (#387), such as cron triggers
+that stopped, and the kill switches in `docs/ROLLBACK.md` stop the bleeding in
+about ten seconds without a deploy.
 
 **Telling the customer is the part that had no plan.** This is that plan. It is
 deliberately short: a runbook nobody can follow at 7am while texting is down is
@@ -47,40 +48,19 @@ the longest. **Say something while you still do not know.**
    pnpm --filter @loonext/web exec wrangler kv key put --binding STATUS_FEED 'incident:fr-CA' "Les textos ne partent pas en ce moment. Les textos entrants continuent d'arriver." --remote
    ```
 
-   **Write both before opening either status route.** That page load fans out the
-   email update. If the French value is absent, French readers get an honest
+   **Write both.** If the French value is absent, French readers get an honest
    generic French incident notice rather than made-up translated detail.
 
    **Clear both the same way when it is over** (`--remote` delete, or empty the
    values in the dashboard). An empty or absent English value renders nothing at
-   all; it is the canonical transition marker.
+   all.
 
-   **Then open `/status` once.** That page load is what mails the subscriber
-   list (#477) — there is no cron, because the OpenNext worker entry is
-   generated and has nowhere to hang one. The load also sends the "resolved"
-   email when you clear the line, so do it both times. If you forget, the next
-   visitor triggers it; opening the page yourself just means it does not wait
-   for one.
-
-2. **The status email list.** Anyone can subscribe from `/status`, including
-   people who are not customers, and they are mailed once when the live line
-   appears and once when it clears. Transitions only: re-wording the same
-   incident does not re-mail anybody. Capped at two fan-outs a day and 1000
-   status emails a month, and it stops rather than overspending, so during a
-   long flapping incident assume the second wording did not go out.
-
-   Subscriber and pending values are JSON shaped as
-   `{"email":"person@example.com","locale":"en"}` or `locale:"fr-CA"`.
-   Legacy plaintext-email rows remain valid and are read as English. Do not
-   hand-edit these rows: the confirmation and unsubscribe tokens are their keys,
-   and the stored locale decides which language and result route the person sees.
-
-3. **Direct email to affected owners.** Still the channel that matters most,
+2. **Direct email to affected owners.** Still the channel that matters most,
    because it does not depend on anybody remembering to check a page. Recipients:
    the owner addresses of affected workspaces (`billingRecipients` gives you the
    shape). If the blast radius is unclear, all owners.
 
-4. **The written report in `INCIDENTS`** (`apps/web/src/app/(marketing)/status/page.tsx`)
+3. **The written report in `INCIDENTS`** (`apps/web/src/app/(marketing)/status/page.tsx`)
    — the considered record, added afterward through a normal deploy, with a date
    and a full write-up. This one does need CI and a deploy, and that is fine: you
    are writing it when the incident is over.
@@ -181,36 +161,12 @@ So KV buys the whole acceptance criterion for zero new vendors, zero
 subscriptions, and zero recurring cost, on infrastructure already in the critical
 path.
 
-**Subscribe-by-email: the provider recommendation above was withdrawn on
-2026-07-31** (#477, D105). It rested on one claim — that a provider brings
-subscribe-by-email along with it, so it is cheaper than building — and the claim
-is true while the conclusion is not, because the build turned out to be a list in
-the KV namespace we already have plus two plain-text emails. Buying would have
-meant a recurring bill and a fourth vendor holding our customers' addresses, to
-avoid roughly three hundred lines.
-
-What matters more than the cost is *where it runs*. The API worker already has
-Resend, rate limiting, suppressions and a database, so subscribing there would
-have been a fraction of the code — and the notifier would then share a failure
-domain with the product. A bad migration, a Supabase outage or a broken API
-deploy would take the announcement down with the thing it was announcing, which
-is the same mistake a Postgres-backed feed would have made. So the list lives in
-KV beside the live line and the mail goes out from the worker that serves the
-page.
-
-**One setup step, and it is not done automatically.** The web worker needs its
-own `RESEND_API_KEY` and `RESEND_FROM` secrets — separate from the API worker's,
-because the point is that it does not depend on the API worker for anything:
-
-```bash
-pnpm --filter @loonext/web exec wrangler secret put RESEND_API_KEY
-```
-
-Until both are set the subscribe form does not render at all and the fan-out is a
-no-op. That is deliberate and it is the same rule as everywhere else on this
-page: nothing renders that isn't backed by something real, and a form that
-accepts an address it can never mail is the same lie as a green dot with no probe
-behind it.
+**Subscribe-by-email: none (D147).** The list, its double opt-in, the Resend
+mailer and its fan-out were ours (D105) and are removed: an incident email
+system of our own is the homemade monitoring D147 rules out, and no vendor we
+already use offers subscribe-by-email. Direct email to affected owners (§2) is
+the channel that reaches customers. A status provider that brings a mailing
+list would be a new vendor account, which the founder has ruled out.
 
 **A KV read per request would be a cost center** on a page that gets linked around
 during an incident, so the page caches at the edge for 60 seconds
@@ -224,7 +180,7 @@ The page renders **no** operational indicators — no green dots, no gauges, no
 "all systems operational" — until each is backed by a real probe
 (DESIGN-DIRECTION v4 §6, owner amendment 11, binding; QA gate 6). A fake green
 dot is worse than an empty page, because it is an active claim rather than a
-missing one. `status-page.test.tsx` fails if one appears.
+missing one. `status.test.tsx` fails if one appears.
 
 Related: `docs/ROLLBACK.md` (stop the bleeding first), `docs/DISASTER-RECOVERY.md`
 (when the data is the problem), `docs/DECISIONS.md` D74 (RPO/RTO, and the

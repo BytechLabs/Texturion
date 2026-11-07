@@ -6037,6 +6037,8 @@ without spending a schema decision to get there.
 
 ## D105 — the status mailing list is ours, and it lives outside the product (#477, 2026-07-31)
 
+*(Superseded by D147, 2026-11-07: the subscriber list, its mailer and its fan-out are removed, and nothing replaces them.)*
+
 `docs/INCIDENT-COMMS.md` §5 previously recorded that an external status provider
 (Statuspage, Instatus, Better Stack) was the right answer for subscribe-by-email
 specifically, on the grounds that a provider brings the mailing list along with
@@ -8858,6 +8860,8 @@ never-clearing shape intact.
 
 ## D140 — a failing scheduled job opens its own issue; a red run is not a notification (2026-10-29)
 
+*(Superseded by D147, 2026-11-07: GitHub's own Actions failure notifications replace the issue filer.)*
+
 **Decision.** Every scheduled or manually started run of a workflow that has a
 schedule is read job by job, on the default branch only, by
 scripts/report-scheduled-failures.mjs through
@@ -9437,6 +9441,11 @@ with its reason:
 - **Not covered:** the US branch (US texting, the $29 fee line, the business
   step after payment, 10DLC) and the number purchase itself.
 
+**Amended by D147 (2026-11-07).** rigd sends no production alerts and runs no
+timers: the guard attestation runs on demand inside rig health (R00), where a
+mismatched guard fails readiness. Push and ring evidence is read from PostHog
+(`push_attempt`, `ring_beacon`), not from `ops_diag` views.
+
 ## D143 - a calendar event never becomes a job on its own; the connector stays a mirror (#245, 2026-11-01)
 
 **Decision.** Inbound creation is withdrawn. The two-way connector mirrors
@@ -9709,3 +9718,118 @@ the D8 funnels stay production's. rigd reads those exceptions back from PostHog
 scenarios, and files scenario failures under `synthetic`; a read that fails
 fails R00. The mobile apps also cut URL query strings and public-link tokens
 from exception text.
+
+**Amended by D147 (2026-11-07).** The heartbeat bullet, the gauges and the
+sender caps are gone: Cloudflare records every scheduled invocation, and its
+monitors replace "Heartbeat overdue". In the "product work stays" bullet, a cap
+no longer warns on the way up; only the request that reaches it is reported.
+
+## D147 - vendor features only: nothing of ours schedules a check, keeps monitoring state or throttles a notice (2026-11-07)
+
+**Decision.** The founder's direction, 2026-11-07: "we dont want any sentry or
+homemade monitoring/emails" and "ensure no homemade solutions as this is a
+professional saas product and we want to do things the right way". Our code
+records telemetry through a vendor's SDK or the platform's own facility and
+does nothing else about health. Code or configuration of ours that decides
+something is broken, keeps monitoring state, schedules a health check or probe,
+computes an alert condition, throttles or deduplicates a notice, tells a person
+about system health, or rebuilds what a vendor we already use does natively is
+removed. Its replacement is a built-in of a vendor we already have: PostHog
+(error tracking, insight alerts, dashboards), Cloudflare (Workers Logs,
+monitors over the SQL API, Cloudflare Status incident alerts), Supabase (the
+Usage page and its over-quota email, Backups), GitHub (Actions failure
+notifications, Dependabot, dependency review), the limits and notices of
+Telnyx, Stripe and Resend, and Google Play Console and App Store Connect for
+crashes. No vendor account is added. Where no built-in exists, the gap is
+written down in docs/MONITORING.md rather than built.
+
+How each kind of code is judged:
+
+- **Instrumentation stays.** SDK captures, console lines Workers Logs keeps,
+  SDK scrubbers and sampling, and the platforms' own crash reporting.
+- **Product stays.** What customers rely on: caps that refuse or downgrade,
+  customer emails about their own account, STOP opt-outs, the degraded number
+  banner, repair sweepers, load shedding and fail-fast configuration.
+  Compliance work stays too: AUP signals, the signup category screen,
+  opt-out reconciliation and the Telnyx partition guard.
+- **The rig's test judgement stays, on demand.** The rig is a test
+  environment, not monitoring; it runs no timers and sends production nothing.
+- **Hand-run diagnostics stay** only where nothing in PostHog, Cloudflare or
+  Supabase does the same.
+
+What goes, and what replaces it:
+
+- **API.** The cron, channel and Durable Object heartbeats, their grace tables
+  and the Durable Object's probe trigger: Cloudflare monitors over
+  `events.workersInvocations`, plus an incident alert for the Workers
+  components. The webhook rejection counter: a monitor over Workers Logs and
+  Stripe's failing-endpoint emails. The Telnyx spend and capacity gauges, the
+  fleet storage gauge and the first-refusal spend notice: Telnyx's own limit
+  and its emails, and Supabase's Usage page. The operator-only `watch` tier of
+  number health. The 80% "nearing" notices on product caps, and every column
+  that only remembered a notice went out. The `push_attempts` and
+  `ring_beacons` tables: `push_attempt` and `ring_beacon` events, with a
+  Workers rate limiting binding bounding the beacon relay. The
+  `channel:resend-send` heartbeat becomes a plain `email_sent` event, the
+  bounce rule's denominator. `api_dispute_health` and the call-trace script.
+  The partition mismatch is reported on every sweep that finds one, and
+  PostHog groups the repeats.
+- **Web.** The status subscriber list, its double opt-in, Resend mailer,
+  render-time fan-out, KV counters and rate limiter. The CSP report
+  collector: PostHog's CSP endpoint. The map's console marker: one PostHog
+  exception when the customer notice first shows. The web Worker gets the
+  Workers Logs block the API Worker has.
+- **Android.** The crash file, its share dialog, the chained uncaught handler
+  and the hidden Diagnostics screen: PostHog's error tracking and Play
+  Console's Android vitals. The call-flow trace logs to logcat only. The
+  "call interrupted by a crash" line reads the OS's own exit record
+  (ApplicationExitInfo), which Android 9 and 10 do not keep.
+- **iOS.** The MetricKit crash store, its share list and the Diagnostics
+  screen: PostHog's error tracking, App Store Connect and Xcode Organizer.
+  The recent-events ring is in memory and feeds only the support email.
+- **CI.** The scheduled-failures issue filer: GitHub's failure notifications.
+  The backup posture monitor, the Postgres image drift job, the dependency
+  graph check, `pnpm audit` and the Swift advisory scanner: Supabase's Backups
+  page, Dependabot alerts and security updates, dependency review, and a
+  committed `Package.resolved` that the dependency graph reads.
+- **Rig.** The guard's balance alert and weekly key inventory: Telnyx's Low
+  Available Credit, API Key Creation and API Keys Expiration notifications.
+  The guard's stored "already told" keys and daily dedupes, the edge's alert
+  log and event budgets, and rigd's hourly attestation, production alert and
+  five-minute exception report. The attestation and the exception check run
+  on demand in rig health.
+
+This supersedes D140 and D105 and amends D146 and D142.
+
+**Why.** Each removed piece was a second, smaller copy of something a vendor
+already runs: Cloudflare records every cron invocation and every webhook's
+status, Telnyx enforces and emails its own spend limit, GitHub notifies about
+failed workflows, and PostHog and the platforms report crashes. A copy of ours
+has to be kept correct, throttled and explained, and every throttle and
+"already told" key is state that can be wrong in the direction of silence.
+
+**What this rejects.** Rebuilding a gap with a smaller tool of our own, a new
+vendor account for uptime or status email, and timers on the rig.
+
+**What is lost, stated plainly.**
+
+- No warning before Telnyx's daily messaging spend limit: Telnyx emails when
+  it is reached, not at 70%.
+- No view of concurrent call capacity: Telnyx offers no API or alert for it,
+  and a refused leg shows only as an exception from the call path.
+- No warning before the Supabase storage quota: its email comes once it is
+  exceeded.
+- No alert when Supabase backups stop: the Backups page is read by hand.
+- No notice when Supabase changes its Postgres image: re-pinning waits for its
+  announcement.
+- No uptime check: nothing polls `/health` or the site from outside.
+  Cloudflare Health Checks need a Pro zone (about $20 to $25 a month; the zone
+  is on Free), and an external uptime service is a new vendor account.
+- No status email list: customers learn of an incident from `/status` and from
+  direct email to owners.
+- No notice when a Worker is deployed outside `ship.yml`: Cloudflare has no
+  such notification, so the guard is attested only when the rig runs.
+- No 80% warnings on the AI, high-priority push and ring-beacon caps:
+  Cloudflare's billing budget alerts cover the Workers AI bill.
+- No crash history on a device for a person to share, and no interrupted-call
+  line on Android 9 and 10.

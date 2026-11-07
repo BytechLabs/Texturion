@@ -15,7 +15,8 @@ Nine cron triggers on `loonext-api`, registered automatically on `wrangler deplo
 Jobs sharing a trigger run **sequentially but fail independently**; each failure
 is reported to PostHog as an exception naming its job, and the whole run still
 rejects as an `AggregateError` (`runScheduledJobs`, `apps/api/src/index.ts`).
-Every trigger sends an `ops_heartbeat` when it fires (D146).
+Cloudflare records every scheduled invocation, and its "loonext-api cron
+triggers stopped" monitor watches that record (D147, [docs/MONITORING.md](../MONITORING.md)).
 
 | Cron (UTC) | Jobs | What it does |
 |------------|------|--------------|
@@ -32,7 +33,8 @@ Every trigger sends an `ops_heartbeat` when it fires (D146).
 ### Verify the crons
 
 - **Cloudflare dashboard** → `loonext-api` → **Triggers → Cron Triggers**: all 9
-  expressions listed with last-run status.
+  expressions listed with last-run status. **Workers & Pages → loonext-api →
+  Observability** filters the invocation logs to `cron`.
 - **Live logs:** `pnpm --filter @loonext/api exec wrangler tail` and watch a
   `*/5` window, or Cloudflare → Worker → Logs.
 - **Sanity checks in data:** after an hour, `usage_events.stripe_reported_at` should
@@ -74,18 +76,25 @@ email with the hosted invoice link; no state change
   Unhandled `/v1` errors, each failing cron job and every ops notice are exceptions
   in Error tracking, sent through `apps/api/src/observability/capture.ts`, which
   scrubs them first: message bodies, phone numbers and addresses never leave.
-  The Loonext health dashboard shows heartbeats, gauges and outcome events, and
-  PostHog's alerts email the founder's PostHog login. Nothing in our code sends an
-  alert email.
+  The Loonext dashboards show exceptions and outcome events, and PostHog's
+  alerts email the founder's PostHog login. Nothing in our code sends an alert
+  email, schedules a check or keeps monitoring state (D147).
+- **Cloudflare monitors**: cron triggers that stopped, invocations the platform
+  failed and webhook signature refusals, plus Cloudflare Status incidents for the
+  Workers components, all emailed by Cloudflare Notifications
+  ([docs/MONITORING.md](../MONITORING.md), "In Cloudflare").
 - **`/health`** — `GET https://api.loonext.com/health` re-runs env validation; a 500
-  naming a key means a secret is missing/invalid (`apps/api/src/index.ts:88-92`). Good
-  target for an uptime monitor / the status page. A keyword monitor should match
-  `"ok":true`, not the whole body: the body is
+  naming a key means a secret is missing/invalid (`apps/api/src/index.ts:88-92`).
+  Nothing polls it: no vendor we use offers an uptime check on this plan
+  ([docs/MONITORING.md](../MONITORING.md), "What we deliberately do not have"). A
+  keyword check should match `"ok":true`, not the whole body: the body is
   `{"ok":true,"capabilities":["telnyx-partition-v1"]}` and the capability list grows.
 - **PostHog's key** — `POSTHOG_API_KEY` ([06](./06-env-reference.md) §E). Captures
   are best-effort: a PostHog failure never breaks the send/webhook path, it is
   only logged. With the key unset nothing is sent at all.
-- **Cloudflare Workers metrics/logs** — request volume, error rate, cron invocations.
+- **Cloudflare Workers Logs**: request volume, error rate and cron invocations for
+  both `loonext-api` and `loonext-web`, persisted by each Worker's `observability`
+  block.
 
 ---
 

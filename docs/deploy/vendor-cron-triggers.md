@@ -27,7 +27,8 @@ The two lists must stay in lockstep — an unmapped cron throws
 
 Jobs sharing a trigger run sequentially but fail independently; each failure is
 reported to PostHog as an exception naming its job, and the run still rejects
-(`runScheduledJobs` in `apps/api/src/index.ts`). Every trigger also sends an
-`ops_heartbeat`, which PostHog's "Heartbeat overdue" alert watches (D146).
+(`runScheduledJobs` in `apps/api/src/index.ts`). Cloudflare records every
+scheduled invocation in Workers Logs, and its "loonext-api cron triggers
+stopped" monitor emails when none ran in 15 minutes (D147, docs/MONITORING.md).
 Times are UTC (Cloudflare cron is UTC). These schedules are the exact SPEC §11
 set (`apps/api/wrangler.jsonc:8-10`, `SPEC.md:1081`).

@@ -138,7 +138,7 @@ browser bundle).
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — **OPTIONAL** | no (public) | Cloudflare → Turnstile → your widget → **Site key** | `0x4AAAAAAA...` |
 | `NEXT_PUBLIC_APP_ORIGIN` — **OPTIONAL** | no (public) | Operator decision; must equal the api Worker's `APP_ORIGIN` secret | `https://app.loonext.com` |
 | `NEXT_PUBLIC_GTM_ID` — **OPTIONAL** | no (public) | Google Tag Manager → container → **Container ID** (#124) | `GTM-MTL658DD` |
-| `NEXT_PUBLIC_POSTHOG_KEY` — **OPTIONAL** | no (public) | PostHog → Project Settings → Project API key. Unset means product analytics and error tracking, browser and server, are silently off (D146). The same key is the Worker's `POSTHOG_API_KEY`. | `phc_xxxxxxxxxxxx` |
+| `NEXT_PUBLIC_POSTHOG_KEY` — **OPTIONAL** | no (public) | PostHog → Project Settings → Project API key. Unset means product analytics and error tracking, browser and server, are silently off (D146), and a CSP staging window names no report endpoint (D147). The same key is the Worker's `POSTHOG_API_KEY`. | `phc_xxxxxxxxxxxx` |
 | `NEXT_PUBLIC_DEPLOY_ENV` — **OPTIONAL** | no (public) | `ship.yml` stamps `production`. Every exception carries it as `environment`, and PostHog's alerts read `production` only (D146). Unset is a laptop or CI and reports as `local`. | `production` |
 | `NEXT_PUBLIC_BLOG_ORIGIN` — **OPTIONAL** | no (public) | Operator decision (#130). When set, the middleware serves the blog at this host's root; `loonext.com/blog` keeps working either way. Unset = no blog host. | `https://blog.loonext.com` |
 | `NEXT_PUBLIC_MAP_TILE_URL` — **OPTIONAL** | no (public) | #428: the Map's basemap tile template, from a provider whose terms permit a PAID product to serve their tiles. Unset means the map draws pins on an empty ground and says so — it never falls back to `tile.openstreetmap.org`, which the OSMF does not license for commercial use (and which the code refuses even if configured). Requires the attribution below to be set too. See `docs/MAP-TILES.md`. | `https://api.example.com/maps/{z}/{x}/{y}.png?key=…` |
@@ -231,12 +231,12 @@ with exactly one value.
 
 | Var | Value | What it does |
 |-----|-------|--------------|
-| `CSP_STAGING` | `report-only` | Sends the nonce-bearing `Content-Security-Policy-Report-Only` header (#577 step 2) and collects violations at `/api/csp-report`. Anything else, including absent, sends nothing. |
+| `CSP_STAGING` | `report-only` | Sends the nonce-bearing `Content-Security-Policy-Report-Only` header (#577 step 2), whose violations go to PostHog's CSP endpoint under the `NEXT_PUBLIC_POSTHOG_KEY` project, sampled at 10% (D147). Anything else, including absent, sends nothing. |
 
 **Leave it unset.** The policy blocks nothing, but the app is prerendered — 93
 static HTML files whose inline scripts cannot carry a per-request nonce — so
 every visitor would report a violation we have already measured on the build.
-Open a window deliberately, read the Worker logs for `csp-violation`, close it.
+Open a window deliberately, read PostHog's `$csp_violation` events, close it.
 `apps/web/src/lib/observability/csp.ts` carries the measurement and what
 enforcement would actually cost.
 
@@ -260,7 +260,7 @@ database login that sees only the non-personal `ops_diag` views), and the
 |------|:------:|-------|---------|
 | `SUPABASE_URL` | yes | environment `production-ops` | `ops.yml`'s `set-flag` job, which runs `scripts/ops/set-flag.mjs` from `main` |
 | `SUPABASE_SECRET_KEY` | yes | environment `production-ops` | the same job |
-| `AGENT_DIAG_DATABASE_URL` | yes | the workstation's `~/.loonext/agent-diag.env`, written by `scripts/ops/set-agent-diag-password.mjs` (`docs/RIG.md` FA13). An agent copies the same login into environment `guard`, and replaces or deletes that copy whenever the script rotates or withdraws it | `scripts/ops/call-trace.mjs`, which refuses any login but `agent_diag`; and `guard.yml`'s daily measurements run (`docs/RIG.md` §3.5) |
+| `AGENT_DIAG_DATABASE_URL` | yes | the workstation's `~/.loonext/agent-diag.env`, written by `scripts/ops/set-agent-diag-password.mjs` (`docs/RIG.md` FA13). An agent copies the same login into environment `guard`, and replaces or deletes that copy whenever the script rotates or withdraws it | `guard.yml`'s daily measurements run (`docs/RIG.md` §3.5) |
 
 **Script switches** (shell environment only, never a deploy setting):
 
@@ -290,7 +290,7 @@ These are configured in a vendor dashboard and have **no** app env var:
 ## E. PostHog — error tracking, health events and product analytics
 
 The API Worker and the call Durable Object send exceptions, ops notices,
-heartbeats, gauges and the north-star funnel events to PostHog Cloud US
+outcome events and the north-star funnel events to PostHog Cloud US
 (`apps/api/src/observability/capture.ts`, `apps/api/src/analytics/posthog.ts`).
 The one secret is `POSTHOG_API_KEY` (section A): local runs without it send
 nothing, and production refuses to boot without it. Funnel events use
