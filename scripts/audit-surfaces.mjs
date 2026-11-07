@@ -54,4 +54,14 @@ export const SURFACES = [
   },
   { path: "/settings", label: "settings", auth: true },
   { path: "/tasks", label: "tasks", auth: true },
+  // #238: the rest of the daily path. Each of these failed WCAG A or AA the
+  // first time it was looked at, which is the argument for looking.
+  { path: "/calls", label: "calls", auth: true },
+  { path: "/contacts", label: "contacts", auth: true },
+  {
+    path: "/inbox/b0000000-0000-4000-8000-000000000001",
+    label: "thread (the seeded showcase conversation)",
+    auth: true,
+  },
+  { path: "/settings/team", label: "settings · team", auth: true },
 ];

@@ -595,7 +595,6 @@ const FOCUS_WALK = (maxStops) => {
   // was perfectly visible. A ring is visible if ANY of its layers is, so the
   // best layer is the honest measurement.
   const colours = [];
-  const outlineWidth = parseFloat(style.outlineWidth) || 0;
   // `outline-style: auto` is the browser's OWN focus ring, and Chrome paints it
   // two-tone specifically so it stays visible on any ground — it ignores
   // `outline-color` entirely when drawing it. Measuring that inherited colour
@@ -605,61 +604,73 @@ const FOCUS_WALK = (maxStops) => {
   // product sets `outline: auto` deliberately, so it only ever appears where a
   // control declares no focus style at all and the UA steps in.
   const uaRing = style.outlineStyle === "auto";
-  const hasOutline = style.outlineStyle !== "none" && outlineWidth > 0;
-  if (hasOutline && !uaRing) {
-    const c = parse(style.outlineColor);
-    // A fully transparent layer is not an indicator, it is a placeholder for
-    // one — which is exactly what an un-focused Tailwind ring compiles to.
-    if (c && c.a > 0.05) colours.push(c);
-  }
-  const shadow = style.boxShadow && style.boxShadow !== "none" ? style.boxShadow : "";
-  if (shadow) {
-    // Split on commas that separate SHADOW LAYERS, not the ones inside a
-    // colour function: `oklab(0.4 0 0 / 0.5)` has none, but `rgba(0, 0, 0, .5)`
-    // and `color-mix(in oklab, a, b)` do, and a naive split shatters them.
-    let depth = 0;
-    let start = 0;
-    const layers = [];
-    for (let i = 0; i < shadow.length; i += 1) {
-      const ch = shadow[i];
-      if (ch === "(") depth += 1;
-      else if (ch === ")") depth -= 1;
-      else if (ch === "," && depth === 0) {
-        layers.push(shadow.slice(start, i));
-        start = i + 1;
-      }
-    }
-    layers.push(shadow.slice(start));
-    for (const layer of layers) {
-      // Chrome serialises a layer as `<colour> <x> <y> <blur> <spread>`, so the
-      // lengths come off in that order and `spread` may be absent.
-      const lengths = (layer.match(/-?[\d.]+px/g) || []).map(parseFloat);
-      const [, , blur = 0, spread = 0] = lengths;
-
-      // A RING, not any shadow that happens to be there.
-      //
-      // Proven by deleting the input's focus ring outright: the check still
-      // reported a fault, but as a 1.12:1 DIM ring rather than a MISSING one —
-      // it had picked up `shadow-xs`, the resting drop shadow every input
-      // carries, and called it the focus indicator. Right answer, wrong
-      // reasoning, and the wrong reasoning is the dangerous half: a control
-      // with a dark decorative shadow and no focus ring at all would have
-      // cleared 3:1 on the shadow and PASSED.
-      //
-      // A focus ring is drawn hard — `ring-*` compiles to `0 0 0 Npx colour`,
-      // no blur and positive spread — and a drop shadow is drawn soft. That is
-      // the whole distinction, and it is a shape rather than a guess. A blurred
-      // glow used as an indicator would be missed here; nothing in this product
-      // uses one, and 1.4.11 is hard to meet with a blur anyway.
-      if (blur !== 0 || spread <= 0) continue;
-
-      // The colour is whatever is left once the lengths and keywords are gone.
-      const colour = layer
-        .replace(/\b-?[\d.]+(px|em|rem|%)\b/g, " ")
-        .replace(/\binset\b/g, " ")
-        .trim();
-      const c = parse(colour);
+  // A ring the element draws on its own ::before or ::after is its indicator
+  // too: a stretched-link card draws its focus ring on the ::after that
+  // covers the card, because the link itself is only the card's title.
+  const drawnStyles = [
+    style,
+    ...["::before", "::after"]
+      .map((pseudo) => getComputedStyle(el, pseudo))
+      .filter((pseudo) => pseudo.content !== "none" && pseudo.content !== "normal"),
+  ];
+  for (const drawn of drawnStyles) {
+    const outlineWidth = parseFloat(drawn.outlineWidth) || 0;
+    const hasOutline = drawn.outlineStyle !== "none" && outlineWidth > 0;
+    if (hasOutline && !uaRing) {
+      const c = parse(drawn.outlineColor);
+      // A fully transparent layer is not an indicator, it is a placeholder for
+      // one — which is exactly what an un-focused Tailwind ring compiles to.
       if (c && c.a > 0.05) colours.push(c);
+    }
+    const shadow = drawn.boxShadow && drawn.boxShadow !== "none" ? drawn.boxShadow : "";
+    if (shadow) {
+      // Split on commas that separate SHADOW LAYERS, not the ones inside a
+      // colour function: `oklab(0.4 0 0 / 0.5)` has none, but `rgba(0, 0, 0, .5)`
+      // and `color-mix(in oklab, a, b)` do, and a naive split shatters them.
+      let depth = 0;
+      let start = 0;
+      const layers = [];
+      for (let i = 0; i < shadow.length; i += 1) {
+        const ch = shadow[i];
+        if (ch === "(") depth += 1;
+        else if (ch === ")") depth -= 1;
+        else if (ch === "," && depth === 0) {
+          layers.push(shadow.slice(start, i));
+          start = i + 1;
+        }
+      }
+      layers.push(shadow.slice(start));
+      for (const layer of layers) {
+        // Chrome serialises a layer as `<colour> <x> <y> <blur> <spread>`, so the
+        // lengths come off in that order and `spread` may be absent.
+        const lengths = (layer.match(/-?[\d.]+px/g) || []).map(parseFloat);
+        const [, , blur = 0, spread = 0] = lengths;
+
+        // A RING, not any shadow that happens to be there.
+        //
+        // Proven by deleting the input's focus ring outright: the check still
+        // reported a fault, but as a 1.12:1 DIM ring rather than a MISSING one —
+        // it had picked up `shadow-xs`, the resting drop shadow every input
+        // carries, and called it the focus indicator. Right answer, wrong
+        // reasoning, and the wrong reasoning is the dangerous half: a control
+        // with a dark decorative shadow and no focus ring at all would have
+        // cleared 3:1 on the shadow and PASSED.
+        //
+        // A focus ring is drawn hard — `ring-*` compiles to `0 0 0 Npx colour`,
+        // no blur and positive spread — and a drop shadow is drawn soft. That is
+        // the whole distinction, and it is a shape rather than a guess. A blurred
+        // glow used as an indicator would be missed here; nothing in this product
+        // uses one, and 1.4.11 is hard to meet with a blur anyway.
+        if (blur !== 0 || spread <= 0) continue;
+
+        // The colour is whatever is left once the lengths and keywords are gone.
+        const colour = layer
+          .replace(/\b-?[\d.]+(px|em|rem|%)\b/g, " ")
+          .replace(/\binset\b/g, " ")
+          .trim();
+        const c = parse(colour);
+        if (c && c.a > 0.05) colours.push(c);
+      }
     }
   }
 

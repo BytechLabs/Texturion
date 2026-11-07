@@ -49,6 +49,7 @@ is nothing verified that is not here.
 | **1.4.11** Non-text Contrast — focus | That indicator clears 3:1 against the surface behind it, with its alpha composited rather than assumed away | `scripts/theme-audit.mjs` (CI), `apps/web/src/app/focus-appearance.test.ts` |
 | **2.4.11** Focus Not Obscured (Minimum) | The focused control is not entirely covered by a sticky header or overlay, sampled from the compositor rather than computed from rectangles | `scripts/theme-audit.mjs` (CI), `apps/web/src/app/focus-appearance.test.ts` |
 | **2.5.8** Target Size (Minimum) | Interactive targets measured at 375px against 2.5.8's 24px floor; `.tap-target` (44px) credited above it | `scripts/theme-audit.mjs` (CI) |
+| **2.5.3** Label in Name | Every control's accessible name contains the words it shows, in order, so a voice-control user can say what they see. Card rows are a link on their title stretched over the card, and initials are drawn by CSS like a photo | `scripts/check-app-a11y.mjs` (CI) |
 | **4.1.2** Name, Role, Value — names | Interactive elements have an accessible name, computed the way an AT computes it | `scripts/theme-audit.mjs` (CI) |
 | **4.1.2** Name, Role, Value — roles | `role="tab"` carries `aria-selected`; `role="tablist"` contains real tabs; `aria-live` states its politeness | `apps/web/src/app/layout-v2-roles.test.ts` |
 | **4.1.3** Status Messages | Incoming messages announce politely; the composer's send state is announced rather than only styled | `apps/web/src/app/layout-v2-roles.test.ts` |

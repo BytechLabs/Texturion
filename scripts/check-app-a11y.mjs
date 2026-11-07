@@ -226,7 +226,12 @@ try {
       await page.addScriptTag({ path: axePath() });
 
       const result = await page.evaluate(async () => {
-        const run = await window.axe.run(document, { resultTypes: ["violations"] });
+        const run = await window.axe.run(document, {
+          resultTypes: ["violations"],
+          // 2.5.3 Label in Name: on by default only from axe-core 4.14, and
+          // asked for here so the guarantee does not depend on the version.
+          rules: { "label-content-name-mismatch": { enabled: true } },
+        });
         return run.violations.map((violation) => ({
           id: violation.id,
           impact: violation.impact,
