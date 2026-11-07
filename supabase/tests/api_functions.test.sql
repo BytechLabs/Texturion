@@ -713,7 +713,7 @@ begin
   if checked < 100 then
     raise exception 'F7 FAILED: expected 100+ SECURITY DEFINER functions in public, found %', checked;
   end if;
-  if bad <> '' then
+  if bad is distinct from '' then
     raise exception 'F7 FAILED: browser roles can execute:%', bad;
   end if;
 
