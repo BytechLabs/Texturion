@@ -26,7 +26,7 @@ name: Security
 # Deploys are not gated on this file. checks.yml is the merge gate; this runs
 # alongside it. A dependency that becomes vulnerable while nobody is touching
 # the repo is GitHub's to report: Dependabot alerts and security updates read
-# the dependency graph.
+# the dependency graph, which includes the committed Swift Package.resolved.
 # ---------------------------------------------------------------------------
 on:
   # #493: the release-please pull request is skipped at JOB level, not here.

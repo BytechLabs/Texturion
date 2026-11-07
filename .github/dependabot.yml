@@ -196,19 +196,11 @@ updates:
 # -----------------------------------------------------------------------------
 # NOT HERE, AND SAID OUT LOUD RATHER THAN LEFT AS A GAP:
 #
-# iOS Swift packages. Dependabot's `swift` ecosystem needs a Package.swift or a
-# committed Package.resolved, and this project has neither — the two SPM
-# dependencies (TelnyxRTC, Firebase) are declared in apps/ios/project.yml and
-# resolved by Xcode at build time, so there is no manifest for Dependabot to
-# read. The gap is covered instead by the `swift-advisories` job in
-# .github/workflows/security.yml, which reads those pins straight out of
-# project.yml and asks GitHub's advisory database about them weekly.
-#
-# #581: this note used to name a job called `swift-pins` and describe it as
-# failing "when a pin drifts from what was reviewed". No such job has ever
-# existed and no drift check has ever existed — the compensating control the gap
-# was signed off against was the description, not the code. What is really there
-# is an advisory lookup, which raises a known CVE and says nothing about drift.
-# That is less than Dependabot would give us; it is more than nothing, and this
-# is now the honest version of what we actually have.
+# iOS Swift packages get Dependabot alerts and no version-update pull requests.
+# GitHub's dependency graph reads the committed
+# apps/ios/Loonext.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved,
+# which main.yml's `iOS package lockfile` job holds to what Xcode resolves, so
+# an advisory against TelnyxRTC, Firebase or PostHog raises an alert. Dependabot's
+# `swift` ecosystem updates a Package.swift, and an XcodeGen project has none,
+# so a bump is an edit to apps/ios/project.yml and the lockfile together.
 # -----------------------------------------------------------------------------

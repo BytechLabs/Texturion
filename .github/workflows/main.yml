@@ -134,6 +134,18 @@ jobs:
           path: apps/ios/Loonext.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
           if-no-files-found: error
 
+      # Xcode rewrites the lockfile when project.yml asks for versions it does
+      # not pin, so a difference here means the committed copy is stale. The
+      # artifact above is the file to commit.
+      - name: The committed lockfile is what Xcode resolved
+        run: |
+          lockfile=Loonext.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+          if [ -n "$(git status --porcelain -- "$lockfile")" ]; then
+            git diff -- "$lockfile"
+            echo "::error file=apps/ios/$lockfile::Xcode resolved the Swift packages differently from the committed Package.resolved. Commit the ios-package-resolved artifact of this run in its place."
+            exit 1
+          fi
+
   # ---------------------------------------------------------------------------
   # Keeps the release PR current, and on the merge of that PR, cuts the
   # versions, changelogs, tags and GitHub Releases.
