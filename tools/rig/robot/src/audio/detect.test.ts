@@ -13,7 +13,7 @@ import {
   phoneLine,
   power,
 } from "./simulate.ts";
-import { BURSTS_PER_CYCLE, CYCLE_MS, SURFACES, SURFACE_HZ, type Surface } from "./surfaces.ts";
+import { BURSTS_PER_CYCLE, CYCLE_MS, PATTERN, SLOT_MS, SURFACES, SURFACE_HZ, type Surface } from "./surfaces.ts";
 
 const RATE = 8_000;
 /** Mean power of a playing burst, the reference for every SNR below. */
@@ -193,6 +193,64 @@ describe("two surfaces at once", () => {
     const both = mix(call("robot"), call("qa-w-owner", { startMs: 700, amplitude: 0.025 }));
     const detection = detect(both);
     expect(detection.heard.sort()).toEqual(["qa-w-owner", "robot"]);
+  });
+});
+
+/**
+ * The listener's own code on an otherwise silent line, with what Opus leaves
+ * after each burst: `ms` of steady sound `belowDb` under the burst, in
+ * `into`'s band. Bursts end on a frame edge, so the smear fills whole frames.
+ */
+function smearedCode(own: Surface, into: Surface, belowDb: number, ms: number): Float32Array {
+  const rate = 16_000;
+  const startMs = 300;
+  const out = call(own, { rate, startMs });
+  const slot = (rate * SLOT_MS) / 1000;
+  const first = (rate * startMs) / 1000;
+  const length = (rate * ms) / 1000;
+  const amplitude = 0.25 * 10 ** (-belowDb / 20);
+  const omega = (2 * Math.PI * SURFACE_HZ[into]) / rate;
+  for (let slotIndex = 0; slotIndex < (out.length - first) / slot; slotIndex++) {
+    if (!PATTERN[slotIndex % PATTERN.length]) continue;
+    const end = first + (slotIndex + 1) * slot;
+    for (let n = end; n < Math.min(out.length, end + length); n++) out[n]! += amplitude * Math.sin(omega * n);
+  }
+  return out;
+}
+
+describe("Opus's smear of a burst's edges", () => {
+  it("does not name the band a burst's smear lands in", () => {
+    const detection = detect(smearedCode("qa-w-owner", "qa-a-dispatcher", 23, 60), { own: "qa-w-owner" }, 16_000);
+    expect(detection.answered).toBeNull();
+    expect(detection.scores["qa-a-dispatcher"]!.cycles).toBe(0);
+    expect(detection.echo).toMatchObject({ surface: "qa-w-owner" });
+    expect(detection.echo!.cycles).toBeGreaterThanOrEqual(3);
+  });
+
+  it("still hears a far end whose bursts run 10 ms past the echo's", () => {
+    const echo = call("robot", { rate: 16_000 });
+    const farEnd = call("qa-w-owner", { rate: 16_000, startMs: 310, amplitude: 0.25 * 10 ** (-10 / 20) });
+    const detection = detect(phoneLine(mix(echo, farEnd)), { own: "robot" });
+    expect(detection.answered).toBe("qa-w-owner");
+  });
+
+  it("still hears a far end that sounds through the echo's burst and runs 40 ms past it", () => {
+    // 22 dB under, the frames past each burst are as quiet as a smear, but this
+    // band was already sounding inside the burst, so they stay its own.
+    const echo = call("robot");
+    const farEnd = call("qa-w-owner", { startMs: 340, amplitude: 0.25 * 10 ** (-22 / 20) });
+    const detection = detect(mix(echo, farEnd), { own: "robot" });
+    expect(detection.answered).toBe("qa-w-owner");
+  });
+
+  it("keeps the noise beside each burst on a quiet line, so it adds no stray cycles", () => {
+    for (const seed of [1, 2, 3, 4]) {
+      const line = phoneLine(addNoise(call("qa-w-owner", { rate: 16_000 }), 40, BURST_POWER, seed));
+      const detection = detect(line, { own: "qa-w-owner" });
+      for (const surface of SURFACES.filter((s) => s !== "qa-w-owner")) {
+        expect(detection.scores[surface]!.cycles, `${surface}, seed ${seed}`).toBe(0);
+      }
+    }
   });
 });
 

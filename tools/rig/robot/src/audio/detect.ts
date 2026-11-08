@@ -207,21 +207,64 @@ export function findAnnouncement(table: FrameTable, answerMs: number): { startMs
  * down, and at the wrong phase it looks like bursts in a band that holds only
  * noise. Those frames say nothing about this band, so they are left out of its
  * cycles. A frame where this band is within 10 dB of the loudest is its own.
+ *
+ * Opus smears a burst into the frame before it and the two after it. On a line
+ * that is otherwise silent that smear is all those frames hold, so any band
+ * can hold most of it, and read as a pattern it is the burst's own pattern a
+ * frame or two late. Those frames are left out too, for a band that was silent
+ * inside the burst, when they are far quieter than the burst yet louder than
+ * the line they settle into. A far end that runs past the burst was already
+ * sounding inside it, and noise next to a burst is as loud as the noise after
+ * it, so both keep their frames. "Inside" is the burst's edge frame and the one
+ * deeper in, because low-bitrate Opus already spreads the smear into its edge.
  */
 const MASK_DOMINANT_DB = -10;
 const MASK_BELOW_DB = 10;
+const SMEAR_QUIET_DB = 20;
+const SMEAR_ABOVE_LINE_DB = 6;
+/** Frames past the smear that show the level the line settles to. */
+const SETTLE_FRAMES = 3;
 
 function maskFor(table: FrameTable, index: number): Uint8Array {
   const frames = table.level.length;
-  const mask = new Uint8Array(frames);
+  const owned = new Uint8Array(frames);
   for (let k = 0; k < frames; k++) {
     let loudest = Number.NEGATIVE_INFINITY;
     for (let f = 0; f < table.share.length; f++) {
       if (f !== index) loudest = Math.max(loudest, table.share[f]![k]!);
     }
-    if (loudest >= MASK_DOMINANT_DB && table.share[index]![k]! < loudest - MASK_BELOW_DB) mask[k] = 1;
+    if (loudest >= MASK_DOMINANT_DB && table.share[index]![k]! < loudest - MASK_BELOW_DB) owned[k] = 1;
+  }
+  const mask = owned.slice();
+  for (let k = 0; k < frames; k++) {
+    if (owned[k]) continue;
+    // [the owned frame, the direction away from it]: the frame before a burst, then the two after it.
+    for (const [burst, away] of [[k + 1, -1], [k - 1, 1], [k - 2, 1]] as const) {
+      if (owned[burst] && isSmear(table, index, k, burst, away)) {
+        mask[k] = 1;
+        break;
+      }
+    }
   }
   return mask;
+}
+
+function isSmear(table: FrameTable, index: number, k: number, burst: number, away: 1 | -1): boolean {
+  const { level } = table;
+  if (level[k]! > level[burst]! - SMEAR_QUIET_DB || soundedInBurst(table.share[index]!, burst, away)) return false;
+  let line = Number.POSITIVE_INFINITY;
+  for (let step = 1; step <= SETTLE_FRAMES; step++) {
+    const at = k + away * step;
+    if (at >= 0 && at < level.length) line = Math.min(line, level[at]!);
+  }
+  return level[k]! >= line + SMEAR_ABOVE_LINE_DB;
+}
+
+/** Whether the band held a tone in the burst's edge frame and the frame deeper in. */
+function soundedInBurst(share: Float32Array, burst: number, away: 1 | -1): boolean {
+  const inner = burst - away;
+  const innerShare = inner >= 0 && inner < share.length ? share[inner]! : share[burst]!;
+  return Math.min(share[burst]!, innerShare) >= PRESENCE_DB;
 }
 
 /** Fewer unmasked frames than this in a cycle's bursts or gaps, and the cycle says nothing. */
