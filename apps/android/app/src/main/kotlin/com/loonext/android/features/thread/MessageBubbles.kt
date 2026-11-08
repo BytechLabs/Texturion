@@ -18,6 +18,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -80,6 +82,7 @@ import com.loonext.android.features.compose.icon
 import com.loonext.android.features.compose.mmsKindOf
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.pressScale
+import com.loonext.android.ui.common.touchTarget
 import com.loonext.android.ui.common.VoicemailTranscript
 import com.loonext.android.ui.theme.BrandColor
 import java.time.Instant
@@ -178,7 +181,8 @@ fun MessageBubble(
                 },
             )
             .combinedClickable(onClick = {}, onLongClick = onLongPress)
-            .padding(horizontal = 14.dp, vertical = 11.dp)
+            // 12dp makes a one-line bubble 44dp, the product's target size.
+            .padding(horizontal = 14.dp, vertical = 12.dp)
 
         Column(bubbleModifier) {
             if (note) {
@@ -283,6 +287,7 @@ fun MessageBubble(
 }
 
 /** The quiet line under a bubble: time · delivery state · done · pin · task. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MessageMetaLine(
     message: Message,
@@ -302,10 +307,12 @@ private fun MessageMetaLine(
     val delivered = outbound && !failed &&
         (message.status == MessageStatus.SENT || message.status == MessageStatus.DELIVERED)
 
-    Row(
+    // Flows onto a second line at a large text size, so Retry is never squeezed out.
+    FlowRow(
         Modifier.padding(top = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         if (message.pinned_at != null) {
             Icon(
@@ -403,10 +410,10 @@ private fun MessageMetaLine(
                 ),
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier
+                    .touchTarget()
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.errorContainer)
                     .clickable(onClick = onRetry)
-                    // 28dp tall: at 3dp it was 22, under the 24dp target WCAG 2.5.8 asks for.
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
@@ -494,14 +501,14 @@ fun PendingBubble(
                 TextButton(
                     onClick = onSendNow,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    modifier = Modifier.heightIn(min = 32.dp),
+                    modifier = Modifier.touchTarget().heightIn(min = 32.dp),
                 ) {
                     Text(t("thread.sendNow"), style = MaterialTheme.typography.labelSmall)
                 }
                 TextButton(
                     onClick = onDelete,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    modifier = Modifier.heightIn(min = 32.dp),
+                    modifier = Modifier.touchTarget().heightIn(min = 32.dp),
                 ) {
                     Text(
                         t("common.delete"),
@@ -554,10 +561,12 @@ fun EventLine(
             .fillMaxWidth()
             .then(
                 if (onClick != null) {
-                    Modifier.clickable(
-                        onClickLabel = clickLabel,
-                        onClick = onClick,
-                    )
+                    Modifier
+                        .touchTarget()
+                        .clickable(
+                            onClickLabel = clickLabel,
+                            onClick = onClick,
+                        )
                 } else {
                     Modifier
                 }

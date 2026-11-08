@@ -72,6 +72,7 @@ import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.contentMaxWidth
 import com.loonext.android.ui.common.isCompactHeight
 import com.loonext.android.ui.common.loonextWordmark
+import com.loonext.android.ui.common.touchTarget
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -539,10 +540,11 @@ private fun AuthField(
                     },
                 )
                 if (isPassword) {
-                    // A 24dp target (WCAG 2.5.8) around the 16dp glyph, announced as a
-                    // button: a bare clickable icon is read as an image.
+                    // A 48dp target around the 16dp glyph, announced as a button: a bare
+                    // clickable icon is read as an image.
                     Box(
                         Modifier
+                            .touchTarget()
                             .size(24.dp)
                             .clickable(role = Role.Button) { showPassword = !showPassword },
                         contentAlignment = Alignment.Center,
@@ -658,8 +660,9 @@ private fun FooterLink(prefix: String, action: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .heightIn(min = 48.dp),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             "$prefix ",
@@ -718,7 +721,8 @@ private fun LoginForm(
         enabled = !busy && email.isNotBlank() && password.isNotBlank(),
         onClick = { onSubmit(email, password) },
     )
-    Spacer(Modifier.height(10.dp))
+    // The link's 48dp target takes 8dp above and below the line from these spacers.
+    Spacer(Modifier.height(2.dp))
     Text(
         t("auth.forgotPassword"),
         style = MaterialTheme.typography.labelMedium.copy(
@@ -728,11 +732,12 @@ private fun LoginForm(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = Modifier
+            .touchTarget()
             .fillMaxWidth()
             .clickable(onClick = onForgot)
             .padding(vertical = 8.dp),
     )
-    Spacer(Modifier.height(18.dp))
+    Spacer(Modifier.height(10.dp))
     FooterLink(
         t("auth.newToLoonext"),
         t("auth.createYourAccount"),

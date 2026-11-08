@@ -112,6 +112,7 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.rememberHaptics
+import com.loonext.android.ui.common.touchTarget
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import java.io.ByteArrayOutputStream
@@ -1152,7 +1153,7 @@ fun ThreadComposer(
         ) {
             if (!isNote) {
                 Box {
-                    IconButton(onClick = { attachMenuOpen = true }) {
+                    IconButton(onClick = { attachMenuOpen = true }, modifier = Modifier.touchTarget()) {
                         Icon(
                             Icons.Filled.Add,
                             contentDescription = t("thread.addToMessage"),
@@ -1296,7 +1297,7 @@ fun ThreadComposer(
                 else t("thread.textPlaceholder"),
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 4.dp, vertical = 10.dp),
+                    .padding(horizontal = 4.dp),
             )
 
             // #233: send later, as a visible control beside Send rather than a
@@ -1337,7 +1338,7 @@ fun ThreadComposer(
                 } else {
                     IconButtonDefaults.filledIconButtonColors()
                 },
-                modifier = Modifier.padding(start = 4.dp),
+                modifier = Modifier.padding(start = 4.dp).touchTarget(),
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.Send,
@@ -1605,8 +1606,9 @@ fun ComposerField(
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         maxLines = 6,
         modifier = modifier,
+        // The padding is inside the field, so a tap above or below the line still lands in it.
         decorationBox = { inner ->
-            Box {
+            Box(Modifier.padding(vertical = 10.dp)) {
                 if (value.isEmpty()) {
                     Text(
                         placeholder,
@@ -1718,7 +1720,9 @@ private fun ModePill(
         style = MaterialTheme.typography.labelMedium,
         color = ink,
         modifier = Modifier
+            .touchTarget()
             .background(bg, RoundedCornerShape(50))
+            .clip(RoundedCornerShape(50))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )

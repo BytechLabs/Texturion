@@ -1146,7 +1146,6 @@ internal fun TaskListRow(
                             // Overdue = olive emphasis, never a red scare.
                             color = if (overdue) MaterialTheme.colorScheme.secondary
                             else MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
                         )
                     }
                     if (dueText != null && context != null) {

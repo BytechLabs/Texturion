@@ -139,6 +139,7 @@ import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberHaptics
+import com.loonext.android.ui.common.touchTarget
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -1419,6 +1420,7 @@ private fun InboxList(
  */
 private const val UNREAD_BADGE_TRANSITION = "unreadBadge"
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun InboxHeader(
     unreadCount: Int,
@@ -1437,17 +1439,22 @@ private fun InboxHeader(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ScreenTitle(t("inbox.title"))
-        // Animated so the chip grows in, ticks its count, and shrinks away.
-        AnimatedContent(targetState = unreadCount, label = UNREAD_BADGE_TRANSITION) { count ->
-            if (count > 0) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.width(9.dp))
-                    DsChip(t("inbox.unreadChip", "count" to count.toString()))
-                }
+        // Weighted, so the buttons are measured first and keep their size: at the
+        // largest text size the chip wraps under the title instead of pushing the
+        // filter button off the screen.
+        FlowRow(
+            Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            ScreenTitle(t("inbox.title"))
+            // Animated so the chip grows in, ticks its count, and shrinks away.
+            AnimatedContent(targetState = unreadCount, label = UNREAD_BADGE_TRANSITION) { count ->
+                if (count > 0) DsChip(t("inbox.unreadChip", "count" to count.toString()))
             }
         }
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
         // #233: self-surfacing rather than buried. The whole ask is "so nobody
         // is surprised", and a control that only appears when something IS
         // queued does that without costing a permanent slot on the days
@@ -1540,7 +1547,7 @@ private fun FilterPill(
     Surface(
         // Selected is a colour change and nothing else; this is what tells a
         // screen reader which filter is on.
-        modifier = (if (onLongClick == null) {
+        modifier = Modifier.touchTarget().then(if (onLongClick == null) {
             Modifier
         } else {
             Modifier.combinedClickable(
@@ -3293,7 +3300,10 @@ internal fun InboxAuditBody(rows: List<ConversationListItem>) {
             onScheduled = {},
         )
         Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
             InboxStatusTab.entries.forEachIndexed { index, item ->
                 FilterPill(text = t(item.labelKey), selected = index == 0, onClick = {})
             }

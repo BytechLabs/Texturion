@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.InitialsAvatar
+import com.loonext.android.ui.common.touchTarget
 
 /**
  * Tasks-local pieces of the "paper & olive" grammar (screens 22–24, 31):
@@ -85,6 +86,7 @@ internal fun DoneCircle(
     )
     Box(
         modifier
+            .touchTarget()
             .size(touch)
             .clip(CircleShape)
             .clickable(role = Role.Checkbox) { onToggle(!done) }

@@ -1,5 +1,6 @@
 package com.loonext.android.a11y
 
+import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -19,13 +20,19 @@ import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.i18n.t
@@ -36,6 +43,7 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageStatus
 import com.loonext.android.core.model.Tag
+import com.loonext.android.core.model.Task
 import com.loonext.android.features.auth.AuthFrontDoorPreviewBody
 import com.loonext.android.features.auth.AuthScreen
 import com.loonext.android.features.calls.CallerAvatar
@@ -47,6 +55,7 @@ import com.loonext.android.features.compose.ComposerState
 import com.loonext.android.features.compose.ThreadComposer
 import com.loonext.android.features.inbox.InboxAuditBody
 import com.loonext.android.features.settings.SettingsIndex
+import com.loonext.android.features.tasks.TaskListRow
 import com.loonext.android.features.thread.DayDividerLine
 import com.loonext.android.features.thread.EventLine
 import com.loonext.android.features.thread.MessageBubble
@@ -62,26 +71,36 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
+import org.robolectric.ParameterizedRobolectricTestRunner
+import java.io.File
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * The primary flows (sign in, inbox, thread and composer, call controls,
+ * The primary flows (sign in, inbox, thread and composer, call controls, tasks,
  * settings) through [SemanticsAudit], drawn from the shipping composables with
- * fixture data. Fails on a nameless control, a target under 24dp, or text under
- * WCAG contrast. Not TalkBack: spoken output stays a manual pass.
+ * fixture data, at the default text size and at Android's largest (200%). Fails
+ * on a nameless control, a target under 44dp, a control off the screen,
+ * text under WCAG contrast, or text cut off. At 200% each surface is also saved
+ * to build/screenshots for a person to look at. Not TalkBack: spoken output
+ * stays a manual pass.
  */
-@RunWith(RobolectricTestRunner::class)
+@RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w360dp-h1400dp-xxhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class AccessibilityAuditTest {
+class AccessibilityAuditTest(private val fontScale: Float) {
+
+    companion object {
+        @JvmStatic
+        @ParameterizedRobolectricTestRunner.Parameters(name = "font scale {0}")
+        fun fontScales() = listOf(arrayOf<Any>(1f), arrayOf<Any>(2f))
+    }
 
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     private fun audit(surface: String, content: @Composable () -> Unit) {
-        compose.setContent {
+        show {
             LoonextTheme {
                 Box(Modifier.width(360.dp).background(MaterialTheme.colorScheme.background)) { content() }
             }
@@ -89,13 +108,21 @@ class AccessibilityAuditTest {
         report(surface)
     }
 
-    private fun report(surface: String) {
+    /** Sets the content at this run's text size. */
+    private fun show(content: @Composable () -> Unit) {
+        compose.setContent {
+            val density = LocalDensity.current.density
+            CompositionLocalProvider(LocalDensity provides Density(density, fontScale)) { content() }
+        }
+    }
+
+    private fun report(name: String) {
         compose.waitForIdle()
+        val surface = if (fontScale == 1f) name else "$name-fontscale" + fontScale.toInt()
+        if (fontScale != 1f) writePng(compose.onRoot().captureToImage().asAndroidBitmap(), "a11y-$surface")
         val report = SemanticsAudit.audit(compose)
-        // Advice is printed so it is on the CI log, and fails nothing.
-        println("A11Y-AUDIT $surface: ${report.failures.size} failures, ${report.advice.size} advice")
+        println("A11Y-AUDIT $surface: ${report.failures.size} failures")
         report.failures.forEach { println("A11Y-AUDIT   FAIL $it") }
-        report.advice.forEach { println("A11Y-AUDIT   advice $it") }
         assertTrue("$surface:\n" + report.failures.joinToString("\n"), report.failures.isEmpty())
     }
 
@@ -119,7 +146,7 @@ class AccessibilityAuditTest {
     }
 
     @Test fun `the status filter says which one is on`() {
-        compose.setContent {
+        show {
             LoonextTheme { InboxAuditBody(listOf(conversation("c1", "Dana Whitcomb", true, "Hi"))) }
         }
         // Selected is a colour change in the pill; a screen reader only knows
@@ -234,10 +261,24 @@ class AccessibilityAuditTest {
         }
     }
 
+    // --- tasks -------------------------------------------------------------------
+
+    @Test fun `complete a task`() = audit("tasks") {
+        Column(Modifier.fillMaxWidth()) {
+            TaskListRow(
+                task("t1", "Measure the back fence before the quote", due = "2026-07-16T15:00:00Z"),
+                assigneeName = "Dana Whitcomb",
+                onClick = {},
+                onToggleDone = {},
+            )
+            TaskListRow(task("t2", "Send the invoice", done = true), assigneeName = null, onClick = {}, onToggleDone = {})
+        }
+    }
+
     // --- settings ----------------------------------------------------------------
 
     @Test fun `settings index`() {
-        compose.setContent {
+        show {
             PreviewHarness {
                 SettingsIndex(
                     company = previewCompany(),
@@ -255,6 +296,26 @@ class AccessibilityAuditTest {
     }
 
     // --- fixtures ------------------------------------------------------------------
+
+    private fun writePng(bitmap: Bitmap, name: String) {
+        val dir = File("build/screenshots").apply { mkdirs() }
+        File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    private fun task(id: String, title: String, due: String? = null, done: Boolean = false) = Task(
+        id = id,
+        company_id = "co",
+        message_id = "m-$id",
+        conversation_id = "c1",
+        title = title,
+        assigned_user_id = if (done) null else "u1",
+        due_at = due,
+        created_by_user_id = "u1",
+        created_at = "2026-07-15T12:00:00Z",
+        updated_at = "2026-07-15T12:00:00Z",
+        done = done,
+        status = if (done) "done" else "open",
+    )
 
     private object NoDrafts : ComposerDrafts {
         override suspend fun load(conversationId: String) = ""

@@ -106,6 +106,7 @@ import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.rememberShimmerBrush
+import com.loonext.android.ui.common.touchTarget
 import com.loonext.android.ui.theme.BrandColor
 import java.time.Duration
 import java.time.Instant
@@ -697,6 +698,7 @@ private fun IdentityCard(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
                     contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.touchTarget(),
                 ) {
                     Row(
                         Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
@@ -772,7 +774,7 @@ private fun HandOverPhoneRow(
                     asking = true
                 }
             }
-            .padding(horizontal = 6.dp, vertical = 9.dp),
+            .padding(horizontal = 6.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(

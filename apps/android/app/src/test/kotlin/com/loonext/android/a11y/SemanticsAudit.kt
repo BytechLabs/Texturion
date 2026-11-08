@@ -23,8 +23,8 @@ internal data class A11yFinding(val check: String, val where: String, val detail
     override fun toString() = "[$check] $where: $detail"
 }
 
-/** What one pass over a screen found: [failures] fail the build, [advice] does not. */
-internal class A11yReport(val failures: List<A11yFinding>, val advice: List<A11yFinding>)
+/** What one pass over a screen found; every finding fails the build. */
+internal class A11yReport(val failures: List<A11yFinding>)
 
 /**
  * ATF's questions, asked of Compose's semantics tree instead of the View tree.
@@ -35,17 +35,18 @@ internal class A11yReport(val failures: List<A11yFinding>, val advice: List<A11y
  * changes, which is the day to drop this.
  *
  * Checks, on the merged tree TalkBack reads: every actionable node has a name,
- * its box is at least [MIN_TARGET_DP], and text meets WCAG 1.4.3 against the
- * pixels drawn behind it. It does not speak anything: the TalkBack pass stays
- * manual (docs/ACCESSIBILITY.md).
+ * room to be drawn, and a box of at least [MIN_TARGET_DP] inside the screen;
+ * text meets WCAG 1.4.3 against the pixels drawn behind it and is not cut off.
+ * It does not speak anything: the TalkBack pass stays manual
+ * (docs/ACCESSIBILITY.md).
  */
 internal object SemanticsAudit {
 
-    /** WCAG 2.5.8 (AA). The web gate uses the same floor rather than fail the 44dp design. */
-    const val MIN_TARGET_DP = 24f
-
-    /** The product's control size; between the floor and this is advice, not failure. */
-    const val COMFORTABLE_TARGET_DP = 44f
+    /**
+     * The product's control size, and WCAG 2.5.5 (AAA). 2.5.8 (AA) asks only 24dp,
+     * which the web gate keeps; here every control already has 44dp, so less fails.
+     */
+    const val MIN_TARGET_DP = 44f
 
     private const val NORMAL_TEXT_RATIO = 4.5
     private const val LARGE_TEXT_RATIO = 3.0
@@ -54,7 +55,7 @@ internal object SemanticsAudit {
     private const val LARGE_TEXT_DP = 24f
     private const val LARGE_BOLD_TEXT_DP = 18.66f
 
-    /** Layout rounding: a 24dp box can measure 23.99. */
+    /** Layout rounding: a 44dp box can measure 43.99. */
     private const val EPSILON = 0.5f
 
     fun audit(compose: ComposeTestRule): A11yReport {
@@ -63,22 +64,25 @@ internal object SemanticsAudit {
         val screenshot = compose.onRoot(useUnmergedTree = false).captureToImage().asAndroidBitmap()
 
         val failures = mutableListOf<A11yFinding>()
-        val advice = mutableListOf<A11yFinding>()
+        val root = merged.boundsInRoot
         merged.walk { node ->
-            if (node.isHidden() || !node.isActionable()) return@walk
-            checkName(node)?.let(failures::add)
-            val size = shortSide(node)
-            if (size < MIN_TARGET_DP - EPSILON) {
-                failures += tooSmall(node, size, "WCAG 2.5.8 needs $MIN_TARGET_DP")
-            } else if (size < COMFORTABLE_TARGET_DP - EPSILON) {
-                advice += tooSmall(node, size, "the product's size is $COMFORTABLE_TARGET_DP")
+            if (node.config.contains(SemanticsProperties.InvisibleToUser) || !node.isActionable()) return@walk
+            if (node.size.width == 0 || node.size.height == 0) {
+                failures += A11yFinding("Squeezed", node.describe(), "laid out with no room, so it cannot be seen or pressed")
+                return@walk
             }
+            if (node.isHidden()) return@walk
+            checkName(node)?.let(failures::add)
+            checkOnScreen(node, root)?.let(failures::add)
+            val size = shortSide(node)
+            if (size < MIN_TARGET_DP - EPSILON) failures += tooSmall(node, size, "needs $MIN_TARGET_DP")
         }
         unmerged.walk(disabled = false) { node, inactive ->
             if (node.isHidden() || inactive) return@walk
             checkContrast(node, screenshot)?.let(failures::add)
+            checkClipped(node)?.let(failures::add)
         }
-        return A11yReport(failures, advice)
+        return A11yReport(failures)
     }
 
     // --- SpeakableTextPresent ------------------------------------------------
@@ -109,8 +113,8 @@ internal object SemanticsAudit {
      */
     private fun shortSide(node: SemanticsNode): Float {
         val density = node.layoutInfo.density.density
-        val box = node.boundsInRoot
-        return minOf(box.width, box.height) / density
+        // Its own size, not the part the screen's edge leaves visible.
+        return minOf(node.size.width, node.size.height) / density
     }
 
     private fun tooSmall(node: SemanticsNode, size: Float, why: String) = A11yFinding(
@@ -118,6 +122,36 @@ internal object SemanticsAudit {
         node.describe(),
         "short side is ${size.fmt()}dp; $why",
     )
+
+    // --- OffScreen and TextClipped (large text) ---------------------------------
+
+    /** A control the layout pushed past the screen's edge cannot be reached by touch. */
+    private fun checkOnScreen(node: SemanticsNode, root: Rect): A11yFinding? {
+        val box = node.boundsInRoot
+        val slack = EPSILON * node.layoutInfo.density.density
+        if (box.left >= root.left - slack && box.right <= root.right + slack) return null
+        return A11yFinding("OffScreen", node.describe(), "runs past the screen's edge")
+    }
+
+    /**
+     * Text cut off without an ellipsis: it needed more lines than it may show,
+     * or its box is shorter than its lines. A preview that ends in an ellipsis is
+     * shortened on purpose and passes. Width says nothing: a paragraph is laid out
+     * at its constraint's width, so a short label "overflows" by the slack.
+     */
+    private fun checkClipped(node: SemanticsNode): A11yFinding? {
+        val config = node.config
+        if (!config.contains(SemanticsActions.GetTextLayoutResult)) return null
+        val text = config.getOrNull(SemanticsProperties.Text)?.joinToString(" ") { it.text }.orEmpty()
+        if (text.isBlank()) return null
+        val results = mutableListOf<TextLayoutResult>()
+        config[SemanticsActions.GetTextLayoutResult].action?.invoke(results) ?: return null
+        val layout = results.firstOrNull() ?: return null
+        if (layout.isLineEllipsized(layout.lineCount - 1)) return null
+        val shortBy = (layout.multiParagraph.height - layout.size.height) / node.layoutInfo.density.density
+        if (!layout.multiParagraph.didExceedMaxLines && shortBy <= EPSILON) return null
+        return A11yFinding("TextClipped", node.describe(), "\"${text.take(40)}\" is cut off with no ellipsis")
+    }
 
     // --- TextContrast --------------------------------------------------------
 
@@ -197,8 +231,10 @@ internal object SemanticsAudit {
         children.forEach { it.walk(inactive, visit) }
     }
 
+    /** Also anything scrolled wholly out of view: it is audited where it is drawn, not here. */
     private fun SemanticsNode.isHidden(): Boolean =
-        config.contains(SemanticsProperties.InvisibleToUser) || size.width == 0 || size.height == 0
+        config.contains(SemanticsProperties.InvisibleToUser) || size.width == 0 || size.height == 0 ||
+            boundsInRoot.isEmpty
 
     private fun SemanticsNode.isActionable(): Boolean {
         val config = config
