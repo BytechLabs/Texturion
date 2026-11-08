@@ -101,15 +101,15 @@ describe("#228 the seven non-contract legal documents render in French", () => {
     expect(html).not.toContain("Contrast (Minimum)");
   });
 
-  it("states the partial native render evidence and unverified pronunciation in French", () => {
+  it("states the native render evidence and unverified pronunciation in French", () => {
     const html = render(
       <AccessibilityPageBody
         locale="fr-CA"
         statement={accessibilityStatement}
       />,
     );
-    expect(html).toContain("Les preuves de rendu sont partielles");
-    expect(html).toContain("Aucun des deux ne couvre les trois principaux parcours natifs");
+    expect(html).toContain("Sur Android, chaque compilation rend les parcours");
+    expect(html).toContain("n&#x27;est complète que sur Android");
     expect(html).toContain("contenu d&#x27;accessibilité natif");
     expect(html).toContain("aucun parcours sur un appareil physique");
     expect(html).not.toContain("iOS n&#x27;a aucun rendu équivalent");
