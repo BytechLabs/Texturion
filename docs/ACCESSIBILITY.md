@@ -7,7 +7,7 @@ it is maintained by hand — but every row names a test, and
 
 **Standard:** WCAG 2.2 Level AA
 **Applies to:** the Loonext web application, and the Android and iOS apps where stated
-**Last verified:** 2026-11-01
+**Last verified:** 2026-11-07
 **Basis:** `docs/APP-LAYOUT-V2.md` §7 (the canonical product contract)
 
 This document exists to be handed to a buyer who asks (#285). Everything in it
@@ -89,7 +89,7 @@ TalkBack or VoiceOver pass into evidence. What we can state factually today:
 | Point | Android | iOS |
 |---|---|---|
 | Icon-only controls with no accessible name | **None**, and enforced — `scripts/check-screen-reader-names.mjs` | **None**, and enforced — `scripts/check-screen-reader-names.mjs` |
-| Large-text render coverage | **Partial** — `DashboardScreenshotTest.the panels at 200 percent font scale` renders `LeadSourcesCard` at 200% and writes a PNG; it is not a primary-flow pass | **Partial** — `DashboardScreenshotTests.testRepresentativeDashboardInBothThemesAndTextSizes` renders the full For You dashboard in both themes at `.accessibility5`, keeps paginated PNG attachments, and asserts that the large-text layout materially grows; it is not a primary-flow pass |
+| Large-text render coverage | **Yes** — `AccessibilityAuditTest` runs every primary-flow surface (sign in, sign up, reset, inbox, thread, composer, ringing, in-call, tasks, settings) at 100% and at Android's largest 200%, writes each 200% surface to `build/screenshots/a11y-*-fontscale2.png`, and fails on clipped text, a control off the screen or squeezed to nothing, and every other audit check at that size; `DashboardScreenshotTest` covers `LeadSourcesCard` at 200% | **Partial** — `DashboardScreenshotTests.testRepresentativeDashboardInBothThemesAndTextSizes` renders the full For You dashboard in both themes at `.accessibility5`, keeps paginated PNG attachments, and asserts that the large-text layout materially grows; it is not a primary-flow pass |
 | Text sizes are declared in a scaling unit | **Yes**, and enforced — `scripts/check-native-a11y.mjs` | **Yes**, and enforced — `scripts/check-native-a11y.mjs` |
 | In-app language attached to native accessibility content | **Yes, mechanically** — the Compose accessibility provider adds the resolved locale as `LocaleSpan` metadata while preserving node semantics and explicit per-content language spans; `AccessibilityLanguageTest` | **Yes, mechanically** — the app root publishes the resolved locale through SwiftUI's native `locale` environment above the lock gate; `AccessibilityLanguageTests` |
 | The primary flows through the platform's own accessibility checks | **Yes, mechanically** — `apps/android/app/src/test/kotlin/com/loonext/android/a11y/AccessibilityAuditTest.kt` (details below) | **Yes, mechanically** — `apps/ios/LoonextUITests/AccessibilityAuditUITests.swift` runs `performAccessibilityAudit()` (details below) |
@@ -98,14 +98,15 @@ TalkBack or VoiceOver pass into evidence. What we can state factually today:
 
 Since #238 each phone audits its primary flows on every build, with fixture data
 behind the real views: sign in, sign up and password reset; the inbox list and
-its filters; a thread with its composer; the call controls; settings.
+its filters; a thread with its composer; the call controls; a task list;
+settings. Android runs each one at the default text size and again at 200%.
 
 | | Android | iOS |
 |---|---|---|
 | What runs | The semantics tree Compose hands TalkBack, drawn under Robolectric. The questions are the Accessibility Test Framework's, asked by `apps/android/app/src/test/kotlin/com/loonext/android/a11y/SemanticsAudit.kt` | Apple's `performAccessibilityAudit()` on an iOS simulator, in the `Gate / iOS` job |
 | Why not the stock tool | ATF's `enableAccessibilityChecks()` is in this Compose but cannot see Compose under Robolectric: it visited five Views, ran no check and reported green on the sign-in screen, where the real audit then found nine. `apps/android/app/src/test/kotlin/com/loonext/android/a11y/AtfRobolectricCanaryTest.kt` fails the day that stops being true | It is the stock tool |
-| Fails the build | A control with no name; a target under 24dp (WCAG 2.5.8); text under WCAG 1.4.3, measured from the colour drawn and the pixels behind it; the status filter not saying which one is selected | Contrast, hit region, an element the OS cannot detect, a label that is not human-readable, a wrong trait; the first four again at the largest accessibility text size |
-| Reported, not failed | Targets between 24dp and the product's 44dp (25 across these flows today) | `dynamicType` and `textClipped`: the first flags small captions that do scale (through `relativeTo:`, which `scripts/check-native-a11y.mjs` enforces), the second one-line previews that truncate by design |
+| Fails the build | At both text sizes: a control with no name; a target under the product's 44dp (WCAG 2.5.5), measured on the laid-out box, which `ui/common/TouchTarget.kt`'s `touchTarget()` grows to 48dp around a control drawn smaller; a control off the screen or laid out with no room; text under WCAG 1.4.3, measured from the colour drawn and the pixels behind it; text cut off without an ellipsis; the status filter not saying which one is selected | Contrast, hit region, an element the OS cannot detect, a label that is not human-readable, a wrong trait; the first four again at the largest accessibility text size |
+| Reported, not failed | Nothing | `dynamicType` and `textClipped`: the first flags small captions that do scale (through `relativeTo:`, which `scripts/check-native-a11y.mjs` enforces), the second one-line previews that truncate by design |
 | Beyond these screens | `apps/android/app/src/test/kotlin/com/loonext/android/a11y/TextColorLintTest.kt` fails if any source file colours text with the theme's border grey | `scripts/check-screen-reader-names.mjs` |
 
 What the audits found and the build now keeps fixed:
@@ -153,10 +154,10 @@ next commit. It is now a build step, which is why the row cites a path.
 
 **What the guard proves, and what it does not.** It proves the *mechanism*:
 every font on both phones is declared in a unit that carries the reader's font
-scale. Render coverage is partial: Android covers `LeadSourcesCard` at 200%; iOS
-covers the For You dashboard at `.accessibility5` in both themes. Neither client
-has large-text evidence for sending a message, answering an inbound call, or
-completing a task.
+scale. Android renders and audits the primary flows (sending a message,
+answering a call, completing a task, and the rest of the audit's surfaces) at
+200%; iOS covers the For You dashboard at `.accessibility5` in both themes and
+re-audits its flows at the largest size, but renders no primary flow.
 
 **No TalkBack or VoiceOver pass has been performed**, on any flow. Nobody has
 sat down with either screen reader and worked through sending a message,
@@ -214,12 +215,13 @@ believing the rest of the document.
   speaks at the right moment, whether a custom control exposes the right role
   and state, and whether a whole flow can be driven by TalkBack or VoiceOver
   all need a person with a phone. None of that is claimed.
-- **Large-text render coverage is partial.** Android covers one dashboard card
-  at 200%; iOS covers the For You dashboard at `.accessibility5` in both themes,
-  and its audit re-runs the main flows at the largest accessibility size for
-  hit regions and unreadable elements. Neither phone has a render of the three
-  primary flows in the protocol above, and the iOS `dynamicType`/`textClipped`
-  findings are logged for a person to read, not enforced.
+- **Large-text render coverage is complete on Android only.** Android renders
+  and audits the three primary flows in the protocol above at 200%, and fails
+  on text cut off or a control pushed out. iOS covers the For You dashboard at
+  `.accessibility5` in both themes, and its audit re-runs the main flows at the
+  largest accessibility size for hit regions and unreadable elements, but it
+  renders no primary flow, and its `dynamicType`/`textClipped` findings are
+  logged for a person to read, not enforced.
 - **Native spoken language remains unverified.** Android now attaches the resolved
   in-app locale to the text, labels, values and hints exposed by Compose as Android's
   `LocaleSpan` metadata; iOS publishes the same resolved value through SwiftUI's

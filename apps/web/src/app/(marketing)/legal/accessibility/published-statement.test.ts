@@ -104,22 +104,23 @@ describe("#238 the accessibility statement is published", () => {
     expect(page).toMatch(/rows\.length === 0/);
   });
 
-  it("publishes the partial native large-text evidence without turning it into a pass", () => {
+  it("publishes the native large-text evidence without turning iOS's into a pass", () => {
     expect(doc).toContain("Large-text render coverage");
     expect(doc).toContain(
       "DashboardScreenshotTests.testRepresentativeDashboardInBothThemesAndTextSizes",
     );
     expect(doc).toContain("it is not a primary-flow pass");
-    expect(catalogue).toContain("Render evidence is partial");
-    expect(catalogue).toContain("Neither covers all three primary native flows");
+    expect(doc).toContain("a11y-*-fontscale2.png");
+    expect(catalogue).toContain("Large-text render coverage is complete on Android only");
+    expect(catalogue).toContain("iOS renders the For You dashboard, not the three flows");
     expect(catalogue).not.toMatch(/iOS has no equivalent render/i);
     expect(catalogue).not.toMatch(/iOS is not rendered at 200% text anywhere/i);
   });
 
   it("dates the page to the evidence change and keeps the native protocol visible", () => {
-    expect(doc).toContain("**Last verified:** 2026-11-01");
-    expect(page).toContain('lastUpdatedIso="2026-11-01"');
-    expect(catalogue).toContain('lastUpdated: "November 1, 2026"');
+    expect(doc).toContain("**Last verified:** 2026-11-07");
+    expect(page).toContain('lastUpdatedIso="2026-11-07"');
+    expect(catalogue).toContain('lastUpdated: "November 7, 2026"');
     expect(doc).toContain("### Native manual evidence required for closure");
     expect(doc).toContain("physical device model");
     expect(doc).toContain("do not count as the TalkBack or VoiceOver pass");
