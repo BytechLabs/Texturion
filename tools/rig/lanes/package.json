@@ -18,7 +18,7 @@
     "@grpc/proto-loader": "0.8.1",
     "@loonext/rig-protocol": "workspace:*",
     "@loonext/rig-robot": "workspace:*",
-    "playwright": "^1.64.1"
+    "playwright": "^1.65.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
