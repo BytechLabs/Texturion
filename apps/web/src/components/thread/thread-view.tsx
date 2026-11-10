@@ -1,13 +1,20 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContactPanel } from "@/components/contact-panel/contact-panel";
 import { SpamSuspectedBanner } from "@/components/thread/spam-suspected-banner";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -74,6 +81,13 @@ const PANEL_MIN_WIDTH = 260;
 const PANEL_MAX_WIDTH = 560;
 const PANEL_DEFAULT_WIDTH = 300;
 const PANEL_WIDTH_NUDGE = 16;
+const PANEL_WIDTH_BIG_NUDGE = 64;
+/** #723: the one-click widths behind the border's grip, WCAG 2.5.7's no-drag path. */
+const PANEL_WIDTH_PRESETS = [
+  { width: PANEL_MIN_WIDTH, labelKey: "thread.panelWidthNarrow" },
+  { width: PANEL_DEFAULT_WIDTH, labelKey: "thread.panelWidthDefault" },
+  { width: 440, labelKey: "thread.panelWidthWide" },
+] as const;
 
 function clampPanelWidth(px: number): number {
   // Persist whole CSS pixels so drag, range and button changes all share one
@@ -211,7 +225,6 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   // then adopts the stored value on mount — avoids a hydration mismatch on the
   // inline style. A ref mirrors it so the drag handler reads the live width.
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
-  const panelWidthControlId = useId();
   useEffect(() => {
     setPanelWidth(readPanelWidth());
   }, []);
@@ -222,21 +235,6 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
     setPanelWidth(next);
     persistPanelWidth(next);
   }, []);
-  const nudgePanelWidth = useCallback((delta: number) => {
-    setPanelWidth((width) => {
-      const next = clampPanelWidth(width + delta);
-      persistPanelWidth(next);
-      return next;
-    });
-  }, []);
-  const narrowPanel = useCallback(
-    () => nudgePanelWidth(-PANEL_WIDTH_NUDGE),
-    [nudgePanelWidth],
-  );
-  const widenPanel = useCallback(
-    () => nudgePanelWidth(PANEL_WIDTH_NUDGE),
-    [nudgePanelWidth],
-  );
   // §5.2: the attachments gallery has ONE entry point (the thread-header
   // overflow); the context panel's "View all attachments" row opens this same
   // surface. State lives here so both entry points share it.
@@ -445,8 +443,8 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           className="relative hidden shrink-0 border-l border-app-line bg-app-paper xl:flex xl:flex-col"
         >
           {/* Left-edge resize handle. Drag to resize (persisted); double-click
-              resets to the default; ←/→ nudge by 16px for keyboard users. The
-              buttons below provide the deterministic click/tap path. */}
+              resets to the default; arrows step, Shift steps further, Home and
+              End jump to the limits. The grip below is the click path. */}
           <div
             role="separator"
             aria-orientation="vertical"
@@ -463,18 +461,51 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             onPointerDown={startResize}
             onDoubleClick={() => setAndPersistPanelWidth(PANEL_DEFAULT_WIDTH)}
             onKeyDown={(event) => {
-              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+              const step = event.shiftKey ? PANEL_WIDTH_BIG_NUDGE : PANEL_WIDTH_NUDGE;
+              // The handle is the panel's left edge, so left widens.
+              const target =
+                event.key === "ArrowLeft"
+                  ? panelWidth + step
+                  : event.key === "ArrowRight"
+                    ? panelWidth - step
+                    : event.key === "Home"
+                      ? PANEL_MIN_WIDTH
+                      : event.key === "End"
+                        ? PANEL_MAX_WIDTH
+                        : null;
+              if (target === null) return;
               event.preventDefault();
-              setPanelWidth((width) => {
-                const next = clampPanelWidth(
-                  width + (event.key === "ArrowLeft" ? 16 : -16),
-                );
-                persistPanelWidth(next);
-                return next;
-              });
+              setAndPersistPanelWidth(target);
             }}
-            className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none select-none transition-colors hover:bg-app-tint-line focus-visible:bg-app-olive/40 focus-visible:outline-none"
+            className="absolute inset-y-0 -left-1.5 z-10 w-3 cursor-col-resize touch-none select-none transition-colors hover:bg-app-tint-line focus-visible:bg-app-olive/40 focus-visible:outline-none"
           />
+          {/* #723: always visible, because the people who need a way that is
+              not a drag may never hover the border. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("thread.panelWidthLabel")}
+                title={t("thread.panelWidthLabel")}
+                className="absolute top-1/2 -left-2 z-20 flex h-8 w-4 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-app-line bg-app-paper text-app-muted-2 transition-colors hover:border-app-olive hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <GripVertical className="size-3" strokeWidth={1.75} aria-hidden />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="left" align="center">
+              <DropdownMenuRadioGroup value={String(panelWidth)}>
+                {PANEL_WIDTH_PRESETS.map((preset) => (
+                  <DropdownMenuRadioItem
+                    key={preset.width}
+                    value={String(preset.width)}
+                    onSelect={() => setAndPersistPanelWidth(preset.width)}
+                  >
+                    {t(preset.labelKey)}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <div className="min-h-0 flex-1">
             <ContactPanel
               conversation={conversation}
@@ -483,58 +514,6 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
               onOpenGallery={openGallery}
               active={panelOpen}
             />
-          </div>
-          {/* WCAG 2.2 2.5.7: the authored drag above is not the only pointer
-              path. The visible buttons take deterministic 16px steps and
-              clamp at both endpoints; the range remains for fine pointer and
-              keyboard control. None appears only on hover, because the people
-              who need the alternative may never hover the handle. */}
-          <div className="shrink-0 border-t border-app-line-soft bg-app-paper px-3 py-2">
-            <label
-              htmlFor={panelWidthControlId}
-              className="shrink-0 text-[11px] font-semibold text-app-muted-2"
-            >
-              {t("thread.panelWidthLabel")}
-            </label>
-            <div className="mt-1 flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                onClick={narrowPanel}
-                disabled={panelWidth <= PANEL_MIN_WIDTH}
-                aria-label={t("thread.narrowPanelAria")}
-                title={t("thread.narrowPanelAria")}
-              >
-                <Minus aria-hidden strokeWidth={1.75} />
-              </Button>
-              <input
-                id={panelWidthControlId}
-                type="range"
-                min={PANEL_MIN_WIDTH}
-                max={PANEL_MAX_WIDTH}
-                step={1}
-                value={Math.round(panelWidth)}
-                onChange={(event) =>
-                  setAndPersistPanelWidth(event.currentTarget.valueAsNumber)
-                }
-                aria-valuetext={t("thread.panelWidthAria", {
-                  pixels: Math.round(panelWidth),
-                })}
-                className="h-6 min-w-0 flex-1 cursor-pointer accent-app-olive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                onClick={widenPanel}
-                disabled={panelWidth >= PANEL_MAX_WIDTH}
-                aria-label={t("thread.widenPanelAria")}
-                title={t("thread.widenPanelAria")}
-              >
-                <Plus aria-hidden strokeWidth={1.75} />
-              </Button>
-            </div>
           </div>
         </aside>
       )}

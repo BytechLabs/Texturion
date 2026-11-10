@@ -70,27 +70,17 @@ const DRAG_SURFACES: Record<
   },
   "components/thread/thread-view.tsx": {
     pointerAlternative: [
-      "htmlFor={panelWidthControlId}",
-      "id={panelWidthControlId}",
-      "onClick={narrowPanel}",
-      "onClick={widenPanel}",
-      "const PANEL_WIDTH_NUDGE = 16",
-      "clampPanelWidth(width + delta)",
-      'aria-label={t("thread.narrowPanelAria")}',
-      'aria-label={t("thread.widenPanelAria")}',
-      "disabled={panelWidth <= PANEL_MIN_WIDTH}",
-      "disabled={panelWidth >= PANEL_MAX_WIDTH}",
-      'type="range"',
-      "min={PANEL_MIN_WIDTH}",
-      "max={PANEL_MAX_WIDTH}",
-      "step={1}",
-      "setAndPersistPanelWidth(event.currentTarget.valueAsNumber)",
+      'aria-label={t("thread.panelWidthLabel")}',
+      "PANEL_WIDTH_PRESETS.map(",
+      "onSelect={() => setAndPersistPanelWidth(preset.width)}",
+      "{ width: PANEL_MIN_WIDTH,",
+      "{ width: PANEL_DEFAULT_WIDTH,",
     ],
     why:
-      "Visible narrower/wider buttons take deterministic pointer steps and " +
-      "clamp at the shared endpoints; a labelled range keeps fine control. " +
-      "Both onClick handlers, both disabled bounds and the range wiring are " +
-      "pinned so keyboard arrows or a decorative slider cannot satisfy it.",
+      "#723: an always-visible grip on the panel border opens Narrow, Default " +
+      "and Wide, each one click. The grip's label, the preset list, the click " +
+      "that applies a preset and the two fixed widths are pinned so keyboard " +
+      "arrows or a decorative grip cannot satisfy it.",
   },
 };
 
@@ -176,33 +166,16 @@ describe("#238 every draggable operation has a way out (WCAG 2.2 2.5.7)", () => 
     }
   });
 
-  it("DA-6: the panel-width record pins both pointer buttons and its range", () => {
+  it("DA-6: the panel-width record pins the grip's one-click presets", () => {
     // The old record cited only `event.key`, so the test stayed green while
     // arbitrary non-drag resizing was keyboard-only. Keep the exact failure
     // from returning under another explanatory comment.
     const panel = DRAG_SURFACES["components/thread/thread-view.tsx"];
-    expect(panel.pointerAlternative).toContain("htmlFor={panelWidthControlId}");
-    expect(panel.pointerAlternative).toContain("id={panelWidthControlId}");
-    expect(panel.pointerAlternative).toContain("onClick={narrowPanel}");
-    expect(panel.pointerAlternative).toContain("onClick={widenPanel}");
-    expect(panel.pointerAlternative).toContain("const PANEL_WIDTH_NUDGE = 16");
-    expect(panel.pointerAlternative).toContain("clampPanelWidth(width + delta)");
+    expect(panel.pointerAlternative).toContain('aria-label={t("thread.panelWidthLabel")}');
+    expect(panel.pointerAlternative).toContain("PANEL_WIDTH_PRESETS.map(");
     expect(panel.pointerAlternative).toContain(
-      'aria-label={t("thread.narrowPanelAria")}',
+      "onSelect={() => setAndPersistPanelWidth(preset.width)}",
     );
-    expect(panel.pointerAlternative).toContain(
-      'aria-label={t("thread.widenPanelAria")}',
-    );
-    expect(panel.pointerAlternative).toContain(
-      "disabled={panelWidth <= PANEL_MIN_WIDTH}",
-    );
-    expect(panel.pointerAlternative).toContain(
-      "disabled={panelWidth >= PANEL_MAX_WIDTH}",
-    );
-    expect(panel.pointerAlternative).toContain('type="range"');
-    expect(panel.pointerAlternative).toContain("min={PANEL_MIN_WIDTH}");
-    expect(panel.pointerAlternative).toContain("max={PANEL_MAX_WIDTH}");
-    expect(panel.pointerAlternative).toContain("step={1}");
     expect(panel.pointerAlternative.join(" ")).not.toContain("event.key");
   });
 

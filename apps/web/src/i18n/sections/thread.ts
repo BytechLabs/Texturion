@@ -512,8 +512,10 @@ export const threadEn = {
   resizePanelAria: "Resize contact panel",
   panelWidthLabel: "Panel width",
   panelWidthAria: "{pixels} pixels",
-  narrowPanelAria: "Make panel narrower",
-  widenPanelAria: "Make panel wider",
+  /** #723: the grip's one-click widths. */
+  panelWidthNarrow: "Narrow",
+  panelWidthDefault: "Default",
+  panelWidthWide: "Wide",
 
   // --- In-thread filter (thread-filter-bar.tsx) -----------------------------
   showInConversationAria: "Show in conversation",
@@ -1267,8 +1269,9 @@ export const threadFr: Translated<typeof threadEn> = {
   resizePanelAria: "Redimensionner le panneau du contact",
   panelWidthLabel: "Largeur du panneau",
   panelWidthAria: "{pixels} pixels",
-  narrowPanelAria: "Rétrécir le panneau",
-  widenPanelAria: "Élargir le panneau",
+  panelWidthNarrow: "Étroit",
+  panelWidthDefault: "Par défaut",
+  panelWidthWide: "Large",
 
   // --- In-thread filter -----------------------------------------------------
   showInConversationAria: "Afficher dans la conversation",
