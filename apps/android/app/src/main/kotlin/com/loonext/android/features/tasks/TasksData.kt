@@ -194,7 +194,7 @@ class TaskMutations(private val api: ApiClient) {
         )
     }
 
-    /** Soft-delete; creator or owner/admin only (403 otherwise). */
+    /** Soft-delete to the Trash; needs records.delete (403 otherwise). */
     suspend fun delete(companyId: String, taskId: String) {
         api.delete("/v1/tasks/$taskId", companyId = companyId)
     }

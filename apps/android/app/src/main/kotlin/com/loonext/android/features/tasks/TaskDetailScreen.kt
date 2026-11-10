@@ -103,6 +103,7 @@ import com.loonext.android.core.model.AddressProvenance
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.model.canDeleteRecords
 import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.TaskAttachmentItem
 import com.loonext.android.core.model.TaskDetail
@@ -393,8 +394,7 @@ private fun TaskDetailBody(
     val noAccess = detail.viewer_level == "none"
 
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
-    val canDelete = MemberRole.atLeast(role, MemberRole.ADMIN) ||
-        detail.created_by_user_id == me.user_id
+    val canDelete = canDeleteRecords(role)
     val hasNotes = detail.activity.any { it.kind == "note" }
     val hasContent = hasNotes || detail.attachments.isNotEmpty()
 

@@ -85,6 +85,7 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Task
+import com.loonext.android.core.model.canDeleteRecords
 import com.loonext.android.features.inbox.BulkSelection
 import com.loonext.android.features.inbox.bulkResultMessage
 import com.loonext.android.features.inbox.canEscalate
@@ -564,6 +565,9 @@ private fun TaskListScreen(
                             filtersActive = filtersActive,
                             memberName = ::memberName,
                             members = members,
+                            canDelete = canDeleteRecords(
+                                me.memberships.firstOrNull { it.company_id == companyId }?.role,
+                            ),
                             onMessage = { scope.launch { snackbar.showSnackbar(it) } },
                             onRetry = { refreshKey++ },
                             onOpenTask = onOpenTask,
@@ -710,6 +714,8 @@ private fun TaskList(
     memberName: (String?) -> String?,
     /** #478: the assign targets the bulk bar offers. */
     members: List<Member>,
+    /** #691: the bulk delete needs records.delete. */
+    canDelete: Boolean,
     /** #478: what to say after a bulk action — the screen owns the snackbar. */
     onMessage: (String) -> Unit,
     onRetry: () -> Unit,
@@ -842,6 +848,7 @@ private fun TaskList(
                 if (!selection.isEmpty()) {
                     TaskBulkBar(
                         selection = selection,
+                        canDelete = canDelete,
                         loadedIds = loadedIds,
                         hasMore = current.value.hasMore,
                         running = bulkRunning,
@@ -1277,6 +1284,7 @@ private fun TaskBulkBar(
     onMarkUndone: () -> Unit,
     onAssign: (String) -> Unit,
     onUnassign: () -> Unit,
+    canDelete: Boolean,
     onDelete: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -1338,10 +1346,12 @@ private fun TaskBulkBar(
                         )
                         // Destructive, and last: a delete adjacent to the
                         // assign items is a delete somebody hits by momentum.
-                        DropdownMenuItem(
-                            text = { Text(t("common.delete")) },
-                            onClick = { menuOpen = false; onDelete() },
-                        )
+                        if (canDelete) {
+                            DropdownMenuItem(
+                                text = { Text(t("common.delete")) },
+                                onClick = { menuOpen = false; onDelete() },
+                            )
+                        }
                     }
                 }
             }
