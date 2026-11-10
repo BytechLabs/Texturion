@@ -97,6 +97,11 @@ fun encodeDueAt(local: LocalDateTime, zone: ZoneId): String =
 /** Always emits seconds ("…T15:00:00-04:00"); XXX prints Z at offset zero. */
 private val DUE_AT_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX")
 
+private val taskHistoryJson = kotlinx.serialization.json.Json {
+    ignoreUnknownKeys = true
+    coerceInputValues = true
+}
+
 /**
  * One quiet line for a change to a task (#689), the same words as the web.
  * [by] is the resolved actor name. A kind this build does not know says the
@@ -118,6 +123,17 @@ fun taskHistorySentence(
 
     fun say(key: String, vararg vars: Pair<String, String>) =
         AppStrings.translate(locale, key, mapOf("by" to by) + vars.toMap())
+
+    fun labelName(element: kotlinx.serialization.json.JsonElement?): String? =
+        ((element as? kotlinx.serialization.json.JsonObject)?.get("name")
+            as? kotlinx.serialization.json.JsonPrimitive)
+            ?.takeIf { it.isString && it.content.isNotEmpty() }?.content
+
+    fun repeatRule(element: kotlinx.serialization.json.JsonElement?): com.loonext.android.core.model.TaskRepeat? =
+        (element as? kotlinx.serialization.json.JsonObject)?.let {
+            runCatching { taskHistoryJson.decodeFromJsonElement(com.loonext.android.core.model.TaskRepeat.serializer(), it) }
+                .getOrNull()
+        }
 
     val nothing = item.to == null || item.to is kotlinx.serialization.json.JsonNull
     return when (item.event) {
@@ -163,6 +179,22 @@ fun taskHistorySentence(
                 "contactsTasks.histConfirmed"
             },
         )
+
+        "priority" -> text(item.to)
+            ?.let { say("contactsTasks.histPriority", "priority" to AppStrings.translate(locale, TaskPriority.labelKey(it))) }
+            ?: say("contactsTasks.histUpdated")
+
+        "label_added" -> labelName(item.to)
+            ?.let { say("contactsTasks.histLabelAdded", "name" to it) }
+            ?: say("contactsTasks.histUpdated")
+
+        "label_removed" -> labelName(item.from)
+            ?.let { say("contactsTasks.histLabelRemoved", "name" to it) }
+            ?: say("contactsTasks.histUpdated")
+
+        "repeat" -> repeatRule(item.to)
+            ?.let { say("contactsTasks.histRepeat", "rule" to repeatSummary(it, locale)) }
+            ?: say("contactsTasks.histRepeatCleared")
 
         "done" -> say("contactsTasks.histDone")
         "reopened" -> say("contactsTasks.histReopened")

@@ -280,6 +280,10 @@ private fun TimelineRow(
                 maxLines = 1,
             )
         }
+        // #693: a job that repeats says so beside its time.
+        if (entry.kind == "task") {
+            com.loonext.android.features.tasks.RepeatMark(entry.repeat)
+        }
         Text(
             TIME_LABEL.format(
                 Instant.parse(entry.occurred_at).atZone(ZoneId.systemDefault()),

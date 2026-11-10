@@ -500,6 +500,10 @@ private fun PinPeekCard(
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
+                    // #693: the one task's priority, repeat and labels.
+                    if (single != null) {
+                        TaskBadges(single, Modifier.padding(top = 4.dp))
+                    }
                 }
                 IconButton(
                     onClick = {
@@ -578,6 +582,17 @@ private fun PinPeekCard(
                                 .weight(1f)
                                 .alpha(if (task.done) 0.62f else 1f),
                         )
+                        // #693: just the flag and the repeat glyph; labels stay on the single card.
+                        if (TaskPriority.isFlagged(task.priority) || showsRepeatIcon(task.repeat)) {
+                            Row(
+                                Modifier.padding(start = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                PriorityMark(task.priority)
+                                RepeatMark(task.repeat)
+                            }
+                        }
                     }
                 }
                 if (group.tasks.size > 5) {

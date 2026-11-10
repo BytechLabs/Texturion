@@ -66,6 +66,11 @@ data class TaskListFilters(
     val dueAfter: String? = null,
     val overdue: Boolean = false,
     val q: String? = null,
+    /** #693: priorities to keep (sent as a comma list), a workspace tag, a sort. */
+    val priorities: List<String> = emptyList(),
+    val tagId: String? = null,
+    /** "due" or "priority"; null leaves the server's created order. */
+    val sort: String? = null,
 )
 
 /**
@@ -103,6 +108,9 @@ fun taskQueryParams(
         "due_after" to filters.dueAfter,
         "overdue" to if (filters.overdue) "true" else null,
         "q" to filters.q,
+        "priority" to filters.priorities.joinToString(",").ifEmpty { null },
+        "tag_id" to filters.tagId,
+        "sort" to filters.sort,
         "cursor" to cursor,
         "limit" to limit.toString(),
     )
@@ -114,7 +122,8 @@ fun taskQueryParams(
  * minted it — the route 422s on a cursor from the other ordering.
  */
 fun orderingKey(filters: TaskListFilters): String =
-    if (filters.overdue || filters.dueBefore != null || filters.dueAfter != null) "due"
+    if (filters.sort != null) filters.sort
+    else if (filters.overdue || filters.dueBefore != null || filters.dueAfter != null) "due"
     else "created"
 
 /**
@@ -151,6 +160,7 @@ fun taskListArms(
     due: DueChip?,
     q: String?,
     clock: Clock = Clock.systemDefaultZone(),
+    extra: TaskExtraFilters = TaskExtraFilters(),
 ): List<TaskListFilters> {
     val dueFilters = due?.let { dueChipFilters(it, clock) } ?: TaskListFilters()
     val query = q?.trim()?.ifEmpty { null }
@@ -170,6 +180,9 @@ fun taskListArms(
         dueAfter = dueFilters.dueAfter,
         overdue = dueFilters.overdue,
         q = query,
+        priorities = TaskPriority.PICKER.filter { it in extra.priorities },
+        tagId = extra.tagId,
+        sort = extra.sort.wire,
     )
 
     return when (tab) {

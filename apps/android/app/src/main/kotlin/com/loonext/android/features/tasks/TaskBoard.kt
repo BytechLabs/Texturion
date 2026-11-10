@@ -115,6 +115,7 @@ internal fun taskBoardFilterKey(
     unassignedChip: Boolean,
     dueChip: DueChip?,
     q: String?,
+    extra: TaskExtraFilters = TaskExtraFilters(),
 ): String = listOf(
     "board",
     tab.name,
@@ -122,7 +123,7 @@ internal fun taskBoardFilterKey(
     if (unassignedChip) "unassigned" else "-",
     dueChip?.name ?: "-",
     "q=${q.orEmpty()}",
-).joinToString("|")
+).plus(if (extra.isCustom) listOf("x=${extra.key()}") else emptyList()).joinToString("|")
 
 /**
  * Board view: two columns, "To do" (status=open) and "Done" (status=done),
@@ -143,6 +144,7 @@ internal fun TaskBoard(
     refreshKey: Int,
     onOpenTask: (String) -> Unit,
     onToggleDone: (Task, Boolean) -> Unit,
+    extra: TaskExtraFilters = TaskExtraFilters(),
 ) {
     // The board's assignee scope: Mine or All (status tabs are meaningless
     // here — columns ARE the status dimension). taskListArms for a statusless
@@ -157,7 +159,7 @@ internal fun TaskBoard(
     // silently; only a never-fetched filter may show the loading state.
     val cacheKey = CacheKeys.tasks(
         companyId,
-        taskBoardFilterKey(boardTab, assigneeChip, unassignedChip, dueChip, q),
+        taskBoardFilterKey(boardTab, assigneeChip, unassignedChip, dueChip, q, extra),
     )
     val state = rememberCacheFirst(
         cache = cache,
@@ -168,7 +170,7 @@ internal fun TaskBoard(
         fetchTaskBoardSnapshot(
             mutations = mutations,
             companyId = companyId,
-            arms = taskListArms(boardTab, assigneeChip, unassignedChip, dueChip, q),
+            arms = taskListArms(boardTab, assigneeChip, unassignedChip, dueChip, q, extra = extra),
             todoTarget = previous?.todo?.size ?: 0,
             doneTarget = previous?.done?.size ?: 0,
         )
@@ -349,6 +351,8 @@ private fun BoardCard(
                 textDecoration = if (task.done) TextDecoration.LineThrough else null,
                 color = MaterialTheme.colorScheme.onSurface,
             )
+            // #693: cards are narrow, so one label and the "+N" at most.
+            TaskBadges(task, Modifier.padding(top = 5.dp, end = 8.dp), maxLabels = 1)
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,

@@ -9,7 +9,12 @@ import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.TaskDetail
+import com.loonext.android.core.model.Tag
 import com.loonext.android.core.model.TaskFeedItem
+import com.loonext.android.core.model.TaskLabel
+import com.loonext.android.core.model.TaskRepeat
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonPrimitive
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -58,6 +63,10 @@ class TaskMutations(private val api: ApiClient) {
         targetUserId: String? = null,
         /** True when the caller means "unassign", which is a null the server needs. */
         unassign: Boolean = false,
+        /** #693: for `set_priority`. */
+        priority: String? = null,
+        /** #693: for `add_label` / `remove_label`. */
+        tagId: String? = null,
     ): BulkTasksResult = api.post(
         "/v1/tasks/bulk",
         buildJsonObject {
@@ -70,15 +79,25 @@ class TaskMutations(private val api: ApiClient) {
                     filters.assignedUserId?.let { put("assigned_user_id", it) }
                     if (filters.unassigned) put("unassigned", true)
                     if (filters.overdue) put("overdue", true)
+                    if (filters.priorities.isNotEmpty()) {
+                        putJsonArray("priority") { filters.priorities.forEach { add(it) } }
+                    }
+                    filters.tagId?.let { put("tag_id", it) }
                 }
             }
             // Explicit null is meaningful (unassign), so it is only written when
             // the caller says so rather than whenever the id is absent.
             if (targetUserId != null) put("target_user_id", targetUserId)
             else if (unassign) put("target_user_id", JsonNull)
+            if (priority != null) put("priority", priority)
+            if (tagId != null) put("tag_id", tagId)
         },
         companyId = companyId,
     )
+
+    /** #693: the workspace tags, the same list conversations and contacts use. */
+    suspend fun tags(companyId: String): Page<Tag> =
+        api.get("/v1/tags", companyId = companyId)
 
     suspend fun detail(companyId: String, taskId: String): TaskDetail =
         api.get("/v1/tasks/$taskId", companyId = companyId)
@@ -100,17 +119,37 @@ class TaskMutations(private val api: ApiClient) {
         api.raw("DELETE", "/v1/tasks/$taskId/photos/share", companyId = companyId)
     }
 
-    /** Metadata-only edit. Null-bearing fields must SEND null (clear). */
-    private suspend fun patch(companyId: String, taskId: String, body: JsonObject): Task =
-        api.patch("/v1/tasks/$taskId", body, companyId = companyId)
+    /**
+     * Metadata-only edit. Null-bearing fields must SEND null (clear). #693: a
+     * [scope] rides along on a repeating job; absent means "this one".
+     */
+    private suspend fun patch(
+        companyId: String,
+        taskId: String,
+        body: JsonObject,
+        scope: TaskScope? = null,
+    ): Task = api.patch("/v1/tasks/$taskId", withScope(body, scope), companyId = companyId)
 
-    suspend fun rename(companyId: String, taskId: String, title: String): Task =
-        patch(companyId, taskId, buildJsonObject { put("title", title) })
+    suspend fun rename(
+        companyId: String,
+        taskId: String,
+        title: String,
+        scope: TaskScope? = null,
+    ): Task = patch(companyId, taskId, buildJsonObject { put("title", title) }, scope)
 
-    suspend fun describe(companyId: String, taskId: String, description: String): Task =
-        patch(companyId, taskId, buildJsonObject { put("description", description) })
+    suspend fun describe(
+        companyId: String,
+        taskId: String,
+        description: String,
+        scope: TaskScope? = null,
+    ): Task = patch(companyId, taskId, buildJsonObject { put("description", description) }, scope)
 
-    suspend fun assign(companyId: String, taskId: String, userId: String?): Task =
+    suspend fun assign(
+        companyId: String,
+        taskId: String,
+        userId: String?,
+        scope: TaskScope? = null,
+    ): Task =
         patch(
             companyId,
             taskId,
@@ -118,17 +157,78 @@ class TaskMutations(private val api: ApiClient) {
                 if (userId == null) put("assigned_user_id", JsonNull)
                 else put("assigned_user_id", userId)
             },
+            scope,
         )
 
     /** [dueAt] must be ISO 8601 WITH offset ([encodeDueAt]); null clears. */
-    suspend fun setDue(companyId: String, taskId: String, dueAt: String?): Task =
+    suspend fun setDue(
+        companyId: String,
+        taskId: String,
+        dueAt: String?,
+        scope: TaskScope? = null,
+    ): Task =
         patch(
             companyId,
             taskId,
             buildJsonObject {
                 if (dueAt == null) put("due_at", JsonNull) else put("due_at", dueAt)
             },
+            scope,
         )
+
+    /** #693: none | low | normal | high | urgent. */
+    suspend fun setPriority(
+        companyId: String,
+        taskId: String,
+        priority: String,
+        scope: TaskScope? = null,
+    ): Task = patch(companyId, taskId, buildJsonObject { put("priority", priority) }, scope)
+
+    /**
+     * #693: set or change the repeat rule, or clear it with null. The server
+     * always applies a repeat change to this job and the ones after it, so no
+     * scope is sent.
+     */
+    suspend fun setRepeat(companyId: String, taskId: String, repeat: TaskRepeat?): Task =
+        patch(
+            companyId,
+            taskId,
+            buildJsonObject {
+                if (repeat == null) put("repeat", JsonNull) else put("repeat", repeatJson(repeat))
+            },
+        )
+
+    /** #693: attach a workspace tag by id, or by name (created if new). */
+    suspend fun addLabel(
+        companyId: String,
+        taskId: String,
+        tagId: String? = null,
+        name: String? = null,
+        scope: TaskScope? = null,
+    ): TaskTagAdded = api.post(
+        "/v1/tasks/$taskId/tags",
+        withScope(
+            buildJsonObject {
+                if (tagId != null) put("tag_id", tagId) else put("name", name.orEmpty())
+            },
+            scope,
+        ),
+        companyId = companyId,
+    )
+
+    suspend fun removeLabel(
+        companyId: String,
+        taskId: String,
+        tagId: String,
+        scope: TaskScope? = null,
+    ) {
+        api.raw(
+            "DELETE",
+            "/v1/tasks/$taskId/tags/$tagId",
+            query = mapOf("scope" to scope?.wire),
+            companyId = companyId,
+        )
+    }
 
     /**
      * #237 — stop (or restart) this job's reminders.
@@ -151,7 +251,12 @@ class TaskMutations(private val api: ApiClient) {
      * hand-edited); null CLEARS it (an explicit top-level JSON null the RPC
      * distinguishes from "leave untouched").
      */
-    suspend fun setAddress(companyId: String, taskId: String, address: TaskAddressInput?): Task =
+    suspend fun setAddress(
+        companyId: String,
+        taskId: String,
+        address: TaskAddressInput?,
+        scope: TaskScope? = null,
+    ): Task =
         patch(
             companyId,
             taskId,
@@ -159,6 +264,7 @@ class TaskMutations(private val api: ApiClient) {
                 if (address == null) put("address", JsonNull)
                 else put("address", taskAddressJson(address))
             },
+            scope,
         )
 
     /**
@@ -208,9 +314,17 @@ class TaskMutations(private val api: ApiClient) {
         }
     }
 
-    /** Soft-delete to the Trash; needs records.delete (403 otherwise). */
-    suspend fun delete(companyId: String, taskId: String) {
-        api.delete("/v1/tasks/$taskId", companyId = companyId)
+    /**
+     * Soft-delete to the Trash; needs records.delete (403 otherwise). #693: on a
+     * repeating job, "this" skips one and "future" ends the repeat.
+     */
+    suspend fun delete(companyId: String, taskId: String, scope: TaskScope? = null) {
+        api.raw(
+            "DELETE",
+            "/v1/tasks/$taskId",
+            query = mapOf("scope" to scope?.wire),
+            companyId = companyId,
+        )
     }
 
     /** Task discussion: an internal note linked to a live task (D-D). */
@@ -334,6 +448,10 @@ class TaskMutations(private val api: ApiClient) {
         /** #689: with neither source, a standalone task may link to these. */
         contactId: String? = null,
         conversationId: String? = null,
+        /** #693: omitted leaves the server's default (normal). */
+        priority: String? = null,
+        labelIds: List<String> = emptyList(),
+        repeat: TaskRepeat? = null,
     ): Task = api.post(
         "/v1/tasks",
         buildJsonObject {
@@ -345,10 +463,24 @@ class TaskMutations(private val api: ApiClient) {
             if (address != null) put("address", taskAddressJson(address))
             if (contactId != null) put("contact_id", contactId)
             if (conversationId != null) put("conversation_id", conversationId)
+            if (priority != null) put("priority", priority)
+            if (labelIds.isNotEmpty()) putJsonArray("label_ids") { labelIds.forEach { add(it) } }
+            if (repeat != null) put("repeat", repeatJson(repeat))
         },
         companyId = companyId,
     )
 }
+
+/** POST /v1/tasks/:id/tags answer: the tag and the task's labels after it. */
+@Serializable
+data class TaskTagAdded(
+    val tag: Tag? = null,
+    val labels: List<TaskLabel> = emptyList(),
+)
+
+/** Adds `scope` to a patch/post body when the caller chose one. */
+internal fun withScope(body: JsonObject, scope: TaskScope?): JsonObject =
+    if (scope == null) body else JsonObject(body + ("scope" to JsonPrimitive(scope.wire)))
 
 /**
  * Sequential multi-arm cursor pagination over GET /v1/tasks.

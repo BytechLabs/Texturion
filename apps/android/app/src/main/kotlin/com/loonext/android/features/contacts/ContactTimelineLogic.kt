@@ -45,6 +45,9 @@ internal data class TimelineEntry(
      * carrying a name-shaped hole.
      */
     val answered_by_user_id: String? = null,
+    /** #693: the repeating job a task entry belongs to; null on everything else. */
+    val series_id: String? = null,
+    val repeat: com.loonext.android.core.model.TaskRepeat? = null,
 )
 
 @Serializable

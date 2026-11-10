@@ -167,6 +167,20 @@ private fun TaskListScreen(
     var assigneeChip by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var unassignedChip by rememberSaveable(companyId) { mutableStateOf(false) }
     var dueChipName by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    // #693: priority / label / sort. Saved as plain strings so they survive a
+    // detail round-trip the way the chips above do.
+    var priorityCsv by rememberSaveable(companyId) { mutableStateOf("") }
+    var tagFilterId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    var tagFilterName by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    var sortName by rememberSaveable(companyId) { mutableStateOf(TaskSort.Created.name) }
+    var prioritySheetOpen by remember { mutableStateOf(false) }
+    var labelSheetOpen by remember { mutableStateOf(false) }
+    var sortSheetOpen by remember { mutableStateOf(false) }
+    val extra = TaskExtraFilters(
+        priorities = priorityCsv.split(',').filter { it.isNotEmpty() }.toSet(),
+        tagId = tagFilterId,
+        sort = TaskSort.entries.firstOrNull { it.name == sortName } ?: TaskSort.Created,
+    )
     var search by rememberSaveable(companyId) { mutableStateOf("") }
     var searchOpen by rememberSaveable(companyId) { mutableStateOf(false) }
     var debouncedQ by remember(companyId) { mutableStateOf("") }
@@ -486,13 +500,65 @@ private fun TaskListScreen(
                             },
                         )
                     }
+                    // #693: priority, label and sort. Priority and label refine the
+                    // list and the board; sort orders the list only.
+                    if (view == TaskViewKind.List || view == TaskViewKind.Board) {
+                        FilterPill(
+                            text = when (extra.priorities.size) {
+                                0 -> t("contactsTasks.priority")
+                                1 -> t(TaskPriority.labelKey(extra.priorities.first()))
+                                else -> t(
+                                    "contactsTasks.priorityMany",
+                                    "count" to "${extra.priorities.size}",
+                                )
+                            },
+                            selected = extra.priorities.isNotEmpty(),
+                            onClick = {
+                                haptics.tap()
+                                prioritySheetOpen = true
+                            },
+                        )
+                        FilterPill(
+                            text = tagFilterName ?: t("contactsTasks.label"),
+                            selected = tagFilterId != null,
+                            onClick = {
+                                haptics.tap()
+                                labelSheetOpen = true
+                            },
+                            trailing = if (tagFilterId != null) {
+                                {
+                                    Icon(
+                                        Icons.Outlined.Close,
+                                        contentDescription = t("contactsTasks.clearLabelFilter"),
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .clickable {
+                                                haptics.tap()
+                                                tagFilterId = null
+                                                tagFilterName = null
+                                            },
+                                    )
+                                }
+                            } else null,
+                        )
+                    }
+                    if (view == TaskViewKind.List) {
+                        FilterPill(
+                            text = t("contactsTasks.sortedBy", "sort" to t(extra.sort.labelKey)),
+                            selected = extra.sort != TaskSort.Created,
+                            onClick = {
+                                haptics.tap()
+                                sortSheetOpen = true
+                            },
+                        )
+                    }
                 }
             }
 
             Spacer(Modifier.height(10.dp))
 
             val filtersActive = assigneeChip != null || unassignedChip ||
-                dueChip != null || debouncedQ.isNotEmpty()
+                dueChip != null || debouncedQ.isNotEmpty() || extra.isFiltering
 
             if (view == TaskViewKind.Map) {
                 // The map lives OUTSIDE the pull-to-refresh box — a downward
@@ -532,6 +598,7 @@ private fun TaskListScreen(
                             unassignedChip = unassignedChip,
                             dueChip = dueChip,
                             q = debouncedQ,
+                            extra = extra.copy(sort = TaskSort.Created),
                             refreshKey = refreshKey,
                             onOpenTask = onOpenTask,
                             onToggleDone = onToggleDone,
@@ -561,6 +628,7 @@ private fun TaskListScreen(
                             unassignedChip = unassignedChip,
                             dueChip = dueChip,
                             q = debouncedQ,
+                            extra = extra,
                             refreshKey = refreshKey,
                             filtersActive = filtersActive,
                             memberName = ::memberName,
@@ -578,6 +646,49 @@ private fun TaskListScreen(
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
+    }
+
+    if (prioritySheetOpen) {
+        OptionSheet(
+            title = t("contactsTasks.priority"),
+            options = TaskPriority.PICKER.map { SheetOption(it, t(TaskPriority.labelKey(it))) },
+            selected = extra.priorities,
+            onPick = { p ->
+                val next = if (p in extra.priorities) extra.priorities - p else extra.priorities + p
+                priorityCsv = TaskPriority.PICKER.filter { it in next }.joinToString(",")
+            },
+            onDismiss = { prioritySheetOpen = false },
+        )
+    }
+    if (labelSheetOpen) {
+        TagChoiceSheet(
+            title = t("contactsTasks.labels"),
+            loadTags = { mutations.tags(companyId).data },
+            selectedId = tagFilterId,
+            onPick = { tag ->
+                if (tagFilterId == tag.id) {
+                    tagFilterId = null
+                    tagFilterName = null
+                } else {
+                    tagFilterId = tag.id
+                    tagFilterName = tag.name
+                }
+                labelSheetOpen = false
+            },
+            onDismiss = { labelSheetOpen = false },
+        )
+    }
+    if (sortSheetOpen) {
+        OptionSheet(
+            title = t("contactsTasks.sortTitle"),
+            options = TaskSort.entries.map { SheetOption(it.name, t(it.labelKey)) },
+            selected = setOf(extra.sort.name),
+            onPick = {
+                sortName = it
+                sortSheetOpen = false
+            },
+            onDismiss = { sortSheetOpen = false },
+        )
     }
 
     if (pickerOpen) {
@@ -684,9 +795,10 @@ internal fun taskListFilterKey(
     unassignedChip: Boolean,
     dueChip: DueChip?,
     q: String?,
+    extra: TaskExtraFilters = TaskExtraFilters(),
 ): String =
     if (tab == TasksTabKind.Open && assigneeChip == null && !unassignedChip &&
-        dueChip == null && q.isNullOrEmpty()
+        dueChip == null && q.isNullOrEmpty() && !extra.isCustom
     ) {
         "default"
     } else {
@@ -696,7 +808,8 @@ internal fun taskListFilterKey(
             if (unassignedChip) "unassigned" else "-",
             dueChip?.name ?: "-",
             "q=${q.orEmpty()}",
-        ).joinToString("|")
+        ).plus(if (extra.isCustom) listOf("x=${extra.key()}") else emptyList())
+            .joinToString("|")
     }
 
 @Composable
@@ -709,6 +822,7 @@ private fun TaskList(
     unassignedChip: Boolean,
     dueChip: DueChip?,
     q: String?,
+    extra: TaskExtraFilters,
     refreshKey: Int,
     filtersActive: Boolean,
     memberName: (String?) -> String?,
@@ -744,7 +858,7 @@ private fun TaskList(
     // filter may show the loading state.
     val cacheKey = CacheKeys.tasks(
         companyId,
-        taskListFilterKey(tab, assigneeChip, unassignedChip, dueChip, q),
+        taskListFilterKey(tab, assigneeChip, unassignedChip, dueChip, q, extra),
     )
     val state = rememberCacheFirst(
         cache = cache,
@@ -754,7 +868,7 @@ private fun TaskList(
         fetchTaskListSnapshot(
             mutations = mutations,
             companyId = companyId,
-            arms = taskListArms(tab, assigneeChip, unassignedChip, dueChip, q),
+            arms = taskListArms(tab, assigneeChip, unassignedChip, dueChip, q, extra = extra),
             targetRows = cache.flowOf<TaskListSnapshot>(cacheKey).value?.rows?.size ?: 0,
         )
     }
@@ -790,6 +904,8 @@ private fun TaskList(
                     verbManyKey: String,
                     targetUserId: String? = null,
                     unassign: Boolean = false,
+                    priority: String? = null,
+                    tagId: String? = null,
                 ) {
                     if (bulkRunning) return
                     bulkRunning = true
@@ -807,12 +923,14 @@ private fun TaskList(
                                 // the statusless tabs, and the server's bulk
                                 // route has no cursor to union across.
                                 filters = if (selection.idsOrNull() == null) {
-                                    taskListArms(tab, assigneeChip, unassignedChip, dueChip, q).first()
+                                    taskListArms(tab, assigneeChip, unassignedChip, dueChip, q, extra = extra).first()
                                 } else {
                                     null
                                 },
                                 targetUserId = targetUserId,
                                 unassign = unassign,
+                                priority = priority,
+                                tagId = tagId,
                             )
                             // The SERVER's numbers. In filter mode this client
                             // does not know how many rows matched, and a count
@@ -886,6 +1004,31 @@ private fun TaskList(
                                 unassign = true,
                             )
                         },
+                        onSetPriority = { value ->
+                            runBulk(
+                                "set_priority",
+                                "contactsTasks.bulkUpdatedOne",
+                                "contactsTasks.bulkUpdatedMany",
+                                priority = value,
+                            )
+                        },
+                        onAddLabel = { tag ->
+                            runBulk(
+                                "add_label",
+                                "contactsTasks.bulkUpdatedOne",
+                                "contactsTasks.bulkUpdatedMany",
+                                tagId = tag,
+                            )
+                        },
+                        onRemoveLabel = { tag ->
+                            runBulk(
+                                "remove_label",
+                                "contactsTasks.bulkUpdatedOne",
+                                "contactsTasks.bulkUpdatedMany",
+                                tagId = tag,
+                            )
+                        },
+                        loadTags = { mutations.tags(companyId).data },
                         onDelete = {
                             runBulk(
                                 "delete",
@@ -1199,6 +1342,8 @@ internal fun TaskListRow(
                     }
                 }
             }
+            // #693: high/urgent flag, repeat glyph and label chips; nothing for a plain task.
+            TaskBadges(task, Modifier.padding(top = 3.dp))
         }
         if (task.assigned_user_id != null) {
             Spacer(Modifier.width(12.dp))
@@ -1286,8 +1431,14 @@ private fun TaskBulkBar(
     onUnassign: () -> Unit,
     canDelete: Boolean,
     onDelete: () -> Unit,
+    onSetPriority: (String) -> Unit,
+    onAddLabel: (String) -> Unit,
+    onRemoveLabel: (String) -> Unit,
+    loadTags: suspend () -> List<com.loonext.android.core.model.Tag>,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    // 0 none, 1 priority, 2 add label, 3 remove label
+    var bulkSheet by remember { mutableIntStateOf(0) }
     val showSelectLoaded = selection is BulkSelection.Ids &&
         loadedIds.isNotEmpty() &&
         !loadedIds.all { it in selection.ids }
@@ -1344,6 +1495,18 @@ private fun TaskBulkBar(
                             text = { Text(t("contactsTasks.markNotDone")) },
                             onClick = { menuOpen = false; onMarkUndone() },
                         )
+                        DropdownMenuItem(
+                            text = { Text(t("contactsTasks.bulkSetPriority")) },
+                            onClick = { menuOpen = false; bulkSheet = 1 },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(t("contactsTasks.bulkAddLabel")) },
+                            onClick = { menuOpen = false; bulkSheet = 2 },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(t("contactsTasks.bulkRemoveLabel")) },
+                            onClick = { menuOpen = false; bulkSheet = 3 },
+                        )
                         // Destructive, and last: a delete adjacent to the
                         // assign items is a delete somebody hits by momentum.
                         if (canDelete) {
@@ -1369,5 +1532,30 @@ private fun TaskBulkBar(
                 }
             }
         }
+    }
+
+    // #693: the three bulk edits that need a choice.
+    when (bulkSheet) {
+        1 -> PrioritySheet(
+            title = t("contactsTasks.bulkSetPriority"),
+            selected = null,
+            onPick = { value ->
+                bulkSheet = 0
+                onSetPriority(value)
+            },
+            onDismiss = { bulkSheet = 0 },
+        )
+
+        2, 3 -> TagChoiceSheet(
+            title = t(if (bulkSheet == 2) "contactsTasks.bulkAddLabel" else "contactsTasks.bulkRemoveLabel"),
+            loadTags = loadTags,
+            selectedId = null,
+            onPick = { tag ->
+                val adding = bulkSheet == 2
+                bulkSheet = 0
+                if (adding) onAddLabel(tag.id) else onRemoveLabel(tag.id)
+            },
+            onDismiss = { bulkSheet = 0 },
+        )
     }
 }

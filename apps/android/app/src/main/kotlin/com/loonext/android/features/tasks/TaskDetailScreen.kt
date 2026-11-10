@@ -44,6 +44,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.AlertDialog
+import kotlinx.coroutines.CompletableDeferred
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -393,6 +394,7 @@ private fun TaskDetailBody(
     val haptics = rememberHaptics()
     val locale = LocalAppLocale.current
     val teammateLabel = t("contactsTasks.teammate")
+    val notSavedLabel = t("contactsTasks.scopeNotSaved")
     val noAccess = detail.viewer_level == "none"
 
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
@@ -446,9 +448,38 @@ private fun TaskDetailBody(
                 addr_postal_code = task.addr_postal_code,
                 addr_country = task.addr_country,
                 addr_provenance = task.addr_provenance,
+                // #693: a patch answers with the full row, so these ride along.
+                priority = task.priority,
+                labels = task.labels,
+                series_id = task.series_id,
+                occurrence_no = task.occurrence_no,
+                repeat = task.repeat,
             ),
         )
     }
+
+    // #693: on a repeating job an edit asks "this one" or "this and future".
+    // The dialog is answered through a deferred so the save can simply await it.
+    var scopeAsk by remember { mutableStateOf<CompletableDeferred<TaskScope?>?>(null) }
+    var deleteScopeOpen by remember { mutableStateOf(false) }
+
+    /** (proceed, scope): proceed is false when the person backed out of the ask. */
+    suspend fun chooseScope(): Pair<Boolean, TaskScope?> {
+        if (!needsScopeChoice(detail.repeat)) return true to null
+        val answer = CompletableDeferred<TaskScope?>()
+        scopeAsk = answer
+        val picked = try {
+            answer.await()
+        } finally {
+            scopeAsk = null
+        }
+        return (picked != null) to picked
+    }
+
+    var priorityOpen by remember { mutableStateOf(false) }
+    var labelsOpen by remember { mutableStateOf(false) }
+    var repeatOpen by remember { mutableStateOf(false) }
+    val dueDate = parseInstant(detail.due_at)?.atZone(ZoneId.systemDefault())?.toLocalDate()
 
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -504,7 +535,7 @@ private fun TaskDetailBody(
         }
     }
 
-    fun deleteTask() {
+    fun deleteTask(deleteScope: TaskScope? = null) {
         // Destructive commit — fires once whether it came straight from the
         // menu or through the confirm dialog (both funnel here).
         haptics.reject()
@@ -512,7 +543,7 @@ private fun TaskDetailBody(
         scope.launch {
             onActionError(null)
             try {
-                mutations.delete(companyId, detail.id)
+                mutations.delete(companyId, detail.id, deleteScope)
                 onDeleted()
             } catch (cause: Exception) {
                 onActionError(
@@ -588,7 +619,9 @@ private fun TaskDetailBody(
                                     menuOpen = false
                                     // #89: confirm only when the task carries
                                     // notes or files; a plain task deletes now.
-                                    if (hasContent) confirmDelete = true else deleteTask()
+                                    // #693: a repeating job asks which ones go first.
+                                    if (needsScopeChoice(detail.repeat)) deleteScopeOpen = true
+                                    else if (hasContent) confirmDelete = true else deleteTask()
                                 },
                             )
                         }
@@ -658,7 +691,9 @@ private fun TaskDetailBody(
                             ),
                             onSave = { value ->
                                 try {
-                                    applyTask(mutations.rename(companyId, detail.id, value))
+                                    val (go, picked) = chooseScope()
+                                    if (!go) return@InlineEditField notSavedLabel
+                                    applyTask(mutations.rename(companyId, detail.id, value, picked))
                                     null
                                 } catch (cause: Exception) {
                                     cause.userMessage(locale)
@@ -873,6 +908,70 @@ private fun TaskDetailBody(
                             )
                         }
                     }
+
+                    // #693: priority, labels and repeat.
+                    RowDivider()
+                    MetaRow(
+                        label = t("contactsTasks.priority"),
+                        onClick = if (noAccess) null else {
+                            {
+                                haptics.tap()
+                                priorityOpen = true
+                            }
+                        },
+                    ) {
+                        Text(
+                            t(TaskPriority.labelKey(detail.priority)),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = when (detail.priority) {
+                                TaskPriority.URGENT -> MaterialTheme.colorScheme.error
+                                TaskPriority.HIGH -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                    }
+                    RowDivider()
+                    MetaRow(
+                        label = t("contactsTasks.labels"),
+                        onClick = if (noAccess) null else {
+                            {
+                                haptics.tap()
+                                labelsOpen = true
+                            }
+                        },
+                    ) {
+                        if (detail.labels.isEmpty()) {
+                            Text(
+                                t("contactsTasks.noLabels"),
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            LabelChips(detail.labels, Modifier.weight(1f, fill = false), max = 3)
+                        }
+                    }
+                    RowDivider()
+                    MetaRow(
+                        label = t("contactsTasks.repeat"),
+                        onClick = if (noAccess) null else {
+                            {
+                                haptics.tap()
+                                repeatOpen = true
+                            }
+                        },
+                    ) {
+                        val rule = detail.repeat
+                        if (rule != null) {
+                            RepeatLine(rule, Modifier.weight(1f, fill = false))
+                        } else {
+                            Text(
+                                t("contactsTasks.repeatNone"),
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
 
@@ -885,7 +984,9 @@ private fun TaskDetailBody(
                     enabled = !noAccess,
                     onSave = { address ->
                         try {
-                            applyTask(mutations.setAddress(companyId, detail.id, address))
+                            val (go, picked) = chooseScope()
+                            if (!go) return@TaskAddressSection notSavedLabel
+                            applyTask(mutations.setAddress(companyId, detail.id, address, picked))
                             null
                         } catch (cause: Exception) {
                             cause.userMessage(locale)
@@ -969,8 +1070,10 @@ private fun TaskDetailBody(
                             ),
                             onSave = { value ->
                                 try {
+                                    val (go, picked) = chooseScope()
+                                    if (!go) return@InlineEditField notSavedLabel
                                     applyTask(
-                                        mutations.describe(companyId, detail.id, value),
+                                        mutations.describe(companyId, detail.id, value, picked),
                                     )
                                     null
                                 } catch (cause: Exception) {
@@ -1163,6 +1266,118 @@ private fun TaskDetailBody(
         }
     }
 
+    scopeAsk?.let { answer ->
+        ScopeDialog(
+            title = t("contactsTasks.scopeTitle"),
+            thisLabel = t("contactsTasks.scopeThis"),
+            futureLabel = t("contactsTasks.scopeFuture"),
+            onPick = { answer.complete(it) },
+            onDismiss = { answer.complete(null) },
+        )
+    }
+    if (deleteScopeOpen) {
+        ScopeDialog(
+            title = t("contactsTasks.deleteScopeTitle"),
+            thisLabel = t("contactsTasks.deleteScopeThis"),
+            futureLabel = t("contactsTasks.deleteScopeFuture"),
+            destructive = true,
+            onPick = {
+                deleteScopeOpen = false
+                deleteTask(it)
+            },
+            onDismiss = { deleteScopeOpen = false },
+        )
+    }
+    if (priorityOpen) {
+        PrioritySheet(
+            title = t("contactsTasks.priority"),
+            selected = detail.priority,
+            onPick = { value ->
+                priorityOpen = false
+                scope.launch {
+                    onActionError(null)
+                    try {
+                        val (go, picked) = chooseScope()
+                        if (!go) return@launch
+                        applyTask(mutations.setPriority(companyId, detail.id, value, picked))
+                        onChanged()
+                    } catch (cause: CancellationException) {
+                        throw cause
+                    } catch (cause: Exception) {
+                        onActionError(cause.userMessage(locale))
+                    }
+                }
+            },
+            onDismiss = { priorityOpen = false },
+        )
+    }
+    if (labelsOpen) {
+        LabelPickerSheet(
+            loadTags = { mutations.tags(companyId).data },
+            selected = detail.labels,
+            onAdd = { label ->
+                scope.launch {
+                    onActionError(null)
+                    try {
+                        val (go, picked) = chooseScope()
+                        if (!go) return@launch
+                        if (label.id.isEmpty()) {
+                            mutations.addLabel(companyId, detail.id, name = label.name, scope = picked)
+                        } else {
+                            mutations.addLabel(companyId, detail.id, tagId = label.id, scope = picked)
+                        }
+                        onChanged()
+                    } catch (cause: CancellationException) {
+                        throw cause
+                    } catch (cause: Exception) {
+                        onActionError(cause.userMessage(locale))
+                    }
+                }
+            },
+            onRemove = { label ->
+                scope.launch {
+                    onActionError(null)
+                    try {
+                        val (go, picked) = chooseScope()
+                        if (!go) return@launch
+                        mutations.removeLabel(companyId, detail.id, label.id, picked)
+                        onChanged()
+                    } catch (cause: CancellationException) {
+                        throw cause
+                    } catch (cause: Exception) {
+                        onActionError(cause.userMessage(locale))
+                    }
+                }
+            },
+            onDismiss = { labelsOpen = false },
+        )
+    }
+    if (repeatOpen) {
+        fun saveRepeat(rule: com.loonext.android.core.model.TaskRepeat?) {
+            repeatOpen = false
+            scope.launch {
+                onActionError(null)
+                try {
+                    applyTask(mutations.setRepeat(companyId, detail.id, rule))
+                    onChanged()
+                } catch (cause: CancellationException) {
+                    throw cause
+                } catch (cause: Exception) {
+                    onActionError(cause.userMessage(locale))
+                }
+            }
+        }
+        RepeatSheet(
+            initial = detail.repeat?.let { RepeatDraft.from(it) }
+                ?: RepeatDraft.forLinked(detail.conversation_id != null || detail.contact_id != null),
+            due = dueDate,
+            existing = detail.repeat != null,
+            onSave = { draft -> saveRepeat(draft.toRepeat(dueDate)) },
+            onStop = { saveRepeat(null) },
+            onDismiss = { repeatOpen = false },
+        )
+    }
+
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -1212,7 +1427,9 @@ private fun TaskDetailBody(
                 scope.launch {
                     onActionError(null)
                     try {
-                        applyTask(mutations.assign(companyId, detail.id, userId))
+                        val (go, picked) = chooseScope()
+                        if (!go) return@launch
+                        applyTask(mutations.assign(companyId, detail.id, userId, picked))
                     } catch (cause: Exception) {
                         onActionError(cause.userMessage(locale))
                     }
@@ -1271,7 +1488,9 @@ private fun TaskDetailBody(
                     scope.launch {
                         onActionError(null)
                         try {
-                            applyTask(mutations.setDue(companyId, detail.id, iso))
+                            val (go, picked) = chooseScope()
+                            if (!go) return@launch
+                            applyTask(mutations.setDue(companyId, detail.id, iso, picked))
                         } catch (cause: Exception) {
                             onActionError(cause.userMessage(locale))
                         }

@@ -67,11 +67,15 @@ fun NewTaskSheetHost(
         companyId = companyId,
         conversationId = conversationId.orEmpty(),
         standalone = true,
-        onCreate = { title, assignedUserId, dueAtIso, address: TaskAddressInput? ->
+        linked = conversationId != null || contactId != null,
+        tagsLoader = { TaskMutations(graph.api).tags(companyId).data },
+        onCreate = { _, _, _, _ -> },
+        onCreateWithExtras = { title, assignedUserId, dueAtIso, address: TaskAddressInput?, extras ->
             onDismiss()
             scope.launch {
                 val notice = try {
-                    TaskMutations(graph.api).create(
+                    val mutations = TaskMutations(graph.api)
+                    val created = mutations.create(
                         companyId = companyId,
                         title = title,
                         assignedUserId = assignedUserId,
@@ -79,7 +83,14 @@ fun NewTaskSheetHost(
                         address = address,
                         conversationId = conversationId,
                         contactId = if (conversationId == null) contactId else null,
+                        priority = extras.priority,
+                        labelIds = extras.labels.filter { it.id.isNotEmpty() }.map { it.id },
+                        repeat = extras.repeat,
                     )
+                    // A label typed by name does not exist yet; the task does now.
+                    extras.labels.filter { it.id.isEmpty() }.forEach { label ->
+                        runCatching { mutations.addLabel(companyId, created.id, name = label.name) }
+                    }
                     onCreated()
                     AppStrings.translate(locale, "thread.taskCreatedStandalone")
                 } catch (_: ApiDecodeException) {

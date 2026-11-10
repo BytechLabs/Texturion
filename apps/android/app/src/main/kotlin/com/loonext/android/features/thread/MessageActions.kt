@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -76,7 +77,18 @@ import com.loonext.android.core.model.AddressProvenance
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
+import com.loonext.android.core.model.Tag
 import com.loonext.android.core.model.TaskAddressInput
+import com.loonext.android.core.model.TaskLabel
+import com.loonext.android.core.model.TaskRepeat
+import com.loonext.android.features.tasks.LabelPickerSheet
+import com.loonext.android.features.tasks.PlanChip
+import com.loonext.android.features.tasks.PriorityChips
+import com.loonext.android.features.tasks.RepeatDraft
+import com.loonext.android.features.tasks.RepeatLine
+import com.loonext.android.features.tasks.RepeatSheet
+import com.loonext.android.features.tasks.TaskPriority
+import com.loonext.android.features.tasks.parseInstant
 import com.loonext.android.core.model.addressProvenanceLabel
 import com.loonext.android.features.compose.AiOutcome
 import com.loonext.android.ui.common.AiOrb
@@ -315,6 +327,15 @@ fun MakeTaskSheet(
     callTitle: String? = null,
     /** #689: a task with no source: a blank title, and the rest under More. */
     standalone: Boolean = false,
+    /**
+     * #693: when set, More also offers Priority, Labels and Repeat, and Create
+     * hands their choices here along with the rest. [tagsLoader] feeds the
+     * label picker; [linked] says the task hangs off a conversation or contact,
+     * which makes "after it's done" the repeat it starts on.
+     */
+    onCreateWithExtras: ((String, String?, String?, TaskAddressInput?, TaskCreateExtras) -> Unit)? = null,
+    tagsLoader: (suspend () -> List<Tag>)? = null,
+    linked: Boolean = false,
 ) {
     // Read in composition and held: `remember` runs outside it, and so does
     // every comparison below that has to line up with a chip's own label.
@@ -334,6 +355,11 @@ fun MakeTaskSheet(
     var assigneeId by remember { mutableStateOf(meUserId) }
     var moreOpen by remember { mutableStateOf(!standalone) }
     var due by remember { mutableStateOf<DueChoice?>(null) }
+    var priority by remember { mutableStateOf(TaskPriority.NORMAL) }
+    var labels by remember { mutableStateOf<List<TaskLabel>>(emptyList()) }
+    var labelsOpen by remember { mutableStateOf(false) }
+    var repeatDraft by remember { mutableStateOf<RepeatDraft?>(null) }
+    var repeatOpen by remember { mutableStateOf(false) }
     var dueSuggested by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
     val zone = remember { ZoneId.systemDefault() }
@@ -624,10 +650,94 @@ fun MakeTaskSheet(
                     clearAddr()
                 },
             )
+
+            // #693: priority, labels and repeat. Same field-label grammar as
+            // the rows above; Normal and no labels and no repeat is the default.
+            if (onCreateWithExtras != null) {
+                Column {
+                    TaskFieldLabel(t("contactsTasks.priority"))
+                    PriorityChips(selected = priority, onPick = { priority = it })
+                }
+                Column {
+                    TaskFieldLabel(t("contactsTasks.labels"))
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        labels.forEach { label ->
+                            PlanChip(
+                                label = label.name,
+                                selected = true,
+                                onClick = {
+                                    haptics.tap()
+                                    labels = labels - label
+                                },
+                            )
+                        }
+                        PlanChip(
+                            label = t("contactsTasks.addLabel"),
+                            selected = false,
+                            onClick = {
+                                haptics.tap()
+                                labelsOpen = true
+                            },
+                        )
+                    }
+                }
+                Column {
+                    TaskFieldLabel(t("contactsTasks.repeat"))
+                    val draft = repeatDraft
+                    val dueDate = due?.iso?.let { parseInstant(it)?.atZone(zone)?.toLocalDate() }
+                    val rule = draft?.toRepeat(dueDate)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .clickable {
+                                haptics.tap()
+                                repeatOpen = true
+                            }
+                            .padding(horizontal = 15.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (rule != null) {
+                            RepeatLine(rule, Modifier.weight(1f))
+                        } else {
+                            Text(
+                                t("contactsTasks.repeatNone"),
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Icon(
+                            Icons.Outlined.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                    if (draft != null && draft.problem(dueDate) != null) {
+                        Text(
+                            t(draft.problem(dueDate).orEmpty()),
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+                        )
+                    }
+                }
+            }
             }
 
             // Create pill — gives under the finger like every other pill.
-            val canCreate = title.isNotBlank()
+            val repeatDue = due?.iso?.let { parseInstant(it)?.atZone(zone)?.toLocalDate() }
+            val canCreate = title.isNotBlank() &&
+                (repeatDraft?.problem(repeatDue) == null)
             val createInteraction = remember { MutableInteractionSource() }
             Row(
                 Modifier
@@ -680,7 +790,21 @@ fun MakeTaskSheet(
                                 )
                             }
                         }
-                        onCreate(title.trim(), assigneeId, due?.iso, address)
+                        if (onCreateWithExtras != null) {
+                            onCreateWithExtras(
+                                title.trim(),
+                                assigneeId,
+                                due?.iso,
+                                address,
+                                TaskCreateExtras(
+                                    priority = priority.takeIf { it != TaskPriority.NORMAL },
+                                    labels = labels,
+                                    repeat = repeatDraft?.toRepeat(repeatDue),
+                                ),
+                            )
+                        } else {
+                            onCreate(title.trim(), assigneeId, due?.iso, address)
+                        }
                     }
                     .padding(start = 22.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -713,6 +837,37 @@ fun MakeTaskSheet(
         }
     }
 
+    if (labelsOpen && tagsLoader != null) {
+        LabelPickerSheet(
+            loadTags = tagsLoader,
+            selected = labels,
+            onAdd = { labels = labels + it },
+            onRemove = { gone ->
+                labels = labels.filterNot {
+                    if (gone.id.isEmpty()) it.id.isEmpty() && it.name.equals(gone.name, true)
+                    else it.id == gone.id
+                }
+            },
+            onDismiss = { labelsOpen = false },
+        )
+    }
+    if (repeatOpen) {
+        RepeatSheet(
+            initial = repeatDraft ?: RepeatDraft.forLinked(linked),
+            due = due?.iso?.let { parseInstant(it)?.atZone(zone)?.toLocalDate() },
+            existing = false,
+            onSave = {
+                repeatDraft = it
+                repeatOpen = false
+            },
+            onStop = {
+                repeatDraft = null
+                repeatOpen = false
+            },
+            onDismiss = { repeatOpen = false },
+        )
+    }
+
     if (pickerOpen) {
         val pickerState = rememberDatePickerState(
             initialSelectedDateMillis = Instant.now().toEpochMilli(),
@@ -742,6 +897,15 @@ fun MakeTaskSheet(
         ) { DatePicker(state = pickerState) }
     }
 }
+
+/** #693: what the New task form adds to a create: priority, labels, a repeat. */
+data class TaskCreateExtras(
+    /** Null leaves the server's default (normal). */
+    val priority: String? = null,
+    /** An empty id marks a label to create by name once the task exists. */
+    val labels: List<TaskLabel> = emptyList(),
+    val repeat: TaskRepeat? = null,
+)
 
 /** The lime-barred quote of the source message ("from this message"). */
 @Composable

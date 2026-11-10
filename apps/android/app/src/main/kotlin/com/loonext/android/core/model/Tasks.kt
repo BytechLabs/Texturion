@@ -80,6 +80,53 @@ data class Task(
      */
     val lat: Double? = null,
     val lng: Double? = null,
+    /**
+     * #693: how much it matters ("none" | "low" | "normal" | "high" | "urgent"),
+     * the workspace tags on it, and the repeating job it belongs to. All
+     * defaulted so a payload from an older server still decodes.
+     */
+    val priority: String = "normal",
+    val labels: List<TaskLabel> = emptyList(),
+    val series_id: String? = null,
+    val occurrence_no: Int? = null,
+    val repeat: TaskRepeat? = null,
+)
+
+/** #693: a workspace tag as it appears on a task. */
+@Serializable
+data class TaskLabel(
+    val id: String,
+    val name: String,
+    val color: String? = null,
+)
+
+/** #693: when a repeat stops. `on` is a date (YYYY-MM-DD), `after` a count. */
+@Serializable
+data class TaskRepeatEnds(
+    val kind: String = "never",
+    val on: String? = null,
+    val after: Int? = null,
+)
+
+/**
+ * #693: the rule a repeating job follows. `kind` is "schedule" (fixed
+ * calendar dates, needs a due date) or "after_done" (counted from completion).
+ * The id and the rule details are defaulted because the contact timeline sends
+ * only kind, unit, every, paused and stopped.
+ */
+@Serializable
+data class TaskRepeat(
+    val id: String = "",
+    val kind: String,
+    val unit: String,
+    val every: Int = 1,
+    val weekdays: List<Int>? = null,
+    val month_day: Int? = null,
+    val nth: Int? = null,
+    val nth_weekday: Int? = null,
+    val ends: TaskRepeatEnds = TaskRepeatEnds(),
+    val paused: Boolean = false,
+    val stopped: Boolean = false,
 )
 
 /** D64: `source` on every task row: a message or an answered call. */
@@ -290,6 +337,16 @@ data class TaskDetail(
     val addr_postal_code: String? = null,
     val addr_country: String? = null,
     val addr_provenance: String? = null,
+    /**
+     * #693: how much it matters ("none" | "low" | "normal" | "high" | "urgent"),
+     * the workspace tags on it, and the repeating job it belongs to. All
+     * defaulted so a payload from an older server still decodes.
+     */
+    val priority: String = "normal",
+    val labels: List<TaskLabel> = emptyList(),
+    val series_id: String? = null,
+    val occurrence_no: Int? = null,
+    val repeat: TaskRepeat? = null,
 )
 
 // ---------------------------------------------------------------------------
