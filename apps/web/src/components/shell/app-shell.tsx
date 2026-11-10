@@ -15,7 +15,6 @@ import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
 
 import { NewTaskDialog } from "@/components/tasks/new-task";
 import { CommandPalette } from "./command-palette";
-import { ComposeFab } from "./compose-fab";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { Sidebar } from "./sidebar";
 import { WindowDropGuard } from "./window-drop-guard";
@@ -120,7 +119,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <MobileTabBar />
         <CallBar />
-        <ComposeFab />
         <CommandPalette />
         <NewTaskDialog />
         {/* TASKS-V2 D-A: the URL-driven (`?task=`) task detail drawer, openable

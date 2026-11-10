@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  CalendarClock,
   Check,
   CheckSquare,
   ChevronsUpDown,
@@ -83,12 +82,6 @@ const FOCUS: NavRow[] = [
   { labelKey: "shell.navCalls", href: "/calls", icon: PhoneIncoming, needs: "conversations.read" },
   { labelKey: "shell.navTasks", href: "/tasks", icon: CheckSquare, needs: "conversations.read" },
   { labelKey: "shell.navContacts", href: "/contacts", icon: Users, needs: "conversations.read" },
-  // #233: what the workspace has queued to go out. A quiet row like Calls and
-  // for the same reason — it is a real surface that is not one of the four
-  // tabs, and a page nobody can find is worse than a rail one row longer. No
-  // count: the accent budget stays on compose and the unread numeral, and
-  // "six texts waiting" is not a number anybody has to act on today.
-  { labelKey: "shell.navScheduled", href: "/scheduled", icon: CalendarClock, needs: "conversations.read" },
 ];
 
 /**

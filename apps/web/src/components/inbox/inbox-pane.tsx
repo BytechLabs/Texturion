@@ -1,6 +1,6 @@
 "use client";
 
-import { SquarePen } from "lucide-react";
+import { CalendarClock, SquarePen } from "lucide-react";
 import Link from "next/link";
 import {
   useParams,
@@ -94,13 +94,18 @@ export function InboxPane() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-app-ground">
-      {/* Mobile-only list header (title + New). On desktop the sidebar's
-          "New message" button owns compose; below lg the floating FAB does. The
-          segment + search below carry the filtering. */}
-      <header className="flex items-center justify-between px-4 pb-1 pt-4 md:hidden">
-        <h1 className="text-lg font-semibold text-app-ink">
+      {/* #715: the page's one primary action, New, in the same header slot as
+          New task and New contact. Scheduled is a view of this inbox. */}
+      <header className="flex items-center gap-1 px-4 pb-1 pt-4">
+        <h1 className="mr-auto text-lg font-semibold text-app-ink">
           {t("inbox.title")}
         </h1>
+        <Button asChild size="sm" variant="ghost">
+          <Link href="/inbox/scheduled">
+            <CalendarClock className="size-4" strokeWidth={1.75} aria-hidden />
+            {t("shell.navScheduled")}
+          </Link>
+        </Button>
         <Button
           asChild
           size="sm"

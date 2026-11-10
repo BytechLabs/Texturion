@@ -3,7 +3,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
-  CalendarClock,
   Check,
   ChevronDown,
   LogOut,
@@ -255,18 +254,6 @@ export function MobileAccountSheetBody({
             {t("shell.navCalls")}
           </Link>
 
-          {/* #233: the same reasoning as Calls above — the tab bar is a shipped
-              four links + avatar, so the workspace's queued texts ride here.
-              Without a row on this sheet, a phone-only member could reach the
-              page at all only through ⌘K, which a phone does not have. */}
-          <Link href="/scheduled" className={rowClass} onClick={onClose}>
-            <CalendarClock
-              className="size-4 shrink-0 text-app-muted-2"
-              strokeWidth={1.75}
-              aria-hidden
-            />
-            {t("shell.navScheduled")}
-          </Link>
 
           <Link href="/settings" className={rowClass} onClick={onClose}>
             <Settings

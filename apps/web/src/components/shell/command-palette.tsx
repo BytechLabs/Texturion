@@ -69,7 +69,7 @@ const NAV_ACTIONS = [
   // queued to go out" is a question somebody has while looking at something
   // else. It takes no rail slot — a page opened a few times a month does not
   // earn permanent furniture. *Applying: Zen of Clarity.*
-  { labelKey: "shell.navScheduled", href: "/scheduled", icon: CalendarClock },
+  { labelKey: "shell.navScheduled", href: "/inbox/scheduled", icon: CalendarClock },
   { labelKey: "shell.navSettings", href: "/settings", icon: Settings },
 ] as const;
 

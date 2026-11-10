@@ -32,9 +32,6 @@ describe("navRowsFor", () => {
         "/calls",
         "/tasks",
         "/contacts",
-        // #233: the workspace's queued texts. Last, because it is the only row
-        // that answers a question about the future rather than the present.
-        "/scheduled",
       ]);
     }
   });
