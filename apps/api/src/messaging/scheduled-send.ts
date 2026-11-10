@@ -481,12 +481,26 @@ async function hold(
     }),
     "hold scheduled message",
   );
-  // A held row is claimed again every minute until it can go. Telling people
-  // again each time is a push a minute for one held text, so only a new hold,
-  // or a hold for a different reason, is news.
-  const alreadyHeldForThis =
-    row.status === "held" && row.held_reason_key === SCHEDULED_HOLD_REASON_KEYS[reason];
-  if (!alreadyHeldForThis) await disclose(env, db, row, reason);
+  if (!alreadyHeldFor(row, reason)) await disclose(env, db, row, reason);
+}
+
+/**
+ * Was this row already held for this reason when it was claimed?
+ *
+ * A held row is claimed again every minute until it can go. Telling people
+ * again each time is a push a minute for one held text, so only a new hold, or
+ * a hold for a different reason, is news. Every path that can hold a row asks
+ * this against the row as CLAIMED, never against the row the hold returned,
+ * which already carries the new state.
+ */
+function alreadyHeldFor(
+  row: ScheduledRow,
+  reason: ScheduledHoldReason,
+): boolean {
+  return (
+    row.status === "held" &&
+    row.held_reason_key === SCHEDULED_HOLD_REASON_KEYS[reason]
+  );
 }
 
 /** Fail it permanently, and say why. */
@@ -528,7 +542,18 @@ async function expireStale(
   );
 
   for (const row of expired) {
-    await disclose(env, db, row, "expired");
+    // The row is already expired and will not be returned again, so a failed
+    // disclosure is logged rather than thrown: throwing here would abort the
+    // claim below and keep every other workspace's due text from going out.
+    try {
+      await disclose(env, db, row, "expired");
+    } catch (cause) {
+      console.error(
+        `scheduled send: expiry disclosure failed for ${row.id}: ${
+          cause instanceof Error ? cause.message : String(cause)
+        }`,
+      );
+    }
   }
   return expired.length;
 }
@@ -638,12 +663,14 @@ export async function runScheduledSendJob(
             `fire scheduled message returned unsupported hold reason ${String(fired.reason_key)}`,
           );
         }
-        await disclose(
-          env,
-          db,
-          fired.scheduled_message ?? row,
-          "calendar_unverified",
-        );
+        if (!alreadyHeldFor(row, "calendar_unverified")) {
+          await disclose(
+            env,
+            db,
+            fired.scheduled_message ?? row,
+            "calendar_unverified",
+          );
+        }
         summary.held += 1;
         continue;
       }

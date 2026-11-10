@@ -86,6 +86,8 @@ interface HarnessOptions {
   calendarOutboxReadFails?: boolean;
   calendarLinkReadFails?: boolean;
   calendarConnectionReadFails?: boolean;
+  /** The disclosure audience lookup fails, so no notice can be composed. */
+  audienceReadFails?: boolean;
 }
 
 function harness(options: HarnessOptions = {}) {
@@ -153,6 +155,7 @@ function harness(options: HarnessOptions = {}) {
         },
       ];
     }
+    if (options.audienceReadFails) return pgError("57014", "statement timeout");
     return [{ phone_number_id: null }];
   });
   sb.on("GET", "/rest/v1/messages", () =>
@@ -349,6 +352,20 @@ describe("#233 expiry is disclosed, not silent", () => {
     const summary = await runScheduledSendJob(env, NOW);
     expect(summary.expired).toBe(1);
     expect(summary.sent).toBe(0);
+  });
+
+  it("still sends the due ones when an expiry notice cannot be delivered", async () => {
+    const { sb, fires } = harness({
+      expired: [scheduledRow({ id: "ffffffff-0000-4000-8000-00000000000f" })],
+      due: [scheduledRow()],
+      audienceReadFails: true,
+    });
+    stubFetch(sb.route);
+
+    const summary = await runScheduledSendJob(env, NOW);
+    expect(summary.expired).toBe(1);
+    expect(summary.sent).toBe(1);
+    expect(fires).toHaveLength(1);
   });
 });
 
@@ -667,6 +684,56 @@ describe("#237 a reminder for a job that is no longer booked", () => {
       expect(
         sb.find("POST", "/rest/v1/rpc/api_fire_scheduled_message"),
       ).toHaveLength(1);
+    });
+
+    it("tells people once when the atomic calendar hold repeats on an already held row", async () => {
+      // The read-side check passes, the locked fire-time check does not, and the
+      // row is claimed again next minute. The row was already held for this
+      // reason, so the second pass changes nothing anyone needs to hear.
+      const claimed = reminderRow({
+        status: "held",
+        held_reason_key: SCHEDULED_HOLD_REASON_KEYS.calendar_unverified,
+      });
+      const { sb, holds } = harness({
+        due: [claimed],
+        task: bookedJob(),
+        calendarLinks: [calendarLink],
+        calendarConnections: [connection()],
+        fireResult: {
+          outcome: "held",
+          reason_key: "calendar_unverified",
+          scheduled_message: claimed,
+        },
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary.held).toBe(1);
+      expect(holds).toHaveLength(0);
+      expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(0);
+    });
+
+    it("tells people the first time the atomic calendar hold lands", async () => {
+      const claimed = reminderRow();
+      const { sb } = harness({
+        due: [claimed],
+        task: bookedJob(),
+        calendarLinks: [calendarLink],
+        calendarConnections: [connection()],
+        fireResult: {
+          outcome: "held",
+          reason_key: "calendar_unverified",
+          scheduled_message: claimed,
+        },
+      });
+      stubFetch(sb.route);
+
+      await runScheduledSendJob(env, NOW);
+
+      expect(
+        sb.find("GET", "/rest/v1/push_subscriptions").length,
+      ).toBeGreaterThan(0);
     });
 
     it("honours an atomic booking failure when the task changes after its read", async () => {
