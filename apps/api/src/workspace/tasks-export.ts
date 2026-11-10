@@ -16,11 +16,12 @@
  *     withheld is stated, because a file silently missing a job is one somebody
  *     puts in front of a customer believing it is whole.
  *
- * ── DONE IS A JOIN, NOT A COLUMN ──────────────────────────────────────────
+ * ── DONE IS OWNED BY ONE ROW ─────────────────────────────────────────────
  *
- * `tasks` has no completion column. It derives from the source message's
- * `done_at` (D17), which is easy to miss and produces an export where every
- * task looks open forever — the single most useless way this could be wrong,
+ * A task derives its completion from the source message's `done_at` (D17), or
+ * from its own `done_at` when it was promoted from a call and has no message
+ * (D64). Reading only one of the two is easy to miss and produces an export
+ * where every task looks open forever — the single most useless way this could be wrong,
  * since "what is still outstanding" is the question somebody exports this to
  * answer.
  */
@@ -50,6 +51,8 @@ interface TaskRow {
   created_at: string;
   assigned_user_id: string | null;
   conversation_id: string;
+  /** The task's own done state: set only for a task with no message (D64). */
+  done_at?: string | null;
   messages: { done_at: string | null } | null;
   conversations: {
     phone_number_id: string | null;
@@ -126,7 +129,7 @@ export async function buildTaskExport(
   let query = db
     .from("tasks")
     .select(
-      "id,title,description,due_at,created_at,assigned_user_id,conversation_id," +
+      "id,title,description,due_at,created_at,assigned_user_id,conversation_id,done_at," +
         // `!message_id`, and it is load-bearing. `tasks.message_id` and
         // `messages.task_id` both exist, so PostgREST cannot tell which
         // relationship this means and refuses the whole request with PGRST201 —
@@ -215,8 +218,8 @@ export async function buildTaskExport(
  * completion column and derives it from the source message (D17). A reader who
  * assumed otherwise would produce a file in which nothing was ever finished.
  */
-export function isDone(row: Pick<TaskRow, "messages">): boolean {
-  return (row.messages?.done_at ?? null) !== null;
+export function isDone(row: Pick<TaskRow, "messages" | "done_at">): boolean {
+  return (row.messages?.done_at ?? row.done_at ?? null) !== null;
 }
 
 function matchesState(entry: TaskEntry, state: string | undefined): boolean {

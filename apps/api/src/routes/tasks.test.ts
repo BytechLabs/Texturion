@@ -35,6 +35,7 @@ import { tasksRoutes } from "./tasks";
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
 const MESSAGE_ID = "aaaaaaaa-0000-4000-8000-00000000000a";
+const CALL_ID = "aaaaaaaa-0000-4000-8000-0000000000c1";
 const TASK_ID = "77777777-0000-4000-8000-000000000077";
 const CONTACT_ID = "c0cccccc-0000-4000-8000-0000000000c0";
 const OTHER_USER = "22222222-0000-4000-8000-000000000022";
@@ -277,11 +278,67 @@ describe("POST /v1/tasks — promote a message", () => {
     expect(await errorCode(response)).toBe("validation_failed");
   });
 
-  it("422 when message_id is absent (standalone tasks are cut, T0.1)", async () => {
+  it("422 when no source is given (a task with no source is not built yet, #689)", async () => {
     stubFetch(jwksRoute(auth), membersRoute());
     const response = await request("POST", "/v1/tasks", { title: "orphan" });
     expect(response.status).toBe(422);
     expect(await errorCode(response)).toBe("validation_failed");
+  });
+
+  it("422 when both a message and a call are given", async () => {
+    stubFetch(jwksRoute(auth), membersRoute());
+    const response = await request("POST", "/v1/tasks", {
+      message_id: MESSAGE_ID,
+      source_call_id: CALL_ID,
+    });
+    expect(response.status).toBe(422);
+    expect(await errorCode(response)).toBe("validation_failed");
+  });
+
+  it("promotes an answered call via create_task: p_call_id, no message, source=call", async () => {
+    const stubs = createStubs({
+      task: taskRow({
+        message_id: null,
+        source_call_id: CALL_ID,
+        title: "Call from Pat Plumber",
+      }),
+    });
+    stubFetch(...stubs.all);
+
+    const response = await request("POST", "/v1/tasks", {
+      source_call_id: CALL_ID,
+      title: "Call from Pat Plumber",
+    });
+    expect(response.status).toBe(201);
+    const params = stubs.rpc.calls[0].body as Record<string, unknown>;
+    expect(params).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_message_id: null,
+      p_call_id: CALL_ID,
+      p_title: "Call from Pat Plumber",
+      p_actor_user_id: auth.subject,
+    });
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      message_id: null,
+      source_call_id: CALL_ID,
+      source: { kind: "call", id: CALL_ID },
+    });
+  });
+
+  it.each([
+    ["call_not_answered", 422, "validation_failed"],
+    ["call_no_conversation", 422, "validation_failed"],
+    ["no_call", 422, "validation_failed"],
+    ["conflict", 409, "conflict"],
+  ])("maps the call outcome %s to %i", async (outcome, status, code) => {
+    const stubs = createStubs({ outcome });
+    stubFetch(...stubs.all);
+    const response = await request("POST", "/v1/tasks", {
+      source_call_id: CALL_ID,
+    });
+    expect(response.status).toBe(status);
+    expect(await errorCode(response)).toBe(code);
   });
 
   it("422 when the assignee is not an active member", async () => {
@@ -346,15 +403,19 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     expect(response.status).toBe(200);
 
     const q = list.calls[0].url.searchParams;
-    // status=open → messages.done_at is null; assignee=me → the caller's sub.
-    expect(q.get("messages.done_at")).toBe("is.null");
+    // status=open → the effective done state is null; assignee=me → the caller's sub.
+    expect(q.get("task_done_at")).toBe("is.null");
     expect(q.get("assigned_user_id")).toBe(`eq.${auth.subject}`);
     // Company-scoped, live rows only.
     expect(q.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(q.get("deleted_at")).toBe("is.null");
-    // Inner-embed of the SOURCE message (disambiguated from the reverse
-    // messages.task_id FK) drives the derived status.
-    expect(q.get("select")).toContain("messages!message_id!inner");
+    // The computed column drives the derived status (D64): an inner embed of
+    // the source message would drop every call-anchored task. The call a task
+    // promotes rides along as a left embed on the one FK between the tables.
+    expect(q.get("select")).toContain("done_state:task_done_at");
+    expect(q.get("select")).not.toContain("messages");
+    expect(q.get("select")).toContain("source_call:calls!source_call_id(");
+    expect(q.get("select")).toContain("source_call_id");
     // D137: provider-removal/refusal attention rows are a hold, not ordinary
     // undated work. The empty calendar_hold embed is an anti-join over the
     // composite tenant/task FK. A conflict is deliberately absent: it remains
@@ -370,16 +431,16 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     expect(q.get("calendar_hold")).toBe("is.null");
   });
 
-  it("derives done from the joined messages.done_at (no task-side column)", async () => {
+  it("derives done from the task_done_at computed column", async () => {
     const list = listStub([
       taskRow({
         id: TASK_ID,
-        messages: { id: MESSAGE_ID, done_at: null },
+        done_state: null,
         calendar_hold: [],
       }),
       taskRow({
         id: "77777777-0000-4000-8000-000000000078",
-        messages: { id: "m2", done_at: "2026-07-02T14:00:00.000Z" },
+        done_state: "2026-07-02T14:00:00.000Z",
       }),
     ]);
     stubFetch(jwksRoute(auth), membersRoute(), list.route);
@@ -392,15 +453,59 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     // is stripped from the response (completion is derived, not stored).
     expect(body.data[0]).toMatchObject({ done: false, status: "open" });
     expect(body.data[1]).toMatchObject({ done: true, status: "done" });
-    expect(body.data[0]).not.toHaveProperty("messages");
+    expect(body.data[0]).not.toHaveProperty("done_state");
     expect(body.data[0]).not.toHaveProperty("calendar_hold");
+  });
+
+  it("lists a call-anchored task with its source and the call", async () => {
+    const CALL_ID = "77777777-0000-4000-8000-0000000000ca";
+    const list = listStub([
+      taskRow({
+        id: "77777777-0000-4000-8000-0000000000c9",
+        message_id: null,
+        source_call_id: CALL_ID,
+        done_state: "2026-07-02T14:00:00.000Z",
+        source_call: {
+          id: CALL_ID,
+          call_session_id: "sess-1",
+          caller_e164: "+14155550100",
+          caller_name: "Pat Plumber",
+          outcome: "answered",
+          forward_seconds: 180,
+          started_at: "2026-07-02T13:00:00.000Z",
+          ended_at: "2026-07-02T13:03:00.000Z",
+          contact_id: null,
+          voicemail_path: "secret/path.wav",
+        },
+      }),
+      taskRow({ id: TASK_ID, done_state: null }),
+    ]);
+    stubFetch(jwksRoute(auth), membersRoute(), list.route);
+
+    const response = await request("GET", "/v1/tasks?status=done");
+    const body = (await response.json()) as {
+      data: Record<string, unknown>[];
+    };
+    expect(body.data[0]).toMatchObject({
+      message_id: null,
+      done: true,
+      status: "done",
+      source: { kind: "call", id: CALL_ID },
+      call: { caller_name: "Pat Plumber", has_voicemail: true },
+    });
+    // The storage path never leaves the server.
+    expect(JSON.stringify(body.data[0])).not.toContain("secret/path.wav");
+    expect(body.data[1]).toMatchObject({
+      source: { kind: "message", id: MESSAGE_ID },
+      call: null,
+    });
   });
 
   it("status=done filters the join with done_at not-null", async () => {
     const list = listStub([]);
     stubFetch(jwksRoute(auth), membersRoute(), list.route);
     await request("GET", "/v1/tasks?status=done");
-    expect(list.calls[0].url.searchParams.get("messages.done_at")).toBe(
+    expect(list.calls[0].url.searchParams.get("task_done_at")).toBe(
       "not.is.null",
     );
   });
@@ -412,7 +517,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     const q = list.calls[0].url.searchParams;
     // due_at < now AND still open (a done task is never overdue).
     expect(q.get("due_at")?.startsWith("lt.")).toBe(true);
-    expect(q.get("messages.done_at")).toBe("is.null");
+    expect(q.get("task_done_at")).toBe("is.null");
     // due-sorted view → order by due_at NULLS LAST then id.
     expect(q.get("order")).toContain("due_at");
   });
@@ -1273,12 +1378,46 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
     expect(body.assigned_user_id).toBe(OTHER_USER);
   });
 
-  it("rejects a `done` field — completion is the message route, not here", async () => {
-    stubFetch(jwksRoute(auth), membersRoute());
+  it("rejects `done` on a task that came from a text: completion is the message route", async () => {
+    const lookup = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      taskRow({ message_id: MESSAGE_ID }),
+    ]);
+    const setDone = stubRoute(rpcMatch(env, "set_task_done"), () => ({}));
+    stubFetch(jwksRoute(auth), membersRoute(), lookup.route, setDone.route);
     const response = await request("PATCH", `/v1/tasks/${TASK_ID}`, {
       done: true,
     });
     expect(response.status).toBe(422);
+    expect(setDone.calls).toHaveLength(0);
+  });
+
+  it("marks a call-anchored task done through set_task_done, and returns the source", async () => {
+    const callTask = taskRow({ message_id: null, source_call_id: CALL_ID });
+    const lookup = stubRoute(restMatch(env, "GET", "tasks"), () => [callTask]);
+    const setDone = stubRoute(rpcMatch(env, "set_task_done"), () => ({
+      outcome: "updated",
+      task: { ...callTask, done_at: "2026-07-02T15:00:00.000Z" },
+    }));
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      lookup.route,
+      setDone.route,
+      ...reminderRoutes(),
+    );
+    const response = await request("PATCH", `/v1/tasks/${TASK_ID}`, {
+      done: true,
+    });
+    expect(response.status).toBe(200);
+    expect(setDone.calls[0].body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_task_id: TASK_ID,
+      p_done: true,
+      p_actor_user_id: auth.subject,
+    });
+    expect(await response.json()).toMatchObject({
+      source: { kind: "call", id: CALL_ID },
+    });
   });
 
   it("rejects an unassignable member without writing the metadata first", async () => {
@@ -1480,9 +1619,9 @@ describe("POST /v1/tasks/bulk (#478)", () => {
     expect(response.status).toBe(200);
     expect(list.calls).toHaveLength(1);
     const url = list.calls[0].url;
-    // The status filter lands on the JOINED message's done_at (T2 — there is no
+    // The status filter lands on the effective done state (T2/D64: there is no
     // task status column), and overdue adds the past-due bound.
-    expect(url.searchParams.get("messages.done_at")).toBe("is.null");
+    expect(url.searchParams.get("task_done_at")).toBe("is.null");
     expect(url.searchParams.get("due_at")).toContain("lt.");
     // Select-all must not reach the attention-held rows the list hid.
     expect(url.searchParams.get("calendar_hold.company_id")).toBe(

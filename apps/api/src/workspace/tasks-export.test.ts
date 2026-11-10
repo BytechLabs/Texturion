@@ -185,6 +185,10 @@ describe("#304 the task export", () => {
     expect(isDone({ messages: { done_at: "2026-07-02T08:00:00Z" } })).toBe(true);
     expect(isDone({ messages: { done_at: null } })).toBe(false);
     expect(isDone({ messages: null })).toBe(false);
+    // D64: a task promoted from a call has no message, so its own done_at is
+    // the only completion there is.
+    expect(isDone({ messages: null, done_at: "2026-07-02T08:00:00Z" })).toBe(true);
+    expect(isDone({ messages: null, done_at: null })).toBe(false);
 
     const { written } = await build({
       tasks: [

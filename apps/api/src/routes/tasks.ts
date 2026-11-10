@@ -1,22 +1,26 @@
 /**
  * Task routes (D17 / TASKS.md T4, §7 conventions) — any active member (M)
  * unless noted. Mounted at /v1. A task is archetype-B *metadata* (assignee,
- * due, notes, attachments) promoted over a real message; it never owns a
- * completion flag. Completion is DERIVED from the joined `messages.done_at`
- * (T2): `status='open'` when NULL, `'done'` otherwise. There is no task-side
- * done column, no mirror, no sync — checking a task's box is the EXISTING
- * `PATCH /v1/messages/:id {done}` (routes/messages.ts), never a task route.
+ * due, notes, attachments) promoted over a SOURCE: a real message or, since
+ * D64, an answered call. Exactly one row owns its done state (D17 as amended):
+ * the source message's `messages.done_at` when there is one (T2), else the
+ * task's own `done_at`. `status='open'` when NULL, `'done'` otherwise. A
+ * message task is checked off with the EXISTING `PATCH /v1/messages/:id
+ * {done}` (routes/messages.ts); a call task with `PATCH /v1/tasks/:id {done}`.
+ * Every task row carries `source: {kind: 'message'|'call'|null, id}`.
  *
- *   POST   /v1/tasks                 M  — promote a message. Body
- *          { message_id (required), title?, description?, assigned_user_id?,
- *          due_at? }. Resolves conversation_id server-side from the message;
- *          title defaults to the message-body snippet (editable). A second
- *          live promotion of the same message → 409 `conflict` (partial-unique
- *          tasks_message_uq). Writes a `task_created` event. The DB trigger
+ *   POST   /v1/tasks                 M  — promote a message OR an answered call.
+ *          Body { message_id | source_call_id (exactly one), title?,
+ *          description?, assigned_user_id?, due_at? }. Resolves
+ *          conversation_id server-side from the source (a call's own
+ *          conversation); title defaults to the message-body snippet / "Call
+ *          from <caller>" (editable). A second live promotion of the same
+ *          source → 409 `conflict` (partial-unique tasks_message_uq /
+ *          tasks_source_call_uq). Writes a `task_created` event. The DB trigger
  *          fires the ID-only `task.changed {conversation_id}` broadcast (T1.3).
  *   GET    /v1/tasks                 M  — flat filtered list, cursor
  *          { data, next_cursor }. Params: status(open|done, applied on the
- *          joined messages.done_at), assigned_user_id(or `me`)|unassigned,
+ *          task's effective done state), assigned_user_id(or `me`)|unassigned,
  *          conversation_id, due_before/due_after, overdue, has_location, q
  *          (title trgm). DEFAULT (no params): status=open, assignee=me — the
  *          "what needs me now" view. Keyset (due_at NULLS LAST, id) for
@@ -26,12 +30,13 @@
  *          cursor). Each carries the derived `done` boolean + attachment_count
  *          (the size of the SAME D28 union the detail returns).
  *   GET    /v1/tasks/:id             M  — detail: row + resolved assignee +
- *          created_by + the joined source message (live body + done_at for the
- *          derived status) + attachments (the D28 DERIVED union — see below).
- *   PATCH  /v1/tasks/:id             M  — metadata only { title?, description?,
- *          assigned_user_id?, due_at? }. NO `done` field (completion is the
- *          message route). An assignee change writes `task_assigned`; a due_at
- *          change writes `task_due_set`.
+ *          created_by + the joined source message (live body) or source call
+ *          + attachments (the D28 DERIVED union — see below).
+ *   PATCH  /v1/tasks/:id             M  — { title?, description?,
+ *          assigned_user_id?, due_at?, done? }. `done` is accepted only for a
+ *          task with no message (the task owns its done state); for a message
+ *          task it is 422 and the client uses the message route. An assignee
+ *          change writes `task_assigned`; a due_at change writes `task_due_set`.
  *   DELETE /v1/tasks/:id             M* — soft-delete (creator or owner/admin):
  *          sets deleted_at, writes `task_deleted`. Does NOT touch
  *          messages.done_at (removing the promotion leaves D14 archetype A).
@@ -64,7 +69,8 @@ import {
 } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { emitWebhookEvent } from "../webhooks/outbound";
+import { emitWebhookEvent, enqueueWebhookEvent } from "../webhooks/outbound";
+import { askForJobRating } from "../messaging/job-ratings";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
@@ -189,7 +195,7 @@ function parseDueCursor(rawCursor: string | undefined): DueCursor | null {
  * because it needs its own length validation and throws rather than filtering.
  */
 interface TaskFilters {
-  /** "messages.done_at" on the list path, "done_at" on the flat map view. */
+  /** "task_done_at" (computed column) on the list path, "done_at" on the flat map view. */
   doneAtCol: string;
   effectiveStatus: string | undefined;
   assignee: string | undefined;
@@ -275,9 +281,12 @@ function dueKeysetFilter(cursor: DueCursor): string {
   );
 }
 
-/** Columns of the tasks row the API returns (T1.1). No status/done column. */
+/**
+ * Columns of the tasks row the API returns (T1.1). No status column: `done` is
+ * derived (see TASK_DONE_AT) and added to each row by `withSource`/the callers.
+ */
 const TASK_COLUMNS =
-  "id,company_id,message_id,conversation_id,title,description," +
+  "id,company_id,message_id,source_call_id,conversation_id,title,description," +
   "assigned_user_id,due_at,created_by_user_id,created_at,updated_at," +
   // #214 structured job address + provenance (null when the task has no address).
   "addr_street,addr_unit,addr_city,addr_state,addr_postal_code," +
@@ -292,6 +301,68 @@ const TASK_COLUMNS =
   // is a promise, and a screen that showed them the same way would let a
   // dispatcher trust the weaker of the two.
   "reminders_off,confirmed_at,confirmed_by";
+
+/**
+ * The task's effective done time as a PostgREST computed column
+ * (`task_done_at(tasks)`): the source message's done_at, or the task's own when
+ * it has no message. An inner embed of messages cannot carry this: it would
+ * drop every call-anchored task, and PostgREST cannot OR a root column against
+ * an embedded one, so the list selects and filters on this instead.
+ */
+const TASK_DONE_AT = "task_done_at";
+const TASK_DONE_SELECT = `done_state:${TASK_DONE_AT}`;
+
+/**
+ * The call a task promotes, as the list and detail show it. `call` is null for
+ * a message task. The recording path never leaves the server (see routes/calls).
+ */
+const SOURCE_CALL_COLUMNS =
+  "id,call_session_id,caller_e164,caller_name,outcome,forward_seconds," +
+  "started_at,ended_at,contact_id,voicemail_path";
+const SOURCE_CALL_EMBED = `source_call:calls!source_call_id(${SOURCE_CALL_COLUMNS})`;
+
+interface SourceCallRow {
+  id: string;
+  call_session_id: string;
+  caller_e164: string | null;
+  caller_name: string | null;
+  outcome: string | null;
+  forward_seconds: number;
+  started_at: string;
+  ended_at: string | null;
+  contact_id: string | null;
+  voicemail_path: string | null;
+}
+
+/** The call as clients see it: the storage path becomes `has_voicemail`. */
+function publicSourceCall(
+  call: SourceCallRow | null | undefined,
+): Omit<SourceCallRow, "voicemail_path"> & { has_voicemail: boolean } | null {
+  if (!call) return null;
+  const { voicemail_path, ...rest } = call;
+  return { ...rest, has_voicemail: voicemail_path !== null };
+}
+
+/** `source` on a task row: which kind of thing it promotes, and its id. */
+export function taskSource(row: {
+  message_id?: unknown;
+  source_call_id?: unknown;
+}): { kind: "message" | "call"; id: string } | null {
+  if (typeof row.message_id === "string") {
+    return { kind: "message", id: row.message_id };
+  }
+  if (typeof row.source_call_id === "string") {
+    return { kind: "call", id: row.source_call_id };
+  }
+  return null;
+}
+
+/** A task row (RPC or PostgREST) with its `source` attached. */
+export function withSource<T extends Record<string, unknown>>(
+  row: T,
+): T & { source: ReturnType<typeof taskSource> } {
+  return { ...row, source: taskSource(row) };
+}
 
 /**
  * Title column bound (T1.1). The default title (message-body snippet, ≤500,
@@ -335,23 +406,29 @@ function addressParams(a: z.infer<typeof addressSchema> | null | undefined) {
   };
 }
 
-const createSchema = z.object({
-  // message_id REQUIRED — every task promotes a real message (T0.1: standalone
-  // tasks are cut from MVP; completion always derives from messages.done_at).
-  message_id: z.uuid(),
+const createSchema = z
+  .object({
+  // Exactly one source (D64): a message, or an answered call. A task with no
+  // source at all is not built yet (#689), so neither is refused here.
+  message_id: z.uuid().optional(),
+  source_call_id: z.uuid().optional(),
   title: z.string().trim().min(1).max(TITLE_MAX).optional(),
   description: z.string().max(5000).optional(),
   assigned_user_id: z.uuid().nullable().optional(),
   due_at: z.iso.datetime({ offset: true }).nullable().optional(),
   // #214: the confirmed enriched (or hand-entered) job address.
   address: addressSchema.nullable().optional(),
-});
+})
+  .refine((body) => (body.message_id === undefined) !== (body.source_call_id === undefined), {
+    message: "Provide exactly one of message_id or source_call_id.",
+  });
 
 const patchSchema = z
   .object({
-    // Metadata only — there is NO `done` field (completion is the message
-    // route, T4). `done` in the body is rejected below so a mis-wired client
-    // never silently no-ops.
+    // `done` is accepted only for a task with no message (D64); for a message
+    // task the PATCH rejects it below so a mis-wired client never silently
+    // no-ops (completion is the message route, T4).
+    done: z.boolean().optional(),
     title: z.string().trim().min(1).max(TITLE_MAX).optional(),
     description: z.string().max(5000).optional(),
     assigned_user_id: z.uuid().nullable().optional(),
@@ -364,6 +441,7 @@ const patchSchema = z
     (body) =>
       body.title !== undefined ||
       body.description !== undefined ||
+      body.done !== undefined ||
       "assigned_user_id" in body ||
       "due_at" in body ||
       "address" in body,
@@ -387,6 +465,10 @@ const taskOutcomeSchema = z.object({
     "deleted",
     "not_found",
     "no_message",
+    "no_source",
+    "no_call",
+    "call_not_answered",
+    "call_no_conversation",
     "not_member",
     "conflict",
   ]),
@@ -418,7 +500,7 @@ async function findTask(
       .limit(1),
     "task lookup",
   );
-  return rows[0] ?? null;
+  return rows[0] ? withSource(rows[0]) : null;
 }
 
 export const tasksRoutes = new Hono<AppEnv>();
@@ -433,26 +515,38 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
 
-  // #106/#107: a member with no access to the source message's number can't
-  // promote it to a task (that number's content is hidden from them). Creating
-  // a task is internal coordination, so 'note' access is enough — a notes-only
-  // member may organize work they can read. An unknown message falls through to
+  // #106/#107: a member with no access to the source's number can't promote it
+  // to a task (that number's content is hidden from them). Creating a task is
+  // internal coordination, so 'note' access is enough — a notes-only member may
+  // organize work they can read. An unknown message or call falls through to
   // the RPC's own 422. Owners/admins and no-rules companies short-circuit
-  // without touching messages/conversations.
+  // without touching messages/conversations. A call is gated by its
+  // conversation, the same door its message-anchored twin would use.
   const role = c.get("role");
   if (role !== "owner" && role !== "admin") {
     const access = await resolveNumberAccess(db, { companyId, userId, role });
     if (access.hiddenNumberIds !== null) {
-      const sourceRows = unwrap<{ conversation_id: string }[]>(
-        await db
-          .from("messages")
-          .select("conversation_id")
-          .eq("company_id", companyId)
-          .eq("id", body.message_id)
-          .limit(1),
-        "task source lookup",
-      );
-      if (sourceRows[0]) {
+      const sourceRows =
+        body.message_id !== undefined
+          ? unwrap<{ conversation_id: string | null }[]>(
+              await db
+                .from("messages")
+                .select("conversation_id")
+                .eq("company_id", companyId)
+                .eq("id", body.message_id)
+                .limit(1),
+              "task source lookup",
+            )
+          : unwrap<{ conversation_id: string | null }[]>(
+              await db
+                .from("calls")
+                .select("conversation_id")
+                .eq("company_id", companyId)
+                .eq("id", body.source_call_id as string)
+                .limit(1),
+              "task call source lookup",
+            );
+      if (sourceRows[0]?.conversation_id) {
         await requireConversationAccess(db, {
           companyId,
           userId,
@@ -465,7 +559,7 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   }
 
   // T3: the mutation is the `create_task` security-definer RPC — ONE atomic
-  // transaction that resolves conversation_id from the source message
+  // transaction that resolves conversation_id from the source message or call
   // (company-scoped, §10), validates the assignee, inserts the tasks row (the
   // partial-unique tasks_message_uq is the race-safe conflict arbiter), links
   // the source note back (messages.task_id, when the source is a note — so its
@@ -476,7 +570,8 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   // (SPEC §8 broadcast-from-DB).
   const { data, error } = await db.rpc("create_task", {
     p_company_id: companyId,
-    p_message_id: body.message_id,
+    p_message_id: body.message_id ?? null,
+    p_call_id: body.source_call_id ?? null,
     // undefined title → the RPC seeds the message-body snippet; an empty string
     // can never arrive (createSchema requires min-length 1).
     p_title: body.title ?? null,
@@ -496,6 +591,32 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
       "message_id: no such message in this company.",
     );
   }
+  if (result.outcome === "no_call") {
+    throw new ApiError(
+      "validation_failed",
+      "source_call_id: no such call in this company.",
+    );
+  }
+  if (result.outcome === "call_not_answered") {
+    // D64: only a call somebody picked up is a job to record. A voicemail is a
+    // message in the thread and promotes as one.
+    throw new ApiError(
+      "validation_failed",
+      "source_call_id: only an answered call can become a task.",
+    );
+  }
+  if (result.outcome === "call_no_conversation") {
+    throw new ApiError(
+      "validation_failed",
+      "source_call_id: this call has no conversation to attach a task to.",
+    );
+  }
+  if (result.outcome === "no_source") {
+    throw new ApiError(
+      "validation_failed",
+      "Provide exactly one of message_id or source_call_id.",
+    );
+  }
   if (result.outcome === "not_member") {
     throw new ApiError(
       "validation_failed",
@@ -503,7 +624,12 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     );
   }
   if (result.outcome === "conflict") {
-    throw new ApiError("conflict", "This message is already a task.");
+    throw new ApiError(
+      "conflict",
+      body.message_id !== undefined
+        ? "This message is already a task."
+        : "This call is already a task.",
+    );
   }
   if (!result.task) throw new Error("create_task returned no row");
 
@@ -539,11 +665,13 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
       title: result.task.title ?? null,
       due_at: result.task.due_at ?? null,
       assigned_user_id: body.assigned_user_id ?? null,
-      message_id: body.message_id,
+      // Kept nullable for the integrations that read it; `source` says which.
+      message_id: body.message_id ?? null,
+      source: taskSource(result.task),
     },
   });
 
-  return c.json(result.task, 201);
+  return c.json(withSource(result.task), 201);
 });
 
 /**
@@ -899,9 +1027,12 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   const createdCursor =
     dueSorted || rawCursor === undefined ? null : decodeCursor(rawCursor);
 
-  // The common (non-map) path reads `tasks` and embeds the SOURCE row
-  // (messages!message_id!inner, disambiguated from the reverse messages.task_id
-  // FK) so status filters on done_at and the response carries derived `done`.
+  // The common (non-map) path reads `tasks` and selects the computed column
+  // `task_done_at` (the source message's done_at, or the task's own when it has
+  // no message, D64) so status filters and the response's derived `done` read
+  // whichever row owns done. It cannot be an inner embed of messages: that
+  // would drop every call-anchored task. The call a task promotes rides along
+  // as a left embed.
   //
   // The has_location (Map) path instead reads the FLAT `task_map_rows` view
   // (#221): it pre-joins the source message (done_at), conversation
@@ -911,7 +1042,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   // appears. PostgREST cannot OR a root column against an embedded one, so the
   // predicate has to live on a flat view column. `done_at` is therefore a plain
   // column on this path, so status/overdue filters reference it directly.
-  const doneAtCol = hasLocation ? "done_at" : "messages.done_at";
+  const doneAtCol = hasLocation ? "done_at" : TASK_DONE_AT;
   let query = hasLocation
     ? db
         .from("task_map_rows")
@@ -925,7 +1056,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     : db
         .from("tasks")
         .select(
-          `${TASK_COLUMNS},messages!message_id!inner(id,done_at),${CALENDAR_HOLD_EMBED}`,
+          `${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${CALENDAR_HOLD_EMBED}`,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null);
@@ -987,8 +1118,9 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     id: string;
     created_at: string;
     due_at: string | null;
-    // Non-map path: `done` derives from the messages!message_id!inner embed.
-    messages?: { done_at: string | null } | null;
+    // Non-map path: `done` derives from the task_done_at computed column.
+    done_state?: string | null;
+    source_call?: SourceCallRow | null;
     // has_location (task_map_rows view) path: flat columns — `done` derives from
     // done_at and the source contact's geocode rides on contact_* .
     done_at?: string | null;
@@ -1029,13 +1161,24 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
       delete rest.contact_name;
       delete rest.contact_lat;
       delete rest.contact_lng;
-      return { ...rest, done, status: done ? "done" : "open", contact };
+      return withSource({
+        ...rest,
+        done,
+        status: done ? "done" : "open",
+        contact,
+      });
     }
-    // Non-map path (unchanged frozen contract): `messages` is a read-only join
-    // artifact and there is no `contact`.
-    delete rest.messages;
-    const done = (row.messages?.done_at ?? null) !== null;
-    return { ...rest, done, status: done ? "done" : "open" };
+    // Non-map path: `done_state`/`source_call` are read artifacts folded into
+    // `done`/`call`, and there is no `contact`.
+    delete rest.done_state;
+    delete rest.source_call;
+    const done = (row.done_state ?? null) !== null;
+    return withSource({
+      ...rest,
+      done,
+      status: done ? "done" : "open",
+      call: publicSourceCall(row.source_call),
+    });
   });
 
   // next_cursor matches the view's ordering: due-sorted pages advance on the
@@ -1097,8 +1240,8 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
  * The access intersection, the cap, the per-row results and the prior values
  * for undo — all identical across four actions, and a route that reimplemented
  * any of them per action is how the fifth gets one wrong. Most of all: bulk
- * completion writes N `messages.done_at` flips and N audit events in ONE
- * transaction (D14/D22). A bulk done that half-records is worse than none.
+ * completion writes N done flips (`messages.done_at` or, for a call task,
+ * `tasks.done_at`) and N audit events in ONE transaction (D14/D22/D64). A bulk done that half-records is worse than none.
  *
  * THERE IS NO BULK SEND, and the zod enum below is the second of two gates (the
  * SQL enum is the first) — the rule #275 established, which any new bulk
@@ -1171,15 +1314,13 @@ tasksRoutes.post(
         excludeCalendarAttentionHolds(
           db
             .from("tasks")
-            .select(
-              `id,messages!message_id!inner(id,done_at),${CALENDAR_HOLD_EMBED}`,
-            )
+            .select(`id,${CALENDAR_HOLD_EMBED}`)
             .eq("company_id", companyId)
             .is("deleted_at", null),
           companyId,
         ),
         {
-          doneAtCol: "messages.done_at",
+          doneAtCol: TASK_DONE_AT,
           effectiveStatus: filter.status,
           assignee:
             filter.assigned_user_id === undefined
@@ -1290,14 +1431,15 @@ tasksRoutes.get(
 
     interface ChecklistRow {
       id: string;
-      message_id: string;
-      messages: { done_at: string | null } | null;
+      message_id: string | null;
+      done_state: string | null;
+      source_call: SourceCallRow | null;
       [key: string]: unknown;
     }
     const rows = unwrap<ChecklistRow[]>(
       await db
         .from("tasks")
-        .select(`${TASK_COLUMNS},messages!message_id!inner(id,done_at)`)
+        .select(`${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED}`)
         .eq("company_id", companyId)
         .eq("conversation_id", conversationId)
         .is("deleted_at", null)
@@ -1316,14 +1458,15 @@ tasksRoutes.get(
     );
 
     const data = rows.map((row) => {
-      const { messages, ...rest } = row;
-      const done = (messages?.done_at ?? null) !== null;
-      return {
+      const { done_state, source_call, ...rest } = row;
+      const done = (done_state ?? null) !== null;
+      return withSource({
         ...rest,
         done,
         status: done ? "done" : "open",
+        call: publicSourceCall(source_call),
         attachment_count: attachmentUnions.get(row.id)?.length ?? 0,
-      };
+      });
     });
     return c.json({ data });
   },
@@ -1385,7 +1528,7 @@ function attachmentKind(contentType: string | null): "image" | "file" {
 async function loadTaskAttachments(
   db: Db,
   companyId: string,
-  tasks: { id: string; message_id: string }[],
+  tasks: { id: string; message_id: string | null }[],
 ): Promise<Map<string, TaskAttachmentItem[]>> {
   const byTask = new Map<string, TaskAttachmentItem[]>();
   if (tasks.length === 0) return byTask;
@@ -1393,8 +1536,13 @@ async function loadTaskAttachments(
   const taskIds = tasks.map((task) => task.id);
 
   // Arm (a) — MMS media of the source messages, one batched lookup.
-  const taskByMessage = new Map(tasks.map((task) => [task.message_id, task.id]));
-  const mmsRows = unwrap<
+  // A call-anchored task has no source message, so no MMS arm (D64).
+  const taskByMessage = new Map(
+    tasks.flatMap((task): [string, string][] =>
+      task.message_id === null ? [] : [[task.message_id, task.id]],
+    ),
+  );
+  const mmsRows = taskByMessage.size === 0 ? [] : unwrap<
     {
       id: string;
       message_id: string;
@@ -1533,10 +1681,14 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
 
   interface DetailRow {
     id: string;
-    message_id: string;
+    message_id: string | null;
     conversation_id: string;
     assigned_user_id: string | null;
     created_by_user_id: string;
+    done_state: string | null;
+    done_by: string | null;
+    source_call: SourceCallRow | null;
+    // Null for a call-anchored task (D64).
     messages: { id: string; body: string; done_at: string | null } | null;
     [key: string]: unknown;
   }
@@ -1544,8 +1696,8 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     await db
       .from("tasks")
       .select(
-        `${TASK_COLUMNS},` +
-          "messages!message_id!inner(id,body,done_at,done_by_user_id,created_at,direction)",
+        `${TASK_COLUMNS},${TASK_DONE_SELECT},done_by:task_done_by,${SOURCE_CALL_EMBED},` +
+          "messages!message_id(id,body,done_at,done_by_user_id,created_at,direction)",
       )
       .eq("company_id", companyId)
       .eq("id", id)
@@ -1575,11 +1727,13 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     for (const p of found) profiles.set(p.user_id, p);
   }
 
-  const { messages, ...task } = row;
-  const done = (messages?.done_at ?? null) !== null;
+  const { messages, done_state, done_by, source_call, ...task } = row;
+  const done = (done_state ?? null) !== null;
   const identity = {
-    ...task,
+    ...withSource(task),
     done,
+    done_at: done_state ?? null,
+    done_by_user_id: done ? done_by ?? null : null,
     status: done ? "done" : "open",
     assignee: row.assigned_user_id
       ? profiles.get(row.assigned_user_id) ?? null
@@ -1604,6 +1758,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
       ...identity,
       viewer_level: viewerLevel,
       source_message: null,
+      source_call: null,
       attachments: [],
       activity: [],
     });
@@ -1630,6 +1785,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     ...identity,
     viewer_level: viewerLevel,
     source_message: messages,
+    source_call: publicSourceCall(source_call),
     attachments,
     activity,
   });
@@ -1788,8 +1944,51 @@ async function loadTaskActivity(
 }
 
 /**
- * PATCH /v1/tasks/:id — metadata only (T4). No `done` field. An assignee
- * change writes `task_assigned`; a due_at change writes `task_due_set`.
+ * A call-anchored task just went done: the same two follow-ups
+ * `onPromotedMessageDone` runs for a message task: tell the workspace's own
+ * systems (#243 `task.completed`) and ask the customer how it went (#313).
+ * Best-effort on `waitUntil`: finishing a job must never fail because a
+ * satisfaction question could not be queued.
+ */
+function onCallTaskDone(
+  c: Context<AppEnv>,
+  input: {
+    companyId: string;
+    userId: string;
+    task: {
+      id: string;
+      title: string | null;
+      source: ReturnType<typeof taskSource>;
+    };
+  },
+): void {
+  const db = getDb(getEnv(c.env));
+  const work = (async () => {
+    await enqueueWebhookEvent(db, {
+      companyId: input.companyId,
+      type: "task.completed",
+      data: {
+        task_id: input.task.id,
+        title: input.task.title,
+        message_id: null,
+        source: input.task.source,
+      },
+    });
+    await askForJobRating(db, {
+      companyId: input.companyId,
+      taskId: input.task.id,
+      userId: input.userId,
+    });
+  })().catch((cause: unknown) => {
+    console.error("job rating ask failed:", cause);
+  });
+  executionCtxOf(c)?.waitUntil(work);
+}
+
+/**
+ * PATCH /v1/tasks/:id: metadata (T4) and, for a task with no message, `done`
+ * (D64). An assignee change writes `task_assigned`; a due_at change writes
+ * `task_due_set`. A message task's completion stays on the message route.
  */
 tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (c) => {
   const id = pathUuid(c, "id");
@@ -1797,6 +1996,21 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
+
+  // D17 as amended by D64: exactly one row owns done. A task that has a message
+  // is completed through the message (D14/D22); only a task without one owns a
+  // done_at of its own. Refused BEFORE anything is written so a mixed body does
+  // not half-apply.
+  if (body.done !== undefined) {
+    const existing = await findTask(db, companyId, id);
+    if (!existing) return errorResponse(c, "not_found", "No such task.");
+    if (existing.message_id !== null) {
+      throw new ApiError(
+        "validation_failed",
+        "done: this task came from a text, so mark its message done instead.",
+      );
+    }
+  }
 
   // T3 splits task metadata across two security-definer RPCs: `update_task`
   // (title/description/due_at — a due_at change writes `task_due_set`) and
@@ -1909,6 +2123,35 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     }
   }
 
+  if (body.done !== undefined) {
+    const { data, error } = await db.rpc("set_task_done", {
+      p_company_id: companyId,
+      p_task_id: id,
+      p_done: body.done,
+      p_actor_user_id: userId,
+    });
+    if (error) throw new Error(`set_task_done failed: ${error.message}`);
+    const result = parseTaskOutcome(data);
+    if (result.outcome === "not_found") {
+      return errorResponse(c, "not_found", "No such task.");
+    }
+    found = true;
+    if (result.task) latest = result.task;
+    // Only a real transition finishes a job: `unchanged` is a second tap on the
+    // same tick and must not queue a second rating question.
+    if (result.outcome === "updated" && body.done) {
+      onCallTaskDone(c, {
+        companyId,
+        userId,
+        task: {
+          id,
+          title: (latest?.title as string | null) ?? null,
+          source: taskSource(latest ?? {}),
+        },
+      });
+    }
+  }
+
   // Every RPC that ran returned the row (created/updated/unchanged/not_found);
   // `latest` is the freshest. If an assignee no-op preceded nothing else, or a
   // combined no-op, fall back to the current row so the response is always the
@@ -1916,7 +2159,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   // #237: unconditionally, whatever changed. See syncRemindersAfterWrite.
   if (found) await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
 
-  if (latest) return c.json(latest);
+  if (latest) return c.json(withSource(latest));
   if (found) {
     const current = await findTask(db, companyId, id);
     if (!current) return errorResponse(c, "not_found", "No such task.");
@@ -1971,7 +2214,7 @@ tasksRoutes.put(
       },
     );
 
-    return c.json(updated[0]);
+    return c.json(withSource(updated[0]));
   },
 );
 

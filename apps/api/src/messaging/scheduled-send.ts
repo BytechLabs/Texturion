@@ -234,8 +234,8 @@ function customerReplied(row: ScheduledRow, destination: Destination): boolean {
  * one. A reminder for a job that is done, deleted, or has reminders switched
  * off does not send, whatever the queue says.
  *
- * Completion DERIVES from the source message's `done_at` (D17) — `tasks` has no
- * done column, and asking for one 400s at PostgREST.
+ * Completion is the `task_done_at` computed column: the source message's
+ * `done_at` (D17), or the task's own when it came from a call (D64).
  *
  * Returns true when the row is not a reminder at all: a text a person wrote is
  * theirs to send, and no job's state has any bearing on it.
@@ -248,7 +248,7 @@ async function jobStillBooked(
 
   const { data, error } = await db
     .from("tasks")
-    .select("deleted_at,reminders_off,due_at,messages!message_id(done_at)")
+    .select("deleted_at,reminders_off,due_at,done_state:task_done_at")
     .eq("id", row.task_id)
     .eq("company_id", row.company_id)
     .maybeSingle();
@@ -262,18 +262,13 @@ async function jobStillBooked(
     deleted_at: string | null;
     reminders_off: boolean;
     due_at: string | null;
-    // PostgREST types a to-one embed as an ARRAY even where it can only ever
-    // hold one row, and returns it as an object. Both shapes are read here
-    // rather than picked, because guessing wrong reads as "never done" — and
-    // "never done" is the direction that keeps sending.
-    messages: { done_at: string | null } | { done_at: string | null }[] | null;
+    done_state: string | null;
   };
-  const source = Array.isArray(task.messages) ? task.messages[0] : task.messages;
   return (
     task.deleted_at === null &&
     !task.reminders_off &&
     task.due_at !== null &&
-    (source?.done_at ?? null) === null
+    (task.done_state ?? null) === null
   );
 }
 

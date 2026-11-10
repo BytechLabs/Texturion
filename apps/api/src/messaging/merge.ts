@@ -107,16 +107,16 @@ export async function resolveSendMergeFields(
      * to "when are you coming".
      */
     try {
-      // Completion DERIVES from the source message (D17), so "open" is a
-      // filter on the joined message rather than a column on the task —
-      // `tasks.done_at` does not exist, and asking for it 400s at PostgREST.
+      // "Open" is the task's effective done state (the source message's done_at,
+      // or the task's own when it came from a call, D64), read through the
+      // `task_done_at` computed column.
       const rows = unwrap<{ due_at: string | null }[]>(
         await db
           .from("tasks")
-          .select("due_at,messages!message_id!inner(id,done_at)")
+          .select("due_at")
           .eq("company_id", input.companyId)
           .eq("conversation_id", input.conversationId)
-          .is("messages.done_at", null)
+          .is("task_done_at", null)
           .not("due_at", "is", null)
           .order("due_at", { ascending: true })
           .limit(1),

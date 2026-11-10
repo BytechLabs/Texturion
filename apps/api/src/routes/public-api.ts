@@ -72,7 +72,24 @@ const PUBLIC_CONTACT_COLUMNS =
   "id,phone_e164,name,email,business_name,address,notes,created_at,updated_at";
 
 const PUBLIC_TASK_COLUMNS =
-  "id,message_id,conversation_id,title,description,due_at,assigned_user_id,created_at";
+  "id,message_id,source_call_id,conversation_id,title,description,due_at,assigned_user_id,created_at";
+
+/**
+ * A public task keeps `message_id` (null for a task promoted from a call, D64)
+ * and gains `source`, which names which kind of thing the task came from. The
+ * old field is not repurposed: an integration that read it keeps working, it
+ * just sees null where there is no message.
+ */
+function publicTask(row: Record<string, unknown>): Record<string, unknown> {
+  const { source_call_id: callId, ...rest } = row;
+  const source =
+    typeof rest.message_id === "string"
+      ? { kind: "message", id: rest.message_id }
+      : typeof callId === "string"
+        ? { kind: "call", id: callId }
+        : null;
+  return { ...rest, source };
+}
 
 /** Bounded, and the bound is published so a caller can page deliberately. */
 const MAX_PAGE = 100;
@@ -383,7 +400,7 @@ publicApiRoutes.get(
   async (c) => {
     const db = getDb(getEnv(c.env));
     const limit = pageSize(c.req.query("limit"));
-    const rows = unwrap<unknown[]>(
+    const rows = unwrap<Record<string, unknown>[]>(
       await db
         .from("tasks")
         .select(PUBLIC_TASK_COLUMNS)
@@ -393,7 +410,7 @@ publicApiRoutes.get(
         .limit(limit),
       "public tasks list",
     );
-    return c.json({ data: rows, limit });
+    return c.json({ data: rows.map(publicTask), limit });
   },
 );
 
@@ -487,7 +504,7 @@ publicApiRoutes.post(
       return errorResponse(c, "conflict", "This message is already a task.");
     }
     if (!result?.task) throw new Error("create_task returned no row");
-    return c.json(result.task, 201);
+    return c.json(publicTask(result.task), 201);
   },
 );
 

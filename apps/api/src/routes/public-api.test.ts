@@ -488,6 +488,27 @@ describe("writes", () => {
     expect(res.status).toBe(409);
   });
 
+  it("names what each task came from, and keeps message_id for old integrations", async () => {
+    const sb = stubWithKey(["tasks:read"]);
+    sb.on("GET", "/rest/v1/tasks", () => [
+      { id: "t1", message_id: "m1", source_call_id: null },
+      { id: "t2", message_id: null, source_call_id: "c1" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/tasks");
+    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    expect(body.data[0]).toMatchObject({
+      message_id: "m1",
+      source: { kind: "message", id: "m1" },
+    });
+    expect(body.data[1]).toMatchObject({
+      message_id: null,
+      source: { kind: "call", id: "c1" },
+    });
+    expect(body.data[1]).not.toHaveProperty("source_call_id");
+  });
+
   it("bounds a page even when the caller asks for everything", async () => {
     const sb = stubWithKey(["tasks:read"]);
     sb.on("GET", "/rest/v1/tasks", () => []);

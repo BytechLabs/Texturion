@@ -364,7 +364,7 @@ describe("#237 a reminder for a job that is no longer booked", () => {
     deleted_at: null,
     reminders_off: false,
     due_at: "2026-08-06T13:00:00Z",
-    messages: { done_at: null },
+    done_state: null,
     ...overrides,
   });
 
@@ -381,7 +381,7 @@ describe("#237 a reminder for a job that is no longer booked", () => {
 
   it.each([
     ["the job was deleted", { deleted_at: "2026-08-02T10:00:00Z" }],
-    ["the job was marked done", { messages: { done_at: "2026-08-02T10:00:00Z" } }],
+    ["the job was marked done", { done_state: "2026-08-02T10:00:00Z" }],
     ["reminders were switched off for it", { reminders_off: true }],
     ["the job lost its date", { due_at: null }],
   ])("does not send when %s", async (_label, patch) => {

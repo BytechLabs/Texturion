@@ -621,6 +621,7 @@ function onPromotedMessageDone(
         task_id: task.id,
         title: task.title,
         message_id: input.messageId,
+        source: { kind: "message", id: input.messageId },
       },
     });
     await askForJobRating(db, {

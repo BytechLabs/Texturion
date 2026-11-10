@@ -37,7 +37,6 @@ function dueTask(overrides: Record<string, unknown> = {}) {
     title: "Replace the outdoor tap at 5 King St",
     due_at: NOW.toISOString(),
     assigned_user_id: ASSIGNEE,
-    messages: { done_at: null },
     ...overrides,
   };
 }
@@ -160,13 +159,12 @@ describe("notifyDueTasksJob", () => {
     expect(params.get("due_notified_at")).toBe("is.null");
     expect(params.get("deleted_at")).toBe("is.null");
     expect(params.get("assigned_user_id")).toBe("not.is.null");
-    // Completion lives on the promoted message, so a finished job is excluded
-    // by the join rather than by a column on the task.
-    expect(params.get("messages.done_at")).toBe("is.null");
-    // Two foreign keys connect tasks and messages, so the embed has to name
-    // which one. A bare `messages!inner` is refused outright (PGRST201) and no
-    // reminder would ever go out. The stub cannot catch that, so pin it here.
-    expect(params.get("select")).toContain("messages!message_id!inner");
+    // Completion is the task's effective done state (the promoted message's, or
+    // the task's own for a call-anchored job), so a finished job is excluded by
+    // the computed column. It must NOT be an inner embed of messages: that
+    // would drop every call-anchored job and never remind anyone of it.
+    expect(params.get("task_done_at")).toBe("is.null");
+    expect(params.get("select")).not.toContain("messages");
     expect(params.get("limit")).toBe(String(TASK_DUE_BATCH));
   });
 

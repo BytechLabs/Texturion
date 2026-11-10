@@ -111,7 +111,6 @@ interface DueTaskRow {
   title: string | null;
   due_at: string;
   assigned_user_id: string;
-  messages: { done_at: string | null } | null;
 }
 
 interface PrefsRow {
@@ -143,26 +142,18 @@ export async function notifyDueTasksJob(
 ): Promise<void> {
   const db: SupabaseClient = getDb(env);
 
-  // Completion lives on the promoted message, not on the task (the task routes
-  // have no `done` field), so the join is what tells a finished job from a live
-  // one. An inner join also drops any task whose message went away.
-  //
-  // The relationship MUST be named, exactly as the /v1/tasks reads do. Two
-  // foreign keys connect these tables (`messages.task_id` for a task's own
-  // messages, `tasks.message_id` for the message a task was promoted from), so
-  // a bare `messages!inner` is ambiguous and PostgREST refuses the whole
-  // request with PGRST201. Completion lives on the promoted message.
+  // Completion is the `task_done_at` computed column: the promoted message's
+  // done_at, or the task's own when it came from a call (D64). It is not an
+  // inner embed of messages, which would silently drop every call-anchored job
+  // from this scan and never remind anyone of it.
   const { data, error } = await db
     .from("tasks")
-    .select(
-      "id,company_id,conversation_id,title,due_at,assigned_user_id," +
-        "messages!message_id!inner(done_at)",
-    )
+    .select("id,company_id,conversation_id,title,due_at,assigned_user_id")
     .lte("due_at", new Date(now.getTime() + TASK_DUE_LEAD_MINUTES * 60_000).toISOString())
     .is("due_notified_at", null)
     .is("deleted_at", null)
     .not("assigned_user_id", "is", null)
-    .is("messages.done_at", null)
+    .is("task_done_at", null)
     .order("due_at", { ascending: true })
     .limit(TASK_DUE_BATCH);
   if (error) throw new Error(`due task scan failed: ${error.message}`);
