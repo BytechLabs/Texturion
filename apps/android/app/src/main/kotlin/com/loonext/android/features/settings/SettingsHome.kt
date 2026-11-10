@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.DataUsage
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Sms
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Quickreply
 import androidx.compose.material.icons.outlined.ReceiptLong
@@ -143,6 +144,8 @@ enum class SettingsSection(
 ) {
     Workspace("settingsMore.sectionWorkspace", "settingsMore.sectionWorkspaceBlurb"),
     Hours("settingsMore.sectionHours", "settingsMore.sectionHoursBlurb"),
+    // #689: beside Away reply, the other place a workspace decides what we text for it.
+    AutomaticTexts("domain.autoTextsTitle", "domain.autoTextsBlurb"),
     Calling("settingsMore.sectionCalling", "settingsMore.sectionCallingBlurb"),
     Templates(
         "settingsMore.sectionTemplates",
@@ -434,6 +437,10 @@ fun SettingsHome(
                             )
 
                             SettingsSection.Hours -> HoursSection(
+                                settingsScope, company, onCompanyUpdated,
+                            )
+
+                            SettingsSection.AutomaticTexts -> AutomaticTextsSection(
                                 settingsScope, company, onCompanyUpdated,
                             )
 
@@ -991,6 +998,7 @@ private fun SettingsIndexRow(
 private fun iconFor(section: SettingsSection): ImageVector = when (section) {
     SettingsSection.Workspace -> Icons.Outlined.Storefront
     SettingsSection.Hours -> Icons.Outlined.Schedule
+    SettingsSection.AutomaticTexts -> Icons.Outlined.Sms
     SettingsSection.Calling -> Icons.Outlined.Call
     SettingsSection.Templates -> Icons.Outlined.Quickreply
     SettingsSection.Team -> Icons.Outlined.Group

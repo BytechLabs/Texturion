@@ -575,6 +575,22 @@ data class CompanyView(
     val lead_chase_crew_enabled: Boolean = false,
     /** #430: whether a push may carry words a person typed. Workspace-wide. */
     val push_include_content: Boolean = true,
+    /**
+     * Automatic texts (#689). An absent key decodes to the server's default,
+     * never false/0: a Worker that predates a field must not read as "off".
+     * The same defaults are stated on screen by [AutoTexts].
+     */
+    val hold_scheduled_on_reply: Boolean = true,
+    val hold_reminders_on_reply: Boolean = true,
+    val hold_rating_ask_on_reply: Boolean = true,
+    val hold_reminders_unverified_calendar: Boolean = true,
+    val rating_ask_enabled: Boolean = true,
+    val rating_ask_delay_hours: Int = 4,
+    val rating_ask_expiry_hours: Int = 24,
+    val rating_ask_cooldown_days: Int = 30,
+    val scheduled_text_expiry_hours: Int = 24,
+    val reminder_expiry_hours: Int = 2,
+    val auto_reply_cooldown_minutes: Int = 180,
     val mctb_enabled: Boolean = false,
     val mctb_message: String? = null,
     /** Server-resolved template that will actually send (custom else default). */

@@ -250,6 +250,7 @@ fun settingsSectionFor(slug: String?): SettingsSection? = when (slug?.trim()) {
     // screen — Hours is "Business hours & away reply", Calling is "Missed-call
     // text-back, voicemail, screening, caller ID".
     "away-reply" -> SettingsSection.Hours
+    "automatic-texts" -> SettingsSection.AutomaticTexts
     "missed-calls" -> SettingsSection.Calling
     else -> null
 }
