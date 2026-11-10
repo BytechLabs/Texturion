@@ -59,6 +59,17 @@ function applyFilter(row: Row, column: string, expr: string): boolean {
 function rowMatches(row: Row, url: URL): boolean {
   for (const [key, expr] of url.searchParams.entries()) {
     if (RESERVED_PARAMS.has(key)) continue;
+    if (key === "or") {
+      // \`or=(a.is.null,b.lt.2026-…)\`: any one condition holds. Each is
+      // "<column>.<operator>.<value>", and none of the values here hold commas.
+      const conditions = expr.replace(/^\(|\)$/g, "").split(",");
+      const anyHolds = conditions.some((condition) => {
+        const dot = condition.indexOf(".");
+        return applyFilter(row, condition.slice(0, dot), condition.slice(dot + 1));
+      });
+      if (!anyHolds) return false;
+      continue;
+    }
     if (!applyFilter(row, key, expr)) return false;
   }
   return true;

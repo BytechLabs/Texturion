@@ -121,22 +121,25 @@ const createSchema = z.object({
   expires_at: z.iso.datetime(),
 });
 
+/** #722: how long a send's claim on a draft holds before another may take it. */
+const SEND_LEASE_MS = 2 * 60_000;
+
 /**
- * Put a quote back to draft after a send that did not happen.
+ * Release a send's claim after a send that did not happen. The quote stays a
+ * draft throughout, so there is nothing to undo but the lease.
  *
  * Best-effort and deliberately quiet: the caller is already throwing the real
  * reason, and a failure to tidy up must not replace it with a worse message.
- * The cost of losing this is a quote that claims to have been sent — which is
- * exactly the defect this send path was rewritten to remove, so it is worth the
- * extra round trip.
+ * Losing this only delays a retry until the lease runs out.
  */
-async function unsend(db: ReturnType<typeof getDb>, companyId: string, id: string) {
+async function releaseSend(db: ReturnType<typeof getDb>, companyId: string, id: string) {
   const { error } = await db
     .from("quotes")
-    .update({ status: "draft", sent_at: null })
+    .update({ sending_at: null })
     .eq("company_id", companyId)
-    .eq("id", id);
-  if (error) console.error(`quote unsend failed: ${error.message}`);
+    .eq("id", id)
+    .eq("status", "draft");
+  if (error) console.error(`quote send release failed: ${error.message}`);
 }
 
 export const quotesRoutes = new Hono<AppEnv>();
@@ -478,20 +481,25 @@ quotesRoutes.post(
       expiresAt,
       actorUserId: c.get("userId"),
     });
-    // Guarded on `status = draft` in the WHERE clause rather than trusting the
-    // read above: two people pressing send is two requests, and the second
-    // must not restamp `sent_at` over the first.
-    const sent = unwrap<QuoteRow[]>(
+    // #722: claim the draft with a lease, guarded in the WHERE clause rather
+    // than trusting the read above: two people pressing send is two requests,
+    // and only one may send. The quote stays a draft until the text has gone,
+    // so a failed send has no status to undo.
+    const now = new Date();
+    const claimed = unwrap<{ id: string }[]>(
       await db
         .from("quotes")
-        .update({ status: "sent", sent_at: new Date().toISOString() })
+        .update({ sending_at: now.toISOString() })
         .eq("company_id", companyId)
         .eq("id", id)
         .eq("status", "draft")
-        .select(QUOTE_COLUMNS),
-      "quote send",
+        .or(
+          `sending_at.is.null,sending_at.lt.${new Date(now.getTime() - SEND_LEASE_MS).toISOString()}`,
+        )
+        .select("id"),
+      "quote send claim",
     );
-    if (sent.length === 0) {
+    if (claimed.length === 0) {
       return errorResponse(c, "conflict", "quote is no longer a draft");
     }
 
@@ -522,14 +530,12 @@ quotesRoutes.post(
     });
 
     /*
-     * FROM HERE THE ROW ALREADY SAYS `sent`, so every failure below has to put
-     * it back. Found by the test above: an opted-out contact left a quote
-     * claiming it had been sent, with no text anywhere — the same lie this
-     * whole change exists to remove, reached by a different road.
-     *
-     * The row is claimed FIRST on purpose: the draft guard in that update is
-     * what makes two taps send one text, and checking it after the send would
-     * be a check-then-act with a carrier call inside the race.
+     * FROM HERE THE DRAFT IS CLAIMED, so every failure below releases it. The
+     * claim comes FIRST on purpose: it is what makes two taps send one text,
+     * and checking after the send would be a check-then-act with a carrier
+     * call inside the race. An opted-out contact once left a quote claiming it
+     * had been sent with no text anywhere; a quote now says `sent` only after
+     * the text has gone.
      */
     let gated;
     try {
@@ -551,7 +557,7 @@ quotesRoutes.post(
         segmentsEstimate: estimateSegments(text).segments,
       });
     } catch (cause) {
-      await unsend(db, companyId, id);
+      await releaseSend(db, companyId, id);
       throw cause;
     }
     const message = gated.message;
@@ -577,8 +583,22 @@ quotesRoutes.post(
       // briefly unreachable, and deleting it would lose the text. What must not
       // survive is a QUOTE that says it went out when the carrier refused it
       // outright.
-      await unsend(db, companyId, id);
+      await releaseSend(db, companyId, id);
       throw cause;
+    }
+
+    const sent = unwrap<QuoteRow[]>(
+      await db
+        .from("quotes")
+        .update({ status: "sent", sent_at: new Date().toISOString(), sending_at: null })
+        .eq("company_id", companyId)
+        .eq("id", id)
+        .eq("status", "draft")
+        .select(QUOTE_COLUMNS),
+      "quote send",
+    );
+    if (sent.length === 0) {
+      return errorResponse(c, "conflict", "quote is no longer a draft");
     }
 
     await insertConversationEvents(db, [

@@ -192,8 +192,8 @@ Each entry lists the transitions the definition allows, the guards that exist to
 ### quote
 
 - **States:** `draft`, `sent`, `viewed`, `accepted`, `declined`, `expired`. The vocabulary and `canTransitionQuote` are in `packages/shared/src/quotes.ts`; the definition is asserted equal edge by edge.
-- **Writers:** `apps/api/src/routes/quotes.ts:136` (`unsend`), `486` (send), `apps/api/src/routes/quotes-public.ts:161` (viewed), `274` (accepted, guarded in the WHERE clause by `.in("status", ["sent","viewed"])`).
-- **Bypass:** `unsend` writes `sent -> draft`, which the shared table forbids ("nothing returns to draft"). It is a rollback of a failed send, and phase 2 should model it as a distinct failed-send edge or order the writes so `sent` is only written once the send has succeeded.
+- **Writers:** `apps/api/src/routes/quotes.ts` (send, after the text goes), `apps/api/src/routes/quotes-public.ts:161` (viewed), `274` (accepted, guarded in the WHERE clause by `.in("status", ["sent","viewed"])`).
+- **Fixed (phase 2):** a send claims the draft with a lease (`quotes.sending_at`, `supabase/migrations/20261111250000_quotes_claim_a_send_with_a_lease.sql`) and writes `sent` only after the text has gone, so nothing returns to draft. A failed send releases the lease; a lease older than two minutes can be taken over.
 - **Gaps:** nothing writes `declined` or `expired` (expiry is folded in on read by `effectiveQuoteStatus`). Clients render `effective_status`, not `status`.
 
 ### text_enablement

@@ -223,6 +223,26 @@ describe("#287 POST /quotes/:id/send", () => {
     expect(harness.telnyxCalls).toHaveLength(0);
     // And the quote is NOT left claiming it was sent.
     expect(harness.rest.rows("quotes")[0].sent_at).toBeNull();
+    // #722: it never left draft, and the send's claim is released for a retry.
+    expect(harness.rest.rows("quotes")[0].status).toBe("draft");
+    expect(harness.rest.rows("quotes")[0].sending_at).toBeNull();
+  });
+
+  it("#722: a second send while the first holds the draft is refused", async () => {
+    const harness = buildHarness({ quote: { sending_at: new Date().toISOString() } });
+    const response = await harness.send();
+    expect(response.status).toBe(409);
+    expect(harness.rest.rows("messages")).toHaveLength(0);
+  });
+
+  it("#722: a claim from a send that died long ago does not block a new one", async () => {
+    const harness = buildHarness({
+      quote: { sending_at: new Date(Date.now() - 10 * 60_000).toISOString() },
+    });
+    const response = await harness.send();
+    expect(response.status).toBe(200);
+    expect(harness.rest.rows("quotes")[0].status).toBe("sent");
+    expect(harness.rest.rows("quotes")[0].sending_at).toBeNull();
   });
 
   it("refuses when the thread's number cannot text", async () => {
