@@ -34,6 +34,7 @@ import { undoableToast } from "@/components/ui/optimistic-undo";
 import { toast } from "sonner";
 
 import { BulkBar } from "./bulk-bar";
+import { useInboxShortcuts } from "./use-inbox-shortcuts";
 import { ConversationRow, ROW_HEIGHT } from "./conversation-row";
 import {
   ActivationEmptyState,
@@ -178,12 +179,7 @@ export function ConversationList({
    * so 300 threads that were a mix of new/open/waiting each land where they were
    * (docs/UNDO-AUDIT.md §4).
    */
-  const runBulk = (body: Omit<BulkConversationsBody, "ids" | "filter">, verb: string) => {
-    const ids = selectionIds(selection);
-    const request: BulkConversationsBody = {
-      ...body,
-      ...(ids ? { ids } : { filter: filters }),
-    };
+  const runBulkRequest = (request: BulkConversationsBody, verb: string) => {
     bulk.mutate(request, {
       onSuccess: (result) => {
         setSelection(EMPTY_SELECTION);
@@ -203,6 +199,16 @@ export function ConversationList({
       onError: () => toast.error(t("inbox.bulkActionFailed")),
     });
   };
+  const runBulk = (body: Omit<BulkConversationsBody, "ids" | "filter">, verb: string) => {
+    const ids = selectionIds(selection);
+    runBulkRequest({ ...body, ...(ids ? { ids } : { filter: filters }) }, verb);
+  };
+  /** #694: a keyboard shortcut acting on one named row. */
+  const runBulkOn = (
+    ids: string[],
+    body: Omit<BulkConversationsBody, "ids" | "filter">,
+    verb: string,
+  ) => runBulkRequest({ ...body, ids }, verb);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowElements = useRef<Map<string, HTMLElement>>(new Map());
@@ -225,6 +231,14 @@ export function ConversationList({
   }
   useFlipRows(rowElements, offsets);
   const ghosts = useRowExit(rows, offsets);
+
+  // #694: j/k/e/s/a/l/r/u / ? on the list.
+  const shortcuts = useInboxShortcuts({
+    rows,
+    activeConversationId,
+    scrollToIndex: (index) => virtualizer.scrollToIndex(index),
+    runBulkOn,
+  });
 
   // Infinite scroll: fetch the next cursor page as the end approaches.
   const lastIndex = virtualItems[virtualItems.length - 1]?.index ?? 0;
@@ -277,6 +291,10 @@ export function ConversationList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {shortcuts.overlays}
+      <p role="status" aria-live="polite" className="sr-only">
+        {shortcuts.announcement}
+      </p>
       {/* #275: only while something is selected, and ABOVE the scroller so
           ticking a row does not shove the list out from under the pointer. */}
       {!isEmpty(selection) && (
@@ -336,6 +354,7 @@ export function ConversationList({
               <ConversationRow
                 conversation={row}
                 active={row.id === activeConversationId}
+                cursor={row.id === shortcuts.cursorId}
                 spamView={filters.is_spam === true}
               />
               {/* #275: a SIBLING of the row's <Link>, positioned over its avatar

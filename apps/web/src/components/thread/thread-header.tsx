@@ -4,6 +4,7 @@ import {
   AlarmClock,
   ArrowLeft,
   Ban,
+  BellOff,
   ChevronDown,
   Copy,
   Images,
@@ -77,9 +78,11 @@ import type {
 } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { useIsBelowMd } from "@/lib/use-is-below-md";
 import { cn } from "@/lib/utils";
 
+import { MuteFollowMenuItems } from "./mute-menu";
 import {
   SnoozeDialog,
   SnoozeMenuItems,
@@ -165,6 +168,7 @@ export function ThreadHeader({
   // #696: the number this thread is with, so a blocked thread says it is one.
   const blockedNumber = useBlockedNumber(phone);
   const blocked = blockedNumber.blocked !== undefined;
+  const muted = conversation.muted === true;
   // #505: the repeat-customer signal, on the surface the person mid-reply is
   // actually looking at. The panel already carries the full line, but it
   // defaults closed, so the fact reached everyone except the one about to use
@@ -410,7 +414,7 @@ export function ThreadHeader({
             The no-badge branch renders `nameButton` bare, so a first-time
             caller's header is unchanged down to the DOM — which is the point:
             a header that decorates everybody distinguishes nobody. */}
-        {repeatBadge === null && !urgent && !blocked ? (
+        {repeatBadge === null && !urgent && !blocked && !muted ? (
           nameButton
         ) : (
           // `min-w-0` so this wrapper can be narrower than its content:
@@ -444,6 +448,22 @@ export function ThreadHeader({
                 <span aria-hidden className="hidden sm:inline">
                   {URGENT_BADGE_LABEL}
                 </span>
+              </span>
+            )}
+            {muted && (
+              <span
+                role="img"
+                aria-label={
+                  conversation.muted_until
+                    ? t("thread.mutedUntil", {
+                        when: formatAbsoluteDateTime(conversation.muted_until, undefined, t.locale),
+                      })
+                    : t("thread.mutedIndefinitely")
+                }
+                title={t("thread.mutedBadge")}
+                className="flex shrink-0 items-center rounded-full bg-secondary p-1 text-muted-foreground"
+              >
+                <BellOff className="size-3" strokeWidth={2.25} />
               </span>
             )}
             {blocked && (
@@ -723,6 +743,11 @@ export function ThreadHeader({
               <Images className="size-4" strokeWidth={1.75} />
               {t("thread.viewAttachments")}
             </DropdownMenuItem>
+            <MuteFollowMenuItems
+              conversationId={conversation.id}
+              muted={muted}
+              followed={conversation.followed === true}
+            />
             {blockedNumber.canManage &&
               (blocked ? (
                 <DropdownMenuItem

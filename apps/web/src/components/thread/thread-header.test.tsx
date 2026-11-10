@@ -36,6 +36,9 @@ vi.mock("@/lib/api/conversations", () => ({
   useMarkConversationUnread: () => ({ mutate: vi.fn(), isPending: false }),
   useSnoozeConversation: () => ({ mutate: vi.fn(), isPending: false }),
   useUnsnoozeConversation: () => ({ mutate: vi.fn(), isPending: false }),
+  useMuteConversation: () => ({ mutate: vi.fn(), isPending: false }),
+  useUnmuteConversation: () => ({ mutate: vi.fn(), isPending: false }),
+  useFollowConversation: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("@/lib/api/contacts", () => ({
   useOptOutContact: () => ({ mutate: vi.fn(), isPending: false }),

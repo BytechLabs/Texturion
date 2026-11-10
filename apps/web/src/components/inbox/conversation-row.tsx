@@ -2,7 +2,14 @@
 
 import { memo } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { AlarmClock, Lock, Paperclip, Pin, TriangleAlert } from "lucide-react";
+import {
+  AlarmClock,
+  BellOff,
+  Lock,
+  Paperclip,
+  Pin,
+  TriangleAlert,
+} from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -144,10 +151,13 @@ function TagChip({ tag, emphasis }: { tag: Tag; emphasis: boolean }) {
 export const ConversationRow = memo(function ConversationRow({
   conversation,
   active,
+  cursor = false,
   spamView,
 }: {
   conversation: ConversationListItem;
   active: boolean;
+  /** #694: the keyboard cursor (j/k) is on this row. */
+  cursor?: boolean;
   spamView: boolean;
 }) {
   const t = useT();
@@ -155,6 +165,10 @@ export const ConversationRow = memo(function ConversationRow({
   const snippet = useSnippet(conversation);
   const unread = conversation.unread;
   const pinned = conversation.pinned_at !== null;
+  // #694: THIS member muted the thread. It still counts as unread; it only
+  // stops making noise, so the mark sits beside the time rather than replacing
+  // the unread dot.
+  const muted = conversation.muted === true;
   // #414: flagged until the crew closes the thread. The rule and the reasoning
   // moved to packages/shared/src/emergency-flag.ts (#565) when the thread header
   // became the sixth place asking it.
@@ -192,7 +206,7 @@ export const ConversationRow = memo(function ConversationRow({
 
   const rowLabel = `${t("inbox.rowAriaConversationWith", { name })}${
     unread ? t("inbox.rowAriaUnread") : ""
-  }${pinned ? t("inbox.rowAriaPinned") : ""}${
+  }${pinned ? t("inbox.rowAriaPinned") : ""}${muted ? t("inbox.rowAriaMuted") : ""}${
     snippet?.direction === "note" ? t("inbox.rowAriaInternalNote") : ""
   }${
     assigneeName ? t("inbox.rowAriaAssignedTo", { name: assigneeName }) : ""
@@ -219,6 +233,7 @@ export const ConversationRow = memo(function ConversationRow({
         active
           ? "border-app-line bg-app-paper"
           : "border-transparent hover:border-app-line-soft hover:bg-app-hover",
+        cursor && "ring-2 ring-ring",
       )}
     >
       {/* Colored-initial avatar (stable per contact). */}
@@ -267,6 +282,13 @@ export const ConversationRow = memo(function ConversationRow({
                 className="size-3 text-app-muted-2"
                 strokeWidth={2}
                 aria-label={t("inbox.rowPinnedAria")}
+              />
+            )}
+            {muted && (
+              <BellOff
+                className="size-3 text-app-muted-2"
+                strokeWidth={2}
+                aria-label={t("inbox.rowMutedAria")}
               />
             )}
             <span className="text-[11.5px] tabular-nums text-app-muted-2">

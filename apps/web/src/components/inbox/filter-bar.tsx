@@ -226,6 +226,7 @@ function SearchField({
       />
       <Input
         ref={inputRef}
+        data-inbox-search
         type="search"
         value={searchText}
         onChange={(e) => setSearch(e.target.value)}

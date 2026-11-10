@@ -36,8 +36,10 @@ import type {
   ConversationEvent,
   ConversationListItem,
   ConversationStatus,
+  MemberThreadState,
   MentionableMember,
   Message,
+  MuteDuration,
   Page,
   ReadReceipt,
   Tag,
@@ -533,6 +535,81 @@ export function useUnsnoozeConversation() {
       });
     },
   });
+}
+
+/**
+ * #694: mute and follow. Both are the caller's own state, so the response is
+ * written straight into the list and the thread header; no other member's view
+ * changes, and nothing is invalidated.
+ */
+function applyMemberStateToCaches(
+  queryClient: QueryClient,
+  companyId: string,
+  conversationId: string,
+  patch: MemberThreadState,
+): void {
+  patchConversationLists(queryClient, companyId, (list) => ({
+    ...list,
+    pages: list.pages.map((page) => ({
+      ...page,
+      data: page.data.map((row) =>
+        row.id === conversationId ? { ...row, ...patch } : row,
+      ),
+    })),
+  }));
+  patchPinnedConversations(queryClient, companyId, (row) =>
+    row.id === conversationId ? { ...row, ...patch } : row,
+  );
+  queryClient.setQueryData<ConversationDetail>(
+    keys.conversations.detail(companyId, conversationId),
+    (detail) => (detail ? { ...detail, ...patch } : detail),
+  );
+}
+
+function useMemberStateMutation<Input extends { conversationId: string }>(
+  request: (input: Input, companyId: string) => Promise<MemberThreadState>,
+) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Input) => request(input, companyId),
+    onSuccess: (state, input) =>
+      applyMemberStateToCaches(queryClient, companyId, input.conversationId, state),
+  });
+}
+
+/** PUT /v1/conversations/:id/mute: silence this thread for ME. */
+export function useMuteConversation() {
+  return useMemberStateMutation(
+    ({ conversationId, duration }: { conversationId: string; duration: MuteDuration }, companyId) =>
+      apiFetch<MemberThreadState>(`/v1/conversations/${conversationId}/mute`, {
+        method: "PUT",
+        companyId,
+        body: { duration },
+      }),
+  );
+}
+
+/** DELETE /v1/conversations/:id/mute */
+export function useUnmuteConversation() {
+  return useMemberStateMutation(
+    ({ conversationId }: { conversationId: string }, companyId) =>
+      apiFetch<MemberThreadState>(`/v1/conversations/${conversationId}/mute`, {
+        method: "DELETE",
+        companyId,
+      }),
+  );
+}
+
+/** PUT / DELETE /v1/conversations/:id/follow */
+export function useFollowConversation() {
+  return useMemberStateMutation(
+    ({ conversationId, follow }: { conversationId: string; follow: boolean }, companyId) =>
+      apiFetch<MemberThreadState>(`/v1/conversations/${conversationId}/follow`, {
+        method: follow ? "PUT" : "DELETE",
+        companyId,
+      }),
+  );
 }
 
 /** POST /v1/conversations/:id/notes — internal note (amber card, G5). */

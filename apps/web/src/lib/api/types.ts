@@ -712,7 +712,26 @@ export interface SnoozeState {
   snooze_kind?: DeferralKind | null;
 }
 
-export interface ConversationListItem extends Conversation, SnoozeState {
+/**
+ * #694: THIS member's mute and follow on a thread. Mute silences push and email
+ * for the thread (never a ring, an @mention or an assignment); follow adds the
+ * member to its audience. Optional for the same reason as SnoozeState: the PATCH
+ * response and realtime payloads carry the bare row.
+ */
+export interface MemberThreadState {
+  /** False once `muted_until` has passed. */
+  muted?: boolean;
+  /** Null with `muted` true means "until I unmute". */
+  muted_until?: string | null;
+  followed?: boolean;
+}
+
+export type MuteDuration = "1h" | "8h" | "1w" | "forever";
+
+export interface ConversationListItem
+  extends Conversation,
+    SnoozeState,
+    MemberThreadState {
   contact: ContactSummary;
   tags: Tag[];
   unread: boolean;
@@ -815,7 +834,10 @@ export interface DestinationClock {
 }
 
 /** GET /v1/conversations/:id — embeds the first page of messages. */
-export interface ConversationDetail extends Conversation, SnoozeState {
+export interface ConversationDetail
+  extends Conversation,
+    SnoozeState,
+    MemberThreadState {
   contact: ConversationDetailContact;
   tags: Tag[];
   messages: Page<Message>;

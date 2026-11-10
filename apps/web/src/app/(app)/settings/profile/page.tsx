@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { useSingleKeyShortcuts } from "@/lib/inbox/shortcut-preference";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useT, type Translate } from "@/i18n/provider";
 import { keys } from "@/lib/api/keys";
@@ -62,6 +64,7 @@ type ProfileValues = z.infer<ReturnType<typeof makeProfileSchema>>;
  */
 export default function ProfileSettingsPage() {
   const t = useT();
+  const [singleKey, setSingleKey] = useSingleKeyShortcuts();
   const { displayName, companyId } = useActiveCompany();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -227,6 +230,28 @@ export default function ProfileSettingsPage() {
               {t("appShell.profileThemeLoading")}
             </p>
           )}
+        </SettingsCard>
+
+        {/* #694: WCAG 2.1.4, single-key shortcuts can be turned off. */}
+        <SettingsCard
+          title={t("appShell.profileShortcuts")}
+          description={t("appShell.profileShortcutsDescription")}
+        >
+          <div className="flex items-start gap-3">
+            <Switch
+              id="single-key-shortcuts"
+              checked={singleKey}
+              onCheckedChange={setSingleKey}
+            />
+            <div className="space-y-1">
+              <Label htmlFor="single-key-shortcuts" className="text-sm font-medium">
+                {t("appShell.profileSingleKey")}
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                {t("appShell.profileSingleKeyHelp")}
+              </p>
+            </div>
+          </div>
         </SettingsCard>
 
         <SettingsCard title={t("appShell.profileSignOut")}>

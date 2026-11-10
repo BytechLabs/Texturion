@@ -132,6 +132,7 @@ import {
   resolveMentions,
   type PickedMention,
 } from "./mentions";
+import { consumeComposerFocus, onComposerFocusRequest } from "@/lib/inbox/shortcuts";
 import { TemplatePicker } from "./template-picker";
 import { useWrapUpRecorder } from "./use-wrap-up-recorder";
 import { WrapUpButton, WrapUpStrip } from "./wrap-up-dictation";
@@ -656,6 +657,16 @@ export function Composer({
     setWrapUpError(null);
   }, [conversationId]);
   const textareaRef = useAutoGrow(text);
+  // #694: the r shortcut on the inbox list asks for the reply box. It may fire
+  // before this thread has mounted (consumed on mount) or while it is open
+  // already (consumed on the event).
+  useEffect(() => {
+    const focusIfAsked = () => {
+      if (consumeComposerFocus()) textareaRef.current?.focus();
+    };
+    focusIfAsked();
+    return onComposerFocusRequest(focusIfAsked);
+  }, [textareaRef]);
   const fileRef = useRef<HTMLInputElement>(null);
   const noteFileRef = useRef<HTMLInputElement>(null);
 
@@ -1633,6 +1644,7 @@ export function Composer({
 
         <textarea
           ref={textareaRef}
+          data-composer
           value={text}
           onChange={(event) => {
             const next = event.target.value;

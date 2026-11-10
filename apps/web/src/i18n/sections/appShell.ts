@@ -159,6 +159,12 @@ export const appShellEn = {
   profileThemeLight: "Light",
   profileThemeDark: "Dark",
   profileThemeLoading: "Loading theme…",
+  profileShortcuts: "Keyboard shortcuts",
+  profileShortcutsDescription:
+    "Press ? on the inbox to see them. This is saved in this browser.",
+  profileSingleKey: "Single-key shortcuts",
+  profileSingleKeyHelp:
+    "Plain keys such as j, k and e act on the inbox list. Turn them off if they get in the way of speech input or assistive technology.",
   profileSignOut: "Sign out",
   profileSigningOut: "Signing out…",
 
@@ -1176,6 +1182,12 @@ export const appShellFr: Translated<typeof appShellEn> = {
   profileThemeLight: "Clair",
   profileThemeDark: "Sombre",
   profileThemeLoading: "Chargement du thème…",
+  profileShortcuts: "Raccourcis clavier",
+  profileShortcutsDescription:
+    "Appuyez sur ? dans la boîte de réception pour les voir. Ce réglage est enregistré dans ce navigateur.",
+  profileSingleKey: "Raccourcis à touche unique",
+  profileSingleKeyHelp:
+    "Les touches simples comme j, k et e agissent sur la liste de la boîte de réception. Désactivez-les si elles nuisent à la saisie vocale ou à une technologie d'assistance.",
   profileSignOut: "Se déconnecter",
   profileSigningOut: "Déconnexion…",
 
