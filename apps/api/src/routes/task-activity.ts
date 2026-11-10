@@ -13,10 +13,20 @@
  *          values (a string, an ISO time, a boolean, an address object or null);
  *          for an `assignee` event they are user ids and `from_user` / `to_user`
  *          carry the names.
- *   POST   /v1/tasks/:id/comments            N: { body } -> 201 the comment.
+ *   POST   /v1/tasks/:id/comments            N: { body, mention_user_ids? } -> 201 the
+ *          comment. Commenting subscribes the author; every id in
+ *          mention_user_ids (up to 10, teammates who can see the task) is
+ *          subscribed too, even if they had unfollowed, and is pushed a mention.
+ *          The task's other followers are pushed the comment (#689 D).
  *   PATCH  /v1/tasks/:id/comments/:commentId N: { body }; the author only.
  *   DELETE /v1/tasks/:id/comments/:commentId N: soft delete; the author, or an
  *          owner/admin (the same rule as deleting a task). Its files go with it.
+ *
+ *   POST   /v1/tasks/:id/subscription        R: Follow -> 200 { subscribed: true }.
+ *   DELETE /v1/tasks/:id/subscription        R: Unfollow -> 200 { subscribed: false }.
+ *          Sticky: a later comment does not re-subscribe, an assignment or a
+ *          mention does. Following is how a member opts in to a task's pushes,
+ *          so it needs only read access; a task the caller cannot see is a 404.
  *
  * Files on a comment are `attachments` rows with owner_type "task_comment",
  * uploaded through POST /v1/attachments and served through
@@ -40,7 +50,14 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { buildPage, decodeCursor } from "../http/pagination";
-import { parseJsonBody, parseLimit, pathUuid, unwrap } from "./core/http";
+import { filterToTaskViewers, notifyTaskChangeSafely } from "../tasks/notify";
+import {
+  executionCtxOf,
+  parseJsonBody,
+  parseLimit,
+  pathUuid,
+  unwrap,
+} from "./core/http";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -52,6 +69,8 @@ const commentSchema = z.object({
     .trim()
     .min(1, "body: write something.")
     .max(COMMENT_BODY_MAX, `body: at most ${COMMENT_BODY_MAX} characters.`),
+  /** Teammates named in the comment (#689 D). The client sends ids, like a note's mentions. */
+  mention_user_ids: z.array(z.uuid()).max(10).optional(),
 });
 
 interface Person {
@@ -354,6 +373,25 @@ taskActivityRoutes.post(
     const gate = await requireTask(c, db, taskId, "note");
     if (gate instanceof Response) return gate;
 
+    // A mention names one teammate, so the id must be somebody who can see this
+    // task: the same rule the push re-checks. Refused before anything is written.
+    const userId = c.get("userId");
+    const mentionIds = [...new Set(body.mention_user_ids ?? [])].filter(
+      (id) => id !== userId,
+    );
+    if (mentionIds.length > 0) {
+      const visible = new Set(
+        await filterToTaskViewers(db, companyId, gate.conversation_id, mentionIds),
+      );
+      if (mentionIds.some((id) => !visible.has(id))) {
+        return errorResponse(
+          c,
+          "validation_failed",
+          "mention_user_ids: not a teammate who can see this task.",
+        );
+      }
+    }
+
     const rows = unwrap<
       {
         id: string;
@@ -374,6 +412,44 @@ taskActivityRoutes.post(
         .select(COMMENT_COLUMNS),
       "task comment insert",
     );
+
+    // Naming somebody asks for them, so it lifts an earlier unfollow.
+    for (const mentioned of mentionIds) {
+      const { error } = await db.rpc("task_subscribe", {
+        p_company_id: companyId,
+        p_task_id: taskId,
+        p_user_id: mentioned,
+        p_reason: "mentioned",
+        p_resubscribe: true,
+      });
+      if (error) throw new Error(`task_subscribe failed: ${error.message}`);
+    }
+
+    // The comment is saved; telling people about it must not be able to fail it.
+    const alerts = Promise.all([
+      mentionIds.length > 0
+        ? notifyTaskChangeSafely(getEnv(c.env), {
+            companyId,
+            taskId,
+            actorUserId: userId,
+            kind: "mentioned",
+            mentionedUserIds: mentionIds,
+            commentBody: body.body,
+          })
+        : Promise.resolve(),
+      notifyTaskChangeSafely(getEnv(c.env), {
+        companyId,
+        taskId,
+        actorUserId: userId,
+        kind: "comment",
+        mentionedUserIds: mentionIds,
+        commentBody: body.body,
+      }),
+    ]).then(() => undefined);
+    const ctx = executionCtxOf(c);
+    if (ctx) ctx.waitUntil(alerts);
+    else await alerts;
+
     return c.json(await commentItem(db, companyId, rows[0]), 201);
   },
 );
@@ -470,4 +546,48 @@ taskActivityRoutes.delete(
     );
     return c.body(null, 204);
   },
+);
+
+async function setSubscription(
+  c: import("hono").Context<AppEnv>,
+  subscribed: boolean,
+): Promise<Response> {
+  const taskId = pathUuid(c, "id");
+  const companyId = c.get("companyId");
+  const db = getDb(getEnv(c.env));
+
+  const gate = await requireTask(c, db, taskId, "read");
+  if (gate instanceof Response) return gate;
+
+  const { error } = subscribed
+    ? await db.rpc("task_subscribe", {
+        p_company_id: companyId,
+        p_task_id: taskId,
+        p_user_id: c.get("userId"),
+        p_reason: "manual",
+        p_resubscribe: true,
+      })
+    : await db.rpc("task_unsubscribe", {
+        p_company_id: companyId,
+        p_task_id: taskId,
+        p_user_id: c.get("userId"),
+      });
+  if (error) {
+    throw new Error(
+      `${subscribed ? "task_subscribe" : "task_unsubscribe"} failed: ${error.message}`,
+    );
+  }
+  return c.json({ subscribed });
+}
+
+taskActivityRoutes.post(
+  "/tasks/:id/subscription",
+  requireCapability("conversations.read"),
+  (c) => setSubscription(c, true),
+);
+
+taskActivityRoutes.delete(
+  "/tasks/:id/subscription",
+  requireCapability("conversations.read"),
+  (c) => setSubscription(c, false),
 );

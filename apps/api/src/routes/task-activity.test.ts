@@ -17,7 +17,15 @@ import {
   stubFetch,
   type TestAuth,
 } from "../test/support";
+import { notifyTaskChangeSafely } from "../tasks/notify";
 import { taskActivityRoutes } from "./task-activity";
+
+// The alerts have their own suite (tasks/notify.test.ts); here they are only
+// asked whether the route raised them, for whom, and in what order.
+vi.mock("../tasks/notify", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../tasks/notify")>()),
+  notifyTaskChangeSafely: vi.fn(async () => undefined),
+}));
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
@@ -34,6 +42,7 @@ beforeAll(async () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.mocked(notifyTaskChangeSafely).mockClear();
 });
 
 function harness(
@@ -55,6 +64,12 @@ function harness(
     { user_id: OTHER_USER, display_name: "Sam" },
   ]);
   sb.on("GET", "/rest/v1/attachments", () => []);
+  sb.on("GET", "/rest/v1/company_members", () => [
+    { user_id: auth.subject },
+    { user_id: OTHER_USER },
+  ]);
+  sb.on("POST", "/rest/v1/rpc/task_subscribe", () => null);
+  sb.on("POST", "/rest/v1/rpc/task_unsubscribe", () => null);
   sb.on("GET", "/rest/v1/task_comments", () => [
     { id: COMMENT_ID, author_user_id: opts.author ?? auth.subject },
   ]);
@@ -278,5 +293,143 @@ describe("PATCH and DELETE /v1/tasks/:id/comments/:commentId", () => {
     });
     expect(ok.status).toBe(204);
     expect(allowed.find("PATCH", "/rest/v1/attachments").length).toBe(1);
+  });
+});
+
+describe("task comments raise subscriber alerts (#689 D)", () => {
+  const post = async (sb: ReturnType<typeof harness>, body: Record<string, unknown>) => {
+    sb.on("POST", "/rest/v1/task_comments", () => [
+      {
+        id: COMMENT_ID,
+        author_user_id: auth.subject,
+        body: String(body.body),
+        created_at: "2026-11-10T12:00:00.000Z",
+        edited_at: null,
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+    return apiRequest(app, env, await auth.token(), `/v1/tasks/${TASK_ID}/comments`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body,
+    });
+  };
+  const alerts = () => vi.mocked(notifyTaskChangeSafely).mock.calls.map((c) => c[1]);
+
+  it("a plain comment alerts the followers and does not re-subscribe the author", async () => {
+    const sb = harness("member");
+    const response = await post(sb, { body: "Parts arrive Friday" });
+    expect(response.status).toBe(201);
+
+    expect(alerts()).toEqual([
+      expect.objectContaining({
+        kind: "comment",
+        taskId: TASK_ID,
+        actorUserId: auth.subject,
+        commentBody: "Parts arrive Friday",
+        mentionedUserIds: [],
+      }),
+    ]);
+    // The author's subscription is the insert trigger's business, and it never
+    // overrides an unfollow; the route must not force one.
+    expect(sb.find("POST", "/rest/v1/rpc/task_subscribe")).toHaveLength(0);
+  });
+
+  it("a mention subscribes the person (lifting an unfollow) and alerts them, then the comment alert skips them", async () => {
+    const sb = harness("member");
+    const response = await post(sb, {
+      body: "Sam, can you take this?",
+      mention_user_ids: [OTHER_USER],
+    });
+    expect(response.status).toBe(201);
+
+    const subscribe = sb.find("POST", "/rest/v1/rpc/task_subscribe");
+    expect(subscribe).toHaveLength(1);
+    expect(subscribe[0].body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_task_id: TASK_ID,
+      p_user_id: OTHER_USER,
+      p_reason: "mentioned",
+      p_resubscribe: true,
+    });
+    expect(alerts().map((a) => a.kind)).toEqual(["mentioned", "comment"]);
+    expect(alerts()[0]).toMatchObject({ mentionedUserIds: [OTHER_USER] });
+    expect(alerts()[1]).toMatchObject({ mentionedUserIds: [OTHER_USER] });
+  });
+
+  it("naming yourself is not a mention", async () => {
+    const sb = harness("member");
+    await post(sb, { body: "note to self", mention_user_ids: [auth.subject] });
+    expect(sb.find("POST", "/rest/v1/rpc/task_subscribe")).toHaveLength(0);
+    expect(alerts().map((a) => a.kind)).toEqual(["comment"]);
+  });
+
+  it("refuses to name someone who cannot see the task, and writes nothing", async () => {
+    const sb = harness("member");
+    const stranger = "0f0f0f0f-0000-4000-8000-0000000000aa";
+    const response = await post(sb, { body: "hi", mention_user_ids: [stranger] });
+    expect(response.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/task_comments")).toHaveLength(0);
+    expect(alerts()).toHaveLength(0);
+  });
+
+  it("allows at most ten mentions", async () => {
+    const sb = harness("member");
+    const ids = Array.from(
+      { length: 11 },
+      (_, i) => `0f0f0f0f-0000-4000-8000-${String(i).padStart(12, "0")}`,
+    );
+    const response = await post(sb, { body: "everyone", mention_user_ids: ids });
+    expect(response.status).toBe(422);
+  });
+});
+
+describe("POST and DELETE /v1/tasks/:id/subscription (#689 D)", () => {
+  const call = async (method: "POST" | "DELETE") =>
+    apiRequest(app, env, await auth.token(), `/v1/tasks/${TASK_ID}/subscription`, {
+      method,
+      companyId: COMPANY_ID,
+    });
+
+  it("Follow subscribes the caller as a manual follower, lifting an earlier unfollow", async () => {
+    const sb = harness("member");
+    stubFetch(jwksRoute(auth), sb.route);
+    const response = await call("POST");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ subscribed: true });
+    expect(sb.find("POST", "/rest/v1/rpc/task_subscribe")[0].body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_task_id: TASK_ID,
+      p_user_id: auth.subject,
+      p_reason: "manual",
+      p_resubscribe: true,
+    });
+  });
+
+  it("Unfollow records the unfollow for the caller only", async () => {
+    const sb = harness("member");
+    stubFetch(jwksRoute(auth), sb.route);
+    const response = await call("DELETE");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ subscribed: false });
+    expect(sb.find("POST", "/rest/v1/rpc/task_unsubscribe")[0].body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_task_id: TASK_ID,
+      p_user_id: auth.subject,
+    });
+  });
+
+  it("a read-only member may follow: it asks for pushes, it writes nothing to the task", async () => {
+    const sb = harness("read_only");
+    stubFetch(jwksRoute(auth), sb.route);
+    expect((await call("POST")).status).toBe(200);
+  });
+
+  it("is a 404 for a task the caller cannot see", async () => {
+    const sb = harness("member", { taskFound: false });
+    stubFetch(jwksRoute(auth), sb.route);
+    expect((await call("POST")).status).toBe(404);
+    expect((await call("DELETE")).status).toBe(404);
+    expect(sb.find("POST", "/rest/v1/rpc/task_subscribe")).toHaveLength(0);
   });
 });

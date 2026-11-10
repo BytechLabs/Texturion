@@ -104,6 +104,8 @@ const TENANT_TABLES = new Set([
   "task_calendar_links", "calendar_outbox", "calendar_reminder_replans",
   // #689 E: a task's history and its comments.
   "task_events", "task_comments",
+  // #689 D: who follows a task, and the 60-second collapse windows.
+  "task_subscribers", "task_notify_windows",
   "lead_sources",
   // #224: the ask for money, and the mirror of the Stripe account it is paid
   // into. An unscoped read of either is the most valuable cross-tenant leak in
@@ -342,6 +344,13 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
   "billing/grace.ts::messaging_registrations": {
     count: 1,
     why: "the same sweep, for live 10DLC campaigns still costing us money",
+  },
+
+  "tasks/overdue-notice.ts::tasks": {
+    count: 1,
+    why:
+      "the overdue-task notifier, batched across all tenants like the due-soon " +
+      "one. It selects company_id so it can fan the alerts back out per workspace",
   },
 
   "tasks/due-notice.ts::tasks": {

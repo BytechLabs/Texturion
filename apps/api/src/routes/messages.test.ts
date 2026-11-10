@@ -37,7 +37,15 @@ import {
   type FetchRoute,
   type TestAuth,
 } from "../test/support";
+import { notifyPromotedMessageDone } from "../tasks/notify";
 import { messageRoutes } from "./messages";
+
+// The alert has its own suite (tasks/notify.test.ts); here the route is only
+// asked whether it raised it, and for whom.
+vi.mock("../tasks/notify", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../tasks/notify")>()),
+  notifyPromotedMessageDone: vi.fn(async () => undefined),
+}));
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
@@ -1347,6 +1355,24 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
       attachments: [],
     });
     expect(body).not.toHaveProperty("body_tsv");
+  });
+
+  it("tells the followers of the job a done text belongs to, on a tick and an untick (#689 D)", async () => {
+    const alerts = vi.mocked(notifyPromotedMessageDone);
+    alerts.mockClear();
+
+    stubFetch(...doneStubs({ done_at: null, done_by_user_id: null }).all);
+    await patchDone({ done: true });
+    stubFetch(...doneStubs({ done_at: DONE_AT, done_by_user_id: auth.subject }).all);
+    await patchDone({ done: false });
+    // A second tick on an already-done text is the RPC's `unchanged`.
+    stubFetch(...doneStubs({ done_at: DONE_AT, done_by_user_id: auth.subject }).all);
+    await patchDone({ done: true });
+
+    expect(alerts.mock.calls.map((call) => call[1])).toEqual([
+      { companyId: COMPANY_ID, messageId: MESSAGE_ID, actorUserId: auth.subject, done: true },
+      { companyId: COMPANY_ID, messageId: MESSAGE_ID, actorUserId: auth.subject, done: false },
+    ]);
   });
 
   it("clears done: nulls both columns via the atomic RPC", async () => {

@@ -58,6 +58,7 @@ function world(options: Options = {}) {
       waiting_on_you: options.waiting ?? 3,
       my_tasks: options.tasks ?? 2,
     },
+    my_tasks: [],
   }));
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
   sb.on("GET", "/rest/v1/device_push_tokens", () => []);

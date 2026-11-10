@@ -30,7 +30,15 @@ import {
   type FetchRoute,
   type TestAuth,
 } from "../test/support";
+import { notifyTaskChangeSafely } from "../tasks/notify";
 import { tasksRoutes } from "./tasks";
+
+// The alerts have their own suite (tasks/notify.test.ts). Here they are only
+// asked "was it raised, for whom, by whom": the route's half of the contract.
+vi.mock("../tasks/notify", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../tasks/notify")>()),
+  notifyTaskChangeSafely: vi.fn(async () => undefined),
+}));
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
@@ -122,6 +130,18 @@ function reminderRoutes(): FetchRoute[] {
 
 function numberAccessRoute(rules: unknown[] = []): FetchRoute {
   return stubRoute(rpcMatch(env, "member_number_levels"), () => rules).route;
+}
+
+/**
+ * #689 D: the detail route reads whether the caller follows the task. `null`
+ * is a task they never followed; pass a row to say otherwise.
+ */
+function subscriptionRoute(
+  row: { unsubscribed_at: string | null } | null = null,
+): FetchRoute {
+  return stubRoute(restMatch(env, "GET", "task_subscribers"), () =>
+    row ? [row] : [],
+  ).route;
 }
 
 function taskRow(overrides: Record<string, unknown> = {}) {
@@ -1099,6 +1119,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       jwksRoute(auth),
       membersRoute(),
       numberAccessRoute(),
+      subscriptionRoute(),
       detail.route,
       profiles.route,
       attachments.route,
@@ -1152,6 +1173,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       jwksRoute(auth),
       membersRoute(),
       numberAccessRoute(),
+      subscriptionRoute(),
       detail.route,
       empty("profiles").route,
       empty("attachments").route,
@@ -1184,6 +1206,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       numberAccessRoute([
         { phone_number_id: "f0000000-0000-4000-8000-0000000000f1", level: "none" },
       ]),
+      subscriptionRoute(),
       detail.route,
       profiles.route,
       empty("attachments").route,
@@ -1231,6 +1254,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       jwksRoute(auth),
       membersRoute(),
       numberAccessRoute(),
+      subscriptionRoute(),
       detail.route,
       profiles.route,
       union.mms.route,
@@ -1388,6 +1412,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       jwksRoute(auth),
       membersRoute(),
       numberAccessRoute(),
+      subscriptionRoute(),
       detail.route,
       profiles.route,
       mms.route,
@@ -1968,6 +1993,7 @@ describe("#106/#107 number access on tasks", () => {
       jwksRoute(auth),
       membersRoute(),
       numberAccessRoute([hidingRule]),
+      subscriptionRoute(),
       detail.route,
       profiles.route,
       conv.route,
@@ -2036,6 +2062,7 @@ describe("#106/#107 number access on tasks", () => {
       jwksRoute(auth),
       membersRoute(),
       numberAccessRoute([noteRule()]),
+      subscriptionRoute(),
       detail.route,
       profiles.route,
       conv.route,
@@ -2128,5 +2155,155 @@ describe("#106/#107 number access on tasks", () => {
     });
     expect(response.status).toBe(201);
     expect(rpc.calls).toHaveLength(1);
+  });
+});
+
+describe("#689 D subscriber alerts raised by the task routes", () => {
+  const alerts = vi.mocked(notifyTaskChangeSafely);
+
+  // The new owner's own #515 alert runs inline outside a Worker; answering
+  // "the thread is gone" makes it a silent no-op.
+  const quietAssignmentAlert: FetchRoute = (url) =>
+    url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/conversations`) &&
+    url.searchParams.get("select") === "phone_number_id"
+      ? Response.json([])
+      : undefined;
+
+  function world(options: {
+    before: Record<string, unknown>;
+    update?: (p: Record<string, unknown>) => Record<string, unknown>;
+    doneOutcome?: string;
+  }) {
+    const prior = taskRow({ message_id: null, ...options.before });
+    const lookup = stubRoute(restMatch(env, "GET", "tasks"), () => [prior]);
+    const update = stubRoute(rpcMatch(env, "update_task"), (call) => ({
+      outcome: "updated",
+      task: { ...prior, ...(options.update?.(call.body as Record<string, unknown>) ?? {}) },
+    }));
+    const assign = stubRoute(rpcMatch(env, "assign_task"), (call) => ({
+      outcome: "updated",
+      task: {
+        ...prior,
+        assigned_user_id: (call.body as Record<string, unknown>).p_assigned_user_id,
+      },
+    }));
+    const setDone = stubRoute(rpcMatch(env, "set_task_done"), () => ({
+      outcome: options.doneOutcome ?? "updated",
+      task: prior,
+    }));
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      quietAssignmentAlert,
+      lookup.route,
+      update.route,
+      assign.route,
+      setDone.route,
+      ...reminderRoutes(),
+    );
+  }
+
+  afterEach(() => {
+    alerts.mockClear();
+  });
+
+  it("taking somebody off a task tells them, naming the person who did it", async () => {
+    world({ before: { assigned_user_id: OTHER_USER } });
+    const response = await request("PATCH", `/v1/tasks/${TASK_ID}`, {
+      assigned_user_id: null,
+    });
+    expect(response.status).toBe(200);
+    expect(alerts).toHaveBeenCalledTimes(1);
+    expect(alerts.mock.calls[0][1]).toMatchObject({
+      companyId: COMPANY_ID,
+      taskId: TASK_ID,
+      actorUserId: auth.subject,
+      kind: "unassigned",
+      previousAssigneeId: OTHER_USER,
+    });
+  });
+
+  it("giving a task to someone else tells the one who held it", async () => {
+    world({ before: { assigned_user_id: OTHER_USER } });
+    await request("PATCH", `/v1/tasks/${TASK_ID}`, {
+      assigned_user_id: NOTE_AUTHOR,
+    });
+    expect(alerts.mock.calls.map((c) => c[1])).toEqual([
+      expect.objectContaining({ kind: "unassigned", previousAssigneeId: OTHER_USER }),
+    ]);
+  });
+
+  it("assigning an unassigned task raises no unassigned alert", async () => {
+    world({ before: { assigned_user_id: null } });
+    await request("PATCH", `/v1/tasks/${TASK_ID}`, { assigned_user_id: OTHER_USER });
+    expect(alerts).not.toHaveBeenCalled();
+  });
+
+  it("changing the due time raises due_changed; changing only the title does not", async () => {
+    world({
+      before: { due_at: "2026-07-10T17:00:00.000Z" },
+      update: (p) => (p.p_due_at != null ? { due_at: p.p_due_at } : {}),
+    });
+    await request("PATCH", `/v1/tasks/${TASK_ID}`, { due_at: "2026-07-11T17:00:00.000Z" });
+    expect(alerts.mock.calls.map((c) => c[1].kind)).toEqual(["due_changed"]);
+
+    alerts.mockClear();
+    await request("PATCH", `/v1/tasks/${TASK_ID}`, { title: "New title" });
+    expect(alerts).not.toHaveBeenCalled();
+  });
+
+  it("re-sending the same due time is not a change", async () => {
+    world({
+      before: { due_at: "2026-07-10T17:00:00.000Z" },
+      update: (p) => ({ due_at: p.p_due_at }),
+    });
+    await request("PATCH", `/v1/tasks/${TASK_ID}`, { due_at: "2026-07-10T17:00:00.000Z" });
+    expect(alerts).not.toHaveBeenCalled();
+  });
+
+  it("finishing and reopening a task raise completed and reopened", async () => {
+    world({ before: {} });
+    await request("PATCH", `/v1/tasks/${TASK_ID}`, { done: true });
+    await request("PATCH", `/v1/tasks/${TASK_ID}`, { done: false });
+    expect(alerts.mock.calls.map((c) => c[1].kind)).toEqual(["completed", "reopened"]);
+    expect(alerts.mock.calls[0][1]).toMatchObject({ actorUserId: auth.subject });
+  });
+
+  it("a second tap on done (unchanged) raises nothing", async () => {
+    world({ before: {}, doneOutcome: "unchanged" });
+    await request("PATCH", `/v1/tasks/${TASK_ID}`, { done: true });
+    expect(alerts).not.toHaveBeenCalled();
+  });
+
+  it("detail says whether the caller follows the task, and a remembered unfollow is not following", async () => {
+    const detail = (follow: { unsubscribed_at: string | null } | null) => {
+      const lookup = stubRoute(restMatch(env, "GET", "tasks"), () => [
+        taskRow({ message_id: null, conversation_id: null, messages: null }),
+      ]);
+      const empty = (table: string) => stubRoute(restMatch(env, "GET", table), () => []);
+      stubFetch(
+        jwksRoute(auth),
+        membersRoute(),
+        numberAccessRoute(),
+        subscriptionRoute(follow),
+        lookup.route,
+        empty("profiles").route,
+        empty("attachments").route,
+        empty("message_attachments").route,
+        empty("conversation_events").route,
+        empty("messages").route,
+      );
+    };
+    const subscribed = async () =>
+      ((await (await request("GET", `/v1/tasks/${TASK_ID}`)).json()) as {
+        subscribed: boolean;
+      }).subscribed;
+
+    detail({ unsubscribed_at: null });
+    expect(await subscribed()).toBe(true);
+    detail({ unsubscribed_at: "2026-11-10T12:00:00.000Z" });
+    expect(await subscribed()).toBe(false);
+    detail(null);
+    expect(await subscribed()).toBe(false);
   });
 });

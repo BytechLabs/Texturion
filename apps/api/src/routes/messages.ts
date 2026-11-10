@@ -47,6 +47,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
 import { getEnv } from "../env";
+import { notifyPromotedMessageDone } from "../tasks/notify";
 import { askForJobRating } from "../messaging/job-ratings";
 import { ApiError } from "../http/errors";
 import { buildPage } from "../http/pagination";
@@ -579,6 +580,20 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
       messageId: updated.id,
       userId,
     });
+  }
+
+  // #689 D: the people following that job hear it was finished or reopened.
+  // Best-effort on `waitUntil`, like the ask above.
+  if (result.outcome === "updated" && body.done !== undefined) {
+    const alert = notifyPromotedMessageDone(getEnv(c.env), {
+      companyId,
+      messageId: updated.id,
+      actorUserId: userId,
+      done: body.done,
+    }).catch((cause: unknown) => {
+      console.error("task done alert failed:", cause);
+    });
+    executionCtxOf(c)?.waitUntil(alert);
   }
 
   const attachments = await loadAttachments(db, companyId, [updated.id]);

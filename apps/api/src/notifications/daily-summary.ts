@@ -23,6 +23,9 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
 
+/** Task rows read per member to count what is overdue or due today. */
+const SUMMARY_TASK_ROWS = 100;
+
 /** How many members one tick will summarise. */
 const MAX_PER_TICK = 50;
 
@@ -72,6 +75,29 @@ export function localClock(
   } catch {
     return null;
   }
+}
+
+/**
+ * #689 D: how many of this member's open tasks are overdue or due by the end of
+ * THEIR day. `my_tasks` is every open task assigned to them, dated or not, so
+ * its total is not "due"; an undated to-do is not due today.
+ */
+export function tasksNeedingToday(
+  rows: { overdue?: boolean; due_at?: string | null }[],
+  timezone: string,
+  today: string,
+): number {
+  let count = 0;
+  for (const row of rows) {
+    if (row.overdue === true) {
+      count += 1;
+      continue;
+    }
+    if (!row.due_at) continue;
+    const due = localClock(timezone, new Date(row.due_at));
+    if (due && due.date <= today) count += 1;
+  }
+  return count;
 }
 
 /** "07:30" as minutes since midnight, or null when it will not parse. */
@@ -167,16 +193,20 @@ export async function runDailySummary(
         p_company_id: row.company_id,
         p_user_id: row.user_id,
         p_now: now.toISOString(),
-        p_limit: 1,
+        // Enough to count today's tasks: the RPC orders overdue first, then by due
+        // time, so every task that counts sits at the front.
+        p_limit: SUMMARY_TASK_ROWS,
         p_hidden_number_ids: access.hiddenNumberIds,
       });
       if (forYouError) throw new Error(forYouError.message);
 
-      const totals = (forYou as { totals?: Record<string, number> } | null)
-        ?.totals;
+      const result = forYou as {
+        totals?: Record<string, number>;
+        my_tasks?: { overdue?: boolean; due_at?: string | null }[];
+      } | null;
       const counts = {
-        waiting: totals?.waiting_on_you ?? 0,
-        tasks: totals?.my_tasks ?? 0,
+        waiting: result?.totals?.waiting_on_you ?? 0,
+        tasks: tasksNeedingToday(result?.my_tasks ?? [], zone, clock.date),
       };
       const url = `${env.APP_ORIGIN}/for-you`;
       // #228: composed PER READER. The counts come off one RPC and mean the

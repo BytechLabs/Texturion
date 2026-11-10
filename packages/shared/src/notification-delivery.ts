@@ -35,6 +35,7 @@ export const NOTIFICATION_CATEGORIES = [
   "messages_all",
   "mentions",
   "assignments",
+  "tasks",
   "missed_calls",
   "voicemails",
 ] as const;
@@ -77,6 +78,9 @@ export const DEFAULT_DELIVERY: Record<NotificationCategory, DeliveryMode> = {
   messages_all: "immediate",
   mentions: "immediate",
   assignments: "immediate",
+  // Changes to a task the member follows (#689 D). On by default, because the
+  // member is following it: they are its creator, its assignee or asked to be.
+  tasks: "immediate",
   missed_calls: "immediate",
   voicemails: "immediate",
 };
@@ -219,6 +223,7 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   messages_all: "domain.categoryMessagesAll",
   mentions: "domain.categoryMentions",
   assignments: "domain.categoryAssignments",
+  tasks: "domain.categoryTasks",
   missed_calls: "domain.categoryMissedCalls",
   voicemails: "domain.categoryVoicemails",
 };

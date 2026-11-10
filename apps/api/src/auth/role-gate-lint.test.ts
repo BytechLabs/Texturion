@@ -81,6 +81,10 @@ const SELF_SCOPED_WRITES = new Set([
   "DELETE /conversations/:id/mute",
   "PUT /conversations/:id/follow",
   "DELETE /conversations/:id/follow",
+  // #689 D: your own follow on a task. A row keyed to the caller's id that only
+  // the task notifier reads; it changes nobody else's notifications.
+  "POST /tasks/:id/subscription",
+  "DELETE /tasks/:id/subscription",
   // #280: a saved view is a stored query over conversations you can already
   // read, owned by the member who saved it.
   "POST /saved-views",

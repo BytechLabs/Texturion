@@ -67,6 +67,8 @@ declare
     'task_calendar_links', 'calendar_outbox', 'calendar_reminder_replans',
     -- #689 E: a task's history and its comments.
     'task_events', 'task_comments',
+    -- #689 D: who follows a task, and the push collapse windows.
+    'task_subscribers', 'task_notify_windows',
     'lead_sources',
     -- #224: text-to-pay.
     'payment_requests', 'stripe_connect_accounts',

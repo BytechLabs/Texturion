@@ -83,6 +83,7 @@ import { roleHasCapability } from "@loonext/shared";
 import { ApiError, errorResponse } from "../http/errors";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
+import { notifyTaskChangeSafely, type TaskChange } from "../tasks/notify";
 import { decodeCursor, encodeCursor } from "../http/pagination";
 import {
   buildEnrichmentMessages,
@@ -820,6 +821,46 @@ function notifyAssignedTask(
   }
   return notify;
 }
+
+/**
+ * Fire a #689 D subscriber alert without letting it touch the response.
+ *
+ * The same contract as `notifyAssignedTask`: `waitUntil` where the runtime
+ * offers one, awaited otherwise so a test never sees it land in a later one.
+ */
+function alertTaskSubscribers(c: Context<AppEnv>, change: TaskChange): Promise<void> {
+  const work = notifyTaskChangeSafely(getEnv(c.env), change);
+  const ctx = executionCtxOf(c);
+  if (ctx) {
+    ctx.waitUntil(work);
+    return Promise.resolve();
+  }
+  return work;
+}
+
+/** The task as it was before a write, for the alerts that need the old value. Null when unreadable. */
+async function readTaskBefore(
+  db: Db,
+  companyId: string,
+  id: string,
+): Promise<{ assigned_user_id: string | null; due_at: string | null } | null> {
+  try {
+    const row = await findTask(db, companyId, id);
+    if (!row) return null;
+    return {
+      assigned_user_id: (row.assigned_user_id as string | null) ?? null,
+      due_at: (row.due_at as string | null) ?? null,
+    };
+  } catch (cause) {
+    console.error("task pre-read failed:", cause);
+    return null;
+  }
+}
+
+const sameInstant = (a: unknown, b: unknown): boolean => {
+  if (a == null || b == null) return a == null && b == null;
+  return new Date(a as string).getTime() === new Date(b as string).getTime();
+};
 
 /**
  * #237 — bring this job's reminders back in line with what it now says.
@@ -1845,10 +1886,24 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     for (const p of found) profiles.set(p.user_id, p);
   }
 
+  // #689 D: whether THIS member follows the task. A remembered unfollow is a
+  // row with unsubscribed_at set, which reads as not following.
+  const subscription = unwrap<{ unsubscribed_at: string | null }[]>(
+    await db
+      .from("task_subscribers")
+      .select("unsubscribed_at")
+      .eq("company_id", companyId)
+      .eq("task_id", id)
+      .eq("user_id", c.get("userId"))
+      .limit(1),
+    "task subscription lookup",
+  );
+
   const { messages, done_state, done_by, source_call, linked_contact, ...task } = row;
   const done = (done_state ?? null) !== null;
   const identity = {
     ...withSource(task),
+    subscribed: subscription[0] ? subscription[0].unsubscribed_at === null : false,
     contact: linkedContact(linked_contact),
     done,
     done_at: done_state ?? null,
@@ -2189,6 +2244,13 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   let latest: Record<string, unknown> | null = null;
   let found = false;
 
+  // #689 D: "unassigned you" and "time changed" need the value that is about to
+  // be overwritten, which neither RPC returns.
+  const before =
+    touchesAssignee || "due_at" in body
+      ? await readTaskBefore(db, companyId, id)
+      : null;
+
   if (touchesMeta) {
     const clearDue = "due_at" in body && (body.due_at ?? null) === null;
     const { data, error } = await db.rpc("update_task", {
@@ -2213,6 +2275,18 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     }
     found = true;
     if (result.task) latest = result.task;
+    if (
+      result.outcome === "updated" &&
+      before &&
+      !sameInstant(before.due_at, result.task?.due_at)
+    ) {
+      await alertTaskSubscribers(c, {
+        companyId,
+        taskId: id,
+        actorUserId: userId,
+        kind: "due_changed",
+      });
+    }
   }
 
   if (touchesAssignee) {
@@ -2247,6 +2321,16 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
         taskId: id,
       });
     }
+    // #689 D: whoever held it before is told they no longer do.
+    if (result.outcome === "updated" && before?.assigned_user_id) {
+      await alertTaskSubscribers(c, {
+        companyId,
+        taskId: id,
+        actorUserId: userId,
+        kind: "unassigned",
+        previousAssigneeId: before.assigned_user_id,
+      });
+    }
   }
 
   if (body.done !== undefined) {
@@ -2263,6 +2347,14 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     }
     found = true;
     if (result.task) latest = result.task;
+    if (result.outcome === "updated") {
+      await alertTaskSubscribers(c, {
+        companyId,
+        taskId: id,
+        actorUserId: userId,
+        kind: body.done ? "completed" : "reopened",
+      });
+    }
     // Only a real transition finishes a job: `unchanged` is a second tap on the
     // same tick and must not queue a second rating question.
     if (result.outcome === "updated" && body.done) {

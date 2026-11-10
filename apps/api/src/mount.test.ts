@@ -44,6 +44,7 @@ import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
 import { notifyDueTasksJob } from "./tasks/due-notice";
+import { notifyOverdueTasksJob } from "./tasks/overdue-notice";
 import { runCalendarSyncJob } from "./calendar/worker";
 import { app, CRON_JOBS } from "./index";
 import {
@@ -536,6 +537,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(runs("*/15 * * * *")).toEqual([
       runDailySummary,
       notifyDueTasksJob,
+      notifyOverdueTasksJob,
       reconcileNumbers,
       retryCampaignAssignments,
       sweepDeletedAttachments,

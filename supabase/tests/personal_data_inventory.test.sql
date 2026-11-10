@@ -51,6 +51,8 @@ declare
     -- #689 E: what changed on a task (titles, notes, addresses) and what the
     -- crew said about it. Free text a member typed, so personal data.
     'task_events', 'task_comments',
+    -- #689 D: which member follows which task, and when a push last went out.
+    'task_subscribers', 'task_notify_windows',
     'number_port_outs',
     -- #291: a customer's addresses, plural. Squarely contact data — it is
     -- where somebody lives, which is the most sensitive thing in the
