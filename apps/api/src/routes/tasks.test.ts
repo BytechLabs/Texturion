@@ -1711,7 +1711,7 @@ describe("DELETE /v1/tasks/:id — soft-delete + role gate", () => {
       del,
       all: [
         jwksRoute(auth),
-        membersRoute(options.role),
+        membersRoute(options.role ?? "admin"),
         lookup.route,
         del.route,
         ...reminderRoutes(),
@@ -1719,7 +1719,7 @@ describe("DELETE /v1/tasks/:id — soft-delete + role gate", () => {
     };
   }
 
-  it("the creator can soft-delete: 204 via delete_task (atomic)", async () => {
+  it("a holder of records.delete can soft-delete: 204 via delete_task (atomic)", async () => {
     const stubs = deleteStubs({ createdBy: auth.subject });
     stubFetch(...stubs.all);
     const response = await request(
@@ -1739,8 +1739,8 @@ describe("DELETE /v1/tasks/:id — soft-delete + role gate", () => {
     });
   });
 
-  it("a non-creator member is forbidden (403)", async () => {
-    const stubs = deleteStubs({ createdBy: OTHER_USER, role: "member" });
+  it("a member is forbidden (403) even for a task they created (#691)", async () => {
+    const stubs = deleteStubs({ createdBy: auth.subject, role: "member" });
     stubFetch(...stubs.all);
     const response = await request(
       "DELETE",
@@ -1776,7 +1776,7 @@ describe("DELETE /v1/tasks/:id — soft-delete + role gate", () => {
 
   it("404s an unknown task", async () => {
     const lookup = stubRoute(restMatch(env, "GET", "tasks"), () => []);
-    stubFetch(jwksRoute(auth), membersRoute(), lookup.route);
+    stubFetch(jwksRoute(auth), membersRoute("admin"), lookup.route);
     const response = await request("DELETE", `/v1/tasks/${TASK_ID}`);
     expect(response.status).toBe(404);
   });
@@ -1799,6 +1799,34 @@ describe("POST /v1/tasks/bulk (#478)", () => {
     failed: [],
     capped: false,
   };
+
+  it("bulk delete needs records.delete; the other actions do not (#691)", async () => {
+    const rpc = rpcStub({ ...ok, action: "delete" });
+    stubFetch(jwksRoute(auth), membersRoute("member"), numberAccessRoute(), rpc.route);
+    const refused = await request("POST", "/v1/tasks/bulk", {
+      action: "delete",
+      ids: ["11111111-1111-4111-8111-111111111111"],
+    });
+    expect(refused.status).toBe(403);
+    expect(rpc.calls).toHaveLength(0);
+
+    const allowed = await request("POST", "/v1/tasks/bulk", {
+      action: "mark_done",
+      ids: ["11111111-1111-4111-8111-111111111111"],
+    });
+    expect(allowed.status).toBe(200);
+  });
+
+  it("an admin can bulk delete (#691)", async () => {
+    const rpc = rpcStub({ ...ok, action: "delete" });
+    stubFetch(jwksRoute(auth), membersRoute("admin"), numberAccessRoute(), rpc.route);
+    const response = await request("POST", "/v1/tasks/bulk", {
+      action: "delete",
+      ids: ["11111111-1111-4111-8111-111111111111"],
+    });
+    expect(response.status).toBe(200);
+    expect(rpc.calls).toHaveLength(1);
+  });
 
   it("hands explicit ids straight to the RPC", async () => {
     const rpc = rpcStub(ok);

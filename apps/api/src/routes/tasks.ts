@@ -79,6 +79,7 @@ import { getDb } from "../db";
 import { emitWebhookEvent, enqueueWebhookEvent } from "../webhooks/outbound";
 import { askForJobRating } from "../messaging/job-ratings";
 import { getEnv } from "../env";
+import { roleHasCapability } from "@loonext/shared";
 import { ApiError, errorResponse } from "../http/errors";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
@@ -1412,6 +1413,10 @@ tasksRoutes.post(
   requireCapability("conversations.note"),
   async (c) => {
     const body = await parseJsonBody(c, taskBulkSchema);
+    // #691: the other actions are ordinary daily work; delete needs the capability.
+    if (body.action === "delete" && !roleHasCapability(c.get("role"), "records.delete")) {
+      return errorResponse(c, "forbidden", "Insufficient role for this action.");
+    }
     const db = getDb(getEnv(c.env));
     const companyId = c.get("companyId");
     const userId = c.get("userId");
@@ -2346,11 +2351,10 @@ tasksRoutes.put(
  * cleanup of the task's generic attachments is a D19 sweep owned by the
  * storage track's cron — the row soft-delete here marks them for that sweep.
  */
-tasksRoutes.delete("/tasks/:id", requireCapability("conversations.note"), async (c) => {
+tasksRoutes.delete("/tasks/:id", requireCapability("records.delete"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
   const userId = c.get("userId");
-  const role = c.get("role");
   const db = getDb(getEnv(c.env));
 
   const current = await findTask(db, companyId, id);
@@ -2358,15 +2362,8 @@ tasksRoutes.delete("/tasks/:id", requireCapability("conversations.note"), async 
     return errorResponse(c, "not_found", "No such task.");
   }
 
-  // M*: the creator, or an owner/admin, may delete (T4 role narrowing).
-  const isPrivileged = role === "owner" || role === "admin";
-  if (!isPrivileged && current.created_by_user_id !== userId) {
-    return errorResponse(
-      c,
-      "forbidden",
-      "Only the task's creator or an owner/admin can delete it.",
-    );
-  }
+  // #691: deleting is the `records.delete` capability, checked by the route gate.
+  // The creator no longer deletes on that ground alone.
 
   // T3: `delete_task` soft-deletes the task, soft-deletes its generic
   // attachment rows (D19), AND writes the `task_deleted` event in ONE atomic
