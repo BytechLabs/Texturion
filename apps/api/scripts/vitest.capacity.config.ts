@@ -9,6 +9,6 @@ export default defineConfig({
   test: {
     name: "capacity-deployed",
     environment: "node",
-    include: ["scripts/deployed-capacity.test.ts"],
+    include: ["scripts/deployed-capacity.test.ts", "scripts/capacity-support.test.ts"],
   },
 });

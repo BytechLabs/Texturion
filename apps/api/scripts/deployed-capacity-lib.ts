@@ -377,6 +377,33 @@ export function expectedConfirmation(input: {
 }
 
 /**
+ * The target ceremony without a token, for drivers that send events rather than
+ * ramp reads: the same production refusals, the same target label rule and the
+ * same target-bound phrase, so a wrong host fails before any request is made.
+ */
+export function assertHostedTarget(input: {
+  targetId: string;
+  apiOrigin: string;
+  supabaseOrigin: string;
+  confirmation: string;
+}): { apiOrigin: string; supabaseOrigin: string } {
+  if (!TARGET_ID.test(input.targetId) || !NONPROD_MARKER.test(input.targetId)) {
+    fail("--target-id must be a safe slug containing staging, nonprod, test, preview, or capacity");
+  }
+  const api = normalizeOrigin(input.apiOrigin, "--api-origin");
+  const supabase = normalizeOrigin(input.supabaseOrigin, "--supabase-origin");
+  guardApiHost(api.hostname);
+  guardSupabaseHost(supabase.hostname);
+  const expected = expectedConfirmation({
+    targetId: input.targetId,
+    apiOrigin: api.origin,
+    supabaseOrigin: supabase.origin,
+  });
+  if (input.confirmation !== expected) fail(`set LOONEXT_CAPACITY_CONFIRM exactly to: ${expected}`);
+  return { apiOrigin: api.origin, supabaseOrigin: supabase.origin };
+}
+
+/**
  * A rig run names exactly the rig's two origins. There is no other address a
  * rig run may be aimed at, so a typo or a pasted hosted URL is refused rather
  * than interpreted.
