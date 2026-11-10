@@ -245,8 +245,9 @@ private fun TaskListScreen(
         // and nothing else — marking done commits, unmarking is a light touch.
         if (done) haptics.confirm() else haptics.tap()
         scope.launch {
-            // Derived-done invariant: the write path is the SOURCE MESSAGE.
-            val result = runCatching { mutations.setDone(companyId, task.message_id, done) }
+            // Derived-done invariant: a message task writes its SOURCE MESSAGE; a
+            // call task (D64) has none and writes the task.
+            val result = runCatching { mutations.setTaskDone(companyId, task, done) }
             result.onFailure { snackbar.showSnackbar(it.userMessage(locale)) }
             refreshKey++
         }
@@ -1130,7 +1131,10 @@ internal fun TaskListRow(
                     t("contactsTasks.dueWhen", "when" to when_)
                 }
             }
-            val context = task.contact?.name?.ifBlank { null }
+            // D64: a call task names the call where a message task names the contact.
+            val context = task.call?.let {
+                t("contactsTasks.callFrom", "name" to taskCallerName(it, locale))
+            } ?: task.contact?.name?.ifBlank { null }
             if (dueText != null || context != null) {
                 Row(
                     Modifier.padding(top = 3.dp),

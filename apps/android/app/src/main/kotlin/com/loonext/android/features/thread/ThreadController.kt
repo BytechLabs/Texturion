@@ -1549,7 +1549,9 @@ class ThreadController(
         conversationTasks = LoadState.Ready(swap(ready.value, turningOn))
         scope.launch {
             try {
-                repo.setDone(companyId, task.message_id, turningOn)
+                val messageId = task.message_id
+                if (messageId != null) repo.setDone(companyId, messageId, turningOn)
+                else repo.setCallTaskDone(companyId, task.id, turningOn)
                 runCatching { refreshMessagesFirstPage() }
                 runCatching { refreshEvents() }
             } catch (cause: Exception) {

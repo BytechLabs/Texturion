@@ -171,6 +171,28 @@ class TaskMutations(private val api: ApiClient) {
             companyId = companyId,
         )
 
+    /**
+     * D64: the done write for ANY task, branched on its source. A message task
+     * writes its source message (above); a task promoted from a call has no
+     * message and owns its done state, so it is written on the task itself.
+     * The API answers 422 if a message task is patched here.
+     */
+    suspend fun setTaskDone(companyId: String, task: Task, done: Boolean) {
+        val messageId = task.message_id
+        if (messageId != null) setDone(companyId, messageId, done)
+        else setCallTaskDone(companyId, task.id, done)
+    }
+
+    /** D64: the done write for a task with no message (see [setTaskDone]). */
+    suspend fun setCallTaskDone(companyId: String, taskId: String, done: Boolean) {
+        // The answer is the raw task row; nothing here reads it, so it is not decoded as one.
+        api.patch<JsonObject, JsonObject>(
+            "/v1/tasks/$taskId",
+            buildJsonObject { put("done", done) },
+            companyId = companyId,
+        )
+    }
+
     /** Soft-delete; creator or owner/admin only (403 otherwise). */
     suspend fun delete(companyId: String, taskId: String) {
         api.delete("/v1/tasks/$taskId", companyId = companyId)
@@ -249,20 +271,23 @@ class TaskMutations(private val api: ApiClient) {
     )
 
     /**
-     * Promote a message to a task ("Make a task"). 409 = already a task.
+     * Promote a message, or (D64) an answered call, to a task ("Make a task"). 409 = already a task.
      * #214: [address] carries the confirmed enriched/hand-entered job address.
      */
     suspend fun create(
         companyId: String,
-        messageId: String,
+        messageId: String? = null,
         title: String?,
         assignedUserId: String?,
         dueAt: String?,
         address: TaskAddressInput? = null,
+        /** D64: an answered call to promote instead. Exactly one of the two. */
+        sourceCallId: String? = null,
     ): Task = api.post(
         "/v1/tasks",
         buildJsonObject {
-            put("message_id", messageId)
+            if (messageId != null) put("message_id", messageId)
+            if (sourceCallId != null) put("source_call_id", sourceCallId)
             if (title != null) put("title", title)
             if (assignedUserId != null) put("assigned_user_id", assignedUserId)
             if (dueAt != null) put("due_at", dueAt)

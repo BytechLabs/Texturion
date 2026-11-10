@@ -57,6 +57,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
+import com.loonext.android.features.tasks.CallTaskButton
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ResyncOnResume
@@ -195,6 +196,20 @@ internal fun ContactCallsSection(
                                             ?.takeIf { onOpenConversation != null }
                                             ?.let { id -> { onOpenConversation?.invoke(id) } },
                                         onCallBack = onCallBack,
+                                        makeTask = call.conversation_id
+                                            ?.takeIf { call.outcome == CallOutcome.ANSWERED }
+                                            ?.let { conversationId ->
+                                                {
+                                                    CallTaskButton(
+                                                        graph = graph,
+                                                        companyId = companyId,
+                                                        conversationId = conversationId,
+                                                        callerName = call.displayName
+                                                            ?: t("contactsTasks.callUnknownCaller"),
+                                                        callId = call.id,
+                                                    )
+                                                }
+                                            },
                                     )
                                     if (index < calls.lastIndex) RowDivider()
                                 }
@@ -264,6 +279,8 @@ private fun ContactCallRow(
     companyId: String,
     onOpen: (() -> Unit)?,
     onCallBack: (() -> Unit)?,
+    /** D64: "Make a task", offered on an answered call that has a conversation. */
+    makeTask: (@Composable () -> Unit)? = null,
 ) {
     val haptics = rememberHaptics()
     val coral = if (isSystemInDarkTheme()) BrandColor.DarkCoral else BrandColor.Coral
@@ -335,6 +352,7 @@ private fun ContactCallRow(
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                makeTask?.invoke()
                 if (onCallBack != null) {
                     val callBackInteraction = remember { MutableInteractionSource() }
                     Surface(

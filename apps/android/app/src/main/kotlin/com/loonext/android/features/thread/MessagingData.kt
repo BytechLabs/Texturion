@@ -666,6 +666,16 @@ class MessagingRepository(private val api: ApiClient) {
             companyId = companyId,
         )
 
+    /** D64: a task promoted from a call has no message; its done is written on the task. */
+    suspend fun setCallTaskDone(companyId: String, taskId: String, done: Boolean) {
+        // The answer is the raw task row; nothing here reads it, so it is not decoded as one.
+        api.patch<JsonObject, JsonObject>(
+            "/v1/tasks/$taskId",
+            buildJsonObject { put("done", done) },
+            companyId = companyId,
+        )
+    }
+
     suspend fun setMessagePinned(
         companyId: String,
         messageId: String,

@@ -554,6 +554,8 @@ fun EventLine(
     onClick: (() -> Unit)? = null,
     /** Read out in place of the bare sentence, so the target is spoken too. */
     clickLabel: String? = null,
+    /** An action beside the line, e.g. "Make a task" on an answered call (D64). */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val actionable = onClick != null
     Row(
@@ -599,7 +601,7 @@ fun EventLine(
             )
         }
         Spacer(Modifier.width(9.dp))
-        Column(Modifier.padding(top = 2.dp)) {
+        Column(Modifier.weight(1f, fill = false).padding(top = 2.dp)) {
             Text(
                 "$text · ${bubbleTime(timeIso)}",
                 style = MaterialTheme.typography.bodySmall.copy(
@@ -623,6 +625,7 @@ fun EventLine(
                 )
             }
         }
+        trailing?.invoke()
     }
 }
 

@@ -270,7 +270,8 @@ private fun suggestedDueLabel(iso: String, zone: ZoneId): String =
  */
 @Composable
 fun MakeTaskSheet(
-    message: Message,
+    /** The source message; null when the source is an answered call (D64). */
+    message: Message?,
     contactName: String,
     members: List<Member>,
     /** Who to assign by default: the person making the task (web parity). */
@@ -285,6 +286,8 @@ fun MakeTaskSheet(
         address: TaskAddressInput?,
     ) -> Unit,
     onDismiss: () -> Unit,
+    /** D64: set for an answered call; seeds the title and has no text to enrich. */
+    callTitle: String? = null,
 ) {
     // Read in composition and held: `remember` runs outside it, and so does
     // every comparison below that has to line up with a chip's own label.
@@ -292,7 +295,9 @@ fun MakeTaskSheet(
     val todayLabel = t("thread.dueToday")
     val tomorrowLabel = t("thread.dueTomorrow9")
     var title by remember {
-        mutableStateOf(message.body.trim().take(120).ifBlank { fallbackTitle })
+        mutableStateOf(
+            callTitle ?: message?.body?.trim().orEmpty().take(120).ifBlank { fallbackTitle },
+        )
     }
     // Assigned to whoever is making it, matching the web. The default task
     // view is "open, assigned to me", so a task made on a phone and left
@@ -340,7 +345,9 @@ fun MakeTaskSheet(
     // if a toggle is on and the message text is non-empty, pre-fill the due (if
     // still empty) and/or the address. The enrich call is session-cached per
     // (company, message), so reopening this sheet never re-spends an AI call.
-    LaunchedEffect(message.id) {
+    LaunchedEffect(message?.id) {
+        // A call has no text to read, so there is nothing to enrich (D64).
+        if (message == null) return@LaunchedEffect
         val settings = runCatching { aiRepo.getAiSettings(companyId) }.getOrNull()
             ?: return@LaunchedEffect
         if (!settings.enrich_task_address && !settings.enrich_task_due) return@LaunchedEffect
@@ -398,7 +405,10 @@ fun MakeTaskSheet(
                         ),
                     )
                     Text(
-                        t("thread.newTaskFrom", "name" to contactName),
+                        t(
+                            if (callTitle != null) "thread.newTaskFromCall" else "thread.newTaskFrom",
+                            "name" to contactName,
+                        ),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 3.dp),
@@ -421,7 +431,9 @@ fun MakeTaskSheet(
             }
 
             // The quoted source message, lime-barred.
-            QuotedMessageWell(message = message, contactName = contactName, zone = zone)
+            if (message != null) {
+                QuotedMessageWell(message = message, contactName = contactName, zone = zone)
+            }
 
             // Title.
             Column {

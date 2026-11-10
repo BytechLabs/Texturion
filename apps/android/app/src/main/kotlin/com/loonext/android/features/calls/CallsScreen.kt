@@ -72,6 +72,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
+import com.loonext.android.features.tasks.CallTaskButton
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
@@ -459,6 +460,19 @@ fun CallsScreen(
                                                     call = call,
                                                     repo = repo,
                                                     companyId = companyId,
+                                                    makeTask = call.conversation_id
+                                                        ?.takeIf { call.outcome == CallOutcome.ANSWERED }
+                                                        ?.let { conversationId ->
+                                                            {
+                                                                CallTaskButton(
+                                                                    graph = graph,
+                                                                    companyId = companyId,
+                                                                    conversationId = conversationId,
+                                                                    callerName = callerDisplayName(call),
+                                                                    callId = call.id,
+                                                                )
+                                                            }
+                                                        },
                                                     onOpen = call.conversation_id?.let { id ->
                                                         { openConversation(id) }
                                                     },
@@ -898,6 +912,8 @@ private fun CallRow(
     companyId: String,
     onOpen: (() -> Unit)?,
     onDialBack: (() -> Unit)?,
+    /** D64: "Make a task", offered on an answered call that has a conversation. */
+    makeTask: (@Composable () -> Unit)? = null,
 ) {
     val name = callerDisplayName(call)
     val haptics = rememberHaptics()
@@ -1044,6 +1060,7 @@ private fun CallRow(
                     maxLines = 1,
                     softWrap = false,
                 )
+                makeTask?.invoke()
                 if (onDialBack != null) {
                     val dialBackInteraction = remember { MutableInteractionSource() }
                     Surface(

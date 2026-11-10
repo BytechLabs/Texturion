@@ -191,4 +191,44 @@ class TaskMutationsTest {
         assertEquals("/v1/conversations/cv1/notes", recorded.url.encodedPath)
         assertEquals("""{"body":"On it","task_id":"t1"}""", recorded.body?.utf8())
     }
+
+    private val callTaskBody = """
+        {"id":"t2","company_id":"c1","message_id":null,"conversation_id":"cv1",
+         "source":{"kind":"call","id":"call1"},
+         "title":"Call from Ana","created_by_user_id":"u1",
+         "created_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-01T00:00:00Z"}
+    """.trimIndent()
+
+    @Test
+    fun `a call task writes done on the TASK, a message task on its message`() = runTest {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val callTask = json.decodeFromString<com.loonext.android.core.model.Task>(callTaskBody)
+        val messageTask = json.decodeFromString<com.loonext.android.core.model.Task>(taskBody)
+
+        server.enqueue(MockResponse(body = callTaskBody))
+        mutations.setTaskDone("c1", callTask, true)
+        val call = server.takeRequest()
+        assertEquals("PATCH", call.method)
+        assertEquals("/v1/tasks/t2", call.url.encodedPath)
+        assertEquals("""{"done":true}""", call.body?.utf8())
+
+        server.enqueue(MockResponse(body = messageBody))
+        mutations.setTaskDone("c1", messageTask, true)
+        assertEquals("/v1/messages/m1", server.takeRequest().url.encodedPath)
+    }
+
+    @Test
+    fun `promoting a call sends source_call_id and no message_id`() = runTest {
+        server.enqueue(MockResponse(code = 201, body = callTaskBody))
+        mutations.create(
+            companyId = "c1",
+            title = "Call from Ana",
+            assignedUserId = null,
+            dueAt = null,
+            sourceCallId = "call1",
+        )
+        val recorded = server.takeRequest()
+        assertEquals("/v1/tasks", recorded.url.encodedPath)
+        assertEquals("""{"source_call_id":"call1","title":"Call from Ana"}""", recorded.body?.utf8())
+    }
 }

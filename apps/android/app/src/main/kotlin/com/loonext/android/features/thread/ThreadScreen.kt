@@ -136,6 +136,9 @@ import com.loonext.android.features.settings.openExternal
 import com.loonext.android.features.settings.supportMailto
 import com.loonext.android.features.settings.supportSituation
 import com.loonext.android.features.settings.supportSubjectFor
+import com.loonext.android.features.tasks.CallTaskButton
+import com.loonext.android.features.tasks.answeredCallSessionOf
+import com.loonext.android.features.tasks.callLineCallerOf
 import com.loonext.android.core.realtime.PRESENCE_HEARTBEAT_MS
 import com.loonext.android.core.realtime.RealtimeState
 import com.loonext.android.core.realtime.TYPING_THROTTLE_MS
@@ -847,6 +850,18 @@ private fun ThreadLoaded(
                                     timeIso = item.event.created_at,
                                     eventType = item.event.type,
                                     transcript = voicemailTranscriptOf(item.event),
+                                    // D64: an answered call can become a task here.
+                                    trailing = answeredCallSessionOf(item.event)?.let { session ->
+                                        {
+                                            CallTaskButton(
+                                                graph = graph,
+                                                companyId = companyId,
+                                                conversationId = controller.conversationId,
+                                                callerName = callLineCallerOf(item.event, locale),
+                                                sessionId = session,
+                                            )
+                                        }
+                                    },
                                     clickLabel = when {
                                         openable -> t("thread.openTheTask")
                                         jumpable -> t("thread.goToMessage")

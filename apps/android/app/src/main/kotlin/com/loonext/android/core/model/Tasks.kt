@@ -7,14 +7,19 @@ import com.loonext.android.core.jobs.JobPhotoLike
 
 /**
  * A task is metadata over a real message; `done`/`status` are DERIVED from the
- * source message's done_at. Toggling done is PATCH /v1/messages/{message_id},
- * never a task route.
+ * source message's done_at. Toggling done is PATCH /v1/messages/{message_id}.
+ * D64: a task promoted from an answered call has no message (`message_id` null)
+ * and owns its done state: PATCH /v1/tasks/{id}. [source] says which.
  */
 @Serializable
 data class Task(
     val id: String,
     val company_id: String,
-    val message_id: String,
+    val message_id: String? = null,
+    /** D64: which kind of thing the task promotes. Null on an older server. */
+    val source: TaskSource? = null,
+    /** D64: the promoted call (list and checklist rows); null for a message task. */
+    val call: TaskSourceCall? = null,
     val conversation_id: String,
     val title: String,
     val description: String = "",
@@ -73,6 +78,32 @@ data class Task(
     val lat: Double? = null,
     val lng: Double? = null,
 )
+
+/** D64: `source` on every task row: a message or an answered call. */
+@Serializable
+data class TaskSource(
+    val kind: String,
+    val id: String,
+)
+
+/** D64: the call a task was promoted from. The recording path stays server-side. */
+@Serializable
+data class TaskSourceCall(
+    val id: String,
+    val call_session_id: String,
+    val caller_e164: String? = null,
+    val caller_name: String? = null,
+    val outcome: String? = null,
+    val forward_seconds: Int = 0,
+    val started_at: String,
+    val ended_at: String? = null,
+    val contact_id: String? = null,
+    val has_voicemail: Boolean = false,
+)
+
+/** D64: a task with no message owns its done state, so it is written on the task. */
+val Task.isCallTask: Boolean get() = message_id == null
+val TaskDetail.isCallTask: Boolean get() = message_id == null
 
 @Serializable
 data class TaskContactLocation(
@@ -165,7 +196,10 @@ data class TaskAttachmentItem(
 data class TaskDetail(
     val id: String,
     val company_id: String,
-    val message_id: String,
+    val message_id: String? = null,
+    val source: TaskSource? = null,
+    /** D64: the promoted call; null for a message task or when withheld. */
+    val source_call: TaskSourceCall? = null,
     val conversation_id: String,
     val title: String,
     val description: String = "",

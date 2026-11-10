@@ -23,7 +23,8 @@ data class ForYouTask(
     val task_id: String,
     val title: String,
     val conversation_id: String,
-    val message_id: String,
+    /** Null for a task promoted from a call (D64). */
+    val message_id: String? = null,
     val assigned_user_id: String? = null,
     val due_at: String? = null,
     val overdue: Boolean = false,
@@ -98,7 +99,8 @@ data class ForYouTriageTask(
     val task_id: String,
     val title: String,
     val conversation_id: String,
-    val message_id: String,
+    /** Null for a task promoted from a call (D64). */
+    val message_id: String? = null,
     val due_at: String? = null,
     val overdue: Boolean = false,
 )

@@ -159,7 +159,7 @@ internal fun TaskDetailScreen(
     me: Me,
     taskId: String,
     onBack: () -> Unit,
-    onOpenConversation: ((conversationId: String, messageId: String) -> Unit)?,
+    onOpenConversation: ((conversationId: String, messageId: String?) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onBack)
@@ -377,7 +377,7 @@ private fun TaskDetailBody(
     onPatched: (TaskDetail) -> Unit,
     onDeleted: () -> Unit,
     onBack: () -> Unit,
-    onOpenConversation: ((String, String) -> Unit)?,
+    onOpenConversation: ((String, String?) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -434,7 +434,13 @@ private fun TaskDetailBody(
         scope.launch {
             onActionError(null)
             try {
-                mutations.setDone(companyId, detail.message_id, next)
+                // D64: a call task has no message and owns its done state.
+                val messageId = detail.message_id
+                if (messageId != null) {
+                    mutations.setDone(companyId, messageId, next)
+                } else {
+                    mutations.setCallTaskDone(companyId, detail.id, next)
+                }
                 onChanged()
             } catch (cause: Exception) {
                 onActionError(cause.userMessage(locale))
@@ -842,6 +848,18 @@ private fun TaskDetailBody(
                             createdAt = source.created_at,
                             onOpenConversation = onOpenConversation?.let { open ->
                                 { open(detail.conversation_id, detail.message_id) }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 18.dp, end = 18.dp, top = 14.dp),
+                        )
+                    }
+                    val sourceCall = detail.source_call
+                    if (sourceCall != null) {
+                        SourceCallCard(
+                            call = sourceCall,
+                            onOpenConversation = onOpenConversation?.let { open ->
+                                { open(detail.conversation_id, null) }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
