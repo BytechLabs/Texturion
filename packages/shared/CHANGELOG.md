@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.19.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.18.0...shared-v0.19.0) (2026-11-10)
+
+
+### Features
+
+* **api:** every call records why it ended ([0d096aa](https://github.com/BytechLabs/Texturion/commit/0d096aab60e6f9b331973a2d7becbdc3600d04ab))
+* **calls:** call rows and the call page say why a call ended ([1d10c34](https://github.com/BytechLabs/Texturion/commit/1d10c348df4de400cc5fcc4c6a80999f77bad6e6))
+* **settings:** sections sit under group headings, not one flat list ([005b41a](https://github.com/BytechLabs/Texturion/commit/005b41ae8522ce022a21639a19acfc03bbb70a34))
+* **shared:** one rule for a tag across a selection ([a2686ac](https://github.com/BytechLabs/Texturion/commit/a2686ac2399ad2ca9a19c77bb487ba0576239028))
+* **web:** every date shows its exact time and zone on hover ([b3bfd4f](https://github.com/BytechLabs/Texturion/commit/b3bfd4f8042e74060d5ad94a9e647ae3451df10a))
+
 ## [0.18.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.17.0...shared-v0.18.0) (2026-11-10)
 
 

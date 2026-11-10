@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.27.0](https://github.com/BytechLabs/Texturion/compare/web-v0.26.0...web-v0.27.0) (2026-11-10)
+
+
+### Features
+
+* **calls:** call rows and the call page say why a call ended ([1d10c34](https://github.com/BytechLabs/Texturion/commit/1d10c348df4de400cc5fcc4c6a80999f77bad6e6))
+* **settings:** sections sit under group headings, not one flat list ([005b41a](https://github.com/BytechLabs/Texturion/commit/005b41ae8522ce022a21639a19acfc03bbb70a34))
+* **web:** a created task's toast opens the task ([ef58d97](https://github.com/BytechLabs/Texturion/commit/ef58d9743863bf6d0b38c1cbe90709281e6bbe1d))
+* **web:** a delete toast links to the Trash ([e2b668c](https://github.com/BytechLabs/Texturion/commit/e2b668c46cf954744c469dae5337eb9e4223e38b))
+* **web:** an open tab offers a reload after a new deploy ([5aec361](https://github.com/BytechLabs/Texturion/commit/5aec3618fa2adde6baf8804cc37de53908434ad6))
+* **web:** each page has one main action, with Scheduled inside the inbox ([a11043d](https://github.com/BytechLabs/Texturion/commit/a11043d9df7efec08553b9bc0f9355567641ce92))
+* **web:** every date shows its exact time and zone on hover ([b3bfd4f](https://github.com/BytechLabs/Texturion/commit/b3bfd4f8042e74060d5ad94a9e647ae3451df10a))
+* **web:** lists filter and save views from one row, not stacked controls ([9bf26e1](https://github.com/BytechLabs/Texturion/commit/9bf26e1f0f77afd8d8a8b1ae5dd271c4622d0e46))
+* **web:** one Tags control for a selection, and no menu opens empty ([a4c53d1](https://github.com/BytechLabs/Texturion/commit/a4c53d188d7400e6b6a1ffabcf48cf807068cb26))
+* **web:** pinned messages collapse into one stack you can open ([fb59837](https://github.com/BytechLabs/Texturion/commit/fb59837f1418185b280dbb343d2b7e9b0040ddb6))
+* **web:** record headers open the record from a link, not a corner arrow ([122f449](https://github.com/BytechLabs/Texturion/commit/122f449a1c62056c2d4cd8b24213ae326bbc3220))
+* **web:** resize the info panel from its border, without a slider row ([c260f16](https://github.com/BytechLabs/Texturion/commit/c260f167a6aba45ecad387d7516905f1533fa7bd))
+* **web:** the catch-up offer sits beside the composer's Lou orb, not in a card ([2645506](https://github.com/BytechLabs/Texturion/commit/2645506ee7eb39e2e578a2e6a9cba12b1bf07c67))
+* **web:** the thread menu says what Snooze and Mute each do ([818bacf](https://github.com/BytechLabs/Texturion/commit/818bacf86d0d9227cf7ba18b5e986fe1042268a0))
+
+
+### Bug Fixes
+
+* **web:** an unasked source says so, and a chosen chip looks chosen ([1e1b79a](https://github.com/BytechLabs/Texturion/commit/1e1b79ab1bcd50ee6d5fd70505d155aebd9664b3))
+* **web:** app pages scroll inside the shell, never the whole document ([1ab44fb](https://github.com/BytechLabs/Texturion/commit/1ab44fbccddcc3f339c04a05b67766f15e0e7a50))
+* **web:** pickers no longer offer the default's own value a second time ([79261e4](https://github.com/BytechLabs/Texturion/commit/79261e44bc3a7c08b6c331fb6b44a66d4fc301cb))
+* **web:** the contact timeline's day headings and date picker pass the audit ([dd1072f](https://github.com/BytechLabs/Texturion/commit/dd1072f617a35cf9976fe16b6dbafba679142597))
+* **web:** the timeline's date picker is 16px on phones so Safari does not zoom ([76199cf](https://github.com/BytechLabs/Texturion/commit/76199cfd84576927035b74ce3c40edaec2d83ce7))
+
 ## [0.26.0](https://github.com/BytechLabs/Texturion/compare/web-v0.25.0...web-v0.26.0) (2026-11-10)
 
 

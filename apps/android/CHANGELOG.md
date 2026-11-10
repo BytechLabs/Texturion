@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.23.0](https://github.com/BytechLabs/Texturion/compare/android-v0.22.0...android-v0.23.0) (2026-11-10)
+
+
+### Features
+
+* **android:** a created task's notice opens the task ([bca0426](https://github.com/BytechLabs/Texturion/commit/bca0426ba003e7b6b45f68361e4513f9a92efa34))
+* **android:** one Labels control for a selection, and no menu opens empty ([bd5d814](https://github.com/BytechLabs/Texturion/commit/bd5d814feb2639c7770d7c5840a5872da1e5b14b))
+* **android:** the contact panel opens the contact from a link, not an arrow ([861d1f6](https://github.com/BytechLabs/Texturion/commit/861d1f673f91d2f537ef795c81390a87b661931c))
+* **android:** the thread menu says what Snooze and Mute each do ([2ebfb3d](https://github.com/BytechLabs/Texturion/commit/2ebfb3d51607a07d3549ed239cc8781c3de1b58b))
+* **mobile:** pins stack into one row, and catch-up is a hint by the composer ([1510fc1](https://github.com/BytechLabs/Texturion/commit/1510fc1b05759877b61574620b0b5f3c7a4ba9bb))
+* **mobile:** settings sections sit under group headings ([b35b0ab](https://github.com/BytechLabs/Texturion/commit/b35b0aba4db7489fed3421efd2f936453e0d9830))
+
+
+### Bug Fixes
+
+* **mobile:** the trash link takes the web address from build config ([748638b](https://github.com/BytechLabs/Texturion/commit/748638b10aed9d8b4536b447cb584ebf0db2cd9f))
+
 ## [0.22.0](https://github.com/BytechLabs/Texturion/compare/android-v0.21.1...android-v0.22.0) (2026-11-10)
 
 
