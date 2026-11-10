@@ -3145,6 +3145,41 @@ message anchors; a matching partial unique index gives calls the same.
 and on the call-completed timeline row, and the task detail renders a call as
 its source where it renders a message today — web, Android and iOS.
 
+**Implemented (2026-11-09, database + API + web: 88f37552, 0b4ca86b, bcabc9a9;
+Android and iOS follow separately, so #356 stays open).** The decisions the
+implementation had to make:
+
+- **Answered calls only; a voicemail promotes as a message.** A voicemail is
+  already a message in the thread (recording and transcript), so it is promoted
+  the way any message is. `create_task` refuses a missed or voicemail *call*
+  with `call_not_answered`.
+- **`tasks.conversation_id` stays `NOT NULL`.** Every number-access gate reads a
+  task through its conversation. A call with no conversation (anonymous caller,
+  or the thread was removed) is refused with `call_no_conversation` rather than
+  becoming a task no access rule can place. This is not a ruling against a task
+  with no conversation; it is only not built here (#689).
+- **The CHECK is `tasks_one_done_owner`**: a task with a message cannot carry
+  `done_at`, `done_by_user_id` or a call; a task without a message may carry its
+  own done state. It deliberately also admits a task with no anchor at all,
+  which nothing creates yet (#689).
+- **One RPC owns done: `set_task_done`** (message task → `set_message_done`,
+  call task → `tasks.done_at`, idempotent). `api_bulk_tasks` writes through
+  the same two owners. A call task's done writes no conversation event:
+  `message_done` is about a message, and `task_created` / `task_assigned` /
+  `task_due_set` / `task_deleted` already land on the call's conversation.
+- **Readers use the `task_done_at` computed column**, not an inner embed of
+  `messages`, so the list filters and the due-notice scan keep call tasks.
+  SQL readers recreated: `api_for_you`, `api_search_v2`,
+  `api_contact_timeline`, `api_member_holdings`, `offboard_member`,
+  `api_fire_scheduled_message`, `api_resolve_calendar_event_removed` and the
+  `task_map_rows` view. Calendar sync semantics are unchanged.
+- **API shape.** `POST /v1/tasks` takes `message_id` XOR `source_call_id`;
+  every task row carries `source: {kind: 'message'|'call'|null, id}` and keeps
+  `message_id` (null for a call task); list and checklist rows carry `call`,
+  the detail carries `source_call`. `PATCH /v1/tasks/:id {done}` is accepted
+  only for a task with no message. The public API v1 and the `task.created` /
+  `task.completed` webhooks add `source` and keep `message_id`.
+
 ---
 
 ## D65 — every external system gets an inbound-state row before it is integrated (#424)

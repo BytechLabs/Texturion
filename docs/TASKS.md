@@ -44,6 +44,13 @@ archetype B as a strictly additive metadata layer over A. It never replaces A, a
 never adds a competing completion flag; completion always lives on the message (archetype A's
 `messages.done_at`).**
 
+> **AMENDED by D64 (2026-11-09).** A task now promotes a message **or an answered call**:
+> `message_id` is nullable, `source_call_id` and a task-owned `done_at` exist, and the done
+> state is owned by the message when there is one, else by the task. The statements below that say
+> "every task promotes a real message", "`message_id` is NOT NULL" or "no `done_at`" describe the
+> original MVP shape; D64 in `docs/DECISIONS.md` is current. A task with **no** source at all is
+> still not built (#689).
+
 ### T0.1 Resolved fork — standalone tasks are cut from MVP (was: two docs disagreed)
 
 An earlier draft of this doc allowed a **standalone** task (typed into a conversation, no source
@@ -299,7 +306,7 @@ route, which emits `message.status`.
 
 | Method & path | Role | Purpose / shape |
 |---|---|---|
-| `POST /v1/tasks` | M | **Promote a message.** Body: `{ message_id, title?, description?, assigned_user_id?, due_at? }`. `message_id` is **required** (no standalone tasks, T0.1); `title` defaults to the message-body snippet (editable). Resolves `conversation_id` server-side from the message. A second live promotion of the same message → **409 `conflict`** (partial unique index). Returns the task (201). Emits `task.changed` + a `task_created` event. **This is the route the thread overflow "Make a task" affordance calls (T5).** |
+| `POST /v1/tasks` | M | **Promote a message, or an answered call (D64).** Body: `{ message_id | source_call_id (exactly one), title?, description?, assigned_user_id?, due_at? }`. A task with no source is refused (T0.1, #689); `title` defaults to the message-body snippet (editable). Resolves `conversation_id` server-side from the message. A second live promotion of the same message → **409 `conflict`** (partial unique index). Returns the task (201). Emits `task.changed` + a `task_created` event. **This is the route the thread overflow "Make a task" affordance calls (T5).** |
 | `GET /v1/tasks` | M | **List with filters** (cursor, §7 `{data, next_cursor}`). Query params: `status` (`open`\|`done`, applied as `messages.done_at IS [NOT] NULL` on the join), `assigned_user_id` (or `me`), `conversation_id`, `due_before`/`due_after`, `overdue=true`, `q` (title tr\_gm). **Default when no params: `status=open, assignee=me`** (the "what needs me now" view). Cursor keyed on **`(due_at NULLS LAST, id)`** for due-sorted views, `(created_at, id) DESC` otherwise; default 25, max 100 (§7). Only `deleted_at IS NULL` rows. |
 | `GET /v1/conversations/:id/tasks` | M | The **conversation checklist** (T5): all live tasks for the thread, `(created_at)` order, embedded shape `{ data }` (no cursor — a thread's task count is small). Each task carries `message_id`, the joined **`done`** boolean (from `messages.done_at`), `assignee`, `due_at`, `attachment_count` |
 | `GET /v1/tasks/:id` | M | Task detail: full row + resolved `assignee` + `created_by` profiles + the **source message** (joined, body rendered live — never copied — including its `done_at` for the derived status) + `attachments: [{id, file_name, content_type, size_bytes}]` (from the generic `attachments` table, D19) + its `conversation_events` slice (`GET`-embedded) |

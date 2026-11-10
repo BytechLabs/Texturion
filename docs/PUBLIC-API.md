@@ -35,6 +35,9 @@ integration should be built against it.
 | GET | `/public/v1/tasks` | `tasks:read` | `conversations.read` |
 | POST | `/public/v1/tasks` | `tasks:write` | `conversations.note` |
 
+A task row names what it came from in `source` (`{ "kind": "message" | "call", "id": "…" }`).
+`message_id` is kept for existing integrations and is `null` for a task promoted from a call.
+
 Defined in `apps/api/src/routes/public-api.ts`. Every route carries **two**
 gates: the scope the key was granted, and the capability the person who created
 the key holds. See `apps/api/src/auth/api-key.ts`.
