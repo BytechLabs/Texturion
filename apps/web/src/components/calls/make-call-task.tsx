@@ -34,12 +34,15 @@ export function MakeCallTask({
   conversationId,
   callerName,
   className,
+  trigger,
 }: {
   callId?: string;
   sessionId?: string;
   conversationId: string;
   callerName: string;
   className?: string;
+  /** #734: a trigger of the caller's own, so it matches the row it sits in. */
+  trigger?: React.ReactNode;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -47,7 +50,7 @@ export function MakeCallTask({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
+        {trigger ?? <button
           type="button"
           aria-label={t("thread.makeTaskFromCallAria")}
           title={t("thread.makeATask")}
@@ -58,7 +61,7 @@ export function MakeCallTask({
           )}
         >
           <ListPlus aria-hidden className="size-4" strokeWidth={1.75} />
-        </button>
+        </button>}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80">
         <PopoverHeader className="mb-3">

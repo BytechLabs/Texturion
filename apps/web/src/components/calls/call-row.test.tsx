@@ -117,30 +117,35 @@ describe("#566 the meta line cannot be reflowed by a name", () => {
   });
 });
 
-describe("#566 the unlinked note yields before the call does", () => {
-  it("stays available to a screen reader at every width", () => {
-    // It hard-reserved ~155px on a line that has ~287px at 390px. Below `sm` it
-    // is the thing that goes — but only visually: the reader most likely to ask
-    // why a row does nothing is the one who cannot see that it is not a link.
-    const html = renderToStaticMarkup(
-      <CallRow call={{ ...base, conversation_id: null }} />,
-    );
-    expect(html).toContain(
-      '<span class="sr-only">Not linked to a conversation</span>',
-    );
-    expect(metaLine(html)).toContain("hidden shrink-0");
+describe("#734 a call row offers actions, not a jump", () => {
+  it("is not one link stretched over the whole row", () => {
+    const html = renderToStaticMarkup(<CallRow call={base} />);
+    expect(html).not.toContain("after:inset-0");
   });
 
-  it("says nothing at all when the row IS a link", () => {
+  it("Message opens the call's conversation", () => {
     const html = renderToStaticMarkup(<CallRow call={base} />);
+    expect(html).toContain('href="/inbox/conv-1"');
+  });
+
+  it("Message on a call with no conversation starts a text to that number", () => {
+    const html = renderToStaticMarkup(
+      <CallRow call={{ ...base, conversation_id: null, contact_id: null }} />,
+    );
+    expect(html).toContain('href="/inbox/new?to=%2B14165550133"');
     expect(html).not.toContain("Not linked to a conversation");
+  });
+
+  it("always offers the call's own page", () => {
+    const html = renderToStaticMarkup(<CallRow call={base} />);
+    expect(html).toMatch(/href="\/calls\/[^"]+"/);
   });
 });
 
 describe("D64 an answered call can become a task", () => {
   it("offers Make a task on an answered, threaded call", () => {
     const html = renderToStaticMarkup(<CallRow call={base} />);
-    expect(html).toContain('aria-label="Make a task from this call"');
+    expect(html).toMatch(/>Task<\/span><\/button>/);
   });
 
   it.each([
@@ -151,6 +156,6 @@ describe("D64 an answered call can become a task", () => {
     const html = renderToStaticMarkup(
       <CallRow call={{ ...base, ...patch } as Call} />,
     );
-    expect(html).not.toContain("Make a task from this call");
+    expect(html).not.toMatch(/>Task<\/span><\/button>/);
   });
 });

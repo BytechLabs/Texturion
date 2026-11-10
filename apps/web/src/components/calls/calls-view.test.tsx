@@ -201,7 +201,7 @@ describe("CallsView (#129)", () => {
     expect(html).toContain("lucide-phone-outgoing");
   });
 
-  it("#133: an unthreaded row explains itself; threaded rows don't", () => {
+  it("#734: an anonymous call offers no text to a number it does not have", () => {
     state.rows = [
       call({
         id: "unthreaded",
@@ -214,7 +214,8 @@ describe("CallsView (#129)", () => {
       }),
     ];
     let html = render();
-    expect(html).toContain("Not linked to a conversation");
+    expect(html).not.toContain("/inbox/new");
+    expect(html).not.toContain("Not linked to a conversation");
 
     state.rows = [call()];
     html = render();

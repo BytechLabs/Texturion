@@ -8,8 +8,19 @@
  * element, accent budget #64), inline voicemail playback, and tap-through to
  * the conversation (unthreaded rows never dead-link).
  */
-import { PhoneIncoming, PhoneMissed, PhoneOutgoing } from "lucide-react";
+import {
+  Info,
+  ListPlus,
+  MessageSquare,
+  Phone,
+  PhoneIncoming,
+  PhoneMissed,
+  PhoneOutgoing,
+  User,
+  UserPlus,
+} from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
 import {
   screeningLabel,
@@ -20,7 +31,10 @@ import {
   CallActionsMenu,
   useCallActions,
 } from "@/components/calls/call-actions";
+import { usePlaceCall } from "@/components/calls/call-button";
 import { MakeCallTask } from "@/components/calls/make-call-task";
+import { NewContactDialog } from "@/components/contacts/new-contact-dialog";
+import { Button } from "@/components/ui/button";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { avatarColorClass } from "@/components/shell/avatar-color";
 import { useT, type Translate } from "@/i18n/provider";
@@ -97,7 +111,6 @@ export function CallRow({ call }: { call: Call }) {
   const t = useT();
   const name = callerName(call, t);
   const screening = screeningLabel(call.screening_result, call.caller_name, t);
-  const threaded = Boolean(call.conversation_id);
   // #712: one action list for the ⋯ button and the right-click menu.
   const actions = useCallActions({
     callId: call.id,
@@ -121,28 +134,9 @@ export function CallRow({ call }: { call: Call }) {
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
           <span className="truncate text-[14px] font-medium text-app-ink">
-            {call.conversation_id ? (
-              // Only the name is the link, stretched over the whole row, so the
-              // voicemail player below is not nested inside a link and the
-              // link text is the start of its own accessible name.
-              <Link
-                href={`/inbox/${call.conversation_id}`}
-                aria-label={t("shell.callFromAria", {
-                  name,
-                  outcome: callOutcomeLabel(call, t).toLowerCase(),
-                })}
-                className="outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
-              >
-                {name}
-              </Link>
-            ) : (
-              name
-            )}
+            {name}
           </span>
-          <span
-            aria-hidden={threaded || undefined}
-            className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2"
-          >
+          <span className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2">
             <Timestamp at={call.started_at} style="short" />
           </span>
         </span>
@@ -168,31 +162,7 @@ export function CallRow({ call }: { call: Call }) {
               {screening}
             </span>
           )}
-          {/* The link label already says the outcome. */}
-          <span aria-hidden={threaded || undefined} className="contents">
-            <OutcomePill call={call} />
-          </span>
-          {/* #133: an unthreaded row (anonymous caller / no open thread) is
-              deliberately not a link — say why, quietly.
-
-              #566: it hard-reserved ~155px on a line that has ~287px at 390px,
-              forcing the entire deficit onto the two elements that carry the
-              call itself. Below `sm` it is the thing that yields — but only
-              visually: the sentence stays in the DOM for a screen reader, which
-              is the reader most likely to be asking why a row does nothing. */}
-          {!call.conversation_id && (
-            <>
-              <span className="sr-only">
-                {t("shell.notLinkedToConversation")}
-              </span>
-              <span
-                aria-hidden
-                className="ml-auto hidden shrink-0 text-[12px] text-app-muted-2 sm:inline"
-              >
-                {t("shell.notLinkedToConversation")}
-              </span>
-            </>
-          )}
+          <OutcomePill call={call} />
         </span>
         {/* D43: the message itself, playable in place. */}
         {call.outcome === "voicemail" && call.voicemail_seconds ? (
@@ -223,37 +193,118 @@ export function CallRow({ call }: { call: Call }) {
             )}
           </span>
         ) : null}
+        <CallRowActions call={call} name={name} />
       </span>
-      {/* D64: an answered call that landed in a conversation can become a task.
-          Quiet, one icon, beside the time; above the stretched name link. */}
-      {call.outcome === "answered" && call.conversation_id && (
-        <MakeCallTask
-          callId={call.id}
-          conversationId={call.conversation_id}
-          callerName={name}
-        />
-      )}
       {/* #691: delete the call, or its voicemail alone. Hidden without
           records.delete (the component renders nothing). */}
       <CallActionsMenu actions={actions} callerName={name} />
     </>
   );
 
-  // Threaded rows are cards: hover lives on the card, and the name link
-  // stretches over it and draws the focus ring on that stretch.
-  const rowClass =
-    "relative flex items-start gap-[11px] border-b border-app-line-soft p-[11px] last:border-b-0";
+  // #734: the row itself goes nowhere; its actions do.
   return (
     <RecordContextMenu actions={actions}>
-    <div
-      className={cn(
-        rowClass,
-        threaded &&
-          "transition-colors duration-150 hover:bg-app-hover",
-      )}
-    >
-      {body}
-    </div>
+      <div className="relative flex items-start gap-[11px] border-b border-app-line-soft p-[11px] last:border-b-0">
+        {body}
+      </div>
     </RecordContextMenu>
   );
 }
+
+/**
+ * #734: what can be done with a call, each its own control: text them (the
+ * conversation, or a new text to that number), call back, the contact (or add
+ * one), a task, and the call's own page. A tap on the rest of the row does
+ * nothing, so nobody lands somewhere they did not ask to go.
+ */
+function CallRowActions({ call, name }: { call: Call; name: string }) {
+  const t = useT();
+  const { place, busy } = usePlaceCall();
+  const [adding, setAdding] = useState(false);
+  const messageHref = call.conversation_id
+    ? `/inbox/${call.conversation_id}`
+    : call.contact_id
+      ? `/inbox/new?contact=${call.contact_id}`
+      : call.caller_e164
+        ? `/inbox/new?to=${encodeURIComponent(call.caller_e164)}`
+        : null;
+  const canCallBack = Boolean(call.conversation_id || call.contact_id);
+
+  return (
+    <span className="mt-1.5 flex flex-wrap items-center gap-1">
+      {messageHref && (
+        <Button asChild variant="ghost" size="sm" className={ACTION_CLASS}>
+          <Link href={messageHref}>
+            <MessageSquare strokeWidth={1.75} aria-hidden />
+            <span className="sr-only sm:not-sr-only">{t("shell.callActionMessage")}</span>
+          </Link>
+        </Button>
+      )}
+      {canCallBack && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className={ACTION_CLASS}
+          disabled={busy}
+          onClick={() =>
+            place({
+              conversationId: call.conversation_id ?? undefined,
+              contactId: call.conversation_id ? undefined : (call.contact_id ?? undefined),
+              contactName: name,
+            })
+          }
+        >
+          <Phone strokeWidth={1.75} aria-hidden />
+          <span className="sr-only sm:not-sr-only">{t("shell.callActionCallBack")}</span>
+        </Button>
+      )}
+      {call.contact_id ? (
+        <Button asChild variant="ghost" size="sm" className={ACTION_CLASS}>
+          <Link href={`/contacts/${call.contact_id}`}>
+            <User strokeWidth={1.75} aria-hidden />
+            <span className="sr-only sm:not-sr-only">{t("shell.callActionContact")}</span>
+          </Link>
+        </Button>
+      ) : call.caller_e164 ? (
+        <Button variant="ghost" size="sm" className={ACTION_CLASS} onClick={() => setAdding(true)}>
+          <UserPlus strokeWidth={1.75} aria-hidden />
+          <span className="sr-only sm:not-sr-only">{t("shell.callActionAddContact")}</span>
+        </Button>
+      ) : null}
+      {/* D64: only an answered call in a conversation can become a task. */}
+      {call.outcome === "answered" && call.conversation_id && (
+        <MakeCallTask
+          callId={call.id}
+          conversationId={call.conversation_id}
+          callerName={name}
+          trigger={
+            <Button variant="ghost" size="sm" className={ACTION_CLASS}>
+              <ListPlus strokeWidth={1.75} aria-hidden />
+              <span className="sr-only sm:not-sr-only">{t("shell.callActionTask")}</span>
+            </Button>
+          }
+        />
+      )}
+      <Button asChild variant="ghost" size="sm" className={ACTION_CLASS}>
+        <Link href={`/calls/${call.call_session_id}`}>
+          <Info strokeWidth={1.75} aria-hidden />
+          <span className="sr-only sm:not-sr-only">{t("shell.callActionDetails")}</span>
+        </Link>
+      </Button>
+      {adding && (
+        <NewContactDialog
+          open={adding}
+          onOpenChange={setAdding}
+          prefillPhone={call.caller_e164 ?? ""}
+        />
+      )}
+    </span>
+  );
+}
+
+/**
+ * Quiet, but a full-size target: 32px tall plus the tap-target margin. Below
+ * `sm` the labels are read, not shown, so the row stays one line on a phone.
+ */
+const ACTION_CLASS =
+  "tap-target h-8 gap-1.5 px-2 text-[12.5px] font-medium text-app-muted hover:text-app-ink";
