@@ -119,7 +119,7 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="on-call"
       title={say(ON_CALL_COPY.heading)}
       description={say(ON_CALL_COPY.escalation)}
     >

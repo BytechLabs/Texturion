@@ -303,7 +303,7 @@ export function TwoFactorCard() {
     typeof window.PublicKeyCredential === "function";
 
   return (
-    <SettingsCard
+    <SettingsCard id="two-factor"
       title={t("settingsMore.tfaTitle")}
       description={t("settingsMore.tfaDescription")}
     >

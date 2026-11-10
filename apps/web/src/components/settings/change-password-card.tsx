@@ -137,7 +137,7 @@ export function ChangePasswordCard({ oauthOnly }: { oauthOnly: boolean }) {
   const busyCta = oauthOnly ? t("settings.passwordSetting") : t("common.saving");
 
   return (
-    <SettingsCard
+    <SettingsCard id="change-password"
       title={cta}
       description={
         oauthOnly

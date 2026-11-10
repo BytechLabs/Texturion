@@ -43,14 +43,14 @@ export function TextEnableSection({ company }: { company: CompanyView }) {
 
   if (enablements.isPending) {
     return (
-      <SettingsCard title={t("settingsMore.hostedSectionTitle")}>
+      <SettingsCard id="hosted-numbers" title={t("settingsMore.hostedSectionTitle")}>
         <Skeleton className="h-32 w-full" />
       </SettingsCard>
     );
   }
   if (enablements.isError) {
     return (
-      <SettingsCard title={t("settingsMore.hostedSectionTitle")}>
+      <SettingsCard id="hosted-numbers" title={t("settingsMore.hostedSectionTitle")}>
         <LoadError onRetry={() => enablements.refetch()} />
       </SettingsCard>
     );
@@ -63,7 +63,7 @@ export function TextEnableSection({ company }: { company: CompanyView }) {
   if (rows.length === 0) {
     if (!canStart || !active) return null;
     return (
-      <SettingsCard
+      <SettingsCard id="text-enable"
         title={t("settingsMore.textEnableDialogTitle")}
         description={t("settingsMore.hostedStartDescription")}
       >
@@ -73,7 +73,7 @@ export function TextEnableSection({ company }: { company: CompanyView }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="hosted-numbers"
       title={t("settingsMore.hostedSectionTitle")}
       description={t("settingsMore.hostedSectionDescription")}
     >

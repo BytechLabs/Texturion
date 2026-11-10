@@ -74,7 +74,7 @@ export interface SettingsSection {
 }
 
 /** #727: each group's heading. */
-const GROUP_LABELS: Record<SettingsGroupId, MessageKey> = {
+export const GROUP_LABELS: Record<SettingsGroupId, MessageKey> = {
   workspace: "settingsMore.navGroupWorkspace",
   messages: "settingsMore.navGroupMessages",
   phone: "settingsMore.navGroupPhone",
@@ -288,6 +288,20 @@ export const SETTINGS_SECTIONS: SettingsSection[] = inSettingsGroupOrder<Setting
     neverLanding: true,
   },
 ], (section) => section.id);
+
+/**
+ * #719: the page a search result opens. A section with two pages (Hours and
+ * Automatic texts) names its page; otherwise it is the section's first.
+ */
+export function settingsSectionOf(
+  id: SettingsSectionId,
+  page?: string,
+): SettingsSection | undefined {
+  return (
+    SETTINGS_SECTIONS.find((s) => s.id === id && (!page || s.slug === page)) ??
+    SETTINGS_SECTIONS.find((s) => s.id === id)
+  );
+}
 
 /** The visible sections under their group headings, empty groups dropped. */
 function grouped(sections: SettingsSection[]) {

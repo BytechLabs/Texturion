@@ -96,7 +96,7 @@ function BusinessHoursCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="business-hours"
       title={t("appShell.hoursTitle")}
       description={t("appShell.hoursDescription", {
         timezone: company.timezone.replace(/_/g, " "),
@@ -219,7 +219,7 @@ function AwayMessageCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="away-reply"
       title={t("appShell.awayTitle")}
       description={t("appShell.awayDescription")}
       footer={

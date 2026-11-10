@@ -125,7 +125,7 @@ export default function TemplatesSettingsPage() {
       // one it belongs beside.
       description={t("appShell.templatesDescription")}
     >
-      <div className="space-y-4">
+      <div id="templates-list" className="space-y-4">
         {canCurate ? (
           <div className="flex justify-end">
             <Button onClick={openCreate}>

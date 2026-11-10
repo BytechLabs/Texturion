@@ -644,14 +644,14 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
 
   if (invites.isPending || company.isPending) {
     return (
-      <SettingsCard title={t("appShell.teamInvitesTitle")}>
+      <SettingsCard id="team-invites" title={t("appShell.teamInvitesTitle")}>
         <Skeleton className="h-16 w-full" />
       </SettingsCard>
     );
   }
   if (invites.isError || company.isError) {
     return (
-      <SettingsCard title={t("appShell.teamInvitesTitle")}>
+      <SettingsCard id="team-invites" title={t("appShell.teamInvitesTitle")}>
         <LoadError
           onRetry={() => {
             void invites.refetch();
@@ -715,7 +715,7 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="team-invites"
       title={t("appShell.teamInvitesTitle")}
       description={t("appShell.teamInvitesDescription")}
       footer={
@@ -921,7 +921,7 @@ export default function TeamSettingsPage() {
           <LoadError onRetry={() => members.refetch()} />
         ) : (
           <>
-            <SettingsCard title={t("appShell.teamMembersTitle")}>
+            <SettingsCard id="team-members" title={t("appShell.teamMembersTitle")}>
               <div className="divide-y">
                 {active?.map((member) => (
                   <MemberRow

@@ -60,6 +60,7 @@ export default function WhatsNewSettingsPage() {
 
   return (
     <SettingsPage
+      id="whats-new-feed"
       title={t("appShell.whatsNewTitle")}
       description={t("appShell.whatsNewDescription")}
     >

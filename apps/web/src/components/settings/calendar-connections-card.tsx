@@ -348,7 +348,7 @@ export function CalendarConnectionsCard() {
   );
 
   return (
-    <SettingsCard
+    <SettingsCard id="calendar-sync"
       title={t("calendarFeed.twoWayTitle")}
       description={t("calendarFeed.twoWayDescription")}
     >

@@ -89,7 +89,7 @@ export function ReferralCard({
   const monthly = formatMoney(PLAN_PRICE_CENTS[currency][plan], currency);
 
   return (
-    <SettingsCard title={t("settingsMore.referralTitle")}>
+    <SettingsCard id="referral" title={t("settingsMore.referralTitle")}>
       <div className="flex items-start gap-3">
         <Users
           className="mt-0.5 size-4 shrink-0 text-muted-foreground"

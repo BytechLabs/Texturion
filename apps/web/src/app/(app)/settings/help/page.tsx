@@ -57,7 +57,7 @@ export default function HelpPage() {
         <LoadError onRetry={() => company.refetch()} />
       ) : (
         <div className="space-y-6">
-          <SettingsCard
+          <SettingsCard id="help-email"
             title={t("appShell.helpEmailUs")}
             description={t("appShell.helpEmailUsDescription")}
           >
@@ -89,7 +89,7 @@ export default function HelpPage() {
           {/* Not everyone has a mail app wired up on the device they're
               holding — a shared work tablet often does not. The same details
               are readable here so the email can be sent from anywhere. */}
-          <SettingsCard
+          <SettingsCard id="help-no-mail"
             title={t("appShell.helpNoMailApp")}
             description={t("appShell.helpNoMailAppDescription", {
               email: SUPPORT_EMAIL,
@@ -115,7 +115,7 @@ export default function HelpPage() {
               currently no way for one to arrive." Somebody with an idea does
               not write to an address labelled support: they read that,
               correctly, as being for things that are broken. */}
-          <SettingsCard
+          <SettingsCard id="help-idea"
             title={t("appShell.helpIdeaTitle")}
             description={t("appShell.helpIdeaDescription")}
           >
@@ -143,7 +143,7 @@ export default function HelpPage() {
               on a legal page you have to leave the app to find. Neither is
               reachable by somebody who has the question and is not currently
               staring at the failure. The gap was the index, not the answers. */}
-          <SettingsCard
+          <SettingsCard id="help-faq"
             title={t("appShell.helpCommonQuestions")}
             description={t("appShell.helpCommonQuestionsDescription")}
           >
@@ -159,7 +159,7 @@ export default function HelpPage() {
             </dl>
           </SettingsCard>
 
-          <SettingsCard
+          <SettingsCard id="help-expect"
             title={t("appShell.helpWhatToExpect")}
             description={t("appShell.helpWhatToExpectDescription")}
           >

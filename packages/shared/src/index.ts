@@ -23,6 +23,15 @@ export {
 } from "./settings-groups";
 
 export {
+  normalizeSettingsQuery,
+  searchSettings,
+  SETTINGS_INDEX,
+  type SettingsIndexEntry,
+  type SettingsSearchLocale,
+  type SettingsSearchResult,
+} from "./settings-search";
+
+export {
   ORIENTATION_STEPS,
   orientationProgress,
   shouldShowOrientation,

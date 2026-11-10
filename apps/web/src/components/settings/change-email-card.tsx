@@ -82,7 +82,7 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
 
   if (relay) {
     return (
-      <SettingsCard
+      <SettingsCard id="change-email"
         title={t("settings.emailCardTitle")}
         description={t("settings.emailCardDescription")}
       >
@@ -97,7 +97,7 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="change-email"
       title={t("settings.emailCardTitle")}
       description={
         email

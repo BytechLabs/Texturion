@@ -340,7 +340,7 @@ export default function BillingSettingsPage() {
           <OffRampCard />
 
           {company.data.subscription_status === "canceled" ? (
-            <SettingsCard title={t("appShell.billingSubscription")}>
+            <SettingsCard id="subscription" title={t("appShell.billingSubscription")}>
               <div className="space-y-3">
                 <p className="text-sm">{t("appShell.billingCanceled")}</p>
 
@@ -362,13 +362,13 @@ export default function BillingSettingsPage() {
               </div>
             </SettingsCard>
           ) : company.data.plan === null ? (
-            <SettingsCard title={t("appShell.billingPlan")}>
+            <SettingsCard id="plan" title={t("appShell.billingPlan")}>
               <p className="text-sm text-muted-foreground">
                 {t("appShell.billingNoPlanYet")}
               </p>
             </SettingsCard>
           ) : (
-            <SettingsCard title={t("appShell.billingPlan")}>
+            <SettingsCard id="plan" title={t("appShell.billingPlan")}>
               <div className="space-y-4">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <p className="text-lg font-semibold">
@@ -512,7 +512,7 @@ export default function BillingSettingsPage() {
 
           {canManage ? (
             <>
-              <SettingsCard
+              <SettingsCard id="payment-invoices"
                 title={t("appShell.billingPaymentTitle")}
                 description={t("appShell.billingPaymentDescription")}
               >

@@ -72,7 +72,7 @@ export function MyAccessCard() {
   );
 
   return (
-    <SettingsCard
+    <SettingsCard id="my-access"
       title={t("settings.myAccessTitle")}
       description={t("settings.myAccessDescription")}
     >

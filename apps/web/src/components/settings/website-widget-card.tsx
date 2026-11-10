@@ -113,7 +113,7 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="website-widget"
       title={t("settings.widgetTitle")}
       description={t("settings.widgetBlurb")}
     >

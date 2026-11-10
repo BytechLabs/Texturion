@@ -376,7 +376,7 @@ function UsageDetails({ usage }: { usage: Usage }) {
         </span>
       </summary>
       <div className="mt-2 space-y-6">
-        <SettingsCard
+        <SettingsCard id="usage-this-period"
           title={t("appShell.usageThisPeriod")}
           description={periodRange(t, usage) ?? undefined}
         >
@@ -466,7 +466,7 @@ function UsageDetails({ usage }: { usage: Usage }) {
         </SettingsCard>
 
         {(usage.ai?.length ?? 0) > 0 && (
-          <SettingsCard
+          <SettingsCard id="usage-lou"
             title={t("appShell.usageLouTitle")}
             description={t("appShell.usageLouDescription")}
           >
@@ -475,7 +475,7 @@ function UsageDetails({ usage }: { usage: Usage }) {
         )}
 
         {usage.history.length > 0 && (
-          <SettingsCard
+          <SettingsCard id="usage-history"
             title={t("appShell.usageLastSixMonths")}
             description={t("appShell.usageLastSixMonthsDescription")}
           >
@@ -483,7 +483,7 @@ function UsageDetails({ usage }: { usage: Usage }) {
           </SettingsCard>
         )}
 
-        <SettingsCard title={t("appShell.usageCountingTitle")}>
+        <SettingsCard id="usage-counting" title={t("appShell.usageCountingTitle")}>
           <p className="text-sm text-muted-foreground">
             {t("appShell.usageCountingBody")}
           </p>
@@ -533,7 +533,7 @@ function DeliveryCard({ usage }: { usage: Usage }) {
   );
 
   return (
-    <SettingsCard
+    <SettingsCard id="usage-delivery"
       title={t("appShell.usageDeliveryTitle")}
       description={t("appShell.usageDeliveryDescription")}
     >
@@ -655,7 +655,7 @@ export default function UsageSettingsPage() {
 
           {/* The owner's protection stays reachable in every status — framed
               as the thing that stops a bill, never as a quota. */}
-          <SettingsCard
+          <SettingsCard id="spending-cap"
             title={t("appShell.usageSpendingCapTitle")}
             description={t("appShell.usageSpendingCapDescription")}
           >
@@ -670,7 +670,7 @@ export default function UsageSettingsPage() {
               the bookkeeper's whole preset — so this is one of the few
               surfaces they see and an owner-only check would hide it from the
               person it is for. */}
-          <SettingsCard
+          <SettingsCard id="usage-export"
             title={t("appShell.usageExportTitle")}
             description={t("appShell.usageExportDescription")}
           >

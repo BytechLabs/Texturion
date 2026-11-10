@@ -223,7 +223,7 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="voice-greeting"
       title={t("settingsMore.greetingTitle")}
       description={t("settingsMore.greetingDescription")}
     >

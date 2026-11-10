@@ -122,7 +122,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="ownership"
       title={t("settingsMore.ownershipTitle")}
       description={t("settingsMore.ownershipDescription")}
     >

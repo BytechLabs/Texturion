@@ -105,7 +105,7 @@ export default function AiSettingsPage() {
         <LoadError onRetry={() => settings.refetch()} />
       ) : (
         <div className="space-y-6">
-          <SettingsCard title={t("appShell.aiTaskCardTitle")}>
+          <SettingsCard id="ai-task" title={t("appShell.aiTaskCardTitle")}>
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-0.5">
@@ -145,7 +145,7 @@ export default function AiSettingsPage() {
               </div>
             </div>
           </SettingsCard>
-          <SettingsCard title={t("appShell.aiBusinessCardTitle")}>
+          <SettingsCard id="ai-business" title={t("appShell.aiBusinessCardTitle")}>
             <div className="space-y-2">
               <Label htmlFor="ai-description" className="text-sm font-medium">
                 {t("appShell.aiWhatYouDoLabel")}
@@ -172,7 +172,7 @@ export default function AiSettingsPage() {
               />
             </div>
           </SettingsCard>
-          <SettingsCard title={t("appShell.aiRepliesCardTitle")}>
+          <SettingsCard id="ai-replies" title={t("appShell.aiRepliesCardTitle")}>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-0.5">
                 <Label htmlFor="ai-replies" className="text-sm font-medium">
@@ -192,7 +192,7 @@ export default function AiSettingsPage() {
               />
             </div>
           </SettingsCard>
-          <SettingsCard title={t("appShell.aiVoicemailCardTitle")}>
+          <SettingsCard id="ai-voicemail" title={t("appShell.aiVoicemailCardTitle")}>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-0.5">
                 <Label htmlFor="ai-voicemail" className="text-sm font-medium">
@@ -240,7 +240,7 @@ export default function AiSettingsPage() {
               claim we listen to calls — which is false.
               *Applying: Chunking — the call-adjacent toggles read as one group,
               and the group is where the distinction has to be legible.* */}
-          <SettingsCard title={t("appShell.aiWrapupCardTitle")}>
+          <SettingsCard id="ai-wrapup" title={t("appShell.aiWrapupCardTitle")}>
             <div className="flex items-start justify-between gap-4">
               {/* Two rungs, not one: the label and what it does are a heading
                   and its subheading (0.5), and the sentence about whose voice
@@ -288,7 +288,7 @@ export default function AiSettingsPage() {
               doubt.
               *Applying: Chunking — one card per moment, and this is a different
               moment from all four above it.* */}
-          <SettingsCard title={t("appShell.aiCatchupCardTitle")}>
+          <SettingsCard id="ai-catchup" title={t("appShell.aiCatchupCardTitle")}>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <div className="space-y-0.5">

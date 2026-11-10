@@ -74,7 +74,7 @@ export default function AccountSettingsPage() {
 
       {state.status === "ready" && (
         <div className="space-y-6">
-          <SettingsCard
+          <SettingsCard id="sign-in-methods"
             title={t("appShell.accountMethodsTitle")}
             description={t("appShell.accountMethodsDescription")}
           >

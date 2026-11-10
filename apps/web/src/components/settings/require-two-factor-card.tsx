@@ -97,7 +97,7 @@ export function RequireTwoFactorCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="require-two-factor"
       title={t("settingsMore.mfaTitle")}
       description={t("settingsMore.mfaDescription")}
     >

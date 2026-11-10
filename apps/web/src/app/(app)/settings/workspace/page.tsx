@@ -113,7 +113,7 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="workspace-name"
       title={t("appShell.workspaceNameTitle")}
       description={t("appShell.workspaceNameDescription")}
     >
@@ -201,14 +201,14 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
 
   if (registration.isPending) {
     return (
-      <SettingsCard title={title} description={description}>
+      <SettingsCard id="business-identification" title={title} description={description}>
         <Skeleton className="h-20 w-full" />
       </SettingsCard>
     );
   }
   if (registration.isError) {
     return (
-      <SettingsCard title={title} description={description}>
+      <SettingsCard id="business-identification" title={title} description={description}>
         <LoadError onRetry={() => registration.refetch()} />
       </SettingsCard>
     );
@@ -217,7 +217,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
   const brand = registration.data.brand;
   if (!brand) {
     return (
-      <SettingsCard title={title} description={description}>
+      <SettingsCard id="business-identification" title={title} description={description}>
         <p className="text-sm text-muted-foreground">
           {company.country === "CA" && !company.us_texting_enabled
             ? t("appShell.workspaceNoRegistrationNeeded")
@@ -258,7 +258,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
       : [];
 
   return (
-    <SettingsCard title={title} description={description}>
+    <SettingsCard id="business-identification" title={title} description={description}>
       <div className="space-y-3">
         {rows.length > 0 ? (
           <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[10rem_1fr]">
@@ -326,7 +326,7 @@ function TimezoneCard({ company }: { company: CompanyView }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="time-zone"
       title={t("appShell.workspaceTimezoneTitle")}
       description={t("appShell.workspaceTimezoneDescription")}
     >
@@ -405,7 +405,7 @@ function SignTextsCard({ company }: { company: CompanyView }) {
   const suffix = company.first_message_identification_suffix;
 
   return (
-    <SettingsCard
+    <SettingsCard id="signature"
       title={t("appShell.workspaceSignTitle")}
       description={t("appShell.workspaceSignDescription")}
     >
@@ -502,7 +502,7 @@ function QuietHoursCard({ company }: { company: CompanyView }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="night-texting"
       title={t("appShell.workspaceNightTitle")}
       description={t("appShell.workspaceNightDescription")}
     >

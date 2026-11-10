@@ -165,7 +165,7 @@ export function AutomaticTextsGroups({
 
   return (
     <div className="space-y-6">
-      <SettingsCard
+      <SettingsCard id="auto-text-reply"
         title={t("settingsMore.autoTextsGroupReply")}
         description={t("settingsMore.autoTextsGroupReplyIntro")}
       >
@@ -198,7 +198,7 @@ export function AutomaticTextsGroups({
         </div>
       </SettingsCard>
 
-      <SettingsCard title={t("settingsMore.autoTextsGroupRating")}>
+      <SettingsCard id="auto-text-rating" title={t("settingsMore.autoTextsGroupRating")}>
         <div className="divide-y divide-border-subtle">
           <SwitchRow
             field="rating_ask_enabled"
@@ -227,7 +227,7 @@ export function AutomaticTextsGroups({
         </div>
       </SettingsCard>
 
-      <SettingsCard title={t("settingsMore.autoTextsGroupWait")}>
+      <SettingsCard id="auto-text-wait" title={t("settingsMore.autoTextsGroupWait")}>
         <div className="divide-y divide-border-subtle">
           <PickerRow
             field="scheduled_text_expiry_hours"

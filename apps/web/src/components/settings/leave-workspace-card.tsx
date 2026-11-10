@@ -69,7 +69,7 @@ export function LeaveWorkspaceCard({ company }: { company: CompanyView }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="leave-workspace"
       title={t("settings.leaveWorkspaceTitle")}
       description={t("settings.leaveWorkspaceDescription")}
     >

@@ -72,7 +72,7 @@ export function OffRampCard() {
   const dirty = trimmed !== (saved ?? "");
 
   return (
-    <SettingsCard title={t("settingsMore.offRampTitle")}>
+    <SettingsCard id="off-ramp" title={t("settingsMore.offRampTitle")}>
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
           {t("settingsMore.offRampLead")}{" "}

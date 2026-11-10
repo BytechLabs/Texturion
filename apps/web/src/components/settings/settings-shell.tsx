@@ -3,6 +3,10 @@
 import { usePathname } from "next/navigation";
 
 import { SettingsNav } from "@/components/settings/settings-nav";
+import {
+  SettingsAnchorFocus,
+  SettingsSearchPanel,
+} from "@/components/settings/settings-search";
 import { VersionFooter } from "@/components/settings/version-footer";
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
@@ -32,16 +36,19 @@ export function SettingsShell({
         <h1 className="mb-4 px-1 text-2xl font-semibold tracking-tight lg:mb-5">
           {t("settingsMore.settingsHeading")}
         </h1>
-        {/* Desktop link list */}
-        <div className="hidden lg:block">
-          <SettingsNav />
-        </div>
-        {/* Mobile stacked list (only rendered at the index) */}
-        {atIndex && (
-          <div className="lg:hidden">
-            <SettingsNav asList />
+        {/* #719: the search field, and its results in place of the groups. */}
+        <SettingsSearchPanel>
+          {/* Desktop link list */}
+          <div className="hidden lg:block">
+            <SettingsNav />
           </div>
-        )}
+          {/* Mobile stacked list (only rendered at the index) */}
+          {atIndex && (
+            <div className="lg:hidden">
+              <SettingsNav asList />
+            </div>
+          )}
+        </SettingsSearchPanel>
         {/* What you are actually running, for when something needs reporting.
             Sits under the desktop nav, and under the mobile index list so it
             never floats mid-screen on a sub-page. */}
@@ -51,6 +58,7 @@ export function SettingsShell({
       <div className={cn("min-w-0 flex-1", atIndex ? "hidden lg:block" : "block")}>
         {children}
       </div>
+      <SettingsAnchorFocus />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { openNewTask } from "@/components/tasks/new-task";
 import { useCanOpenSettings } from "@/components/settings/settings-link-guard";
+import { openSettingsHit, useSettingsHits } from "@/components/settings/settings-search";
 import {
   Ban,
   CalendarClock,
@@ -257,6 +258,9 @@ export function CommandPalette() {
   // #515: which Settings destinations this role may actually be offered.
   const canOpen = useCanOpenSettings();
   const searching = query.trim().length >= 2;
+  // #719: the same index the settings page searches, so "time zone" works from
+  // anywhere. Already limited to what this role may open.
+  const settingHits = useSettingsHits(searching ? query : "");
 
   // cmdk's <CommandEmpty> is driven by its own filtered count, which is
   // meaningless while `shouldFilter` is off (the API already ranked). So in
@@ -276,7 +280,7 @@ export function CommandPalette() {
       ? "error"
       : search.isFetching && !results
         ? "searching"
-        : noHits && !search.isFetching
+        : noHits && !search.isFetching && settingHits.length === 0
           ? "empty"
           : null
     : null;
@@ -481,6 +485,33 @@ export function CommandPalette() {
                   <span className="font-medium">{template.name}</span>
                   <span className="ml-2 text-muted-foreground">
                     {template.snippet}
+                  </span>
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {/* #719: settings, by what they do rather than where they live. */}
+        {searching && settingHits.length > 0 && (
+          <CommandGroup heading={t("shell.navSettings")}>
+            {settingHits.slice(0, 8).map((hit) => (
+              <CommandItem
+                key={hit.id}
+                value={`setting-${hit.id}`}
+                onSelect={() => {
+                  close();
+                  openSettingsHit(router, hit);
+                }}
+              >
+                <Settings className="size-4" strokeWidth={1.75} />
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-medium">{hit.label}</span>
+                  <span className="ml-2 text-muted-foreground">
+                    {t("settingsMore.settingsSearchPath", {
+                      group: t(hit.groupLabel),
+                      section: t(hit.sectionLabel),
+                    })}
                   </span>
                 </span>
               </CommandItem>

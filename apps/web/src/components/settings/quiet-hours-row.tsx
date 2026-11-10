@@ -63,7 +63,7 @@ export function QuietHoursRow({
   }
 
   return (
-    <div className="space-y-2 rounded-app-card border border-app-line bg-app-paper p-4">
+    <div id="quiet-hours-row" className="space-y-2 rounded-app-card border border-app-line bg-app-paper p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <Label htmlFor="quiet-hours" className="text-[14px]">

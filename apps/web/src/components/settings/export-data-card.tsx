@@ -35,7 +35,7 @@ export function ExportDataCard() {
   const latestFailed = rows.find((row) => row.status === "failed");
 
   return (
-    <SettingsCard
+    <SettingsCard id="export-data"
       title={t("settings.exportDataTitle")}
       description={t("settings.exportDataDescription")}
     >

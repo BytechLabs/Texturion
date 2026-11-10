@@ -65,7 +65,7 @@ export function PaymentsCard() {
 
   if (account.isLoading) {
     return (
-      <SettingsCard title={t("payments.settingsTitle")}>
+      <SettingsCard id="payments-setup" title={t("payments.settingsTitle")}>
         {/* A skeleton, not a spinner: the shape of what is coming is itself
             information, and it stops the card jumping when it lands. */}
         <div className="space-y-2">
@@ -118,7 +118,7 @@ export function PaymentsCard() {
   const busy = onboarding.isPending || dashboard.isPending;
 
   return (
-    <SettingsCard
+    <SettingsCard id="payments-setup"
       title={t("payments.settingsTitle")}
       description={readinessWords(state.title_key, state.title, t)}
     >

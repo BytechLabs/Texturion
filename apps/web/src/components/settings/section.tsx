@@ -21,10 +21,13 @@ import { cn } from "@/lib/utils";
  * G2 border-first surfaces).
  */
 export function SettingsPage({
+  id,
   title,
   description,
   children,
 }: {
+  /** #719: the settings search scrolls to this when a page has no card of its own to name. */
+  id?: string;
   title: string;
   description?: string;
   children: React.ReactNode;
@@ -33,7 +36,7 @@ export function SettingsPage({
   return (
     // §3.6: one concern per page, editorial whitespace — 32px between the page
     // header and the section stack.
-    <div className="space-y-8">
+    <div id={id} className="space-y-8">
       <div className="space-y-1.5">
         <Link
           href="/settings"

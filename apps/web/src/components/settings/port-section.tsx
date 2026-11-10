@@ -50,14 +50,14 @@ export function PortSection({
 
   if (ports.isPending) {
     return (
-      <SettingsCard title={t("settingsMore.portSectionTitle")}>
+      <SettingsCard id="number-transfers" title={t("settingsMore.portSectionTitle")}>
         <Skeleton className="h-32 w-full" />
       </SettingsCard>
     );
   }
   if (ports.isError) {
     return (
-      <SettingsCard title={t("settingsMore.portSectionTitle")}>
+      <SettingsCard id="number-transfers" title={t("settingsMore.portSectionTitle")}>
         <LoadError onRetry={() => ports.refetch()} />
       </SettingsCard>
     );
@@ -70,7 +70,7 @@ export function PortSection({
   if (rows.length === 0) {
     if (!canStart || !active) return null;
     return (
-      <SettingsCard
+      <SettingsCard id="port-number"
         title={t("settingsMore.portBringNumberTitle")}
         description={t("settingsMore.portBringNumberDescription")}
       >
@@ -80,7 +80,7 @@ export function PortSection({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="number-transfers"
       title={t("settingsMore.portSectionTitle")}
       description={t("settingsMore.portSectionDescription")}
     >

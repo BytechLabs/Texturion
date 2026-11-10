@@ -335,7 +335,7 @@ export function PausedPlanCard({
   const resumeName = data.resume_plan ? PLAN_FACTS[data.resume_plan].name : null;
 
   return (
-    <SettingsCard title={t("settingsMore.pausedTitle")}>
+    <SettingsCard id="pause-plan" title={t("settingsMore.pausedTitle")}>
       <div className="flex items-start gap-3">
         <PauseCircle
           className="mt-0.5 size-4 shrink-0 text-muted-foreground"

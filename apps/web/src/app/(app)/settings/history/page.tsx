@@ -134,7 +134,7 @@ export default function HistorySettingsPage() {
       title={t("appShell.historyTitle")}
       description={t("appShell.historyDescription")}
     >
-      <SettingsCard>
+      <SettingsCard id="activity-log">
         {/* Filters: tightly grouped (one job), separated from the list below. */}
         <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">

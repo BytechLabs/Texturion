@@ -100,7 +100,7 @@ export function LanguageCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="language"
       title={t("settings.languageTitle")}
       description={t("settings.languageDescription")}
     >

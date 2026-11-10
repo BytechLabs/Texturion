@@ -150,7 +150,7 @@ export default function NumbersSettingsPage() {
             (usedSlots < limit || canBuyExtra);
 
           return (
-            <div className="space-y-6">
+            <div id="numbers-list" className="space-y-6">
               {/* #301: ABOVE the numbers, because it is the vocabulary the
                   per-number picker below chooses from — a list somebody meets
                   after being asked to pick from it is a list they have to go

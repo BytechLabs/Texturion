@@ -116,7 +116,7 @@ export function DeliveryModesCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="delivery-modes"
       title={say(DELIVERY_COPY.heading)}
       description={say(DELIVERY_COPY.urgent_always)}
     >

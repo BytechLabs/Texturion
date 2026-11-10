@@ -106,7 +106,7 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="close-workspace"
       title={t("settings.closeWorkspaceTitle")}
       description={t("settings.closeWorkspaceDescription")}
     >

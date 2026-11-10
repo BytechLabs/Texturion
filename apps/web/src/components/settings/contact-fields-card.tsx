@@ -88,7 +88,7 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
 
   if (query.isPending || draft === null) {
     return (
-      <SettingsCard
+      <SettingsCard id="contact-fields"
         title={t(CONTACT_FIELDS_COPY.heading)}
         description={t(CONTACT_FIELDS_COPY.intro)}
       >
@@ -148,7 +148,7 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="contact-fields"
       title={t(CONTACT_FIELDS_COPY.heading)}
       description={t(CONTACT_FIELDS_COPY.intro)}
     >

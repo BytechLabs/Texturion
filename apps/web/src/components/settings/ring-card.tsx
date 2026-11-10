@@ -131,7 +131,7 @@ export function RingCard({
     : [...SECOND_CHOICES, seconds].sort((a, b) => a - b);
 
   return (
-    <SettingsCard
+    <SettingsCard id="phone-ringing"
       title={t("settingsMore.ringCardTitle")}
       description={t("settingsMore.ringCardDescription")}
     >

@@ -167,7 +167,7 @@ function CreateForm({
   }
 
   return (
-    <SettingsCard title={t("apiKeys.createTitle")}>
+    <SettingsCard id="api-key-create" title={t("apiKeys.createTitle")}>
       <div className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="api-key-name">{t("apiKeys.nameLabel")}</Label>

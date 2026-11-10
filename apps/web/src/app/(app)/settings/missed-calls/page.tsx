@@ -183,7 +183,7 @@ function TextBackCard({
   );
 
   return (
-    <SettingsCard
+    <SettingsCard id="missed-call-text-back"
       title={t("appShell.mctbTitle")}
       description={t("appShell.mctbDescription")}
     >
@@ -326,7 +326,7 @@ function VoicemailCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="voicemail"
       title={t("appShell.voicemailTitle")}
       description={t("appShell.voicemailDescription")}
       footer={
@@ -485,7 +485,7 @@ function ScreeningCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="call-screening"
       title={t("appShell.screeningTitle")}
       description={t("appShell.screeningDescription")}
     >
@@ -647,7 +647,7 @@ function CallerIdCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="caller-id"
       title={t("appShell.cnamTitle")}
       description={t("appShell.cnamDescription")}
     >

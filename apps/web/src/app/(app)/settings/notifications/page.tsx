@@ -167,7 +167,7 @@ export default function NotificationsSettingsPage() {
               has something true to say.* */}
           <EmailReachabilityCard />
 
-          <SettingsCard title={t("appShell.notifCardTitle")}>
+          <SettingsCard id="notification-types" title={t("appShell.notifCardTitle")}>
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-0.5">

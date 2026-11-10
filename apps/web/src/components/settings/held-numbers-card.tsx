@@ -304,7 +304,7 @@ export function HeldNumbersCard({ show }: { show: boolean }) {
   const many = view.held.length > 1;
 
   return (
-    <SettingsCard
+    <SettingsCard id="held-numbers"
       title={
         many
           ? t("settings.heldNumbersTitleMany")

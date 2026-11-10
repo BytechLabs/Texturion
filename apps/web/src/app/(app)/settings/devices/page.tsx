@@ -119,7 +119,7 @@ function MyDevices() {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="my-devices"
       title={t("appShell.devicesMineTitle")}
       description={t("appShell.devicesMineDescription")}
       footer={
@@ -277,7 +277,7 @@ function CrewDevices() {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="crew-devices"
       title={t("appShell.devicesCrewTitle")}
       description={t("appShell.devicesCrewDescription")}
     >

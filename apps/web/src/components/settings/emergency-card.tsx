@@ -149,7 +149,7 @@ export function EmergencyCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="emergency-words"
       title={t("settings.emergencyTitle")}
       description={t("settings.emergencyDescription")}
       footer={

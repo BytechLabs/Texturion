@@ -231,7 +231,7 @@ function EnableUsCard({ company }: { company: CompanyView }) {
   const tail = usRegistrationTail(timing, t);
 
   return (
-    <SettingsCard
+    <SettingsCard id="us-texting"
       title={t("settingsMore.regUsTextingTitle")}
       description={t("settingsMore.regUsTextingDescription")}
     >
@@ -368,14 +368,14 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
   if (registration.isPending) {
     return (
-      <SettingsCard title={t("settingsMore.regSectionTitle")}>
+      <SettingsCard id="us-registration" title={t("settingsMore.regSectionTitle")}>
         <Skeleton className="h-24 w-full" />
       </SettingsCard>
     );
   }
   if (registration.isError) {
     return (
-      <SettingsCard title={t("settingsMore.regSectionTitle")}>
+      <SettingsCard id="us-registration" title={t("settingsMore.regSectionTitle")}>
         <LoadError onRetry={() => registration.refetch()} />
       </SettingsCard>
     );
@@ -385,7 +385,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
   if (!brand && !campaign) {
     return (
-      <SettingsCard title={t("settingsMore.regSectionTitle")}>
+      <SettingsCard id="us-registration" title={t("settingsMore.regSectionTitle")}>
         <p className="text-sm text-muted-foreground">
           {t("settingsMore.regNotStartedYet")}
         </p>
@@ -445,7 +445,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
   ];
 
   return (
-    <SettingsCard
+    <SettingsCard id="us-registration"
       title={t("settingsMore.regSectionTitle")}
       description={t("settingsMore.regSectionDescription")}
     >

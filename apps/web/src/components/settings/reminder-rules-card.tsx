@@ -67,7 +67,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
 
   if (query.isPending || draft === null) {
     return (
-      <SettingsCard
+      <SettingsCard id="appointment-reminders"
         title={t("settingsMore.remindersTitle")}
         description={t("settingsMore.remindersDescription")}
       >
@@ -107,7 +107,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="appointment-reminders"
       title={t("settingsMore.remindersTitle")}
       description={t("settingsMore.remindersDescription")}
     >

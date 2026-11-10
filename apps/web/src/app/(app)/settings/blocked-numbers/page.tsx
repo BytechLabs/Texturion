@@ -43,13 +43,13 @@ export default function BlockedNumbersPage() {
       ) : list.isPending ? (
         <Skeleton className="h-24 w-full" />
       ) : rows.length === 0 ? (
-        <SettingsCard title={t("blockedNumbers.empty")}>
+        <SettingsCard id="blocked-list" title={t("blockedNumbers.empty")}>
           <p className="text-sm text-muted-foreground">
             {t("blockedNumbers.emptyBody")}
           </p>
         </SettingsCard>
       ) : (
-        <ul className="divide-y rounded-lg border bg-card">
+        <ul id="blocked-list" className="divide-y rounded-lg border bg-card">
           {rows.map((row) => {
             const who = row.blocked_by
               ? (memberNames.get(row.blocked_by) ?? t("blockedNumbers.teammate"))

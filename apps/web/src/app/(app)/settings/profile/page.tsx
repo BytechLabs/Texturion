@@ -131,7 +131,7 @@ export default function ProfileSettingsPage() {
       description={t("appShell.profileDescription")}
     >
       <div className="space-y-6">
-        <SettingsCard
+        <SettingsCard id="display-name"
           title={t("appShell.profileDisplayName")}
           description={t("appShell.profileDisplayNameDescription")}
         >
@@ -182,7 +182,7 @@ export default function ProfileSettingsPage() {
         <CalendarConnectionsCard />
         <CalendarFeedCard />
 
-        <SettingsCard title={t("appShell.profileTheme")}>
+        <SettingsCard id="theme" title={t("appShell.profileTheme")}>
           {mounted ? (
             <RadioGroup
               value={theme ?? "system"}
@@ -233,7 +233,7 @@ export default function ProfileSettingsPage() {
         </SettingsCard>
 
         {/* #694: WCAG 2.1.4, single-key shortcuts can be turned off. */}
-        <SettingsCard
+        <SettingsCard id="shortcuts"
           title={t("appShell.profileShortcuts")}
           description={t("appShell.profileShortcutsDescription")}
         >
@@ -254,7 +254,7 @@ export default function ProfileSettingsPage() {
           </div>
         </SettingsCard>
 
-        <SettingsCard title={t("appShell.profileSignOut")}>
+        <SettingsCard id="sign-out" title={t("appShell.profileSignOut")}>
           <Button
             variant="outline"
             onClick={() => void signOut()}

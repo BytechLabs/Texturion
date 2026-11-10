@@ -67,7 +67,7 @@ export function TagManagementCard({ canManage }: { canManage: boolean }) {
   return (
     <>
       {canManage && <TagLockCard />}
-      <SettingsCard
+      <SettingsCard id="tags"
         title={t("settingsMore.tagsTitle")}
         description={t("settingsMore.tagsDescription")}
       >
@@ -364,7 +364,7 @@ function TagLockCard() {
   if (company.data === undefined) return null;
 
   return (
-    <SettingsCard
+    <SettingsCard id="tag-lock"
       title={t("settingsMore.tagLockTitle")}
       description={t("settingsMore.tagLockDescription")}
     >

@@ -72,7 +72,7 @@ export function DeleteAccountCard() {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="delete-account"
       title={t("settings.deleteAccountTitle")}
       description={t("settings.deleteAccountDescription")}
     >

@@ -112,7 +112,7 @@ export function PrepaidYearCard({
   // they paid is already on the receipt Stripe sent them.
   if (open) {
     return (
-      <SettingsCard title={t("settingsMore.prepaidYearOpenTitle")}>
+      <SettingsCard id="prepaid-year" title={t("settingsMore.prepaidYearOpenTitle")}>
         <p className="text-sm text-muted-foreground">
           {t("settingsMore.prepaidYearOpenLead")}{" "}
           <span className="font-medium text-foreground">
@@ -146,7 +146,7 @@ export function PrepaidYearCard({
   const money = (cents: number) => formatMoney(cents, currency);
 
   return (
-    <SettingsCard title={t("settingsMore.prepaidYearTitle")}>
+    <SettingsCard id="prepaid-year" title={t("settingsMore.prepaidYearTitle")}>
       <div className="flex items-start gap-3">
         <CalendarCheck
           className="mt-0.5 size-4 shrink-0 text-muted-foreground"

@@ -142,7 +142,7 @@ export function AfterHoursCallsCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="after-hours-calls"
       title={t("settings.afterHoursTitle")}
       description={t("settings.afterHoursDescription")}
     >

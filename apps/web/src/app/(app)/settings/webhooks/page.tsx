@@ -250,7 +250,7 @@ function AddForm({
   }
 
   return (
-    <SettingsCard title={t("webhooks.addTitle")}>
+    <SettingsCard id="webhook-add" title={t("webhooks.addTitle")}>
       <div className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="webhook-url">{t("webhooks.urlLabel")}</Label>

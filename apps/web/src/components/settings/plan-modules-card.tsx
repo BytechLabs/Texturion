@@ -109,7 +109,7 @@ export function PlanModulesCard() {
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="add-ons"
       title={t("settingsMore.modulesTitle")}
       description={t("settingsMore.modulesDescription")}
     >

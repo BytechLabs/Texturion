@@ -136,7 +136,7 @@ export function ClosedDatesCard({
   }
 
   return (
-    <SettingsCard
+    <SettingsCard id="closed-dates"
       title={t("settings.closedDatesTitle")}
       description={t("settings.closedDatesDescription")}
     >

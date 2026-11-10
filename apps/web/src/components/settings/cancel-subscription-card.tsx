@@ -399,7 +399,7 @@ export function CancelSubscriptionCard({
 
   if (!isOwner) {
     return (
-      <SettingsCard title={t("settings.cancelTitle")}>
+      <SettingsCard id="cancel-subscription" title={t("settings.cancelTitle")}>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
             {t("settings.cancelAdminConsequence", {
@@ -415,7 +415,7 @@ export function CancelSubscriptionCard({
   }
 
   return (
-    <SettingsCard title={t("settings.cancelTitle")}>
+    <SettingsCard id="cancel-subscription" title={t("settings.cancelTitle")}>
       {/* Four groups, told apart by spacing rather than by a box or a rule:
           the card edge is already the container, and a panel inside a panel
           reads as a thing that opened. */}
