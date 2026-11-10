@@ -189,6 +189,9 @@ const SUITES = [
   "standalone_tasks",
   // #689 E: a task's own history and its comments.
   "task_history_and_comments",
+  // #691: deleting messages, conversations, calls and voicemails; the 30-day
+  // Trash; the purge that leaves usage and opt-out evidence alone.
+  "deletion_and_trash",
 ];
 
 const args = process.argv.slice(2);
