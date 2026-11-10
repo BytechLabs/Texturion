@@ -334,6 +334,9 @@ scheduledMessageRoutes.patch(
       // looked at it and decided it should still go.
       patch.status = "pending";
       patch.held_reason = null;
+      // #722: the key is what clients translate; left set, a rescheduled text
+      // still read as held for its old reason.
+      patch.held_reason_key = null;
       patch.held_at = null;
     }
 

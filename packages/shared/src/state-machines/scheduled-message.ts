@@ -5,11 +5,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  * claim is a LEASE (claimed_at), not a state: a due row is claimed every
  * minute whether pending or held. Hold and failure notices are entry effects
  * and must not repeat. The 2026-11-10 push flood was this machine: the held
- * notice ran on every claim. scheduled-send.ts now compares the claimed row
- * against the new hold (alreadyHeldFor); phase 2 moves that comparison into
- * the RPC so it cannot be skipped.
- *
- * Phase 1 of #722: definition only, no runtime behaviour. See docs/STATE-MACHINES.md.
+ * notice ran on every claim. The hold RPCs now report whether they entered
+ * the state, and a trigger refuses any move outside these edges (#722 phase 2,
+ * see docs/STATE-MACHINES.md).
  */
 export type ScheduledMessageState = "pending" | "held" | "sent" | "canceled" | "expired" | "failed";
 

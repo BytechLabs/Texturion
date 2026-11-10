@@ -114,6 +114,8 @@ type FireScheduledMessageResult =
   | {
       outcome: "held";
       reason_key: string;
+      /** #722: the row was not already held for this reason. */
+      entered: boolean;
       scheduled_message?: ScheduledRow;
     }
   | {
@@ -510,7 +512,7 @@ async function hold(
   row: ScheduledRow,
   reason: ScheduledHoldReason,
 ): Promise<void> {
-  unwrap(
+  const held = unwrap<{ outcome: "held" | "gone"; entered?: boolean }>(
     await db.rpc("api_hold_scheduled_message", {
       p_id: row.id,
       // #228: BOTH. The sentence is what a build that predates the key still
@@ -520,26 +522,10 @@ async function hold(
     }),
     "hold scheduled message",
   );
-  if (!alreadyHeldFor(row, reason)) await disclose(env, db, row, reason);
-}
-
-/**
- * Was this row already held for this reason when it was claimed?
- *
- * A held row is claimed again every minute until it can go. Telling people
- * again each time is a push a minute for one held text, so only a new hold, or
- * a hold for a different reason, is news. Every path that can hold a row asks
- * this against the row as CLAIMED, never against the row the hold returned,
- * which already carries the new state.
- */
-function alreadyHeldFor(
-  row: ScheduledRow,
-  reason: ScheduledHoldReason,
-): boolean {
-  return (
-    row.status === "held" &&
-    row.held_reason_key === SCHEDULED_HOLD_REASON_KEYS[reason]
-  );
+  // #722: told on ENTRY only. A held row is claimed again every minute, and
+  // the hold RPC says whether this pass entered the state (a new hold, or a
+  // new reason); telling people on every pass was the 2026-11-10 push flood.
+  if (held.entered === true) await disclose(env, db, row, reason);
 }
 
 /** Fail it permanently, and say why. */
@@ -709,7 +695,7 @@ export async function runScheduledSendJob(
             `fire scheduled message returned unsupported hold reason ${String(fired.reason_key)}`,
           );
         }
-        if (!alreadyHeldFor(row, "calendar_unverified")) {
+        if (fired.entered === true) {
           await disclose(
             env,
             db,

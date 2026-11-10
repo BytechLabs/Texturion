@@ -69,6 +69,8 @@ interface HarnessOptions {
   fireThrows?: boolean;
   /** #245: the atomic fire-time task/calendar check can overrule stale reads. */
   fireResult?: Record<string, unknown>;
+  /** #722: what the hold RPC reports; a re-claim of the same hold is false. */
+  holdEntered?: boolean;
   /**
    * #237: the job a reminder is about, as the fire-time check reads it.
    *  means no task row at all (deleted outright).
@@ -107,7 +109,7 @@ function harness(options: HarnessOptions = {}) {
   );
   sb.on("POST", "/rest/v1/rpc/api_hold_scheduled_message", (call) => {
     holds.push(call.body as Record<string, unknown>);
-    return { outcome: "held" };
+    return { outcome: "held", entered: options.holdEntered ?? true };
   });
   sb.on("POST", "/rest/v1/rpc/api_fail_scheduled_message", (call) => {
     fails.push(call.body as Record<string, unknown>);
@@ -271,6 +273,7 @@ describe("#233 the customer answered in the meantime", () => {
 
     const again = harness({
       newestInbound: "2026-08-03T11:00:00Z",
+      holdEntered: false,
       due: [
         scheduledRow({
           status: "held",
@@ -742,6 +745,7 @@ describe("#237 a reminder for a job that is no longer booked", () => {
         fireResult: {
           outcome: "held",
           reason_key: "calendar_unverified",
+          entered: true,
           scheduled_message: claimed,
         },
       });
@@ -792,6 +796,7 @@ describe("#237 a reminder for a job that is no longer booked", () => {
         fireResult: {
           outcome: "held",
           reason_key: "calendar_unverified",
+          entered: false,
           scheduled_message: claimed,
         },
       });
@@ -814,6 +819,7 @@ describe("#237 a reminder for a job that is no longer booked", () => {
         fireResult: {
           outcome: "held",
           reason_key: "calendar_unverified",
+          entered: true,
           scheduled_message: claimed,
         },
       });
