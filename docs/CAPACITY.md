@@ -1125,6 +1125,67 @@ was under $0.02.
 - **Any compute size above Micro**, and the 50,000-conversation workspace
   through the HTTP path.
 
+### 2d. `api_for_you` cut from 31 ms to 19.5 ms (2026-11-10, #698)
+
+Same method as 2c: a temporary Pro-tier Micro project in us-east-1 (all 383
+migrations through the Management API), a copy of the Worker named
+`loonext-api-capacity-698` on `workers.dev` with fake vendor secrets, and the
+driver's own ceremony. Both were deleted afterwards and list calls confirmed
+it. The fixture was 2c's (5,000 conversations, 20,000 messages) plus an
+ordinary member who owns 1,250 open conversations, 700 tasks, and three more
+workspaces of 5,000 conversations each, because production holds other
+tenants and the second problem below only shows with them.
+
+**Where the time went.** `EXPLAIN (ANALYZE, BUFFERS)` of the body, as the
+member: about 7 ms planning (a SQL function is planned on every call) and
+about 22 ms executing, in three parts.
+
+- The conversation base, about 8 ms. 5.5 ms of that is the unread probe, once
+  for each of the member's 1,250 open conversations; it is the answer to the
+  `unread` total and cannot be skipped.
+- The base was found with `assigned_user_id = me OR assigned_user_id IS NULL`
+  on `conversations_assigned_idx`. The NULL entries of that index belong to
+  every workspace, so each call fetched all 13,750 other-tenant unassigned
+  open conversations and discarded them on `company_id`. With one tenant this
+  costs nothing and cannot be seen.
+- Waiting-on-you joined the deduplicated overdue-task list. The planner
+  estimated one row for it, chose a nested loop, and rescanned the list once
+  per candidate. Fine at 219 overdue tasks, 80 ms the moment the base
+  estimate changed shape (found while trying the fix above).
+- The remaining tasks and contact lookups are 1 to 2 ms each.
+
+**What changed** (`20261110130000_for_you_reads_its_own_workspace.sql`; same
+output, checked by comparing the old and new function on 12 combinations of
+member, hidden numbers and limit):
+
+- `conversations_for_you_idx (company_id, assigned_user_id)` on open
+  non-spam rows, and the base reads "mine" and "unassigned" as two branches so
+  each is an exact index condition (unassigned: 115 buffers).
+- The base carries the five columns the sections read, not the whole row.
+- "Has an overdue task" is a hashed membership test, which cannot become a
+  per-row rescan.
+
+| | Before | After |
+|---|---|---|
+| One call, no load, interleaved A/B in one session | 31 to 33 ms | 19.5 to 21 ms |
+| Mean `api_for_you` exec, 20 to 80 callers | 267 and 307 ms (two runs) | 128 ms |
+| Hosted `GET /v1/for-you`, 20 / 40 / 80 callers (requests per second) | 8.5 / 10.2 / 10.3 and 9.7 / 10.3 / 8.7 | 11.0 / 11.8 / 11.9 |
+| Hosted p95 at 80 callers | 7.7 and 9.6 s | 6.8 s |
+
+The ceiling moved from about 10 to about 12 requests a second, less than the
+halving in execution time suggests. This stack ran slower than 2c's (about 14
+before) with a heavier fixture, and its per-call time under load is 6 to 10
+times the unloaded time, so Micro's CPU share, not only the function, is
+what is being rationed. The remaining 19.5 ms is about 7 ms planning and 5.5
+ms of unread probes; a covering `messages` index for the probe was tried and
+changed nothing.
+
+The target set for this read is under 20 ms for one call on Micro at this
+fixture, which it now meets unloaded. It does not meet "p95 under 20 ms" under
+load: that needs either more compute or a cheaper unread total (a stored
+per-member unread count), which was not built. Not measured: 50,000
+conversations through the HTTP path, or a larger compute size.
+
 ---
 
 ## 3. Where the declared ceilings already are
