@@ -445,8 +445,6 @@ answered and became Operations tiles (insights 13815253, 13815255 to 13815259).
 - CSP violation reporting is off. No CSP header is sent until the founder sets
   `CSP_STAGING=report-only`, so a policy break produces no event today. Once on,
   PostHog's endpoint samples it at 10%.
-- Cron triggers are not watched until the Cloudflare monitors below are created
-  (see "In Cloudflare").
 
 Muting a problem is suppressing its issue in PostHog error tracking. Resolving
 it there makes the next occurrence reopen it, which PostHog shows on the issue
@@ -460,24 +458,28 @@ on and persisted, invocation logs, head sampling 1, traces off), so every
 request, cron run and Durable Object call is in **Workers & Pages → Workers
 Logs** and in the SQL API's `events.workersInvocations` and `logs.workersLogs`.
 
-The Cloudflare monitors below are the planned watch and are **not live**.
-A monitor (Notifications, alert type `custom_analytics`, source
-`sql_api`, threshold detection) runs a SQL API query on a schedule and email
-when the value crosses the threshold. With no timestamp in the query, Cloudflare
-supplies a window that ends at the check and spans its interval. `<account>` is
-the account tag. Each query below was run through the SQL API on 2026-11-07:
-M1 counted 19 cron invocations in the last 15 minutes, and M2 and M3 counted 0
-over the last seven days (in which the API's webhooks answered 200 ten times).
+Three Cloudflare monitors and one incident alert watch the Workers. They have
+been live since 2026-11-09. A monitor (**Alerts → Monitors**, alert type
+`custom_analytics`, source `sql_api`, Threshold) runs its SQL API query once a
+minute, one value per one-minute bucket. It averages those values over its
+window and emails when the average crosses the threshold, then again every
+hour while the condition holds. A threshold is therefore a per-minute rate.
+`<account>` is the account tag.
 
-| Monitor | Query | Interval | Fires when |
-|---|---|---|---|
-| M1 loonext-api cron triggers stopped | `SELECT COUNT(*) AS value FROM events.workersInvocations WHERE accountTag = '<account>' AND scriptName = 'loonext-api' AND invocationType = 'cron'` | 15 minutes | `value < 1` |
-| M2 Workers invocations the platform failed | `SELECT COUNT(*) AS value FROM events.workersInvocations WHERE accountTag = '<account>' AND scriptName IN ('loonext-api', 'loonext-web') AND status NOT IN ('success', 'clientDisconnected', 'responseStreamDisconnected') AND NOT (invocationType = 'cron' AND status = 'scriptThrewException')` | 1 hour | `value > 0` |
-| M3 Webhook signature refusals | `SELECT COUNT(*) AS value FROM logs.workersLogs WHERE accountTag = '<account>' AND scriptName = 'loonext-api' AND logType = 'cf-worker-event' AND invocationType = 'fetch' AND url LIKE '%/webhooks/%' AND httpStatus IN (400, 503)` | 1 hour | `value >= 3` |
+| Monitor | Query | Average over | Fires when | Means |
+|---|---|---|---|---|
+| M1 loonext-api cron triggers stopped | `SELECT COUNT(*) AS value FROM events.workersInvocations WHERE accountTag = '<account>' AND scriptName = 'loonext-api' AND invocationType = 'cron'` | 15 minutes | `value < 0.5` | fewer than 8 cron runs in 15 minutes |
+| M2 Workers invocations the platform failed | `SELECT COUNT(*) AS value FROM events.workersInvocations WHERE accountTag = '<account>' AND scriptName IN ('loonext-api', 'loonext-web') AND status NOT IN ('success', 'clientDisconnected', 'responseStreamDisconnected') AND NOT (invocationType = 'cron' AND status = 'scriptThrewException')` | 1 hour | `value > 0` | at least one in the last hour |
+| M3 Webhook signature refusals | `SELECT COUNT(*) AS value FROM logs.workersLogs WHERE accountTag = '<account>' AND scriptName = 'loonext-api' AND logType = 'cf-worker-event' AND invocationType = 'fetch' AND url LIKE '%/webhooks/%' AND httpStatus IN (400, 503)` | 1 hour | `value > 0.04` | at least 3 in the last hour |
 
-M1 replaces the cron heartbeats: the every-minute trigger alone runs 15 times
-in its window. M2 leaves out a cron run whose script threw, because PostHog
-already reports that exception; what it catches is the platform's own
+The dashboard's preview over the hour before creation read 1.27 to 1.47 for M1
+and 0 throughout for M2 and M3.
+
+M1 replaces the cron heartbeats: the every-minute trigger alone gives 1.0, the
+scheduled jobs the rest. Once the triggers stop, the average falls below 0.5
+within about ten minutes; a few skipped runs do not fire it. M2 leaves out a
+cron run whose script threw, because PostHog already reports that exception;
+what it catches is the platform's own
 refusals (exceeded CPU or memory, a script that would not load). M3 reads the
 status the webhook routes answer a bad signature with (400) or an unset Resend
 secret with (503). It is not a PostHog capture because the webhook URLs are
@@ -489,17 +491,24 @@ Durable Objects, Workers KV and Workers AI components (status page component
 ids `57srcl8zcn7c`, `bty1yz6dhh0v`, `tmh50tx2nprs` and `zvm7mqn92xzc`). The
 status page has no Cron Triggers component; it is part of Workers.
 
-All four email the address the account's billing budget alerts use. Those
-three `billing_budget_alert` policies ($1 and two at $10) are the warning
-before the Workers AI bill grows.
+All four email the account owner, the address the account's billing budget
+alerts use. Those three `billing_budget_alert` policies ($1 and two at $10) are
+the warning before the Workers AI bill grows.
 
-**Not live.** Nothing described in this section exists on the account yet.
-`CLOUDFLARE_API_TOKEN` can read notification policies but
-not write them: the create call answered 403 on 2026-11-07. Until the founder
-creates the four in the dashboard (**Notifications → Monitors → Create a
-Monitor**, custom SQL, Threshold, with the queries above; **Notifications →
-Add → Incident Alert** with the four components), nothing watches the cron
-triggers: if they stop, or a job stops running without throwing, no one is told.
+The four policies, read back through the API on 2026-11-09:
+
+| Policy | Id |
+|---|---|
+| Cloudflare incident: Workers, Durable Objects, KV, Workers AI | `3da888059ac5443495d50ec0c1a5489f` |
+| M1 loonext-api cron triggers stopped | `fd81edf4098a46458c1be85b51103ae3` |
+| M2 Workers invocations the platform failed | `fe67e69c63c44f3ca0d86f5685a04479` |
+| M3 Webhook signature refusals | `e01d20eb34d146fab4970c9093fabc99` |
+
+`CLOUDFLARE_API_TOKEN` can read notification policies, so
+`GET /accounts/<account>/alerting/v3/policies` shows them, but cannot write
+them (403). A change is made in the dashboard, signed in as the owner. The
+dashboard's own API refuses scripted writes, so it has to be done through the
+forms.
 
 ## Vendor notices
 
