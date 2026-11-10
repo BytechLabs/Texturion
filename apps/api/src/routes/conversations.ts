@@ -69,6 +69,7 @@ import {
   type ConversationMemberPref,
 } from "../notifications/conversation-prefs";
 import { notifyNoteMention } from "../notifications/mention";
+import { mayHoldReference, syncReferences } from "../tasks/references";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
@@ -1191,6 +1192,15 @@ conversationsRoutes.post(
         ),
         "note mentions insert",
       );
+    }
+
+    // #690: a `#T-142` in the note is a reference, parsed from the saved text.
+    if (mayHoldReference(body.body)) {
+      await syncReferences(c, db, {
+        sourceKind: "note",
+        sourceId: note.id as string,
+        text: body.body,
+      });
     }
 
     // Notes are messages, so thread activity moves forward — but never

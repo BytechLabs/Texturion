@@ -9,6 +9,14 @@
  *            { kind: "event",   id, event, from, to, from_user, to_user, actor, created_at }
  *            { kind: "comment", id, body, author, edited_at, attachments, created_at }
  *            { kind: "note",    id, body, author, created_at }
+ *            { kind: "reference", id, direction: "in" | "out", source_kind:
+ *              "note" | "task_description" | "task_comment", target_kind?,
+ *              conversation_id, contact: {id, name} | null,
+ *              task: {id, number, title} | null, author, created_at }
+ *          A "reference" is a back-reference (direction "in": a note, task or
+ *          comment elsewhere points at this task) or something this task's own
+ *          text points at (direction "out"). A back-reference whose source
+ *          conversation is on a number the caller is denied is not returned.
  *          `event` is a task_events.kind. `from` and `to` are the stored
  *          values (a string, an ISO time, a boolean, an address object or null);
  *          for an `assignee`, `assignee_added` or `assignee_removed` event they
@@ -52,6 +60,7 @@ import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { buildPage, decodeCursor } from "../http/pagination";
 import { filterToTaskViewers, notifyTaskChangeSafely } from "../tasks/notify";
+import { mayHoldReference, syncReferences } from "../tasks/references";
 import {
   executionCtxOf,
   parseJsonBody,
@@ -88,7 +97,7 @@ interface FileRef {
 }
 
 interface ActivityRow {
-  kind: "event" | "comment" | "note";
+  kind: "event" | "comment" | "note" | "reference";
   id: string;
   at: string;
   user_id: string | null;
@@ -100,7 +109,7 @@ const activityOutcomeSchema = z.object({
   items: z
     .array(
       z.object({
-        kind: z.enum(["event", "comment", "note"]),
+        kind: z.enum(["event", "comment", "note", "reference"]),
         id: z.string(),
         at: z.string(),
         user_id: z.string().nullable(),
@@ -190,6 +199,29 @@ function shapeItems(
         created_at: row.at,
       };
     }
+    if (row.kind === "reference") {
+      const d = row.detail;
+      return {
+        kind: "reference",
+        id: row.id,
+        direction: d.direction,
+        source_kind: d.source_kind,
+        target_kind: d.target_kind ?? null,
+        conversation_id: d.conversation_id ?? null,
+        contact: d.contact_id
+          ? { id: d.contact_id, name: (d.contact_name as string | null) ?? null }
+          : null,
+        task: d.task_id
+          ? {
+              id: d.task_id,
+              number: d.task_number,
+              title: (d.task_title as string | null) ?? null,
+            }
+          : null,
+        author: personOf(people, row.user_id),
+        created_at: row.at,
+      };
+    }
     return {
       kind: "note",
       id: row.id,
@@ -210,7 +242,7 @@ interface TaskGate {
  * on a number the caller is denied. `need` is the level a conversation-linked
  * task requires: "read" to look, "note" to write.
  */
-async function requireTask(
+export async function requireTask(
   c: import("hono").Context<AppEnv>,
   db: Db,
   taskId: string,
@@ -417,6 +449,15 @@ taskActivityRoutes.post(
       "task comment insert",
     );
 
+    // #690: a `#T-142` in the comment is a reference.
+    if (mayHoldReference(body.body)) {
+      await syncReferences(c, db, {
+        sourceKind: "task_comment",
+        sourceId: rows[0].id,
+        text: body.body,
+      });
+    }
+
     // Naming somebody asks for them, so it lifts an earlier unfollow.
     for (const mentioned of mentionIds) {
       const { error } = await db.rpc("task_subscribe", {
@@ -496,6 +537,11 @@ taskActivityRoutes.patch(
       "task comment update",
     );
     if (!rows[0]) return errorResponse(c, "not_found", "No such comment.");
+    await syncReferences(c, db, {
+      sourceKind: "task_comment",
+      sourceId: commentId,
+      text: body.body,
+    });
     return c.json(await commentItem(db, companyId, rows[0]));
   },
 );

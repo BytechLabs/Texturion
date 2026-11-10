@@ -77,7 +77,7 @@ const PUBLIC_CONTACT_COLUMNS =
   "id,phone_e164,name,email,business_name,address,notes,created_at,updated_at";
 
 const PUBLIC_TASK_COLUMNS =
-  "id,message_id,source_call_id,conversation_id,contact_id,title,description,due_at,assigned_user_id,created_at,priority,series_id";
+  "id,number,message_id,source_call_id,conversation_id,contact_id,title,description,due_at,assigned_user_id,created_at,priority,series_id";
 
 /**
  * A public task keeps `message_id` (null for a task promoted from a call, D64,

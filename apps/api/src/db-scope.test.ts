@@ -110,6 +110,8 @@ const TENANT_TABLES = new Set([
   "task_subscribers", "task_notify_windows",
   // #689 C: who is on a task.
   "task_assignees",
+  // #690: references, relations and the per-workspace task counter.
+  "record_references", "task_links", "task_counters",
   "lead_sources",
   // #224: the ask for money, and the mirror of the Stripe account it is paid
   // into. An unscoped read of either is the most valuable cross-tenant leak in

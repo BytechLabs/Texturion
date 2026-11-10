@@ -911,6 +911,47 @@ describe("POST /v1/conversations/:id/notes", () => {
     expect(bump.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
 
+  it("reads the references out of a note that has a hash, after it is saved (#690)", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    sb.on("POST", "/rest/v1/messages", () =>
+      Response.json([noteRow({ body: "Blocked by #T-12" })], { status: 201 }),
+    );
+    sb.on("PATCH", "/rest/v1/conversations", () => new Response(null, { status: 204 }));
+    sb.on("POST", "/rest/v1/rpc/api_sync_references", () => ({ outcome: "ok", references: [] }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), `/v1/conversations/${CONV_ID}/notes`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { body: "Blocked by #T-12" },
+    });
+    expect(res.status).toBe(201);
+    const sync = sb.find("POST", "/rest/v1/rpc/api_sync_references");
+    expect(sync).toHaveLength(1);
+    expect(sync[0].body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_source_kind: "note",
+      p_source_id: NOTE_ID,
+      p_text: "Blocked by #T-12",
+    });
+  });
+
+  it("does not look for references in a note with no hash (#690)", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    sb.on("POST", "/rest/v1/messages", () => Response.json([noteRow()], { status: 201 }));
+    sb.on("PATCH", "/rest/v1/conversations", () => new Response(null, { status: 204 }));
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), `/v1/conversations/${CONV_ID}/notes`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { body: "Customer prefers mornings" },
+    });
+    expect(res.status).toBe(201);
+    expect(sb.find("POST", "/rest/v1/rpc/api_sync_references")).toHaveLength(0);
+  });
+
   it("allows an attachment-only note with an empty body (files upload later)", async () => {
     const sb = memberStub();
     sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);

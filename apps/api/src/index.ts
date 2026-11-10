@@ -126,6 +126,7 @@ import { quotesRoutes } from "./routes/quotes";
 import { tagsRoutes } from "./routes/tags";
 import { tasksRoutes } from "./routes/tasks";
 import { taskActivityRoutes } from "./routes/task-activity";
+import { taskReferenceRoutes } from "./routes/task-references";
 import {
   jobPhotoShareRoutes,
   publicJobPhotoRoutes,
@@ -340,6 +341,7 @@ app.route("/v1", trashRoutes);
 app.route("/v1", conversationsRoutes);
 app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
 app.route("/v1", taskActivityRoutes); // #689 E task history + comments
+app.route("/v1", taskReferenceRoutes); // #690 task links, linked tasks, reference chips
 app.route("/v1", jobPhotoShareRoutes); // #294 mint/revoke a job photo link
 // #224 text-to-pay. Two routers because they are two capabilities: connecting
 // the account is owner-only (it binds a bank account to the workspace), asking

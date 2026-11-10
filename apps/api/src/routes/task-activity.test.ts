@@ -135,6 +135,61 @@ describe("GET /v1/tasks/:id/activity", () => {
     expect(JSON.stringify(call)).toContain('"p_limit":3');
   });
 
+  it("shapes a back-reference and a link event (#690)", async () => {
+    const sb = harness("member");
+    sb.on("POST", "/rest/v1/rpc/api_task_activity", () => ({
+      outcome: "ok",
+      items: [
+        {
+          kind: "reference",
+          id: "a0000000-0000-4000-8000-000000000009",
+          at: "2026-11-10T12:00:00.000Z",
+          user_id: auth.subject,
+          detail: {
+            direction: "in",
+            source_kind: "note",
+            source_id: "a0000000-0000-4000-8000-0000000000aa",
+            conversation_id: "a0000000-0000-4000-8000-0000000000bb",
+            contact_id: "a0000000-0000-4000-8000-0000000000cc",
+            contact_name: "Jane Smith",
+            task_id: null,
+            task_number: null,
+            task_title: null,
+          },
+        },
+        {
+          kind: "event",
+          id: "a0000000-0000-4000-8000-000000000008",
+          at: "2026-11-10T11:00:00.000Z",
+          user_id: auth.subject,
+          detail: {
+            event: "link_added",
+            from: null,
+            to: { relation: "blocked_by", task_id: TASK_ID, number: 4, title: "Order the part" },
+          },
+        },
+      ],
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+    const response = await apiRequest(app, env, await auth.token(), `/v1/tasks/${TASK_ID}/activity`, {
+      companyId: COMPANY_ID,
+    });
+    const json = (await response.json()) as { data: Record<string, unknown>[] };
+    expect(json.data[1]).toMatchObject({
+      kind: "reference",
+      direction: "in",
+      source_kind: "note",
+      conversation_id: "a0000000-0000-4000-8000-0000000000bb",
+      contact: { id: "a0000000-0000-4000-8000-0000000000cc", name: "Jane Smith" },
+      task: null,
+      author: { display_name: "Rehman" },
+    });
+    expect(json.data[0]).toMatchObject({
+      event: "link_added",
+      to: { relation: "blocked_by", number: 4 },
+    });
+  });
+
   it("names the person on an assignee_added and an assignee_removed event (#689 C)", async () => {
     const sb = harness("member");
     sb.on("POST", "/rest/v1/rpc/api_task_activity", () => ({
@@ -239,6 +294,60 @@ describe("POST /v1/tasks/:id/comments", () => {
     const insert = sb.find("POST", "/rest/v1/task_comments")[0];
     expect(JSON.stringify(insert)).toContain(COMPANY_ID);
     expect(JSON.stringify(insert)).toContain("Bring the long ladder");
+  });
+
+  it("writes down the references in a comment that has a hash, and only then (#690)", async () => {
+    const sb = harness("member");
+    sb.on("POST", "/rest/v1/task_comments", () => [
+      {
+        id: COMMENT_ID,
+        author_user_id: auth.subject,
+        body: "Waiting on #T-12",
+        created_at: "2026-11-10T12:00:00.000Z",
+        edited_at: null,
+      },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_sync_references", () => ({ outcome: "ok", references: [] }));
+    stubFetch(jwksRoute(auth), sb.route);
+    await apiRequest(app, env, await auth.token(), `/v1/tasks/${TASK_ID}/comments`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { body: "Waiting on #T-12" },
+    });
+    const sync = sb.find("POST", "/rest/v1/rpc/api_sync_references");
+    expect(sync).toHaveLength(1);
+    expect(JSON.stringify(sync[0])).toContain('"p_source_kind":"task_comment"');
+    expect(JSON.stringify(sync[0])).toContain("Waiting on #T-12");
+
+    await apiRequest(app, env, await auth.token(), `/v1/tasks/${TASK_ID}/comments`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { body: "Bring the long ladder" },
+    });
+    expect(sb.find("POST", "/rest/v1/rpc/api_sync_references")).toHaveLength(1);
+  });
+
+  it("still saves the comment when the reference write fails (#690)", async () => {
+    const sb = harness("member");
+    sb.on("POST", "/rest/v1/task_comments", () => [
+      {
+        id: COMMENT_ID,
+        author_user_id: auth.subject,
+        body: "see #T-1",
+        created_at: "2026-11-10T12:00:00.000Z",
+        edited_at: null,
+      },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_sync_references", () => {
+      throw new Error("down");
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+    const response = await apiRequest(app, env, await auth.token(), `/v1/tasks/${TASK_ID}/comments`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { body: "see #T-1" },
+    });
+    expect(response.status).toBe(201);
   });
 
   it("422s an empty body and 404s a task the caller cannot see", async () => {

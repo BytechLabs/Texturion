@@ -122,7 +122,10 @@ describe("#519 the saved-view allow-list knows every filter its surface has", ()
           !accepted.has(key) &&
           // #508: resolved to the caller at request time by each client, so it
           // is never a query parameter of its own.
-          key !== "assigned_to_me",
+          key !== "assigned_to_me" &&
+          // #689 G: how a view lays the board out. Read by the clients, never
+          // sent to the list.
+          key !== "group",
       );
       expect(
         dead,

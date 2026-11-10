@@ -40,6 +40,8 @@ A contact row carries `tags`, the names of the workspace tags it has, sorted (em
 A task row names what it came from in `source` (`{ "kind": "message" | "call", "id": "…" }`).
 `message_id` is kept for existing integrations and is `null` for a task promoted from a call. A task with no message or call is a standalone task: `source` is `null`, and `POST` takes a required `title` with an optional `assigned_user_id`, `contact_id` and `conversation_id` (a task with no conversation is visible to every member).
 
+Every task carries `number`, its per-workspace number (shown to people as `T-142`). It is assigned when the task is created, never changes and is never reused, even after the task is deleted. It is read-only.
+
 A task can have up to ten assignees. Every task carries `assignee_ids`, everyone on it, first assignee first, and `assigned_user_id` is the first of them, kept so existing integrations keep working (it is read-only in effect: change the crew with `assignee_ids`). `POST` takes `assignee_ids` (up to ten workspace members, which wins) or the one-person shorthand `assigned_user_id`; a non-member is a 422, and so is an eleventh person. `task.created` webhooks carry both fields.
 
 A task row also carries `priority`, `labels` and `repeat` (#693):

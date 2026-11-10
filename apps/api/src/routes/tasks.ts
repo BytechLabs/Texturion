@@ -86,6 +86,7 @@ import { roleHasCapability } from "@loonext/shared";
 import { ApiError, errorResponse } from "../http/errors";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
+import { mayHoldReference, syncReferences } from "../tasks/references";
 import { assigneeIdsSchema, MAX_ASSIGNEES } from "../tasks/assignees";
 import { notifyTaskChangeSafely, type TaskChange } from "../tasks/notify";
 import {
@@ -232,6 +233,20 @@ interface TaskFilters {
   priorities?: string[];
   /** #693: carries this tag. The caller adds the `task_tags!inner` embed. */
   tagId?: string;
+  /** #690: a PostgREST `or` that matches the contact directly or through its conversations. */
+  contactOr?: string;
+  /** #690: made by this member. */
+  createdBy?: string;
+  /** #690: promoted from a text, from a call, or neither. */
+  source?: "text" | "call" | "none";
+  /** #690: carries a file by the D28 union. */
+  hasAttachments?: boolean;
+  /**
+   * #690: referenced from somewhere the caller may see. The caller adds the
+   * `record_references!target_task_id!inner` embed; this is the hidden-number
+   * rule for it (an empty list when nothing is hidden).
+   */
+  referencedHidden?: string[];
 }
 
 function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
@@ -245,6 +260,7 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
     gte(col: string, value: string): typeof q;
     lt(col: string, value: string): typeof q;
     in(col: string, values: string[]): typeof q;
+    or(filters: string, options?: { referencedTable: string }): typeof q;
   };
   const { doneAtCol } = filters;
 
@@ -272,6 +288,19 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
     q = q.in("priority", filters.priorities);
   }
   if (filters.tagId !== undefined) q = q.eq("task_tags.tag_id", filters.tagId);
+  if (filters.contactOr !== undefined) q = q.or(filters.contactOr);
+  if (filters.createdBy !== undefined) q = q.eq("created_by_user_id", filters.createdBy);
+  if (filters.source === "text") q = q.not("message_id", "is", null);
+  if (filters.source === "call") q = q.not("source_call_id", "is", null);
+  if (filters.source === "none") q = q.is("message_id", null).is("source_call_id", null);
+  if (filters.hasAttachments) q = q.eq("task_has_attachments", "true");
+  if (filters.referencedHidden !== undefined && filters.referencedHidden.length > 0) {
+    // A reference written on a denied number does not count for this member.
+    q = q.or(
+      `source_number_id.is.null,source_number_id.not.in.(${filters.referencedHidden.join(",")})`,
+      { referencedTable: "record_references" },
+    );
+  }
   return q as never as T;
 }
 
@@ -302,6 +331,85 @@ function excludeCalendarAttentionHolds<T>(query: T, companyId: string): T {
     .in("calendar_hold.link_state", CALENDAR_HOLD_STATES)
     .is("calendar_hold", null);
   return q as never as T;
+}
+
+/** The #690 filters as a list request or a bulk filter spells them. */
+interface ExtraTaskFilterInput {
+  contact_id?: string;
+  created_by?: string;
+  source?: string;
+  has_attachments?: boolean;
+  has_references?: boolean;
+}
+
+type ExtraTaskFilters = Pick<
+  TaskFilters,
+  "contactOr" | "createdBy" | "source" | "hasAttachments" | "referencedHidden"
+>;
+
+const TASK_SOURCES = ["text", "call", "none"] as const;
+const CONTACT_CONVERSATION_CEILING = 200;
+const REFERENCE_EMBED = ",record_references!target_task_id!inner(id)";
+
+/**
+ * Turn the #690 filters into what `applyTaskFilters` takes. The contact filter
+ * needs its conversations first (a task promoted from a text belongs to a
+ * contact through its thread), so this is async and shared by the list and the
+ * bulk route.
+ */
+async function resolveExtraTaskFilters(
+  c: Context<AppEnv>,
+  db: Db,
+  input: ExtraTaskFilterInput,
+): Promise<ExtraTaskFilters> {
+  const out: ExtraTaskFilters = {};
+  const companyId = c.get("companyId");
+  if (input.contact_id !== undefined) {
+    const rows = unwrap<{ id: string }[]>(
+      await db
+        .from("conversations")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("contact_id", input.contact_id)
+        .is("deleted_at", null)
+        .limit(CONTACT_CONVERSATION_CEILING),
+      "task contact filter conversations",
+    );
+    out.contactOr =
+      rows.length === 0
+        ? `contact_id.eq.${input.contact_id}`
+        : `contact_id.eq.${input.contact_id},conversation_id.in.(${rows.map((r) => r.id).join(",")})`;
+  }
+  if (input.created_by !== undefined) {
+    out.createdBy = input.created_by === "me" ? c.get("userId") : input.created_by;
+  }
+  if (input.source !== undefined) out.source = input.source as (typeof TASK_SOURCES)[number];
+  if (input.has_attachments === true) out.hasAttachments = true;
+  if (input.has_references === true) {
+    const access = await resolveNumberAccess(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+    });
+    out.referencedHidden = access.hiddenNumberIds ?? [];
+  }
+  return out;
+}
+
+function validateExtraTaskFilters(input: ExtraTaskFilterInput): void {
+  if (input.contact_id !== undefined && !z.uuid().safeParse(input.contact_id).success) {
+    throw new ApiError("validation_failed", "contact_id must be a UUID.");
+  }
+  if (
+    input.created_by !== undefined &&
+    input.created_by !== "me" &&
+    !z.uuid().safeParse(input.created_by).success
+  ) {
+    throw new ApiError("validation_failed", "created_by must be a UUID or 'me'.");
+  }
+  if (input.source !== undefined && !TASK_SOURCES.includes(input.source as never)) {
+    throw new ApiError("validation_failed", "source must be text, call or none.");
+  }
 }
 
 function dueKeysetFilter(cursor: DueCursor): string {
@@ -358,7 +466,7 @@ function priorityKeysetFilter(cursor: PriorityCursor): string {
  * derived (see TASK_DONE_AT) and added to each row by `withSource`/the callers.
  */
 const TASK_COLUMNS =
-  "id,company_id,message_id,source_call_id,conversation_id,contact_id,title,description," +
+  "id,company_id,number,message_id,source_call_id,conversation_id,contact_id,title,description," +
   "assigned_user_id,due_at,created_by_user_id,created_at,updated_at," +
   // #214 structured job address + provenance (null when the task has no address).
   "addr_street,addr_unit,addr_city,addr_state,addr_postal_code," +
@@ -401,6 +509,13 @@ const SOURCE_CALL_EMBED = `source_call:calls!source_call_id(${SOURCE_CALL_COLUMN
  */
 const LINKED_CONTACT_EMBED =
   "linked_contact:contacts!contact_id(id,name,deleted_at)";
+
+/**
+ * #690: the contact of the task's conversation, so a task promoted from a text
+ * shows who it is for. A standalone task's own contact link wins over it.
+ */
+const THREAD_CONTACT_EMBED =
+  "thread:conversations!conversation_id(contact:contacts!contact_id(id,name,deleted_at))";
 
 /**
  * The linked-contact embed in the `contact` shape the map rows already use. A
@@ -838,6 +953,15 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   }
   if (!result.task) throw new Error("create_task returned no row");
   let created: Record<string, unknown> = result.task;
+
+  // #690: a description that points at a task, a contact or a conversation.
+  if (mayHoldReference(body.description)) {
+    await syncReferences(c, db, {
+      sourceKind: "task_description",
+      sourceId: created.id as string,
+      text: body.description ?? null,
+    });
+  }
 
   // #693: the labels and the repeat the form carried. After the task exists, so
   // each is the same RPC a later edit uses.
@@ -1322,9 +1446,24 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     throw new ApiError("validation_failed", "tag_id must be a UUID.");
   }
   const sort = c.req.query("sort");
-  if (sort !== undefined && !["created", "due", "priority"].includes(sort)) {
-    throw new ApiError("validation_failed", "sort must be created, due or priority.");
+  if (sort !== undefined && !["created", "due", "priority", "updated"].includes(sort)) {
+    throw new ApiError("validation_failed", "sort must be created, due, priority or updated.");
   }
+  // #690: contact, who made it, where it came from, files, references.
+  const extraInput: ExtraTaskFilterInput = {
+    contact_id: c.req.query("contact_id"),
+    created_by: c.req.query("created_by"),
+    source: c.req.query("source"),
+    has_attachments: c.req.query("has_attachments") === "true" ? true : undefined,
+    has_references: c.req.query("has_references") === "true" ? true : undefined,
+  };
+  validateExtraTaskFilters(extraInput);
+  const anyExtra =
+    extraInput.contact_id !== undefined ||
+    extraInput.created_by !== undefined ||
+    extraInput.source !== undefined ||
+    extraInput.has_attachments === true ||
+    extraInput.has_references === true;
 
   // Validate the filter params before they reach PostgREST — a malformed
   // uuid/timestamp otherwise raises a PostgREST type error (22P02) that surfaces
@@ -1371,7 +1510,14 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     unassigned ||
     priorities !== undefined ||
     tagId !== undefined ||
+    anyExtra ||
     (rawQ !== undefined && rawQ !== "");
+  if (hasLocation && anyExtra) {
+    throw new ApiError(
+      "validation_failed",
+      "The map cannot be narrowed by contact, creator, source, files or references.",
+    );
+  }
   const effectiveStatus = status ?? (anyFilter ? undefined : "open");
   const assignee =
     rawAssignee === "me"
@@ -1383,8 +1529,10 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   // ordering has its OWN cursor shape, so decode the token against the shape
   // this request will use (a token minted for the other view → 422).
   const prioritySorted = sort === "priority";
+  const updatedSorted = sort === "updated";
   const dueSorted =
     !prioritySorted &&
+    !updatedSorted &&
     (sort === "due" ||
       (sort === undefined &&
         (overdue || dueBefore !== undefined || dueAfter !== undefined)));
@@ -1399,6 +1547,8 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   // #689 C: the same for an assignee filter, which matches any assignee.
   const assigneeEmbed =
     assignee === undefined ? "" : ",task_assignees!inner(user_id)";
+  const extra = await resolveExtraTaskFilters(c, db, extraInput);
+  const referenceEmbed = extra.referencedHidden === undefined ? "" : REFERENCE_EMBED;
 
   // The common (non-map) path reads `tasks` and selects the computed column
   // `task_done_at` (the source message's done_at, or the task's own when it has
@@ -1429,7 +1579,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     : db
         .from("tasks")
         .select(
-          `${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}`,
+          `${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${THREAD_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}${referenceEmbed}`,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null);
@@ -1446,6 +1596,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     overdue,
     priorities,
     tagId,
+    ...extra,
   });
   if (hasLocation) {
     // #106/#107: the map exposes the source contact's NAME + geocode — that's
@@ -1471,7 +1622,12 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     if (rawQ.length > 200) {
       throw new ApiError("validation_failed", "q: too long (max 200).");
     }
-    query = query.ilike("title", `%${escapeLike(rawQ)}%`);
+    // "T-142", "t142" and "#142" find the task with that number as well.
+    const asNumber = /^#?t?-?(\d{1,9})$/i.exec(rawQ);
+    query =
+      asNumber === null
+        ? query.ilike("title", `%${escapeLike(rawQ)}%`)
+        : query.or(`title.ilike.%${asNumber[1]}%,number.eq.${Number(asNumber[1])}`);
   }
 
   if (dueSorted) {
@@ -1482,6 +1638,11 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     // id) — NOT a bare `id > cursor.id`, which drops/misorders rows whose id is
     // unrelated to the due_at primary key (T6.1).
     if (dueCursor) query = query.or(dueKeysetFilter(dueCursor));
+  } else if (updatedSorted) {
+    query = query
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (createdCursor) query = query.or(keysetFilter("updated_at", createdCursor));
   } else if (prioritySorted) {
     query = query
       .order("priority_rank", { ascending: false })
@@ -1498,12 +1659,14 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   interface TaskListRow {
     id: string;
     created_at: string;
+    updated_at: string;
     priority: string;
     due_at: string | null;
     // Non-map path: `done` derives from the task_done_at computed column.
     done_state?: string | null;
     source_call?: SourceCallRow | null;
     linked_contact?: { id: string; name: string | null } | null;
+    thread?: { contact: { id: string; name: string | null; deleted_at?: string | null } | null } | null;
     // has_location (task_map_rows view) path: flat columns — `done` derives from
     // done_at and the source contact's geocode rides on contact_* .
     done_at?: string | null;
@@ -1526,6 +1689,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     delete rest.calendar_hold;
     delete rest.task_tags;
     delete rest.task_assignees;
+    delete rest.record_references;
     if (hasLocation) {
       // Map view (task_map_rows view): `done` + the source contact's geocode
       // arrive as FLAT columns. Derive done, fold the geocode into `contact`
@@ -1558,13 +1722,14 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     delete rest.done_state;
     delete rest.source_call;
     delete rest.linked_contact;
+    delete rest.thread;
     const done = (row.done_state ?? null) !== null;
     return withSource({
       ...rest,
       done,
       status: done ? "done" : "open",
       call: publicSourceCall(row.source_call),
-      contact: linkedContact(row.linked_contact),
+      contact: linkedContact(row.linked_contact) ?? linkedContact(row.thread?.contact),
     });
   });
 
@@ -1583,7 +1748,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
             ts: last.created_at,
             id: last.id,
           })
-        : encodeCursor({ ts: last.created_at, id: last.id });
+        : encodeCursor({ ts: updatedSorted ? last.updated_at : last.created_at, id: last.id });
   }
   const data = await withLabelsAndRepeat(db, companyId, shaped);
 
@@ -1678,6 +1843,12 @@ const taskBulkSchema = z
         overdue: z.boolean().optional(),
         priority: z.array(prioritySchema).min(1).optional(),
         tag_id: z.uuid().optional(),
+        // #690: the same names the list takes.
+        contact_id: z.uuid().optional(),
+        created_by: z.union([z.literal("me"), z.uuid()]).optional(),
+        source: z.enum(TASK_SOURCES).optional(),
+        has_attachments: z.boolean().optional(),
+        has_references: z.boolean().optional(),
       })
       .optional(),
     target_user_id: z.uuid().nullable().optional(),
@@ -1737,6 +1908,7 @@ tasksRoutes.post(
       // Filter mode. The SAME builder the list uses, so what gets acted on is
       // what was on screen.
       const filter = body.filter ?? {};
+      const extra = await resolveExtraTaskFilters(c, db, filter);
       const query = applyTaskFilters(
         excludeCalendarAttentionHolds(
           db
@@ -1744,7 +1916,7 @@ tasksRoutes.post(
             .select(
               `id,${CALENDAR_HOLD_EMBED}${filter.tag_id ? ",task_tags!inner(tag_id)" : ""}${
                 filter.assigned_user_id ? ",task_assignees!inner(user_id)" : ""
-              }`,
+              }${extra.referencedHidden === undefined ? "" : REFERENCE_EMBED}`,
             )
             .eq("company_id", companyId)
             .is("deleted_at", null),
@@ -1764,6 +1936,7 @@ tasksRoutes.post(
           overdue: filter.overdue === true,
           priorities: filter.priority,
           tagId: filter.tag_id,
+          ...extra,
         },
       );
       // One more than the RPC's cap, so `capped` can be honest: the RPC reports
@@ -2570,6 +2743,14 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
         taskId: id,
         actorUserId: userId,
         kind: "due_changed",
+      });
+    }
+    // #690: a rewritten description may add or drop a reference.
+    if (body.description !== undefined) {
+      await syncReferences(c, db, {
+        sourceKind: "task_description",
+        sourceId: id,
+        text: body.description,
       });
     }
   }
