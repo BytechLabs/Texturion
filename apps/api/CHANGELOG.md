@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.22.0](https://github.com/BytechLabs/Texturion/compare/api-v0.21.1...api-v0.22.0) (2026-11-10)
+
+
+### Features
+
+* **api:** a call from a blocked number is refused before the crew is rung ([293058f](https://github.com/BytechLabs/Texturion/commit/293058f8aea82bbb27144652466e4f4da546ac58))
+* **api:** a member can mute or follow one conversation ([272e5e5](https://github.com/BytechLabs/Texturion/commit/272e5e5bc88485ebf00f57c6bb49b49c72388675))
+* **tasks:** the API promotes an answered call and reads either done owner ([0b4ca86](https://github.com/BytechLabs/Texturion/commit/0b4ca86b2ba438b6a30316056cf5427cc839e63d))
+
+
+### Bug Fixes
+
+* **db:** a finished or reassigned job leaves the calendar ([229a88a](https://github.com/BytechLabs/Texturion/commit/229a88a25a2bf81adfb366bf048ceeb8c7325766))
+
 ## [0.21.1](https://github.com/BytechLabs/Texturion/compare/api-v0.21.0...api-v0.21.1) (2026-11-07)
 
 

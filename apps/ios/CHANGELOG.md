@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.18.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.17.2...ios-v0.18.0) (2026-11-10)
+
+
+### Features
+
+* **ios:** a crew can block a number from the thread and the contact ([e699233](https://github.com/BytechLabs/Texturion/commit/e69923373686c203b46f79d8d2033a70136bb244))
+* **ios:** an answered call can become a task ([3e6f432](https://github.com/BytechLabs/Texturion/commit/3e6f432a8e87d1e8bfa72fa28173af632c91b510))
+* **ios:** mute and follow a conversation from its sheet ([990ab5f](https://github.com/BytechLabs/Texturion/commit/990ab5ff6996335ed37e282a4a09a429d62ba085))
+
 ## [0.17.2](https://github.com/BytechLabs/Texturion/compare/ios-v0.17.1...ios-v0.17.2) (2026-11-07)
 
 
