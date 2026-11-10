@@ -149,8 +149,9 @@ begin
 
   -- Assignee, by the RPC.
   perform public.assign_task(v_c1, v_task, v_member, v_owner);
+  -- #689 C: each person put on a task is an assignee_added event.
   if not exists (select 1 from public.task_events
-                  where task_id = v_task and kind = 'assignee'
+                  where task_id = v_task and kind = 'assignee_added'
                     and from_value is null
                     and to_value = to_jsonb(v_member::text)
                     and actor_user_id = v_owner) then
@@ -159,7 +160,7 @@ begin
   -- Assigning the same person again is a no-op.
   perform public.assign_task(v_c1, v_task, v_member, v_owner);
   select count(*) into n from public.task_events
-   where task_id = v_task and kind = 'assignee';
+   where task_id = v_task and kind = 'assignee_added';
   if n is distinct from 1 then
     raise exception 'TH-1 FAILED: a repeated assignment wrote % events', n;
   end if;

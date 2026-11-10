@@ -71,6 +71,8 @@ declare
     'task_tags', 'task_series',
     -- #689 D: who follows a task, and the push collapse windows.
     'task_subscribers', 'task_notify_windows',
+    -- #689 C: which members are on a task. References only.
+    'task_assignees',
     'lead_sources',
     -- #224: text-to-pay.
     'payment_requests', 'stripe_connect_accounts',

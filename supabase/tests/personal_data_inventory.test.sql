@@ -56,6 +56,8 @@ declare
     'task_series', 'task_tags',
     -- #689 D: which member follows which task, and when a push last went out.
     'task_subscribers', 'task_notify_windows',
+    -- #689 C: which members are on a task. References only.
+    'task_assignees',
     'number_port_outs',
     -- #291: a customer's addresses, plural. Squarely contact data — it is
     -- where somebody lives, which is the most sensitive thing in the

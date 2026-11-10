@@ -200,6 +200,8 @@ const SUITES = [
   "for_you_unread",
   // #693: task priority, labels and repeating jobs.
   "task_priority_labels_repeats",
+  // #689 C: more than one person on a task.
+  "task_assignees",
 ];
 
 const args = process.argv.slice(2);
