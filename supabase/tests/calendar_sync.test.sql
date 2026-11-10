@@ -3434,6 +3434,11 @@ declare
   v      jsonb;
   v_n    integer := 0;
 begin
+  -- The claim is not scoped to a connection, and a pull claimed for an earlier
+  -- block's connection queues its horizon creates; drop them so only this
+  -- section's work is drained and counted.
+  delete from public.calendar_outbox
+   where state = 'queued' and connection_id is distinct from pg_temp.q_conn();
   loop
     select * into v_out from public.api_claim_calendar_outbox('q-worker', 1, 120);
     exit when v_out.id is null;
@@ -3620,6 +3625,9 @@ end $$;
 -- CS-18. Reopening a job that is still assigned, dated and in the window
 -- creates its event again on the same mapping; one that is not stays off.
 do $$
+declare
+  v_drained integer;
+  v_active  integer;
 begin
   perform public.set_message_done(
     pg_temp.q_company(), pg_temp.q_msg(1), false, pg_temp.q_user()
@@ -3637,12 +3645,14 @@ begin
     raise exception 'CS-18 FAILED: reopening queued % / % instead of create on the same mapping',
       pg_temp.q_queued(1), pg_temp.q_queued(2);
   end if;
-  if pg_temp.q_drain_creates() is distinct from 2
-     or (select count(*) from public.task_calendar_links
-          where connection_id = pg_temp.q_conn()
-            and task_id in (pg_temp.q_task(1), pg_temp.q_task(2))
-            and link_state = 'active') is distinct from 2 then
-    raise exception 'CS-18 FAILED: reopened jobs did not get their events back';
+  v_drained := pg_temp.q_drain_creates();
+  select count(*) into v_active from public.task_calendar_links
+   where connection_id = pg_temp.q_conn()
+     and task_id in (pg_temp.q_task(1), pg_temp.q_task(2))
+     and link_state = 'active';
+  if v_drained is distinct from 2 or v_active is distinct from 2 then
+    raise exception 'CS-18 FAILED: reopened jobs did not get their events back (% drained, % active)',
+      v_drained, v_active;
   end if;
 
   -- T7 is 20 days past due, inside the 90-day window: an open past-due job is
