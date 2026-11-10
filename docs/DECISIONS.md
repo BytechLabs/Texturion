@@ -10087,3 +10087,58 @@ erased for good (the message's purge, or its conversation's or call's).
 workspace closure (docs/DELETION.md) erases customer data in bulk. Search
 (`api_search_v2`) still lists tasks from a trashed conversation until the task
 work gates them.
+
+
+## D151 - every broadcast carries a gapless topic sequence, and a hole triggers the resync (#251)
+
+**Decision.** Hosted Realtime lost 14 to 16% of deliveries at 500 sockets and
+40 inbound messages a second, with every webhook `200` and no socket dropped
+(CAPACITY.md 2e). A client on a healthy socket never learns it missed one.
+Every database broadcast now carries `seq` in its payload, a per-topic counter
+with no gaps. Each client remembers the last `seq` it applied per topic. A hole
+still open after 2 seconds runs the resync the client already runs after a
+connection gap (web `refetchFirstPages`, Android `reconnected`, iOS
+`reconnected()`). The ceiling becomes a delayed refresh instead of a silent
+drop. Reaching the ceiling is still not fixed; the sequence only makes it
+visible and self-healing.
+
+**Where the number comes from.** `realtime_topic_seq (topic, company_id, seq)`.
+`realtime_send_sequenced` runs `insert ... on conflict do update set seq = seq + 1
+returning seq` and then `realtime.send`, in the caller's transaction. A rollback
+undoes the counter with the send, so the server never makes a hole itself.
+Topics covered: every `company:{id}:number:{n}` (all of `broadcast_number_scoped`:
+messages, conversations, tasks, calls, ports, read state, payments, number
+status) and `company:{id}` (`registration.updated`, `access.changed`,
+`read.notifications`, and `call.updated` for a call whose number was deleted).
+Presence topics are not database broadcasts and carry nothing. A new event type
+that goes through `broadcast_number_scoped` is covered with no client edit,
+because clients read `seq` from every event on a topic.
+
+**Lock cost.** The counter row is locked until the sending transaction commits,
+so transactions that broadcast on one topic queue behind each other. One inbound
+message sends about three broadcasts on its number's topic inside one
+transaction; at 40 messages a second the row is taken about 120 times a second,
+each hold lasting the rest of the transaction after the trigger. That is well
+under a limit unless the remaining work is tens of milliseconds, and the
+measured Worker CPU per webhook was 9 to 10 ms (CAPACITY.md 2e). It was reasoned
+rather than measured, because the SQL suite needs Docker. The update does not
+touch the primary key, so it is HOT, and the table has `fillfactor 50` to leave
+room. Two transactions that broadcast on two topics in opposite orders can
+deadlock and Postgres aborts one after a second; that needs two concurrent
+multi-number bulk writes, and a company has few numbers.
+
+**Why 2 seconds.** Realtime can reorder frames. The slowest emit-to-socket time
+recorded below the ceiling was 1.4 s (500 sockets, 20 messages a second), so a
+frame that is only late lands inside the window and costs nothing. Longer would
+leave a real loss on screen for longer, and every resync is a refetch of every
+open list. A duplicate or older `seq` is ignored, never applied twice.
+
+**Resets.** A rejoin, a rebuild or a reconnect clears the topic's baseline: the
+first event after it only sets it. The connection-gap resync already covers
+what a rejoin missed. After a resync for a hole, the baseline moves to the
+newest `seq` seen, since the resync read everything.
+
+**Not covered.** An event with no `seq` (an older server) is ignored by the
+tracker. A loss at the very end of a burst, with nothing after it, shows no hole
+until the next event on the topic; the focus and connection resyncs still cover
+that.
