@@ -150,6 +150,15 @@ const FILTERS: Record<
     has_location: isBool,
     due_before: isIso,
     due_after: isIso,
+    // #693: a comma list of priorities, one tag, and the sort.
+    priority: (v) =>
+      typeof v === "string" &&
+      v.length > 0 &&
+      v
+        .split(",")
+        .every((p) => ["none", "low", "normal", "high", "urgent"].includes(p)),
+    tag_id: isUuid,
+    sort: oneOf("created", "due", "priority"),
   },
 };
 
