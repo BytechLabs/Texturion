@@ -14,6 +14,7 @@ import {
 } from "@/components/blocked/block-number";
 import { CallButton } from "@/components/calls/call-button";
 import { NewTaskButton } from "@/components/tasks/new-task";
+import { LinkedTasks } from "@/components/tasks/linked-tasks";
 import { ContactLanguage } from "@/components/contact-panel/contact-language";
 import { AddressList } from "@/components/contacts/address-list";
 import { PhoneList } from "@/components/contacts/phone-list";
@@ -578,6 +579,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           nothing assembling them. The call history below stays: it is the
           #205 detail view (voicemail playable in place), and this is the
           overview above it. */}
+      <LinkedTasks kind="contact" id={contact.id} />
       <ContactTimeline contactId={contact.id} />
 
       {/* #205: every call with this customer, in the /calls row grammar —

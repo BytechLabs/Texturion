@@ -59,6 +59,7 @@ import { cn } from "@/lib/utils";
 import { ContactLanguage } from "./contact-language";
 import { AutoSaveNotes, InlineTextField } from "./inline-field";
 import { TasksChecklist } from "./tasks-checklist";
+import { LinkedTasks } from "@/components/tasks/linked-tasks";
 
 function onApiError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback);
@@ -410,6 +411,7 @@ export function ContactPanel({
             `active` gates the fetch to when the panel is open. */}
         <PanelSection label={t("contacts.tasksGroup")}>
           <TasksChecklist conversationId={conversation.id} active={active} />
+          <LinkedTasks kind="conversation" id={conversation.id} active={active} />
         </PanelSection>
 
         {/* §1.5 / §5.2: the attachments clump — a titled card of recent thumbs

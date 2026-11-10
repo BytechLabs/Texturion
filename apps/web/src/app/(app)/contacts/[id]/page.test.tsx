@@ -133,6 +133,10 @@ vi.mock("@/lib/api/contact-timeline", () => ({
     refetch: vi.fn(),
   }),
 }));
+// #690: the linked-tasks list is its own query; this harness mounts no client.
+vi.mock("@/lib/api/task-links", () => ({
+  useLinkedTasks: () => ({ data: undefined }),
+}));
 vi.mock("@/lib/api/calls", () => ({
   useContactCalls: () => ({
     data: undefined,

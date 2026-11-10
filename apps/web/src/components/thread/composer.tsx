@@ -126,6 +126,8 @@ import { useCompanyId } from "@/lib/company/provider";
 import { formatBytes } from "./gallery-grouping";
 import { segmentMeter, segmentTooltip } from "./segment-meter";
 import { MentionPicker } from "./mention-picker";
+import { ReferencePicker } from "@/components/tasks/reference-picker";
+import { useReferenceTrigger } from "@/components/tasks/use-reference-trigger";
 import {
   insertMention,
   isMentionTrigger,
@@ -692,6 +694,9 @@ export function Composer({
   // flush lives with the persistence module; the reasoning is there.
   const draftRef = useRef({ conversationId, text, picked });
   draftRef.current = { conversationId, text, picked };
+  // #690: `#` in a NOTE offers tasks, customers and conversations. The picker
+  // below is rendered for notes only; a text to a customer never gets one.
+  const noteRefs = useReferenceTrigger(() => draftRef.current.text, setText);
   useEffect(
     () =>
       flushDraftOnExit(() => ({
@@ -1661,6 +1666,9 @@ export function Composer({
             if (isNote && isMentionTrigger(next, event.target.selectionStart ?? next.length)) {
               setMentionOpen(true);
             }
+            if (isNote) {
+              noteRefs.onTyped(next, event.target.selectionStart ?? next.length);
+            }
             // Drafts were written for what was typed a moment ago; once that
             // changes they are stale, so they go rather than sit there
             // offering to overwrite newer words.
@@ -1776,6 +1784,18 @@ export function Composer({
             className="pointer-events-none mx-auto block h-0 max-w-[42rem]"
           />
         </MentionPicker>
+      )}
+      {isNote && (
+        <ReferencePicker
+          open={noteRefs.open}
+          onOpenChange={noteRefs.setOpen}
+          onPick={noteRefs.onPick}
+        >
+          <span
+            aria-hidden
+            className="pointer-events-none mx-auto block h-0 max-w-[42rem]"
+          />
+        </ReferencePicker>
       )}
       {/* #408: two techs answering the same customer thirty seconds apart is
           the exact confusion a shared inbox exists to eliminate, and the

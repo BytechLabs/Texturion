@@ -1057,6 +1057,8 @@ export interface TaskAssignee {
 export interface Task {
   id: string;
   company_id: string;
+  /** #690: the per-workspace task number, shown as T-142. Absent on an older cached row. */
+  number?: number;
   /**
    * The promoted message; completion derives from ITS done_at. Null for a task
    * promoted from a call (D64), which owns its own done state.
@@ -1254,7 +1256,38 @@ export type TaskHistoryKind =
   | "priority"
   | "label_added"
   | "label_removed"
-  | "repeat";
+  | "repeat"
+  | "link_added"
+  | "link_removed";
+
+/** #690: what the other task is to this one. */
+export type TaskRelation = "blocked_by" | "blocks" | "parent" | "sub_task";
+
+/** #690: one row of GET /v1/tasks/:id/links. */
+export interface TaskLink {
+  relation: TaskRelation;
+  task_id: string;
+  number: number;
+  title: string;
+  done: boolean;
+}
+
+/** #690: one task of GET /v1/conversations/:id/linked-tasks and /v1/contacts/:id/linked-tasks. */
+export interface LinkedTask {
+  id: string;
+  number: number;
+  title: string;
+  done: boolean;
+  due_at: string | null;
+  how: ("anchored" | "mentioned" | "points_at")[];
+}
+
+/** #690: GET /v1/references/resolve. Anything unknown or hidden is absent. */
+export interface ResolvedReferences {
+  tasks: { number: number; id: string; title: string; done: boolean }[];
+  contacts: { prefix: string; id: string; name: string | null }[];
+  conversations: { prefix: string; id: string; contact_name: string | null }[];
+}
 
 /**
  * One entry of GET /v1/tasks/:id/activity (#689 E), oldest first within a page:
@@ -1286,6 +1319,22 @@ export type TaskFeedItem =
       kind: "note";
       id: string;
       body: string;
+      author: TaskFeedPerson | null;
+      created_at: string;
+    }
+  | {
+      /**
+       * #690: somewhere points at this task (direction "in"), or this task's
+       * own text points at something (direction "out").
+       */
+      kind: "reference";
+      id: string;
+      direction: "in" | "out";
+      source_kind: "note" | "task_description" | "task_comment";
+      target_kind: "task" | "contact" | "conversation" | null;
+      conversation_id: string | null;
+      contact: { id: string; name: string | null } | null;
+      task: { id: string; number: number; title: string | null } | null;
       author: TaskFeedPerson | null;
       created_at: string;
     };

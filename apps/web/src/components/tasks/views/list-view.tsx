@@ -28,7 +28,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
-import { TaskDoneCheckbox, TaskStatusPill } from "../task-atoms";
+import { TaskDoneCheckbox, TaskNumber, TaskStatusPill } from "../task-atoms";
 import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
 import { EmptyTasks } from "../task-empty";
 import { InlineAssignee, InlineDue } from "../task-inline-edit";
@@ -249,16 +249,19 @@ function TaskRow({
           />
           <TaskDoneCheckbox task={task} className="mt-0.5 md:mt-0" />
           <div className="min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={() => openTask(task.id)}
-              className={cn(
-                "block max-w-full truncate text-left text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:underline",
-                task.done && "text-muted-foreground line-through opacity-70",
-              )}
-            >
-              {task.title}
-            </button>
+            <div className="flex min-w-0 items-baseline gap-2">
+              <TaskNumber task={task} />
+              <button
+                type="button"
+                onClick={() => openTask(task.id)}
+                className={cn(
+                  "block min-w-0 max-w-full truncate text-left text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:underline",
+                  task.done && "text-muted-foreground line-through opacity-70",
+                )}
+              >
+                {task.title}
+              </button>
+            </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 empty:hidden">
               <PriorityMark priority={task.priority} />
               <RepeatMark repeat={task.repeat} />

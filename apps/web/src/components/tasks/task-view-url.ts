@@ -122,9 +122,32 @@ export interface TaskPageState {
   tag?: string;
   /** #693: list order; absent is newest first. */
   sort?: TaskSort;
+  /** #690: one customer's tasks (their id). */
+  contact?: string;
+  /** #690: made by this member (`me` or a user id). */
+  createdBy?: string;
+  /** #690: where the task came from. */
+  source?: TaskSource;
+  /** #690: only tasks carrying a file. */
+  files?: boolean;
+  /** #690: only tasks referenced from a note, a task or a comment. */
+  refs?: boolean;
+  /** #690: a due range, as local calendar dates (YYYY-MM-DD), either end open. */
+  dueFrom?: string;
+  dueTo?: string;
+  /** #689 G: how the board groups its columns; absent is by status. */
+  group?: TaskGroup;
 }
 
-export type TaskSort = "created" | "due" | "priority";
+export type TaskSort = "created" | "due" | "priority" | "updated";
+export type TaskSource = "text" | "call" | "none";
+export type TaskGroup = "status" | "assignee" | "priority";
+
+const SOURCE_VALUES = new Set<TaskSource>(["text", "call", "none"]);
+const GROUP_VALUES = new Set<TaskGroup>(["status", "assignee", "priority"]);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PRIORITY_VALUES: readonly TaskPriority[] = [
   "urgent",
@@ -134,7 +157,7 @@ const PRIORITY_VALUES: readonly TaskPriority[] = [
   "none",
 ];
 
-const SORT_VALUES = new Set<TaskSort>(["created", "due", "priority"]);
+const SORT_VALUES = new Set<TaskSort>(["created", "due", "priority", "updated"]);
 
 /** `high,urgent` -> the known priorities, most pressing first, no repeats. */
 export function parsePriorities(raw: string | null): TaskPriority[] {
@@ -168,6 +191,24 @@ export function parseTaskSearchParams(
   if (sort !== null && SORT_VALUES.has(sort as TaskSort) && sort !== "created") {
     state.sort = sort as TaskSort;
   }
+  const contact = params.get("contact");
+  if (contact && UUID_RE.test(contact)) state.contact = contact;
+  const by = params.get("by");
+  if (by && (by === "me" || UUID_RE.test(by))) state.createdBy = by;
+  const source = params.get("source");
+  if (source !== null && SOURCE_VALUES.has(source as TaskSource)) {
+    state.source = source as TaskSource;
+  }
+  if (params.get("files") === "1") state.files = true;
+  if (params.get("refs") === "1") state.refs = true;
+  const from = params.get("from");
+  if (from && DATE_RE.test(from)) state.dueFrom = from;
+  const to = params.get("to");
+  if (to && DATE_RE.test(to)) state.dueTo = to;
+  const group = params.get("group");
+  if (group !== null && GROUP_VALUES.has(group as TaskGroup) && group !== "status") {
+    state.group = group as TaskGroup;
+  }
   return state;
 }
 
@@ -187,6 +228,14 @@ export function serializeTaskState(state: TaskPageState): string {
   }
   if (state.tag) params.set("tag", state.tag);
   if (state.sort && state.sort !== "created") params.set("sort", state.sort);
+  if (state.contact) params.set("contact", state.contact);
+  if (state.createdBy) params.set("by", state.createdBy);
+  if (state.source) params.set("source", state.source);
+  if (state.files) params.set("files", "1");
+  if (state.refs) params.set("refs", "1");
+  if (state.dueFrom) params.set("from", state.dueFrom);
+  if (state.dueTo) params.set("to", state.dueTo);
+  if (state.group && state.group !== "status") params.set("group", state.group);
   const s = params.toString();
   return s === "" ? "" : `?${s}`;
 }
@@ -210,6 +259,26 @@ function dueRange(due: DueFilter, now: Date): Pick<
     end.setDate(end.getDate() + 7);
   }
   return { due_after: start.toISOString(), due_before: end.toISOString() };
+}
+
+/** A due range from two local calendar dates: from the start of the first to the end of the last. */
+function dueBetween(
+  from: string | undefined,
+  to: string | undefined,
+): Pick<TaskListFilters, "due_before" | "due_after"> {
+  const out: Pick<TaskListFilters, "due_before" | "due_after"> = {};
+  if (from) out.due_after = localDayStart(from).toISOString();
+  if (to) {
+    const end = localDayStart(to);
+    end.setDate(end.getDate() + 1);
+    out.due_before = end.toISOString();
+  }
+  return out;
+}
+
+function localDayStart(date: string): Date {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
 }
 
 /**
@@ -250,12 +319,20 @@ export function toTaskFilters(
   }
 
   if (state.due) Object.assign(filters, dueRange(state.due, now));
+  else if (state.dueFrom || state.dueTo) {
+    Object.assign(filters, dueBetween(state.dueFrom, state.dueTo));
+  }
   if (state.q && state.q.trim() !== "") filters.q = state.q.trim();
   if (state.priority && state.priority.length > 0) {
     filters.priority = state.priority;
   }
   if (state.tag) filters.tag_id = state.tag;
   if (state.sort && state.sort !== "created") filters.sort = state.sort;
+  if (state.contact) filters.contact_id = state.contact;
+  if (state.createdBy) filters.created_by = state.createdBy;
+  if (state.source) filters.source = state.source;
+  if (state.files) filters.has_attachments = true;
+  if (state.refs) filters.has_references = true;
 
   return filters;
 }
@@ -268,6 +345,13 @@ export function hasActiveChips(state: TaskPageState): boolean {
       state.due ||
       state.q ||
       (state.priority && state.priority.length > 0) ||
-      state.tag,
+      state.tag ||
+      state.contact ||
+      state.createdBy ||
+      state.source ||
+      state.files ||
+      state.refs ||
+      state.dueFrom ||
+      state.dueTo,
   );
 }

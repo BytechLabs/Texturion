@@ -147,3 +147,37 @@ describe("taskHistorySentence", () => {
     );
   });
 });
+
+describe("taskHistorySentence links (#690)", () => {
+  const link = (relation: string) => ({ relation, task_id: "t9", number: 4, title: "Order the part" });
+
+  it("says each relation in both directions", () => {
+    const added: [string, string][] = [
+      ["blocked_by", "Rehman marked this as blocked by T-4 Order the part"],
+      ["blocks", "Rehman marked this as blocking T-4 Order the part"],
+      ["parent", "Rehman made this part of T-4 Order the part"],
+      ["sub_task", "Rehman added T-4 Order the part as a sub-task"],
+    ];
+    for (const [relation, sentence] of added) {
+      expect(taskHistorySentence(event({ event: "link_added", to: link(relation) }), "Rehman", t)).toBe(sentence);
+    }
+    const removed: [string, string][] = [
+      ["blocked_by", "Rehman removed the block by T-4 Order the part"],
+      ["blocks", "Rehman stopped this blocking T-4 Order the part"],
+      ["parent", "Rehman took this out of T-4 Order the part"],
+      ["sub_task", "Rehman removed sub-task T-4 Order the part"],
+    ];
+    for (const [relation, sentence] of removed) {
+      expect(taskHistorySentence(event({ event: "link_removed", from: link(relation) }), "Rehman", t)).toBe(sentence);
+    }
+  });
+
+  it("falls back to a plain line for a link it cannot read", () => {
+    expect(taskHistorySentence(event({ event: "link_added", to: { relation: "friend" } }), "Rehman", t)).toBe(
+      "Rehman updated this task",
+    );
+    expect(taskHistorySentence(event({ event: "link_added", to: null }), "Rehman", t)).toBe(
+      "Rehman updated this task",
+    );
+  });
+});

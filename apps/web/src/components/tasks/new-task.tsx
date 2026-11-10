@@ -2,8 +2,10 @@
 
 import { ChevronDown, Plus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
+import { parseQuickAdd } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +20,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
+import { useTags } from "@/lib/api/tags";
+import { useMembers } from "@/lib/api/team";
 import {
   useAddTaskLabel,
   useCreateTaskFromMessage,
@@ -28,6 +32,7 @@ import { useCompanyId } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
 import { AssigneeField } from "./assignee-field";
+import { QuickAddPreview } from "./quick-add-preview";
 import { NO_CONVERSATION } from "./task-format";
 import { draftProblem, draftToRequest, type RepeatDraft } from "./task-planning";
 import {
@@ -143,6 +148,23 @@ function NewTaskForm({
   );
 
   const [title, setTitle] = useState("");
+  // #689 A: the title line doubles as the quick-add line. What it understood is
+  // shown under the field and applied when the task is created, never before.
+  const members = useMembers();
+  const tags = useTags();
+  const parsed = useMemo(
+    () =>
+      parseQuickAdd(title, {
+        now: new Date(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        selfUserId: me.data?.user_id ?? "",
+        members: (members.data?.data ?? [])
+          .filter((m) => m.deactivated_at === null && m.user_id !== null)
+          .map((m) => ({ userId: m.user_id as string, name: m.display_name })),
+        labels: (tags.data?.data ?? []).map((tag) => ({ id: tag.id, name: tag.name })),
+      }),
+    [title, me.data?.user_id, members.data, tags.data],
+  );
   const [moreOpen, setMoreOpen] = useState(false);
   const [crewOverride, setCrewOverride] = useState<string[] | null>(null);
   const crew = crewOverride ?? (me.data ? [me.data.user_id] : []);
@@ -167,13 +189,20 @@ function NewTaskForm({
         : null;
 
   const submit = async () => {
-    const trimmed = title.trim();
+    const trimmed = parsed.title.trim();
     if (trimmed === "") {
       toast.error(t("tasks.newTaskTitleRequired"));
       return;
     }
+    // What the line set wins over the form's defaults and over More.
+    const finalCrew = parsed.assignee ? [parsed.assignee.userId] : crew;
+    const finalDue = parsed.dueAt ?? (due === "" ? null : new Date(due).toISOString());
+    const finalPriority = parsed.priority ?? priority;
+    const finalLabelIds = [
+      ...new Set([...pickedTags.map((tag) => tag.id), ...parsed.labels.map((l) => l.id)]),
+    ];
     if (repeat) {
-      const problem = draftProblem(repeat, due === "" ? null : due);
+      const problem = draftProblem(repeat, finalDue);
       if (problem) {
         toast.error(t(problem));
         return;
@@ -195,8 +224,8 @@ function NewTaskForm({
       const created = await create.mutateAsync({
         title: trimmed,
         // Until `me` loads, leave it out so the API assigns the creator.
-        ...(crewOverride === null && !me.data ? {} : { assignee_ids: crew }),
-        ...(due === "" ? {} : { due_at: new Date(due).toISOString() }),
+        ...(crewOverride === null && !me.data && !parsed.assignee ? {} : { assignee_ids: finalCrew }),
+        ...(finalDue === null ? {} : { due_at: finalDue }),
         ...(notes.trim() === "" ? {} : { description: notes.trim() }),
         ...(address ? { address } : {}),
         // The conversation fixes the contact, so send one link, not both.
@@ -205,11 +234,9 @@ function NewTaskForm({
           : context.contactId !== undefined
             ? { contact_id: context.contactId }
             : {}),
-        ...(priority === "normal" ? {} : { priority }),
-        ...(pickedTags.length > 0
-          ? { label_ids: pickedTags.map((tag) => tag.id) }
-          : {}),
-        ...(repeat ? { repeat: draftToRequest(repeat, due === "" ? null : due) } : {}),
+        ...(finalPriority === "normal" ? {} : { priority: finalPriority }),
+        ...(finalLabelIds.length > 0 ? { label_ids: finalLabelIds } : {}),
+        ...(repeat ? { repeat: draftToRequest(repeat, finalDue) } : {}),
       });
       // The task exists now; a label that fails to attach must not undo it.
       let labelFailed = false;
@@ -252,6 +279,10 @@ function NewTaskForm({
           placeholder={t("tasks.newTaskTitlePlaceholder")}
         />
         {link && <p className="text-[12px] text-muted-foreground">{link}</p>}
+        <QuickAddPreview parsed={parsed} />
+        {title.trim() === "" && (
+          <p className="text-[12px] text-muted-foreground">{t("tasks.quickAddHint")}</p>
+        )}
       </div>
 
       <div className="flex flex-col gap-3">

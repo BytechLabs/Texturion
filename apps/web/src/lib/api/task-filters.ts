@@ -46,5 +46,15 @@ export interface TaskListFilters {
   /** #693: tasks carrying this workspace tag. */
   tag_id?: string;
   /** #693: list order. Absent is newest first. */
-  sort?: "created" | "due" | "priority";
+  sort?: "created" | "due" | "priority" | "updated";
+  /** #690: tasks for this customer, directly or through their conversations. */
+  contact_id?: string;
+  /** #690: made by this member (`me` or a user id). */
+  created_by?: string;
+  /** #690: promoted from a text, from a call, or from neither. */
+  source?: "text" | "call" | "none";
+  /** #690: carries a file. */
+  has_attachments?: boolean;
+  /** #690: referenced from a note, a task or a comment. */
+  has_references?: boolean;
 }

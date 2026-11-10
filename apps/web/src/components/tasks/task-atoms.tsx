@@ -1,5 +1,6 @@
 "use client";
 
+import { taskNumberLabel } from "@loonext/shared";
 import { Check } from "lucide-react";
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
@@ -57,6 +58,22 @@ export function TaskDoneCheckbox({
     >
       <Check className="size-3" strokeWidth={2.5} aria-hidden />
     </button>
+  );
+}
+
+/** #690: the workspace's short number for a task, "T-142". Nothing for a row from before numbers. */
+export function TaskNumber({
+  task,
+  className,
+}: {
+  task: Pick<Task, "number">;
+  className?: string;
+}) {
+  if (task.number === undefined) return null;
+  return (
+    <span className={cn("shrink-0 tabular-nums text-xs text-muted-foreground", className)}>
+      {taskNumberLabel(task.number)}
+    </span>
   );
 }
 

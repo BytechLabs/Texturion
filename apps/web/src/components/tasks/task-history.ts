@@ -1,6 +1,8 @@
 import { format } from "date-fns";
 
-import type { Translate } from "@/i18n/provider";
+import { taskNumberLabel } from "@loonext/shared";
+
+import type { MessageKey, Translate } from "@/i18n/provider";
 import type { TaskFeedItem } from "@/lib/api/types";
 
 import { priorityLabelKey, repeatSummary } from "./task-planning";
@@ -142,7 +144,38 @@ export function taskHistorySentence(
         ? t("tasks.histRepeat", { by, rule: repeatSummary(rule, t) })
         : t("tasks.histRepeatCleared", { by });
     }
+    case "link_added":
+    case "link_removed": {
+      const link = linkOf(item.event === "link_added" ? item.to : item.from);
+      if (!link) return t("tasks.histUpdated", { by });
+      const task = `${taskNumberLabel(link.number)} ${link.title}`.trim();
+      const key = `tasks.hist${item.event === "link_added" ? "Add" : "Remove"}${LINK_KEYS[link.relation]}`;
+      return t(key as MessageKey, { by, task });
+    }
     default:
       return t("tasks.histUpdated", { by });
   }
+}
+
+const LINK_KEYS = {
+  blocked_by: "BlockedBy",
+  blocks: "Blocks",
+  parent: "Parent",
+  sub_task: "SubTask",
+} as const;
+
+/** The task and relation a link event carries. */
+function linkOf(
+  value: unknown,
+): { relation: keyof typeof LINK_KEYS; number: number; title: string } | null {
+  if (value === null || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  const relation = v.relation;
+  if (typeof relation !== "string" || !(relation in LINK_KEYS)) return null;
+  if (typeof v.number !== "number") return null;
+  return {
+    relation: relation as keyof typeof LINK_KEYS,
+    number: v.number,
+    title: typeof v.title === "string" ? v.title : "",
+  };
 }

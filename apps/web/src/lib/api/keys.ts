@@ -163,6 +163,15 @@ export const keys = {
     /** Under the detail key, so refreshing a task refreshes its activity too. */
     activity: (companyId: string, taskId: string) =>
       [companyId, "tasks", "detail", taskId, "activity"] as const,
+    /** #690: a task's blocked-by, blocks, parent and sub-task links. */
+    links: (companyId: string, taskId: string) =>
+      [companyId, "tasks", "links", taskId] as const,
+    /** #690: the tasks a conversation or a contact links to. */
+    linked: (companyId: string, kind: "conversation" | "contact", id: string) =>
+      [companyId, "tasks", "linked", kind, id] as const,
+    /** #690: what the `#T-142` chips in a piece of text say right now. */
+    references: (companyId: string, wanted: string) =>
+      [companyId, "tasks", "references", wanted] as const,
     /** The conversation checklist (T5.2) — one thread's live tasks. */
     checklist: (companyId: string, conversationId: string) =>
       [companyId, "tasks", "checklist", conversationId] as const,

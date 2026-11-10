@@ -34,6 +34,11 @@ import {
 } from "@/lib/attachments/validate";
 
 import { taskHistorySentence } from "./task-history";
+import { taskNumberLabel } from "@loonext/shared";
+import Link from "next/link";
+import { ReferencePicker } from "./reference-picker";
+import { ReferenceText } from "./reference-text";
+import { useReferenceTrigger } from "./use-reference-trigger";
 
 type CommentItem = Extract<TaskFeedItem, { kind: "comment" }>;
 
@@ -97,6 +102,8 @@ export function TaskFeed({
                 canEdit={item.author?.user_id === userId}
                 canDelete={canModerate || item.author?.user_id === userId}
               />
+            ) : item.kind === "reference" ? (
+              <ReferenceLine item={item} />
             ) : (
               <Note item={item} />
             )}
@@ -121,6 +128,63 @@ function HistoryLine({ item }: { item: Extract<TaskFeedItem, { kind: "event" }> 
   );
 }
 
+/**
+ * #690: where this task is referenced from, or what its own text points at.
+ * A back-reference whose conversation is on a number this member may not see
+ * never arrives, so there is nothing here to hide.
+ */
+function ReferenceLine({
+  item,
+}: {
+  item: Extract<TaskFeedItem, { kind: "reference" }>;
+}) {
+  const t = useT();
+  const by = item.author?.display_name ?? (item.author ? t("tasks.aTeammate") : "Loonext");
+  const customer = item.contact?.name ?? t("tasks.aCustomer");
+  const task = item.task
+    ? `${taskNumberLabel(item.task.number)} ${item.task.title ?? ""}`.trim()
+    : "";
+  let sentence: string;
+  let href: string | null = null;
+  if (item.direction === "in") {
+    if (item.source_kind === "note") {
+      sentence = t("tasks.refInNote", { by, customer });
+      href = item.conversation_id ? `/inbox/${item.conversation_id}` : null;
+    } else if (item.task) {
+      sentence = t("tasks.refInTask", { by, task });
+      href = `/tasks?task=${item.task.id}`;
+    } else {
+      sentence = t("tasks.refInComment", { by });
+    }
+  } else if (item.target_kind === "contact") {
+    sentence = t("tasks.refOutContact", { customer });
+    href = item.contact ? `/contacts/${item.contact.id}` : null;
+  } else if (item.target_kind === "conversation") {
+    sentence = t("tasks.refOutConversation", { customer });
+    href = item.conversation_id ? `/inbox/${item.conversation_id}` : null;
+  } else {
+    sentence = t("tasks.refOutTask", { task });
+    href = item.task ? `/tasks?task=${item.task.id}` : null;
+  }
+  const body = (
+    <>
+      {sentence}
+      <span className="ml-1 tabular-nums text-app-muted-2/80">· {stamp(item.created_at)}</span>
+    </>
+  );
+  return (
+    <p className="text-[12px] leading-relaxed text-app-muted-2">
+      {href ? (
+        <Link href={href} className="hover:text-app-ink hover:underline">
+          {body}
+        </Link>
+      ) : (
+        body
+      )}
+    </p>
+  );
+}
+
 function Note({ item }: { item: Extract<TaskFeedItem, { kind: "note" }> }) {
   const t = useT();
   const name = item.author?.display_name ?? t("tasks.aTeammate");
@@ -134,8 +198,8 @@ function Note({ item }: { item: Extract<TaskFeedItem, { kind: "note" }> }) {
             {stamp(item.created_at)}
           </span>
         </div>
-        <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] text-app-amber-ink">
-          {item.body}
+        <p className="mt-0.5 text-[13px] text-app-amber-ink">
+          <ReferenceText text={item.body} />
         </p>
       </div>
     </div>
@@ -258,8 +322,8 @@ function Comment({
             </div>
           </div>
         ) : (
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] text-app-ink">
-            {item.body}
+          <p className="mt-0.5 text-[13px] text-app-ink">
+            <ReferenceText text={item.body} />
           </p>
         )}
         {item.attachments.length > 0 && (
@@ -288,6 +352,7 @@ export function TaskCommentComposer({ taskId }: { taskId: string }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const drop = useFileDrop((files) => stage.admit(files));
+  const refs = useReferenceTrigger(() => body, setBody);
 
   const submit = async () => {
     if (add.isPending) return;
@@ -358,10 +423,16 @@ export function TaskCommentComposer({ taskId }: { taskId: string }) {
             e.target.value = "";
           }}
         />
+        <ReferencePicker open={refs.open} onOpenChange={refs.setOpen} onPick={refs.onPick}>
+          <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 block h-0" />
+        </ReferencePicker>
         <Textarea
           ref={ref}
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={(e) => {
+            setBody(e.target.value);
+            refs.onTyped(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.repeat) {
               e.preventDefault();

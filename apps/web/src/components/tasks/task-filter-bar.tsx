@@ -18,6 +18,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useT, type MessageKey } from "@/i18n/provider";
+import { flattenPages } from "@/lib/api/pagination";
+import { useContact, useContacts } from "@/lib/api/contacts";
 import { useTags } from "@/lib/api/tags";
 import { useMembers } from "@/lib/api/team";
 import type { TaskPriority } from "@/lib/api/types";
@@ -30,9 +32,13 @@ import {
   TASK_TABS,
   tabsForView,
   type DueFilter,
+  type TaskGroup,
   type TaskPageState,
   type TaskSort,
+  type TaskSource,
 } from "./task-view-url";
+
+import { TaskViewsMenu } from "./task-views-menu";
 
 /**
  * The /tasks page filter bar (T6.1 / D25) — one-glance, NO fly-out drawer,
@@ -277,6 +283,89 @@ function ChipRow({
           }}
         />
       )}
+      {state.contact && (
+        <ContactChip
+          contactId={state.contact}
+          onRemove={() => {
+            const next = { ...state };
+            delete next.contact;
+            onChange(next);
+          }}
+        />
+      )}
+      {state.createdBy && (
+        <Chip
+          label={t("tasks.chipCreatedBy", {
+            name:
+              state.createdBy === "me"
+                ? t("tasks.createdByMe")
+                : (members.data?.data.find((m) => m.user_id === state.createdBy)
+                    ?.display_name ?? t("tasks.teammate")),
+          })}
+          onRemove={() => {
+            const next = { ...state };
+            delete next.createdBy;
+            onChange(next);
+          }}
+        />
+      )}
+      {state.source && (
+        <Chip
+          label={t("tasks.chipSource", { source: t(SOURCE_LABEL_KEYS[state.source]) })}
+          onRemove={() => {
+            const next = { ...state };
+            delete next.source;
+            onChange(next);
+          }}
+        />
+      )}
+      {state.files && (
+        <Chip
+          label={t("tasks.hasFiles")}
+          onRemove={() => {
+            const next = { ...state };
+            delete next.files;
+            onChange(next);
+          }}
+        />
+      )}
+      {state.refs && (
+        <Chip
+          label={t("tasks.hasLinks")}
+          onRemove={() => {
+            const next = { ...state };
+            delete next.refs;
+            onChange(next);
+          }}
+        />
+      )}
+      {(state.dueFrom || state.dueTo) && (
+        <Chip
+          label={
+            state.dueFrom && state.dueTo
+              ? t("tasks.chipDueRange", { from: state.dueFrom, to: state.dueTo })
+              : state.dueFrom
+                ? t("tasks.chipDueFrom", { date: state.dueFrom })
+                : t("tasks.chipDueUntil", { date: state.dueTo ?? "" })
+          }
+          onRemove={() => {
+            const next = { ...state };
+            delete next.dueFrom;
+            delete next.dueTo;
+            onChange(next);
+          }}
+        />
+      )}
+      {state.group && state.group !== "status" && (
+        <Chip
+          label={t("tasks.chipGroupedBy", { group: t(GROUP_LABEL_KEYS[state.group]) })}
+          onRemove={() => {
+            const next = { ...state };
+            delete next.group;
+            onChange(next);
+          }}
+        />
+      )}
       {state.sort && state.sort !== "created" && (
         <Chip
           label={t("tasks.sortedBy", { sort: t(SORT_LABEL_KEYS[state.sort]) })}
@@ -288,6 +377,7 @@ function ChipRow({
         />
       )}
       <FilterPopover state={state} onChange={onChange} />
+      <TaskViewsMenu state={state} onChange={onChange} />
     </div>
   );
 }
@@ -296,7 +386,71 @@ const SORT_LABEL_KEYS: Record<TaskSort, MessageKey> = {
   created: "tasks.sortCreated",
   due: "tasks.sortDue",
   priority: "tasks.sortPriority",
+  updated: "tasks.sortUpdated",
 };
+
+const SOURCE_LABEL_KEYS: Record<TaskSource, MessageKey> = {
+  text: "tasks.sourceText",
+  call: "tasks.sourceCall",
+  none: "tasks.sourceNone",
+};
+
+const GROUP_LABEL_KEYS: Record<TaskGroup, MessageKey> = {
+  status: "tasks.groupStatus",
+  assignee: "tasks.groupAssignee",
+  priority: "tasks.groupPriority",
+};
+
+/** Customers matching what was typed. Mounted only once there is something to match. */
+function CustomerGroup({
+  search,
+  selected,
+  onPick,
+}: {
+  search: string;
+  selected: string | undefined;
+  onPick: (id: string) => void;
+}) {
+  const t = useT();
+  const contacts = useContacts(search);
+  const found = flattenPages(contacts.data).slice(0, 6);
+  if (found.length === 0) return null;
+  return (
+    <CommandGroup heading={t("tasks.customer")}>
+      {found.map((contact) => (
+        <CommandItem
+          key={contact.id}
+          value={`contact-${contact.id}`}
+          keywords={[search]}
+          onSelect={() => onPick(contact.id)}
+        >
+          <span className="truncate">{contact.name ?? contact.phone_e164}</span>
+          {selected === contact.id && (
+            <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+          )}
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  );
+}
+
+/** The customer filter, named: the contact's name once it loads. */
+function ContactChip({
+  contactId,
+  onRemove,
+}: {
+  contactId: string;
+  onRemove: () => void;
+}) {
+  const t = useT();
+  const contact = useContact(contactId);
+  return (
+    <Chip
+      label={contact.data?.name ?? contact.data?.phone_e164 ?? t("tasks.customer")}
+      onRemove={onRemove}
+    />
+  );
+}
 
 function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   const t = useT();
@@ -325,6 +479,7 @@ function FilterPopover({
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const members = useMembers();
   const tags = useTags();
   const { userId } = useActiveCompany();
@@ -357,7 +512,12 @@ function FilterPopover({
   const setDue = (due: DueFilter | undefined) => {
     const next = { ...state };
     if (due === undefined) delete next.due;
-    else next.due = due;
+    else {
+      next.due = due;
+      // A chip and a range say the same thing two ways; the last one picked wins.
+      delete next.dueFrom;
+      delete next.dueTo;
+    }
     onChange(next);
     setOpen(false);
   };
@@ -379,6 +539,16 @@ function FilterPopover({
     else next.tag = id;
     onChange(next);
     setOpen(false);
+  };
+  const patch = (
+    change: Partial<TaskPageState>,
+    remove: (keyof TaskPageState)[] = [],
+    close = true,
+  ) => {
+    const next = { ...state, ...change };
+    for (const key of remove) delete next[key];
+    onChange(next);
+    if (close) setOpen(false);
   };
   const setSort = (sort: TaskSort) => {
     const next = { ...state };
@@ -407,7 +577,11 @@ function FilterPopover({
             return haystack.includes(search.toLowerCase().trim()) ? 1 : 0;
           }}
         >
-          <CommandInput placeholder={t("tasks.filterPlaceholder")} />
+          <CommandInput
+            placeholder={t("tasks.filterPlaceholder")}
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
             <CommandEmpty>{t("tasks.noFilters")}</CommandEmpty>
             <CommandGroup heading={t("tasks.assignee")}>
@@ -497,8 +671,102 @@ function FilterPopover({
                 })}
               </CommandGroup>
             )}
+            {search.trim().length >= 2 && (
+              <CustomerGroup
+                search={search}
+                selected={state.contact}
+                onPick={(id) => patch({ contact: id })}
+              />
+            )}
+            <CommandGroup heading={t("tasks.createdBy")}>
+              <CommandItem
+                value="created-by-me"
+                keywords={[t("tasks.createdByMe"), t("tasks.createdBy")]}
+                onSelect={() =>
+                  state.createdBy === "me"
+                    ? patch({}, ["createdBy"])
+                    : patch({ createdBy: "me" })
+                }
+              >
+                <span>{t("tasks.createdByMe")}</span>
+                {state.createdBy === "me" && (
+                  <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+                )}
+              </CommandItem>
+              {assignableMembers
+                .filter((m) => m.user_id !== userId)
+                .map((m) => (
+                  <CommandItem
+                    key={m.user_id}
+                    value={`created-by-${m.user_id}`}
+                    keywords={[m.display_name || t("tasks.teammate"), t("tasks.createdBy")]}
+                    onSelect={() =>
+                      state.createdBy === m.user_id
+                        ? patch({}, ["createdBy"])
+                        : patch({ createdBy: m.user_id })
+                    }
+                  >
+                    <span className="truncate">{m.display_name || t("tasks.teammate")}</span>
+                    {state.createdBy === m.user_id && (
+                      <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+                    )}
+                  </CommandItem>
+                ))}
+            </CommandGroup>
+            <CommandGroup heading={t("tasks.source")}>
+              {(["text", "call", "none"] as const).map((source) => (
+                <CommandItem
+                  key={source}
+                  value={`source-${source}`}
+                  keywords={[t(SOURCE_LABEL_KEYS[source]), t("tasks.source")]}
+                  onSelect={() =>
+                    state.source === source ? patch({}, ["source"]) : patch({ source })
+                  }
+                >
+                  <span>{t(SOURCE_LABEL_KEYS[source])}</span>
+                  {state.source === source && (
+                    <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandGroup heading={t("tasks.carries")}>
+              <CommandItem
+                value="has-files"
+                keywords={[t("tasks.hasFiles"), t("tasks.carries")]}
+                onSelect={() => (state.files ? patch({}, ["files"]) : patch({ files: true }))}
+              >
+                <span>{t("tasks.hasFiles")}</span>
+                {state.files && <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />}
+              </CommandItem>
+              <CommandItem
+                value="has-links"
+                keywords={[t("tasks.hasLinks"), t("tasks.carries")]}
+                onSelect={() => (state.refs ? patch({}, ["refs"]) : patch({ refs: true }))}
+              >
+                <span>{t("tasks.hasLinks")}</span>
+                {state.refs && <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />}
+              </CommandItem>
+            </CommandGroup>
+            <CommandGroup heading={t("tasks.groupHeading")}>
+              {(["status", "assignee", "priority"] as const).map((group) => (
+                <CommandItem
+                  key={group}
+                  value={`group-${group}`}
+                  keywords={[t(GROUP_LABEL_KEYS[group]), t("tasks.groupHeading")]}
+                  onSelect={() =>
+                    group === "status" ? patch({}, ["group"]) : patch({ group })
+                  }
+                >
+                  <span>{t(GROUP_LABEL_KEYS[group])}</span>
+                  {(state.group ?? "status") === group && (
+                    <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
             <CommandGroup heading={t("tasks.sortHeading")}>
-              {(["created", "due", "priority"] as const).map((sort) => {
+              {(["created", "due", "priority", "updated"] as const).map((sort) => {
                 const active = (state.sort ?? "created") === sort;
                 return (
                   <CommandItem
@@ -517,6 +785,37 @@ function FilterPopover({
             </CommandGroup>
           </CommandList>
         </Command>
+        <fieldset className="grid grid-cols-2 gap-2 border-t border-border p-3">
+          <legend className="sr-only">{t("tasks.dueRange")}</legend>
+          <label className="space-y-1 text-[11px] text-muted-foreground">
+            {t("tasks.dueFrom")}
+            <Input
+              type="date"
+              value={state.dueFrom ?? ""}
+              max={state.dueTo}
+              onChange={(e) =>
+                e.target.value
+                  ? patch({ dueFrom: e.target.value }, ["due"], false)
+                  : patch({}, ["dueFrom"], false)
+              }
+              className="h-8 text-[13px]"
+            />
+          </label>
+          <label className="space-y-1 text-[11px] text-muted-foreground">
+            {t("tasks.dueTo")}
+            <Input
+              type="date"
+              value={state.dueTo ?? ""}
+              min={state.dueFrom}
+              onChange={(e) =>
+                e.target.value
+                  ? patch({ dueTo: e.target.value }, ["due"], false)
+                  : patch({}, ["dueTo"], false)
+              }
+              className="h-8 text-[13px]"
+            />
+          </label>
+        </fieldset>
       </PopoverContent>
     </Popover>
   );

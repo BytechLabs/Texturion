@@ -31,6 +31,7 @@ import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { NoteAttachments } from "@/components/attachments/note-attachments";
+import { ReferenceText } from "@/components/tasks/reference-text";
 
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 
@@ -400,7 +401,8 @@ export const MessageBubble = memo(function MessageBubble({
                 done && "text-app-muted-2 line-through",
               )}
             >
-              {message.body}
+              {/* #690: only a note's words are read for references. */}
+              {note ? <ReferenceText text={message.body} /> : message.body}
             </span>
           </div>
         )}

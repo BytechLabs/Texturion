@@ -12,7 +12,10 @@ import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
-import { TaskAssignee, TaskDue } from "../task-atoms";
+import { TaskAssignee, TaskDue, TaskNumber } from "../task-atoms";
+import { groupTasks, type TaskColumn } from "../task-grouping";
+import { priorityLabelKey } from "../task-planning";
+import { useMemberNames } from "@/components/inbox/member-avatar";
 import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
 import { taskThreadHref, taskThreadId } from "../task-format";
 import { EmptyTasks } from "../task-empty";
@@ -85,10 +88,74 @@ export function BoardView({ state }: { state: TaskPageState }) {
 
   if (all.length === 0) return <EmptyTasks state={state} />;
 
+  if (state.group === "assignee" || state.group === "priority") {
+    return <GroupedBoard tasks={all} group={state.group} />;
+  }
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Column title={t("tasks.boardColumnToDo")} tasks={todo} target={false} />
       <Column title={t("tasks.boardColumnDone")} tasks={done} target={true} />
+    </div>
+  );
+}
+
+/**
+ * #689 G: the board grouped by assignee or priority. A column here is a person
+ * or a priority, not a state, so a card is not dropped between them: moving a
+ * card would mean reassigning it, which has its own control. The button on each
+ * card still marks it done.
+ */
+function GroupedBoard({
+  tasks,
+  group,
+}: {
+  tasks: Task[];
+  group: "assignee" | "priority";
+}) {
+  const t = useT();
+  const names = useMemberNames();
+  const done = useTaskDone();
+  const columns = groupTasks(tasks, group);
+  const titleOf = (column: TaskColumn): string =>
+    column.kind === "priority"
+      ? t(priorityLabelKey(column.priority))
+      : column.kind === "unassigned"
+        ? t("tasks.unassigned")
+        : (names.get(column.key) ?? t("tasks.teammate"));
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {columns.map((column) => {
+        const title = titleOf(column);
+        return (
+          <section
+            key={column.key}
+            aria-label={t("tasks.boardColumnAria", { title, count: column.tasks.length })}
+            className="flex min-h-[120px] flex-col gap-2 rounded-xl border border-border bg-secondary/20 p-3"
+          >
+            <header className="flex items-center justify-between px-1 pb-1">
+              <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {column.tasks.length}
+              </span>
+            </header>
+            {column.tasks.map((task) => (
+              <BoardCard
+                key={task.id}
+                task={task}
+                onMove={() =>
+                  done.mutate({
+                    taskId: task.id,
+                    messageId: task.message_id,
+                    conversationId: taskThreadId(task),
+                    done: !task.done,
+                  })
+                }
+              />
+            ))}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -204,6 +271,7 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
             task.done && "text-muted-foreground line-through opacity-70",
           )}
         >
+          <TaskNumber task={task} className="mr-1.5" />
           {task.title}
         </Link>
         <Link

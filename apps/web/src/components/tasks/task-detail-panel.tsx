@@ -84,7 +84,11 @@ import { AiOrb } from "@/components/ui/ai-orb";
 import { cn } from "@/lib/utils";
 
 import { AssigneeField } from "./assignee-field";
-import { TaskDoneCheckbox } from "./task-atoms";
+import { TaskDoneCheckbox, TaskNumber } from "./task-atoms";
+import { ReferenceChips } from "./reference-text";
+import { ReferencePicker } from "./reference-picker";
+import { TaskLinksSection } from "./task-links-section";
+import { useReferenceTrigger } from "./use-reference-trigger";
 import { taskAssigneeIds } from "./task-assignees";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
@@ -227,6 +231,7 @@ function TaskDetailLoaded({
   const [description, setDescription] = useState(task.description);
   useEffect(() => setTitle(task.title), [task.title]);
   useEffect(() => setDescription(task.description), [task.description]);
+  const descriptionRefs = useReferenceTrigger(() => description, setDescription);
 
   /**
    * #294: user id → display name, so a group of photos can say who took them.
@@ -430,6 +435,7 @@ function TaskDetailLoaded({
           <TaskDoneCheckbox task={task} className="mt-1" />
         )}
         <div className="min-w-0 flex-1">
+          <TaskNumber task={task} className="ml-1 block" />
           <input
             aria-label={t("tasks.titleAria")}
             value={title}
@@ -752,16 +758,35 @@ function TaskDetailLoaded({
         {/* Description. */}
         <section className="flex flex-col gap-1.5">
           <Label htmlFor="task-description">{t("tasks.description")}</Label>
-          <Textarea
-            id="task-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onBlur={saveDescription}
-            rows={3}
-            maxLength={5000}
-            placeholder={t("tasks.descriptionPlaceholder")}
-          />
+          <div className="relative">
+            <ReferencePicker
+              open={descriptionRefs.open}
+              onOpenChange={descriptionRefs.setOpen}
+              onPick={descriptionRefs.onPick}
+            >
+              <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 block h-0" />
+            </ReferencePicker>
+            <Textarea
+              id="task-description"
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                descriptionRefs.onTyped(
+                  e.target.value,
+                  e.target.selectionStart ?? e.target.value.length,
+                );
+              }}
+              onBlur={saveDescription}
+              rows={3}
+              maxLength={5000}
+              placeholder={t("tasks.descriptionPlaceholder")}
+            />
+          </div>
+          {!noAccess && <ReferenceChips text={task.description} className="pt-1" />}
         </section>
+
+        {/* #690: blocked by, blocks, parent and sub-tasks. */}
+        {!noAccess && <TaskLinksSection taskId={task.id} />}
 
         {/* #214 job address — editable; enriched values carry a provenance badge. */}
         <TaskAddressSection
@@ -909,6 +934,7 @@ function TaskNoteComposer({
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const drop = useFileDrop((files) => stage.admit(files));
+  const refs = useReferenceTrigger(() => body, setBody);
 
   const submit = async () => {
     // Guard the in-flight create so a second Cmd/Ctrl+Enter can't double-post
@@ -993,10 +1019,16 @@ function TaskNoteComposer({
             e.target.value = "";
           }}
         />
+        <ReferencePicker open={refs.open} onOpenChange={refs.setOpen} onPick={refs.onPick}>
+          <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 block h-0" />
+        </ReferencePicker>
         <Textarea
           ref={ref}
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={(e) => {
+            setBody(e.target.value);
+            refs.onTyped(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          }}
           onKeyDown={(e) => {
             // Cmd/Ctrl+Enter posts (a plain Enter allows multi-line notes).
             // Ignore held-key auto-repeat so a leaned-on chord posts once.

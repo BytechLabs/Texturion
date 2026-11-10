@@ -39,7 +39,12 @@ export function taskSearchParams(
     !filters.due_after &&
     !filters.q &&
     !filters.has_location &&
-    !filters.unassigned;
+    !filters.unassigned &&
+    !filters.contact_id &&
+    !filters.created_by &&
+    !filters.source &&
+    !filters.has_attachments &&
+    !filters.has_references;
   const status = filters.status ?? (needsAllSentinel ? "open" : undefined);
 
   return {
@@ -58,6 +63,11 @@ export function taskSearchParams(
         : undefined,
     tag_id: filters.tag_id,
     sort: filters.sort && filters.sort !== "created" ? filters.sort : undefined,
+    contact_id: filters.contact_id,
+    created_by: filters.created_by,
+    source: filters.source,
+    has_attachments: filters.has_attachments ? true : undefined,
+    has_references: filters.has_references ? true : undefined,
     cursor,
   };
 }
