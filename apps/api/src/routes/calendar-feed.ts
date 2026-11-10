@@ -142,10 +142,11 @@ calendarFeedRoutes.get("/calendar/:token/schedule.ics", async (c) => {
     .select(
       "id,title,description,due_at,conversation_id,addr_street,addr_unit," +
         "addr_city,addr_state,addr_postal_code,updated_at," +
-        "conversations(phone_number_id)",
+        "conversations(phone_number_id),task_assignees!inner(user_id)",
     )
     .eq("company_id", reader.company_id)
-    .eq("assigned_user_id", reader.user_id)
+    // #689 C: any task the reader is ON, not only the ones they are first on.
+    .eq("task_assignees.user_id", reader.user_id)
     .is("deleted_at", null)
     .not("due_at", "is", null)
     // Bounded rather than unpaginated: a calendar showing five years of history

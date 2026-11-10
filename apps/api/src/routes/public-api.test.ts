@@ -96,6 +96,7 @@ function stubWithKey(
   if (labelDefaults) {
     sb.on("GET", "/rest/v1/task_tags", () => []);
     sb.on("GET", "/rest/v1/task_series", () => []);
+    sb.on("GET", "/rest/v1/task_assignees", () => []);
   }
   return sb;
 }
@@ -516,6 +517,7 @@ describe("writes", () => {
       outcome: "set",
       task: { id: "tk-3", title: "Annual backflow test", priority: "high", series_id: "s-1" },
     }));
+    sb.on("GET", "/rest/v1/task_assignees", () => []);
     sb.on("GET", "/rest/v1/task_tags", () => [
       { task_id: "tk-3", tag: { id: TAG, name: "inspection", color: null } },
     ]);
@@ -586,6 +588,52 @@ describe("writes", () => {
       p_contact_id: "22222222-2222-4222-8222-222222222222",
       p_conversation_id: null,
     });
+  });
+
+  it("creates a task for a crew and reports assignee_ids with assigned_user_id as the first (#689 C)", async () => {
+    const A = "aaaaaaaa-0000-4000-8000-0000000000a1";
+    const B = "bbbbbbbb-0000-4000-8000-0000000000b2";
+    const sb = stubWithKey(["tasks:write"], "owner", false);
+    sb.on("POST", "/rest/v1/rpc/create_task", () => ({
+      outcome: "created",
+      task: { id: "tk-9", title: "Install", assigned_user_id: A, series_id: null },
+    }));
+    sb.on("GET", "/rest/v1/task_tags", () => []);
+    sb.on("GET", "/rest/v1/task_series", () => []);
+    sb.on("GET", "/rest/v1/task_assignees", () => [
+      { task_id: "tk-9", user_id: A },
+      { task_id: "tk-9", user_id: B },
+    ]);
+    sb.on("GET", "/rest/v1/profiles", () => [
+      { user_id: A, display_name: "Ana" },
+      { user_id: B, display_name: "Ben" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      body: JSON.stringify({ title: "Install", assignee_ids: [A, B] }),
+    });
+    expect(res.status).toBe(201);
+    expect(sb.find("POST", "/rest/v1/rpc/create_task")[0].body).toMatchObject({
+      p_assignee_ids: [A, B],
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.assigned_user_id).toBe(A);
+    expect(body.assignee_ids).toEqual([A, B]);
+    // Names stay internal.
+    expect(body).not.toHaveProperty("assignees");
+  });
+
+  it("refuses more than ten assignees (#689 C)", async () => {
+    const sb = stubWithKey(["tasks:write"], "owner", false);
+    stubFetch(jwksRoute(auth), sb.route);
+    const ids = Array.from({ length: 11 }, (_, i) => `aaaaaaaa-0000-4000-8000-${String(i).padStart(12, "0")}`);
+    const res = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      body: JSON.stringify({ title: "Too many", assignee_ids: ids }),
+    });
+    expect(res.status).toBe(422);
   });
 
   it("refuses a task with neither a message nor a title", async () => {

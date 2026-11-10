@@ -14,7 +14,8 @@
  *   POST   /v1/tasks                 M  — promote a message, promote an answered
  *          call, or create a standalone task.
  *          Body { message_id | source_call_id | neither, title?, description?,
- *          assigned_user_id?, due_at?, address?, contact_id?, conversation_id? }.
+ *          assignee_ids? (up to 10) | assigned_user_id? (one person), due_at?,
+ *          address?, contact_id?, conversation_id? }.
  *          `title` is required when there is no source; `contact_id` and
  *          `conversation_id` link a standalone task only. A standalone task's
  *          assignee defaults to the creator (an explicit null leaves it
@@ -27,7 +28,8 @@
  *          `task.changed {conversation_id}` broadcast (T1.3).
  *   GET    /v1/tasks                 M  — flat filtered list, cursor
  *          { data, next_cursor }. Params: status(open|done, applied on the
- *          task's effective done state), assigned_user_id(or `me`)|unassigned,
+ *          task's effective done state), assigned_user_id(or `me`; matches any
+ *          assignee)|unassigned,
  *          conversation_id, due_before/due_after, overdue, has_location, q
  *          (title trgm). DEFAULT (no params): status=open, assignee=me — the
  *          "what needs me now" view. Keyset (due_at NULLS LAST, id) for
@@ -40,7 +42,8 @@
  *          created_by + the joined source message (live body) or source call
  *          + attachments (the D28 DERIVED union — see below).
  *   PATCH  /v1/tasks/:id             M  — { title?, description?,
- *          assigned_user_id?, due_at?, done? }. `done` is accepted only for a
+ *          assignee_ids? | assigned_user_id? (exactly that one person), due_at?,
+ *          done? }. `done` is accepted only for a
  *          task with no message (the task owns its done state); for a message
  *          task it is 422 and the client uses the message route. An assignee
  *          change writes `task_assigned`; a due_at change writes `task_due_set`.
@@ -83,6 +86,7 @@ import { roleHasCapability } from "@loonext/shared";
 import { ApiError, errorResponse } from "../http/errors";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
+import { assigneeIdsSchema, MAX_ASSIGNEES } from "../tasks/assignees";
 import { notifyTaskChangeSafely, type TaskChange } from "../tasks/notify";
 import {
   PRIORITIES,
@@ -217,6 +221,7 @@ interface TaskFilters {
   /** "task_done_at" (computed column) on the list path, "done_at" on the flat map view. */
   doneAtCol: string;
   effectiveStatus: string | undefined;
+  /** On the task. The caller adds the `task_assignees!inner` embed. */
   assignee: string | undefined;
   unassigned: boolean;
   conversationId: string | undefined;
@@ -249,7 +254,8 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
     q = q.not(doneAtCol, "is", null);
   }
   if (filters.assignee !== undefined) {
-    q = q.eq("assigned_user_id", filters.assignee);
+    // #689 C: "mine" means I am ONE of them, not the first.
+    q = q.eq("task_assignees.user_id", filters.assignee);
   } else if (filters.unassigned) {
     q = q.is("assigned_user_id", null);
   }
@@ -506,6 +512,9 @@ const createSchema = z
   contact_id: z.uuid().optional(),
   conversation_id: z.uuid().optional(),
   description: z.string().max(5000).optional(),
+  // #689 C: the whole crew (up to ten), or one person as the shorthand. The crew
+  // wins when both are sent.
+  assignee_ids: assigneeIdsSchema.optional(),
   assigned_user_id: z.uuid().nullable().optional(),
   due_at: z.iso.datetime({ offset: true }).nullable().optional(),
   // #214: the confirmed enriched (or hand-entered) job address.
@@ -543,6 +552,9 @@ const patchSchema = z
     done: z.boolean().optional(),
     title: z.string().trim().min(1).max(TITLE_MAX).optional(),
     description: z.string().max(5000).optional(),
+    // #689 C: the crew, replaced as a whole. `assigned_user_id` is the
+    // one-person shorthand: exactly that person, or nobody for null.
+    assignee_ids: assigneeIdsSchema.optional(),
     assigned_user_id: z.uuid().nullable().optional(),
     due_at: z.iso.datetime({ offset: true }).nullable().optional(),
     // #214: replace the whole address block (null clears it).
@@ -563,6 +575,7 @@ const patchSchema = z
       body.priority !== undefined ||
       "repeat" in body ||
       "assigned_user_id" in body ||
+      body.assignee_ids !== undefined ||
       "due_at" in body ||
       "address" in body,
     { message: "Provide at least one field to update." },
@@ -595,6 +608,7 @@ const taskOutcomeSchema = z.object({
     "contact_mismatch",
     "bad_link",
     "not_member",
+    "too_many",
     "conflict",
     "bad_priority",
   ]),
@@ -708,11 +722,8 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   // A standalone task is the creator's own to-do unless they say otherwise; an
   // explicit null leaves it unassigned. A promotion keeps "nobody until
   // assigned" (the source already belongs to a thread).
-  const assigneeUserId = isStandalone
-    ? body.assigned_user_id === undefined
-      ? userId
-      : body.assigned_user_id
-    : body.assigned_user_id ?? null;
+  const requested = requestedAssignees(body);
+  const assigneeIds = requested ?? (isStandalone ? [userId] : []);
 
   // T3: the mutation is the `create_task` security-definer RPC — ONE atomic
   // transaction that resolves conversation_id from the source message or call
@@ -732,7 +743,8 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     // can never arrive (createSchema requires min-length 1).
     p_title: body.title ?? null,
     p_description: body.description ?? null,
-    p_assigned_user_id: assigneeUserId,
+    p_assigned_user_id: null,
+    p_assignee_ids: assigneeIds,
     p_due_at: body.due_at ?? null,
     p_actor_user_id: userId,
     // #214: the confirmed job address (all-null when the task has none).
@@ -807,7 +819,13 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   if (result.outcome === "not_member") {
     throw new ApiError(
       "validation_failed",
-      "assigned_user_id: not an active member of this company.",
+      "assignee_ids: not an active member of this company.",
+    );
+  }
+  if (result.outcome === "too_many") {
+    throw new ApiError(
+      "validation_failed",
+      `assignee_ids: a task holds at most ${MAX_ASSIGNEES} people.`,
     );
   }
   if (result.outcome === "conflict") {
@@ -843,7 +861,7 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   // #515: a task created already pointed at somebody is a hand-off like any
   // other. Creating one for yourself notifies nobody — `notifyAssigned` drops
   // a self-assignment before it queries anything.
-  if (assigneeUserId) {
+  for (const assigneeUserId of assigneeIds) {
     await notifyAssignedTask(c, {
       companyId,
       actorUserId: userId,
@@ -871,7 +889,8 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
       task_id: result.task.id,
       title: result.task.title ?? null,
       due_at: result.task.due_at ?? null,
-      assigned_user_id: assigneeUserId,
+      assigned_user_id: assigneeIds[0] ?? null,
+      assignee_ids: assigneeIds,
       // Kept nullable for the integrations that read it; `source` says which
       // (null for a standalone task).
       message_id: body.message_id ?? null,
@@ -1012,6 +1031,19 @@ async function readTaskBefore(
     console.error("task pre-read failed:", cause);
     return null;
   }
+}
+
+/**
+ * The crew a create or patch body asks for: `assignee_ids`, else the
+ * one-person shorthand (null = nobody). Undefined when the body says nothing.
+ */
+function requestedAssignees(body: {
+  assignee_ids?: string[];
+  assigned_user_id?: string | null;
+}): string[] | undefined {
+  if (body.assignee_ids !== undefined) return [...new Set(body.assignee_ids)];
+  if (body.assigned_user_id === undefined) return undefined;
+  return body.assigned_user_id === null ? [] : [body.assigned_user_id];
 }
 
 const sameInstant = (a: unknown, b: unknown): boolean => {
@@ -1364,6 +1396,9 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
       : decodeCursor(rawCursor);
   // The inner embed that makes `task_tags.tag_id` a row filter.
   const tagEmbed = tagId === undefined ? "" : ",task_tags!inner(tag_id)";
+  // #689 C: the same for an assignee filter, which matches any assignee.
+  const assigneeEmbed =
+    assignee === undefined ? "" : ",task_assignees!inner(user_id)";
 
   // The common (non-map) path reads `tasks` and selects the computed column
   // `task_done_at` (the source message's done_at, or the task's own when it has
@@ -1385,7 +1420,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     ? db
         .from("task_map_rows")
         .select(
-          `${TASK_COLUMNS},done_at,contact_id,contact_name,contact_lat,contact_lng,${CALENDAR_HOLD_EMBED}${tagEmbed}`,
+          `${TASK_COLUMNS},done_at,contact_id,contact_name,contact_lat,contact_lng,${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}`,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null)
@@ -1394,7 +1429,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     : db
         .from("tasks")
         .select(
-          `${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}${tagEmbed}`,
+          `${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}${tagEmbed}${assigneeEmbed}`,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null);
@@ -1490,6 +1525,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     // Empty embeds are filtering artifacts, never part of the task contract.
     delete rest.calendar_hold;
     delete rest.task_tags;
+    delete rest.task_assignees;
     if (hasLocation) {
       // Map view (task_map_rows view): `done` + the source contact's geocode
       // arrive as FLAT columns. Derive done, fold the geocode into `contact`
@@ -1645,6 +1681,11 @@ const taskBulkSchema = z
       })
       .optional(),
     target_user_id: z.uuid().nullable().optional(),
+    /**
+     * #689 C: `assign` ADDS these people to every selected task and removes
+     * nobody. No target and no list clears every assignee.
+     */
+    assignee_ids: assigneeIdsSchema.optional(),
     /** `set_priority`'s value. */
     priority: prioritySchema.optional(),
     /** `add_label` / `remove_label`'s tag. */
@@ -1668,6 +1709,7 @@ const taskBulkSchema = z
     (body) =>
       body.action !== "assign" ||
       body.target_user_id !== undefined ||
+      (body.assignee_ids !== undefined && body.assignee_ids.length > 0) ||
       body.ids !== undefined,
     {
       // An assign with no target means UNASSIGN, which is legitimate — but
@@ -1700,7 +1742,9 @@ tasksRoutes.post(
           db
             .from("tasks")
             .select(
-              `id,${CALENDAR_HOLD_EMBED}${filter.tag_id ? ",task_tags!inner(tag_id)" : ""}`,
+              `id,${CALENDAR_HOLD_EMBED}${filter.tag_id ? ",task_tags!inner(tag_id)" : ""}${
+                filter.assigned_user_id ? ",task_assignees!inner(user_id)" : ""
+              }`,
             )
             .eq("company_id", companyId)
             .is("deleted_at", null),
@@ -1760,6 +1804,7 @@ tasksRoutes.post(
         p_hidden_number_ids: access.hiddenNumberIds ?? null,
         p_priority: body.priority ?? null,
         p_tag_id: body.tag_id ?? null,
+        p_target_user_ids: body.assignee_ids ?? null,
       }),
       "api_bulk_tasks",
     );
@@ -2449,7 +2494,8 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     body.priority !== undefined ||
     "due_at" in body ||
     "address" in body;
-  const touchesAssignee = "assigned_user_id" in body;
+  const desiredCrew = requestedAssignees(body);
+  const touchesAssignee = desiredCrew !== undefined;
 
   // Reject an unassignable member BEFORE anything is written.
   //
@@ -2463,21 +2509,20 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   //
   // The RPC's own not_member check stays as the authoritative one; this only
   // moves the ordinary case in front of the first write.
-  if (touchesMeta && touchesAssignee && body.assigned_user_id) {
+  if (touchesMeta && desiredCrew !== undefined && desiredCrew.length > 0) {
     const members = unwrap<{ user_id: string }[]>(
       await db
         .from("company_members")
         .select("user_id")
         .eq("company_id", companyId)
-        .eq("user_id", body.assigned_user_id)
-        .is("deactivated_at", null)
-        .limit(1),
+        .in("user_id", desiredCrew)
+        .is("deactivated_at", null),
       "assignee membership lookup",
     );
-    if (members.length === 0) {
+    if (members.length < desiredCrew.length) {
       throw new ApiError(
         "validation_failed",
-        "assigned_user_id: not an active member of this company.",
+        "assignee_ids: not an active member of this company.",
       );
     }
   }
@@ -2486,12 +2531,9 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   let latest: Record<string, unknown> | null = null;
   let found = false;
 
-  // #689 D: "unassigned you" and "time changed" need the value that is about to
-  // be overwritten, which neither RPC returns.
-  const before =
-    touchesAssignee || "due_at" in body
-      ? await readTaskBefore(db, companyId, id)
-      : null;
+  // #689 D: "time changed" needs the value that is about to be overwritten,
+  // which the RPC does not return.
+  const before = "due_at" in body ? await readTaskBefore(db, companyId, id) : null;
 
   if (touchesMeta) {
     const clearDue = "due_at" in body && (body.due_at ?? null) === null;
@@ -2533,13 +2575,13 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   }
 
   if (touchesAssignee) {
-    const { data, error } = await db.rpc("assign_task", {
+    const { data, error } = await db.rpc("set_task_assignees", {
       p_company_id: companyId,
       p_task_id: id,
-      p_assigned_user_id: body.assigned_user_id ?? null,
+      p_assignee_ids: desiredCrew,
       p_actor_user_id: userId,
     });
-    if (error) throw new Error(`assign_task failed: ${error.message}`);
+    if (error) throw new Error(`set_task_assignees failed: ${error.message}`);
     const result = parseTaskOutcome(data);
     if (result.outcome === "not_found") {
       return errorResponse(c, "not_found", "No such task.");
@@ -2547,31 +2589,38 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     if (result.outcome === "not_member") {
       throw new ApiError(
         "validation_failed",
-        "assigned_user_id: not an active member of this company.",
+        "assignee_ids: not an active member of this company.",
+      );
+    }
+    if (result.outcome === "too_many") {
+      throw new ApiError(
+        "validation_failed",
+        `assignee_ids: a task holds at most ${MAX_ASSIGNEES} people.`,
       );
     }
     found = true;
     if (result.task) latest = result.task;
-    // #515: only `updated` means the assignee actually moved — `unchanged` is
-    // the RPC saying it was already theirs, and re-pushing that would make a
-    // duplicate save wake somebody for nothing.
-    if (result.outcome === "updated" && body.assigned_user_id) {
+    // #515: only the people the RPC says it ADDED are told. `unchanged` is the
+    // crew already being this, and re-pushing that would make a duplicate save
+    // wake somebody for nothing.
+    const crewChange = data as { added?: string[]; removed?: string[] } | null;
+    for (const assigneeUserId of crewChange?.added ?? []) {
       await notifyAssignedTask(c, {
         companyId,
         actorUserId: userId,
-        assigneeUserId: body.assigned_user_id,
+        assigneeUserId,
         task: result.task ?? latest,
         taskId: id,
       });
     }
-    // #689 D: whoever held it before is told they no longer do.
-    if (result.outcome === "updated" && before?.assigned_user_id) {
+    // #689 D: each person taken off is told they no longer are on it.
+    for (const previousAssigneeId of crewChange?.removed ?? []) {
       await alertTaskSubscribers(c, {
         companyId,
         taskId: id,
         actorUserId: userId,
         kind: "unassigned",
-        previousAssigneeId: before.assigned_user_id,
+        previousAssigneeId,
       });
     }
   }
@@ -2632,7 +2681,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     if (body.title !== undefined) changes.title = body.title;
     if (body.description !== undefined) changes.description = body.description;
     if (body.priority !== undefined) changes.priority = body.priority;
-    if ("assigned_user_id" in body) changes.assigned_user_id = body.assigned_user_id ?? null;
+    if (desiredCrew !== undefined) changes.assignee_ids = desiredCrew;
     if ("address" in body) {
       changes.address = body.address
         ? {
@@ -2692,7 +2741,13 @@ async function editTaskSeries(
   if (outcome === "not_member") {
     throw new ApiError(
       "validation_failed",
-      "assigned_user_id: not an active member of this company.",
+      "assignee_ids: not an active member of this company.",
+    );
+  }
+  if (outcome === "too_many") {
+    throw new ApiError(
+      "validation_failed",
+      `assignee_ids: a task holds at most ${MAX_ASSIGNEES} people.`,
     );
   }
   if (outcome === "bad_priority" || outcome === "invalid") {

@@ -135,6 +135,47 @@ describe("GET /v1/tasks/:id/activity", () => {
     expect(JSON.stringify(call)).toContain('"p_limit":3');
   });
 
+  it("names the person on an assignee_added and an assignee_removed event (#689 C)", async () => {
+    const sb = harness("member");
+    sb.on("POST", "/rest/v1/rpc/api_task_activity", () => ({
+      outcome: "ok",
+      items: [
+        {
+          kind: "event",
+          id: "a0000000-0000-4000-8000-000000000012",
+          at: "2026-11-10T11:00:00.000Z",
+          user_id: auth.subject,
+          detail: { event: "assignee_removed", from: OTHER_USER, to: null },
+        },
+        {
+          kind: "event",
+          id: "a0000000-0000-4000-8000-000000000011",
+          at: "2026-11-10T10:00:00.000Z",
+          user_id: auth.subject,
+          detail: { event: "assignee_added", from: null, to: OTHER_USER },
+        },
+      ],
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/tasks/${TASK_ID}/activity`,
+      { companyId: COMPANY_ID },
+    );
+    const json = (await response.json()) as { data: Record<string, unknown>[] };
+    expect(json.data[0]).toMatchObject({
+      event: "assignee_added",
+      to_user: { display_name: "Sam" },
+    });
+    expect(json.data[1]).toMatchObject({
+      event: "assignee_removed",
+      from_user: { display_name: "Sam" },
+    });
+  });
+
   it("is a 404 when the task is hidden from the caller", async () => {
     const sb = harness("member");
     sb.on("POST", "/rest/v1/rpc/api_task_activity", () => ({

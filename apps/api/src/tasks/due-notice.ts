@@ -11,8 +11,8 @@
  * still time to drive, call, or reschedule. The window is deliberately short,
  * because an alert far in advance is one that gets dismissed and forgotten.
  *
- * WHO: the assignee, and only the assignee, and only while they are still an
- * active member of that company. An unassigned task with a due date is a triage
+ * WHO: each assignee (#689 C: a task can have up to ten), and only the
+ * assignees, and only while they are still an active member of that company. An unassigned task with a due date is a triage
  * problem rather than a reminder problem, and it already surfaces in the lead's
  * For You triage strip; waking the whole crew for it would train everyone to
  * ignore the channel.
@@ -46,6 +46,7 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "../notifications/deliver";
 import { assigneeMayHear } from "./assignee-access";
+import { loadAssigneeIdsAcrossTenants } from "./assignees";
 import { TASK_DUE_COPY } from "./due-notice-copy";
 
 /**
@@ -162,6 +163,10 @@ export async function notifyDueTasksJob(
   const tasks = (data ?? []) as unknown as DueTaskRow[];
   if (tasks.length === 0) return;
 
+  const crews = await loadAssigneeIdsAcrossTenants(
+    db,
+    tasks.map((task) => task.id),
+  );
   const failures: unknown[] = [];
   for (const task of tasks) {
     // Claim FIRST, and only send if the claim was won. A crash between sending
@@ -188,27 +193,41 @@ export async function notifyDueTasksJob(
     // Deactivation leaves the assignment in place, and a number can be taken
     // away after the job was assigned, so a title would otherwise reach someone
     // who can no longer open the conversation it came from.
+    // Each assignee is asked separately: one may have lost the number, or
+    // left, while the others still hear.
+    const crew = crews.get(task.id) ?? [task.assigned_user_id];
+    const listeners: string[] = [];
     try {
-      if (!(await assigneeMayHear(db, task))) continue;
+      for (const userId of crew) {
+        if (await assigneeMayHear(db, { ...task, assigned_user_id: userId })) {
+          listeners.push(userId);
+        }
+      }
     } catch (cause) {
       failures.push(cause);
       continue;
     }
+    if (listeners.length === 0) continue;
 
     const prefRows = await db
       .from("notification_prefs")
       .select("user_id,push_enabled")
       .eq("company_id", task.company_id)
-      .eq("user_id", task.assigned_user_id);
+      .in("user_id", listeners);
     if (prefRows.error) {
       failures.push(
         new Error(`notification prefs lookup failed: ${prefRows.error.message}`),
       );
       continue;
     }
-    const prefs = (prefRows.data ?? []) as PrefsRow[];
     // A missing row reads as the §6 defaults, which have push on.
-    if (prefs[0]?.push_enabled === false) continue;
+    const silenced = new Set(
+      ((prefRows.data ?? []) as PrefsRow[])
+        .filter((row) => row.push_enabled === false)
+        .map((row) => row.user_id),
+    );
+    const audience = listeners.filter((userId) => !silenced.has(userId));
+    if (audience.length === 0) continue;
 
     // Claimed above, so it leaves the queue either way. Whether it is still
     // worth waking someone for is a separate question.
@@ -228,7 +247,7 @@ export async function notifyDueTasksJob(
     await deliverPush(env, db, {
       category: "assignments",
       companyId: task.company_id,
-      userIds: [task.assigned_user_id],
+      userIds: audience,
       // #430: NOT named in the issue, and it belongs here. The TITLE is the
       // one a member typed, and per docs/PERSONAL-DATA-INVENTORY.md a task
       // carries a free-text description and a JOB ADDRESS — "Alvarez, 42 Elm,

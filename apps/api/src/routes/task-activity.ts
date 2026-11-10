@@ -11,8 +11,9 @@
  *            { kind: "note",    id, body, author, created_at }
  *          `event` is a task_events.kind. `from` and `to` are the stored
  *          values (a string, an ISO time, a boolean, an address object or null);
- *          for an `assignee` event they are user ids and `from_user` / `to_user`
- *          carry the names.
+ *          for an `assignee`, `assignee_added` or `assignee_removed` event they
+ *          are user ids and `from_user` / `to_user` carry the names
+ *          (`assignee_added` has a `to`, `assignee_removed` a `from`).
  *   POST   /v1/tasks/:id/comments            N: { body, mention_user_ids? } -> 201 the
  *          comment. Commenting subscribes the author; every id in
  *          mention_user_ids (up to 10, teammates who can see the task) is
@@ -121,6 +122,9 @@ async function loadPeople(db: Db, ids: string[]): Promise<Map<string, Person>> {
   return people;
 }
 
+/** The events whose from / to values are user ids. */
+const NAMED_EVENTS = new Set(["assignee", "assignee_added", "assignee_removed"]);
+
 const personOf = (people: Map<string, Person>, id: string | null): Person | null => {
   if (!id) return null;
   return people.get(id) ?? { user_id: id, display_name: null };
@@ -162,7 +166,7 @@ function shapeItems(
       const event = row.detail.event;
       const from = row.detail.from ?? null;
       const to = row.detail.to ?? null;
-      const named = event === "assignee";
+      const named = NAMED_EVENTS.has(String(event));
       return {
         kind: "event",
         id: row.id,
@@ -339,7 +343,7 @@ taskActivityRoutes.get(
     const userIds: string[] = [];
     for (const row of pageRows) {
       if (row.user_id) userIds.push(row.user_id);
-      if (row.kind === "event" && row.detail.event === "assignee") {
+      if (row.kind === "event" && NAMED_EVENTS.has(String(row.detail.event))) {
         for (const v of [row.detail.from, row.detail.to]) {
           if (typeof v === "string") userIds.push(v);
         }

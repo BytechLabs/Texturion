@@ -121,6 +121,7 @@ function tail(
   return [
     stubRoute(restMatch(env, "GET", "task_tags"), () => options.labels ?? []).route,
     stubRoute(restMatch(env, "GET", "task_series"), () => options.series ?? []).route,
+    stubRoute(restMatch(env, "GET", "task_assignees"), () => []).route,
     stubRoute(restMatch(env, "GET", "tasks"), () => []).route,
     stubRoute(restMatch(env, "GET", "appointment_reminder_rules"), () => []).route,
     stubRoute(rpcMatch(env, "api_sync_task_reminders"), () => ({ outcome: "synced" })).route,

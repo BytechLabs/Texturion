@@ -9,7 +9,8 @@
  *   POST /public/v1/messages   { conversation_id, body } + Idempotency-Key.
  *   GET  /public/v1/tasks      the job list, newest first.
  *   POST /public/v1/tasks      { message_id?, title?, due_at?, description?,
- *                              assigned_user_id?, contact_id?, conversation_id? }
+ *                              assigned_user_id? | assignee_ids?, contact_id?,
+ *                              conversation_id? }
  *                              (no message_id: a standalone task, title required)
  *
  * ---------------------------------------------------------------------------
@@ -94,6 +95,9 @@ function publicTask(row: Record<string, unknown>): Record<string, unknown> {
       : typeof callId === "string"
         ? { kind: "call", id: callId }
         : null;
+  // #689 C: `assigned_user_id` is the FIRST assignee, kept for v1 callers, and
+  // `assignee_ids` is everyone. The display names stay internal.
+  delete rest.assignees;
   return { ...rest, source };
 }
 
@@ -135,7 +139,9 @@ const createTaskSchema = z
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().trim().max(2000).optional(),
     due_at: z.iso.datetime({ offset: true }).optional(),
+    // One person, as before. `assignee_ids` (up to ten) wins when both are sent.
     assigned_user_id: z.uuid().nullable().optional(),
+    assignee_ids: z.array(z.uuid()).max(10).optional(),
     contact_id: z.uuid().optional(),
     conversation_id: z.uuid().optional(),
     // #693: none, low, normal (default), high or urgent; workspace tag ids; and
@@ -537,6 +543,7 @@ publicApiRoutes.post(
       // Unassigned unless the caller names someone: an integration's key is not
       // a crew member to hand work to.
       p_assigned_user_id: body.assigned_user_id ?? null,
+      p_assignee_ids: body.assignee_ids ?? null,
       p_due_at: body.due_at ?? null,
       p_actor_user_id: c.get("userId"),
       // #214's address arguments, all null. Named explicitly rather than
@@ -572,7 +579,14 @@ publicApiRoutes.post(
       return errorResponse(
         c,
         "validation_failed",
-        "assigned_user_id: not an active member of this workspace.",
+        "assigned_user_id / assignee_ids: not an active member of this workspace.",
+      );
+    }
+    if (result?.outcome === "too_many") {
+      return errorResponse(
+        c,
+        "validation_failed",
+        "assignee_ids: a task holds at most 10 people.",
       );
     }
     if (result?.outcome === "no_conversation") {

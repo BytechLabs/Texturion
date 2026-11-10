@@ -258,6 +258,20 @@ describe("#304 the task export", () => {
     expect(csv).toContain("Nobody yet");
   });
 
+  it("TE-9b: names everyone on a crew, not only the first (#689 C)", async () => {
+    const { written } = await build({
+      tasks: [
+        task({
+          crew: [{ user_id: MATE_ID }, { user_id: "cccccccc-1111-4222-8333-444444444444" }],
+        }),
+      ],
+    });
+    const csv = written.get("c/e1/tasks.csv")!;
+    // The second person has no profile row in the fixture, so they read as
+    // someone who has left; the point is that they are listed at all.
+    expect(csv).toContain("Sam Okafor, Someone who has left");
+  });
+
   it("TE-10: a customer with no name is still identifiable", async () => {
     // The phone number, not "unknown". Whoever reads this has to be able to
     // ring them back.

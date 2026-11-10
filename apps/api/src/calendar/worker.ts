@@ -103,6 +103,12 @@ export interface CalendarTaskRow {
   description: string;
   due_at: string | null;
   assigned_user_id: string | null;
+  /**
+   * Everyone on the task (#689 C). Each assignee's connection mirrors it, so
+   * eligibility asks whether the connection's member is ON the task. Absent on
+   * a row read without the crew, which falls back to the first assignee.
+   */
+  assignee_ids?: string[];
   deleted_at: string | null;
   /** The effective done time (task_done_at): the source message's, or the task's own. */
   done_state?: string | null;
@@ -445,7 +451,9 @@ function taskIsEligible(
     Number.isFinite(dueAt) &&
     dueAt >= now.getTime() - INITIAL_LOOKBACK_DAYS * 86_400_000 &&
     dueAt <= now.getTime() + INITIAL_LOOKAHEAD_DAYS * 86_400_000 &&
-    task.assigned_user_id === connection.user_id
+    (task.assignee_ids ?? (task.assigned_user_id ? [task.assigned_user_id] : [])).includes(
+      connection.user_id,
+    )
   );
 }
 
@@ -1982,11 +1990,15 @@ export function createCalendarSyncStore(db: SupabaseClient): CalendarSyncStore {
     async getTask(id) {
       const { data, error } = await db
         .from("tasks")
-        .select("*, done_state:task_done_at")
+        .select("*, done_state:task_done_at, crew:task_assignees(user_id)")
         .eq("id", id)
         .maybeSingle();
       rpcError("read tasks", error);
-      return data as CalendarTaskRow | null;
+      if (!data) return null;
+      const { crew, ...task } = data as CalendarTaskRow & {
+        crew: { user_id: string }[] | null;
+      };
+      return { ...task, assignee_ids: (crew ?? []).map((row) => row.user_id) };
     },
     getLink: (id) => one("task_calendar_links", { id }),
     async findSyncableLink(companyId, connectionId, providerInstanceId) {

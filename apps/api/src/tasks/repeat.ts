@@ -3,12 +3,13 @@
  *
  * The rule is stored and validated in SQL (`api_set_task_repeat`); this file
  * owns the request shape, the response shape, and the batch loader that puts
- * `labels` and `repeat` on task rows.
+ * `labels`, `repeat`, `assignee_ids` and `assignees` on task rows.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { unwrap } from "../routes/core/http";
+import { loadAssignees, type TaskAssignee } from "./assignees";
 
 export const PRIORITIES = ["none", "low", "normal", "high", "urgent"] as const;
 export type TaskPriority = (typeof PRIORITIES)[number];
@@ -98,15 +99,23 @@ export interface TaskLabel {
 }
 
 /**
- * Put `labels` and `repeat` on task rows with two queries however many rows
- * there are. A row keeps its other fields; `series_id` stays for clients that
- * group by series.
+ * Put `labels`, `repeat` and the crew (`assignee_ids`, `assignees`) on task
+ * rows with a few queries however many rows there are. A row keeps its other
+ * fields; `series_id` stays for clients that group by series, and
+ * `assigned_user_id` stays as the first assignee.
  */
 export async function withLabelsAndRepeat<T extends Record<string, unknown>>(
   db: SupabaseClient,
   companyId: string,
   rows: T[],
-): Promise<(T & { labels: TaskLabel[]; repeat: PublicRepeat | null })[]> {
+): Promise<
+  (T & {
+    labels: TaskLabel[];
+    repeat: PublicRepeat | null;
+    assignee_ids: string[];
+    assignees: TaskAssignee[];
+  })[]
+> {
   if (rows.length === 0) return [];
   const taskIds = rows.map((row) => row.id as string);
   const seriesIds = [
@@ -117,7 +126,7 @@ export async function withLabelsAndRepeat<T extends Record<string, unknown>>(
     ),
   ];
 
-  const [tagRows, seriesRows] = await Promise.all([
+  const [tagRows, seriesRows, crews] = await Promise.all([
     db
       .from("task_tags")
       .select("task_id,tag:tags(id,name,color)")
@@ -134,6 +143,7 @@ export async function withLabelsAndRepeat<T extends Record<string, unknown>>(
           .eq("company_id", companyId)
           .in("id", seriesIds)
           .then((res) => unwrap<SeriesRow[]>(res, "task repeats")),
+    loadAssignees(db, companyId, taskIds),
   ]);
 
   const labelsByTask = new Map<string, TaskLabel[]>();
@@ -149,12 +159,19 @@ export async function withLabelsAndRepeat<T extends Record<string, unknown>>(
   const seriesById = new Map(seriesRows.map((row) => [row.id, row]));
 
   return rows.map((row) => {
+    // The assignee embed a list filter adds is a filtering artifact, never part
+    // of the task contract.
+    const fields = { ...row } as Record<string, unknown>;
+    delete fields.task_assignees;
+    const crew = crews.get(row.id as string) ?? [];
     const series =
       typeof row.series_id === "string" ? seriesById.get(row.series_id) : undefined;
     return {
-      ...row,
+      ...(fields as T),
       labels: labelsByTask.get(row.id as string) ?? [],
       repeat: series ? publicRepeat(series) : null,
+      assignee_ids: crew.map((person) => person.user_id),
+      assignees: crew,
     };
   });
 }

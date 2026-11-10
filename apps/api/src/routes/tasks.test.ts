@@ -143,6 +143,11 @@ function stubFetch(...routes: FetchRoute[]) {
       (url) => url.pathname.endsWith("/rest/v1/task_series"),
       () => [],
     ).route,
+    // #689 C: and the people on them.
+    stubRoute(
+      (url) => url.pathname.endsWith("/rest/v1/task_assignees"),
+      () => [],
+    ).route,
   );
 }
 
@@ -245,7 +250,7 @@ describe("POST /v1/tasks — promote a message", () => {
           taskRow({
             title,
             description: (params.p_description as string | null) ?? "",
-            assigned_user_id: params.p_assigned_user_id ?? null,
+            assigned_user_id: (params.p_assignee_ids as string[] | undefined)?.[0] ?? null,
             due_at: params.p_due_at ?? null,
             created_by_user_id: params.p_actor_user_id,
           }),
@@ -282,6 +287,7 @@ describe("POST /v1/tasks — promote a message", () => {
       p_title: null,
       p_description: null,
       p_assigned_user_id: null,
+      p_assignee_ids: [],
       p_due_at: null,
       p_actor_user_id: auth.subject,
     });
@@ -358,7 +364,7 @@ describe("POST /v1/tasks — promote a message", () => {
         p_message_id: null,
         p_call_id: null,
         p_title: "Order a furnace filter",
-        p_assigned_user_id: auth.subject,
+        p_assignee_ids: [auth.subject],
         p_contact_id: null,
         p_conversation_id: null,
       });
@@ -373,6 +379,67 @@ describe("POST /v1/tasks — promote a message", () => {
       expect(
         (stubs.rpc.calls[0].body as Record<string, unknown>).p_assigned_user_id,
       ).toBeNull();
+    });
+
+    // Each assignee but the creator is told (#515), and outside a Worker that
+    // lookup runs inline. Answering "not a member" makes it a silent no-op: these
+    // tests are about which arguments the RPC received.
+    const quietAssignmentLookups: FetchRoute = (url) =>
+      url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/company_members`) &&
+      (url.searchParams.get("user_id") ?? "").startsWith("eq.") &&
+      url.searchParams.get("user_id") !== `eq.${auth.subject}`
+        ? Response.json([])
+        : undefined;
+
+    it("forwards a crew as p_assignee_ids, and the crew wins over the one-person shorthand (#689 C)", async () => {
+      const stubs = createStubs({ task: standalone() });
+      stubFetch(quietAssignmentLookups, ...stubs.all);
+      const response = await request("POST", "/v1/tasks", {
+        title: "Two-person install",
+        assignee_ids: [OTHER_USER, NOTE_AUTHOR, OTHER_USER],
+        assigned_user_id: auth.subject,
+      });
+      expect(response.status).toBe(201);
+      expect(stubs.rpc.calls[0].body).toMatchObject({
+        p_assigned_user_id: null,
+        // Repeats dropped, order kept.
+        p_assignee_ids: [OTHER_USER, NOTE_AUTHOR],
+      });
+    });
+
+    it("the one-person shorthand becomes a crew of one (#689 C)", async () => {
+      const stubs = createStubs({ task: standalone() });
+      stubFetch(quietAssignmentLookups, ...stubs.all);
+      await request("POST", "/v1/tasks", { title: "Solo", assigned_user_id: OTHER_USER });
+      expect(stubs.rpc.calls[0].body).toMatchObject({ p_assignee_ids: [OTHER_USER] });
+    });
+
+    it("an empty crew is nobody, not the creator (#689 C)", async () => {
+      const stubs = createStubs({ task: standalone() });
+      stubFetch(...stubs.all);
+      await request("POST", "/v1/tasks", { title: "Floating", assignee_ids: [] });
+      expect(stubs.rpc.calls[0].body).toMatchObject({ p_assignee_ids: [] });
+    });
+
+    it("422 for more than ten assignees, from the schema and from the RPC (#689 C)", async () => {
+      const many = Array.from(
+        { length: 11 },
+        (_, i) => `77770000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      );
+      const refused = createStubs({ task: standalone() });
+      stubFetch(...refused.all);
+      const schema = await request("POST", "/v1/tasks", { title: "Crowd", assignee_ids: many });
+      expect(schema.status).toBe(422);
+      expect(refused.rpc.calls).toHaveLength(0);
+
+      const stubs = createStubs({ outcome: "too_many" });
+      stubFetch(...stubs.all);
+      const rpc = await request("POST", "/v1/tasks", {
+        message_id: MESSAGE_ID,
+        assignee_ids: [OTHER_USER],
+      });
+      expect(rpc.status).toBe(422);
+      expect(await errorCode(rpc)).toBe("validation_failed");
     });
 
     it("a promotion keeps its assignee default of nobody", async () => {
@@ -575,7 +642,9 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     const q = list.calls[0].url.searchParams;
     // status=open → the effective done state is null; assignee=me → the caller's sub.
     expect(q.get("task_done_at")).toBe("is.null");
-    expect(q.get("assigned_user_id")).toBe(`eq.${auth.subject}`);
+    // #689 C: "mine" is any assignee, through the inner embed.
+    expect(q.get("task_assignees.user_id")).toBe(`eq.${auth.subject}`);
+    expect(q.get("select")).toContain("task_assignees!inner(user_id)");
     // Company-scoped, live rows only.
     expect(q.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(q.get("deleted_at")).toBe("is.null");
@@ -820,9 +889,69 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     const list = listStub([]);
     stubFetch(jwksRoute(auth), membersRoute(), list.route);
     await request("GET", `/v1/tasks?assigned_user_id=${OTHER_USER}`);
-    expect(list.calls[0].url.searchParams.get("assigned_user_id")).toBe(
+    expect(list.calls[0].url.searchParams.get("task_assignees.user_id")).toBe(
       `eq.${OTHER_USER}`,
     );
+  });
+
+  it("assigned_user_id matches ANY assignee through an inner embed; unassigned means nobody (#689 C)", async () => {
+    const mine = listStub([]);
+    stubFetch(jwksRoute(auth), membersRoute(), mine.route);
+    await request("GET", "/v1/tasks?assigned_user_id=me");
+    expect(mine.calls[0].url.searchParams.get("select")).toContain(
+      "task_assignees!inner(user_id)",
+    );
+    expect(mine.calls[0].url.searchParams.get("task_assignees.user_id")).toBe(
+      `eq.${auth.subject}`,
+    );
+
+    const nobody = listStub([]);
+    stubFetch(jwksRoute(auth), membersRoute(), nobody.route);
+    await request("GET", "/v1/tasks?unassigned=true");
+    const q = nobody.calls[0].url.searchParams;
+    expect(q.get("assigned_user_id")).toBe("is.null");
+    expect(q.get("select")).not.toContain("task_assignees");
+  });
+
+  it("the map filters by assignee the same way (#689 C)", async () => {
+    const list = mapStub([]);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), list.route);
+    await request("GET", `/v1/tasks?has_location=true&assigned_user_id=${OTHER_USER}`);
+    expect(list.calls[0].url.searchParams.get("select")).toContain(
+      "task_assignees!inner(user_id)",
+    );
+    expect(list.calls[0].url.searchParams.get("task_assignees.user_id")).toBe(
+      `eq.${OTHER_USER}`,
+    );
+  });
+
+  it("every task carries assignee_ids and assignees, first assignee first; the filter embed never leaks (#689 C)", async () => {
+    const list = listStub([
+      taskRow({
+        assigned_user_id: OTHER_USER,
+        task_assignees: [{ user_id: OTHER_USER }],
+      }),
+    ]);
+    const crew = stubRoute(restMatch(env, "GET", "task_assignees"), () => [
+      { task_id: TASK_ID, user_id: OTHER_USER },
+      { task_id: TASK_ID, user_id: NOTE_AUTHOR },
+    ]);
+    const people = stubRoute(restMatch(env, "GET", "profiles"), () => [
+      { user_id: OTHER_USER, display_name: "Ana" },
+      { user_id: NOTE_AUTHOR, display_name: "Ben" },
+    ]);
+    stubFetch(jwksRoute(auth), membersRoute(), list.route, crew.route, people.route);
+    const response = await request("GET", `/v1/tasks?assigned_user_id=${OTHER_USER}`);
+    const body = (await response.json()) as { data: Record<string, unknown>[] };
+    expect(body.data[0].assignee_ids).toEqual([OTHER_USER, NOTE_AUTHOR]);
+    expect(body.data[0].assignees).toEqual([
+      { user_id: OTHER_USER, display_name: "Ana" },
+      { user_id: NOTE_AUTHOR, display_name: "Ben" },
+    ]);
+    expect(body.data[0].assigned_user_id).toBe(OTHER_USER);
+    expect(body.data[0]).not.toHaveProperty("task_assignees");
+    // The crew was read for this workspace only.
+    expect(crew.calls[0].url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
 
   it("has_location=true reads the map view and filters on the coalesced location (#221)", async () => {
@@ -1518,22 +1647,26 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
         }),
       };
     });
-    const assign = stubRoute(rpcMatch(env, "assign_task"), (call) => {
+    const assign = stubRoute(rpcMatch(env, "set_task_assignees"), (call) => {
       const p = call.body as Record<string, unknown>;
       const outcome = options.assignOutcome ?? "updated";
-      if (outcome === "not_found" || outcome === "not_member") {
+      if (outcome === "not_found" || outcome === "not_member" || outcome === "too_many") {
         return { outcome, task: null };
       }
+      const ids = (p.p_assignee_ids as string[]) ?? [];
+      const had = current.assigned_user_id ? [current.assigned_user_id as string] : [];
       return {
         outcome,
-        task: taskRow({ ...current, assigned_user_id: p.p_assigned_user_id }),
+        task: taskRow({ ...current, assigned_user_id: ids[0] ?? null }),
+        added: ids.filter((id) => !had.includes(id)),
+        removed: had.filter((id) => !ids.includes(id)),
       };
     });
     // The assignee's own membership lookup, which now runs BEFORE any write
     // when a PATCH carries both metadata and an assignee.
     const assigneeRoute: FetchRoute = (url) =>
       url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/company_members`) &&
-      url.searchParams.get("user_id") === `eq.${OTHER_USER}`
+      (url.searchParams.get("user_id") ?? "").includes(OTHER_USER)
         ? Response.json(
             options.assigneeActive === false
               ? []
@@ -1566,7 +1699,7 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
     };
   }
 
-  it("assigning calls assign_task with the new assignee", async () => {
+  it("assigning calls set_task_assignees with the new crew", async () => {
     const stubs = patchStubs({ current: { assigned_user_id: null } });
     stubFetch(...stubs.all);
     const response = await request("PATCH", `/v1/tasks/${TASK_ID}`, {
@@ -1581,11 +1714,55 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
     expect(p).toMatchObject({
       p_company_id: COMPANY_ID,
       p_task_id: TASK_ID,
-      p_assigned_user_id: OTHER_USER,
+      p_assignee_ids: [OTHER_USER],
       p_actor_user_id: auth.subject,
     });
     const body = (await response.json()) as { assigned_user_id: string };
     expect(body.assigned_user_id).toBe(OTHER_USER);
+  });
+
+  it("assignee_ids replaces the crew as a whole; 422 for a stranger or more than ten (#689 C)", async () => {
+    const stubs = patchStubs({ current: { assigned_user_id: null } });
+    stubFetch(...stubs.all);
+    const response = await request("PATCH", `/v1/tasks/${TASK_ID}`, {
+      assignee_ids: [OTHER_USER, NOTE_AUTHOR],
+    });
+    expect(response.status).toBe(200);
+    expect(stubs.assign.calls[0].body).toMatchObject({
+      p_task_id: TASK_ID,
+      p_assignee_ids: [OTHER_USER, NOTE_AUTHOR],
+    });
+
+    const stranger = patchStubs({ assigneeActive: false });
+    stubFetch(...stranger.all);
+    const refused = await request("PATCH", `/v1/tasks/${TASK_ID}`, {
+      title: "Rename",
+      assignee_ids: [OTHER_USER],
+    });
+    expect(refused.status).toBe(422);
+    expect(stranger.update.calls).toHaveLength(0);
+
+    const full = patchStubs({ assignOutcome: "too_many" });
+    stubFetch(...full.all);
+    const tooMany = await request("PATCH", `/v1/tasks/${TASK_ID}`, {
+      assignee_ids: [OTHER_USER],
+    });
+    expect(tooMany.status).toBe(422);
+
+    const crowd = Array.from(
+      { length: 11 },
+      (_, i) => `77770000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+    );
+    const schema = await request("PATCH", `/v1/tasks/${TASK_ID}`, { assignee_ids: crowd });
+    expect(schema.status).toBe(422);
+  });
+
+  it("an empty assignee_ids unassigns everyone (#689 C)", async () => {
+    const stubs = patchStubs({ current: { assigned_user_id: OTHER_USER } });
+    stubFetch(...stubs.all);
+    const response = await request("PATCH", `/v1/tasks/${TASK_ID}`, { assignee_ids: [] });
+    expect(response.status).toBe(200);
+    expect(stubs.assign.calls[0].body).toMatchObject({ p_assignee_ids: [] });
   });
 
   it("setting due_at calls update_task with the concrete value (no clear)", async () => {
@@ -1692,7 +1869,7 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
     expect(stubs.assign.calls).toHaveLength(0);
   });
 
-  it("422 when the assignee is not an active member (assign_task not_member)", async () => {
+  it("422 when the assignee is not an active member (set_task_assignees not_member)", async () => {
     const stubs = patchStubs({ assignOutcome: "not_member" });
     stubFetch(...stubs.all);
     const response = await request("PATCH", `/v1/tasks/${TASK_ID}`, {
@@ -1911,6 +2088,51 @@ describe("POST /v1/tasks/bulk (#478)", () => {
       "in.(event_removed,refused)",
     );
     expect(url.searchParams.get("calendar_hold")).toBe("is.null");
+  });
+
+  it("assign forwards the people to ADD as p_target_user_ids (#689 C)", async () => {
+    const rpc = rpcStub({ ...ok, action: "assign" });
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), rpc.route);
+    const response = await request("POST", "/v1/tasks/bulk", {
+      action: "assign",
+      ids: ["11111111-1111-4111-8111-111111111111"],
+      assignee_ids: [OTHER_USER, NOTE_AUTHOR],
+    });
+    expect(response.status).toBe(200);
+    expect(rpc.calls[0].body).toMatchObject({
+      p_action: "assign",
+      p_target_user_ids: [OTHER_USER, NOTE_AUTHOR],
+    });
+  });
+
+  it("assign with neither a person nor ids is refused, and a filter cannot clear everyone (#689 C)", async () => {
+    const rpc = rpcStub({ ...ok, action: "assign" });
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), rpc.route);
+    const response = await request("POST", "/v1/tasks/bulk", {
+      action: "assign",
+      filter: { status: "open" },
+      assignee_ids: [],
+    });
+    expect(response.status).toBe(422);
+    expect(rpc.calls).toHaveLength(0);
+  });
+
+  it("a filter bulk by assignee selects through the same embed (#689 C)", async () => {
+    const list = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      { id: "11111111-1111-4111-8111-111111111111" },
+    ]);
+    const rpc = rpcStub(ok);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), list.route, rpc.route);
+    await request("POST", "/v1/tasks/bulk", {
+      action: "mark_done",
+      filter: { assigned_user_id: OTHER_USER },
+    });
+    expect(list.calls[0].url.searchParams.get("select")).toContain(
+      "task_assignees!inner(user_id)",
+    );
+    expect(list.calls[0].url.searchParams.get("task_assignees.user_id")).toBe(
+      `eq.${OTHER_USER}`,
+    );
   });
 
   it("answers an empty filter match without calling the RPC", async () => {
@@ -2198,13 +2420,16 @@ describe("#689 D subscriber alerts raised by the task routes", () => {
       outcome: "updated",
       task: { ...prior, ...(options.update?.(call.body as Record<string, unknown>) ?? {}) },
     }));
-    const assign = stubRoute(rpcMatch(env, "assign_task"), (call) => ({
-      outcome: "updated",
-      task: {
-        ...prior,
-        assigned_user_id: (call.body as Record<string, unknown>).p_assigned_user_id,
-      },
-    }));
+    const assign = stubRoute(rpcMatch(env, "set_task_assignees"), (call) => {
+      const ids = ((call.body as Record<string, unknown>).p_assignee_ids as string[]) ?? [];
+      const had = prior.assigned_user_id ? [prior.assigned_user_id as string] : [];
+      return {
+        outcome: "updated",
+        task: { ...prior, assigned_user_id: ids[0] ?? null },
+        added: ids.filter((id) => !had.includes(id)),
+        removed: had.filter((id) => !ids.includes(id)),
+      };
+    });
     const setDone = stubRoute(rpcMatch(env, "set_task_done"), () => ({
       outcome: options.doneOutcome ?? "updated",
       task: prior,
@@ -2246,6 +2471,20 @@ describe("#689 D subscriber alerts raised by the task routes", () => {
     await request("PATCH", `/v1/tasks/${TASK_ID}`, {
       assigned_user_id: NOTE_AUTHOR,
     });
+    expect(alerts.mock.calls.map((c) => c[1])).toEqual([
+      expect.objectContaining({ kind: "unassigned", previousAssigneeId: OTHER_USER }),
+    ]);
+  });
+
+  it("adding a person to a crew tells nobody they were removed; taking one off tells only that one (#689 C)", async () => {
+    world({ before: { assigned_user_id: OTHER_USER } });
+    await request("PATCH", `/v1/tasks/${TASK_ID}`, {
+      assignee_ids: [OTHER_USER, NOTE_AUTHOR],
+    });
+    expect(alerts).not.toHaveBeenCalled();
+
+    world({ before: { assigned_user_id: OTHER_USER } });
+    await request("PATCH", `/v1/tasks/${TASK_ID}`, { assignee_ids: [NOTE_AUTHOR] });
     expect(alerts.mock.calls.map((c) => c[1])).toEqual([
       expect.objectContaining({ kind: "unassigned", previousAssigneeId: OTHER_USER }),
     ]);

@@ -24,6 +24,7 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "../notifications/deliver";
 import { assigneeMayHear } from "./assignee-access";
+import { loadAssigneeIdsAcrossTenants } from "./assignees";
 import { dueNoticeBody, dueNoticeLink } from "./due-notice";
 import { TASK_DUE_COPY } from "./due-notice-copy";
 import { TASK_NOTIFY_COPY } from "./notify-copy";
@@ -70,6 +71,10 @@ export async function notifyOverdueTasksJob(
   if (error) throw new Error(`overdue task scan failed: ${error.message}`);
 
   const tasks = (data ?? []) as unknown as OverdueTaskRow[];
+  const crews = await loadAssigneeIdsAcrossTenants(
+    db,
+    tasks.map((task) => task.id),
+  );
   const failures: unknown[] = [];
 
   for (const task of tasks) {
@@ -90,18 +95,31 @@ export async function notifyOverdueTasksJob(
     if ((claimed ?? []).length === 0) continue;
 
     try {
-      if (!(await assigneeMayHear(db, task))) continue;
+      // Each assignee is asked separately (#689 C).
+      const crew = crews.get(task.id) ?? [task.assigned_user_id];
+      const listeners: string[] = [];
+      for (const userId of crew) {
+        if (await assigneeMayHear(db, { ...task, assigned_user_id: userId })) {
+          listeners.push(userId);
+        }
+      }
+      if (listeners.length === 0) continue;
 
       const prefs = await db
         .from("notification_prefs")
         .select("user_id,push_enabled")
         .eq("company_id", task.company_id)
-        .eq("user_id", task.assigned_user_id);
+        .in("user_id", listeners);
       if (prefs.error) {
         throw new Error(`notification prefs lookup failed: ${prefs.error.message}`);
       }
-      const row = ((prefs.data ?? []) as { push_enabled: boolean }[])[0];
-      if (row?.push_enabled === false) continue;
+      const silenced = new Set(
+        ((prefs.data ?? []) as { user_id: string; push_enabled: boolean }[])
+          .filter((row) => row.push_enabled === false)
+          .map((row) => row.user_id),
+      );
+      const audience = listeners.filter((userId) => !silenced.has(userId));
+      if (audience.length === 0) continue;
 
       const authored = (task.title ?? "").trim().slice(0, TITLE_LENGTH);
       const link = dueNoticeLink(env.APP_ORIGIN, task);
@@ -114,7 +132,7 @@ export async function notifyOverdueTasksJob(
       await deliverPush(env, db, {
         category: "tasks",
         companyId: task.company_id,
-        userIds: [task.assigned_user_id],
+        userIds: audience,
         // The title is a member's words and may carry a job address; the
         // lateness in the body is ours and survives.
         content: {

@@ -108,6 +108,8 @@ const TENANT_TABLES = new Set([
   "task_tags", "task_series",
   // #689 D: who follows a task, and the 60-second collapse windows.
   "task_subscribers", "task_notify_windows",
+  // #689 C: who is on a task.
+  "task_assignees",
   "lead_sources",
   // #224: the ask for money, and the mirror of the Stripe account it is paid
   // into. An unscoped read of either is the most valuable cross-tenant leak in
@@ -353,6 +355,14 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     why:
       "the overdue-task notifier, batched across all tenants like the due-soon " +
       "one. It selects company_id so it can fan the alerts back out per workspace",
+  },
+
+  "tasks/assignees.ts::task_assignees": {
+    count: 1,
+    why:
+      "the crew of the tasks the due and overdue notifiers just read, batched " +
+      "across all tenants. Keyed by task id, and the task rows carry their own " +
+      "company_id to fan the notices back out",
   },
 
   "tasks/due-notice.ts::tasks": {

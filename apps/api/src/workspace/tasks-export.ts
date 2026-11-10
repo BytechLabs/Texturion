@@ -43,6 +43,13 @@ export interface TaskExportFilters {
   state?: string;
 }
 
+/** Everyone on the task, falling back to the first assignee for a row read without the crew. */
+function assigneesOf(row: TaskRow): string[] {
+  const crew = (row.crew ?? []).map((entry) => entry.user_id);
+  if (crew.length > 0) return crew;
+  return row.assigned_user_id === null ? [] : [row.assigned_user_id];
+}
+
 interface TaskRow {
   id: string;
   title: string;
@@ -50,6 +57,8 @@ interface TaskRow {
   due_at: string | null;
   created_at: string;
   assigned_user_id: string | null;
+  /** Everyone on the task (#689 C); `assigned_user_id` is the first of them. */
+  crew?: { user_id: string }[] | null;
   conversation_id: string;
   /** The task's own done state: set only for a task with no message (D64). */
   done_at?: string | null;
@@ -142,7 +151,8 @@ export async function buildTaskExport(
         "messages!message_id(done_at)," +
         "conversations(phone_number_id,contact_phone_e164,contacts(name))," +
         // A standalone task (#689) names its customer through its own link.
-        "linked_contact:contacts!contact_id(name)",
+        "linked_contact:contacts!contact_id(name)," +
+        "crew:task_assignees(user_id)",
     )
     .eq("company_id", args.companyId)
     // Soft-deleted work is deleted work. A file that resurrected it would be
@@ -170,11 +180,7 @@ export async function buildTaskExport(
   });
 
   const names = await memberNames(db, [
-    ...new Set(
-      permitted
-        .map((row) => row.assigned_user_id)
-        .filter((id): id is string => id !== null),
-    ),
+    ...new Set(permitted.flatMap((row) => assigneesOf(row))),
   ]);
   const entries = permitted
     .map((row) => toEntry(row, names))
@@ -249,9 +255,11 @@ function toEntry(row: TaskRow, names: Map<string, string>): TaskEntry {
     // is the difference between a list somebody can triage and one they cannot.
     due: row.due_at ?? "no date",
     assignedTo:
-      row.assigned_user_id === null
+      assigneesOf(row).length === 0
         ? "Nobody yet"
-        : (names.get(row.assigned_user_id) ?? "Someone who has left"),
+        : assigneesOf(row)
+            .map((id) => names.get(id) ?? "Someone who has left")
+            .join(", "),
     state: isDone(row) ? "Done" : "Open",
   };
 }

@@ -919,6 +919,48 @@ describe("calendar sync worker", () => {
     );
   });
 
+  it("mirrors a task onto the calendar of an assignee who is not the first one (#689 C)", async () => {
+    const calendar = provider();
+    vi.mocked(calendar.createEvent).mockImplementation(async (input) =>
+      remote("created-event", input.schedule),
+    );
+    const db = store({
+      claimOutbox: vi.fn().mockResolvedValue([OUTBOX]),
+      getTask: vi.fn().mockResolvedValue({
+        ...TASK,
+        assigned_user_id: "first-assignee",
+        assignee_ids: ["first-assignee", CONNECTION.user_id],
+      }),
+    });
+
+    await drainCalendarSync({
+      store: db,
+      authorize: vi.fn().mockResolvedValue({ accessToken: "access", provider: calendar }),
+      workerId: "worker-1",
+      now: new Date("2026-08-25T12:00:00.000Z"),
+    });
+
+    expect(calendar.createEvent).toHaveBeenCalledOnce();
+    expect(db.cancelOutbox).not.toHaveBeenCalled();
+  });
+
+  it("cancels the create of a member who was taken off the crew (#689 C)", async () => {
+    const authorize = vi.fn();
+    const db = store({
+      claimOutbox: vi.fn().mockResolvedValue([OUTBOX]),
+      getTask: vi.fn().mockResolvedValue({
+        ...TASK,
+        assigned_user_id: "first-assignee",
+        assignee_ids: ["first-assignee"],
+      }),
+    });
+
+    await drainCalendarSync({ store: db, authorize, workerId: "worker-1" });
+
+    expect(authorize).not.toHaveBeenCalled();
+    expect(db.cancelOutbox).toHaveBeenCalledWith(expect.objectContaining({ outbox: OUTBOX }));
+  });
+
   it("cancels an ineligible create before requesting a provider token", async () => {
     const authorize = vi.fn();
     const db = store({
