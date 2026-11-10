@@ -288,6 +288,8 @@ class ContactsRepository(private val api: ApiClient) {
          */
         field: String? = null,
         value: String? = null,
+        /** #695: only contacts carrying this workspace tag. */
+        tagId: String? = null,
     ): Page<Contact> = api.get(
         "/v1/contacts",
         query = mapOf(
@@ -299,6 +301,7 @@ class ContactsRepository(private val api: ApiClient) {
             // Sent even when empty: "" is a real answer on a custom field, and
             // dropping it would silently widen the list back to everybody.
             "value" to if (field != null) value.orEmpty() else null,
+            "tag_id" to tagId,
         ),
         companyId = companyId,
     )

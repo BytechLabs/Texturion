@@ -444,6 +444,24 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.mergeDirection" to
             "{folded} stops being a separate customer. Its history moves to {survivor}.",
 
+        // Undoing a merge, and tags on a customer (#695)
+        "contactsTasks.mergedUndone" to "Merge undone.",
+        "contactsTasks.mergedFromLine" to "Merged from {name} ({date})",
+        "contactsTasks.unmergeAction" to "Unmerge",
+        "contactsTasks.unmergeTitle" to "Unmerge {name}?",
+        "contactsTasks.unmergeBody" to
+            "{name} comes back as its own customer, with its own number. Their " +
+            "conversations stay under this contact, because there is no telling " +
+            "which thread came from which record. If either number was opted " +
+            "out, it stays opted out.",
+        "contactsTasks.unmergeConfirm" to "Unmerge",
+        "contactsTasks.tagsHeading" to "Tags",
+        "contactsTasks.tagAdd" to "Tag",
+        "contactsTasks.tagRemove" to "Remove tag {name}",
+        "contactsTasks.tagPickTitle" to "Add a tag",
+        "contactsTasks.tagFindOrCreate" to "Find or create a tag…",
+        "contactsTasks.tagCreate" to "Add",
+
         // The contact's calls and history sections
         "contactsTasks.callsSection" to "Calls",
         "contactsTasks.historySection" to "History",
@@ -1127,6 +1145,24 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.mergeDirection" to
             "{folded} cesse d'être un client distinct. Son historique passe à " +
             "{survivor}.",
+
+        // Annuler une fusion, et les étiquettes d'un client (#695)
+        "contactsTasks.mergedUndone" to "Fusion annulée.",
+        "contactsTasks.mergedFromLine" to "Fusionné depuis {name} ({date})",
+        "contactsTasks.unmergeAction" to "Défusionner",
+        "contactsTasks.unmergeTitle" to "Défusionner {name} ?",
+        "contactsTasks.unmergeBody" to
+            "{name} redevient un client distinct, avec son propre numéro. Ses " +
+            "conversations restent sous cette fiche, car on ne peut pas savoir " +
+            "quel fil venait de quelle fiche. Si l'un des numéros était " +
+            "désabonné, il le reste.",
+        "contactsTasks.unmergeConfirm" to "Défusionner",
+        "contactsTasks.tagsHeading" to "Étiquettes",
+        "contactsTasks.tagAdd" to "Étiquette",
+        "contactsTasks.tagRemove" to "Retirer l'étiquette {name}",
+        "contactsTasks.tagPickTitle" to "Ajouter une étiquette",
+        "contactsTasks.tagFindOrCreate" to "Trouver ou créer une étiquette…",
+        "contactsTasks.tagCreate" to "Ajouter",
 
         // Les sections Appels et Historique de la fiche
         "contactsTasks.callsSection" to "Appels",

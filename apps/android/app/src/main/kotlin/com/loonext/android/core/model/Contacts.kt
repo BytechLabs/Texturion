@@ -46,10 +46,35 @@ data class ContactAddress(
     val created_at: String = "",
 )
 
+/** #695: a workspace tag as a contact carries it. */
+@Serializable
+data class ContactTag(
+    val id: String,
+    val name: String,
+    val color: String? = null,
+)
+
+/**
+ * #695: the most recent record folded into a contact. The Unmerge action acts
+ * on THIS record's id, which the survivor's page would otherwise not be able to
+ * name.
+ */
+@Serializable
+data class MergedFrom(
+    val id: String,
+    val name: String? = null,
+    val phone_e164: String,
+    val merged_at: String,
+)
+
 @Serializable
 data class Contact(
     val id: String,
     val phone_e164: String,
+    /** #695: the workspace tags this customer carries. Empty when none. */
+    val tags: List<ContactTag> = emptyList(),
+    /** #695: the most recent record merged into this one, or null. */
+    val merged_from: MergedFrom? = null,
     /**
      * #410: how many conversations this contact has had, and when the first
      * one was. Derived server-side so three clients cannot each count

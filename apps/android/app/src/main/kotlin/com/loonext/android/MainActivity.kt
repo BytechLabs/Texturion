@@ -912,6 +912,9 @@ private fun ReadyShell(
                         },
                         companyId = companyId,
                         callerIdName = hydratedMe.display_name,
+                        // #695: Unmerge is gated like merge, which the server
+                        // holds to settings.manage (owner and admin).
+                        canUnmerge = MemberRole.atLeast(role, MemberRole.ADMIN),
                         // #228: the contact's language row names what "same as
                         // workspace" currently means, which it cannot do
                         // without the workspace's own setting.

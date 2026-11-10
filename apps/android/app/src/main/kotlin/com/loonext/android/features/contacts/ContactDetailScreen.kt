@@ -82,6 +82,7 @@ import com.loonext.android.core.model.ContactFieldDef
 import com.loonext.android.core.model.ContactPhoneBody
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
+import com.loonext.android.core.model.Tag
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.telephony.SoftphoneManager
@@ -129,6 +130,8 @@ internal fun ContactDetailScreen(
     onComposeNew: ((contactId: String) -> Unit)?,
     modifier: Modifier = Modifier,
     callerIdName: String = "",
+    /** #695: Unmerge is gated like merge (settings.manage); the line is for everyone. */
+    canUnmerge: Boolean = false,
     /**
      * #228: the workspace's own language, so the inherit option can NAME what
      * it inherits. The shell's value seeds it; see [liveCompanyLocale] below for
@@ -249,6 +252,7 @@ internal fun ContactDetailScreen(
                 mutations = mutations,
                 companyId = companyId,
                 callerIdName = callerIdName,
+                canUnmerge = canUnmerge,
                 companyLocale = liveCompanyLocale,
                 contact = current.value,
                 members = members,
@@ -268,6 +272,7 @@ private fun ContactDetailBody(
     mutations: ContactMutations,
     companyId: String,
     callerIdName: String,
+    canUnmerge: Boolean,
     companyLocale: String,
     contact: Contact,
     members: List<Member>,
@@ -306,6 +311,13 @@ private fun ContactDetailBody(
     suspend fun refreshContact() {
         runCatching { mutations.detail(companyId, contact.id) }
             .onSuccess { graph.storeCache.put(CacheKeys.contact(companyId, contact.id), it) }
+    }
+
+    // #695: the workspace's tag list, for the picker. Empty when the read
+    // fails: the picker then offers only "create", and the server decides.
+    var workspaceTags by remember(companyId) { mutableStateOf<List<Tag>>(emptyList()) }
+    LaunchedEffect(companyId) {
+        runCatching { mutations.tags(companyId) }.onSuccess { workspaceTags = it.data }
     }
 
     var confirmOptOut by remember(contact.id) { mutableStateOf(false) }
@@ -559,6 +571,21 @@ private fun ContactDetailBody(
                     }
                 }
             }
+        }
+
+        // #695: only when a record was folded into this one.
+        contact.merged_from?.let { mergedFrom ->
+            MergedFromRow(
+                mergedFrom = mergedFrom,
+                canUnmerge = canUnmerge,
+                onUnmerge = {
+                    runAction {
+                        mutations.unmerge(companyId, mergedFrom.id)
+                        refreshContact()
+                        onChanged()
+                    }
+                },
+            )
         }
 
         // Consent strip: lime check when consent is on file, muted otherwise.
@@ -876,6 +903,34 @@ private fun ContactDetailBody(
                     }
                 }
             }
+        }
+
+        // #695: the tags this customer carries, from the workspace's one list.
+        PaperCard(Modifier.fillMaxWidth()) {
+            ContactTagsRow(
+                tags = contact.tags,
+                available = workspaceTags,
+                onAdd = { tagId, name ->
+                    scope.launch {
+                        runCatching {
+                            mutations.addTag(companyId, contact.id, tagId, name)
+                            refreshContact()
+                            // A new tag changes the list the picker offers.
+                            if (tagId == null) {
+                                workspaceTags = mutations.tags(companyId).data
+                            }
+                        }.onFailure { actionError = it.userMessage(locale) }
+                    }
+                },
+                onRemove = { tagId ->
+                    scope.launch {
+                        runCatching {
+                            mutations.removeTag(companyId, contact.id, tagId)
+                            refreshContact()
+                        }.onFailure { actionError = it.userMessage(locale) }
+                    }
+                },
+            )
         }
 
         // #205: the contact's call history in the call log's grammar —

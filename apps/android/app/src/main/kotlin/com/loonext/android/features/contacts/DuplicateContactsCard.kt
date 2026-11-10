@@ -62,7 +62,7 @@ fun DuplicateContactsCard(
      * the one outcome the crew has to be told about — a merged contact can come
      * out opted out when neither record they were looking at said so.
      */
-    onMerged: (ContactMergeResult) -> Unit,
+    onMerged: (ContactMergeResult, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var pairs by remember { mutableStateOf<List<DuplicatePair>>(emptyList()) }
@@ -140,10 +140,10 @@ fun DuplicateContactsCard(
             companyId = companyId,
             pair = pair,
             onDismiss = { merging = null },
-            onMerged = { result ->
+            onMerged = { result, foldedId ->
                 merging = null
                 refreshKey++
-                onMerged(result)
+                onMerged(result, foldedId)
             },
         )
     }
@@ -173,7 +173,7 @@ private fun MergeContactsDialog(
     companyId: String,
     pair: DuplicatePair,
     onDismiss: () -> Unit,
-    onMerged: (ContactMergeResult) -> Unit,
+    onMerged: (ContactMergeResult, String) -> Unit,
 ) {
     var keepFirst by remember(pair) { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
@@ -262,7 +262,7 @@ private fun MergeContactsDialog(
                     saving = true
                     coroutines.launch {
                         try {
-                            onMerged(repo.merge(companyId, foldedId, survivorId))
+                            onMerged(repo.merge(companyId, foldedId, survivorId), foldedId)
                         } catch (cause: Exception) {
                             error = cause.userMessage(locale)
                         } finally {

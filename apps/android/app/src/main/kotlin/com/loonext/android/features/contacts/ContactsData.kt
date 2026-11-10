@@ -11,6 +11,8 @@ import com.loonext.android.core.model.ContactPhoneCreated
 import com.loonext.android.core.model.ContactFieldsBody
 import com.loonext.android.core.model.ContactFieldsResponse
 import com.loonext.android.core.model.ContactMergeResult
+import com.loonext.android.core.model.ContactTag
+import com.loonext.android.core.model.Tag
 import com.loonext.android.core.model.DuplicatePair
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ImportResult
@@ -347,6 +349,41 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
         buildJsonObject { put("into_contact_id", intoContactId) },
         companyId = companyId,
     )
+
+    /**
+     * #695: put the folded-in record back. [mergedContactId] is the record that
+     * was merged AWAY (`merged_from.id` on the survivor), not the survivor.
+     * Restores that contact and its number; the conversations stay where they
+     * are, and an opt-out stays an opt-out.
+     */
+    suspend fun unmerge(companyId: String, mergedContactId: String) {
+        api.post<kotlinx.serialization.json.JsonObject>(
+            "/v1/contacts/$mergedContactId/unmerge",
+            companyId = companyId,
+        )
+    }
+
+    /** #695: the workspace's tag list, the same one the conversations use. */
+    suspend fun tags(companyId: String): Page<Tag> =
+        api.get("/v1/tags", companyId = companyId)
+
+    /** #695: tag a customer, by an existing tag's id or by name (create-on-attach). */
+    suspend fun addTag(
+        companyId: String,
+        contactId: String,
+        tagId: String?,
+        name: String?,
+    ): ContactTag = api.post(
+        "/v1/contacts/$contactId/tags",
+        buildJsonObject {
+            if (tagId != null) put("tag_id", tagId) else put("name", name.orEmpty())
+        },
+        companyId = companyId,
+    )
+
+    suspend fun removeTag(companyId: String, contactId: String, tagId: String) {
+        api.delete("/v1/contacts/$contactId/tags/$tagId", companyId = companyId)
+    }
 }
 
 /**

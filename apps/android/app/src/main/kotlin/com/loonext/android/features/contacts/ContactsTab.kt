@@ -54,7 +54,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -97,6 +99,7 @@ import com.loonext.android.core.model.ImportResult
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.Page
+import com.loonext.android.core.model.Tag
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.ui.common.AppSheet
@@ -117,6 +120,7 @@ import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -312,6 +316,15 @@ private fun ContactListScreen(
     // empty list is the honest state both for a workspace that defined none
     // and for a read that failed: the chips simply do not appear.
     var fieldFilter by remember(companyId) { mutableStateOf<Pair<String, String>?>(null) }
+    // #695: narrow to one workspace tag. Live like the field filter: the cached
+    // list is everybody, and serving it under a tag would show people who do
+    // not carry it.
+    var tagFilter by remember(companyId) { mutableStateOf<String?>(null) }
+    var workspaceTags by remember(companyId) { mutableStateOf<List<Tag>>(emptyList()) }
+    LaunchedEffect(companyId, refreshKey) {
+        runCatching { mutations.tags(companyId) }.onSuccess { workspaceTags = it.data }
+    }
+    val narrowed = fieldFilter != null || tagFilter != null
     var fieldDefs by remember(companyId) { mutableStateOf<List<ContactFieldDef>>(emptyList()) }
     LaunchedEffect(companyId) {
         runCatching { graph.contactsRepo.contactFields(companyId) }
@@ -348,11 +361,11 @@ private fun ContactListScreen(
     // semantics as before #176.
     var searchSnapshot by remember(companyId) { mutableStateOf<ContactsSnapshot?>(null) }
     var searchState by remember(companyId) { mutableStateOf<LoadState<Unit>>(LoadState.Loading) }
-    LaunchedEffect(companyId, debouncedQ, fieldFilter, refreshKey) {
+    LaunchedEffect(companyId, debouncedQ, fieldFilter, tagFilter, refreshKey) {
         // #291: a FILTER is live too. The cached list is everybody, so serving
         // it under an active filter would show every contact as though they
         // matched — the same failure the search path guards against below.
-        if (debouncedQ.isEmpty() && fieldFilter == null) {
+        if (debouncedQ.isEmpty() && !narrowed) {
             searchSnapshot = null
             searchState = LoadState.Loading
             return@LaunchedEffect
@@ -364,6 +377,7 @@ private fun ContactListScreen(
                 limit = 50,
                 field = fieldFilter?.first,
                 value = fieldFilter?.second,
+                tagId = tagFilter,
             )
             searchSnapshot = ContactsSnapshot(page.data, page.next_cursor)
             searchState = LoadState.Ready(Unit)
@@ -383,17 +397,17 @@ private fun ContactListScreen(
     // invisible). Falling back while a search is merely IN FLIGHT is still
     // correct — that is the "hold the previous rows while typing" behaviour.
     val searchFailed =
-        (debouncedQ.isNotEmpty() || fieldFilter != null) &&
+        (debouncedQ.isNotEmpty() || narrowed) &&
             searchSnapshot == null &&
             searchState is LoadState.Failed
     val snapshot = when {
-        debouncedQ.isEmpty() && fieldFilter == null -> defaultSnapshot
+        debouncedQ.isEmpty() && !narrowed -> defaultSnapshot
         searchFailed -> null
         // #291: a FILTERED list never falls through to the unfiltered one,
         // even mid-flight. Holding the previous rows is right while somebody
         // types — the rows shown were a real answer a moment ago — but under a
         // new filter the previous rows are precisely what was excluded.
-        fieldFilter != null -> searchSnapshot
+        narrowed -> searchSnapshot
         else -> searchSnapshot ?: defaultSnapshot
     }
     val rows = snapshot?.rows ?: emptyList()
@@ -712,6 +726,16 @@ private fun ContactListScreen(
                     onChange = { fieldFilter = it },
                 )
             }
+            // #695: the workspace's tags, as one more row of chips. Absent
+            // until there is a tag at all.
+            if (workspaceTags.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                ContactTagFilter(
+                    tags = workspaceTags,
+                    active = tagFilter,
+                    onChange = { tagFilter = it },
+                )
+            }
             Spacer(Modifier.height(14.dp))
 
             when (val current = state) {
@@ -744,7 +768,7 @@ private fun ContactListScreen(
                                     // an active filter those customers are
                                     // excluded, not missing, and "they're added
                                     // automatically" reads as having none.
-                                    fieldFilter != null ->
+                                    narrowed ->
                                         "${t(CONTACT_FILTER_EMPTY_TITLE)}. " +
                                             t(CONTACT_FILTER_EMPTY_BODY)
                                     else -> t("contactsTasks.noContactsYet")
@@ -784,7 +808,7 @@ private fun ContactListScreen(
                                         repo = mutations,
                                         companyId = companyId,
                                         canMerge = canImport,
-                                        onMerged = { result ->
+                                        onMerged = { result, foldedId ->
                                             onRefresh()
                                             // The opt-out union is said out
                                             // loud: a merge can leave the
@@ -792,9 +816,15 @@ private fun ContactListScreen(
                                             // record the user kept was not,
                                             // and nothing else on screen
                                             // would tell them.
+                                            //
+                                            // #695: and a merge removes a record
+                                            // from view, so the snackbar offers
+                                            // Undo (docs/UNDO-AUDIT.md). Undo is
+                                            // the unmerge of the record that was
+                                            // folded in.
                                             scope.launch {
-                                                snackbar.showSnackbar(
-                                                    AppStrings.translate(
+                                                val outcome = snackbar.showSnackbar(
+                                                    message = AppStrings.translate(
                                                         locale,
                                                         if (result.opted_out) {
                                                             "contactsTasks.mergedOptedOut"
@@ -802,7 +832,30 @@ private fun ContactListScreen(
                                                             "contactsTasks.merged"
                                                         },
                                                     ),
+                                                    actionLabel = AppStrings.translate(
+                                                        locale,
+                                                        "inbox.undo",
+                                                    ),
+                                                    duration = SnackbarDuration.Long,
                                                 )
+                                                if (outcome == SnackbarResult.ActionPerformed) {
+                                                    try {
+                                                        mutations.unmerge(companyId, foldedId)
+                                                        onRefresh()
+                                                        snackbar.showSnackbar(
+                                                            AppStrings.translate(
+                                                                locale,
+                                                                "contactsTasks.mergedUndone",
+                                                            ),
+                                                        )
+                                                    } catch (cause: CancellationException) {
+                                                        throw cause
+                                                    } catch (cause: Exception) {
+                                                        snackbar.showSnackbar(
+                                                            cause.userMessage(locale),
+                                                        )
+                                                    }
+                                                }
                                             }
                                         },
                                     )
