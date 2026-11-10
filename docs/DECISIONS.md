@@ -10078,6 +10078,11 @@ capability, use an undo toast (undo is restore), and a sent SMS says it is remov
 from Loonext only. Trash management (list, restore, Delete forever with a typed
 confirmation) is web only, under Settings, History.
 
+**A task outlives its source message's trash.** Trashing a single message leaves the
+task made from it visible, because the job is still real; the task's title,
+description, address and map position are blanked only when that content is
+erased for good (the message's purge, or its conversation's or call's).
+
 **Not built.** There is no per-customer "forget this customer" erasure; only
 workspace closure (docs/DELETION.md) erases customer data in bulk. Search
 (`api_search_v2`) still lists tasks from a trashed conversation until the task
