@@ -67,6 +67,7 @@ import { cn } from "@/lib/utils";
 import { ContactLanguage, useContactLanguageLabel } from "./contact-language";
 import { AutoSaveNotes, InlineTextField } from "./inline-field";
 import { TasksChecklist } from "./tasks-checklist";
+import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { LinkedTasks } from "@/components/tasks/linked-tasks";
 
 function onApiError(error: unknown, fallback: string) {
@@ -339,6 +340,22 @@ export function ContactPanel({
             currentConversationId={conversation.id}
           />
         </RecordSection>
+
+        {/* #714: this thread's own activity: texts, calls, assignments, tags,
+            status, opt-outs and scheduled texts. Fetched only while the panel
+            is open. */}
+        {active && (
+          <RecordSection label={t("activity.heading")}>
+            <div className="px-2">
+              <ActivityTimeline
+                recordType="conversation"
+                recordId={conversation.id}
+                compact
+                hideHeading
+              />
+            </div>
+          </RecordSection>
+        )}
 
         <Preferences
           contact={contact}

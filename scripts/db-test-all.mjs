@@ -204,6 +204,8 @@ const SUITES = [
   "task_assignees",
   // #690: task numbers, references and relations.
   "task_references",
+  // #714: one activity model for every record.
+  "record_activity",
 ];
 
 const args = process.argv.slice(2);

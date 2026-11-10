@@ -118,12 +118,10 @@ vi.mock("@/lib/api/companies", () => ({
     data: { enabled_modules: [] },
   }),
 }));
-// #205: the page mounts ContactCallHistory — stub its data hooks (empty log)
-// so the render stays synchronous and env-free.
-// #324: the contact timeline hook reaches CompanyProvider, which this harness
+// #714: the activity timeline hook reaches CompanyProvider, which this harness
 // deliberately does not mount (the page is rendered bare).
-vi.mock("@/lib/api/contact-timeline", () => ({
-  useContactTimeline: () => ({
+vi.mock("@/lib/api/record-activity", () => ({
+  useRecordActivity: () => ({
     data: undefined,
     isPending: false,
     isError: false,
@@ -138,15 +136,6 @@ vi.mock("@/lib/api/task-links", () => ({
   useLinkedTasks: () => ({ data: undefined }),
 }));
 vi.mock("@/lib/api/calls", () => ({
-  useContactCalls: () => ({
-    data: undefined,
-    isPending: false,
-    isError: false,
-    hasNextPage: false,
-    isFetchingNextPage: false,
-    fetchNextPage: vi.fn(),
-    refetch: vi.fn(),
-  }),
   useVoicemailUrl: () => ({
     data: undefined,
     isFetching: false,
@@ -292,11 +281,12 @@ describe("/contacts/[id] record attribution (#191)", () => {
   });
 });
 
-describe("/contacts/[id] call history (#205)", () => {
-  it("mounts the call history section with its quiet empty state", () => {
+describe("/contacts/[id] activity (#714)", () => {
+  it("shows the one activity timeline in place of the History and Call history cards", () => {
     const html = render("c-1");
-    expect(html).toContain("Call history");
-    expect(html).toContain("No calls with this contact yet.");
+    expect(html).toContain("Activity");
+    for (const filter of ["All", "Messages", "Calls", "Changes"]) expect(html).toContain(filter);
+    expect(html).not.toContain("Call history");
   });
 });
 

@@ -69,6 +69,7 @@ import {
   isMuted,
   type ConversationMemberPref,
 } from "../notifications/conversation-prefs";
+import { recordActivity } from "../activity/record";
 import { notifyNoteMention } from "../notifications/mention";
 import { mayHoldReference, syncReferences } from "../tasks/references";
 import { Hono, type Context } from "hono";
@@ -543,9 +544,101 @@ conversationsRoutes.post(
       else await notify;
     }
 
+    await recordBulkConversationActivity(
+      db,
+      c.get("companyId"),
+      c.get("userId"),
+      body,
+      result,
+    );
+
     return c.json(result);
   },
 );
+
+/**
+ * #714: the bulk RPC changes conversations without writing conversation events,
+ * so each row it actually changed is recorded here, on its own number.
+ */
+async function recordBulkConversationActivity(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  userId: string,
+  body: z.infer<typeof bulkSchema>,
+  result: BulkResult | null,
+): Promise<void> {
+  const applied = result?.applied ?? [];
+  if (applied.length === 0) return;
+  if (
+    !["assign", "set_status", "set_spam", "add_tag", "remove_tag"].includes(body.action)
+  ) {
+    return;
+  }
+  const rows = unwrap<{ id: string; phone_number_id: string | null }[]>(
+    await db
+      .from("conversations")
+      .select("id,phone_number_id")
+      .eq("company_id", companyId)
+      .in(
+        "id",
+        applied.map((row) => row.id),
+      ),
+    "bulk activity numbers",
+  );
+  const numberOf = new Map(rows.map((row) => [row.id, row.phone_number_id]));
+  let tagName: string | null = null;
+  if (body.target_tag_id) {
+    const tag = unwrap<{ name: string }[]>(
+      await db
+        .from("tags")
+        .select("name")
+        .eq("company_id", companyId)
+        .eq("id", body.target_tag_id)
+        .limit(1),
+      "bulk tag name",
+    );
+    tagName = tag[0]?.name ?? null;
+  }
+  for (const row of applied) {
+    const previous = row.previous;
+    let kind: "assigned" | "unassigned" | "edited" | "tagged" | "untagged" | null = null;
+    let payload: Record<string, unknown> = {};
+    if (body.action === "assign") {
+      if ((previous.assigned_user_id ?? null) === (body.target_user_id ?? null)) continue;
+      kind = body.target_user_id ? "assigned" : "unassigned";
+      payload = {
+        from_user_id: previous.assigned_user_id ?? null,
+        to_user_id: body.target_user_id ?? null,
+      };
+    } else if (body.action === "set_status") {
+      if (previous.status === body.target_status) continue;
+      kind = "edited";
+      payload = { field: "status", from: previous.status, to: body.target_status };
+    } else if (body.action === "set_spam") {
+      if (Boolean(previous.is_spam) === Boolean(body.target_spam)) continue;
+      kind = "edited";
+      payload = { field: "spam", to: Boolean(body.target_spam) };
+    } else if (body.action === "add_tag") {
+      if (previous.had_tag === true) continue;
+      kind = "tagged";
+      payload = { tag_id: body.target_tag_id, name: tagName };
+    } else {
+      if (previous.had_tag !== true) continue;
+      kind = "untagged";
+      payload = { tag_id: body.target_tag_id, name: tagName };
+    }
+    await recordActivity(db, {
+      companyId,
+      recordType: "conversation",
+      recordId: row.id,
+      kind,
+      actorUserId: userId,
+      payload,
+      conversationId: row.id,
+      phoneNumberId: numberOf.get(row.id) ?? null,
+    });
+  }
+}
 
 /**
  * GET /v1/conversations/:id/pinned (#13 part 2) — the conversation's COMPLETE
@@ -1192,6 +1285,28 @@ conversationsRoutes.post(
         ),
         "note mentions insert",
       );
+      // #714: naming a teammate is on the thread and on the customer.
+      for (const mentioned of mentionIds) {
+        for (const target of [
+          { recordType: "conversation" as const, recordId: id },
+          {
+            recordType: "contact" as const,
+            recordId: (conversation.contact_id as string | null) ?? null,
+          },
+        ]) {
+          await recordActivity(db, {
+            companyId,
+            ...target,
+            kind: "mentioned",
+            actorUserId: c.get("userId"),
+            payload: { user_id: mentioned },
+            sourceType: "message",
+            sourceId: note.id as string,
+            conversationId: id,
+            phoneNumberId: (conversation.phone_number_id as string | null) ?? null,
+          });
+        }
+      }
     }
 
     // #690: a `#T-142` in the note is a reference, parsed from the saved text.

@@ -75,20 +75,6 @@ export function useCall(sessionId: string) {
   });
 }
 
-export function useContactCalls(contactId: string) {
-  const companyId = useCompanyId();
-  return useInfiniteQuery({
-    queryKey: [companyId, "calls", "contact", contactId] as const,
-    queryFn: ({ pageParam }) =>
-      apiFetch<Page<Call>>("/v1/calls", {
-        companyId,
-        searchParams: { cursor: pageParam, contact_id: contactId },
-      }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: nextCursorParam,
-  });
-}
-
 /** D43 (#135): what the softphone needs to place a browser call — the number
  *  to present, the number to dial, and the leg tag Telnyx echoes on webhooks. */
 export interface BrowserCallAuth {

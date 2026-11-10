@@ -128,6 +128,7 @@ import {
   type VCardPropertyDeclaration,
 } from "@loonext/shared";
 
+import { recordActivity } from "../activity/record";
 import { capture } from "../analytics/posthog";
 
 import { normalizeNanpPhone } from "./core/phone";
@@ -3456,6 +3457,16 @@ contactsRoutes.post(
         .select("contact_id"),
       "contact tag attach",
     );
+    if (attached.length > 0) {
+      await recordActivity(db, {
+        companyId,
+        recordType: "contact",
+        recordId: id,
+        kind: "tagged",
+        actorUserId: c.get("userId"),
+        payload: { tag_id: tag.id, name: tag.name },
+      });
+    }
     return c.json(tag, attached.length > 0 ? 201 : 200);
   },
 );
@@ -3480,6 +3491,23 @@ contactsRoutes.delete(
     if (deleted.length === 0) {
       return errorResponse(c, "not_found", "Tag is not attached.");
     }
+    const detached = unwrap<{ name: string }[]>(
+      await db
+        .from("tags")
+        .select("name")
+        .eq("company_id", c.get("companyId"))
+        .eq("id", tagId)
+        .limit(1),
+      "detached tag name",
+    );
+    await recordActivity(db, {
+      companyId: c.get("companyId"),
+      recordType: "contact",
+      recordId: id,
+      kind: "untagged",
+      actorUserId: c.get("userId"),
+      payload: { tag_id: tagId, name: detached[0]?.name ?? null },
+    });
     return c.body(null, 204);
   },
 );
@@ -3594,6 +3622,7 @@ contactsRoutes.post(
         );
       }
       for (const id of toAdd) applied.push({ id, previous: { tagged: false } });
+      await recordBulkTagActivity(db, c.get("userId"), companyId, "tagged", tagId, toAdd);
     } else {
       const toRemove = liveIds.filter((id) => hasTag.has(id));
       for (let i = 0; i < toRemove.length; i += IMPORT_CHUNK) {
@@ -3608,10 +3637,41 @@ contactsRoutes.post(
         );
       }
       for (const id of toRemove) applied.push({ id, previous: { tagged: true } });
+      await recordBulkTagActivity(db, c.get("userId"), companyId, "untagged", tagId, toRemove);
     }
     return c.json({ action: body.action, matched: ids.length, applied, failed });
   },
 );
+
+/** #714: one tagged / untagged row per contact the bulk action changed. */
+async function recordBulkTagActivity(
+  db: ReturnType<typeof getDb>,
+  userId: string,
+  companyId: string,
+  kind: "tagged" | "untagged",
+  tagId: string,
+  contactIds: string[],
+): Promise<void> {
+  const tag = unwrap<{ name: string }[]>(
+    await db
+      .from("tags")
+      .select("name")
+      .eq("company_id", companyId)
+      .eq("id", tagId)
+      .limit(1),
+    "bulk tag name",
+  );
+  for (const contactId of contactIds) {
+    await recordActivity(db, {
+      companyId,
+      recordType: "contact",
+      recordId: contactId,
+      kind,
+      actorUserId: userId,
+      payload: { tag_id: tagId, name: tag[0]?.name ?? null },
+    });
+  }
+}
 
 /**
  * #291 — a contact's OTHER numbers.
@@ -3726,6 +3786,14 @@ contactsRoutes.post(
         .select("id,phone_e164,label,created_at"),
       "create contact phone",
     );
+    await recordActivity(db, {
+      companyId,
+      recordType: "contact",
+      recordId: contactId,
+      kind: "edited",
+      actorUserId: c.get("userId"),
+      payload: { field: "other_phone", change: "added", to: phone },
+    });
 
     return c.json({ data: rows[0] }, 201);
   },
@@ -3755,6 +3823,14 @@ contactsRoutes.delete(
     if (removed.length === 0) {
       return errorResponse(c, "not_found", "No such number.");
     }
+    await recordActivity(db, {
+      companyId,
+      recordType: "contact",
+      recordId: contactId,
+      kind: "edited",
+      actorUserId: c.get("userId"),
+      payload: { field: "other_phone", change: "removed" },
+    });
 
     // The THREADS stay. A conversation held with that number is a real
     // history, and deleting the number is a correction to the contact record,
@@ -3822,6 +3898,14 @@ contactsRoutes.post(
         .select("id,label,address,is_primary,created_at"),
       "create contact address",
     );
+    await recordActivity(db, {
+      companyId,
+      recordType: "contact",
+      recordId: contactId,
+      kind: "edited",
+      actorUserId: c.get("userId"),
+      payload: { field: "other_address", change: "added", to: body.address },
+    });
 
     return c.json({ data: rows[0] }, 201);
   },
@@ -3860,6 +3944,14 @@ contactsRoutes.patch(
       "update contact address",
     );
     if (rows.length === 0) return errorResponse(c, "not_found", "No such address.");
+    await recordActivity(db, {
+      companyId,
+      recordType: "contact",
+      recordId: contactId,
+      kind: "edited",
+      actorUserId: c.get("userId"),
+      payload: { field: "other_address", change: "updated", to: body.address ?? null },
+    });
 
     return c.json({ data: rows[0] });
   },
@@ -3887,6 +3979,14 @@ contactsRoutes.delete(
     if (removed.length === 0) {
       return errorResponse(c, "not_found", "No such address.");
     }
+    await recordActivity(db, {
+      companyId,
+      recordType: "contact",
+      recordId: contactId,
+      kind: "edited",
+      actorUserId: c.get("userId"),
+      payload: { field: "other_address", change: "removed" },
+    });
 
     // Deleting the primary promotes the oldest survivor. Leaving a contact
     // with addresses but no primary is the state that sends a van nowhere —

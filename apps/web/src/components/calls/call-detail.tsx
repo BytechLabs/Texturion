@@ -4,6 +4,7 @@ import { ArrowLeft, MessageSquare, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { CallActions } from "@/components/calls/call-actions";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
@@ -95,6 +96,9 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
             callId={row.id}
             callerName={who}
             hasVoicemail={row.has_voicemail}
+            conversationId={row.conversation_id}
+            contactId={row.contact_id}
+            callerE164={row.caller_e164}
             onDeleted={() => router.replace("/calls")}
           />
         }
@@ -194,6 +198,9 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
         )}
         {endReason && <Row label={t("shell.howItEnded")}>{endReason}</Row>}
       </section>
+
+      {/* #714: the same activity timeline a customer, a job and a thread show. */}
+      <ActivityTimeline recordType="call" recordId={row.id} />
 
     </div>
   );

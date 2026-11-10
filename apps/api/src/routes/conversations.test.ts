@@ -1667,6 +1667,12 @@ describe("POST /v1/conversations/bulk (#275)", () => {
       calls.push(call.body as Record<string, unknown>);
       return result;
     });
+    sb.on("GET", "/rest/v1/conversations", () =>
+      ((result.applied as { id: string }[] | undefined) ?? []).map((row) => ({
+        id: row.id,
+        phone_number_id: null,
+      })),
+    );
     return { sb, calls };
   }
 
@@ -1794,6 +1800,33 @@ describe("POST /v1/conversations/bulk (#275)", () => {
     expect(body.applied[1].previous.status).toBe("waiting");
     expect(body.failed).toHaveLength(1);
     expect(body.matched).toBe(3);
+  });
+
+  it("records one activity row for each conversation the bulk action actually changed (#714)", async () => {
+    const { sb } = bulkStub({
+      action: "assign",
+      matched: 2,
+      applied: [
+        { id: CONV_ID, previous: { assigned_user_id: null } },
+        // Already on the target: nothing changed, nothing recorded.
+        { id: "aaaaaaaa-2222-4222-8333-444444444444", previous: { assigned_user_id: auth.subject } },
+      ],
+      failed: [],
+      capped: false,
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await post({ action: "assign", ids: [CONV_ID], target_user_id: auth.subject });
+    expect(res.status).toBe(200);
+    const recorded = sb.find("POST", "/rest/v1/rpc/record_activity_add");
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0].body).toMatchObject({
+      p_record_type: "conversation",
+      p_record_id: CONV_ID,
+      p_kind: "assigned",
+      p_actor_user_id: auth.subject,
+      p_payload: { from_user_id: null, to_user_id: auth.subject },
+    });
   });
 
   it("escapes a search filter before it reaches the RPC", async () => {

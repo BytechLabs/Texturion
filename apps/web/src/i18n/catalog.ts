@@ -59,12 +59,14 @@ import { miscEn, miscFr } from "./sections/misc";
 import { onboardingEn, onboardingFr } from "./sections/onboarding";
 import { settingsEn, settingsFr } from "./sections/settings";
 import { settingsMoreEn, settingsMoreFr } from "./sections/settingsMore";
+import { activityEn, activityFr } from "./sections/activity";
 import { apiKeysEn, apiKeysFr } from "./sections/apiKeys";
 import { blockedNumbersEn, blockedNumbersFr } from "./sections/blockedNumbers";
 import { calendarFeedEn, calendarFeedFr } from "./sections/calendarFeed";
 import { domainEn, domainFr } from "./sections/domain";
 import { trashEn, trashFr } from "./sections/trash";
 import { quotesEn, quotesFr } from "./sections/quotes";
+import { recordMenuEn, recordMenuFr } from "./sections/recordMenu";
 import { webhooksEn, webhooksFr } from "./sections/webhooks";
 import { shellEn, shellFr } from "./sections/shell";
 import { tasksEn, tasksFr } from "./sections/tasks";
@@ -341,6 +343,8 @@ export const EN = {
   webhooks: webhooksEn,
   apiKeys: apiKeysEn,
   blockedNumbers: blockedNumbersEn,
+  activity: activityEn,
+  recordMenu: recordMenuEn,
   calendarFeed: calendarFeedEn,
   appShell: appShellEn,
   thread: threadEn,
@@ -371,6 +375,8 @@ export const FR_CA: Catalog = {
   webhooks: webhooksFr,
   apiKeys: apiKeysFr,
   blockedNumbers: blockedNumbersFr,
+  activity: activityFr,
+  recordMenu: recordMenuFr,
   calendarFeed: calendarFeedFr,
   appShell: appShellFr,
   thread: threadFr,

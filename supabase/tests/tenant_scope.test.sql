@@ -67,6 +67,7 @@ declare
     'task_calendar_links', 'calendar_outbox', 'calendar_reminder_replans',
     -- #689 E: a task's history and its comments.
     'task_events', 'task_comments',
+    'record_activity',
     -- #693: a task's labels, and a repeating job's rule and template.
     'task_tags', 'task_series',
     -- #689 D: who follows a task, and the push collapse windows.

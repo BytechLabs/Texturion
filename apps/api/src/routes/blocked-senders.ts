@@ -25,6 +25,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
+import { recordActivityForPhone } from "../activity/record";
 import { recordAuditFromRequest } from "../audit/log";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -165,6 +166,15 @@ blockedSendersRoutes.delete(
       targetId: rows[0]?.id ?? null,
       before: { phone_e164: rows[0]?.phone_e164 },
     });
+
+    // #714: lifting a block is on the customer it concerns, by whom.
+    if (rows[0]?.phone_e164) {
+      await recordActivityForPhone(db, rows[0].phone_e164, {
+        companyId,
+        kind: "unblocked",
+        actorUserId: c.get("userId"),
+      });
+    }
 
     return c.body(null, 204);
   },

@@ -51,6 +51,7 @@ declare
     -- #689 E: what changed on a task (titles, notes, addresses) and what the
     -- crew said about it. Free text a member typed, so personal data.
     'task_events', 'task_comments',
+    'record_activity',
     -- #693: a repeating job's template (title, description, job address) and
     -- the workspace tags a task carries.
     'task_series', 'task_tags',

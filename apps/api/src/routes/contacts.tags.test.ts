@@ -342,6 +342,7 @@ describe("DELETE /v1/contacts/:id/tags/:tag_id", () => {
   it("detaches, scoped to the caller's workspace", async () => {
     const sb = stubWithRole("member");
     sb.on("DELETE", "/rest/v1/contact_tags", () => [{ tag_id: TAG_ID }]);
+    sb.on("GET", "/rest/v1/tags", () => [{ name: "VIP" }]);
     stubFetch(jwksRoute(auth), sb.route);
     const res = await apiRequest(
       app,
@@ -354,6 +355,12 @@ describe("DELETE /v1/contacts/:id/tags/:tag_id", () => {
     expect(
       sb.find("DELETE", "/rest/v1/contact_tags")[0].url.searchParams.get("company_id"),
     ).toBe(`eq.${COMPANY_ID}`);
+    expect(sb.find("POST", "/rest/v1/rpc/record_activity_add")[0].body).toMatchObject({
+      p_record_type: "contact",
+      p_record_id: CONTACT_A,
+      p_kind: "untagged",
+      p_payload: { tag_id: TAG_ID, name: "VIP" },
+    });
   });
 });
 

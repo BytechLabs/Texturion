@@ -20,14 +20,15 @@ import { AddressList } from "@/components/contacts/address-list";
 import { PhoneList } from "@/components/contacts/phone-list";
 import { ExportHistory } from "@/components/contacts/export-history";
 import { ContactCustomFields } from "@/components/contacts/custom-fields";
-import { ContactTimeline } from "@/components/contacts/contact-timeline";
-import { ContactCallHistory } from "@/components/contacts/contact-call-history";
+import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { ContactTags } from "@/components/contacts/contact-tags";
 import { MergedFrom } from "@/components/contacts/merged-from";
 import { LoadError, SettingsCard } from "@/components/settings/section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RecordHeader } from "@/components/ui/record-header";
+import { RecordOverflowMenu } from "@/components/ui/record-menu";
+import { useContactActions } from "@/components/contacts/contact-record-actions";
 import {
   Dialog,
   DialogContent,
@@ -346,6 +347,12 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingBlock, setConfirmingBlock] = useState(false);
   const blockedNumber = useBlockedNumber(contact.phone_e164);
+  // #712: the contact's one action list, the same one a list row's right-click
+  // menu opens. The danger-zone buttons below keep their own explanations.
+  const { actions: menuActions, dialogs: menuDialogs } = useContactActions({
+    contact,
+    onDeleted: () => router.push("/contacts"),
+  });
 
   return (
     <div className="space-y-6">
@@ -419,6 +426,12 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                   : t("appShell.contactMessage")}
               </Link>
             </Button>
+            <RecordOverflowMenu
+              actions={menuActions}
+              label={t("recordMenu.moreActionsFor", {
+                name: contact.name?.trim() || formatPhone(contact.phone_e164),
+              })}
+            />
           </>
         }
       />
@@ -581,19 +594,12 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
         <ConsentLine contact={contact} />
       </SettingsCard>
 
-      {/* #324: ONE chronology of texts, calls and jobs. D7's threading rule
-          makes a long relationship many conversations rather than one thread,
-          so "what have we done for this customer?" spanned N threads with
-          nothing assembling them. The call history below stays: it is the
-          #205 detail view (voicemail playable in place), and this is the
-          overview above it. */}
+      {/* #714: ONE activity timeline for the customer (texts, calls, edits,
+          tags, merges, opt-outs, blocks, assignments, mentions, references),
+          the same one a job, a thread and a call show. It replaces the
+          History and Call history cards. */}
       <LinkedTasks kind="contact" id={contact.id} />
-      <ContactTimeline contactId={contact.id} />
-
-      {/* #205: every call with this customer, in the /calls row grammar —
-          day-grouped, voicemail playable in place, threaded rows tap through
-          to the conversation. */}
-      <ContactCallHistory contactId={contact.id} />
+      <ActivityTimeline recordType="contact" recordId={contact.id} />
 
       {/* §3.3: the danger zone stays genuinely quiet — these are routine,
           reversible actions, so the triggers are neutral until hovered, no red
@@ -744,6 +750,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {menuDialogs}
     </div>
   );
 }

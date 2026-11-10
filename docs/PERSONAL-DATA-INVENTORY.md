@@ -73,6 +73,7 @@ The most sensitive category, because the person never chose us.
 | `contact_consent_events` | consent attestations, stripped | **3 years**, names and message contents removed — CASL requires the record, not the content |
 | `tasks` | free-text description, **job address** | Life of the workspace |
 | `task_events` | the previous and new **title, description, job address**, assignee and times of one task, with the member who changed it (#689) | Life of the task; deleted with it and purged with the workspace |
+| `record_activity` | one row per event on a contact, task, conversation or call: who did it, when, and a link to the source. Field edits hold the field **before and after** (name, email, address, notes, task title), never a message body (#714) | Life of the workspace; a purged task loses the words its rows carried; purged with the workspace |
 | `task_comments` | the free text a member typed about a task, and the author; files on a comment are `attachments` rows (#689) | Life of the task (a deleted comment is soft-deleted and hidden); purged with the workspace |
 | `task_series` | the **title, description and job address** a repeating job copies into each new occurrence, the contact and conversation it is linked to, and who set it up (#693). Trash expiry stops a series made from deleted content and blanks the copy | Life of the repeat; purged with the workspace |
 | `task_tags` | which workspace tags ("warranty", "parts needed") a task carries. References only (#693) | Life of the task (FK cascade); purged with the workspace |

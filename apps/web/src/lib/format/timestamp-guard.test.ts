@@ -156,12 +156,7 @@ const ROSTER: readonly { file: string; call: string; reason: string }[] = [
     reason: "The carrier's switch-over day for a port: a day with no time of day.",
   },
   {
-    file: "components/contacts/contact-timeline.tsx",
-    call: "toLocaleTimeString(",
-    reason: "The time of day under a day heading that already names the date.",
-  },
-  {
-    file: "components/contacts/contact-timeline.tsx",
+    file: "components/activity/activity-timeline.tsx",
     call: "toLocaleDateString(",
     reason: "The day heading that groups the timeline: a calendar day, never a time.",
   },

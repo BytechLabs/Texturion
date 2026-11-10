@@ -49,6 +49,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { recordActivity } from "../activity/record";
 import { requireCapability } from "../auth/company";
 import {
   requireConversationAccess,
@@ -455,6 +456,21 @@ taskActivityRoutes.post(
         sourceKind: "task_comment",
         sourceId: rows[0].id,
         text: body.body,
+      });
+    }
+
+    // #714: naming a teammate is on the task, by whom.
+    for (const mentioned of mentionIds) {
+      await recordActivity(db, {
+        companyId,
+        recordType: "task",
+        recordId: taskId,
+        kind: "mentioned",
+        actorUserId: userId,
+        payload: { user_id: mentioned },
+        sourceType: "task_comment",
+        sourceId: rows[0].id,
+        conversationId: gate.conversation_id,
       });
     }
 

@@ -4,14 +4,12 @@ import {
   ArrowUpRight,
   Bell,
   BellOff,
-  Check,
   ChevronDown,
   Loader2,
   MapPin,
   MoreHorizontal,
   PhoneIncoming,
   Paperclip,
-  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -37,14 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuToggleItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -92,6 +83,7 @@ import { TaskLinksSection } from "./task-links-section";
 import { useReferenceTrigger } from "./use-reference-trigger";
 import { taskAssigneeIds } from "./task-assignees";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
+import { buildTaskActions } from "./task-actions";
 import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
 import {
   draftFromRepeat,
@@ -417,6 +409,24 @@ function TaskDetailLoaded({
     );
   };
 
+  const actions = buildTaskActions({
+    t,
+    task,
+    hasAccess: !noAccess,
+    canDelete,
+    deleting: del.isPending,
+    // Already open here, so there is no Open and no link to copy.
+    canCopyLink: false,
+    now: new Date(),
+    run: {
+      open: () => {},
+      copyLink: () => {},
+      toggleDone,
+      setDue: saveDue,
+      requestDelete,
+    },
+  });
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Header: done state + title + actions menu. pr-12 reserves the drawer's
@@ -490,49 +500,22 @@ function TaskDetailLoaded({
                 )}
               </button>
             )}
-            {/* #713: no trigger when neither item is allowed. */}
-            {(!noAccess || canDelete) && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={t("tasks.actionsAria")}
-                    className="tap-target mt-0.5 shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  {/* Mirrors the check-circle — the same derived-done write, and the
-                      same access requirement. */}
-                  {!noAccess && (
-                    <DropdownMenuToggleItem
-                      checked={task.done}
-                      onCheckedChange={toggleDone}
-                      disabled={done.isPending}
-                    >
-                      <Check className="size-4" strokeWidth={1.75} aria-hidden />
-                      {t("tasks.markDoneAction")}
-                    </DropdownMenuToggleItem>
-                  )}
-                  {/* #89: a real, destructive Delete (records.delete only).
-                      Confirms first when the task carries notes or files. */}
-                  {canDelete && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={requestDelete}
-                        disabled={del.isPending}
-                      >
-                        <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
-                        {t("tasks.deleteTask")}
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+            {/* #712: the task's one action list, the same one a row's right-click
+                menu opens. #713: no trigger when nothing is allowed. */}
+            <RecordOverflowMenu
+              actions={actions}
+              label={t("tasks.actionsAria")}
+              contentClassName="w-44"
+              trigger={
+                <button
+                  type="button"
+                  aria-label={t("tasks.actionsAria")}
+                  className="tap-target mt-0.5 shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
+                </button>
+              }
+            />
           </>
         }
       />

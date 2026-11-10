@@ -95,6 +95,19 @@ const SURFACES = [
     iosReason: "saved views live in Features/Inbox and Features/Tasks beside each list's filters",
   },
   {
+    key: "activity",
+    // #714: the one activity timeline every record shows (contact, job, thread,
+    // call), read from GET /v1/{contacts,conversations,calls}/:id/activity and
+    // /v1/tasks/:id/record-activity.
+    web: "activity",
+    android: null,
+    androidReason:
+      "the timeline is a section inside each record's own screen (features/contacts, tasks, calls, thread), fed by the same /v1 activity endpoints; the phone half of #714 builds it there",
+    ios: null,
+    iosReason:
+      "the timeline is a section inside each record's own screen (Features/Contacts, Tasks, Calls, Thread), fed by the same /v1 activity endpoints; the phone half of #714 builds it there",
+  },
+  {
     key: "blocked",
     // #696: the web keeps the block confirmation in its own folder because the
     // thread, the contact page and settings all open it. Registered by file in
