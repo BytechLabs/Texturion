@@ -96,8 +96,11 @@ struct TaskDetailView: View {
                         followButton(detail)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    overflowMenu(detail)
+                // Both entries are gated; with neither, the menu would open empty.
+                if !noAccess || canDelete {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        overflowMenu(detail)
+                    }
                 }
             }
         }

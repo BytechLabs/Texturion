@@ -1168,8 +1168,7 @@ extension TasksTab {
                 }
                 bulkPriorityMenu
                 if !workspaceTags.isEmpty {
-                    bulkLabelMenu(add: true)
-                    bulkLabelMenu(add: false)
+                    bulkLabelMenu
                 }
                 // Destructive and last: an action adjacent to the ones people
                 // use by momentum is one somebody hits by momentum.
@@ -1244,26 +1243,37 @@ extension TasksTab {
         }
     }
 
-    /// #693: add or remove one workspace label on every selected task.
+    /// Each selected task's label ids; nil for a filter selection, whose rows are not loaded.
+    var selectedTaskLabelIds: [[String]]? {
+        guard case let .ids(ids) = bulkSelection else { return nil }
+        return rows.filter { ids.contains($0.id) }.map { $0.labelList.map(\.id) }
+    }
+
+    /// #713: one checklist for adding and removing a workspace label across the selection.
     @ViewBuilder
-    func bulkLabelMenu(add: Bool) -> some View {
-        Menu(
-            AppStrings.translate(
-                appLocale,
-                add ? "contactsTasks.bulkAddLabel" : "contactsTasks.bulkRemoveLabel"
-            )
-        ) {
+    var bulkLabelMenu: some View {
+        Menu(AppStrings.translate(appLocale, "contactsTasks.bulkLabels")) {
+            let selected = selectedTaskLabelIds
             ForEach(workspaceTags, id: \.id) { tag in
-                Button(tag.name) {
+                let state = tagSelectionState(itemTagIds: selected, tagId: tag.id)
+                let removing = tagToggleAction(state) == "remove"
+                Button {
                     runBulk(
-                        action: add ? "add_label" : "remove_label",
-                        verbOneKey: add
-                            ? "contactsTasks.bulkLabelAddedOne"
-                            : "contactsTasks.bulkLabelRemovedOne",
-                        verbManyKey: add
-                            ? "contactsTasks.bulkLabelAddedMany"
-                            : "contactsTasks.bulkLabelRemovedMany",
+                        action: removing ? "remove_label" : "add_label",
+                        verbOneKey: removing
+                            ? "contactsTasks.bulkLabelRemovedOne"
+                            : "contactsTasks.bulkLabelAddedOne",
+                        verbManyKey: removing
+                            ? "contactsTasks.bulkLabelRemovedMany"
+                            : "contactsTasks.bulkLabelAddedMany",
                         tagId: tag.id
+                    )
+                } label: {
+                    Label(
+                        tag.name,
+                        systemImage: state == .all
+                            ? "checkmark"
+                            : (state == .absent ? "circle" : "minus")
                     )
                 }
             }
