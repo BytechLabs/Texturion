@@ -64,6 +64,7 @@ enum AppStrings {
         SettingsStrings.section,
         SettingsMoreStrings.section,
         ShellStrings.section,
+        TaskReferencesStrings.section,
         ThreadStrings.section,
         WebhooksStrings.section,
     ]

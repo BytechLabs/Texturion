@@ -171,7 +171,13 @@ struct TaskMapView: View {
         // matches the Android drain exactly).
         let assignee = assigneeChip == assigneeAll ? nil : assigneeChip
         let unassigned = unassignedChip && assigneeChip == nil
-        let dueFilters = dueChip.map { dueChipFilters($0) } ?? TaskListFilters()
+        // A range picked in Filters wins over the chips, as it does on the list.
+        let dueFilters: TaskListFilters
+        if meta.dueAfter != nil || meta.dueBefore != nil {
+            dueFilters = TaskListFilters(dueBefore: meta.dueBefore, dueAfter: meta.dueAfter)
+        } else {
+            dueFilters = dueChip.map { dueChipFilters($0) } ?? TaskListFilters()
+        }
         let trimmedQuery = q.trimmingCharacters(in: .whitespacesAndNewlines)
         let query: String? = trimmedQuery.isEmpty ? nil : trimmedQuery
         var accumulated: [TaskItem] = []
@@ -192,6 +198,11 @@ struct TaskMapView: View {
                         "priority": meta.priority.isEmpty
                             ? nil : meta.priority.joined(separator: ","),
                         "tag_id": meta.tagId,
+                        "contact_id": meta.contactId,
+                        "created_by": meta.createdBy,
+                        "source": meta.source,
+                        "has_attachments": meta.hasAttachments ? "true" : nil,
+                        "has_references": meta.hasReferences ? "true" : nil,
                         "cursor": cursor,
                         "limit": "100",
                     ],

@@ -591,6 +591,19 @@ struct TaskDetailView: View {
                         sourceCard(detail)
                         descriptionSection(detail)
                         addressSection(detail)
+                        TaskLinksSection(
+                            references: TaskReferencesApi(api: graph.api),
+                            search: referenceSearchClosure(
+                                graph: graph,
+                                companyId: companyId,
+                                includeRecords: false
+                            ),
+                            companyId: companyId,
+                            taskId: detail.id,
+                            canEdit: true,
+                            refreshKey: refreshKey,
+                            onChanged: { Task { await loadFeed() } }
+                        )
                         if !detail.attachments.isEmpty {
                             attachmentsSection(detail)
                         }
@@ -610,11 +623,18 @@ struct TaskDetailView: View {
                     companyId: companyId,
                     conversationId: detail.message_id == nil ? nil : detail.conversation_id,
                     taskId: detail.id,
-                    onPosted: { refreshKey += 1 }
+                    onPosted: { refreshKey += 1 },
+                    referenceSearch: referenceSearchClosure(graph: graph, companyId: companyId)
                 )
             }
         }
         .background(BrandColor.canvas.ignoresSafeArea())
+        // #690: chips in notes, descriptions and comments resolve through one
+        // shared resolver for the workspace.
+        .environment(
+            \.referenceResolver,
+            ReferenceResolverStore.shared.resolver(api: graph.api, companyId: companyId)
+        )
         // #693: which of a repeating task's occurrences a delete reaches.
         .confirmationDialog(
             AppStrings.translate(appLocale, "contactsTasks.deleteScopeTitle"),
@@ -664,30 +684,39 @@ struct TaskDetailView: View {
                     )
                 )
             }
-            if noAccess {
-                Text(detail.title)
-                    .font(.golos(21, weight: .semibold))
-                    .foregroundStyle(BrandColor.ink)
-                    .strikethrough(detail.done)
-            } else {
-                InlineEditField(
-                    initial: detail.title,
-                    maxLength: taskTitleMax,
-                    placeholder: AppStrings.translate(
-                        appLocale, "contactsTasks.taskTitlePlaceholder"
-                    ),
-                    multiline: false,
-                    allowEmpty: false,
-                    font: .golos(21, weight: .semibold)
-                ) { value in
-                    await saveField { scope in
-                        try await mutations.rename(
-                            companyId: companyId, taskId: detail.id, title: value, scope: scope
-                        )
-                    }
-                }
-                .id("\(detail.id)|\(detail.updated_at)|title")
+            VStack(alignment: .leading, spacing: 2) {
+                // #690: the number people say out loud.
+                TaskNumberTag(number: detail.number)
+                titleField(detail)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func titleField(_ detail: TaskDetail) -> some View {
+        if noAccess {
+            Text(detail.title)
+                .font(.golos(21, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+                .strikethrough(detail.done)
+        } else {
+            InlineEditField(
+                initial: detail.title,
+                maxLength: taskTitleMax,
+                placeholder: AppStrings.translate(
+                    appLocale, "contactsTasks.taskTitlePlaceholder"
+                ),
+                multiline: false,
+                allowEmpty: false,
+                font: .golos(21, weight: .semibold)
+            ) { value in
+                await saveField { scope in
+                    try await mutations.rename(
+                        companyId: companyId, taskId: detail.id, title: value, scope: scope
+                    )
+                }
+            }
+            .id("\(detail.id)|\(detail.updated_at)|title")
         }
     }
 
@@ -1156,18 +1185,23 @@ struct TaskDetailView: View {
                 ),
                 multiline: true,
                 allowEmpty: true,
-                font: .golos(13)
-            ) { value in
-                await saveField { scope in
-                    try await mutations.describe(
-                        companyId: companyId,
-                        taskId: detail.id,
-                        description: value,
-                        scope: scope
-                    )
-                }
-            }
+                font: .golos(13),
+                onSave: { value in
+                    await saveField { scope in
+                        try await mutations.describe(
+                            companyId: companyId,
+                            taskId: detail.id,
+                            description: value,
+                            scope: scope
+                        )
+                    }
+                },
+                // #690: a `#` in the description points at a task, contact or conversation.
+                referenceSearch: referenceSearchClosure(graph: graph, companyId: companyId)
+            )
             .id("\(detail.id)|\(detail.updated_at)|description")
+            // #690: what the description points at, as chips you can tap.
+            ReferenceChipRow(text: detail.description)
         }
     }
 
@@ -1269,6 +1303,8 @@ struct TaskDetailView: View {
                         body: item.body ?? "",
                         createdAt: item.created_at
                     )
+                } else if item.kind == "reference" {
+                    referenceLine(item)
                 } else if item.kind == "comment" {
                     CommentCard(
                         item: item,
@@ -1286,11 +1322,10 @@ struct TaskDetailView: View {
                         onError: { actionError = $0 }
                     )
                 } else {
-                    let sentence = taskHistorySentence(
-                        item,
-                        by: item.actor == nil ? "Loonext" : feedName(item.actor),
-                        locale: appLocale
-                    )
+                    let by = item.actor == nil ? "Loonext" : feedName(item.actor)
+                    let sentence = item.event == "link_added" || item.event == "link_removed"
+                        ? taskLinkSentence(item, by: by, locale: appLocale)
+                        : taskHistorySentence(item, by: by, locale: appLocale)
                     // Spec 23: a muted dot bullet + quiet sentence per event.
                     HStack(alignment: .firstTextBaseline, spacing: 9) {
                         Circle()
@@ -1313,6 +1348,29 @@ struct TaskDetailView: View {
                 }
             }
         }
+    }
+
+    /// #690: a note, task description or comment elsewhere that points at this
+    /// task, or something this task points at. Quiet, like a history line.
+    private func referenceLine(_ item: TaskFeedItem) -> some View {
+        let sentence = taskReferenceSentence(item, by: feedName(item.author), locale: appLocale)
+        return HStack(alignment: .firstTextBaseline, spacing: 9) {
+            Image(systemName: "link")
+                .font(.scaled(9, weight: .semibold))
+                .foregroundStyle(BrandColor.muted500)
+                .frame(width: 6)
+                .accessibilityHidden(true)
+            Text(
+                AppStrings.translate(
+                    appLocale,
+                    "contactsTasks.activityLine",
+                    ["sentence": sentence, "when": relativeTime(item.created_at)]
+                )
+            )
+            .font(.golos(12))
+            .foregroundStyle(BrandColor.muted600)
+        }
+        .padding(.leading, 4)
     }
 
     private func feedName(_ person: TaskProfile?) -> String {
@@ -1340,10 +1398,14 @@ private struct InlineEditField: View {
     let multiline: Bool
     let allowEmpty: Bool
     let font: Font
+    /// #690: set only where a `#` takes a reference (the description). Nil
+    /// leaves the field a plain one.
+    let referenceSearch: (@MainActor (String) async -> [ReferencePick])?
     let onSave: (String) async -> String?
 
     @State private var value: String
     @State private var error: String?
+    @State private var referencePickerOpen = false
     @FocusState private var focused: Bool
 
     init(
@@ -1353,7 +1415,8 @@ private struct InlineEditField: View {
         multiline: Bool,
         allowEmpty: Bool,
         font: Font,
-        onSave: @escaping (String) async -> String?
+        onSave: @escaping (String) async -> String?,
+        referenceSearch: (@MainActor (String) async -> [ReferencePick])? = nil
     ) {
         self.initial = initial
         self.maxLength = maxLength
@@ -1361,6 +1424,7 @@ private struct InlineEditField: View {
         self.multiline = multiline
         self.allowEmpty = allowEmpty
         self.font = font
+        self.referenceSearch = referenceSearch
         self.onSave = onSave
         _value = State(initialValue: initial)
     }
@@ -1375,10 +1439,13 @@ private struct InlineEditField: View {
             .font(font)
             .lineLimit(multiline ? 2 ... 6 : 1 ... 1)
             .focused($focused)
-            .onChange(of: value) { _, next in
+            .onChange(of: value) { previous, next in
                 error = nil
                 if next.count > maxLength {
                     value = String(next.prefix(maxLength))
+                }
+                if referenceSearch != nil, opensReferencePicker(previous: previous, value: next) {
+                    referencePickerOpen = true
                 }
             }
             .onChange(of: focused) { wasFocused, isFocused in
@@ -1398,6 +1465,17 @@ private struct InlineEditField: View {
                     .foregroundStyle(BrandColor.destructive)
             }
         }
+        .referencePickerSheet(
+            isPresented: $referencePickerOpen,
+            search: { query in await searchReferences(query) }
+        ) { pick in
+            value = insertingReference(into: value, insert: pick.insertText)
+        }
+    }
+
+    private func searchReferences(_ query: String) async -> [ReferencePick] {
+        guard let referenceSearch else { return [] }
+        return await referenceSearch(query)
     }
 }
 
@@ -1771,9 +1849,7 @@ private struct NoteCard: View {
                     .foregroundStyle(BrandColor.muted600)
             }
             if !body_.isBlank {
-                Text(body_)
-                    .font(.golos(12.5))
-                    .foregroundStyle(BrandColor.ink)
+                ReferencedText(text: body_, font: .golos(12.5), color: BrandColor.ink)
             }
         }
         .padding(.horizontal, 13)
@@ -1863,9 +1939,7 @@ private struct CommentCard: View {
                 }
                 .font(.golos(13))
             } else {
-                Text(item.body ?? "")
-                    .font(.golos(13))
-                    .foregroundStyle(BrandColor.ink)
+                ReferencedText(text: item.body ?? "", font: .golos(13), color: BrandColor.ink)
             }
             if let files = item.attachments, !files.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -1961,12 +2035,15 @@ private struct NoteComposer: View {
     let conversationId: String?
     let taskId: String
     let onPosted: @MainActor () -> Void
+    /// #690: a `#` here takes a reference, in a note and in a comment alike.
+    let referenceSearch: @MainActor (String) async -> [ReferencePick]
 
     @State private var body_ = ""
     @State private var staged: [TaskStagedFile] = []
     @State private var posting = false
     @State private var error: String?
     @State private var pickerOpen = false
+    @State private var referencePickerOpen = false
 
     @Environment(\.appLocale) private var appLocale
 
@@ -2032,10 +2109,13 @@ private struct NoteComposer: View {
                 )
                     .font(.golos(13))
                     .lineLimit(1 ... 4)
-                    .onChange(of: body_) { _, next in
+                    .onChange(of: body_) { previous, next in
                         error = nil
                         if next.count > noteBodyMax {
                             body_ = String(next.prefix(noteBodyMax))
+                        }
+                        if opensReferencePicker(previous: previous, value: next) {
+                            referencePickerOpen = true
                         }
                     }
                 Button {
@@ -2067,6 +2147,9 @@ private struct NoteComposer: View {
         .padding(.horizontal, 14)
         .padding(.top, 6)
         .padding(.bottom, 10)
+        .referencePickerSheet(isPresented: $referencePickerOpen, search: referenceSearch) { pick in
+            body_ = insertingReference(into: body_, insert: pick.insertText)
+        }
         .fileImporter(
             isPresented: $pickerOpen,
             allowedContentTypes: [.item],

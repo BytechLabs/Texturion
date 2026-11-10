@@ -232,10 +232,19 @@ struct ThreadComposerView: View {
     /// Declared after ``wrapUp`` for the same memberwise-init reason it gives.
     var onScheduleSend: (@MainActor (String, String, Bool) async -> ScheduleOutcome)?
 
+    /// #690: find a task, contact or conversation to point a NOTE at when the
+    /// member types `#`. Nil withholds it. It is only ever asked on a note: a
+    /// text to a customer never reads `#` as anything but a `#`
+    /// (`composerOpensReferencePicker`).
+    ///
+    /// Declared after `onScheduleSend` for the memberwise-init reason it gives.
+    var searchReferences: (@MainActor (String) async -> [ReferencePick])?
+
     /// #294: the staged photo open in the markup editor, with its decoded bitmap.
     @State private var markingUp: (file: StagedFile, image: UIImage)?
     @State private var templatePickerOpen = false
     @State private var mentionPickerOpen = false
+    @State private var referencePickerOpen = false
     /// #475: which saved reply is in the box, and what it said on arrival.
     ///
     /// Compared at SEND time rather than tracked per keystroke: the question
@@ -453,6 +462,12 @@ struct ThreadComposerView: View {
             }
 
             composerPill
+                .referencePickerSheet(
+                    isPresented: $referencePickerOpen,
+                    search: { query in await findReferences(query) }
+                ) { pick in
+                    state.onTextChange(insertingReference(into: state.text, insert: pick.insertText))
+                }
 
             if !isNote {
                 ComposerHints(
@@ -1130,11 +1145,26 @@ struct ThreadComposerView: View {
             {
                 mentionPickerOpen = true
             }
+            // "#" in a note points at a task, a contact or a conversation. The
+            // rule is a function so a test can show a text never opens it.
+            if composerOpensReferencePicker(
+                isNote: isNote,
+                enabled: searchReferences != nil,
+                previous: previous,
+                value: value
+            ) {
+                referencePickerOpen = true
+            }
             // Drafts were written for what was typed a moment ago; once that
             // changes they are stale, so they go rather than sit there
             // offering to overwrite newer words.
             if !suggestions.isEmpty { suggestions = [] }
         }
+    }
+
+    private func findReferences(_ query: String) async -> [ReferencePick] {
+        guard let searchReferences else { return [] }
+        return await searchReferences(query)
     }
 
     private func insertTemplate(_ body: String, _ templateId: String) {

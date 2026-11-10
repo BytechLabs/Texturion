@@ -89,8 +89,17 @@ struct TaskListFilters: Equatable, Sendable {
     var priority: [String] = []
     /// #693: only tasks wearing this workspace tag.
     var tagId: String? = nil
-    /// #693: "created" (the default, sent as nothing), "due" or "priority".
+    /// #693: "created" (the default, sent as nothing), "due", "updated" or "priority".
     var sort: String? = nil
+    /// #690: the contact, who made it, where it came from, and what it carries.
+    /// Declared last so no call site reorders.
+    var contactId: String? = nil
+    /// "me" or a user id.
+    var createdBy: String? = nil
+    /// "text", "call" or "none".
+    var source: String? = nil
+    var hasAttachments: Bool = false
+    var hasReferences: Bool = false
 }
 
 /// #693: the filters this feature added, kept as one value so the board, the
@@ -99,28 +108,69 @@ struct TaskMetaFilters: Equatable, Sendable {
     var priority: [String] = []
     var tagId: String? = nil
     var sort: String? = nil
+    /// #690: the filters behind the one Filters control. Declared last so no
+    /// call site reorders.
+    var contactId: String? = nil
+    var createdBy: String? = nil
+    var source: String? = nil
+    var hasAttachments: Bool = false
+    var hasReferences: Bool = false
+    /// A due range picked by date, as ISO strings with an offset. It wins over
+    /// the Overdue / Due today / Due this week chips.
+    var dueAfter: String? = nil
+    var dueBefore: String? = nil
+    /// A saved view that names a status but no assignee (open for everyone):
+    /// the All tab then runs that one status instead of open and then done.
+    var statusOnly: String? = nil
 
     /// A filter, not the sort: the sort re-orders and hides nothing.
-    var hasFilter: Bool { !priority.isEmpty || tagId != nil }
+    var hasFilter: Bool {
+        !priority.isEmpty || tagId != nil || contactId != nil || createdBy != nil
+            || source != nil || hasAttachments || hasReferences || dueAfter != nil
+            || dueBefore != nil
+    }
 
     /// Joined into the views' reload tokens so a change reloads them.
     var token: String {
-        [priority.sorted().joined(separator: ","), tagId ?? "", sort ?? ""].joined(separator: ":")
+        [
+            priority.sorted().joined(separator: ","), tagId ?? "", sort ?? "",
+            contactId ?? "", createdBy ?? "", source ?? "",
+            hasAttachments ? "a" : "", hasReferences ? "r" : "",
+            dueAfter ?? "", dueBefore ?? "", statusOnly ?? "",
+        ].joined(separator: ":")
     }
 }
 
-/// The sort choices the Sort chip offers. "created" is the server default.
+/// The sort choices the Sort control offers. "created" is the server default.
 enum TaskSortChoice {
     static let created = "created"
     static let due = "due"
+    static let updated = "updated"
     static let priority = "priority"
-    static let all = [created, due, priority]
+    static let all = [created, due, updated, priority]
 
     static func labelKey(_ sort: String?) -> String {
         switch sort {
         case due: return "contactsTasks.sortDue"
         case priority: return "contactsTasks.sortPriority"
+        case updated: return "taskRefs.sortUpdated"
         default: return "contactsTasks.sortCreated"
+        }
+    }
+}
+
+/// The values the source filter offers; the wire names, not the words.
+enum TaskSourceChoice {
+    static let text = "text"
+    static let call = "call"
+    static let none = "none"
+    static let all = [text, call, none]
+
+    static func labelKey(_ source: String) -> String {
+        switch source {
+        case text: return "taskRefs.sourceText"
+        case call: return "taskRefs.sourceCall"
+        default: return "taskRefs.sourceNone"
         }
     }
 }
@@ -148,7 +198,8 @@ func taskQueryParams(
         filters.q == nil &&
         !filters.unassigned &&
         filters.priority.isEmpty &&
-        filters.tagId == nil
+        filters.tagId == nil &&
+        !taskHasExtraFilters(filters)
     let status = filters.status ?? (needsAllSentinel ? TaskStatusFilter.open : nil)
 
     return [
@@ -162,6 +213,11 @@ func taskQueryParams(
         "q": filters.q,
         "priority": filters.priority.isEmpty ? nil : filters.priority.joined(separator: ","),
         "tag_id": filters.tagId,
+        "contact_id": filters.contactId,
+        "created_by": filters.createdBy,
+        "source": filters.source,
+        "has_attachments": filters.hasAttachments ? "true" : nil,
+        "has_references": filters.hasReferences ? "true" : nil,
         // "created" is the default ordering, so it is never sent.
         "sort": (filters.sort == nil || filters.sort == TaskSortChoice.created) ? nil : filters.sort,
         "cursor": cursor,
@@ -169,10 +225,18 @@ func taskQueryParams(
     ]
 }
 
+/// Any of the #690 filters. Each one is an explicit parameter to the route, so
+/// each one switches off the Open and Mine defaults, like every other filter.
+func taskHasExtraFilters(_ filters: TaskListFilters) -> Bool {
+    filters.contactId != nil || filters.createdBy != nil || filters.source != nil
+        || filters.hasAttachments || filters.hasReferences
+}
+
 /// Which cursor ordering a filter set produces. A cursor may ONLY be passed
 /// back with params whose ordering key (and content) match the page that
 /// minted it — the route 422s on a cursor from the other ordering.
 func orderingKey(_ filters: TaskListFilters) -> String {
+    if filters.sort == TaskSortChoice.updated { return "updated" }
     // #693: a priority sort mints cursors of its own.
     if filters.sort == TaskSortChoice.priority { return "priority" }
     if filters.sort == TaskSortChoice.due { return "due" }
@@ -230,8 +294,14 @@ func taskListArms(
     now: Date = Date(),
     calendar: Calendar = .current
 ) -> [TaskListFilters] {
-    let dueFilters = due.map { dueChipFilters($0, now: now, calendar: calendar) }
-        ?? TaskListFilters()
+    // A range picked by date wins over the chips: it is the more specific ask.
+    let dueFilters: TaskListFilters
+    if meta.dueAfter != nil || meta.dueBefore != nil {
+        dueFilters = TaskListFilters(dueBefore: meta.dueBefore, dueAfter: meta.dueAfter)
+    } else {
+        dueFilters = due.map { dueChipFilters($0, now: now, calendar: calendar) }
+            ?? TaskListFilters()
+    }
     let query: String? = {
         let trimmed = (q ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
@@ -259,7 +329,12 @@ func taskListArms(
             q: query,
             priority: meta.priority,
             tagId: meta.tagId,
-            sort: meta.sort
+            sort: meta.sort,
+            contactId: meta.contactId,
+            createdBy: meta.createdBy,
+            source: meta.source,
+            hasAttachments: meta.hasAttachments,
+            hasReferences: meta.hasReferences
         )
     }
 
@@ -268,6 +343,8 @@ func taskListArms(
         return [arm(TaskStatusFilter.open)]
     case .done:
         return [arm(TaskStatusFilter.done)]
+    case .all where meta.statusOnly != nil:
+        return [arm(meta.statusOnly ?? TaskStatusFilter.open)]
     case .mine, .all:
         // Statusless tabs: union open + done, open first.
         return [arm(TaskStatusFilter.open), arm(TaskStatusFilter.done)]

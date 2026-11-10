@@ -21,13 +21,32 @@ struct TasksTab: View {
     @State private var debouncedQ = ""
     @State private var refreshKey = 0
     @State private var members: [Member] = []
-    @State private var pickerOpen = false
     @State private var newTaskOpen = false
     // #693: priority and label filters, and the sort.
     @State private var priorityFilter: [String] = []
     @State private var tagFilter: String?
     @State private var sortChoice: String?
     @State private var workspaceTags: [Tag] = []
+    // #690: the rest of what the one Filters control holds.
+    @State private var contactFilter: String?
+    @State private var contactFilterName: String?
+    @State private var createdByFilter: String?
+    @State private var sourceFilter: String?
+    @State private var hasAttachmentsFilter = false
+    @State private var hasReferencesFilter = false
+    @State private var dueAfterFilter: String?
+    @State private var dueBeforeFilter: String?
+    @State private var statusOnlyFilter: String?
+    // #689 G: how the list is laid out, and the saved views.
+    @State private var groupChoice = TaskGroup.status
+    @State private var filtersOpen = false
+    @State private var quickAddOpen = false
+    @State private var fullFormAfterQuickAdd = false
+    @State private var viewsController: TaskViewsController?
+    @State private var saveViewOpen = false
+    @State private var manageViewsOpen = false
+    @State private var renamingView: SavedView?
+    @State private var appliedDefaultView = false
 
     @State private var state: LoadState<Void> = .loading
     @State private var rows: [TaskItem] = []
@@ -55,7 +74,56 @@ struct TasksTab: View {
 
     /// #693: what the Priority, Label and Sort chips add to every view's query.
     private var metaFilters: TaskMetaFilters {
-        TaskMetaFilters(priority: priorityFilter, tagId: tagFilter, sort: sortChoice)
+        TaskMetaFilters(
+            priority: priorityFilter,
+            tagId: tagFilter,
+            sort: sortChoice,
+            contactId: contactFilter,
+            createdBy: createdByFilter,
+            source: sourceFilter,
+            hasAttachments: hasAttachmentsFilter,
+            hasReferences: hasReferencesFilter,
+            dueAfter: dueAfterFilter,
+            dueBefore: dueBeforeFilter,
+            statusOnly: statusOnlyFilter
+        )
+    }
+
+    /// Everything the controls hold, as one value a saved view can describe.
+    private var currentState: TaskViewState {
+        TaskViewState(
+            tab: tab,
+            assigneeUserId: assigneeChip,
+            unassigned: unassignedChip,
+            due: dueChip,
+            meta: metaFilters,
+            group: groupChoice
+        )
+    }
+
+    /// Put a state (from the Filters sheet or a saved view) on the controls.
+    private func applyState(_ state: TaskViewState, contactName: String? = nil) {
+        tab = state.tab
+        assigneeChip = state.assigneeUserId
+        unassignedChip = state.unassigned
+        dueChip = state.due
+        priorityFilter = state.meta.priority
+        tagFilter = state.meta.tagId
+        sortChoice = state.meta.sort
+        if state.meta.contactId != contactFilter { contactFilterName = contactName }
+        contactFilter = state.meta.contactId
+        createdByFilter = state.meta.createdBy
+        sourceFilter = state.meta.source
+        hasAttachmentsFilter = state.meta.hasAttachments
+        hasReferencesFilter = state.meta.hasReferences
+        dueAfterFilter = state.meta.dueAfter
+        dueBeforeFilter = state.meta.dueBefore
+        statusOnlyFilter = state.meta.statusOnly
+        groupChoice = state.group
+    }
+
+    private func applyView(_ view: SavedView) {
+        applyState(taskViewState(view.filters, meUserId: me.user_id))
     }
 
     private var filtersActive: Bool {
@@ -92,7 +160,7 @@ struct TasksTab: View {
             headerRow
             tabPills
             searchField
-            filterChips
+            controlsRow
             switch view {
             case .list:
                 listContent
@@ -164,10 +232,24 @@ struct TasksTab: View {
             }
         }
         .task(id: companyId) {
-            // #693: the workspace tags back the Label chip and the bulk label
-            // actions. A quiet fetch; without them the chip just stays hidden.
+            // #693: the workspace tags back the Label filter and the bulk label
+            // actions. A quiet fetch; without them the filter just stays hidden.
             if let page = try? await graph.tasksApi.tags(companyId: companyId) {
                 workspaceTags = page.data
+            }
+        }
+        .task(id: companyId) {
+            // #689 G: the saved views for tasks. The member lands on their
+            // default view only from an untouched screen: somebody who has
+            // already filtered has said what they want to see.
+            let controller = TaskViewsController(api: graph.savedViewsApi, companyId: companyId)
+            viewsController = controller
+            await controller.load()
+            if !appliedDefaultView, !filtersActive, tab == .open,
+               let id = controller.defaultViewId,
+               let view = controller.views.first(where: { $0.id == id }) {
+                appliedDefaultView = true
+                applyView(view)
             }
         }
         .task(id: companyId) {
@@ -193,17 +275,6 @@ struct TasksTab: View {
             // is preserved.
             if newView == .board && (tab == .open || tab == .done) {
                 tab = .mine
-            }
-        }
-        .sheet(isPresented: $pickerOpen) {
-            MemberPickerSheet(
-                members: members,
-                meUserId: me.user_id,
-                selectedUserId: assigneeChip,
-                showUnassigned: false
-            ) { userId in
-                assigneeChip = userId
-                if userId != nil { unassignedChip = false }
             }
         }
         .sheet(isPresented: $bulkAssignOpen) {
@@ -251,7 +322,7 @@ struct TasksTab: View {
             Spacer(minLength: 8)
             Button {
                 Haptics.tap()
-                newTaskOpen = true
+                quickAddOpen = true
             } label: {
                 Image(systemName: "plus")
                     .font(.scaled(15, weight: .medium))
@@ -278,6 +349,29 @@ struct TasksTab: View {
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
+        .sheet(
+            isPresented: $quickAddOpen,
+            onDismiss: {
+                if fullFormAfterQuickAdd {
+                    fullFormAfterQuickAdd = false
+                    newTaskOpen = true
+                }
+            }
+        ) {
+            QuickAddSheet(
+                graph: graph,
+                companyId: companyId,
+                me: me,
+                members: members,
+                tags: workspaceTags,
+                onCreated: { refreshKey += 1 },
+                onFullForm: {
+                    fullFormAfterQuickAdd = true
+                    quickAddOpen = false
+                },
+                onClose: { quickAddOpen = false }
+            )
+        }
     }
 
     private func viewToggle(
@@ -309,6 +403,7 @@ struct TasksTab: View {
                 let selected = tab == item
                 Button {
                     tab = item
+                    statusOnlyFilter = nil
                 } label: {
                     Text(AppStrings.translate(appLocale, item.labelKey))
                         .font(.golos(12, weight: selected ? .semibold : .medium))
@@ -362,61 +457,14 @@ struct TasksTab: View {
         .padding(.vertical, 10)
     }
 
-    private var assigneeChipLabel: String {
-        guard let id = assigneeChip else {
-            return AppStrings.translate(appLocale, "contactsTasks.assignee")
-        }
-        if id == me.user_id { return AppStrings.translate(appLocale, "contactsTasks.you") }
-        let name = members.first { $0.user_id == id }?.display_name
-        guard let name, !name.isBlank else {
-            return AppStrings.translate(appLocale, "contactsTasks.teammate")
-        }
-        return name
-    }
+    // MARK: #689 G / #690 one Filters control, Sort, and saved views
 
-    private var filterChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                filterChip(
-                    label: assigneeChipLabel,
-                    selected: assigneeChip != nil,
-                    clearLabel: assigneeChip != nil
-                        ? AppStrings.translate(
-                            appLocale, "contactsTasks.clearAssigneeFilter"
-                          )
-                        : nil,
-                    onTap: { pickerOpen = true },
-                    onClear: { assigneeChip = nil }
-                )
-                filterChip(
-                    label: AppStrings.translate(appLocale, "contactsTasks.unassigned"),
-                    selected: unassignedChip,
-                    clearLabel: nil,
-                    onTap: {
-                        unassignedChip.toggle()
-                        if unassignedChip { assigneeChip = nil }
-                    },
-                    onClear: {}
-                )
-                ForEach(DueChip.allCases) { chip in
-                    filterChip(
-                        label: AppStrings.translate(appLocale, chip.labelKey),
-                        selected: dueChip == chip,
-                        clearLabel: nil,
-                        onTap: { dueChip = dueChip == chip ? nil : chip },
-                        onClear: {}
-                    )
-                }
-                priorityMenuChip
-                if !workspaceTags.isEmpty { labelMenuChip }
-                sortMenuChip
-            }
-            .padding(.horizontal, 18)
-        }
-        .padding(.bottom, 6)
+    private var canShareViews: Bool {
+        MemberRole.has(
+            me.memberships.first { $0.company_id == companyId }?.role,
+            Capability.settingsManage
+        )
     }
-
-    // MARK: #693 priority, label and sort chips
 
     private func menuChipLabel(_ label: String, selected: Bool) -> some View {
         Text(label)
@@ -434,76 +482,75 @@ struct TasksTab: View {
             .contentShape(Rectangle())
     }
 
-    private var priorityChipText: String {
-        let word = AppStrings.translate(appLocale, "contactsTasks.priority")
-        if priorityFilter.isEmpty { return word }
-        if priorityFilter.count == 1 {
-            return AppStrings.translate(
-                appLocale, TaskPriority.from(priorityFilter[0]).labelKey
+    private var filtersLabel: String {
+        let count = taskFilterCount(currentState)
+        let word = AppStrings.translate(appLocale, "taskRefs.filtersTitle")
+        return count == 0 ? word : "\(word) \u{00B7} \(count)"
+    }
+
+    /// One quiet row: Filters, Sort, Views. Every filter is behind Filters.
+    private var controlsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                Button {
+                    filtersOpen = true
+                } label: {
+                    menuChipLabel(filtersLabel, selected: taskFilterCount(currentState) > 0)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(
+                    AppStrings.translate(
+                        appLocale,
+                        "taskRefs.filtersSpoken",
+                        ["count": String(taskFilterCount(currentState))]
+                    )
+                )
+                sortMenuChip
+                viewsMenuChip
+            }
+            .padding(.horizontal, 18)
+        }
+        .padding(.bottom, 6)
+        .sheet(isPresented: $filtersOpen) {
+            TaskFiltersSheet(
+                initial: currentState,
+                contactName: contactFilterName,
+                members: members,
+                meUserId: me.user_id,
+                tags: workspaceTags,
+                contactSearch: contactSearchClosure(),
+                onApply: { state, contactName in
+                    applyState(state, contactName: contactName)
+                },
+                onClose: { filtersOpen = false }
             )
         }
-        return AppStrings.translate(
-            appLocale,
-            "contactsTasks.priorityMany",
-            ["count": String(priorityFilter.count)]
-        )
+        .sheet(isPresented: $saveViewOpen) { saveViewSheet }
+        .sheet(isPresented: $manageViewsOpen) { manageViewsSheet }
+        .sheet(item: $renamingView) { view in renameViewSheet(view) }
     }
 
-    private var priorityMenuChip: some View {
-        Menu {
-            ForEach(TaskPriority.rankedForMenus) { priority in
-                let on = priorityFilter.contains(priority.rawValue)
-                Button {
-                    if on {
-                        priorityFilter.removeAll { $0 == priority.rawValue }
-                    } else {
-                        priorityFilter.append(priority.rawValue)
-                    }
-                } label: {
-                    if on {
-                        Label(
-                            AppStrings.translate(appLocale, priority.labelKey),
-                            systemImage: "checkmark"
-                        )
-                    } else {
-                        Text(AppStrings.translate(appLocale, priority.labelKey))
-                    }
-                }
+    private func contactSearchClosure() -> @MainActor (String) async -> [ReferencePick] {
+        let api = graph.contactsApi
+        let company = companyId
+        return { query in
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            let page = try? await api.contacts(
+                companyId: company,
+                q: trimmed.isEmpty ? nil : trimmed,
+                limit: 10
+            )
+            return (page?.data ?? []).map { contact in
+                let name = (contact.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return ReferencePick(
+                    id: "contact:" + contact.id,
+                    kind: .contact,
+                    targetId: contact.id,
+                    insertText: "",
+                    title: name.isEmpty ? contact.phone_e164 : name,
+                    subtitle: name.isEmpty ? nil : contact.phone_e164
+                )
             }
-        } label: {
-            menuChipLabel(priorityChipText, selected: !priorityFilter.isEmpty)
-        }
-    }
-
-    private var labelChipText: String {
-        guard let id = tagFilter else {
-            return AppStrings.translate(appLocale, "contactsTasks.label")
-        }
-        return workspaceTags.first { $0.id == id }?.name
-            ?? AppStrings.translate(appLocale, "contactsTasks.label")
-    }
-
-    private var labelMenuChip: some View {
-        Menu {
-            ForEach(workspaceTags, id: \.id) { tag in
-                let on = tagFilter == tag.id
-                Button {
-                    tagFilter = on ? nil : tag.id
-                } label: {
-                    if on {
-                        Label(tag.name, systemImage: "checkmark")
-                    } else {
-                        Text(tag.name)
-                    }
-                }
-            }
-            if tagFilter != nil {
-                Button(AppStrings.translate(appLocale, "contactsTasks.clearLabelFilter")) {
-                    tagFilter = nil
-                }
-            }
-        } label: {
-            menuChipLabel(labelChipText, selected: tagFilter != nil)
         }
     }
 
@@ -540,41 +587,98 @@ struct TasksTab: View {
         }
     }
 
-    private func filterChip(
-        label: String,
-        selected: Bool,
-        clearLabel: String?,
-        onTap: @escaping @MainActor () -> Void,
-        onClear: @escaping @MainActor () -> Void
-    ) -> some View {
-        let foreground = selected
-            ? AnyShapeStyle(BrandColor.muted900)
-            : AnyShapeStyle(BrandColor.muted500)
-        return HStack(spacing: 4) {
-            Button(action: onTap) {
-                Text(label)
-                    .font(.golos(11, weight: selected ? .semibold : .medium))
-                    .foregroundStyle(foreground)
-            }
-            .buttonStyle(.plain)
-            if let clearLabel {
-                Button(action: onClear) {
-                    Image(systemName: "xmark")
-                        .font(.scaled(9, weight: .semibold))
-                        .foregroundStyle(foreground)
+    /// The saved views as one compact switcher rather than a second row of pills.
+    private var viewsMenuChip: some View {
+        let views = viewsController?.views ?? []
+        let active = views.first(where: { view in
+            taskViewMatches(view.filters, currentState, meUserId: me.user_id)
+        })
+        return Menu {
+            ForEach(views, id: \.id) { view in
+                Button {
+                    applyView(view)
+                } label: {
+                    if view.id == active?.id {
+                        Label(view.name, systemImage: "checkmark")
+                    } else {
+                        Text(view.name)
+                    }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(clearLabel)
             }
+            Button(AppStrings.translate(appLocale, "inbox.viewsSave")) {
+                saveViewOpen = true
+            }
+            if !views.isEmpty {
+                Button(AppStrings.translate(appLocale, "taskRefs.viewsManage")) {
+                    manageViewsOpen = true
+                }
+            }
+        } label: {
+            menuChipLabel(
+                active?.name ?? AppStrings.translate(appLocale, "taskRefs.viewsTitle"),
+                selected: active != nil
+            )
         }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 6)
-        .background(
-            selected
-                ? AnyShapeStyle(BrandColor.avatarTint)
-                : AnyShapeStyle(BrandColor.paper),
-            in: Capsule()
-        )
+    }
+
+    @ViewBuilder
+    private var saveViewSheet: some View {
+        if let controller = viewsController {
+            let state = currentState
+            TaskViewNameSheet(
+                titleKey: "inbox.viewsSave",
+                initialName: suggestTaskViewName(
+                    state,
+                    locale: appLocale,
+                    tagName: workspaceTags.first(where: { $0.id == state.meta.tagId })?.name
+                ),
+                note: taskViewDropsDueChip(state)
+                    ? AppStrings.translate(appLocale, "taskRefs.viewDropsDueChip")
+                    : nil,
+                canShare: canShareViews,
+                onSubmit: { name, shared in
+                    await controller.save(
+                        name: name,
+                        filters: taskViewFilters(state, meUserId: me.user_id),
+                        shared: shared
+                    )
+                },
+                onClose: { saveViewOpen = false }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var manageViewsSheet: some View {
+        if let controller = viewsController {
+            TaskViewsManageSheet(
+                controller: controller,
+                canManageShared: canShareViews,
+                onOpen: { view in
+                    manageViewsOpen = false
+                    applyView(view)
+                },
+                onRename: { view in
+                    manageViewsOpen = false
+                    renamingView = view
+                },
+                onClose: { manageViewsOpen = false }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func renameViewSheet(_ view: SavedView) -> some View {
+        if let controller = viewsController {
+            TaskViewNameSheet(
+                titleKey: "inbox.viewRenameTitle",
+                initialName: view.name,
+                note: nil,
+                canShare: false,
+                onSubmit: { name, _ in await controller.rename(id: view.id, name: name) },
+                onClose: { renamingView = nil }
+            )
+        }
     }
 
     @ViewBuilder
@@ -605,45 +709,7 @@ struct TasksTab: View {
                 }
                 ScrollView {
                     VStack(spacing: 14) {
-                        PaperCard {
-                            ForEach(rows, id: \.id) { task in
-                                let picked = bulkSelection.isRowSelected(task.id)
-                                TaskListRow(task: task, faces: assigneeFaces(task)) { done in
-                                    toggleDone(task, done: done)
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    // #478: while a selection is live a tap
-                                    // EXTENDS it. Opening a task mid-selection
-                                    // would throw the selection away and land
-                                    // somewhere nobody asked for — the rule the
-                                    // inbox already follows.
-                                    if bulkSelection.isEmpty {
-                                        AppRouter.shared.openTaskId = task.id
-                                    } else {
-                                        bulkSelection = bulkSelection.toggling(
-                                            task.id,
-                                            loadedIds: rows.map(\.id)
-                                        )
-                                    }
-                                }
-                                // #478: long-press starts selection mode.
-                                .onLongPressGesture {
-                                    bulkSelection = bulkSelection.toggling(
-                                        task.id,
-                                        loadedIds: rows.map(\.id)
-                                    )
-                                }
-                                // A tint, not a checkbox column. The row already
-                                // carries the done circle, and on a phone a
-                                // second column of controls costs a row's worth
-                                // of width for what long-press already says.
-                                .background(picked ? BrandColor.olive.opacity(0.12) : .clear)
-                                if task.id != rows.last?.id {
-                                    RowDivider()
-                                }
-                            }
-                        }
+                        taskCards
                         if hasMore {
                             Button(
                                 AppStrings.translate(
@@ -685,6 +751,76 @@ struct TasksTab: View {
                 // lands rather than the instant the gesture ends. Only the list
                 // arm gets it: on the map a downward pan would become a refresh.
                 .refreshable { await reload() }
+            }
+        }
+    }
+
+    /// The loaded rows: one card, or (#689 G) one card per group when the list is
+    /// grouped by assignee or priority.
+    @ViewBuilder
+    private var taskCards: some View {
+        if groupChoice == TaskGroup.status {
+            PaperCard { taskRows(rows) }
+        } else {
+            let sections = groupTasks(
+                rows,
+                by: groupChoice,
+                nameOf: { (id: String) -> String? in
+                    if id == me.user_id { return me.display_name }
+                    return members.first(where: { $0.user_id == id })?.display_name
+                }
+            )
+            ForEach(sections) { section in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(sectionTitle(section))
+                        .font(.golos(11, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted600)
+                        .padding(.leading, 6)
+                    PaperCard { taskRows(section.tasks) }
+                }
+            }
+        }
+    }
+
+    private func sectionTitle(_ section: TaskSection) -> String {
+        if let key = section.titleKey { return AppStrings.translate(appLocale, key) }
+        return section.title
+    }
+
+    @ViewBuilder
+    private func taskRows(_ list: [TaskItem]) -> some View {
+        ForEach(list, id: \.id) { task in
+            let picked = bulkSelection.isRowSelected(task.id)
+            TaskListRow(task: task, faces: assigneeFaces(task)) { done in
+                toggleDone(task, done: done)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                // #478: while a selection is live a tap EXTENDS it. Opening a
+                // task mid-selection would throw the selection away and land
+                // somewhere nobody asked for, the rule the inbox already follows.
+                if bulkSelection.isEmpty {
+                    AppRouter.shared.openTaskId = task.id
+                } else {
+                    bulkSelection = bulkSelection.toggling(
+                        task.id,
+                        loadedIds: rows.map(\.id)
+                    )
+                }
+            }
+            // #478: long-press starts selection mode.
+            .onLongPressGesture {
+                bulkSelection = bulkSelection.toggling(
+                    task.id,
+                    loadedIds: rows.map(\.id)
+                )
+            }
+            // A tint, not a checkbox column. The row already carries the done
+            // circle, and on a phone a second column of controls costs a row's
+            // worth of width for what long-press already says.
+            .background(picked ? BrandColor.olive.opacity(0.12) : .clear)
+            if task.id != list.last?.id {
+                RowDivider()
             }
         }
     }
@@ -820,6 +956,7 @@ private struct TaskListRow: View {
             )
 
             VStack(alignment: .leading, spacing: 3) {
+                TaskNumberTag(number: task.number)
                 Text(task.title)
                     .font(.golos(13.5, weight: .semibold))
                     .lineLimit(1)

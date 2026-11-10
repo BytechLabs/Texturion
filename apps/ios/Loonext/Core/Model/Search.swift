@@ -18,6 +18,8 @@ struct SearchTaskHit: Codable, Sendable {
     let conversation_id: String
     @Default<DefaultFalse> var done: Bool
     let matched_at: String
+    /// #690: the task number, nil from a server that predates numbers.
+    var number: Int? = nil
 }
 
 struct SearchAttachmentHit: Codable, Sendable {

@@ -168,6 +168,11 @@ private struct ThreadBody: View {
             }
         }
         .background(BrandColor.canvas.ignoresSafeArea())
+        // #690: a note's `#T-142` draws as a chip, resolved once per workspace.
+        .environment(
+            \.referenceResolver,
+            ReferenceResolverStore.shared.resolver(api: graph.api, companyId: companyId)
+        )
         .onChange(of: controller.notice?.id) { _, _ in
             guard let notice = controller.notice else { return }
             visibleNotice = notice
@@ -1410,7 +1415,9 @@ private struct ThreadBody: View {
             // Last, matching its declaration position on the view — a SwiftUI
             // memberwise initialiser takes its arguments in that order.
             wrapUp: wrapUpDictation,
-            onScheduleSend: onScheduleSend
+            onScheduleSend: onScheduleSend,
+            // #690: `#` in a note points at a task, contact or conversation.
+            searchReferences: referenceSearchClosure(graph: graph, companyId: detail.company_id)
         )
     }
 }

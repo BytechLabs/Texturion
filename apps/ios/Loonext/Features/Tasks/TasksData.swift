@@ -174,6 +174,15 @@ func taskBulkBody(
             filter["priority"] = .array(filters.priority.map { .string($0) })
         }
         if let filterTag = filters.tagId { filter["tag_id"] = .string(filterTag) }
+        // #690: the same names the list takes, so "everything I am looking at"
+        // stays the same set.
+        if let dueBefore = filters.dueBefore { filter["due_before"] = .string(dueBefore) }
+        if let dueAfter = filters.dueAfter { filter["due_after"] = .string(dueAfter) }
+        if let contactId = filters.contactId { filter["contact_id"] = .string(contactId) }
+        if let createdBy = filters.createdBy { filter["created_by"] = .string(createdBy) }
+        if let source = filters.source { filter["source"] = .string(source) }
+        if filters.hasAttachments { filter["has_attachments"] = .bool(true) }
+        if filters.hasReferences { filter["has_references"] = .bool(true) }
         body["filter"] = .object(filter)
     }
     // Explicit null is meaningful (unassign), so it is only written when the

@@ -149,7 +149,19 @@ struct TaskCalendarView: View {
     }
     private var unassignedResolved: Bool { unassignedChip && assigneeChip == nil }
     private var fetchMeta: TaskMetaFilters {
-        TaskMetaFilters(priority: meta.priority, tagId: meta.tagId, sort: nil)
+        // The month window is its own due range, so a due range from Filters is
+        // left out; every other filter narrows the month too.
+        TaskMetaFilters(
+            priority: meta.priority,
+            tagId: meta.tagId,
+            sort: nil,
+            contactId: meta.contactId,
+            createdBy: meta.createdBy,
+            source: meta.source,
+            hasAttachments: meta.hasAttachments,
+            hasReferences: meta.hasReferences,
+            statusOnly: meta.statusOnly
+        )
     }
     private var isCurrentMonth: Bool { calendar.isDate(month, equalTo: Date(), toGranularity: .month) }
 
@@ -575,7 +587,12 @@ struct TaskCalendarView: View {
             dueAfter: isoOffsetString(gridStart, timeZone: cal.timeZone),
             q: query,
             priority: fetchMeta.priority,
-            tagId: fetchMeta.tagId
+            tagId: fetchMeta.tagId,
+            contactId: fetchMeta.contactId,
+            createdBy: fetchMeta.createdBy,
+            source: fetchMeta.source,
+            hasAttachments: fetchMeta.hasAttachments,
+            hasReferences: fetchMeta.hasReferences
         )
         let undatedArms = taskListArms(
             tab: tab == .all ? .all : .mine,
@@ -656,6 +673,7 @@ private struct CalendarTaskRow: View {
             )
 
             VStack(alignment: .leading, spacing: 3) {
+                TaskNumberTag(number: task.number)
                 Text(task.title)
                     .font(.golos(13.5, weight: .semibold))
                     .lineLimit(1)

@@ -67,6 +67,10 @@ struct TaskItem: Codable, Sendable {
     var assignee_ids: [String]? = nil
     var assignees: [TaskProfile]? = nil
 
+    /// #690: the workspace-wide task number, shown as "T-142". Nil on a row from a
+    /// server that predates numbers. Declared last so no call site reorders.
+    var number: Int? = nil
+
     var priorityValue: TaskPriority { TaskPriority.from(priority) }
     var labelList: [TaskLabel] { labels ?? [] }
     var repeatRule: TaskRepeatRule? { `repeat` }
@@ -161,6 +165,15 @@ struct TaskFeedItem: Codable, Sendable {
     let author: TaskProfile?
     let edited_at: String?
     let attachments: [TaskFeedFile]?
+    // #690 kind = reference: a note, task description or comment that points
+    // at this task (direction "in"), or that this task points out from
+    // ("out"). All nil for the other kinds; declared last so no call site reorders.
+    var direction: String? = nil
+    var source_kind: String? = nil
+    var target_kind: String? = nil
+    var conversation_id: String? = nil
+    var contact: ReferenceContactStub? = nil
+    var task: ReferenceTaskStub? = nil
 }
 
 /// One item of the D28 derived attachments union (no URL — mint per item).
@@ -276,6 +289,9 @@ struct TaskDetail: Codable, Sendable {
     /// with their names (see `TaskItem`). `assignee` stays the first one.
     var assignee_ids: [String]? = nil
     var assignees: [TaskProfile]? = nil
+
+    /// #690: see `TaskItem.number`.
+    var number: Int? = nil
 
     var priorityValue: TaskPriority { TaskPriority.from(priority) }
     var labelList: [TaskLabel] { labels ?? [] }

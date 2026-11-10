@@ -319,6 +319,16 @@ struct ContactDetailView: View {
                 tagsCard(contact)
                 attributionCaption(contact)
                 conversationSection
+                // #690: tasks for this customer, and tasks that point at them.
+                VStack(alignment: .leading, spacing: 6) {
+                    SectionHeader(label: AppStrings.translate(appLocale, "taskRefs.linkedTitle"))
+                    LinkedTasksSection(
+                        references: TaskReferencesApi(api: graph.api),
+                        companyId: companyId,
+                        target: .contact(contact.id),
+                        onOpenTask: { AppRouter.shared.openTaskId = $0 }
+                    )
+                }
                 // #324: ONE chronology of texts, calls and jobs. D7 threads by
                 // recency, so a long relationship is many conversations; this
                 // is the overview and Calls below stays the detail view where a

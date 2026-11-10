@@ -285,6 +285,7 @@ private struct BoardCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            TaskNumberTag(number: task.number)
             Text(task.title)
                 .font(.golos(13.5, weight: .semibold))
                 .lineLimit(3)

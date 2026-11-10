@@ -161,6 +161,18 @@ struct ContactPanelSheet: View {
                     )
                 }
 
+                // #690: tasks that point at this conversation or are anchored to it.
+                sheetSection(
+                    AppStrings.translate(appLocale, "taskRefs.linkedTitle")
+                ) {
+                    LinkedTasksSection(
+                        references: TaskReferencesApi(api: controller.repo.api),
+                        companyId: detail.company_id,
+                        target: .conversation(detail.id),
+                        onOpenTask: onOpenTask
+                    )
+                }
+
                 sheetSection(
                     AppStrings.translate(
                         appLocale, "thread.sectionOtherConversations"

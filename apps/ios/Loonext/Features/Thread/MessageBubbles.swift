@@ -104,10 +104,21 @@ struct MessageBubble: View {
             }
 
             if !message.body.isBlank {
-                Text(message.body)
-                    .font(.golos(14))
-                    .foregroundStyle(bodyColor)
-                    .strikethrough(done)
+                if note {
+                    // #690: only an internal note draws references as chips. A
+                    // text to or from a customer is shown exactly as written.
+                    ReferencedText(
+                        text: message.body,
+                        font: .golos(14),
+                        color: bodyColor,
+                        strikethrough: done
+                    )
+                } else {
+                    Text(message.body)
+                        .font(.golos(14))
+                        .foregroundStyle(bodyColor)
+                        .strikethrough(done)
+                }
             }
 
             if note {
