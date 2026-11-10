@@ -10271,3 +10271,27 @@ conversation's cascade. Anything that writes `messages.deleted_at`,
 `sent_by_user_id`, `created_at` or `conversation_id` needs no change; the
 triggers see it. A new place that decides unread must read this state, not
 probe `messages`.
+
+## D154 - tasks have a priority, labels and repeats; a repeat is a series of ordinary tasks (#693, #689 H)
+
+**Priority** is `none`, `low`, `normal` (the default), `high` or `urgent`, a text column with a stored `priority_rank` to sort on. It shows on the list, board and map of all three clients, filters (`priority=high,urgent`), sorts (`sort=priority`, highest first, keyset on rank, created and id) and is a bulk action. Every change is a `priority` history event.
+
+**Labels** are the workspace's one tag vocabulary, joined to a task by `task_tags` (like `conversation_tags` and `contact_tags`). A tag merge folds them, `api_tag_usage` counts them, and a tag deleted from a task or the workspace leaves a `label_added` / `label_removed` history row that carries the tag's name. A merge or a copy onto a new occurrence is not somebody labelling a task, so it writes no history.
+
+**A repeat is a `task_series` plus ordinary tasks.** Each occurrence is a full task row with its own done state, comments, history and calendar event; the calendar sync never sees provider recurrence (`google.ts` still refuses it). It copies title, description, assignee, labels, priority, address, contact and conversation from the series template. Two kinds behind one Repeat control under More:
+
+- **On a schedule** (daily, weekly on chosen weekdays, monthly on a date or on the nth or last weekday, yearly, every N units): `job:task-repeats` on the 15-minute cron keeps two occurrences on or after today created ahead of time, so the next one shows on calendars and boards. It never backfills days nobody was there to make: a series that was down for a month makes the next two, not thirty. A `schedule` needs a due date.
+- **After it's done** (every N days, weeks or months): the completion makes the next one, dated from the completion in the workspace's own zone. This is the default for work linked to a contact, because a visit that slipped two weeks must not pull the next one forward. A trigger on `tasks.done_at` and on `messages.done_at` does it, so the task PATCH, the message route and bulk completion all lead to the same place. Only the newest occurrence leads to a next one.
+- **Ends** never, on a date, or after N times (the task the repeat was set on is the first). A series that has run its course is stopped. **Pausing** stops creation; resuming an after-done series catches up if the newest occurrence was finished meanwhile.
+
+**Idempotent.** Every occurrence has `(series_id, occurrence_no)`, unique, and a schedule occurrence also `(series_id, occurrence_on)`. The next occurrence is always inserted at `occurrence_no + 1` with `ON CONFLICT DO NOTHING`, so two completions, done then reopened then done again, bulk plus single completion, two runner ticks and a completion racing an edit all try the same key and one wins. Every writer that decides what comes next also takes the series row `FOR UPDATE`, so the decisions are serialised and not only the inserts. For after-done series the key is the number, not a date, because two completions at different times would give different dates.
+
+**This one / this and future.** `PATCH ... scope=future`, `POST/DELETE .../tags ... scope` and `DELETE ... ?scope=future` carry an edit to the series template and to every later occurrence nobody has finished; finished ones are history. A rule change (kind, unit, interval, weekdays, month day) starts a new series at this task and stops the old one with its later open occurrences removed, because a new rule cannot reuse the old keys and a history split at the change is the true record; changing only the end or the pause edits in place. Deleting one occurrence skips it: a schedule series keeps its other occurrences, and an after-done series (which would end there) makes the next one from the later of the planned date and today. Deleting the series stops it, removes this and later unfinished occurrences, and leaves finished ones alone. Clearing the repeat detaches this task and removes later unfinished ones.
+
+**Where it shows.** A repeat icon on the task row and card, the sentence on the task, a `repeat` history event, and the series on the contact's History (the timeline entry names `series_id` and the rule).
+
+**Public API.** `priority`, `labels` and `repeat` on the public task endpoints; `POST` takes `priority`, `label_ids` and `repeat`. There is no OpenAPI document or Zapier field list in this repository to update.
+
+**Privacy and erasure.** The series holds a copy of the title, description and address, so it is classified in the personal-data inventory, purged with the workspace (after `tasks`), stopped and blanked when the content it was made from is deleted for good, and re-pointed on a contact merge.
+
+**Not built.** The customer-side reminder text for a repeating job ("your furnace service is due, reply to book") is a separate, opt-in toggle, off by default, consent-bound by the opt-out rules (#331). Occurrences are created with `reminders_off`, so nothing texts a customer until that toggle exists. A generated occurrence does not push an assignment alert to its assignee; the due-soon and overdue pushes still reach them. Priority is not drawn on the map pin itself, only on its card.
