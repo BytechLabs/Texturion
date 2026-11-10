@@ -103,6 +103,8 @@ const englishPrepaidCopy = (key) => {
   return value;
 };
 import { lastCompleteMonth } from "../packages/shared/src/usage-export.ts";
+import { parseQuickAdd } from "../packages/shared/src/quick-add.ts";
+import { parseReferenceTokens, referenceQueryAt } from "../packages/shared/src/task-references.ts";
 import {
   paymentAmountProblem,
   paymentRequestCancellable,
@@ -469,6 +471,175 @@ function paymentVectors() {
   ];
 }
 
+// #689 A: the quick-add line. Wednesday 11 November 2026, 10:30 in Toronto.
+const QUICK_ADD_NOW = "2026-11-11T15:30:00Z";
+const QUICK_ADD_MEMBERS = [
+  { userId: "00000000-0000-4000-8000-000000000001", name: "Rehman Ahmad" },
+  { userId: "00000000-0000-4000-8000-000000000002", name: "Sam Rivera" },
+  { userId: "00000000-0000-4000-8000-000000000003", name: "Samantha Cho" },
+];
+const QUICK_ADD_LABELS = [
+  { id: "l1", name: "warranty" },
+  { id: "l2", name: "boiler" },
+];
+const QUICK_ADD_INPUTS = [
+  ["Fix furnace @rehman tomorrow 9am #urgent"],
+  ["Order the part"],
+  ["tomorrow 9am"],
+  ["Call back today"],
+  ["Call back today", { now: "2026-11-11T12:00:00Z" }],
+  ["x tmrw"],
+  ["x tonight"],
+  ["x tonight 8pm"],
+  ["x friday"],
+  ["x mon"],
+  ["x wednesday"],
+  ["x this friday"],
+  ["x next friday"],
+  ["x next sunday"],
+  ["x next week"],
+  ["x next week", { now: "2026-11-09T15:30:00Z" }],
+  ["x in 2 days"],
+  ["x in 2 weeks 3pm"],
+  ["x in 3 hours"],
+  ["x in 45 min"],
+  ["x in 0 days"],
+  ["x 2026-12-25"],
+  ["x 2026-02-30"],
+  ["x dec 25 noon"],
+  ["x 25 dec 14:30"],
+  ["x december 3rd"],
+  ["x 3rd december"],
+  ["x nov 5"],
+  ["x nov 11"],
+  ["x feb 29"],
+  ["x feb 30"],
+  ["we may need parts"],
+  ["x 5pm"],
+  ["x 9am"],
+  ["x tomorrow 12am"],
+  ["x tomorrow 12pm"],
+  ["x tomorrow 9:30pm"],
+  ["x tomorrow 14:00"],
+  ["x tomorrow noon"],
+  ["x tomorrow at 9"],
+  ["x tomorrow at 2"],
+  ["x tomorrow at 12"],
+  ["x tomorrow at 15"],
+  ["x 9am tomorrow"],
+  ["x tomorrow 25:00"],
+  ["x tomorrow 13pm"],
+  ["Room 9"],
+  ["x tomorrow 9am", { timeZone: "America/Vancouver" }],
+  ["x tomorrow 9am", { timeZone: "UTC" }],
+  ["x tomorrow 9am", { timeZone: "America/Regina" }],
+  ["x today", { now: "2026-11-12T03:30:00Z" }],
+  ["x march 15 9am"],
+  ["x march 13 9am"],
+  ["x @me"],
+  ["x @me", { selfUserId: "00000000-0000-4000-8000-000000000002" }],
+  ["x @reh"],
+  ["x @ahmad"],
+  ["x @sam"],
+  ["x @samx"],
+  ["x @samantha"],
+  ["ask @sa"],
+  ["ask @nobody"],
+  ["x @REHMAN, please"],
+  ["x @rehman @sam"],
+  ["meet @ the shop"],
+  ["x #low #urgent"],
+  ["x #high"],
+  ["x #Boiler #warranty #boiler"],
+  ["x #unknown"],
+  ["item # 4"],
+  ["Follow up #T-142 #contact-1a2b3c4d #conv-abcdef01 tomorrow"],
+  ["  Fix   it ,  tomorrow.  "],
+  [""],
+  ["x tomorrow friday 9am 5pm"],
+  ["Monday's meeting and sunroom fix"],
+  ["#urgent"],
+];
+
+function quickAddVectors() {
+  return QUICK_ADD_INPUTS.map(([line, over = {}]) => {
+    const input = {
+      now: over.now ?? QUICK_ADD_NOW,
+      timeZone: over.timeZone ?? "America/Toronto",
+      selfUserId: over.selfUserId ?? QUICK_ADD_MEMBERS[0].userId,
+    };
+    const r = parseQuickAdd(line, {
+      ...input,
+      now: new Date(input.now),
+      members: QUICK_ADD_MEMBERS,
+      labels: QUICK_ADD_LABELS,
+    });
+    return {
+      line,
+      ...input,
+      members: QUICK_ADD_MEMBERS,
+      labels: QUICK_ADD_LABELS,
+      title: r.title,
+      assignee_user_id: r.assignee ? r.assignee.userId : null,
+      due_at: r.dueAt,
+      due_has_time: r.dueHasTime,
+      priority: r.priority,
+      label_ids: r.labels.map((l) => l.id),
+      understood: r.understood.map((u) => [u.kind, u.text]),
+      ignored: r.ignored,
+    };
+  });
+}
+
+// #690: the words that point at a task, a contact or a conversation.
+const REFERENCE_INPUTS = [
+  "see #T-142, #contact-1A2B3C4D and #conv-abcdef01.",
+  "#t-007",
+  "#T-1",
+  "(#T-1)",
+  "a,#T-1 #T-2",
+  "a#T-1",
+  "##T-1",
+  "#T-1x",
+  "#T-1234567890",
+  "#contact-1a2b3c4",
+  "#contact-1a2b3c4d5",
+  "#contact-zzzzzzzz",
+  "# #urgent #T- #T",
+  "",
+  "Call back about order #4412 please",
+];
+const REFERENCE_QUERY_INPUTS = [
+  ["hello #", 7],
+  ["hello #fur", 10],
+  ["#T-14", 5],
+  ["hello world", 11],
+  ["hello # world", 13],
+  ["No4#4", 5],
+  ["##", 2],
+];
+
+function referenceVectors() {
+  return [
+    ...REFERENCE_INPUTS.map((text) => ({
+      kind: "tokens",
+      text,
+      tokens: parseReferenceTokens(text).map((t) => ({
+        kind: t.kind,
+        key: t.key,
+        start: t.start,
+        end: t.end,
+      })),
+    })),
+    ...REFERENCE_QUERY_INPUTS.map(([text, caret]) => ({
+      kind: "query",
+      text,
+      caret,
+      at: referenceQueryAt(text, caret),
+    })),
+  ];
+}
+
 const FILES = {
   "segments.json": segmentVectors,
   "nanp.json": nanpVectors,
@@ -477,6 +648,8 @@ const FILES = {
   "prepaid-conversion-copy.json": prepaidConversionCopyVectors,
   "last-complete-month.json": lastCompleteMonthVectors,
   "payments.json": paymentVectors,
+  "quick-add.json": quickAddVectors,
+  "task-references.json": referenceVectors,
 };
 
 const check = process.argv.includes("--check");

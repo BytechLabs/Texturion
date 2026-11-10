@@ -86,9 +86,8 @@ type FilterValue = string | boolean;
  * key rather than throwing, so the view saves cleanly and reopens without it.
  * That has happened once, to `awaiting` (#508).
  *
- * The tasks half is not mirrored yet — its list endpoint reads query params
- * individually rather than through one schema, so there is nothing to derive
- * from. Said out loud rather than implied by the sentence above.
+ * The tasks half is mirrored by `routes/saved-view-filters.test.ts`, which
+ * reads the filter names out of the list handler's source.
  */
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -158,7 +157,17 @@ const FILTERS: Record<
         .split(",")
         .every((p) => ["none", "low", "normal", "high", "urgent"].includes(p)),
     tag_id: isUuid,
-    sort: oneOf("created", "due", "priority"),
+    sort: oneOf("created", "due", "priority", "updated"),
+    // #690: who, where from, and what it carries.
+    contact_id: isUuid,
+    conversation_id: isUuid,
+    created_by: (v) => v === "me" || isUuid(v),
+    source: oneOf("text", "call", "none"),
+    has_attachments: isBool,
+    has_references: isBool,
+    // #689 G: how the board groups its columns. A view setting only: no list
+    // request carries it.
+    group: oneOf("status", "assignee", "priority"),
   },
 };
 
@@ -168,6 +177,9 @@ export function savedViewFilterKeys(surface: SavedViewSurface): string[] {
 }
 
 export type SavedViewFilters = Record<string, FilterValue>;
+
+/** Keys a view stores that no list endpoint reads: how it is laid out, not what it shows. */
+const VIEW_ONLY_KEYS = new Set(["group"]);
 
 /**
  * Keep only the filters this surface understands, with values it accepts.
@@ -226,6 +238,7 @@ export function resolveAssignee(
 export function filtersToQuery(filters: SavedViewFilters): [string, string][] {
   const pairs: [string, string][] = [];
   for (const [key, value] of Object.entries(filters)) {
+    if (VIEW_ONLY_KEYS.has(key)) continue;
     if (typeof value === "boolean") {
       if (value) pairs.push([key, "true"]);
       continue;

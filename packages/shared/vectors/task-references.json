@@ -1,0 +1,181 @@
+[
+  {
+    "kind": "tokens",
+    "text": "see #T-142, #contact-1A2B3C4D and #conv-abcdef01.",
+    "tokens": [
+      {
+        "kind": "task",
+        "key": "142",
+        "start": 4,
+        "end": 10
+      },
+      {
+        "kind": "contact",
+        "key": "1a2b3c4d",
+        "start": 12,
+        "end": 29
+      },
+      {
+        "kind": "conversation",
+        "key": "abcdef01",
+        "start": 34,
+        "end": 48
+      }
+    ]
+  },
+  {
+    "kind": "tokens",
+    "text": "#t-007",
+    "tokens": [
+      {
+        "kind": "task",
+        "key": "7",
+        "start": 0,
+        "end": 6
+      }
+    ]
+  },
+  {
+    "kind": "tokens",
+    "text": "#T-1",
+    "tokens": [
+      {
+        "kind": "task",
+        "key": "1",
+        "start": 0,
+        "end": 4
+      }
+    ]
+  },
+  {
+    "kind": "tokens",
+    "text": "(#T-1)",
+    "tokens": [
+      {
+        "kind": "task",
+        "key": "1",
+        "start": 1,
+        "end": 5
+      }
+    ]
+  },
+  {
+    "kind": "tokens",
+    "text": "a,#T-1 #T-2",
+    "tokens": [
+      {
+        "kind": "task",
+        "key": "1",
+        "start": 2,
+        "end": 6
+      },
+      {
+        "kind": "task",
+        "key": "2",
+        "start": 7,
+        "end": 11
+      }
+    ]
+  },
+  {
+    "kind": "tokens",
+    "text": "a#T-1",
+    "tokens": []
+  },
+  {
+    "kind": "tokens",
+    "text": "##T-1",
+    "tokens": []
+  },
+  {
+    "kind": "tokens",
+    "text": "#T-1x",
+    "tokens": []
+  },
+  {
+    "kind": "tokens",
+    "text": "#T-1234567890",
+    "tokens": []
+  },
+  {
+    "kind": "tokens",
+    "text": "#contact-1a2b3c4",
+    "tokens": []
+  },
+  {
+    "kind": "tokens",
+    "text": "#contact-1a2b3c4d5",
+    "tokens": []
+  },
+  {
+    "kind": "tokens",
+    "text": "#contact-zzzzzzzz",
+    "tokens": []
+  },
+  {
+    "kind": "tokens",
+    "text": "# #urgent #T- #T",
+    "tokens": []
+  },
+  {
+    "kind": "tokens",
+    "text": "",
+    "tokens": []
+  },
+  {
+    "kind": "tokens",
+    "text": "Call back about order #4412 please",
+    "tokens": []
+  },
+  {
+    "kind": "query",
+    "text": "hello #",
+    "caret": 7,
+    "at": {
+      "start": 6,
+      "query": ""
+    }
+  },
+  {
+    "kind": "query",
+    "text": "hello #fur",
+    "caret": 10,
+    "at": {
+      "start": 6,
+      "query": "fur"
+    }
+  },
+  {
+    "kind": "query",
+    "text": "#T-14",
+    "caret": 5,
+    "at": {
+      "start": 0,
+      "query": "T-14"
+    }
+  },
+  {
+    "kind": "query",
+    "text": "hello world",
+    "caret": 11,
+    "at": null
+  },
+  {
+    "kind": "query",
+    "text": "hello # world",
+    "caret": 13,
+    "at": null
+  },
+  {
+    "kind": "query",
+    "text": "No4#4",
+    "caret": 5,
+    "at": null
+  },
+  {
+    "kind": "query",
+    "text": "##",
+    "caret": 2,
+    "at": null
+  }
+]

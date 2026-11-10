@@ -1,0 +1,3223 @@
+[
+  {
+    "line": "Fix furnace @rehman tomorrow 9am #urgent",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "Fix furnace",
+    "assignee_user_id": "00000000-0000-4000-8000-000000000001",
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": true,
+    "priority": "urgent",
+    "label_ids": [],
+    "understood": [
+      [
+        "assignee",
+        "@rehman"
+      ],
+      [
+        "priority",
+        "#urgent"
+      ],
+      [
+        "due",
+        "tomorrow 9am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "Order the part",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "Order the part",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": []
+  },
+  {
+    "line": "tomorrow 9am",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow 9am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "Call back today",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "Call back",
+    "assignee_user_id": null,
+    "due_at": "2026-11-11T22:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "today"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "Call back today",
+    "now": "2026-11-11T12:00:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "Call back",
+    "assignee_user_id": null,
+    "due_at": "2026-11-11T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "today"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tmrw",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tmrw"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tonight",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-11T23:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tonight"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tonight 8pm",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T01:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tonight 8pm"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x friday",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-13T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "friday"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x mon",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-16T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "mon"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x wednesday",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-18T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "wednesday"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x this friday",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-13T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "this friday"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x next friday",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-20T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "next friday"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x next sunday",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-22T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "next sunday"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x next week",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-16T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "next week"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x next week",
+    "now": "2026-11-09T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-16T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "next week"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x in 2 days",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-13T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "in 2 days"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x in 2 weeks 3pm",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-25T20:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "in 2 weeks 3pm"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x in 3 hours",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-11T18:30:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "in 3 hours"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x in 45 min",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-11T16:15:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "in 45 min"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x in 0 days",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x in 0 days",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": []
+  },
+  {
+    "line": "x 2026-12-25",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-12-25T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "2026-12-25"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x 2026-02-30",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x 2026-02-30",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": []
+  },
+  {
+    "line": "x dec 25 noon",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-12-25T17:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "dec 25 noon"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x 25 dec 14:30",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-12-25T19:30:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "25 dec 14:30"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x december 3rd",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-12-03T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "december 3rd"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x 3rd december",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-12-03T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "3rd december"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x nov 5",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2027-11-05T13:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "nov 5"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x nov 11",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-11T22:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "nov 11"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x feb 29",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2028-02-29T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "feb 29"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x feb 30",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x feb 30",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": []
+  },
+  {
+    "line": "we may need parts",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "we may need parts",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": []
+  },
+  {
+    "line": "x 5pm",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-11T22:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "5pm"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x 9am",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "9am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow 12am",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T05:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow 12am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow 12pm",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T17:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow 12pm"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow 9:30pm",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-13T02:30:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow 9:30pm"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow 14:00",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T19:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow 14:00"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow noon",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T17:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow noon"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow at 9",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow at 9"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow at 2",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T19:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow at 2"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow at 12",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T17:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow at 12"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow at 15",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T20:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow at 15"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x 9am tomorrow",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow 9am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow 25:00",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x 25:00",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow 13pm",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x 13pm",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "Room 9",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "Room 9",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow 9am",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Vancouver",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T17:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow 9am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow 9am",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "UTC",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T09:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow 9am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow 9am",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Regina",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T15:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow 9am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x today",
+    "now": "2026-11-12T03:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2026-11-11T22:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "today"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x march 15 9am",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2027-03-15T13:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "march 15 9am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x march 13 9am",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": "2027-03-13T14:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "march 13 9am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x @me",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": "00000000-0000-4000-8000-000000000001",
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "assignee",
+        "@me"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x @me",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000002",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": "00000000-0000-4000-8000-000000000002",
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "assignee",
+        "@me"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x @reh",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": "00000000-0000-4000-8000-000000000001",
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "assignee",
+        "@reh"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x @ahmad",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": "00000000-0000-4000-8000-000000000001",
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "assignee",
+        "@ahmad"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x @sam",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": "00000000-0000-4000-8000-000000000002",
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "assignee",
+        "@sam"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x @samx",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x @samx",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": [
+      "@samx"
+    ]
+  },
+  {
+    "line": "x @samantha",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": "00000000-0000-4000-8000-000000000003",
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "assignee",
+        "@samantha"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "ask @sa",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "ask @sa",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": [
+      "@sa"
+    ]
+  },
+  {
+    "line": "ask @nobody",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "ask @nobody",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": [
+      "@nobody"
+    ]
+  },
+  {
+    "line": "x @REHMAN, please",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x please",
+    "assignee_user_id": "00000000-0000-4000-8000-000000000001",
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "assignee",
+        "@REHMAN,"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x @rehman @sam",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x @sam",
+    "assignee_user_id": "00000000-0000-4000-8000-000000000001",
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "assignee",
+        "@rehman"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "meet @ the shop",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "meet @ the shop",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": []
+  },
+  {
+    "line": "x #low #urgent",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x #urgent",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": "low",
+    "label_ids": [],
+    "understood": [
+      [
+        "priority",
+        "#low"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x #high",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": "high",
+    "label_ids": [],
+    "understood": [
+      [
+        "priority",
+        "#high"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x #Boiler #warranty #boiler",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [
+      "l2",
+      "l1"
+    ],
+    "understood": [
+      [
+        "label",
+        "#Boiler"
+      ],
+      [
+        "label",
+        "#warranty"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "x #unknown",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x #unknown",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": [
+      "#unknown"
+    ]
+  },
+  {
+    "line": "item # 4",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "item # 4",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": []
+  },
+  {
+    "line": "Follow up #T-142 #contact-1a2b3c4d #conv-abcdef01 tomorrow",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "Follow up #T-142 #contact-1a2b3c4d #conv-abcdef01",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "  Fix   it ,  tomorrow.  ",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "Fix it ,",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow."
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": []
+  },
+  {
+    "line": "x tomorrow friday 9am 5pm",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "x friday 5pm",
+    "assignee_user_id": null,
+    "due_at": "2026-11-12T14:00:00.000Z",
+    "due_has_time": true,
+    "priority": null,
+    "label_ids": [],
+    "understood": [
+      [
+        "due",
+        "tomorrow 9am"
+      ]
+    ],
+    "ignored": []
+  },
+  {
+    "line": "Monday's meeting and sunroom fix",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "Monday's meeting and sunroom fix",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": null,
+    "label_ids": [],
+    "understood": [],
+    "ignored": []
+  },
+  {
+    "line": "#urgent",
+    "now": "2026-11-11T15:30:00Z",
+    "timeZone": "America/Toronto",
+    "selfUserId": "00000000-0000-4000-8000-000000000001",
+    "members": [
+      {
+        "userId": "00000000-0000-4000-8000-000000000001",
+        "name": "Rehman Ahmad"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000002",
+        "name": "Sam Rivera"
+      },
+      {
+        "userId": "00000000-0000-4000-8000-000000000003",
+        "name": "Samantha Cho"
+      }
+    ],
+    "labels": [
+      {
+        "id": "l1",
+        "name": "warranty"
+      },
+      {
+        "id": "l2",
+        "name": "boiler"
+      }
+    ],
+    "title": "",
+    "assignee_user_id": null,
+    "due_at": null,
+    "due_has_time": false,
+    "priority": "urgent",
+    "label_ids": [],
+    "understood": [
+      [
+        "priority",
+        "#urgent"
+      ]
+    ],
+    "ignored": []
+  }
+]

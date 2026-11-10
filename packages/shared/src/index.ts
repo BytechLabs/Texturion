@@ -1191,3 +1191,24 @@ export {
   type MfaSummaryKey,
   type NamedMfaFactorType,
 } from "./mfa-factors";
+
+export {
+  parseQuickAdd,
+  zonedToInstant,
+  type QuickAddContext,
+  type QuickAddLabel,
+  type QuickAddMember,
+  type QuickAddPriority,
+  type QuickAddResult,
+  type QuickAddUnderstood,
+} from "./quick-add";
+
+export {
+  parseReferenceTokens,
+  recordReferenceText,
+  referenceQueryAt,
+  taskNumberLabel,
+  taskReferenceText,
+  type ReferenceKind,
+  type ReferenceToken,
+} from "./task-references";

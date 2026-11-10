@@ -176,17 +176,55 @@ describe("#280 surfaces", () => {
     expect(savedViewFilterKeys("tasks").sort()).toEqual(
       [
         "assigned_user_id",
+        "contact_id",
+        "conversation_id",
+        "created_by",
         "due_after",
         "due_before",
+        "group",
+        "has_attachments",
         "has_location",
+        "has_references",
         "overdue",
         "priority",
         "sort",
+        "source",
         "status",
         "tag_id",
         "unassigned",
       ].sort(),
     );
+  });
+});
+
+describe("#690 task views", () => {
+  it("keeps the new task filters and drops a bad value", () => {
+    expect(
+      sanitizeFilters("tasks", {
+        contact_id: "11111111-1111-4111-8111-111111111111",
+        created_by: "me",
+        source: "call",
+        has_attachments: true,
+        has_references: true,
+        sort: "updated",
+        group: "assignee",
+      }),
+    ).toEqual({
+      contact_id: "11111111-1111-4111-8111-111111111111",
+      created_by: "me",
+      source: "call",
+      has_attachments: true,
+      has_references: true,
+      sort: "updated",
+      group: "assignee",
+    });
+    expect(sanitizeFilters("tasks", { source: "fax", group: "planet", sort: "random", contact_id: "x" })).toEqual({});
+  });
+  it("the grouping is a view setting and never reaches a list request", () => {
+    expect(filtersToQuery({ group: "assignee", status: "open", sort: "updated" })).toEqual([
+      ["sort", "updated"],
+      ["status", "open"],
+    ]);
   });
 });
 
