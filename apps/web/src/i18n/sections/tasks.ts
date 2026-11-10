@@ -207,6 +207,13 @@ export const tasksEn = {
   /** Stands in for the body of a source message that was only a picture. */
   sourcePhotoOnly: "A photo",
   viewInConversation: "View in conversation",
+  /** The source section of a task that was promoted from a call (D64). */
+  sourceCallAria: "Source call",
+  fromThisCall: "From this call",
+  /** The name of a call's source: who rang. */
+  callFrom: "Call from {name}",
+  /** Talk time of the call the task came from, e.g. "Talked for 3m 12s". */
+  callTalkTime: "Talked for {duration}",
   clearDue: "Clear",
   remindCustomer: "Remind this customer",
   remindCustomerAria: "Remind this customer about this job",
@@ -547,6 +554,10 @@ export const tasksFr: Translated<typeof tasksEn> = {
   fromThisMessage: "À partir de ce message",
   sourcePhotoOnly: "Une photo",
   viewInConversation: "Voir dans la conversation",
+  sourceCallAria: "Appel d'origine",
+  fromThisCall: "À partir de cet appel",
+  callFrom: "Appel de {name}",
+  callTalkTime: "Appel de {duration}",
   clearDue: "Effacer",
   remindCustomer: "Rappeler au client",
   remindCustomerAria: "Rappeler cette tâche au client",

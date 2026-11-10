@@ -114,7 +114,7 @@ function TaskRow({
   const runToggle = (next: boolean) => {
     setOptimisticDone(next);
     toggle.mutate(
-      { messageId: task.message_id, done: next },
+      { taskId: task.id, messageId: task.message_id, done: next },
       {
         onError: (error) => {
           setOptimisticDone(null);

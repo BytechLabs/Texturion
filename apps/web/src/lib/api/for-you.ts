@@ -8,7 +8,13 @@ import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
-import type { ForYou, ForYouTask, Message, SpamReviewItem } from "./types";
+import type {
+  ForYou,
+  ForYouTask,
+  Message,
+  SpamReviewItem,
+  Task,
+} from "./types";
 
 /**
  * GET /v1/for-you — the D23 crew-member focus queue: one derived object with
@@ -87,11 +93,16 @@ export function useCompleteForYouTask() {
     // `done` is a param so the same hook drives complete (true) and the undo
     // (false) — both are message-done writes on the task's source message.
     mutationFn: (input: { task: ForYouTask; done: boolean }) =>
-      apiFetch<Message>(`/v1/messages/${input.task.message_id}`, {
-        method: "PATCH",
-        companyId,
-        body: { done: input.done },
-      }),
+      apiFetch<Message | Task>(
+        input.task.message_id === null
+          ? `/v1/tasks/${input.task.task_id}`
+          : `/v1/messages/${input.task.message_id}`,
+        {
+          method: "PATCH",
+          companyId,
+          body: { done: input.done },
+        },
+      ),
     onMutate: async (input) => {
       const key = keys.forYou(companyId);
       await queryClient.cancelQueries({ queryKey: key });

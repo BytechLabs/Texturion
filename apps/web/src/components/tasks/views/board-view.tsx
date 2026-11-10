@@ -130,8 +130,14 @@ function Column({
         const priorDone = e.dataTransfer.getData("text/task-done") === "1";
         const messageId = e.dataTransfer.getData("text/task-message");
         const conversationId = e.dataTransfer.getData("text/task-conversation");
-        if (id && messageId && conversationId && priorDone !== target) {
-          done.mutate({ taskId: id, messageId, conversationId, done: target });
+        // An empty message id is a call-anchored card (D64): it has no message.
+        if (id && conversationId && priorDone !== target) {
+          done.mutate({
+            taskId: id,
+            messageId: messageId === "" ? null : messageId,
+            conversationId,
+            done: target,
+          });
         }
       }}
       className={cn(
@@ -184,7 +190,7 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/task-id", task.id);
         e.dataTransfer.setData("text/task-done", task.done ? "1" : "0");
-        e.dataTransfer.setData("text/task-message", task.message_id);
+        e.dataTransfer.setData("text/task-message", task.message_id ?? "");
         e.dataTransfer.setData("text/task-conversation", task.conversation_id);
       }}
       className="cursor-grab rounded-lg border border-border bg-card p-3 active:cursor-grabbing"

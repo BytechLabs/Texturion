@@ -310,8 +310,10 @@ function invalidateTasks(
 }
 
 export interface CreateTaskInput {
-  /** The message being promoted (required — every task promotes a message). */
-  message_id: string;
+  /** The message being promoted. Exactly one of this and `source_call_id`. */
+  message_id?: string;
+  /** The answered call being promoted (D64). */
+  source_call_id?: string;
   /** Optional overrides; an absent title lets the RPC seed the body snippet. */
   title?: string;
   description?: string;
@@ -322,9 +324,10 @@ export interface CreateTaskInput {
 }
 
 /**
- * POST /v1/tasks — promote a message to a task (T4/T5.1). This is the write the
- * message overflow "Make a task" affordance and any future compose surface
- * call. A second live promotion of the same message → 409 `conflict` (the
+ * POST /v1/tasks: promote a message, or an answered call (D64), to a task
+ * (T4/T5.1). This is the write the message overflow "Make a task" affordance,
+ * the call log and the call timeline row call. A second live promotion of the
+ * same source → 409 `conflict` (the
  * caller surfaces "already a task"). Refetches the source thread's checklist +
  * the /tasks lists, and the conversation events (the `task_created` audit line).
  *
@@ -340,7 +343,12 @@ export function useCreateTaskFromMessage(conversationId: string) {
         method: "POST",
         companyId,
         body: {
-          message_id: input.message_id,
+          ...(input.message_id !== undefined
+            ? { message_id: input.message_id }
+            : {}),
+          ...(input.source_call_id !== undefined
+            ? { source_call_id: input.source_call_id }
+            : {}),
           ...(input.title !== undefined ? { title: input.title } : {}),
           ...(input.description !== undefined
             ? { description: input.description }
@@ -559,13 +567,17 @@ export function useDeleteTask(conversationId: string) {
 /** Patch a task's derived done state inside the cached conversation checklist. */
 function checklistPatchDone(
   data: { data: ChecklistTask[] } | undefined,
-  messageId: string,
+  match: { messageId: string | null; taskId: string },
   done: boolean,
 ): { data: ChecklistTask[] } | undefined {
   if (!data) return data;
   let changed = false;
   const next = data.data.map((task) => {
-    if (task.message_id !== messageId) return task;
+    const same =
+      match.messageId === null
+        ? task.id === match.taskId
+        : task.message_id === match.messageId;
+    if (!same) return task;
     changed = true;
     return { ...task, done, status: (done ? "done" : "open") as TaskStatus };
   });
@@ -576,7 +588,9 @@ function checklistPatchDone(
 /**
  * Toggle a promoted task's completion (T2). Calls the EXISTING
  * `PATCH /v1/messages/:id {done}` on the task's source message — the checkbox
- * is a second UI entry to that one write. Optimistically flips the checklist's
+ * is a second UI entry to that one write. A task promoted from a call has no
+ * message (D64), so it writes `PATCH /v1/tasks/:id {done}` and there is no
+ * thread message to flip. Optimistically flips the checklist's
  * derived done AND the source message's done state in the thread/detail caches
  * (so an open conversation strikes the message through at the same instant),
  * rolls back on error, and pulls the fresh `message_done`/`message_undone`
@@ -592,12 +606,21 @@ export function useToggleTaskDone(conversationId: string) {
   const detailKey = keys.conversations.detail(companyId, conversationId);
 
   return useMutation({
-    mutationFn: (input: { messageId: string; done: boolean }) =>
-      apiFetch<Message>(`/v1/messages/${input.messageId}`, {
-        method: "PATCH",
-        companyId,
-        body: { done: input.done },
-      }),
+    mutationFn: (input: {
+      taskId: string;
+      messageId: string | null;
+      done: boolean;
+    }) =>
+      apiFetch<Message | Task>(
+        input.messageId === null
+          ? `/v1/tasks/${input.taskId}`
+          : `/v1/messages/${input.messageId}`,
+        {
+          method: "PATCH",
+          companyId,
+          body: { done: input.done },
+        },
+      ),
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: checklistKey });
       await queryClient.cancelQueries({ queryKey: threadKey });
@@ -614,19 +637,21 @@ export function useToggleTaskDone(conversationId: string) {
 
       queryClient.setQueryData<{ data: ChecklistTask[] }>(
         checklistKey,
-        (data) => checklistPatchDone(data, input.messageId, input.done),
+        (data) => checklistPatchDone(data, input, input.done),
       );
-      if (previousThread) {
-        queryClient.setQueryData<ThreadData>(
-          threadKey,
-          threadPatchMessage(previousThread, input.messageId, messagePatch),
-        );
-      }
-      if (previousDetail) {
-        queryClient.setQueryData<ConversationDetail>(
-          detailKey,
-          detailPatchMessage(previousDetail, input.messageId, messagePatch),
-        );
+      if (input.messageId !== null) {
+        if (previousThread) {
+          queryClient.setQueryData<ThreadData>(
+            threadKey,
+            threadPatchMessage(previousThread, input.messageId, messagePatch),
+          );
+        }
+        if (previousDetail) {
+          queryClient.setQueryData<ConversationDetail>(
+            detailKey,
+            detailPatchMessage(previousDetail, input.messageId, messagePatch),
+          );
+        }
       }
       return { previousChecklist, previousThread, previousDetail };
     },
@@ -641,7 +666,11 @@ export function useToggleTaskDone(conversationId: string) {
         queryClient.setQueryData(detailKey, context.previousDetail);
       }
     },
-    onSuccess: (message) => {
+    onSuccess: (result, input) => {
+      // A call task answered with the task row: the checklist was already
+      // patched optimistically and there is no thread message to reconcile.
+      if (input.messageId === null) return;
+      const message = result as Message;
       // Replace the optimistic message row with the server's authoritative one
       // (done_at) in the thread/detail caches; the checklist's derived done was
       // already patched and matches.
@@ -654,7 +683,11 @@ export function useToggleTaskDone(conversationId: string) {
       queryClient.setQueryData<{ data: ChecklistTask[] }>(
         checklistKey,
         (data) =>
-          checklistPatchDone(data, message.id, message.done_at !== null),
+          checklistPatchDone(
+            data,
+            { messageId: message.id, taskId: input.taskId },
+            message.done_at !== null,
+          ),
       );
       // Surface the message_done / message_undone line in the open timeline.
       void queryClient.invalidateQueries({

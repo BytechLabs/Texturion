@@ -126,3 +126,21 @@ describe("#566 the unlinked note yields before the call does", () => {
     expect(html).not.toContain("Not linked to a conversation");
   });
 });
+
+describe("D64 an answered call can become a task", () => {
+  it("offers Make a task on an answered, threaded call", () => {
+    const html = renderToStaticMarkup(<CallRow call={base} />);
+    expect(html).toContain('aria-label="Make a task from this call"');
+  });
+
+  it.each([
+    ["a missed call", { outcome: "missed" }],
+    ["a voicemail (it is a message in the thread)", { outcome: "voicemail" }],
+    ["an unthreaded call (the server needs a conversation)", { conversation_id: null }],
+  ])("does not offer it on %s", (_label, patch) => {
+    const html = renderToStaticMarkup(
+      <CallRow call={{ ...base, ...patch } as Call} />,
+    );
+    expect(html).not.toContain("Make a task from this call");
+  });
+});

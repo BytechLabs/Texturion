@@ -10,6 +10,7 @@ import {
 
 import type { ConversationEvent } from "@/lib/api/types";
 
+import { MakeCallTask } from "@/components/calls/make-call-task";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { statusInSentence } from "@/components/inbox/status-pill";
@@ -408,6 +409,35 @@ export function SystemLine({
           />
         )}
       </div>
+    );
+  }
+
+  // D64: an answered call can become a task, right where it is narrated. The
+  // line carries the carrier session id only, so the button resolves the call
+  // when it is opened.
+  const answeredSession =
+    event.type === "call_completed" &&
+    event.payload.outcome === "answered" &&
+    event.payload.kind === undefined &&
+    typeof event.payload.call_session_id === "string"
+      ? event.payload.call_session_id
+      : null;
+  if (answeredSession) {
+    const caller = event.payload.caller;
+    return (
+      <p className="py-1 text-center text-xs text-muted-foreground">
+        {sentence}
+        <MakeCallTask
+          sessionId={answeredSession}
+          conversationId={event.conversation_id}
+          callerName={
+            typeof caller === "string" && caller !== ""
+              ? caller
+              : t("shell.unknownCaller")
+          }
+          className="ml-1 inline-grid size-6 align-middle"
+        />
+      </p>
     );
   }
 

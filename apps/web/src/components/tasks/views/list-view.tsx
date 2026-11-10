@@ -33,6 +33,7 @@ import { EmptyTasks } from "../task-empty";
 import { InlineAssignee, InlineDue } from "../task-inline-edit";
 import { useTaskDrawer } from "../use-task-drawer";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
+import { taskCallerName, taskThreadHref } from "../task-format";
 
 /**
  * The List view (T6.1, default) — a calm flat table over GET /v1/tasks. Roomy
@@ -248,10 +249,12 @@ function TaskRow({
               {task.title}
             </button>
             <Link
-              href={`/inbox/${task.conversation_id}?message=${task.message_id}`}
+              href={taskThreadHref(task)}
               className="mt-0.5 inline-flex items-center gap-1 truncate text-[12px] text-muted-foreground hover:text-foreground"
             >
-              {t("tasks.openConversation")}
+              {taskCallerName(task, t) !== null
+                ? t("tasks.callFrom", { name: taskCallerName(task, t) ?? "" })
+                : t("tasks.openConversation")}
               <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
             </Link>
             {/* Mobile-only meta row (the desktop grid shows these as columns). */}

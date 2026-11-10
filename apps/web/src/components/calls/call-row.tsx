@@ -16,6 +16,7 @@ import {
   VoicemailPlayer,
 } from "@/components/calls/voicemail-player";
 import { VoicemailIntakeSummary } from "@/components/calls/voicemail-intake-summary";
+import { MakeCallTask } from "@/components/calls/make-call-task";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { avatarColorClass } from "@/components/shell/avatar-color";
 import { useT, type Translate } from "@/i18n/provider";
@@ -208,6 +209,15 @@ export function CallRow({ call }: { call: Call }) {
           </span>
         ) : null}
       </span>
+      {/* D64: an answered call that landed in a conversation can become a task.
+          Quiet, one icon, beside the time; above the stretched name link. */}
+      {call.outcome === "answered" && call.conversation_id && (
+        <MakeCallTask
+          callId={call.id}
+          conversationId={call.conversation_id}
+          callerName={name}
+        />
+      )}
     </>
   );
 

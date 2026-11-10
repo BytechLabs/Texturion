@@ -995,8 +995,17 @@ export interface ReplySuggestions {
 export interface Task {
   id: string;
   company_id: string;
-  /** The promoted message — completion derives from ITS done_at (NOT NULL). */
-  message_id: string;
+  /**
+   * The promoted message; completion derives from ITS done_at. Null for a task
+   * promoted from a call (D64), which owns its own done state.
+   */
+  message_id: string | null;
+  /** The answered call this task promotes (D64); null for a message task. */
+  source_call_id?: string | null;
+  /** Which kind of thing the task promotes, and its id. */
+  source?: TaskSource | null;
+  /** The promoted call, when `source.kind === 'call'` (list and checklist rows). */
+  call?: TaskSourceCall | null;
   conversation_id: string;
   title: string;
   description: string;
@@ -1054,6 +1063,23 @@ export interface Task {
    */
   lat?: number | null;
   lng?: number | null;
+}
+
+/** `source` on every task row (D64). */
+export type TaskSource = { kind: "message" | "call"; id: string };
+
+/** The call a task was promoted from, as the task list and detail show it. */
+export interface TaskSourceCall {
+  id: string;
+  call_session_id: string;
+  caller_e164: string | null;
+  caller_name: string | null;
+  outcome: "answered" | "voicemail" | "missed" | null;
+  forward_seconds: number;
+  started_at: string;
+  ended_at: string | null;
+  contact_id: string | null;
+  has_voicemail: boolean;
 }
 
 /** The located-contact embed a `has_location=true` task row MAY carry (Map view, D25). */
@@ -1151,6 +1177,8 @@ export interface TaskDetail extends Task {
   assignee: TaskProfile | null;
   created_by: TaskProfile | null;
   source_message: TaskSourceMessage | null;
+  /** The promoted call (D64); null for a message task or when withheld (#107). */
+  source_call: TaskSourceCall | null;
   /** The D28 derived union — a read view; tasks never own uploads. */
   attachments: TaskAttachmentItem[];
   /** The merged activity+discussion timeline (D-C events + D-D notes). */
@@ -2282,7 +2310,8 @@ export interface ForYouTask {
   task_id: string;
   title: string;
   conversation_id: string;
-  message_id: string;
+  /** Null for a task promoted from a call (D64). */
+  message_id: string | null;
   assigned_user_id: string | null;
   due_at: string | null;
   overdue: boolean;

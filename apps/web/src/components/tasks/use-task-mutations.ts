@@ -15,9 +15,10 @@ import type { Message, Page, Task } from "@/lib/api/types";
  * The /tasks page's done toggle. Unlike the checklist's `useToggleTaskDone`
  * (which is scoped to one conversation), every row on the /tasks page belongs
  * to a DIFFERENT conversation, so this hook takes the task's `message_id` +
- * `conversation_id` per call. It is still the SAME derived-done write path
- * (TASKS.md T2/T4): `PATCH /v1/messages/:id {done}` on the source message —
- * never a task route. Board "move to/from Done", the List status toggle, and
+ * `conversation_id` per call. It is still the SAME done write path as every
+ * other view (D17 as amended by D64): `PATCH /v1/messages/:id {done}` on the
+ * source message, or `PATCH /v1/tasks/:id {done}` for a task promoted from a
+ * call, which has no message and owns its own done state. Board "move to/from Done", the List status toggle, and
  * the Calendar chip done all call this.
  *
  * Optimistic over every cached /tasks list so a moved/checked card flips at the
@@ -33,15 +34,20 @@ export function useTaskDone() {
   return useMutation({
     mutationFn: (input: {
       taskId: string;
-      messageId: string;
+      messageId: string | null;
       conversationId: string;
       done: boolean;
     }) =>
-      apiFetch<Message>(`/v1/messages/${input.messageId}`, {
-        method: "PATCH",
-        companyId,
-        body: { done: input.done },
-      }),
+      apiFetch<Message | Task>(
+        input.messageId === null
+          ? `/v1/tasks/${input.taskId}`
+          : `/v1/messages/${input.messageId}`,
+        {
+          method: "PATCH",
+          companyId,
+          body: { done: input.done },
+        },
+      ),
     onMutate: async (input) => {
       const detailKey = keys.tasks.detail(companyId, input.taskId);
       await Promise.all([

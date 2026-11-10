@@ -94,13 +94,18 @@ function isoToLocalInput(iso: string): string {
  * date/time inferred from the message text, each with a provenance badge and
  * fully editable (any edit marks the address "manual"). The petrol "Create"
  * calls POST /v1/tasks; a re-promote (409) surfaces "already a task".
+ *
+ * The source is a message or, since D64, an answered call (`call`: no body to
+ * read, so no enrichment; the title is seeded with who rang). Exactly one.
  */
 export function MakeTaskForm({
   message,
+  call,
   conversationId,
   onDone,
 }: {
-  message: Message;
+  message?: Message;
+  call?: { id: string; title: string };
   conversationId: string;
   onDone: () => void;
 }) {
@@ -111,7 +116,9 @@ export function MakeTaskForm({
   const aiSettings = useAiSettings();
   const createTask = useCreateTaskFromMessage(conversationId);
 
-  const [title, setTitle] = useState(() => messageTaskTitle(message.body));
+  const [title, setTitle] = useState(() =>
+    call ? call.title : messageTaskTitle(message?.body ?? ""),
+  );
   const [due, setDue] = useState<string>("");
   const [dueSuggested, setDueSuggested] = useState(false);
   const [assigneeOverride, setAssigneeOverride] = useState<string | null>(null);
@@ -143,8 +150,8 @@ export function MakeTaskForm({
     const settings = aiSettings.data;
     if (!settings) return;
     if (!settings.enrich_task_address && !settings.enrich_task_due) return;
-    const text = message.body?.trim();
-    if (!text) return;
+    const text = message?.body?.trim();
+    if (!message || !text) return;
 
     enrichedRef.current = true;
     let cancelled = false;
@@ -193,7 +200,7 @@ export function MakeTaskForm({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [aiSettings.data, companyId, conversationId, message.id, message.body]);
+  }, [aiSettings.data, companyId, conversationId, message]);
 
   /** Editing any address field marks the whole address user-authored ("manual"). */
   function editAddr(field: keyof AddressFields, value: string) {
@@ -245,7 +252,7 @@ export function MakeTaskForm({
       : null;
     try {
       await createTask.mutateAsync({
-        message_id: message.id,
+        ...(call ? { source_call_id: call.id } : { message_id: message?.id }),
         title: trimmed,
         assigned_user_id: assignee === UNASSIGNED ? null : assignee,
         // <input type="datetime-local"> yields a local wall-clock string; convert
@@ -256,7 +263,9 @@ export function MakeTaskForm({
       // #431: report only on a successful create. Somebody who abandoned the
       // form has told us nothing about whether the address was any good, and
       // counting that as a rejection would blame Lou for an unrelated decision.
-      const outcome = enrichmentOutcome({
+      const outcome = call
+        ? null
+        : enrichmentOutcome({
         suggestedAddress: suggestedAddress.current,
         suggestedDue: suggestedDue.current !== null,
         addressEdited: hasAddress && addrProvenance === "manual",
@@ -265,12 +274,16 @@ export function MakeTaskForm({
         dueCleared: due === "",
       });
       if (outcome) reportAiOutcome(companyId, "enrich", outcome);
-      toast.success(t("thread.taskCreated"));
+      toast.success(
+        call ? t("thread.taskCreatedFromCall") : t("thread.taskCreated"),
+      );
       onDone();
     } catch (error) {
       toast.error(
         error instanceof ApiError && error.code === "conflict"
-          ? t("thread.alreadyATask")
+          ? call
+            ? t("thread.alreadyACallTask")
+            : t("thread.alreadyATask")
           : t("thread.taskCreateFailed"),
       );
     }

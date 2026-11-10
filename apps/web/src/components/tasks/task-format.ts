@@ -4,6 +4,7 @@ import { DEFAULT_LOCALE } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/provider";
 import type { Task } from "@/lib/api/types";
+import { formatPhone } from "@/lib/format/phone";
 
 /**
  * #228: English, for a caller that has not been extracted yet.
@@ -50,6 +51,24 @@ export function formatDue(dueAt: string | null, t: Translate = EN): string {
  * `/inbox/[conversation]?message=[message]` — the thread scrolls/anchors to the
  * promoted message. Every view row links here.
  */
+/**
+ * Who rang, for a task promoted from a call (D64): the CNAM name, else the
+ * formatted number, else the caller-unknown line. Null for a message task.
+ */
+export function taskCallerName(
+  task: Pick<Task, "call">,
+  t: Translate,
+): string | null {
+  const call = task.call;
+  if (!call) return null;
+  if (call.caller_name) return call.caller_name;
+  if (call.caller_e164) return formatPhone(call.caller_e164);
+  return t("shell.unknownCaller");
+}
+
 export function taskThreadHref(task: Pick<Task, "conversation_id" | "message_id">): string {
-  return `/inbox/${task.conversation_id}?message=${task.message_id}`;
+  // A task promoted from a call has no message to anchor to (D64): the thread.
+  return task.message_id === null
+    ? `/inbox/${task.conversation_id}`
+    : `/inbox/${task.conversation_id}?message=${task.message_id}`;
 }

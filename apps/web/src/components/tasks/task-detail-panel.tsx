@@ -8,6 +8,7 @@ import {
   Loader2,
   MapPin,
   MoreHorizontal,
+  PhoneIncoming,
   Paperclip,
   Trash2,
 } from "lucide-react";
@@ -22,6 +23,7 @@ import {
   useFileDrop,
 } from "@/components/attachments/use-file-drop";
 import { useStagedFiles } from "@/components/attachments/use-staged-files";
+import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
 import { CountryDatalist } from "@/components/ui/country-datalist";
@@ -55,6 +57,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useT, type MessageKey, type Translate } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
+import { formatCallDuration } from "@/lib/format/call";
+import { formatPhone } from "@/lib/format/phone";
+import { formatRelativeTime } from "@/lib/format/time";
+import { taskThreadHref } from "./task-format";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
@@ -413,7 +419,55 @@ function TaskDetailLoaded({
                   : task.source_message.body}
               </p>
               <Link
-                href={`/inbox/${conversationId}?message=${task.message_id}`}
+                href={taskThreadHref(task)}
+                className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-app-olive hover:text-app-olive-deep"
+              >
+                {t("tasks.viewInConversation")}
+                <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
+              </Link>
+            </div>
+          </section>
+        )}
+
+        {/* D64: the call this task was promoted from, where a message would be. */}
+        {task.source_call && (
+          <section aria-label={t("tasks.sourceCallAria")} className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+              {t("tasks.fromThisCall")}
+            </p>
+            <div className="rounded-app-card border border-app-line bg-app-inset p-3">
+              <p className="flex items-center gap-2 text-[13px] font-medium text-app-ink">
+                <PhoneIncoming
+                  className="size-3.5 shrink-0 text-app-muted-2"
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+                {t("tasks.callFrom", {
+                  name:
+                    task.source_call.caller_name ??
+                    (task.source_call.caller_e164
+                      ? formatPhone(task.source_call.caller_e164)
+                      : t("shell.unknownCaller")),
+                })}
+              </p>
+              <p className="mt-1 text-[12px] tabular-nums text-muted-foreground">
+                {formatRelativeTime(task.source_call.started_at, undefined, t)}
+                {task.source_call.forward_seconds > 0 &&
+                  ` · ${t("tasks.callTalkTime", {
+                    duration: formatCallDuration(task.source_call.forward_seconds),
+                  })}`}
+              </p>
+              {task.source_call.has_voicemail && (
+                <div className="mt-2">
+                  <VoicemailPlayer
+                    callSessionId={task.source_call.call_session_id}
+                    seconds={null}
+                    showTranscript
+                  />
+                </div>
+              )}
+              <Link
+                href={taskThreadHref(task)}
                 className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-app-olive hover:text-app-olive-deep"
               >
                 {t("tasks.viewInConversation")}
