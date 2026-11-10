@@ -8,6 +8,7 @@ import {
   markDatabaseUnreachable,
 } from "./db-pressure";
 import type { Env } from "./env";
+import { fetchWithDeadline } from "./http/deadline";
 
 /**
  * One client per isolate: `getEnv` memoizes the validated Env per bindings
@@ -22,27 +23,6 @@ const clients = new WeakMap<Env, SupabaseClient>();
  * calls in this API use the same 10 s.
  */
 export const DB_TIMEOUT_MS = 10_000;
-
-/**
- * The signal a database request runs under: our deadline, plus whatever the
- * caller already had.
- *
- * Extracted so it can be tested with a millisecond deadline instead of a
- * ten-second one. `AbortSignal.timeout` is native and vitest's fake timers do
- * not drive it, so the alternative was a test that waited ten seconds or an
- * assertion that never fired.
- *
- * The caller's signal is KEPT rather than replaced. Supabase passes one for
- * `.abortSignal()`, and writing `signal:` over the init object would silently
- * un-cancel a request the caller had already given up on.
- */
-export function dbRequestSignal(
-  existing: AbortSignal | null | undefined,
-  timeoutMs: number = DB_TIMEOUT_MS,
-): AbortSignal {
-  const deadline = AbortSignal.timeout(timeoutMs);
-  return existing ? AbortSignal.any([existing, deadline]) : deadline;
-}
 
 /**
  * Whether a database response is the database saying it is out of room, rather
@@ -139,15 +119,14 @@ export function getDb(env: Env): SupabaseClient {
          * passes one for `.abortSignal()`, and clobbering it would silently
          * un-cancel a request the caller had already given up on.
          */
+        // The deadline stops with the response (http/deadline.ts), so a request
+        // that has been answered leaves no timer running.
         // A request that has seen the database refuse stops asking it (db-pressure.ts).
         return (async () => {
           if (databaseOverloaded()) throw new DatabaseOverloadedError();
           let response: Response;
           try {
-            response = await globalThis.fetch(input, {
-              ...init,
-              signal: dbRequestSignal(init?.signal),
-            });
+            response = await fetchWithDeadline(input, init, DB_TIMEOUT_MS);
           } catch (error) {
             if (isDeadline(error) && markDatabaseOverloaded()) {
               throw new DatabaseOverloadedError({ cause: error });

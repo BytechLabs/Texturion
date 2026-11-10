@@ -88,8 +88,8 @@ async function main(): Promise<void> {
     confirmation: requiredEnv("LOONEXT_CAPACITY_CONFIRM"),
   });
   const switchUrl = new URL(switchOrigin);
-  if (!switchUrl.hostname.endsWith(".workers.dev") || !switchUrl.hostname.includes("-251")) {
-    throw new CapacityConfigError("--switch-origin must be the temporary -251 workers.dev switch");
+  if (!switchUrl.hostname.endsWith(".workers.dev") || !/-capacity-\d+\./.test(switchUrl.hostname)) {
+    throw new CapacityConfigError("--switch-origin must be a temporary -capacity-<issue> workers.dev switch");
   }
   const levels = (option(args, "--levels") ?? "2,8,16,32").split(",").map(Number);
   const gapMs = Number(option(args, "--gap-ms") ?? "3000");

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { DB_TIMEOUT_MS, dbRequestSignal, getDb } from "./db";
+import { DB_TIMEOUT_MS, getDb } from "./db";
+import { deadline } from "./http/deadline";
 import type { Env } from "./env";
 
 /**
@@ -69,14 +70,13 @@ describe("#251 the database call cannot hang forever", () => {
   });
 
   it("aborts once the deadline passes", async () => {
-    // A millisecond deadline through the same helper the client uses.
-    // `AbortSignal.timeout` is native and vitest's fake timers do not drive
-    // it, so the choice was this or a test that waited ten seconds. A helper
-    // that takes the number is the version that can actually be proven.
-    const signal = dbRequestSignal(undefined, 5);
+    // A millisecond deadline through the same helper the client uses, so the
+    // test does not wait ten seconds.
+    const { signal } = deadline(5);
     expect(signal.aborted).toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 40));
     expect(signal.aborted, "the deadline never fired").toBe(true);
+    expect((signal.reason as Error).name).toBe("TimeoutError");
   });
 
   it("keeps a caller's own signal rather than replacing it", async () => {

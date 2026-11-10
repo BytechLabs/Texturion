@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { fetchWithDeadline } from "../http/deadline";
 import {
   outboundDestinationRefusal,
   restrictTelnyxBody,
@@ -290,13 +291,16 @@ export async function telnyxRequest<T = unknown>(
   }
 
   const body = restrictTelnyxBody(env, options, withSeams(env, options.body));
-  const response = await fetch(url.toString(), {
-    method: options.method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    // Bound the call so a stalled Telnyx endpoint can't hang the request/isolate.
-    signal: AbortSignal.timeout(TELNYX_TIMEOUT_MS),
-  });
+  // Bound the call so a stalled Telnyx endpoint can't hang the request/isolate.
+  const response = await fetchWithDeadline(
+    url.toString(),
+    {
+      method: options.method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    },
+    TELNYX_TIMEOUT_MS,
+  );
 
   if (!response.ok) {
     let errors: TelnyxErrorItem[] = [];
@@ -362,19 +366,22 @@ export async function telnyxUpload<T = unknown>(
     form.append(key, value);
   }
 
-  const response = await fetch(url.toString(), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.TELNYX_API_KEY}`,
-      Accept: "application/json",
-      // No Content-Type: fetch sets multipart/form-data + boundary.
+  // Bound the upload like telnyxRequest does — without a deadline a hung
+  // Telnyx connection would pin the Worker request until the platform kills
+  // it, never surfacing an honest failure.
+  const response = await fetchWithDeadline(
+    url.toString(),
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+        Accept: "application/json",
+        // No Content-Type: fetch sets multipart/form-data + boundary.
+      },
+      body: form,
     },
-    body: form,
-    // Bound the upload like telnyxRequest does — without a signal a hung
-    // Telnyx connection would pin the Worker request until the platform kills
-    // it, never surfacing an honest failure.
-    signal: AbortSignal.timeout(TELNYX_TIMEOUT_MS),
-  });
+    TELNYX_TIMEOUT_MS,
+  );
 
   const label = `POST ${options.path}`;
   if (!response.ok) {

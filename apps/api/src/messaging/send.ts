@@ -22,6 +22,7 @@ import { classifySendFailure } from "@loonext/shared";
 import { isKilled } from "../flags/evaluate";
 import { TELNYX_TIMEOUT_MS, telnyxMediaUrl, telnyxUrl } from "../telnyx/client";
 import { ApiError } from "../http/errors";
+import { fetchWithDeadline } from "../http/deadline";
 import { getSendGates } from "../telnyx/registration";
 import { MESSAGING_SPEND_LIMIT_CODE } from "../telnyx/spend-limits";
 import { captureEvent, opsNotice } from "../observability/capture";
@@ -537,24 +538,27 @@ async function telnyxCreateMessage(
   const mediaUrls = args.mediaUrls.map((url) => telnyxMediaUrl(env, url));
   let response: Response;
   try {
-    response = await fetch(telnyxUrl(env, "/v2/messages").toString(), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.TELNYX_API_KEY}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": args.idempotencyKey,
+    // Bound the call like the shared Telnyx client — a stalled endpoint would
+    // otherwise hang the send (a webhook waitUntil isolate, or a user route);
+    // an abort folds into the network-error result the catch already returns.
+    response = await fetchWithDeadline(
+      telnyxUrl(env, "/v2/messages").toString(),
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.TELNYX_API_KEY}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": args.idempotencyKey,
+        },
+        body: JSON.stringify({
+          from: args.from,
+          to: args.to,
+          text: args.text,
+          ...(mediaUrls.length > 0 ? { media_urls: mediaUrls } : {}),
+        }),
       },
-      body: JSON.stringify({
-        from: args.from,
-        to: args.to,
-        text: args.text,
-        ...(mediaUrls.length > 0 ? { media_urls: mediaUrls } : {}),
-      }),
-      // Bound the call like the shared Telnyx client — a stalled endpoint would
-      // otherwise hang the send (a webhook waitUntil isolate, or a user route);
-      // an abort folds into the network-error result the catch already returns.
-      signal: AbortSignal.timeout(TELNYX_TIMEOUT_MS),
-    });
+      TELNYX_TIMEOUT_MS,
+    );
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     return { ok: false, errorCode: null, errorDetail: `network error: ${detail}` };

@@ -19,6 +19,7 @@
  * are swallowed and logged.
  */
 import type { Env } from "../env";
+import { fetchWithDeadline } from "../http/deadline";
 import { captureException, environmentOf } from "../observability/capture";
 import { scrubProperties } from "../observability/scrub";
 
@@ -41,25 +42,28 @@ export async function capture(
   if (environmentOf(env) === "rig") return;
 
   try {
-    const response = await fetch(POSTHOG_CAPTURE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_key: env.POSTHOG_API_KEY,
-        event,
-        distinct_id: companyId,
-        properties: {
-          ...scrubProperties(event, properties, (message) => {
-            console.error(message);
-            void captureException(env, message, { source: "api", level: "warning" });
-          }),
-          // So an alert reading these events can leave the rig's out.
-          environment: environmentOf(env),
-        },
-      }),
-      // Analytics must never stall a send or a webhook: cap the round-trip.
-      signal: AbortSignal.timeout(3000),
-    });
+    // Analytics must never stall a send or a webhook: cap the round-trip.
+    const response = await fetchWithDeadline(
+      POSTHOG_CAPTURE_URL,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: env.POSTHOG_API_KEY,
+          event,
+          distinct_id: companyId,
+          properties: {
+            ...scrubProperties(event, properties, (message) => {
+              console.error(message);
+              void captureException(env, message, { source: "api", level: "warning" });
+            }),
+            // So an alert reading these events can leave the rig's out.
+            environment: environmentOf(env),
+          },
+        }),
+      },
+      3000,
+    );
     if (!response.ok) {
       throw new Error(`PostHog answered HTTP ${response.status}`);
     }

@@ -62,7 +62,7 @@ const NOT_A_SITE: Record<string, string> = {
 const CLIENT_WRAPPERS = ["telnyxOnLiveLeg", "onLiveLeg", "swallow4xx"];
 const CLIENT_CALLS = ["telnyxRequest", ...CLIENT_WRAPPERS];
 const OPENER = new RegExp(
-  `\\b(fetch|telnyxUpload|${CLIENT_CALLS.join("|")})\\s*(?:<[^>(]*>)?\\s*\\(`,
+  `\\b(fetch|fetchWithDeadline|telnyxUpload|${CLIENT_CALLS.join("|")})\\s*(?:<[^>(]*>)?\\s*\\(`,
   "g",
 );
 
@@ -106,7 +106,7 @@ function routeOf(code: string, at: number): Route {
     const open = (match.index ?? 0) + match[0].length - 1;
     if (!stillOpen(code, open, at)) continue;
     const name = match[1];
-    route = name === "fetch" ? "direct" : name === "telnyxUpload" ? "upload" : "client";
+    route = name === "fetch" || name === "fetchWithDeadline" ? "direct" : name === "telnyxUpload" ? "upload" : "client";
   }
   return route;
 }
@@ -170,7 +170,7 @@ describe("the destination gate census", () => {
     const client = stripComments(sourceText(join(API_SRC, "telnyx/client.ts")));
     const request = client.slice(client.indexOf("export async function telnyxRequest"));
     const gate = request.search(/\boutboundDestinationRefusal\s*\(/);
-    const send = request.search(/\bfetch\s*\(/);
+    const send = request.search(/\bfetchWithDeadline\s*\(/);
     expect(gate).toBeGreaterThan(-1);
     expect(gate).toBeLessThan(send);
   });
