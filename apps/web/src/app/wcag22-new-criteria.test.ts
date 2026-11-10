@@ -266,6 +266,7 @@ describe("#238 WCAG 2.2 criteria beyond the named three", () => {
     expect(handlers).toEqual([
       "components/inbox/new-conversation.tsx",
       "components/tasks/task-detail-panel.tsx",
+      "components/tasks/task-feed.tsx",
       "components/thread/composer.tsx",
     ]);
   });
