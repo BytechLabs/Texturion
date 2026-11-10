@@ -43,7 +43,7 @@ struct SettingsCard<Content: View>: View {
     var description: String?
     @ViewBuilder let content: () -> Content
 
-    @Environment(.settingsAnchor) private var target
+    @Environment(\.settingsAnchor) private var target
     @State private var flashing = false
 
     init(

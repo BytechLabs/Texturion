@@ -109,8 +109,8 @@ final class MessagingTimelineTests: XCTestCase {
             now: now,
             awayFromNewest: true
         )
-        XCTAssertFalse(timeline.map(.key).contains("e:newer"))
-        XCTAssertTrue(timeline.map(.key).contains("e:inside"))
+        XCTAssertFalse(timeline.map(\.key).contains("e:newer"))
+        XCTAssertTrue(timeline.map(\.key).contains("e:inside"))
     }
 
     func testPendingSendsRenderNewestBottomOfAReversedList() {

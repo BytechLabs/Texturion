@@ -584,7 +584,7 @@ struct SettingsHome: View {
             // readable column instead of spanning the full width (#180).
             .contentMaxWidth()
         }
-        .environment(.settingsAnchor, settingAnchor)
+        .environment(\.settingsAnchor, settingAnchor)
         // #719: a result opened this section for one setting; bring it into
         // view once the section has laid out.
         .task(id: settingAnchor) {
