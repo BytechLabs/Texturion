@@ -23,7 +23,11 @@ Project `loonext-4125c` has:
 - Google Auth Platform: External audience, in Testing, with the founder as the
   one test user;
 - branding: home page, privacy and terms links, `loonext.com` as the authorized
-  domain, `support@loonext.com` as developer contact;
+  domain, the logo (`apps/web/public/icons/icon-maskable-512.png` at 120 px:
+  full bleed, because Google crops it to a circle), and `support@loonext.com`
+  as both user support email and developer contact. The support address is
+  its own Google account, which holds OAuth Config Editor on this project and
+  nothing else;
 - the two scopes below;
 - the web client `Loonext calendar` with the production callback.
 
@@ -31,8 +35,6 @@ Project `loonext-4125c` has:
 `GOOGLE_CALENDAR_CLIENT_SECRET`.
 
 Still open:
-- the consent screen's user support email moves to `support@loonext.com`, a
-  Google account on that address with OAuth Config Editor on the project;
 - step 3;
 - step 8;
 - section D's round trip.
