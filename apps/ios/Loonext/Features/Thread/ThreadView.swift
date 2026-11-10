@@ -679,51 +679,14 @@ private struct ThreadBody: View {
                         + "\n\n“\(pending.body)”"
                 )
             }
-            // #691: no undo on the carrier's copy, so the pause says so.
-            // *Applying: Ethical Friction.*
-            .alert(
-                AppStrings.translate(appLocale, "thread.deleteSentTitle"),
-                isPresented: Binding(
-                    get: { confirmDeleteSentText != nil },
-                    set: { if !$0 { confirmDeleteSentText = nil } }
-                ),
-                presenting: confirmDeleteSentText
-            ) { sentText in
-                Button(
-                    AppStrings.translate(appLocale, "thread.keepIt"),
-                    role: .cancel
-                ) { confirmDeleteSentText = nil }
-                Button(
-                    AppStrings.translate(appLocale, "common.delete"),
-                    role: .destructive
-                ) {
-                    controller.deleteMessage(sentText)
-                    confirmDeleteSentText = nil
-                }
-            } message: { _ in
-                Text(AppStrings.translate(appLocale, "thread.deleteSentBody"))
-            }
-            .alert(
-                AppStrings.translate(
-                    appLocale,
-                    "thread.deleteConversationTitle",
-                    ["name": contactName]
-                ),
-                isPresented: $confirmDeleteConversation
-            ) {
-                Button(
-                    AppStrings.translate(appLocale, "thread.keepIt"),
-                    role: .cancel
-                ) {}
-                Button(
-                    AppStrings.translate(appLocale, "common.delete"),
-                    role: .destructive
-                ) {
-                    controller.deleteConversation()
-                }
-            } message: {
-                Text(AppStrings.translate(appLocale, "thread.deleteConversationBody"))
-            }
+            .modifier(
+                ThreadDeleteAlertsModifier(
+                    controller: controller,
+                    contactName: contactName,
+                    sentText: $confirmDeleteSentText,
+                    conversation: $confirmDeleteConversation
+                )
+            )
             .sheet(
                 isPresented: Binding(
                     get: { makeTaskFor != nil },
@@ -1453,6 +1416,70 @@ private struct ThreadBody: View {
 }
 
 // MARK: - Header
+
+/// #691: the two confirmations before a delete. Kept out of `ThreadBody`'s
+/// long modifier chain so the type-checker has less to solve at once.
+private struct ThreadDeleteAlertsModifier: ViewModifier {
+    let controller: ThreadController
+    let contactName: String
+    @Binding var sentText: Message?
+    @Binding var conversation: Bool
+
+    @Environment(\.appLocale) private var appLocale
+
+    private var sentTextShown: Binding<Bool> {
+        Binding(
+            get: { sentText != nil },
+            set: { if !$0 { sentText = nil } }
+        )
+    }
+
+    func body(content: Content) -> some View {
+        content
+            // No undo on the carrier's copy, so the pause says so.
+            // *Applying: Ethical Friction.*
+            .alert(
+                AppStrings.translate(appLocale, "thread.deleteSentTitle"),
+                isPresented: sentTextShown,
+                presenting: sentText
+            ) { pending in
+                Button(
+                    AppStrings.translate(appLocale, "thread.keepIt"),
+                    role: .cancel
+                ) { sentText = nil }
+                Button(
+                    AppStrings.translate(appLocale, "common.delete"),
+                    role: .destructive
+                ) {
+                    controller.deleteMessage(pending)
+                    sentText = nil
+                }
+            } message: { _ in
+                Text(AppStrings.translate(appLocale, "thread.deleteSentBody"))
+            }
+            .alert(
+                AppStrings.translate(
+                    appLocale,
+                    "thread.deleteConversationTitle",
+                    ["name": contactName]
+                ),
+                isPresented: $conversation
+            ) {
+                Button(
+                    AppStrings.translate(appLocale, "thread.keepIt"),
+                    role: .cancel
+                ) {}
+                Button(
+                    AppStrings.translate(appLocale, "common.delete"),
+                    role: .destructive
+                ) {
+                    controller.deleteConversation()
+                }
+            } message: {
+                Text(AppStrings.translate(appLocale, "thread.deleteConversationBody"))
+            }
+    }
+}
 
 /// The paper pill header (#186 item 3): back · avatar · name (+ the #505
 /// repeat-customer chip) + status line · ink call circle. The avatar / name /

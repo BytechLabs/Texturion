@@ -28,6 +28,14 @@ final class RecordDeletionTests: XCTestCase {
         XCTAssertFalse(RecordDeletion.canDelete(role: "bookkeeper"))
     }
 
+    /// Tasks use the same gate: the creator of a task no longer deletes it on
+    /// that ground, so a member (whoever created the task) gets no control.
+    func testAMemberCannotDeleteATaskEvenIfTheyCreatedIt() {
+        XCTAssertFalse(RecordDeletion.canDelete(role: MemberRole.member))
+        XCTAssertTrue(RecordDeletion.canDelete(role: MemberRole.admin))
+        XCTAssertTrue(RecordDeletion.canDelete(role: MemberRole.owner))
+    }
+
     func testAnUnknownOrMissingRoleCannotDelete() {
         XCTAssertFalse(RecordDeletion.canDelete(role: nil))
         XCTAssertFalse(RecordDeletion.canDelete(role: "somebody_new"))

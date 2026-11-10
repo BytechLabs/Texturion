@@ -151,7 +151,7 @@ enum ContactsTasksStrings {
             "contactsTasks.taskActions": "Task actions",
             "contactsTasks.deleteTask": "Delete task",
             "contactsTasks.deleteForbidden":
-                "Only the task's creator or an admin can delete it.",
+                "Only an admin or the owner can delete tasks.",
             "contactsTasks.deleteTaskTitle": "Delete this task?",
             "contactsTasks.deleteTaskBody":
                 "It carries {what}. The conversation and its messages stay; the done "
@@ -783,7 +783,7 @@ enum ContactsTasksStrings {
             "contactsTasks.taskActions": "Actions de la tâche",
             "contactsTasks.deleteTask": "Supprimer la tâche",
             "contactsTasks.deleteForbidden":
-                "Seul le créateur de la tâche ou un administrateur peut la supprimer.",
+                "Seul un administrateur ou le propriétaire peut supprimer des tâches.",
             "contactsTasks.deleteTaskTitle": "Supprimer cette tâche ?",
             "contactsTasks.deleteTaskBody":
                 "Elle contient {what}. La conversation et ses textos restent ; la "

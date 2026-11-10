@@ -223,10 +223,8 @@ struct TaskDetailView: View {
     private var noAccess: Bool { detail?.viewer_level == "none" }
 
     private var canDelete: Bool {
-        guard let detail else { return false }
         let role = me.memberships.first { $0.company_id == companyId }?.role
-        return MemberRole.atLeast(role, required: MemberRole.admin)
-            || detail.created_by_user_id == me.user_id
+        return RecordDeletion.canDelete(role: role)
     }
 
     private func memberName(_ userId: String?) -> String? {

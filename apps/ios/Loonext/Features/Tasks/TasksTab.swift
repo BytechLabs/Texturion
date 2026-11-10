@@ -40,6 +40,13 @@ struct TasksTab: View {
 
     @Environment(\.appLocale) private var appLocale
 
+    /// Deleting a task is the `records.delete` capability (admins and owners);
+    /// a member never sees the bulk Delete item.
+    private var canDeleteTasks: Bool {
+        let role = me.memberships.first { $0.company_id == companyId }?.role
+        return RecordDeletion.canDelete(role: role)
+    }
+
     private var filtersActive: Bool {
         assigneeChip != nil || unassignedChip || dueChip != nil || !debouncedQ.isEmpty
     }
@@ -862,12 +869,14 @@ extension TasksTab {
                 }
                 // Destructive and last: an action adjacent to the ones people
                 // use by momentum is one somebody hits by momentum.
-                Button(AppStrings.translate(appLocale, "common.delete"), role: .destructive) {
-                    runBulk(
-                        action: "delete",
-                        verbOneKey: "contactsTasks.bulkDeletedOne",
-                        verbManyKey: "contactsTasks.bulkDeletedMany"
-                    )
+                if canDeleteTasks {
+                    Button(AppStrings.translate(appLocale, "common.delete"), role: .destructive) {
+                        runBulk(
+                            action: "delete",
+                            verbOneKey: "contactsTasks.bulkDeletedOne",
+                            verbManyKey: "contactsTasks.bulkDeletedMany"
+                        )
+                    }
                 }
             } label: {
                 Image(systemName: "ellipsis")

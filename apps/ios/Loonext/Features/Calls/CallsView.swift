@@ -87,31 +87,7 @@ struct CallsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-
-            // #210: who is holding which line RIGHT NOW — pinned above the
-            // filter rail whenever the company has in-flight rows, absent
-            // entirely when it has none (it never takes space at rest).
-            if !ongoing.isEmpty {
-                OngoingCallsCard(
-                    calls: ongoing,
-                    members: members,
-                    numbers: me.company?.numbers ?? [],
-                    openConversation: openConversation
-                )
-                .padding(.horizontal, 18)
-                .padding(.top, 12)
-            }
-
-            filterPills
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-
-            content
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(BrandColor.canvas)
+        callsColumn
         .overlay(alignment: .bottom) { noticeToast }
         .task(id: companyId) {
             manager.start(companyId: companyId, callerIdName: me.display_name)
@@ -309,6 +285,34 @@ struct CallsView: View {
             // each drops back in here the moment its outcome is stamped.
             callLog(resolvedCalls(calls))
         }
+    }
+
+    private var callsColumn: some View {
+        VStack(spacing: 0) {
+            header
+
+            // #210: who is holding which line RIGHT NOW — pinned above the
+            // filter rail whenever the company has in-flight rows, absent
+            // entirely when it has none (it never takes space at rest).
+            if !ongoing.isEmpty {
+                OngoingCallsCard(
+                    calls: ongoing,
+                    members: members,
+                    numbers: me.company?.numbers ?? [],
+                    openConversation: openConversation
+                )
+                .padding(.horizontal, 18)
+                .padding(.top, 12)
+            }
+
+            filterPills
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BrandColor.canvas)
     }
 
     // MARK: - Deleting (#691)
