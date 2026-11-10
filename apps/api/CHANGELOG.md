@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.0](https://github.com/BytechLabs/Texturion/compare/api-v0.26.0...api-v0.27.0) (2026-11-10)
+
+
+### Features
+
+* **api:** every call records why it ended ([0d096aa](https://github.com/BytechLabs/Texturion/commit/0d096aab60e6f9b331973a2d7becbdc3600d04ab))
+
 ## [0.26.0](https://github.com/BytechLabs/Texturion/compare/api-v0.25.1...api-v0.26.0) (2026-11-10)
 
 

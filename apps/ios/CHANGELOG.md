@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.23.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.22.0...ios-v0.23.0) (2026-11-10)
+
+
+### Features
+
+* **ios:** a created task's notice opens the task ([5324900](https://github.com/BytechLabs/Texturion/commit/5324900a0ccbc72346b3000f2583300cd526e131))
+* **ios:** one Labels control for a selection, and no menu opens empty ([52d0702](https://github.com/BytechLabs/Texturion/commit/52d0702090202b017060c44bbe4b628a5a118f76))
+* **ios:** the contact panel opens the contact from a link, not an arrow ([2701565](https://github.com/BytechLabs/Texturion/commit/270156558216f50e149fbeac46ae9fbd0340964a))
+* **ios:** the thread menu says what Snooze and Mute each do ([0643ac5](https://github.com/BytechLabs/Texturion/commit/0643ac566a9affa9122c3683c5caa76165eab49e))
+* **mobile:** pins stack into one row, and catch-up is a hint by the composer ([1510fc1](https://github.com/BytechLabs/Texturion/commit/1510fc1b05759877b61574620b0b5f3c7a4ba9bb))
+* **mobile:** settings sections sit under group headings ([b35b0ab](https://github.com/BytechLabs/Texturion/commit/b35b0aba4db7489fed3421efd2f936453e0d9830))
+
+
+### Bug Fixes
+
+* **mobile:** the trash link takes the web address from build config ([748638b](https://github.com/BytechLabs/Texturion/commit/748638b10aed9d8b4536b447cb584ebf0db2cd9f))
+
 ## [0.22.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.21.0...ios-v0.22.0) (2026-11-10)
 
 
