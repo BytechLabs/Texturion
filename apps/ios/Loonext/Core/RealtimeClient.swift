@@ -92,6 +92,11 @@ actor RealtimeClient {
     private var everJoined = false
     private var joined = false
 
+    /// D151: a lost delivery on a live socket shows up as a hole in a topic's
+    /// `seq`; the answer is the signal a reconnect gives.
+    private var sequences = TopicSequenceTracker()
+    private var sequenceTimer: Task<Void, Never>?
+
     private var eventObservers: [UUID: AsyncStream<RealtimeEvent>.Continuation] = [:]
     private var reconnectObservers: [UUID: AsyncStream<Void>.Continuation] = [:]
 
@@ -265,6 +270,56 @@ actor RealtimeClient {
         for continuation in eventObservers.values { continuation.yield(event) }
     }
 
+    // MARK: - Sequence gaps (D151)
+
+    private static func now() -> Double {
+        ProcessInfo.processInfo.systemUptime
+    }
+
+    /// Feed one broadcast's `seq`, and arm the timer that answers a hole.
+    /// Internal so the wiring is testable without a websocket.
+    func observeSequence(topic: String, seq: Int?) {
+        sequences.observe(topic, seq: seq, now: Self.now())
+        armSequenceTimer()
+    }
+
+    /// The payload's `seq` when it is a whole JSON number; a string is not one.
+    static func sequenceNumber(_ payload: JSONValue) -> Int? {
+        guard let value = payload["seq"]?.doubleValue else { return nil }
+        return Int(exactly: value)
+    }
+
+    private func armSequenceTimer() {
+        guard sequenceTimer == nil, let deadline = sequences.nextDeadline else { return }
+        let wait = max(0, deadline - Self.now())
+        sequenceTimer = Task {
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled else { return }
+            self.answerSequenceGaps()
+        }
+    }
+
+    private func answerSequenceGaps() {
+        sequenceTimer = nil
+        if !sequences.expired(now: Self.now()).isEmpty {
+            for continuation in reconnectObservers.values { continuation.yield(()) }
+        }
+        armSequenceTimer()
+    }
+
+    /// A (re)join or a lost channel starts the topic's sequence over: the first
+    /// event after it only sets the baseline, and the reconnect backfill covers
+    /// whatever was missed in between.
+    private func resetSequence(_ topic: String) {
+        sequences.reset(topic)
+    }
+
+    private func resetAllSequences() {
+        sequences.resetAll()
+        sequenceTimer?.cancel()
+        sequenceTimer = nil
+    }
+
     // MARK: - Lifecycle
 
     /// Connect (or switch) to a company channel plus one channel per visible
@@ -342,6 +397,7 @@ actor RealtimeClient {
         socket?.cancel(with: .normalClosure, reason: nil)
         socket = nil
         joined = false
+        resetAllSequences()
     }
 
     private func restart() {
@@ -545,6 +601,12 @@ actor RealtimeClient {
             if name == "access.changed" {
                 for continuation in reconnectObservers.values { continuation.yield(()) }
             }
+            if let topic {
+                observeSequence(
+                    topic: topic,
+                    seq: Self.sequenceNumber(inner)
+                )
+            }
             deliver(RealtimeEvent(event: name, payload: inner))
 
         case "phx_close", "phx_error":
@@ -664,6 +726,7 @@ actor RealtimeClient {
         guard joinedNumberTopics.contains(topic) else { return }
         joinedNumberTopics.remove(topic)
         confirmedNumberTopics.remove(topic)
+        resetSequence(topic)
     }
 
     /// The per-number channels this client should hold for `company`.
@@ -704,6 +767,7 @@ actor RealtimeClient {
         // a confirmation across would hide a join on THIS socket that is refused or
         // never answered from the repair sweep — the case the sweep exists for.
         confirmedNumberTopics = []
+        resetAllSequences()
         let payload = joinPayload()
         return ([Self.companyTopic(company)] + perNumber).map {
             frame(topic: $0, event: "phx_join", payload: payload)
@@ -853,7 +917,10 @@ actor RealtimeClient {
         // which is what keeps the repair sweep from reading a topic held for the
         // leave retry as a lost one (#483).
         let stillJoinedServerSide = leaving && !sent
-        if !stillJoinedServerSide { confirmedNumberTopics.remove(topic) }
+        if !stillJoinedServerSide {
+            confirmedNumberTopics.remove(topic)
+            resetSequence(topic)
+        }
         return sent
     }
 
