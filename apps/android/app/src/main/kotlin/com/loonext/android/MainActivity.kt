@@ -97,6 +97,7 @@ import com.loonext.android.features.shell.RootViewModel
 import com.loonext.android.features.shell.ShellContent
 import com.loonext.android.features.shell.ShellCounts
 import com.loonext.android.features.shell.ShellTab
+import com.loonext.android.features.tasks.CreatedTaskNoticeHost
 import com.loonext.android.features.tasks.TaskDetailScreen
 import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.features.thread.ThreadScreen
@@ -1007,6 +1008,16 @@ private fun ReadyShell(
                 }
             }
         }
+
+        // #724: above every routed screen, because the sheets that create a task
+        // sit on three of them and their confirmation has to be seen on each.
+        CreatedTaskNoticeHost(
+            graph = graph,
+            onOpenTask = { push(Overlay.Task(it)) },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp),
+        )
     }
 
     if (sheetOpen) {

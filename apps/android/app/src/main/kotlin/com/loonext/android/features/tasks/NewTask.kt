@@ -73,6 +73,7 @@ fun NewTaskSheetHost(
         onCreateWithExtras = { title, assignedUserId, dueAtIso, address: TaskAddressInput?, extras ->
             onDismiss()
             scope.launch {
+                var createdId: String? = null
                 val notice = try {
                     val mutations = TaskMutations(graph.api)
                     val created = mutations.create(
@@ -93,6 +94,7 @@ fun NewTaskSheetHost(
                         runCatching { mutations.addLabel(companyId, created.id, name = label.name) }
                     }
                     onCreated()
+                    createdId = created.id
                     AppStrings.translate(locale, "thread.taskCreatedStandalone")
                 } catch (_: ApiDecodeException) {
                     // The task WAS created (2xx); only the response decode failed.
@@ -101,7 +103,15 @@ fun NewTaskSheetHost(
                 } catch (cause: Exception) {
                     cause.userMessage(locale ?: "en")
                 }
-                Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
+                val id = createdId
+                if (id != null) {
+                    // #724: the confirmation carries Open, so the new task is one tap away.
+                    graph.createdTaskNotices.tryEmit(
+                        CreatedTaskNotice(notice, AppStrings.translate(locale, "common.open"), id),
+                    )
+                } else {
+                    Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
+                }
             }
         },
         onDismiss = onDismiss,

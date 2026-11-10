@@ -147,6 +147,14 @@ class ThreadControllerTest {
                         MockResponse(code = 200, body = """{"data":[]}""")
                     }
 
+                    // #724: the created task, whose id Open has to carry.
+                    request.method == "POST" && path == "/v1/tasks" ->
+                        MockResponse(
+                            code = 201,
+                            body = """{"id":"t-new","company_id":"co1","message_id":"m2","title":"Call back",""" +
+                                """"created_by_user_id":"u1","created_at":"$T1","updated_at":"$T1"}""",
+                        )
+
                     request.method == "GET" && path == "/v1/blocked-senders" ->
                         MockResponse(code = 200, body = """{"data":$blockedRows}""")
 
@@ -334,6 +342,40 @@ class ThreadControllerTest {
      * be wrong HERE is that nothing calls it — a `when` with no arm for this
      * event compiles, runs, and silently does nothing at all.
      */
+    /**
+     * #724: making a task from a message confirms with an Open that goes to the
+     * task that was just created, not to the thread or to a list.
+     */
+    @Test
+    fun `task created from a message offers Open on that task`() {
+        val controller = controller()
+        val opened = AtomicReference<String?>(null)
+        controller.onOpenTask = { opened.set(it) }
+        controller.start()
+        awaitUntil { controller.load is LoadState.Ready }
+
+        controller.makeTask(msg("m2", T2), "Call back")
+        awaitUntil { controller.notice?.text == "Task created." }
+
+        val notice = controller.notice!!
+        assertEquals("Open", notice.actionLabel)
+        notice.action!!.invoke()
+        assertEquals("t-new", opened.get())
+    }
+
+    /** With nowhere to go (no task screen wired), the confirmation stays plain. */
+    @Test
+    fun `task created with no task screen has no Open`() {
+        val controller = controller()
+        controller.start()
+        awaitUntil { controller.load is LoadState.Ready }
+
+        controller.makeTask(msg("m2", T2), "Call back")
+        awaitUntil { controller.notice?.text == "Task created." }
+
+        assertEquals(null, controller.notice!!.actionLabel)
+    }
+
     @Test
     fun `a payment frame re-reads the thread's audit timeline`() {
         val controller = controller()

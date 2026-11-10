@@ -120,6 +120,13 @@ class ThreadController(
      */
     var locale: String? = null
 
+    /**
+     * #724: where "Task created" sends the reader. Kept current by the screen,
+     * like [locale]; null (a test, or a host with no task screen) leaves the
+     * confirmation plain.
+     */
+    var onOpenTask: ((taskId: String) -> Unit)? = null
+
     var load by mutableStateOf<LoadState<Unit>>(LoadState.Loading)
         private set
     var conversation by mutableStateOf<ConversationDetail?>(null)
@@ -1255,7 +1262,12 @@ class ThreadController(
                         promoted_task = MessageTaskLink(task.id, task.title),
                     ),
                 )
-                notify(say("thread.taskCreated"))
+                val open = onOpenTask
+                if (open == null) {
+                    notify(say("thread.taskCreated"))
+                } else {
+                    notify(say("thread.taskCreated"), say("common.open")) { open(task.id) }
+                }
             } catch (cause: ApiDecodeException) {
                 // The task WAS created (2xx) — only the response decode failed.
                 // Success, honestly reported; the refresh fetches truth.

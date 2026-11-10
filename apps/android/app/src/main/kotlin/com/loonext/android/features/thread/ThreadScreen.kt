@@ -258,7 +258,10 @@ fun ThreadScreen(
     }
     // Kept current rather than passed once: the controller outlives a language
     // change made in Settings while this thread is open.
-    SideEffect { controller.locale = readerLocale }
+    SideEffect {
+        controller.locale = readerLocale
+        controller.onOpenTask = onOpenTask
+    }
 
     BackHandler(onBack = onBack)
     LaunchedEffect(controller) { controller.start() }

@@ -167,13 +167,14 @@ private fun CallTaskSheetHost(
         onCreate = { title, assignedUserId, dueAtIso, address: TaskAddressInput? ->
             onDismiss()
             scope.launch {
+                var createdId: String? = null
                 val notice = try {
                     val id = callId
                         ?: graph.api.get<CallIdRef>(
                             "/v1/calls/${java.net.URLEncoder.encode(sessionId.orEmpty(), "UTF-8")}",
                             companyId = companyId,
                         ).id
-                    TaskMutations(graph.api).create(
+                    val created = TaskMutations(graph.api).create(
                         companyId = companyId,
                         title = title,
                         assignedUserId = assignedUserId,
@@ -181,6 +182,7 @@ private fun CallTaskSheetHost(
                         address = address,
                         sourceCallId = id,
                     )
+                    createdId = created.id
                     say("thread.taskCreatedFromCall")
                 } catch (_: ApiDecodeException) {
                     // The task WAS created (2xx); only the response decode failed.
@@ -192,7 +194,15 @@ private fun CallTaskSheetHost(
                         cause.userMessage(locale ?: "en")
                     }
                 }
-                Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
+                val taskId = createdId
+                if (taskId != null) {
+                    // #724: the confirmation carries Open, so the new task is one tap away.
+                    graph.createdTaskNotices.tryEmit(
+                        CreatedTaskNotice(notice, say("common.open"), taskId),
+                    )
+                } else {
+                    Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
+                }
             }
         },
         onDismiss = onDismiss,

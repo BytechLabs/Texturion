@@ -18,6 +18,7 @@ import com.loonext.android.core.diag.Telemetry
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.realtime.RealtimeClient
 import com.loonext.android.core.update.UpdateRepository
+import com.loonext.android.features.tasks.CreatedTaskNotice
 import com.loonext.android.features.settings.SettingsRepository
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -25,6 +26,7 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -67,6 +69,9 @@ class AppGraph(
                 Telemetry.captureNonFatal("app", error)
             },
     )
+
+    /** #724: "Task created, Open" confirmations, shown by one host at the app root. */
+    val createdTaskNotices = MutableSharedFlow<CreatedTaskNotice>(extraBufferCapacity = 4)
 
     val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
