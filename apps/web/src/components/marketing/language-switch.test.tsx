@@ -49,7 +49,7 @@ describe("the language switch", () => {
     // The path is checked against the registry rather than assumed. This said
     // "/pricing" until /pricing was translated, at which point a passing test
     // turned into a failing one because the work succeeded.
-    const untranslated = "/legal/terms";
+    const untranslated = "/a-page-that-does-not-exist";
     expect(
       TRANSLATED_PAGES.some((page) => page.en === untranslated),
       "pick a path the registry does not carry",

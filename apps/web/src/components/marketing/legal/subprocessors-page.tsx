@@ -8,7 +8,7 @@ import { CATALOGS } from "@/i18n/catalog";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { legalSubprocessorsCopy } from "@/i18n/marketing/legal-subprocessors";
 import { PRIVACY_EMAIL } from "@/lib/marketing/business";
-import { twinOf } from "@/lib/marketing/translated-pages";
+import { localizedPath, twinOf } from "@/lib/marketing/translated-pages";
 import {
   AI_DISCLOSURES,
   AI_INFERENCE_LOCATION_SOURCE,
@@ -167,7 +167,7 @@ export function SubprocessorsPageBody({
         <p className="text-[0.9375rem] text-[color:var(--fr-ink-55)]">
           <LegalRichText text={copy.listNote} slots={{
             security: <LegalLink href={securityPath}>{copy.securityLink}</LegalLink>,
-            privacy: <LegalLink href="/legal/privacy">{copy.privacyLink}</LegalLink>,
+            privacy: <LegalLink href={localizedPath("/legal/privacy", locale)}>{copy.privacyLink}</LegalLink>,
           }} />
         </p>
       </LegalSectionBlock>

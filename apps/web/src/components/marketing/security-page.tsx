@@ -12,6 +12,7 @@ import {
   FrSection,
 } from "./fr";
 import { JsonLd } from "./ui/json-ld";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 const AWS_REGION = "us-east-1";
 
@@ -52,8 +53,8 @@ export function SecurityPageBody({
   const copy = securityCopy(locale);
   const french = locale === "fr-CA";
   const path = french ? "/fr/securite" : "/security";
-  const privacy = "/legal/privacy";
-  const terms = "/legal/terms";
+  const privacy = localizedPath("/legal/privacy", locale);
+  const terms = localizedPath("/legal/terms", locale);
   const subprocessors = french ? "/fr/sous-traitants" : "/legal/subprocessors";
   const deletion = french
     ? "/fr/supprimer-mes-donnees"

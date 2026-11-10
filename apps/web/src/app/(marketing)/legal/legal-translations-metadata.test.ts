@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { describe, expect, it } from "vitest";
 
+import { metadata as aupFr } from "@/app/(marketing-fr)/fr/utilisation-acceptable/page";
+import { metadata as dpaFr } from "@/app/(marketing-fr)/fr/entente-traitement-donnees/page";
+import { metadata as privacyFr } from "@/app/(marketing-fr)/fr/confidentialite/page";
+import { metadata as termsFr } from "@/app/(marketing-fr)/fr/conditions-utilisation/page";
 import { metadata as accessibilityFr } from "@/app/(marketing-fr)/fr/accessibilite/page";
 import { metadata as vulnerabilityFr } from "@/app/(marketing-fr)/fr/divulgation-vulnerabilites/page";
 import { metadata as messagingFr } from "@/app/(marketing-fr)/fr/messagerie/page";
@@ -8,6 +12,10 @@ import { metadata as subprocessorsFr } from "@/app/(marketing-fr)/fr/sous-traita
 import { metadata as deleteMyDataFr } from "@/app/(marketing-fr)/fr/supprimer-mes-donnees/page";
 import { metadata as cookiesFr } from "@/app/(marketing-fr)/fr/temoins/page";
 import { metadata as fairUseFr } from "@/app/(marketing-fr)/fr/utilisation-equitable/page";
+import { metadata as aupEn } from "@/app/(marketing)/legal/aup/page";
+import { metadata as dpaEn } from "@/app/(marketing)/legal/dpa/page";
+import { metadata as privacyEn } from "@/app/(marketing)/legal/privacy/page";
+import { metadata as termsEn } from "@/app/(marketing)/legal/terms/page";
 import { metadata as accessibilityEn } from "@/app/(marketing)/legal/accessibility/page";
 import { metadata as cookiesEn } from "@/app/(marketing)/legal/cookies/page";
 import { metadata as deleteMyDataEn } from "@/app/(marketing)/legal/delete-my-data/page";
@@ -17,6 +25,10 @@ import { metadata as subprocessorsEn } from "@/app/(marketing)/legal/subprocesso
 import { metadata as vulnerabilityEn } from "@/app/(marketing)/legal/vulnerability-disclosure/page";
 
 const pairs: { en: string; fr: string; enMeta: Metadata; frMeta: Metadata }[] = [
+  { en: "/legal/terms", fr: "/fr/conditions-utilisation", enMeta: termsEn, frMeta: termsFr },
+  { en: "/legal/privacy", fr: "/fr/confidentialite", enMeta: privacyEn, frMeta: privacyFr },
+  { en: "/legal/aup", fr: "/fr/utilisation-acceptable", enMeta: aupEn, frMeta: aupFr },
+  { en: "/legal/dpa", fr: "/fr/entente-traitement-donnees", enMeta: dpaEn, frMeta: dpaFr },
   {
     en: "/legal/accessibility",
     fr: "/fr/accessibilite",

@@ -46,6 +46,7 @@ import { OptOutVisual } from "@/components/marketing/features/opt-out-visual";
 import { QuietHoursVisual } from "@/components/marketing/features/quiet-hours-visual";
 import { RegistrationStepperVisual } from "@/components/marketing/features/registration-stepper-visual";
 import { breadcrumbJsonLd } from "@/lib/marketing/seo";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 const PATH = "/features/compliance";
 
@@ -281,7 +282,7 @@ export function CompliancePageBody({
         links={[
           {
             label: copy.relatedAupTitle,
-            href: "/legal/aup",
+            href: localizedPath("/legal/aup", locale),
             hint: copy.relatedAupBody,
           },
           {

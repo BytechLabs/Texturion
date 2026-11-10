@@ -1,5 +1,8 @@
 # Data processing agreement (#285)
 
+*French twin: `docs/DPA.fr.md`, published at `/fr/entente-traitement-donnees`.
+Edit both together; a test fails if their clauses diverge.*
+
 **Status: RECORD, and published at `/legal/dpa` on 2026-08-16.** This is the
 agreement itself rather than a plan for one: a customer who signs it is
 entitled to hold us to every clause below, which is why each factual one cites

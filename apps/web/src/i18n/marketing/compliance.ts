@@ -10,9 +10,9 @@ import type { MarketingLocale } from "./footer";
  * D138 Rule 8 holds four documents back for a professional translator: Terms,
  * the DPA, the AUP and the privacy policy. They state obligations that read
  * differently under Quebec law. This page *describes* those rules rather than
- * imposing them, and Rule 8 names feature pages as translated now. The links
- * out of it still point at the English contracts, which is the same boundary
- * from the other side.
+ * imposing them, and Rule 8 names feature pages as translated now. Since D157
+ * the four contracts have French twins and the links out of it follow the
+ * reader's language.
  *
  * ## The keyword list changed while this was being written
  *

@@ -75,6 +75,7 @@ import { activationChip } from "@/lib/marketing/activation";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/home";
 import { pricingCopy } from "@/i18n/marketing/pricing";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 const PATH = LIVE_ROUTES.pricing;
 
@@ -423,7 +424,7 @@ export function PricingPageBody({
                 </ul>
                 <p className="mt-4">
                   <Link
-                    href={LIVE_ROUTES.terms}
+                    href={localizedPath(LIVE_ROUTES.terms, locale)}
                     className="text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
                   >
                     {copy.termsLink}

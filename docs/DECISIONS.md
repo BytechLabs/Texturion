@@ -8755,7 +8755,9 @@ resolves this per member at runtime (WCAG 3.1.1, fixed 2026-08-19); marketing
 knows it statically from the path, and a screen reader must not be told
 otherwise.
 
-**Rule 8 — contract text waits for a person.** Terms, the DPA, the AUP and the
+**Rule 8 — contract text waits for a person.** *(Superseded by D157: the founder
+decided to publish fr-CA texts of all four documents, with a lawyer's review
+recommended and not yet done.)* Terms, the DPA, the AUP and the
 privacy policy state obligations that a French version would state differently
 under Quebec law, and Bill 96 restricts the usual "the English governs" clause
 for consumer contracts. Those get a professional translation, and until then
@@ -10337,3 +10339,18 @@ probe `messages`.
 **Quick add.** One line (`Fix furnace @rehman tomorrow 9am #urgent`) is parsed by `packages/shared/src/quick-add.ts` and ported to Kotlin and Swift against shared vectors. It takes one teammate, a date and time in the typing member's zone, a priority word and workspace labels; anything it is not sure of stays in the title, and a preview shows what was understood before anything is saved. Dates and times are read in English.
 
 **Not built.** No reference chip inside a task's address or title. Bulk actions do not edit links. Today and This week are not saved in a view. The board does not drag between assignee or priority columns.
+
+
+## D157 - the terms, privacy policy, AUP and DPA are published in Canadian French (#228)
+
+**Decision.** The founder decided to publish fr-CA versions of the four documents D138 Rule 8 held back, without waiting for a professional translation. They live at `/fr/conditions-utilisation`, `/fr/confidentialite`, `/fr/utilisation-acceptable` and `/fr/entente-traitement-donnees`, are registered in `TRANSLATED_PAGES` (so the footer switch, hreflang and the sitemap carry them), and every French legal page now links to French twins rather than back to English ones (`localizedPath`). Rule 8 stays as written for its history and now points here.
+
+**How they are built.** The same mechanism as the other seven translated legal pages: a catalogue per document (`i18n/marketing/legal-{terms,privacy,aup,dpa}.ts`, typed `Translated<typeof En>` so a key missing in French fails `tsc`) and one body component per document taking a `locale`, which the English and French routes both call. The DPA is still read from markdown rather than retyped: `docs/DPA.fr.md` is its French source and `lib/marketing/dpa-clauses.ts` parses both. Structure, numbering and every obligation are translated one for one; defined terms, product and vendor names, prices (the same `PlanPrice` components) and the Google Limited Use sentence (kept verbatim in English with its French rendering after it) are unchanged. Vocabulary follows the existing fr-CA catalogue: texto, courriel, espace de travail, retrait (opt-out), témoins, sous-traitants, registres d'exclusion des textos.
+
+**The language clause.** The English terms had no language clause, so this adds one to both versions as section 10 "Language" (Contact moves to 11; its anchor `#contact` is unchanged and nothing cites the old number). It says: the terms and the policies published with them exist in English and French; for a reader in Quebec the French version is presented first and governs; the English version binds instead only if that is the reader's express wish, made after seeing the French version; everywhere else the English governs and French is a translation for convenience. That follows the Charter of the French Language, s. 55 (a contract of adhesion is presented in French first, and another language binds only on the adherent's express wish after the French was given). No choice-of-law or forum clause existed in the English and none was added. The terms' last-updated date moves to 10 November 2026 because a section was added.
+
+**What is not built, and is the real gap.** Acceptance is implicit: creating the company stamps `aup_accepted_at`, there is no checkbox and no version string, and nothing records which language the owner saw or whether they asked for English. So the clause states the rule but the product does not yet capture an "express wish" for English. A lawyer should decide whether that needs a recorded choice at signup, and if so it is new work (a language and version stamp beside `aup_accepted_at`), not something to infer from this entry. Separately, the English AUP section 1 still says "there's a checkbox" although the checkbox was removed; both languages carry that sentence faithfully and it should be corrected in both together.
+
+**Not reviewed by a lawyer.** This is a careful translation by the same assistant that wrote the rest of the French catalogue, not a legal opinion. A review by a Quebec lawyer is recommended and has not happened. Points to put in front of them: "processor" rendered "sous-traitant" (GDPR usage) in the DPA while the site uses "sous-traitants" for sub-processors and the DPA says "sous-traitants ultérieurs"; the limitation of liability and "as is" wording in the terms; the language clause itself and whether acceptance needs to capture the choice; "frais" and "retrait" as the house words for registration fees and opt-out; and French prices, which still read "$29/mois" like the other French pages rather than "29 $/mois".
+
+**Guards.** `legal-twins.test.tsx` fails if any directory under `/legal` has no French twin in the registry, if a twin renders different sections than its English page, if the DPA's French clauses, bullet counts or cited sources differ from `docs/DPA.md`, or if a French legal page links to an English contract. The existing metadata, hreflang, price and wording tests cover the English pages unchanged.

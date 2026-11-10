@@ -8,6 +8,7 @@ import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { legalFairUseCopy } from "@/i18n/marketing/legal-fair-use";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 const EN_PATH = "/legal/fair-use";
 const FR_PATH = "/fr/utilisation-equitable";
@@ -28,8 +29,8 @@ export function FairUsePageBody({ locale = "en" }: { locale?: MarketingLocale })
     { id: "enforcement", number: "10", heading: copy.sectionEnforcement },
     { id: "contact", number: "11", heading: copy.sectionContact },
   ];
-  const terms = <LegalLink href="/legal/terms">{copy.termsLink}</LegalLink>;
-  const aup = <LegalLink href="/legal/aup">{copy.aupLink}</LegalLink>;
+  const terms = <LegalLink href={localizedPath("/legal/terms", locale)}>{copy.termsLink}</LegalLink>;
+  const aup = <LegalLink href={localizedPath("/legal/aup", locale)}>{copy.aupLink}</LegalLink>;
 
   return (
     <LegalPage

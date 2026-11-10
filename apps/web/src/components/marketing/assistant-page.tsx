@@ -40,6 +40,7 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 import { activationClaim } from "@/lib/marketing/activation";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 const PATH = "/features/assistant";
 
@@ -132,7 +133,7 @@ export function AssistantPageBody({ locale = "en" }: { locale?: MarketingLocale 
           monthly caps are the reason there is no meter to watch. What Lou reads
           and stores is set out in our{" "}
           <Link
-            href="/legal/privacy"
+            href={localizedPath("/legal/privacy", locale)}
             className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
           >
             {copy.privacyLink}
@@ -164,7 +165,7 @@ export function AssistantPageBody({ locale = "en" }: { locale?: MarketingLocale 
           },
           {
             label: copy.relatedPrivacyTitle,
-            href: "/legal/privacy",
+            href: localizedPath("/legal/privacy", locale),
             hint: copy.relatedPrivacyBody,
           },
           {

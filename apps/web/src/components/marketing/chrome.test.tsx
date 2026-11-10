@@ -199,21 +199,14 @@ describe("footer (deck §F: the Dispatch Ink band)", () => {
       "/fr/messagerie",
       "/fr/sous-traitants",
       "/fr/divulgation-vulnerabilites",
+      "/fr/conditions-utilisation",
+      "/fr/confidentialite",
+      "/fr/utilisation-acceptable",
+      "/fr/entente-traitement-donnees",
     ]) {
       expect(frenchHtml, `French footer missing ${href}`).toContain(
         `href="${href}"`,
       );
-    }
-
-    // D138's four professional-translation holds still point at their real,
-    // English documents rather than inventing a French URL.
-    for (const href of [
-      "/legal/terms",
-      "/legal/dpa",
-      "/legal/aup",
-      "/legal/privacy",
-    ]) {
-      expect(frenchHtml).toContain(`href="${href}"`);
     }
   });
 });

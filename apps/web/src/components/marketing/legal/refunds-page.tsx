@@ -7,6 +7,7 @@ import { RegistrationFee } from "@/components/marketing/pricing/plan-price";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { legalRefundsCopy } from "@/i18n/marketing/legal-refunds";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 const PATH = "/legal/refunds";
 const LAST_UPDATED_ISO = "2026-07-03";
@@ -19,10 +20,8 @@ const LAST_UPDATED_ISO = "2026-07-03";
  * site-wide country, so a Canadian workspace that turned on US texting reads
  * the CAD amount it actually paid.
  *
- * The links to `/legal/terms` stay pointed at the English document on both
- * pages: Terms is one of the four D138 Rule 8 holds for a professional
- * translator, and linking a French reader to a French URL that does not exist
- * would be worse than linking them to the English one that does.
+ * The links to `/legal/terms` follow the reader's language: since D157 the
+ * Terms have a French twin, and `localizedPath` sends a French reader to it.
  */
 export function RefundsPageBody({
   locale = "en",
@@ -54,7 +53,7 @@ export function RefundsPageBody({
       <LegalSectionBlock id="guarantee" number="1" heading={copy.sectionGuarantee}>
         <p>
           {copy.guaranteeBefore} <RegistrationFee /> {copy.guaranteeAfter}{" "}
-          <LegalLink href="/legal/terms">{copy.guaranteeTermsLink}</LegalLink>
+          <LegalLink href={localizedPath("/legal/terms", locale)}>{copy.guaranteeTermsLink}</LegalLink>
           {copy.guaranteeEnd}
         </p>
         <p>{copy.guaranteeYear}</p>
@@ -73,7 +72,7 @@ export function RefundsPageBody({
         <p>{copy.afterRefund}</p>
         <p>
           {copy.afterNumberBefore}{" "}
-          <LegalLink href="/legal/terms">{copy.afterNumberLink}</LegalLink>
+          <LegalLink href={localizedPath("/legal/terms", locale)}>{copy.afterNumberLink}</LegalLink>
           {copy.afterNumberAfter}
         </p>
       </LegalSectionBlock>

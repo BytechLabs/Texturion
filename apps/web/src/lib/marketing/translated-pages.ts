@@ -55,6 +55,10 @@ export const TRANSLATED_PAGES: readonly {
   { en: "/compare/heymarket", fr: "/fr/comparer/heymarket" },
   { en: "/compare/quo", fr: "/fr/comparer/quo" },
   { en: "/legal/accessibility", fr: "/fr/accessibilite" },
+  { en: "/legal/terms", fr: "/fr/conditions-utilisation" },
+  { en: "/legal/privacy", fr: "/fr/confidentialite" },
+  { en: "/legal/aup", fr: "/fr/utilisation-acceptable" },
+  { en: "/legal/dpa", fr: "/fr/entente-traitement-donnees" },
   { en: "/legal/cookies", fr: "/fr/temoins" },
   { en: "/legal/delete-my-data", fr: "/fr/supprimer-mes-donnees" },
   { en: "/legal/fair-use", fr: "/fr/utilisation-equitable" },
@@ -87,4 +91,16 @@ export function twinOf(path: string): { locale: "en" | "fr-CA"; path: string } |
   return path === row.en
     ? { locale: "fr-CA", path: row.fr }
     : { locale: "en", path: row.en };
+}
+
+/**
+ * The path a link inside a page should use for the reader's language: the
+ * French twin where the reader is French and one exists, otherwise the path as
+ * given. A French legal page that sent its reader to the English terms would
+ * hand them the one document that must be read in the language they chose.
+ */
+export function localizedPath(path: string, locale: "en" | "fr-CA"): string {
+  if (locale !== "fr-CA") return path;
+  const twin = twinOf(path);
+  return twin?.locale === "fr-CA" ? twin.path : path;
 }

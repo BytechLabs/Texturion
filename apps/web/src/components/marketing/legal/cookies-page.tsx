@@ -8,6 +8,7 @@ import { LegalRichText } from "@/components/marketing/legal/legal-rich-text";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { legalCookiesCopy } from "@/i18n/marketing/legal-cookies";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 const EN_PATH = "/legal/cookies";
 const FR_PATH = "/fr/temoins";
@@ -24,7 +25,7 @@ export function CookiesPageBody({ locale = "en" }: { locale?: MarketingLocale })
     { id: "choices", number: "6", heading: copy.sectionChoices },
     { id: "contact", number: "7", heading: copy.sectionContact },
   ];
-  const privacy = <LegalLink href="/legal/privacy">{copy.privacyLink}</LegalLink>;
+  const privacy = <LegalLink href={localizedPath("/legal/privacy", locale)}>{copy.privacyLink}</LegalLink>;
   const subprocessors = (
     <LegalLink href={french ? "/fr/sous-traitants" : "/legal/subprocessors"}>
       {copy.subprocessorsLink}

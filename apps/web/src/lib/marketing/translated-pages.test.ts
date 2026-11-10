@@ -106,7 +106,7 @@ describe("the pair is reciprocal by construction", () => {
     // which was true until /pricing was translated and then failed as a
     // consequence of the work rather than a defect in it. Anything absent from
     // the registry proves the same thing and cannot go stale.
-    const untranslated = "/legal/terms";
+    const untranslated = "/a-page-that-does-not-exist";
     expect(
       TRANSLATED_PAGES.some((page) => page.en === untranslated),
       "pick a path the registry does not carry",
@@ -123,8 +123,12 @@ describe("the pair is reciprocal by construction", () => {
   });
 });
 
-describe("#228 the non-contract legal translations ship as exact twins", () => {
+describe("#228 every legal document ships as an exact twin", () => {
   const legalPairs = [
+    { en: "/legal/terms", fr: "/fr/conditions-utilisation" },
+    { en: "/legal/privacy", fr: "/fr/confidentialite" },
+    { en: "/legal/aup", fr: "/fr/utilisation-acceptable" },
+    { en: "/legal/dpa", fr: "/fr/entente-traitement-donnees" },
     { en: "/legal/accessibility", fr: "/fr/accessibilite" },
     { en: "/legal/cookies", fr: "/fr/temoins" },
     { en: "/legal/delete-my-data", fr: "/fr/supprimer-mes-donnees" },
@@ -137,7 +141,7 @@ describe("#228 the non-contract legal translations ship as exact twins", () => {
     },
   ] as const;
 
-  it("registers all seven translated legal documents, with no contract hold", () => {
+  it("registers every translated legal document with its hreflang pair", () => {
     for (const pair of legalPairs) {
       expect(TRANSLATED_PAGES).toContainEqual(pair);
       expect(languagesFor(pair.en)).toEqual({
@@ -145,15 +149,6 @@ describe("#228 the non-contract legal translations ship as exact twins", () => {
         "fr-CA": pair.fr,
         "x-default": pair.en,
       });
-    }
-
-    for (const held of [
-      "/legal/terms",
-      "/legal/dpa",
-      "/legal/aup",
-      "/legal/privacy",
-    ]) {
-      expect(TRANSLATED_PAGES.some((page) => page.en === held)).toBe(false);
     }
   });
 });

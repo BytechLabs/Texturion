@@ -7,6 +7,7 @@ import { LegalRichText } from "@/components/marketing/legal/legal-rich-text";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { legalMessagingCopy } from "@/i18n/marketing/legal-messaging";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 const EN_PATH = "/legal/messaging";
 const FR_PATH = "/fr/messagerie";
@@ -46,8 +47,8 @@ export function MessagingPageBody({ locale = "en" }: { locale?: MarketingLocale 
       <LegalSectionBlock id="program" number="1" heading={copy.sectionProgram}>
         <p>
           <LegalRichText text={copy.program} slots={{
-            aup: <LegalLink href="/legal/aup">{copy.aupLink}</LegalLink>,
-            terms: <LegalLink href="/legal/terms">{copy.termsLink}</LegalLink>,
+            aup: <LegalLink href={localizedPath("/legal/aup", locale)}>{copy.aupLink}</LegalLink>,
+            terms: <LegalLink href={localizedPath("/legal/terms", locale)}>{copy.termsLink}</LegalLink>,
           }} />
         </p>
       </LegalSectionBlock>
@@ -78,7 +79,7 @@ export function MessagingPageBody({ locale = "en" }: { locale?: MarketingLocale 
       </LegalSectionBlock>
       <LegalSectionBlock id="privacy" number="8" heading={copy.sectionPrivacy}>
         <p><LegalRichText text={copy.privacy} slots={{
-          privacy: <LegalLink href="/legal/privacy">{copy.privacyLink}</LegalLink>,
+          privacy: <LegalLink href={localizedPath("/legal/privacy", locale)}>{copy.privacyLink}</LegalLink>,
         }} /></p>
       </LegalSectionBlock>
       <LegalSectionBlock id="contact" number="9" heading={copy.sectionContact}>
