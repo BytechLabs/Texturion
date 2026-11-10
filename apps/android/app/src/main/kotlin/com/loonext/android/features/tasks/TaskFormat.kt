@@ -3,6 +3,7 @@ package com.loonext.android.features.tasks
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.TaskActivityItem
+import com.loonext.android.core.model.TaskFeedItem
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -95,6 +96,80 @@ fun encodeDueAt(local: LocalDateTime, zone: ZoneId): String =
 
 /** Always emits seconds ("…T15:00:00-04:00"); XXX prints Z at offset zero. */
 private val DUE_AT_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX")
+
+/**
+ * One quiet line for a change to a task (#689), the same words as the web.
+ * [by] is the resolved actor name. A kind this build does not know says the
+ * task was updated.
+ */
+fun taskHistorySentence(
+    item: TaskFeedItem,
+    by: String,
+    clock: Clock = Clock.systemDefaultZone(),
+    locale: String? = null,
+): String {
+    fun text(element: kotlinx.serialization.json.JsonElement?): String? =
+        (element as? kotlinx.serialization.json.JsonPrimitive)
+            ?.takeIf { it.isString && it.content.isNotEmpty() }?.content
+
+    fun flag(element: kotlinx.serialization.json.JsonElement?): Boolean? =
+        (element as? kotlinx.serialization.json.JsonPrimitive)
+            ?.takeIf { !it.isString }?.content?.toBooleanStrictOrNull()
+
+    fun say(key: String, vararg vars: Pair<String, String>) =
+        AppStrings.translate(locale, key, mapOf("by" to by) + vars.toMap())
+
+    val nothing = item.to == null || item.to is kotlinx.serialization.json.JsonNull
+    return when (item.event) {
+        "created" -> say("contactsTasks.histCreated")
+        "title" -> text(item.to)
+            ?.let { say("contactsTasks.histTitle", "title" to it) }
+            ?: say("contactsTasks.histUpdated")
+
+        "description" -> say("contactsTasks.histDescription")
+        "address" -> say(
+            if (nothing) "contactsTasks.histAddressCleared" else "contactsTasks.histAddress",
+        )
+
+        "assignee" -> when {
+            text(item.to) == null -> say("contactsTasks.histUnassigned")
+            else -> item.to_user?.display_name?.ifBlank { null }
+                ?.let { say("contactsTasks.histAssigned", "name" to it) }
+                ?: say("contactsTasks.histReassigned")
+        }
+
+        "due" -> text(item.to)
+            ?.let { due ->
+                val zoned = parseInstant(due)?.atZone(clock.zone)
+                val label = zoned?.format(
+                    DateTimeFormatter.ofPattern("EEE h:mm a", java.util.Locale.ENGLISH),
+                ).orEmpty()
+                say("contactsTasks.histDue", "due" to label)
+            }
+            ?: say("contactsTasks.histDueCleared")
+
+        "reminders" -> say(
+            if (flag(item.to) == true) {
+                "contactsTasks.histRemindersOff"
+            } else {
+                "contactsTasks.histRemindersOn"
+            },
+        )
+
+        "confirmation" -> say(
+            if (nothing) {
+                "contactsTasks.histConfirmationCleared"
+            } else {
+                "contactsTasks.histConfirmed"
+            },
+        )
+
+        "done" -> say("contactsTasks.histDone")
+        "reopened" -> say("contactsTasks.histReopened")
+        "deleted" -> say("contactsTasks.histDeleted")
+        else -> say("contactsTasks.histUpdated")
+    }
+}
 
 /**
  * A quiet human sentence for one task_* activity event, ported from the

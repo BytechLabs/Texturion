@@ -9,6 +9,7 @@ import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.TaskDetail
+import com.loonext.android.core.model.TaskFeedItem
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -212,6 +213,39 @@ class TaskMutations(private val api: ApiClient) {
         },
         companyId = companyId,
     )
+
+    /** One page of a task's history and comments, newest page first (#689). */
+    suspend fun activity(
+        companyId: String,
+        taskId: String,
+        cursor: String? = null,
+    ): Page<TaskFeedItem> = api.get(
+        "/v1/tasks/$taskId/activity",
+        query = if (cursor == null) emptyMap() else mapOf("cursor" to cursor),
+        companyId = companyId,
+    )
+
+    suspend fun addComment(companyId: String, taskId: String, body: String): TaskFeedItem =
+        api.post(
+            "/v1/tasks/$taskId/comments",
+            buildJsonObject { put("body", body) },
+            companyId = companyId,
+        )
+
+    suspend fun editComment(
+        companyId: String,
+        taskId: String,
+        commentId: String,
+        body: String,
+    ): TaskFeedItem = api.patch(
+        "/v1/tasks/$taskId/comments/$commentId",
+        buildJsonObject { put("body", body) },
+        companyId = companyId,
+    )
+
+    suspend fun deleteComment(companyId: String, taskId: String, commentId: String) {
+        api.delete("/v1/tasks/$taskId/comments/$commentId", companyId = companyId)
+    }
 
     /**
      * Mint a short-lived signed URL for one derived-union attachment.

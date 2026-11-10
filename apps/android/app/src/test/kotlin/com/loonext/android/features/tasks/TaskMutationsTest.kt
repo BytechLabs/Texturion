@@ -257,4 +257,31 @@ class TaskMutationsTest {
         )
         assertEquals("""{"title":"Call back","conversation_id":"v1"}""", server.takeRequest().body?.utf8())
     }
+
+    @Test
+    fun `comments go to the task's own routes and the activity pages by cursor`() = runTest {
+        val comment = """
+            {"kind":"comment","id":"k1","body":"hi","created_at":"2026-11-10T12:00:00Z",
+             "author":{"user_id":"u1","display_name":"Rehman"},"attachments":[]}
+        """.trimIndent()
+        server.enqueue(MockResponse(code = 201, body = comment))
+        assertEquals("k1", mutations.addComment("c1", "t1", "hi").id)
+        val posted = server.takeRequest()
+        assertEquals("POST", posted.method)
+        assertEquals("/v1/tasks/t1/comments", posted.url.encodedPath)
+        assertEquals("""{"body":"hi"}""", posted.body?.utf8())
+
+        server.enqueue(MockResponse(body = """{"data":[$comment],"next_cursor":"abc"}"""))
+        val page = mutations.activity("c1", "t1", cursor = "abc")
+        assertEquals("abc", page.next_cursor)
+        val fetched = server.takeRequest()
+        assertEquals("/v1/tasks/t1/activity", fetched.url.encodedPath)
+        assertEquals("abc", fetched.url.queryParameter("cursor"))
+
+        server.enqueue(MockResponse(code = 204))
+        mutations.deleteComment("c1", "t1", "k1")
+        val deleted = server.takeRequest()
+        assertEquals("DELETE", deleted.method)
+        assertEquals("/v1/tasks/t1/comments/k1", deleted.url.encodedPath)
+    }
 }

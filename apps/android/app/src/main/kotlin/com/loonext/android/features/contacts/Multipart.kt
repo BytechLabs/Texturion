@@ -99,10 +99,12 @@ suspend fun MultipartClient.uploadNoteFile(
     fileName: String,
     contentType: String,
     bytes: ByteArray,
+    // #689: a file on a task comment goes to owner_type 'task_comment'.
+    ownerType: String = "note",
 ): String = postFile(
     path = "/v1/attachments",
     companyId = companyId,
-    fields = listOf("owner_type" to "note", "owner_id" to noteId),
+    fields = listOf("owner_type" to ownerType, "owner_id" to noteId),
     fileField = "file",
     fileName = fileName,
     contentType = contentType,

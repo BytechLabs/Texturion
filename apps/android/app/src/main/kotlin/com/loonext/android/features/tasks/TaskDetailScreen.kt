@@ -65,10 +65,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.loonext.android.core.model.TaskFeedItem
+import kotlin.coroutines.cancellation.CancellationException
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -138,6 +142,7 @@ import com.loonext.android.core.jobs.groupJobPhotos
 
 private const val NOTE_FILE_MAX_BYTES = 25L * 1024 * 1024
 private const val NOTE_FILES_MAX = 10
+private const val COMMENT_BODY_MAX = 4000
 
 /** One staged composer file (bytes read at post time, not at pick time). */
 private data class StagedFile(val uri: Uri, val name: String, val size: Long, val mime: String)
@@ -392,6 +397,30 @@ private fun TaskDetailBody(
         detail.created_by_user_id == me.user_id
     val hasNotes = detail.activity.any { it.kind == "note" }
     val hasContent = hasNotes || detail.attachments.isNotEmpty()
+
+    // #689: the task's own history and comments. A message task keeps posting
+    // thread notes; every other task takes comments.
+    val asComment = detail.message_id == null
+    val feed = remember(detail.id) { mutableStateListOf<TaskFeedItem>() }
+    var feedCursor by remember(detail.id) { mutableStateOf<String?>(null) }
+    var feedLoaded by remember(detail.id) { mutableStateOf(false) }
+    var feedFailed by remember(detail.id) { mutableStateOf(false) }
+    var feedReload by remember(detail.id) { mutableIntStateOf(0) }
+    LaunchedEffect(detail.id, detail.updated_at, feedReload) {
+        if (noAccess) return@LaunchedEffect
+        try {
+            val page = mutations.activity(companyId, detail.id)
+            feed.clear()
+            feed.addAll(page.data)
+            feedCursor = page.next_cursor
+            feedFailed = false
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            feedFailed = true
+        }
+        feedLoaded = true
+    }
 
     fun memberName(userId: String?): String? =
         members.firstOrNull { it.user_id == userId }?.display_name?.ifBlank { null }
@@ -965,12 +994,44 @@ private fun TaskDetailBody(
                 item(key = "activity-label") {
                     Column(Modifier.padding(horizontal = 18.dp).padding(top = 16.dp)) {
                         SectionHeader(t("contactsTasks.activity"))
-                        if (detail.activity.isEmpty()) {
+                        if (feedFailed && feed.isEmpty()) {
                             Text(
-                                t("contactsTasks.activityEmpty"),
+                                t("contactsTasks.activityLoadFailed"),
                                 fontSize = 12.5.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        } else if (feedLoaded && feed.isEmpty()) {
+                            Text(
+                                t(
+                                    if (asComment) {
+                                        "contactsTasks.activityEmptyComment"
+                                    } else {
+                                        "contactsTasks.activityEmpty"
+                                    },
+                                ),
+                                fontSize = 12.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (feedCursor != null) {
+                            TextButton(
+                                onClick = {
+                                    val cursor = feedCursor ?: return@TextButton
+                                    scope.launch {
+                                        try {
+                                            val page = mutations.activity(
+                                                companyId,
+                                                detail.id,
+                                                cursor,
+                                            )
+                                            feed.addAll(0, page.data)
+                                            feedCursor = page.next_cursor
+                                        } catch (cause: Exception) {
+                                            onActionError(cause.userMessage(locale))
+                                        }
+                                    }
+                                },
+                            ) { Text(t("contactsTasks.activityEarlier")) }
                         }
                     }
                 }
@@ -978,50 +1039,61 @@ private fun TaskDetailBody(
                 // animateItem: freshly posted notes and realtime activity
                 // glide into the timeline; cached repaints rebuild the whole
                 // composition and never animate.
-                items(detail.activity.size, key = { "act:${detail.activity[it].id}" }) { i ->
-                    val item = detail.activity[i]
-                    if (item.kind == "note") {
-                        NoteCard(
-                            author = item.author?.display_name?.ifBlank { null }
-                                ?: memberName(item.author_user_id) ?: teammateLabel,
+                items(feed.size, key = { "act:${feed[it].kind}:${feed[it].id}" }) { i ->
+                    val item = feed[i]
+                    val who = item.author?.display_name?.ifBlank { null }
+                        ?: item.actor?.display_name?.ifBlank { null }
+                        ?: memberName(item.author?.user_id ?: item.actor?.user_id)
+                    when (item.kind) {
+                        "note" -> NoteCard(
+                            author = who ?: teammateLabel,
                             body = item.body.orEmpty(),
                             createdAt = item.created_at,
                             modifier = Modifier.animateItem(),
                         )
-                    } else {
-                        val sentence = taskEventSentence(
-                            item,
-                            by = item.actor?.display_name?.ifBlank { null }
-                                ?: memberName(item.actor_user_id) ?: "Loonext",
-                            memberName = ::memberName,
-                            locale = locale,
+
+                        "comment" -> CommentCard(
+                            item = item,
+                            author = who ?: teammateLabel,
+                            canEdit = item.author?.user_id == me.user_id,
+                            canDelete = item.author?.user_id == me.user_id ||
+                                MemberRole.atLeast(role, MemberRole.ADMIN),
+                            mutations = mutations,
+                            companyId = companyId,
+                            taskId = detail.id,
+                            onChanged = { feedReload++ },
+                            onError = onActionError,
+                            modifier = Modifier.animateItem(),
                         )
-                        if (sentence != null) {
-                            Row(
+
+                        else -> Row(
+                            Modifier
+                                .animateItem()
+                                .padding(horizontal = 24.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(9.dp),
+                        ) {
+                            Box(
                                 Modifier
-                                    .animateItem()
-                                    .padding(horizontal = 24.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(9.dp),
-                            ) {
-                                Box(
-                                    Modifier
-                                        .size(6.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.outline,
-                                            CircleShape,
-                                        ),
-                                )
-                                Text(
-                                    t(
-                                        "contactsTasks.activityLine",
-                                        "sentence" to sentence,
-                                        "when" to relativeTime(item.created_at),
+                                    .size(6.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.outline,
+                                        CircleShape,
                                     ),
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                            )
+                            Text(
+                                t(
+                                    "contactsTasks.activityLine",
+                                    "sentence" to taskHistorySentence(
+                                        item,
+                                        by = who ?: "Loonext",
+                                        locale = locale,
+                                    ),
+                                    "when" to relativeTime(item.created_at),
+                                ),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }
@@ -1030,16 +1102,20 @@ private fun TaskDetailBody(
             }
         }
 
-        // A task with no conversation (#689) has no thread to post a note in.
+        // A message task posts notes in its thread; any other task takes
+        // comments on the task itself (#689).
         val noteConversation = detail.conversation_id
-        if (!noAccess && noteConversation != null) {
+        if (!noAccess && (asComment || noteConversation != null)) {
             NoteComposer(
                 graph = graph,
                 mutations = mutations,
                 companyId = companyId,
-                conversationId = noteConversation,
+                conversationId = if (asComment) null else noteConversation,
                 taskId = detail.id,
-                onPosted = onChanged,
+                onPosted = {
+                    feedReload++
+                    onChanged()
+                },
             )
         }
     }
@@ -1854,6 +1930,163 @@ private fun NoteCard(
     }
 }
 
+/** A comment on the task (#689): author and time, text, files, and edit/delete for who may. */
+@Composable
+private fun CommentCard(
+    item: TaskFeedItem,
+    author: String,
+    canEdit: Boolean,
+    canDelete: Boolean,
+    mutations: TaskMutations,
+    companyId: String,
+    taskId: String,
+    onChanged: () -> Unit,
+    onError: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scope = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
+    var menuOpen by remember(item.id) { mutableStateOf(false) }
+    var editing by remember(item.id) { mutableStateOf(false) }
+    var draft by remember(item.id, item.body) { mutableStateOf(item.body.orEmpty()) }
+    var saving by remember(item.id) { mutableStateOf(false) }
+
+    Column(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 6.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TaskAvatar(author, size = 22.dp, fontSize = 9.sp)
+            Text(
+                author,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Text(
+                relativeTime(item.created_at) +
+                    if (item.edited_at != null) " · ${t("contactsTasks.commentEdited")}" else "",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.weight(1f))
+            if ((canEdit || canDelete) && !editing) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            Icons.Outlined.MoreHoriz,
+                            contentDescription = t("contactsTasks.commentActions"),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        if (canEdit) {
+                            DropdownMenuItem(
+                                text = { Text(t("contactsTasks.commentEdit")) },
+                                onClick = {
+                                    menuOpen = false
+                                    editing = true
+                                },
+                            )
+                        }
+                        if (canDelete) {
+                            DropdownMenuItem(
+                                text = { Text(t("contactsTasks.commentDelete")) },
+                                onClick = {
+                                    menuOpen = false
+                                    scope.launch {
+                                        try {
+                                            mutations.deleteComment(companyId, taskId, item.id)
+                                            onChanged()
+                                        } catch (cause: Exception) {
+                                            onError(cause.userMessage(locale))
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (editing) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it.take(COMMENT_BODY_MAX) },
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    enabled = !saving && draft.isNotBlank(),
+                    onClick = {
+                        saving = true
+                        scope.launch {
+                            try {
+                                mutations.editComment(companyId, taskId, item.id, draft.trim())
+                                editing = false
+                                onChanged()
+                            } catch (cause: Exception) {
+                                onError(cause.userMessage(locale))
+                            } finally {
+                                saving = false
+                            }
+                        }
+                    },
+                ) { Text(t("contactsTasks.commentSave")) }
+                TextButton(onClick = {
+                    editing = false
+                    draft = item.body.orEmpty()
+                }) { Text(t("common.cancel")) }
+            }
+        } else {
+            Text(
+                item.body.orEmpty(),
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+        if (item.attachments.isNotEmpty()) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 6.dp),
+            ) {
+                items(item.attachments.size, key = { item.attachments[it].id }) { index ->
+                    val file = item.attachments[index]
+                    AttachmentCell(
+                        item = com.loonext.android.core.model.TaskAttachmentItem(
+                            id = file.id,
+                            source = "task_comment",
+                            kind = if (file.content_type.orEmpty().startsWith("image/")) {
+                                "image"
+                            } else {
+                                "file"
+                            },
+                            file_name = file.file_name,
+                            content_type = file.content_type,
+                            size_bytes = file.size_bytes,
+                            created_at = file.created_at,
+                        ),
+                        mutations = mutations,
+                        companyId = companyId,
+                        onError = onError,
+                    )
+                }
+            }
+        }
+    }
+}
+
 /**
  * The pinned note composer (TASKS-V2 D-D), restyled as the spec-23 pill:
  * attach affordance, quiet placeholder, 38dp ink send circle. Posts an
@@ -1866,7 +2099,8 @@ private fun NoteComposer(
     graph: AppGraph,
     mutations: TaskMutations,
     companyId: String,
-    conversationId: String,
+    // Null posts a comment on the task instead of a note in its thread.
+    conversationId: String?,
     taskId: String,
     onPosted: () -> Unit,
 ) {
@@ -1989,7 +2223,13 @@ private fun NoteComposer(
                         Box {
                             if (body.isEmpty()) {
                                 Text(
-                                    t("contactsTasks.noteComposerPlaceholder"),
+                                    t(
+                                        if (conversationId == null) {
+                                            "contactsTasks.commentPlaceholder"
+                                        } else {
+                                            "contactsTasks.noteComposerPlaceholder"
+                                        },
+                                    ),
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                         .copy(alpha = 0.7f),
@@ -2004,7 +2244,7 @@ private fun NoteComposer(
                 )
                 val sendInteraction = remember { MutableInteractionSource() }
                 IconButton(
-                    enabled = !posting && (body.isNotBlank() || staged.isNotEmpty()),
+                    enabled = !posting && (body.isNotBlank() || (conversationId != null && staged.isNotEmpty())),
                     onClick = {
                         // Posting a note is a commit.
                         haptics.confirm()
@@ -2012,12 +2252,17 @@ private fun NoteComposer(
                         error = null
                         scope.launch {
                             try {
-                                val note = mutations.postNote(
-                                    companyId,
-                                    conversationId,
-                                    body.trim(),
-                                    taskId,
-                                )
+                                val ownerType = if (conversationId == null) "task_comment" else "note"
+                                val ownerId = if (conversationId == null) {
+                                    mutations.addComment(companyId, taskId, body.trim()).id
+                                } else {
+                                    mutations.postNote(
+                                        companyId,
+                                        conversationId,
+                                        body.trim(),
+                                        taskId,
+                                    ).id
+                                }
                                 var failures = 0
                                 for (file in staged) {
                                     val bytes = withContext(Dispatchers.IO) {
@@ -2033,10 +2278,11 @@ private fun NoteComposer(
                                     try {
                                         multipart.uploadNoteFile(
                                             companyId = companyId,
-                                            noteId = note.id,
+                                            noteId = ownerId,
                                             fileName = file.name,
                                             contentType = file.mime,
                                             bytes = bytes,
+                                            ownerType = ownerType,
                                         )
                                     } catch (_: Exception) {
                                         failures++
@@ -2074,7 +2320,13 @@ private fun NoteComposer(
                 ) {
                     Icon(
                         Icons.Outlined.ArrowUpward,
-                        contentDescription = t("contactsTasks.postNote"),
+                        contentDescription = t(
+                            if (conversationId == null) {
+                                "contactsTasks.postComment"
+                            } else {
+                                "contactsTasks.postNote"
+                            },
+                        ),
                         modifier = Modifier.size(16.dp),
                     )
                 }

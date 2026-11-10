@@ -155,6 +155,40 @@ data class TaskActivityItem(
     val author: TaskProfile? = null,
 )
 
+/** A file on a task comment (#689). */
+@Serializable
+data class TaskFeedFile(
+    val id: String,
+    val file_name: String? = null,
+    val content_type: String? = null,
+    val size_bytes: Long? = null,
+    val created_at: String,
+)
+
+/**
+ * One entry of GET /v1/tasks/:id/activity (#689): kind 'event' (a change to the
+ * task), 'comment' (written on the task) or 'note' (the thread note a message
+ * task came from). Flat: the other kinds' fields stay null.
+ */
+@Serializable
+data class TaskFeedItem(
+    val kind: String,
+    val id: String,
+    val created_at: String,
+    // kind = event: a task_events.kind and the stored before/after values.
+    val event: String? = null,
+    val from: kotlinx.serialization.json.JsonElement? = null,
+    val to: kotlinx.serialization.json.JsonElement? = null,
+    val from_user: TaskProfile? = null,
+    val to_user: TaskProfile? = null,
+    val actor: TaskProfile? = null,
+    // kind = comment or note
+    val body: String? = null,
+    val author: TaskProfile? = null,
+    val edited_at: String? = null,
+    val attachments: List<TaskFeedFile> = emptyList(),
+)
+
 /**
  * #294 — POST /v1/tasks/:id/photos/share.
  *
