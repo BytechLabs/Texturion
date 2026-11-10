@@ -19,7 +19,7 @@ const NOW = new Date("2026-11-10T06:20:00Z");
 
 afterEach(() => vi.unstubAllGlobals());
 
-function world(newestInbound: string | null) {
+function world(newestInbound: string | null, company: Record<string, unknown> = {}) {
   const env = completeEnv();
   const sb = supabaseStub(env);
   sb.on("GET", "/rest/v1/tasks", () => ({
@@ -31,6 +31,7 @@ function world(newestInbound: string | null) {
       contacts: { timezone: "America/Toronto", locale: null },
     },
   }));
+  sb.on("GET", "/rest/v1/companies", () => [company]);
   sb.on("POST", "/rest/v1/rpc/api_claim_job_rating", () => ({ outcome: "claimed" }));
   sb.on("GET", "/rest/v1/messages", () =>
     newestInbound ? [{ created_at: newestInbound }] : [],
@@ -75,5 +76,60 @@ describe("the rating ask's inbound watermark", () => {
 
     const insert = sb.find("POST", "/rest/v1/scheduled_messages")[0];
     expect(insert.body).toMatchObject({ inbound_watermark: null });
+  });
+});
+
+describe("the rating ask follows the workspace's settings", () => {
+  it("asks nothing, and records no claim, when the workspace turned it off", async () => {
+    const { env, sb } = world(null, { rating_ask_enabled: false });
+
+    const result = await askForJobRating(getDb(env), {
+      companyId: COMPANY,
+      taskId: TASK,
+      userId: OWNER,
+      now: NOW,
+    });
+
+    expect(result.outcome).toBe("disabled");
+    expect(sb.find("POST", "/rest/v1/rpc/api_claim_job_rating")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/scheduled_messages")).toHaveLength(0);
+  });
+
+  it("uses the workspace's delay and expiry instead of the defaults", async () => {
+    const { env, sb } = world(null, {
+      rating_ask_delay_hours: 12,
+      rating_ask_expiry_hours: 48,
+    });
+
+    await askForJobRating(getDb(env), {
+      companyId: COMPANY,
+      taskId: TASK,
+      userId: OWNER,
+      now: NOW,
+    });
+
+    const row = sb.find("POST", "/rest/v1/scheduled_messages")[0].body as {
+      send_at: string;
+      expires_at: string;
+    };
+    expect(row.send_at).toBe("2026-11-10T18:20:00.000Z");
+    expect(Date.parse(row.expires_at) - Date.parse(row.send_at)).toBe(48 * 3_600_000);
+  });
+
+  it("keeps today's four hour delay and 24 hour expiry when nothing was changed", async () => {
+    const { env, sb } = world(null);
+
+    await askForJobRating(getDb(env), {
+      companyId: COMPANY,
+      taskId: TASK,
+      userId: OWNER,
+      now: NOW,
+    });
+
+    const row = sb.find("POST", "/rest/v1/scheduled_messages")[0].body as {
+      send_at: string;
+      expires_at: string;
+    };
+    expect(Date.parse(row.expires_at) - Date.parse(row.send_at)).toBe(24 * 3_600_000);
   });
 });

@@ -81,6 +81,11 @@ export const COMPANY_COLUMNS =
   "locale," +
   // #388: the unanswered-lead ladder switches.
   "lead_chase_enabled,lead_chase_crew_enabled," +
+  // How automatic texts behave (holds, rating question, expiry, cooldown).
+  "hold_scheduled_on_reply,hold_reminders_on_reply,hold_rating_ask_on_reply," +
+  "hold_reminders_unverified_calendar,rating_ask_enabled,rating_ask_delay_hours," +
+  "rating_ask_expiry_hours,rating_ask_cooldown_days,scheduled_text_expiry_hours," +
+  "reminder_expiry_hours,auto_reply_cooldown_minutes," +
   // #430: whether a push may carry words a person typed. Workspace-wide on
   // purpose — the exposure is the CUSTOMER'S, so it is not each tech's call.
   "push_include_content," +

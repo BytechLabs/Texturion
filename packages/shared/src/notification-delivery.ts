@@ -36,6 +36,7 @@ export const NOTIFICATION_CATEGORIES = [
   "mentions",
   "assignments",
   "tasks",
+  "scheduled_texts",
   "missed_calls",
   "voicemails",
 ] as const;
@@ -81,6 +82,9 @@ export const DEFAULT_DELIVERY: Record<NotificationCategory, DeliveryMode> = {
   // Changes to a task the member follows (#689 D). On by default, because the
   // member is following it: they are its creator, its assignee or asked to be.
   tasks: "immediate",
+  // A text somebody queued is held or did not go. On by default: silence about
+  // a message a person is waiting on is the failure the disclosure rule forbids.
+  scheduled_texts: "immediate",
   missed_calls: "immediate",
   voicemails: "immediate",
 };
@@ -224,6 +228,7 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   mentions: "domain.categoryMentions",
   assignments: "domain.categoryAssignments",
   tasks: "domain.categoryTasks",
+  scheduled_texts: "domain.categoryScheduledTexts",
   missed_calls: "domain.categoryMissedCalls",
   voicemails: "domain.categoryVoicemails",
 };

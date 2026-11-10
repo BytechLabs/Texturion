@@ -15,8 +15,6 @@
  */
 import {
   copyForContact,
-  RATING_ASK_DELAY_HOURS,
-  RATING_ASK_HORIZON_HOURS,
   JOB_RATED_EVENT,
   isPoorRating,
   parseRatingReply,
@@ -32,6 +30,7 @@ import {
   nextSendableInstant,
   resolveDestinationClock,
 } from "./destination-clock";
+import { loadAutomaticTextSettings } from "./automatic-text-settings";
 import { POOR_RATING_PUSH_COPY } from "./job-ratings-copy";
 import { applySendMergeFields, resolveSendMergeFields } from "./merge";
 
@@ -53,6 +52,11 @@ export async function askForJobRating(
   },
 ): Promise<{ outcome: string }> {
   const now = input.now ?? new Date();
+
+  // The workspace decides whether to ask at all, and when. Read before the
+  // claim so a workspace that turned the question off records nothing.
+  const settings = await loadAutomaticTextSettings(db, input.companyId);
+  if (!settings.rating_ask_enabled) return { outcome: "disabled" };
 
   const task = unwrap<{
     conversation_id: string;
@@ -99,7 +103,7 @@ export async function askForJobRating(
   // Not immediately. A tech marks the job done in the driveway, and a question
   // arriving thirty seconds later reads as automated because it is.
   const wanted = new Date(
-    now.getTime() + RATING_ASK_DELAY_HOURS * 3_600_000,
+    now.getTime() + settings.rating_ask_delay_hours * 3_600_000,
   );
 
   const clock = await resolveDestinationClock(db, {
@@ -162,7 +166,7 @@ export async function askForJobRating(
       clock_timezone: clock.timezone,
       clock_source: clock.source,
       expires_at: new Date(
-        sendAt.getTime() + RATING_ASK_HORIZON_HOURS * 3_600_000,
+        sendAt.getTime() + settings.rating_ask_expiry_hours * 3_600_000,
       ).toISOString(),
       created_by: input.userId,
     }),

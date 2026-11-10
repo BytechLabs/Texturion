@@ -124,6 +124,7 @@ function tail(
     stubRoute(restMatch(env, "GET", "task_assignees"), () => []).route,
     stubRoute(restMatch(env, "GET", "tasks"), () => []).route,
     stubRoute(restMatch(env, "GET", "appointment_reminder_rules"), () => []).route,
+    stubRoute(restMatch(env, "GET", "companies"), () => []).route,
     stubRoute(rpcMatch(env, "api_sync_task_reminders"), () => ({ outcome: "synced" })).route,
   ];
 }

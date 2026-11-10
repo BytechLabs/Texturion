@@ -26,6 +26,7 @@ import type { Env } from "../env";
 import { ApiError } from "../http/errors";
 import { notifyMissedCall } from "../notifications/missed-call";
 import { guardedMissedCallText } from "./auto-send-missed";
+import { autoReplyThrottleSeconds } from "./automatic-text-settings";
 import { applySendMergeFields } from "./merge";
 import { dispatchOutbound, runPreSendGates, type SendClearance } from "./send";
 
@@ -120,6 +121,8 @@ interface MctbSettings {
   subscription_status: string;
   /** #228: the language the business works in. */
   locale: string | null;
+  /** Minutes between automatic replies on one conversation; the workspace sets it. */
+  auto_reply_cooldown_minutes?: number | null;
 }
 
 /**
@@ -171,7 +174,9 @@ export async function sendMissedCallText(
   const [companyRead, numberRead] = await Promise.all([
     db
       .from("companies")
-      .select("name,mctb_enabled,mctb_message,subscription_status,locale")
+      .select(
+        "name,mctb_enabled,mctb_message,subscription_status,locale,auto_reply_cooldown_minutes",
+      )
       .eq("id", args.companyId)
       .limit(1),
     // Best-effort WITHOUT a try/catch, deliberately. PostgREST failures arrive
@@ -317,6 +322,7 @@ export async function sendMissedCallText(
     callId: args.callId,
     body,
     segmentsEstimate: segments,
+    throttleSeconds: autoReplyThrottleSeconds(settings.auto_reply_cooldown_minutes),
   });
 
   // Opted-out / throttled / duplicate → no text. The webhook decides whether

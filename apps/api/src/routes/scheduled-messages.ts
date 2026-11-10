@@ -43,6 +43,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
+import { loadAutomaticTextSettings } from "../messaging/automatic-text-settings";
 import { resolveDestinationClock } from "../messaging/destination-clock";
 import { parseJsonBody, unwrap } from "./core/http";
 
@@ -60,7 +61,8 @@ const scheduleSchema = z.object({
 });
 
 /**
- * How long after `send_at` a message stays worth sending.
+ * How long after `send_at` a message stays worth sending. The workspace sets the
+ * number (scheduled_text_expiry_hours); 24 is the default.
  *
  * Rule 3 (docs/DECISIONS.md) says time-sensitive work expires rather than
  * arriving late, and this is where "late" gets a number. A day: a follow-up
@@ -69,7 +71,6 @@ const scheduleSchema = z.object({
  * that looks like it forgot. Long enough to ride out an outage, short enough
  * that it cannot arrive in a different week.
  */
-const HOLD_HORIZON_HOURS = 24;
 
 interface ScheduleOutcome {
   outcome: string;
@@ -137,6 +138,7 @@ scheduledMessageRoutes.post(
       );
     }
 
+    const settings = await loadAutomaticTextSettings(db, companyId);
     const result = unwrap<ScheduleOutcome>(
       await db.rpc("api_schedule_message", {
         p_company_id: companyId,
@@ -147,7 +149,7 @@ scheduledMessageRoutes.post(
         p_clock_timezone: clock.timezone,
         p_clock_source: clock.source,
         p_expires_at: new Date(
-          sendAt.getTime() + HOLD_HORIZON_HOURS * 3_600_000,
+          sendAt.getTime() + settings.scheduled_text_expiry_hours * 3_600_000,
         ).toISOString(),
       }),
       "schedule message",
@@ -324,8 +326,9 @@ scheduledMessageRoutes.patch(
         patch.clock_source = clock.source;
       }
       patch.send_at = sendAt.toISOString();
+      const settings = await loadAutomaticTextSettings(db, companyId);
       patch.expires_at = new Date(
-        sendAt.getTime() + HOLD_HORIZON_HOURS * 3_600_000,
+        sendAt.getTime() + settings.scheduled_text_expiry_hours * 3_600_000,
       ).toISOString();
       // Rescheduling a held message puts it back in the queue: the person has
       // looked at it and decided it should still go.

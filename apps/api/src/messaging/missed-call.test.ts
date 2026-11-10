@@ -139,6 +139,7 @@ function mctbCompanyStub(
     mctb_enabled?: boolean;
     mctb_message?: string | null;
     forward_to_cell?: string | null;
+    auto_reply_cooldown_minutes?: number;
   } = {},
 ): Stub {
   return stubRoute(
@@ -158,6 +159,9 @@ function mctbCompanyStub(
             : "Sorry we missed your call, {business_name} here — reply with your address and we'll book you in.",
         forward_to_cell: overrides.forward_to_cell ?? null,
         subscription_status: "active",
+        ...(overrides.auto_reply_cooldown_minutes === undefined
+          ? {}
+          : { auto_reply_cooldown_minutes: overrides.auto_reply_cooldown_minutes }),
       },
     ],
   );
@@ -315,6 +319,34 @@ describe("sendMissedCallText — text-back + alert", () => {
     // Dispatched via Telnyx from our number to the caller.
     expect(telnyx.calls).toHaveLength(1);
     expect(telnyx.calls[0].body).toMatchObject({ from: OUR_NUMBER, to: CALLER });
+  });
+
+  it.each([
+    [undefined, 3 * 60 * 60],
+    [30, 30 * 60],
+  ])("throttles repeat text-backs with the workspace cooldown (%s minutes)", async (minutes, seconds) => {
+    const company = mctbCompanyStub({ auto_reply_cooldown_minutes: minutes });
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    let claimBody: Record<string, unknown> | undefined;
+    const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), (c) => {
+      claimBody = c.body as Record<string, unknown>;
+      return {
+        message: messageRow({ status: "queued" }),
+        conversation_id: CONVERSATION_ID,
+        created_conversation: true,
+      };
+    });
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-mctb-1" })],
+    );
+    serve(company, numberStub(), ...gates, claim, telnyx, persist, ...alertStubs());
+
+    await run();
+
+    expect(claimBody?.p_throttle_seconds).toBe(seconds);
   });
 
   it("does nothing when mctb is disabled (no further work)", async () => {

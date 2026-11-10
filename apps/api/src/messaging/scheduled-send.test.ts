@@ -88,6 +88,9 @@ interface HarnessOptions {
   calendarConnectionReadFails?: boolean;
   /** The disclosure audience lookup fails, so no notice can be composed. */
   audienceReadFails?: boolean;
+  /** The workspace's automatic-text settings; absent columns mean the defaults. */
+  settings?: Record<string, unknown>;
+  settingsReadFails?: boolean;
 }
 
 function harness(options: HarnessOptions = {}) {
@@ -158,6 +161,11 @@ function harness(options: HarnessOptions = {}) {
     if (options.audienceReadFails) return pgError("57014", "statement timeout");
     return [{ phone_number_id: null }];
   });
+  sb.on("GET", "/rest/v1/companies", () =>
+    options.settingsReadFails
+      ? pgError("57014", "statement timeout")
+      : [{ id: COMPANY_ID, ...(options.settings ?? {}) }],
+  );
   sb.on("GET", "/rest/v1/messages", () =>
     options.newestInbound ? [{ created_at: options.newestInbound }] : [],
   );
@@ -304,6 +312,71 @@ describe("#233 the customer answered in the meantime", () => {
 
     await runScheduledSendJob(env, NOW);
     expect(String(holds[0]?.p_reason ?? "")).toMatch(/replied/i);
+  });
+});
+
+describe("the workspace decides whether a reply holds an automatic text", () => {
+  const replied = "2026-08-03T11:00:00Z";
+
+  it("holds each kind by default", async () => {
+    for (const origin of ["human", "reminder", "rating"]) {
+      const { sb, holds, fires } = harness({
+        newestInbound: replied,
+        due: [scheduledRow({ origin })],
+      });
+      stubFetch(sb.route);
+      await runScheduledSendJob(env, NOW);
+      expect(holds, origin).toHaveLength(1);
+      expect(fires, origin).toHaveLength(0);
+    }
+  });
+
+  it.each([
+    ["human", "hold_scheduled_on_reply"],
+    ["reminder", "hold_reminders_on_reply"],
+    ["rating", "hold_rating_ask_on_reply"],
+  ])("sends a %s text over a reply when %s is off", async (origin, setting) => {
+    const { sb, holds, fires } = harness({
+      newestInbound: replied,
+      due: [scheduledRow({ origin })],
+      settings: { [setting]: false },
+      task: { deleted_at: null, reminders_off: false, due_at: "2026-08-06T13:00:00Z", done_state: null },
+    });
+    stubFetch(sb.route);
+
+    const summary = await runScheduledSendJob(env, NOW);
+
+    expect(summary.sent).toBe(1);
+    expect(holds).toHaveLength(0);
+    expect(fires).toHaveLength(1);
+  });
+
+  it("turns off only the kind that was named", async () => {
+    const { sb, holds } = harness({
+      newestInbound: replied,
+      due: [scheduledRow({ origin: "rating" })],
+      settings: { hold_scheduled_on_reply: false, hold_reminders_on_reply: false },
+    });
+    stubFetch(sb.route);
+
+    await runScheduledSendJob(env, NOW);
+
+    expect(holds).toHaveLength(1);
+  });
+
+  it("falls back to holding when the settings cannot be read", async () => {
+    const { sb, holds } = harness({
+      newestInbound: replied,
+      due: [scheduledRow()],
+      settingsReadFails: true,
+    });
+    stubFetch(sb.route);
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await runScheduledSendJob(env, NOW);
+
+    expect(holds).toHaveLength(1);
+    quiet.mockRestore();
   });
 });
 
@@ -684,6 +757,23 @@ describe("#237 a reminder for a job that is no longer booked", () => {
       expect(
         sb.find("POST", "/rest/v1/rpc/api_fire_scheduled_message"),
       ).toHaveLength(1);
+    });
+
+    it("sends over an unverified calendar when the workspace turned that hold off", async () => {
+      const { sb, holds, fires } = harness({
+        due: [reminderRow()],
+        task: bookedJob(),
+        calendarLinks: [calendarLink],
+        calendarConnections: [connection({ last_verified_at: null })],
+        settings: { hold_reminders_unverified_calendar: false },
+      });
+      stubFetch(sb.route);
+
+      const summary = await runScheduledSendJob(env, NOW);
+
+      expect(summary.sent).toBe(1);
+      expect(holds).toHaveLength(0);
+      expect(fires).toHaveLength(1);
     });
 
     it("tells people once when the atomic calendar hold repeats on an already held row", async () => {

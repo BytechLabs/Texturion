@@ -48,6 +48,7 @@ function awayCompanyStub(overrides: {
   away_enabled?: boolean;
   away_message?: string | null;
   business_hours?: unknown;
+  auto_reply_cooldown_minutes?: number;
 } = {}): Stub {
   return stubRoute(
     restMatch(
@@ -66,6 +67,9 @@ function awayCompanyStub(overrides: {
             ? overrides.away_message
             : "Hi {first_name}, thanks for texting {business_name}. For an emergency reply URGENT.",
         name: "Ace Plumbing",
+        ...(overrides.auto_reply_cooldown_minutes === undefined
+          ? {}
+          : { auto_reply_cooldown_minutes: overrides.auto_reply_cooldown_minutes }),
       },
     ],
   );
@@ -193,6 +197,31 @@ describe("maybeSendAwayReply — fires after hours", () => {
     // Dispatched via Telnyx from the company number to the contact.
     expect(telnyx.calls).toHaveLength(1);
     expect(telnyx.calls[0].body).toMatchObject({ from: NUMBER, to: CONTACT });
+  });
+
+  it.each([
+    [undefined, 3 * 60 * 60],
+    [45, 45 * 60],
+  ])("throttles repeat replies with the workspace cooldown (%s minutes)", async (minutes, seconds) => {
+    const company = awayCompanyStub({ auto_reply_cooldown_minutes: minutes });
+    const conv = convStub();
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    let claimBody: Record<string, unknown> | undefined;
+    const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), (c) => {
+      claimBody = c.body as Record<string, unknown>;
+      return { message: messageRow({ status: "queued" }) };
+    });
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-away-1" })],
+    );
+    serve(company, conv, ...gates, claim, telnyx, persist);
+
+    await call();
+
+    expect(claimBody?.p_throttle_seconds).toBe(seconds);
   });
 
   it("#414 ask 5: sends the product default when the owner wrote nothing", async () => {

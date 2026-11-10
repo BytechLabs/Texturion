@@ -35,6 +35,7 @@ import { resolveNumberIdentity } from "@loonext/shared";
 import type { Env } from "../env";
 import { runPreSendGates } from "./send";
 import { guardedAutoSend } from "./auto-send";
+import { autoReplyThrottleSeconds } from "./automatic-text-settings";
 import { applySendMergeFields } from "./merge";
 
 interface AwaySettings {
@@ -47,6 +48,8 @@ interface AwaySettings {
   name: string;
   /** #228: the language the business works in. */
   locale: string | null;
+  /** Minutes between automatic replies on one conversation; the workspace sets it. */
+  auto_reply_cooldown_minutes?: number | null;
 }
 
 interface ConvSendSlice {
@@ -81,7 +84,7 @@ export async function maybeSendAwayReply(
       .select(
         // One literal, deliberately: splitting it with `+` defeats the client's
         // literal-type inference and the row stops being assignable.
-        "timezone,business_hours,business_hours_exceptions,away_enabled,away_message,name,locale",
+        "timezone,business_hours,business_hours_exceptions,away_enabled,away_message,name,locale,auto_reply_cooldown_minutes",
       )
       .eq("id", args.companyId)
       .limit(1),
@@ -238,5 +241,6 @@ export async function maybeSendAwayReply(
     body,
     triggerBody: args.triggerBody,
     clearance,
+    throttleSeconds: autoReplyThrottleSeconds(settings.auto_reply_cooldown_minutes),
   });
 }

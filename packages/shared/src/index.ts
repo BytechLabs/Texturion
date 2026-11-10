@@ -771,6 +771,13 @@ export {
   parseRatingReply,
 } from "./job-ratings";
 export {
+  AUTOMATIC_TEXT_BOUNDS,
+  AUTOMATIC_TEXT_DEFAULTS,
+  AUTOMATIC_TEXT_KEYS,
+  resolveAutomaticTextSettings,
+  type AutomaticTextSettings,
+} from "./automatic-text-settings";
+export {
   APPOINTMENT_CONFIRMED_EVENT,
   APPOINTMENT_CONFIRMED_LINE,
   APPOINTMENT_CONFIRM_KEYWORDS,

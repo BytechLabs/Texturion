@@ -18,6 +18,8 @@
  *         SPEC §2 cap, §10 matrix).
  */
 import {
+  AUTOMATIC_TEXT_BOUNDS,
+  AUTOMATIC_TEXT_KEYS,
   isValidBusinessHours,
   isValidHoursExceptions,
   LOCALES,
@@ -245,6 +247,49 @@ export const patchSchema = z
     // already told once, the second reaches people who were not.
     lead_chase_enabled: z.boolean().optional(),
     lead_chase_crew_enabled: z.boolean().optional(),
+    // How automatic texts behave. Defaults are today's behaviour; bounds mirror
+    // the companies_*_ck constraints so an out-of-range value is a 422, not a 500.
+    hold_scheduled_on_reply: z.boolean().optional(),
+    hold_reminders_on_reply: z.boolean().optional(),
+    hold_rating_ask_on_reply: z.boolean().optional(),
+    hold_reminders_unverified_calendar: z.boolean().optional(),
+    rating_ask_enabled: z.boolean().optional(),
+    rating_ask_delay_hours: z
+      .number()
+      .int()
+      .min(AUTOMATIC_TEXT_BOUNDS.rating_ask_delay_hours.min)
+      .max(AUTOMATIC_TEXT_BOUNDS.rating_ask_delay_hours.max)
+      .optional(),
+    rating_ask_expiry_hours: z
+      .number()
+      .int()
+      .min(AUTOMATIC_TEXT_BOUNDS.rating_ask_expiry_hours.min)
+      .max(AUTOMATIC_TEXT_BOUNDS.rating_ask_expiry_hours.max)
+      .optional(),
+    rating_ask_cooldown_days: z
+      .number()
+      .int()
+      .min(AUTOMATIC_TEXT_BOUNDS.rating_ask_cooldown_days.min)
+      .max(AUTOMATIC_TEXT_BOUNDS.rating_ask_cooldown_days.max)
+      .optional(),
+    scheduled_text_expiry_hours: z
+      .number()
+      .int()
+      .min(AUTOMATIC_TEXT_BOUNDS.scheduled_text_expiry_hours.min)
+      .max(AUTOMATIC_TEXT_BOUNDS.scheduled_text_expiry_hours.max)
+      .optional(),
+    reminder_expiry_hours: z
+      .number()
+      .int()
+      .min(AUTOMATIC_TEXT_BOUNDS.reminder_expiry_hours.min)
+      .max(AUTOMATIC_TEXT_BOUNDS.reminder_expiry_hours.max)
+      .optional(),
+    auto_reply_cooldown_minutes: z
+      .number()
+      .int()
+      .min(AUTOMATIC_TEXT_BOUNDS.auto_reply_cooldown_minutes.min)
+      .max(AUTOMATIC_TEXT_BOUNDS.auto_reply_cooldown_minutes.max)
+      .optional(),
     // #430: whether a push may carry words a person typed. Unlike every other
     // notification setting this one is per WORKSPACE, because the content
     // being protected belongs to the customer rather than to the member whose
@@ -368,6 +413,17 @@ export const patchSchema = z
       body.locale !== undefined ||
       body.lead_chase_enabled !== undefined ||
       body.lead_chase_crew_enabled !== undefined ||
+      body.hold_scheduled_on_reply !== undefined ||
+      body.hold_reminders_on_reply !== undefined ||
+      body.hold_rating_ask_on_reply !== undefined ||
+      body.hold_reminders_unverified_calendar !== undefined ||
+      body.rating_ask_enabled !== undefined ||
+      body.rating_ask_delay_hours !== undefined ||
+      body.rating_ask_expiry_hours !== undefined ||
+      body.rating_ask_cooldown_days !== undefined ||
+      body.scheduled_text_expiry_hours !== undefined ||
+      body.reminder_expiry_hours !== undefined ||
+      body.auto_reply_cooldown_minutes !== undefined ||
       body.push_include_content !== undefined ||
       body.mctb_enabled !== undefined ||
       "mctb_message" in body ||
@@ -775,6 +831,7 @@ const AUDITED_COMPANY_SETTINGS = [
   "response_time_per_member",
   "quiet_hours_confirm",
   "chosen_number_e164",
+  ...AUTOMATIC_TEXT_KEYS,
 ].join(",");
 
 companiesRoutes.patch(
@@ -1001,6 +1058,9 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
   }
   if (body.lead_chase_crew_enabled !== undefined) {
     patch.lead_chase_crew_enabled = body.lead_chase_crew_enabled;
+  }
+  for (const key of AUTOMATIC_TEXT_KEYS) {
+    if (body[key] !== undefined) patch[key] = body[key];
   }
   // #430: whether pushes may carry a person's words.
   if (body.push_include_content !== undefined) {

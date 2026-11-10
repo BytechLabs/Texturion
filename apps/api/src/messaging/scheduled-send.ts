@@ -49,6 +49,9 @@
  * it, and deciding that for them is how a message silently disappears.
  */
 import {
+  AUTOMATIC_TEXT_KEYS,
+  type AutomaticTextSettings,
+  resolveAutomaticTextSettings,
   SCHEDULED_HOLD_REASONS,
   SCHEDULED_HOLD_REASON_KEYS,
   type ScheduledHoldReason,
@@ -211,11 +214,47 @@ async function resolveDestination(
   };
 }
 
+/**
+ * The workspace setting for whether a reply holds this kind of text. Texts a
+ * person wrote, reminders and the rating question each have their own switch.
+ */
+function holdsOnReply(row: ScheduledRow, settings: AutomaticTextSettings): boolean {
+  if (row.origin === "reminder") return settings.hold_reminders_on_reply;
+  if (row.origin === "rating") return settings.hold_rating_ask_on_reply;
+  return settings.hold_scheduled_on_reply;
+}
+
+/**
+ * Settings for every workspace in this run, in one read. A failed read yields
+ * the defaults, which are the holding behaviour: the safe direction for a text
+ * that may talk over a customer.
+ */
+async function loadSettings(
+  db: SupabaseClient,
+  rows: ScheduledRow[],
+): Promise<Map<string, AutomaticTextSettings>> {
+  const settings = new Map<string, AutomaticTextSettings>();
+  const companyIds = [...new Set(rows.map((row) => row.company_id))];
+  if (companyIds.length === 0) return settings;
+  const { data, error } = await db
+    .from("companies")
+    .select(["id", ...AUTOMATIC_TEXT_KEYS].join(","))
+    .in("id", companyIds);
+  if (error) {
+    console.error(`scheduled send: settings read failed, using defaults: ${error.message}`);
+    return settings;
+  }
+  for (const company of (data ?? []) as unknown as ({ id: string } & Record<string, unknown>)[]) {
+    settings.set(company.id, resolveAutomaticTextSettings(company as Partial<AutomaticTextSettings>));
+  }
+  return settings;
+}
+
 /** Did the customer answer after this was written? */
 function customerReplied(row: ScheduledRow, destination: Destination): boolean {
   if (!destination.newestInbound) return false;
-  // No watermark means the thread had no inbound when this was scheduled, so
-  // any inbound now is newer by definition.
+  // A missing watermark means the thread had no inbound when this was
+  // scheduled (the table fills it on insert), so any inbound now is newer.
   if (!row.inbound_watermark) return true;
   return (
     new Date(destination.newestInbound).getTime() >
@@ -432,7 +471,7 @@ async function disclose(
   const failures: unknown[] = [];
 
   await deliverPush(env, db, {
-    category: "messages_mine",
+    category: "scheduled_texts",
     companyId: row.company_id,
     failures,
     userIds: viewers.map((viewer) => viewer.user_id),
@@ -586,8 +625,12 @@ export async function runScheduledSendJob(
   // (#387). Thrown at the end so a broken run is still reported as one.
   const failures: string[] = [];
 
+  const allSettings = await loadSettings(db, due);
+
   for (const row of due) {
     try {
+      const settings =
+        allSettings.get(row.company_id) ?? resolveAutomaticTextSettings(null);
       const destination = await resolveDestination(db, row);
       if (!destination) {
         await fail(env, db, row, "invalid_destination");
@@ -595,7 +638,7 @@ export async function runScheduledSendJob(
         continue;
       }
 
-      if (customerReplied(row, destination)) {
+      if (holdsOnReply(row, settings) && customerReplied(row, destination)) {
         await hold(env, db, row, "customer_replied");
         summary.held += 1;
         continue;
@@ -621,7 +664,10 @@ export async function runScheduledSendJob(
       // time safe to repeat to the customer. This is a HOLD, not a failure:
       // the five-minute pull loop can verify the connection and the next sweep
       // will retry it without anybody recreating the reminder.
-      if (!(await linkedCalendarsVerifiedRecently(db, row, now))) {
+      if (
+        settings.hold_reminders_unverified_calendar &&
+        !(await linkedCalendarsVerifiedRecently(db, row, now))
+      ) {
         await hold(env, db, row, "calendar_unverified");
         summary.held += 1;
         continue;

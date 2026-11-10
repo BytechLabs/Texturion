@@ -1711,3 +1711,61 @@ describe("PATCH /v1/company — #193 caller ID defaults to the company name", ()
     });
   });
 });
+
+describe("PATCH /v1/company — how automatic texts behave", () => {
+  it("lets an admin change them and writes exactly what was sent", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: {
+        hold_reminders_on_reply: false,
+        rating_ask_enabled: false,
+        rating_ask_delay_hours: 12,
+        auto_reply_cooldown_minutes: 60,
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      hold_reminders_on_reply: false,
+      rating_ask_enabled: false,
+      rating_ask_delay_hours: 12,
+      auto_reply_cooldown_minutes: 60,
+    });
+  });
+
+  it("422s a value outside its bounds, as a 422 and not a constraint 500", async () => {
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+    for (const body of [
+      { scheduled_text_expiry_hours: 0 },
+      { scheduled_text_expiry_hours: 721 },
+      { reminder_expiry_hours: 73 },
+      { rating_ask_cooldown_days: 0 },
+      { auto_reply_cooldown_minutes: 1.5 },
+      { rating_ask_enabled: "yes" },
+    ]) {
+      const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body,
+      });
+      expect(res.status, JSON.stringify(body)).toBe(422);
+    }
+  });
+
+  it("403s a plain member", async () => {
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { hold_scheduled_on_reply: false },
+    });
+    expect(res.status).toBe(403);
+  });
+});

@@ -122,6 +122,10 @@ function reminderRoutes(): FetchRoute[] {
       () => [],
     ).route,
     stubRoute(
+      (url) => url.pathname.endsWith("/rest/v1/companies"),
+      () => [],
+    ).route,
+    stubRoute(
       (url) => url.pathname.endsWith("/rest/v1/rpc/api_sync_task_reminders"),
       () => ({ outcome: "synced", removed: 0, added: 0 }),
     ).route,

@@ -29,18 +29,8 @@ import {
   lastSendableInstantBefore,
   resolveDestinationClock,
 } from "./destination-clock";
+import { loadAutomaticTextSettings } from "./automatic-text-settings";
 import { applySendMergeFields, resolveSendMergeFields } from "./merge";
-
-/**
- * How long after its instant a reminder is still worth sending.
- *
- * Shorter than a hand-scheduled message's 24 hours, and the reason is what the
- * text SAYS. "We're on track for 2pm today" delivered tomorrow morning is not
- * late, it is wrong — it describes an appointment that has already happened.
- * Two hours rides out an outage without ever crossing the appointment itself
- * for the tightest offset we allow.
- */
-const REMINDER_HOLD_HOURS = 2;
 
 export interface ReminderRule {
   offset_minutes: number;
@@ -159,6 +149,9 @@ export async function syncTaskReminders(
     "reminder rules",
   );
 
+  // How long a held reminder stays worth sending is the workspace's call.
+  const settings = await loadAutomaticTextSettings(db, input.companyId);
+
   const destination = task.conversations?.contact_phone_e164;
   const dueAt = task.due_at === null ? null : new Date(task.due_at);
 
@@ -243,7 +236,7 @@ export async function syncTaskReminders(
       p_clock_timezone: clock?.timezone ?? "UTC",
       p_clock_source: clock?.source ?? "company",
       p_expires_at: new Date(
-        (dueAt ?? now).getTime() + REMINDER_HOLD_HOURS * 3_600_000,
+        (dueAt ?? now).getTime() + settings.reminder_expiry_hours * 3_600_000,
       ).toISOString(),
     }),
     "sync task reminders",
