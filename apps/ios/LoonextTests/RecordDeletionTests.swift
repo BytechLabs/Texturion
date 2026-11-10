@@ -102,7 +102,7 @@ final class RecordDeletionTests: XCTestCase {
         for kind in [TrashKind.message, .conversation, .call, .voicemail] {
             let key = RecordDeletion.restoredKey(kind)
             XCTAssertNotEqual(AppStrings.translate("en", key), key)
-            XCTAssertNotEqual(AppStrings.translate("fr", key), AppStrings.translate("en", key))
+            XCTAssertNotEqual(AppStrings.translate(MessageLocale.frCA, key), AppStrings.translate("en", key))
         }
     }
 }
