@@ -1108,7 +1108,8 @@ grant execute on function public.api_set_task_repeat(uuid, uuid, uuid, jsonb)
 -- "This and future": the edit made to this occurrence is also written to the
 -- series' template and to every later occurrence nobody has finished.
 -- p_changes keys: title, description, assigned_user_id, priority, address
--- (object or null), labels_add, labels_remove (uuid arrays), due_time ('HH:MM').
+-- (object or null), labels_add, labels_remove (uuid arrays), due_at (its time
+-- of day moves later occurrences) or due_time ('HH:MM').
 create or replace function public.api_edit_task_series(
   p_company_id    uuid,
   p_task_id       uuid,
@@ -1153,7 +1154,11 @@ begin
      and (p_changes->>'priority') not in ('none', 'low', 'normal', 'high', 'urgent') then
     return jsonb_build_object('outcome', 'bad_priority');
   end if;
-  if p_changes ? 'due_time' then
+  -- The time of day, from either an instant (read in the series' own zone) or
+  -- a bare 'HH:MM'.
+  if nullif(p_changes->>'due_at', '') is not null then
+    v_time := ((p_changes->>'due_at')::timestamptz at time zone s.time_zone)::time;
+  elsif p_changes ? 'due_time' then
     begin
       v_time := (p_changes->>'due_time')::time;
     exception when others then
