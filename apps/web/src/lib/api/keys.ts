@@ -160,6 +160,9 @@ export const keys = {
       [companyId, "tasks", "list", filters] as const,
     detail: (companyId: string, taskId: string) =>
       [companyId, "tasks", "detail", taskId] as const,
+    /** Under the detail key, so refreshing a task refreshes its activity too. */
+    activity: (companyId: string, taskId: string) =>
+      [companyId, "tasks", "detail", taskId, "activity"] as const,
     /** The conversation checklist (T5.2) — one thread's live tasks. */
     checklist: (companyId: string, conversationId: string) =>
       [companyId, "tasks", "checklist", conversationId] as const,

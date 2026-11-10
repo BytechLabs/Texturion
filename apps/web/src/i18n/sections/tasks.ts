@@ -369,6 +369,45 @@ export const tasksEn = {
   eventDueToday: "today {time}",
 
   // -------------------------------------------------------------------------
+  // A task's own history and comments (#689).
+  // -------------------------------------------------------------------------
+  histCreated: "{by} created this task",
+  histTitle: "{by} renamed this task to {title}",
+  histDescription: "{by} changed the notes",
+  histAddress: "{by} changed the address",
+  histAddressCleared: "{by} cleared the address",
+  histAssigned: "{by} assigned this to {name}",
+  histUnassigned: "{by} unassigned this task",
+  histReassigned: "{by} reassigned this task",
+  histDue: "{by} changed the due time to {due}",
+  histDueCleared: "{by} cleared the due time",
+  histRemindersOff: "{by} turned reminders off",
+  histRemindersOn: "{by} turned reminders on",
+  histConfirmed: "{by} confirmed this job",
+  histConfirmationCleared: "{by} cleared the confirmation",
+  histDone: "{by} marked this done",
+  histReopened: "{by} reopened this task",
+  histDeleted: "{by} removed this task",
+  histUpdated: "{by} updated this task",
+  commentPlaceholder: "Write a comment…",
+  commentAria: "Comment on this task",
+  commentPost: "Comment",
+  commentPostFailed: "Couldn't post your comment. Try again.",
+  commentFilesAllFailed: "Your comment posted, but its files didn't upload.",
+  commentFilesSomeFailed:
+    "Your comment posted, but {failed} of {total} files didn't upload.",
+  commentEdited: "edited",
+  commentEdit: "Edit",
+  commentDelete: "Delete",
+  commentSave: "Save",
+  commentActionsAria: "Comment actions",
+  commentSaveFailed: "Couldn't save your change.",
+  commentDeleteFailed: "Couldn't delete the comment.",
+  activityEmpty: "Nothing yet. Add a comment below.",
+  activityEarlier: "Show earlier",
+  activityLoadFailed: "Couldn't load the activity.",
+
+  // -------------------------------------------------------------------------
   // /scheduled — everything the workspace has queued (#233).
   // -------------------------------------------------------------------------
   scheduledTitle: "Scheduled",
@@ -741,6 +780,46 @@ export const tasksFr: Translated<typeof tasksEn> = {
   eventAttachmentAdded: "{by} a joint un fichier",
   eventAttachmentRemoved: "{by} a retiré un fichier",
   eventDueToday: "aujourd'hui {time}",
+
+  // -------------------------------------------------------------------------
+  // L'historique et les commentaires d'une tâche (#689).
+  // -------------------------------------------------------------------------
+  histCreated: "{by} a créé cette tâche",
+  histTitle: "{by} a renommé cette tâche en {title}",
+  histDescription: "{by} a modifié les notes",
+  histAddress: "{by} a modifié l'adresse",
+  histAddressCleared: "{by} a effacé l'adresse",
+  histAssigned: "{by} a assigné ceci à {name}",
+  histUnassigned: "{by} a retiré l'assignation de cette tâche",
+  histReassigned: "{by} a réassigné cette tâche",
+  histDue: "{by} a changé l'heure d'échéance pour {due}",
+  histDueCleared: "{by} a effacé l'heure d'échéance",
+  histRemindersOff: "{by} a désactivé les rappels",
+  histRemindersOn: "{by} a activé les rappels",
+  histConfirmed: "{by} a confirmé ce travail",
+  histConfirmationCleared: "{by} a effacé la confirmation",
+  histDone: "{by} a marqué ceci comme terminé",
+  histReopened: "{by} a rouvert cette tâche",
+  histDeleted: "{by} a supprimé cette tâche",
+  histUpdated: "{by} a modifié cette tâche",
+  commentPlaceholder: "Écrivez un commentaire…",
+  commentAria: "Commenter cette tâche",
+  commentPost: "Commenter",
+  commentPostFailed: "Impossible de publier votre commentaire. Réessayez.",
+  commentFilesAllFailed:
+    "Votre commentaire est publié, mais ses fichiers n'ont pas été téléversés.",
+  commentFilesSomeFailed:
+    "Votre commentaire est publié, mais {failed} fichiers sur {total} n'ont pas été téléversés.",
+  commentEdited: "modifié",
+  commentEdit: "Modifier",
+  commentDelete: "Supprimer",
+  commentSave: "Enregistrer",
+  commentActionsAria: "Actions du commentaire",
+  commentSaveFailed: "Impossible d'enregistrer votre modification.",
+  commentDeleteFailed: "Impossible de supprimer le commentaire.",
+  activityEmpty: "Rien pour l'instant. Ajoutez un commentaire ci-dessous.",
+  activityEarlier: "Afficher les plus anciens",
+  activityLoadFailed: "Impossible de charger l'activité.",
 
   // -------------------------------------------------------------------------
   // /scheduled — tout ce que l'espace de travail a mis en file.

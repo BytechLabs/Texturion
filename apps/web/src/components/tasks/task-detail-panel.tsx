@@ -88,7 +88,7 @@ import { cn } from "@/lib/utils";
 import { TaskDoneCheckbox } from "./task-atoms";
 import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
 import { useSetTaskReminders, useTaskDone } from "./use-task-mutations";
-import { taskEventSentence } from "./task-activity";
+import { TaskCommentComposer, TaskFeed } from "./task-feed";
 import { ShareJobPhotos } from "@/components/tasks/share-job-photos";
 
 /** Sentinel <Select> value for "unassigned" (Radix forbids an empty string). */
@@ -637,7 +637,11 @@ function TaskDetailLoaded({
               <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
                 {t("tasks.activity")}
               </p>
-              <TaskActivityTimeline items={task.activity} />
+              <TaskFeed
+                taskId={task.id}
+                userId={me.data?.user_id}
+                canModerate={role === "owner" || role === "admin"}
+              />
             </section>
           </>
         )}
@@ -645,9 +649,12 @@ function TaskDetailLoaded({
 
       {/* Note composer — posts a note linked to conversation + task (D-D). A
           no-access viewer can't note the hidden conversation, so it's hidden. */}
-      {!noAccess && task.conversation_id !== null && (
-        <TaskNoteComposer taskId={task.id} conversationId={conversationId} />
-      )}
+      {!noAccess &&
+        (task.message_id !== null && task.conversation_id !== null ? (
+          <TaskNoteComposer taskId={task.id} conversationId={conversationId} />
+        ) : (
+          <TaskCommentComposer taskId={task.id} />
+        ))}
 
       {/* #89: destructive-delete confirm — opened only for a task that carries
           notes or files (an empty task deletes straight from the menu). */}
@@ -688,65 +695,6 @@ function TaskDetailLoaded({
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-/** The merged task_* events + linked notes list, oldest-first. */
-function TaskActivityTimeline({ items }: { items: TaskActivityItem[] }) {
-  const t = useT();
-  const memberNames = useMemberNames();
-
-  if (items.length === 0) {
-    return (
-      <p className="text-[13px] text-app-muted">{t("tasks.noActivity")}</p>
-    );
-  }
-
-  return (
-    <ul className="space-y-3">
-      {items.map((item) =>
-        item.kind === "event" ? (
-          <li
-            key={`e:${item.id}`}
-            className="text-[12px] leading-relaxed text-app-muted-2"
-          >
-            {taskEventSentence(
-              item,
-              item.actor?.display_name ??
-                (item.actor_user_id
-                  ? memberNames.get(item.actor_user_id) ?? t("tasks.aTeammate")
-                  : // A product name, so it is the same word in every language.
-                    "Loonext"),
-              (userId) => (userId ? memberNames.get(userId) ?? null : null),
-              t,
-            ) ?? t("tasks.taskUpdated")}
-            <span className="ml-1 tabular-nums text-app-muted-2/80">
-              · {format(new Date(item.created_at), "MMM d, h:mm a")}
-            </span>
-          </li>
-        ) : (
-          <li key={`n:${item.id}`} className="flex gap-2.5">
-            <MemberAvatar
-              name={item.author?.display_name ?? t("tasks.aTeammate")}
-              className="mt-0.5 size-6"
-            />
-            <div className="min-w-0 flex-1 rounded-app-card border border-app-amber-line bg-app-amber-bg px-3 py-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[12px] font-semibold text-app-amber-ink">
-                  {item.author?.display_name ?? t("tasks.aTeammate")}
-                </span>
-                <span className="shrink-0 text-[11px] tabular-nums text-app-amber-ink/70">
-                  {format(new Date(item.created_at), "MMM d, h:mm a")}
-                </span>
-              </div>
-              <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] text-app-amber-ink">
-                {item.body}
-              </p>
-            </div>
-          </li>
-        ),
-      )}
-    </ul>
   );
 }
 

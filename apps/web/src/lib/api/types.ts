@@ -1166,6 +1166,69 @@ export type TaskActivityItem =
       created_at: string;
     };
 
+/** A person on a task's activity line (#689 E). */
+export interface TaskFeedPerson {
+  user_id: string;
+  display_name: string | null;
+}
+
+/** A file on a task comment. */
+export interface TaskCommentFile {
+  id: string;
+  file_name: string | null;
+  content_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+}
+
+/** What a history line says changed: a task_events.kind. */
+export type TaskHistoryKind =
+  | "created"
+  | "title"
+  | "description"
+  | "address"
+  | "assignee"
+  | "due"
+  | "reminders"
+  | "confirmation"
+  | "done"
+  | "reopened"
+  | "deleted";
+
+/**
+ * One entry of GET /v1/tasks/:id/activity (#689 E), oldest first within a page:
+ * a change to the task, a comment on it, or the thread note a message task was
+ * promoted from.
+ */
+export type TaskFeedItem =
+  | {
+      kind: "event";
+      id: string;
+      event: TaskHistoryKind;
+      from: unknown;
+      to: unknown;
+      from_user: TaskFeedPerson | null;
+      to_user: TaskFeedPerson | null;
+      actor: TaskFeedPerson | null;
+      created_at: string;
+    }
+  | {
+      kind: "comment";
+      id: string;
+      body: string;
+      author: TaskFeedPerson | null;
+      edited_at: string | null;
+      attachments: TaskCommentFile[];
+      created_at: string;
+    }
+  | {
+      kind: "note";
+      id: string;
+      body: string;
+      author: TaskFeedPerson | null;
+      created_at: string;
+    };
+
 /**
  * One item of a task's DERIVED attachments union (D28 — GET /v1/tasks/:id
  * `attachments`, routes/tasks.ts loadTaskAttachments): the source message's
@@ -2508,7 +2571,7 @@ export interface AttachmentUrl {
  * routes/attachments.ts). Read paths accept both; the UPLOAD door is
  * notes-only (D28) — `'task'` survives only on legacy pre-D28 rows.
  */
-export type AttachmentOwnerType = "note" | "task";
+export type AttachmentOwnerType = "note" | "task" | "task_comment";
 
 /**
  * A generic (note/task) attachment row — the shape POST /v1/attachments returns

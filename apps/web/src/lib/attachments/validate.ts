@@ -182,7 +182,7 @@ export function partitionAttachmentFiles<
  * FormData.
  */
 export function buildAttachmentForm(
-  ownerType: "note",
+  ownerType: "note" | "task_comment",
   ownerId: string,
   file: File | Blob,
   /**
