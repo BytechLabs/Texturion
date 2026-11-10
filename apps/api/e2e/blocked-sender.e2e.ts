@@ -25,9 +25,10 @@ beforeAll(async () => {
 
     insert into public.companies
       (id, name, owner_user_id, country, us_texting_enabled, requested_area_code,
-       subscription_status, aup_accepted_at)
+       subscription_status, plan, current_period_start, current_period_end,
+       aup_accepted_at)
     values ('${COMPANY_ID}', 'Coastal Roofing', '${OWNER_ID}', 'CA', false, '604',
-            'active', now());
+            'active', 'starter', now(), now() + interval '30 days', now());
 
     insert into public.company_members (company_id, user_id, role)
     values ('${COMPANY_ID}', '${OWNER_ID}', 'owner');
@@ -48,6 +49,7 @@ afterAll(async () => {
 
 function cleanup(): void {
   h.sql(`
+    ${h.clearAuditSql(COMPANY_ID)}
     delete from public.messages where company_id = '${COMPANY_ID}';
     delete from public.conversations where company_id = '${COMPANY_ID}';
     delete from public.contacts where company_id = '${COMPANY_ID}';

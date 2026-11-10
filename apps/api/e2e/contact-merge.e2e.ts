@@ -69,6 +69,7 @@ afterAll(async () => {
 
 function cleanup(): void {
   h.sql(`
+    ${h.clearAuditSql(COMPANY_ID)}
     delete from public.messages where company_id = '${COMPANY_ID}';
     delete from public.conversations where company_id = '${COMPANY_ID}';
     delete from public.contacts where company_id = '${COMPANY_ID}';

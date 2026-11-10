@@ -122,6 +122,12 @@ export interface Harness {
    * trigger then creates public.profiles from raw_user_meta_data.display_name.
    */
   seedUserSql(id: string, email: string, displayName?: string): string;
+  /**
+   * SQL that removes a test company's audit rows. The audit log refuses
+   * deletes and its rows block deleting the company and its members, so a
+   * test whose actions are audited runs this before deleting them.
+   */
+  clearAuditSql(companyId: string): string;
   close(): Promise<void>;
 }
 
@@ -358,6 +364,12 @@ export async function startHarness(): Promise<Harness> {
           '{"provider":"email","providers":["email"]}'::jsonb,
           now(), now(), now(),
           '', '', '', '', '', '', '', '');`,
+    clearAuditSql: (companyId) =>
+      `begin;
+       alter table public.audit_log disable trigger audit_log_append_only;
+       delete from public.audit_log where company_id = '${companyId}';
+       alter table public.audit_log enable trigger audit_log_append_only;
+       commit;`,
     call,
     injectTelnyx,
     injectStripe,
