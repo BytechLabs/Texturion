@@ -147,7 +147,7 @@ struct TaskDetailView: View {
         .resyncOnForeground { refreshKey += 1 }
         .sheet(isPresented: $pickerOpen) {
             if let detail {
-                AssigneePickerSheet(
+                TaskAssigneesSheet(
                     members: members,
                     meUserId: me.user_id,
                     initial: detail.assigneeIds,

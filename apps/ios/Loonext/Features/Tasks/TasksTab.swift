@@ -207,7 +207,7 @@ struct TasksTab: View {
             }
         }
         .sheet(isPresented: $bulkAssignOpen) {
-            AssigneePickerSheet(
+            TaskAssigneesSheet(
                 members: members,
                 meUserId: me.user_id,
                 initial: [],

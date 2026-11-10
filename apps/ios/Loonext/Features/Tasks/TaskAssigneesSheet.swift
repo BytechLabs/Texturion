@@ -9,7 +9,7 @@ import SwiftUI
 /// people to every selected task (so it needs at least one person). Callers own
 /// the fetch and the write; the sheet is pure UI, like `MemberPickerSheet`.
 @MainActor
-struct AssigneePickerSheet: View {
+struct TaskAssigneesSheet: View {
     let members: [Member]
     let meUserId: String
     let titleKey: String
@@ -193,7 +193,7 @@ struct AssigneePickerSheet: View {
 // MARK: - Previews
 
 #Preview("Assignee picker") {
-    AssigneePickerSheet(
+    TaskAssigneesSheet(
         members: [
             Member(
                 id: "mb1",
