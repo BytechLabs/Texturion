@@ -45,6 +45,7 @@ import type { BusinessHours, HoursException } from "@loonext/shared";
 import {
   TAGS_PER_WORKSPACE,
   WORK_PHASES,
+  hasBusinessHours,
   roleHasCapability,
   shouldOfferThreadSummary,
 } from "@loonext/shared";
@@ -97,7 +98,6 @@ import { dispositionOptions } from "../storage/disposition";
 import {
   buildSuggestionMessages,
   envelopeShape,
-  hasBusinessHours,
   parseSuggestionOutput,
   sanitizeWithReport,
   shouldSuggest,

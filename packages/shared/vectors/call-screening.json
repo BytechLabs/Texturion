@@ -1,0 +1,92 @@
+[
+  {
+    "result": null,
+    "callerName": null,
+    "spam": false
+  },
+  {
+    "result": "",
+    "callerName": null,
+    "spam": false
+  },
+  {
+    "result": "{\"action\":\"flag_calls\",\"reputation\":0,\"shaken_stir_attestation\":\"A\"}",
+    "callerName": null,
+    "spam": false
+  },
+  {
+    "result": "{\"action\":\"flag_calls\",\"reputation\":null,\"shaken_stir_attestation\":\"C\"}",
+    "callerName": null,
+    "spam": false
+  },
+  {
+    "result": "spam_likely",
+    "callerName": null,
+    "spam": true
+  },
+  {
+    "result": "SPAM LIKELY",
+    "callerName": null,
+    "spam": true
+  },
+  {
+    "result": "\"spam_likely\"",
+    "callerName": null,
+    "spam": true
+  },
+  {
+    "result": "{\"action\":\"flag_calls\",\"result\":\"spam_likely\"}",
+    "callerName": null,
+    "spam": true
+  },
+  {
+    "result": "{\"spam_likely\":true}",
+    "callerName": null,
+    "spam": true
+  },
+  {
+    "result": "{\"spam_likely\":false}",
+    "callerName": null,
+    "spam": false
+  },
+  {
+    "result": "{\"action\":\"spam_likely\"}",
+    "callerName": null,
+    "spam": false
+  },
+  {
+    "result": "flag_calls",
+    "callerName": null,
+    "spam": false
+  },
+  {
+    "result": "fraud_risk",
+    "callerName": null,
+    "spam": false
+  },
+  {
+    "result": "not json {",
+    "callerName": null,
+    "spam": false
+  },
+  {
+    "result": "[]",
+    "callerName": null,
+    "spam": false
+  },
+  {
+    "result": null,
+    "callerName": "SPAM LIKELY",
+    "spam": true
+  },
+  {
+    "result": null,
+    "callerName": "Spam-Likely",
+    "spam": true
+  },
+  {
+    "result": null,
+    "callerName": "Sam Plumbing",
+    "spam": false
+  }
+]

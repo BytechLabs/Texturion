@@ -50,6 +50,7 @@ import {
   outcomeForState,
   QUEUE_LATENCY_WARN_MS,
   RING_WINDOW_SECS,
+  type MirrorSet,
   reduce,
   type RingMeReply,
   type SessionEvent,
@@ -92,15 +93,7 @@ interface Journal {
 
 /** A mirror write that failed and must retry until it lands (§2.2). */
 interface PendingMirror {
-  set: {
-    state?: CallState;
-    answered_by_user_id?: string | null;
-    answered_at?: string | null;
-    /** #490: this call reached a line that could not take it. */
-    unattended?: boolean;
-    /** #490: we answered and spoke rather than ringing out. */
-    notice_spoken?: boolean;
-  };
+  set: MirrorSet;
   attempts: number;
 }
 
@@ -686,7 +679,11 @@ export class CallSessionDO extends DurableObject<Env> {
     cause: SessionEvent,
     nowMs: number,
   ): void {
-    const call = { direction: after.direction, call_session_id: after.callSessionId };
+    const call = {
+      direction: after.direction,
+      call_session_id: after.callSessionId,
+      routing: after.routing ?? null,
+    };
     if (before === null) this.rt.capture("call_started", after.companyId, call);
     if (!isTerminal(after.state)) return;
     const outcome = outcomeForState(after.state);

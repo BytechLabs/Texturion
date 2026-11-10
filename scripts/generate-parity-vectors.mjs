@@ -105,6 +105,8 @@ const englishPrepaidCopy = (key) => {
 import { lastCompleteMonth } from "../packages/shared/src/usage-export.ts";
 import { parseQuickAdd } from "../packages/shared/src/quick-add.ts";
 import { parseReferenceTokens, referenceQueryAt } from "../packages/shared/src/task-references.ts";
+import { callLooksSpam } from "../packages/shared/src/call-screening.ts";
+import { CALL_ROUTINGS } from "../packages/shared/src/call-routing.ts";
 import {
   paymentAmountProblem,
   paymentRequestCancellable,
@@ -640,6 +642,73 @@ function referenceVectors() {
   ];
 }
 
+// #721: the carrier's spam verdict. Every production call carries the
+// `flag_calls` mode echo, which must never read as a verdict.
+const SCREENING_INPUTS = [
+  [null, null],
+  ["", null],
+  ['{"action":"flag_calls","reputation":0,"shaken_stir_attestation":"A"}', null],
+  ['{"action":"flag_calls","reputation":null,"shaken_stir_attestation":"C"}', null],
+  ["spam_likely", null],
+  ["SPAM LIKELY", null],
+  ['"spam_likely"', null],
+  ['{"action":"flag_calls","result":"spam_likely"}', null],
+  ['{"spam_likely":true}', null],
+  ['{"spam_likely":false}', null],
+  ['{"action":"spam_likely"}', null],
+  ["flag_calls", null],
+  ["fraud_risk", null],
+  ["not json {", null],
+  ["[]", null],
+  [null, "SPAM LIKELY"],
+  [null, "Spam-Likely"],
+  [null, "Sam Plumbing"],
+];
+
+// #721: the reason each client appends to a missed or voicemail call that
+// nobody was rung for. The English is the web catalogue's, so the phones say
+// the same words; "rang" has no reason.
+const ROUTING_REASON_KEYS = {
+  blocked: "callRoutingBlocked",
+  line_busy: "callRoutingLineBusy",
+  screened: "callRoutingScreened",
+  after_hours: "callRoutingAfterHours",
+  paused: "callRoutingPaused",
+  over_cap: "callRoutingOverCap",
+  nobody_reachable: "callRoutingNobodyReachable",
+};
+
+/** The English block of misc.ts, read as text: the module imports siblings
+ *  without extensions, which Node cannot load directly. */
+function miscEnglish(key) {
+  const source = readFileSync(
+    new URL("../apps/web/src/i18n/sections/misc.ts", import.meta.url),
+    "utf8",
+  );
+  const english = source.slice(
+    source.indexOf("export const miscEn"),
+    source.indexOf("export const miscFr"),
+  );
+  const match = new RegExp(String.raw`\n\s*${key}: "([^"]+)"`).exec(english);
+  if (!match) throw new Error(`no English for misc.${key}`);
+  return match[1];
+}
+
+function routingVectors() {
+  return CALL_ROUTINGS.map((routing) => ({
+    routing,
+    reason: routing === "rang" ? null : miscEnglish(ROUTING_REASON_KEYS[routing]),
+  }));
+}
+
+function screeningVectors() {
+  return SCREENING_INPUTS.map(([result, callerName]) => ({
+    result,
+    callerName,
+    spam: callLooksSpam(result, callerName),
+  }));
+}
+
 const FILES = {
   "segments.json": segmentVectors,
   "nanp.json": nanpVectors,
@@ -650,6 +719,8 @@ const FILES = {
   "payments.json": paymentVectors,
   "quick-add.json": quickAddVectors,
   "task-references.json": referenceVectors,
+  "call-screening.json": screeningVectors,
+  "call-routing.json": routingVectors,
 };
 
 const check = process.argv.includes("--check");

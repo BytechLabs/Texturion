@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   companyLocalMoment,
+  hasBusinessHours,
   isAfterHours,
   isValidBusinessHours,
   parseHhmm,
@@ -107,7 +108,7 @@ describe("isAfterHours", () => {
     expect(
       isAfterHours(
         "America/Toronto",
-        { wed: null },
+        { mon: { open: "08:00", close: "17:00" }, wed: null },
         new Date("2026-07-01T16:00:00.000Z"),
       ),
     ).toBe(true);
@@ -117,7 +118,7 @@ describe("isAfterHours", () => {
     expect(
       isAfterHours(
         "America/Toronto",
-        { wed: { open: "09:00", close: "09:00" } },
+        { mon: { open: "08:00", close: "17:00" }, wed: { open: "09:00", close: "09:00" } },
         new Date("2026-07-01T16:00:00.000Z"),
       ),
     ).toBe(true);
@@ -139,5 +140,50 @@ describe("isAfterHours", () => {
     expect(
       isAfterHours("Not/AZone", hours, new Date("2026-07-01T16:00:00.000Z")),
     ).toBe(false);
+  });
+});
+
+describe("hasBusinessHours", () => {
+  it("is false for unset hours (null, empty map, all-closed days)", () => {
+    expect(hasBusinessHours(null)).toBe(false);
+    expect(hasBusinessHours({})).toBe(false);
+    expect(hasBusinessHours({ mon: null })).toBe(false);
+  });
+
+  it("is false for a zero-length or malformed window", () => {
+    expect(hasBusinessHours({ mon: { open: "08:00", close: "08:00" } })).toBe(false);
+    expect(hasBusinessHours({ mon: { open: "8", close: "17:00" } })).toBe(false);
+  });
+
+  it("is true once one real window is set", () => {
+    expect(hasBusinessHours({ sat: { open: "09:00", close: "13:00" } })).toBe(true);
+  });
+});
+
+// #721: `{}` is the column default and what the editor saves with every day
+// unticked. Reading it as "closed all week" sent every inbound call to
+// voicemail for a workspace that chose voicemail after hours but never set hours.
+describe("isAfterHours with no hours set", () => {
+  const wednesdayNoon = new Date("2026-07-01T16:00:00.000Z");
+  const sundayMidnight = new Date("2026-07-05T04:00:00.000Z");
+
+  it("is never after hours for an empty or all-closed schedule", () => {
+    for (const unset of [{}, { mon: null, sun: null }] as BusinessHours[]) {
+      expect(isAfterHours("America/Toronto", unset, wednesdayNoon)).toBe(false);
+      expect(isAfterHours("America/Toronto", unset, sundayMidnight)).toBe(false);
+    }
+  });
+
+  it("still closes on a date the owner marked closed", () => {
+    const closedToday = [{ from: "2026-07-01", to: "2026-07-01", hours: null }];
+    expect(isAfterHours("America/Toronto", {}, wednesdayNoon, closedToday)).toBe(true);
+    expect(isAfterHours("America/Toronto", {}, sundayMidnight, closedToday)).toBe(false);
+  });
+
+  it("applies a special-hours date even with no weekly hours", () => {
+    const shortDay = [
+      { from: "2026-07-01", to: "2026-07-01", hours: { open: "08:00", close: "11:00" } },
+    ];
+    expect(isAfterHours("America/Toronto", {}, wednesdayNoon, shortDay)).toBe(true);
   });
 });

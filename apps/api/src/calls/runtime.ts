@@ -9,6 +9,7 @@
  * testable with no Telnyx and no PostgREST.
  */
 import {
+  callLooksSpam,
   clampRingSeconds,
   isAfterHours,
   nextOpening,
@@ -35,7 +36,6 @@ import {
   LOONEXT_SESSION_HEADER,
   RING_TIMEOUT_SECS,
   sanitizeGreeting,
-  screeningFlagged,
 } from "../messaging/inbound-ring";
 import {
   buildOutboundPlacerState,
@@ -62,8 +62,8 @@ import { telnyxRequest, TelnyxApiError, isDefiniteRefusal } from "../telnyx/clie
 
 import type {
   AnswerIntent,
-  CallState,
   InitiatedContext,
+  MirrorSet,
   OutboundInitiatedContext,
   SessionMachine,
 } from "./transitions";
@@ -170,20 +170,7 @@ export interface SessionRuntime {
    *  mirror also back-fills a still-null `outcome` (coalesce semantics,
    *  written BEFORE the state) so (state 'ended_%', outcome null) is never a
    *  persistable pair even if the terminal merge dies mid-flight. */
-  mirror(
-    sessionId: string,
-    set: {
-      state?: CallState;
-      answered_by_user_id?: string | null;
-      answered_at?: string | null;
-      /** #490: this call reached a line that could not take it — the count an
-       *  owner is shown when deciding whether to reinstate. */
-      unattended?: boolean;
-      /** #490: we answered and spoke the notice rather than ringing out. The
-       *  billable half, and what the per-company daily cap counts. */
-      notice_spoken?: boolean;
-    },
-  ): Promise<void>;
+  mirror(sessionId: string, set: MirrorSet): Promise<void>;
   /** call_member_legs audit insert (§2.2 — no longer decides any race). */
   ledgerInsert(input: {
     sessionId: string;
@@ -747,7 +734,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
 
       const screeningDivert =
         company.call_screening === "divert" &&
-        screeningFlagged(payload.call_screening_result);
+        callLooksSpam(payload.call_screening_result, payload.caller_id_name);
 
       const { dialTargets, pushAudience } = await computeRingContext(
         db,

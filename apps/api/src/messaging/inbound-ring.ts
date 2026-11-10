@@ -176,19 +176,6 @@ export function buildVoicemailState(caller: string | null): string {
   return b64encode(`${VOICEMAIL_INBOUND_STATE}|${caller ?? ""}`);
 }
 
-/** True when Telnyx's flag-mode screening verdict marks the caller bad. The
- *  raw string is stored on the calls row either way; this only drives the
- *  'divert' routing choice, so unknown vocabulary fails OPEN (ring the team —
- *  a false negative rings a scam once; a false positive silences a customer). */
-export function screeningFlagged(result: string | null | undefined): boolean {
-  if (!result) return false;
-  const value = result.toLowerCase();
-  if (value.includes("no_flag") || value.includes("clean")) return false;
-  return ["spam", "fraud", "scam", "robo", "flag", "spoof"].some((marker) =>
-    value.includes(marker),
-  );
-}
-
 /** A Telnyx command on a leg that already ended 4xxs — the routine race of
  *  telephony (caller hung up first). Those are swallowed; real faults rethrow. */
 async function telnyxOnLiveLeg(

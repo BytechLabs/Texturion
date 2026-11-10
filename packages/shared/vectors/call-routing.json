@@ -1,0 +1,34 @@
+[
+  {
+    "routing": "blocked",
+    "reason": "Blocked number"
+  },
+  {
+    "routing": "line_busy",
+    "reason": "Line busy"
+  },
+  {
+    "routing": "screened",
+    "reason": "Screened as spam"
+  },
+  {
+    "routing": "after_hours",
+    "reason": "After hours, nobody on call"
+  },
+  {
+    "routing": "paused",
+    "reason": "Line paused"
+  },
+  {
+    "routing": "over_cap",
+    "reason": "Calling limit reached"
+  },
+  {
+    "routing": "nobody_reachable",
+    "reason": "Nobody could be rung"
+  },
+  {
+    "routing": "rang",
+    "reason": null
+  }
+]

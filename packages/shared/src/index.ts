@@ -199,6 +199,7 @@ export {
   isValidBusinessHours,
   companyLocalMoment,
   formatZonedStamp,
+  hasBusinessHours,
   isAfterHours,
   type Weekday,
   type DayHours,
@@ -1219,3 +1220,10 @@ export {
   type ReferenceKind,
   type ReferenceToken,
 } from "./task-references";
+
+// #721 — whether the carrier flagged a caller. One rule for routing and for
+// every call log, ported to Kotlin and Swift against vectors/call-screening.json.
+export { callLooksSpam } from "./call-screening";
+
+// #721 — where an inbound call went and why, stored on calls.routing.
+export { CALL_ROUTINGS, isCallRouting, type CallRouting } from "./call-routing";

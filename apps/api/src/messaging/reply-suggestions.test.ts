@@ -13,7 +13,6 @@ import {
   buildSuggestionMessages,
   envelopeShape,
   formatBusinessHours,
-  hasBusinessHours,
   hasReplyableInbound,
   parseSuggestionOutput,
   sanitizeSuggestions,
@@ -70,25 +69,6 @@ const WEEKDAY_HOURS: BusinessHours = {
   fri: { open: "08:00", close: "17:00" },
   sat: { open: "09:00", close: "13:00" },
 };
-
-describe("hasBusinessHours", () => {
-  it("is false for unset hours (null, empty map, all-closed days)", () => {
-    expect(hasBusinessHours(null)).toBe(false);
-    expect(hasBusinessHours({})).toBe(false);
-    expect(hasBusinessHours({ mon: null })).toBe(false);
-  });
-
-  it("is false for a zero-length or malformed window", () => {
-    expect(hasBusinessHours({ mon: { open: "08:00", close: "08:00" } })).toBe(
-      false,
-    );
-    expect(hasBusinessHours({ mon: { open: "8", close: "17:00" } })).toBe(false);
-  });
-
-  it("is true once one real window is set", () => {
-    expect(hasBusinessHours(WEEKDAY_HOURS)).toBe(true);
-  });
-});
 
 describe("formatBusinessHours", () => {
   it("reads Monday-first and names the closed days", () => {

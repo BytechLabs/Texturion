@@ -295,13 +295,13 @@ describe("maybeSendAwayReply — skips", () => {
 
   it("AW-N2: a line keeps its OWN hours, not the workspace's", async () => {
     // OPEN_HOURS is inside the company's schedule, so the company clock says
-    // "open" and no reply is due. The line is configured closed all week, so
+    // "open" and no reply is due. The line is open only on Sunday morning, so
     // its own clock says after-hours and the reply IS due. Resolving the
     // message but not the clock would have sent the sales line's text on the
     // service line's schedule — worse than not supporting it, because it looks
-    // configured.
+    // configured. (`{}` would mean the line has no hours at all, #721.)
     const company = awayCompanyStub();
-    const conv = convStub({ business_hours: {} });
+    const conv = convStub({ business_hours: { sun: { open: "09:00", close: "10:00" } } });
     const gates = sendGateStubs();
     const telnyx = telnyxStub();
     const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), () => ({

@@ -149,10 +149,8 @@ describe("business hours are a hard gate", () => {
   });
 
   it("treats a company that never set hours as always open", async () => {
-    // `{}` reads as closed-every-day to isAfterHours, which is right for the
-    // away reply (no hours configured → no after-hours rule to apply) and
-    // would be catastrophic here: it would silently disable the ladder for
-    // every workspace that skipped the setting, which is most of them.
+    // Closed-every-day here would silently disable the ladder for every
+    // workspace that skipped the setting, which is most of them.
     expect(inBusinessHours(dueRow({ business_hours: {} }) as never, CLOSED)).toBe(true);
     expect(inBusinessHours(dueRow({ business_hours: null }) as never, CLOSED)).toBe(true);
   });

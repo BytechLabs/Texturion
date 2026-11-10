@@ -203,7 +203,7 @@ describe("a call's lifecycle", () => {
       {
         event: "call_started",
         distinctId: "co1",
-        properties: { direction: "inbound", call_session_id: SESSION },
+        properties: { direction: "inbound", call_session_id: SESSION, routing: "rang" },
       },
     ]);
 
@@ -221,6 +221,7 @@ describe("a call's lifecycle", () => {
         properties: {
           direction: "inbound",
           call_session_id: SESSION,
+          routing: "rang",
           outcome: "missed",
           duration_seconds: 30,
           ended_by: "inbound-hangup",
@@ -257,6 +258,7 @@ describe("a call's lifecycle", () => {
     expect(lifecycle()[2].properties).toEqual({
       direction: "inbound",
       call_session_id: SESSION,
+      routing: "rang",
       outcome: "voicemail",
       previous_outcome: "missed",
     });
@@ -286,7 +288,7 @@ describe("a call's lifecycle", () => {
       {
         event: "call_started",
         distinctId: "co1",
-        properties: { direction: "outbound", call_session_id: OUTBOUND_SESSION },
+        properties: { direction: "outbound", call_session_id: OUTBOUND_SESSION, routing: null },
       },
       {
         event: "call_ended",
@@ -294,6 +296,7 @@ describe("a call's lifecycle", () => {
         properties: {
           direction: "outbound",
           call_session_id: OUTBOUND_SESSION,
+          routing: null,
           outcome: "answered",
           duration_seconds: 300,
           ended_by: "outbound-hangup",

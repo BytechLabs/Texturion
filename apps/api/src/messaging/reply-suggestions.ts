@@ -39,10 +39,10 @@ import {
   type BusinessHours,
   formatZonedStamp,
   closureReason,
+  hasBusinessHours,
   isAfterHours,
   type HoursException,
   parseHhmm,
-  WEEKDAYS,
 } from "@loonext/shared";
 import { z } from "zod";
 
@@ -215,22 +215,6 @@ const WEEKDAY_LABEL: Record<string, string> = {
 };
 /** Monday-first reading order for the hours line. */
 const HOURS_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
-
-/** True when the company has actually set hours (absent and `{}` both count as unset). */
-export function hasBusinessHours(
-  hours: BusinessHours | null | undefined,
-): hours is BusinessHours {
-  if (!hours) return false;
-  return WEEKDAYS.some((day) => {
-    const window = hours[day];
-    return (
-      !!window &&
-      parseHhmm(window.open) !== null &&
-      parseHhmm(window.close) !== null &&
-      window.open !== window.close
-    );
-  });
-}
 
 /**
  * The hours line for the prompt: "Mon 08:00-17:00, Tue 08:00-17:00; closed Sat,

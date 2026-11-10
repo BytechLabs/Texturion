@@ -271,6 +271,20 @@ describe("#278 after-hours call routing", () => {
     expect(noHours.afterHoursVoicemail).toBe(false);
     expect(noHours.dialTargets).toHaveLength(2);
 
+    // #721: what production actually stores for "never set" is `{}`, the
+    // column default and what the editor saves with every day unticked. It
+    // read as closed all week and sent every call to voicemail unrung.
+    for (const unset of [{}, { mon: null, sat: null }]) {
+      const emptyHours = await contextAt(MIDDAY, {
+        afterHoursCalls: "voicemail",
+        businessHours: unset,
+        onCall: null,
+      });
+      expect(emptyHours.afterHours).toBe(false);
+      expect(emptyHours.afterHoursVoicemail).toBe(false);
+      expect(emptyHours.dialTargets).toHaveLength(2);
+    }
+
     // A timezone we cannot place: we do not get to decide it is night.
     const noZone = await contextAt(EVENING, {
       afterHoursCalls: "voicemail",

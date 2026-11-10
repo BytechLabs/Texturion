@@ -21,7 +21,7 @@
 
 
 import type { AdoptionRow, SessionRuntime } from "./runtime";
-import type { InitiatedContext, OutboundInitiatedContext } from "./transitions";
+import type { InitiatedContext, MirrorSet, OutboundInitiatedContext } from "./transitions";
 
 // ---- in-memory storage double ----------------------------------------------
 
@@ -114,7 +114,7 @@ export function makeRuntime(config: FakeConfig = {}) {
     answersVm: [] as string[],
     bridges: [] as { member: string; inbound: string }[],
     speaks: [] as string[],
-    mirrors: [] as Record<string, unknown>[],
+    mirrors: [] as MirrorSet[],
     callEnds: [] as { reason: string; userIds: string[] }[],
     terminalMerges: [] as string[],
     /** #211: opts passed to terminalMergeEvent (S override + answered-at anchor). */

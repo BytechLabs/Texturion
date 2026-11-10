@@ -65,13 +65,8 @@ function unwrap<T>(result: { data: unknown; error: { message: string } | null },
  * phone going off in the middle of the night.
  */
 export function inBusinessHours(row: DueRow, now: Date): boolean {
-  // A company that has never set hours has `{}`, which isAfterHours reads as
-  // closed every day — and that would silently disable the ladder for every
-  // workspace that skipped the setting. Treat "no hours configured" as
-  // always-open, which matches how the away reply behaves: it is the absence
-  // of an after-hours rule, not an after-hours rule of always.
   const hours = row.business_hours;
-  if (!isValidBusinessHours(hours) || Object.keys(hours).length === 0) return true;
+  if (!isValidBusinessHours(hours)) return true;
   return !isAfterHours(row.timezone, hours, now);
 }
 

@@ -20,7 +20,7 @@
  *     re-rings a member who explicitly declined this session (#171).
  */
 
-import { RING_STEP_SECS } from "@loonext/shared";
+import { RING_STEP_SECS, type CallRouting } from "@loonext/shared";
 
 /** §5: the ring window's CEILING, and the default. The DO alarm at the
  *  resolved deadline is the ONLY clock-based voicemail trigger.
@@ -242,6 +242,9 @@ export interface SessionMachine {
   /** Refused before ringing: over the voice cap, or a blocked caller (#696). */
   rejectedForCap: boolean;
   unattended: boolean;
+  /** #721: where this inbound call went when it arrived, and why. Null for
+   *  outbound calls and for a machine persisted before the field existed. */
+  routing?: CallRouting | null;
   /** #490: this session answered a suspended line to speak the unavailable
    *  notice. Distinct from `unattended`, which is true for every call that
    *  reached one — including the ones past the daily cap that rang out. */
@@ -543,20 +546,25 @@ export type AlarmKind =
   | "intent-expiry"
   | "fanout-settle";
 
+/** The calls-row columns the machine writes through a mirror effect. */
+export interface MirrorSet {
+  state?: CallState;
+  answered_by_user_id?: string | null;
+  answered_at?: string | null;
+  /** #490: this call reached a line that could not take it. The number an
+   *  owner is shown when deciding whether to reinstate. */
+  unattended?: boolean;
+  /** #490: we answered and spoke rather than ringing out. The billable half,
+   *  and what the per-company daily cap counts. */
+  notice_spoken?: boolean;
+  /** #721: the route chosen at arrival; written once, by the first mirror. */
+  routing?: CallRouting;
+}
+
 export type Effect =
   | {
       kind: "mirror";
-      set: {
-        state?: CallState;
-        answered_by_user_id?: string | null;
-        answered_at?: string | null;
-        /** #490: this call reached a line that could not take it. The number
-         *  an owner is shown when deciding whether to reinstate. */
-        unattended?: boolean;
-        /** #490: we answered and spoke rather than ringing out. The billable
-         *  half, and what the per-company daily cap counts. */
-        notice_spoken?: boolean;
-      };
+      set: MirrorSet;
       /** Terminal mirrors retry until they land (§2.2). */
       terminal: boolean;
     }
@@ -700,12 +708,17 @@ function cancelAllLiveLegs(
  * (persisted with the mirror as an effect) BEFORE any Telnyx command runs.
  * The answer's 4xx discrimination re-enters as `vm-answer-outcome`.
  */
-function vmEntry(machine: SessionMachine, effects: Effect[]): void {
+function vmEntry(machine: SessionMachine, effects: Effect[], routing?: CallRouting): void {
   machine.state = "voicemail_greeting";
   machine.ringDeadlineMs = null;
   // #278: nothing else joins a ring that is over.
   machine.queuedTargets = [];
-  effects.push({ kind: "mirror", set: { state: "voicemail_greeting" }, terminal: false });
+  if (routing) machine.routing = routing;
+  effects.push({
+    kind: "mirror",
+    set: routing ? { state: "voicemail_greeting", routing } : { state: "voicemail_greeting" },
+    terminal: false,
+  });
   effects.push({ kind: "clear-alarm", alarm: "ring" });
   effects.push({ kind: "clear-alarm", alarm: "ring-step" });
   if (machine.customerCcid) {
@@ -1341,8 +1354,9 @@ function reduceInitiated(
   // suspended handling have nothing left to decide.
   if (context.blocked) {
     base.rejectedForCap = true;
+    base.routing = "blocked";
     effects.push({ kind: "telnyx-reject", ccid: context.inboundCcid, cause: "USER_BUSY" });
-    effects.push({ kind: "mirror", set: { state: "ringing" }, terminal: false });
+    effects.push({ kind: "mirror", set: { state: "ringing", routing: "blocked" }, terminal: false });
     return { machine: base, effects };
   }
 
@@ -1360,7 +1374,11 @@ function reduceInitiated(
   // a failed on-call read, or the default `ring_everyone` all ring exactly as
   // they do today.
   if (context.lineBusy || context.screeningDivert || context.afterHoursVoicemail) {
-    vmEntry(base, effects);
+    vmEntry(
+      base,
+      effects,
+      context.lineBusy ? "line_busy" : context.screeningDivert ? "screened" : "after_hours",
+    );
     return { machine: base, effects };
   }
 
@@ -1381,11 +1399,12 @@ function reduceInitiated(
   // ceiling degrades rather than breaks.
   if (context.suspendedOrInactive) {
     base.unattended = true;
+    base.routing = "paused";
     const speak = context.noticeAllowed && Boolean(context.inboundCcid);
     base.noticeSpoken = speak;
     effects.push({
       kind: "mirror",
-      set: { state: "ringing", unattended: true, notice_spoken: speak },
+      set: { state: "ringing", unattended: true, notice_spoken: speak, routing: "paused" },
       terminal: false,
     });
     if (speak) {
@@ -1397,14 +1416,15 @@ function reduceInitiated(
   // T1c: over voice cap → reject USER_BUSY; the hangup runs T5→ended_rejected.
   if (context.overCap) {
     base.rejectedForCap = true;
+    base.routing = "over_cap";
     effects.push({ kind: "telnyx-reject", ccid: context.inboundCcid, cause: "USER_BUSY" });
-    effects.push({ kind: "mirror", set: { state: "ringing" }, terminal: false });
+    effects.push({ kind: "mirror", set: { state: "ringing", routing: "over_cap" }, terminal: false });
     return { machine: base, effects };
   }
 
   // T1d: immediate-exhaustion check — BOTH empty → voicemail NOW (§5.3).
   if (context.dialTargets.length === 0 && context.pushAudience.length === 0) {
-    vmEntry(base, effects);
+    vmEntry(base, effects, "nobody_reachable");
     return { machine: base, effects };
   }
 
@@ -1452,7 +1472,8 @@ function reduceInitiated(
 
   const dialLegs = ringNow.map((target) => dialLegFor(base, target, nowMs, pendingKeyFor));
   base.ringDeadlineMs = nowMs + ringWindowMs(context.ringSeconds);
-  effects.push({ kind: "mirror", set: { state: "ringing" }, terminal: false });
+  base.routing = "rang";
+  effects.push({ kind: "mirror", set: { state: "ringing", routing: "rang" }, terminal: false });
   if (dialLegs.length > 0) {
     effects.push({ kind: "telnyx-dial", legs: dialLegs });
   }

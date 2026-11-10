@@ -12,7 +12,8 @@
  * abbreviation -> { open: "HH:MM", close: "HH:MM" } in 24-hour company-local
  * time. A weekday ABSENT from the map (or null) means the shop is closed all
  * day (every inbound that day is after-hours). open === close, or an open/close
- * that fails to parse, also reads as closed all day. Overnight windows
+ * that fails to parse, also reads as closed all day. A map with NO open day at
+ * all means hours are not set, so nothing is after-hours (#721). Overnight windows
  * (close < open, e.g. open 18:00 close 02:00) are supported.
  *
  * ---------------------------------------------------------------------------
@@ -93,6 +94,27 @@ export function isValidBusinessHours(value: unknown): value is BusinessHours {
     if (parseHhmm(open) === null || parseHhmm(close) === null) return false;
   }
   return true;
+}
+
+/**
+ * True when at least one weekday has a usable open window. `{}` is the column
+ * default and also what the editor saves with every day unticked, so it means
+ * "hours not set", never "closed all week": with no hours there is no
+ * after-hours rule to apply (#721).
+ */
+export function hasBusinessHours(
+  hours: BusinessHours | null | undefined,
+): hours is BusinessHours {
+  if (!hours) return false;
+  return WEEKDAYS.some((day) => {
+    const window = hours[day];
+    return (
+      !!window &&
+      parseHhmm(window.open) !== null &&
+      parseHhmm(window.close) !== null &&
+      window.open !== window.close
+    );
+  });
 }
 
 const partsFormatters = new Map<string, Intl.DateTimeFormat>();
@@ -346,6 +368,9 @@ export function isAfterHours(
   // because the whole point is that Christmas is not a working Thursday.
   const today = companyLocalDate(timezone, atUtc);
   const exception = today === null ? null : exceptionFor(exceptions, today);
+  // #721: no weekly hours means no after-hours rule. Only a closed date the
+  // owner entered can make today after-hours.
+  if (!exception && !hasBusinessHours(businessHours)) return false;
   const day = exception ? exception.hours : businessHours[moment.weekday];
   if (!day) return true; // closed all day — by weekday or by exception
 

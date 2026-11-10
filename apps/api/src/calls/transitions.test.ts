@@ -10,6 +10,10 @@
  *     (zero live legs ∧ zero push-capable) — the founder invariant, fuzzed.
  *   - ring-me NEVER emits a hangup/cancel effect (§6, review R2-B2), fuzzed.
  */
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { CALL_ROUTINGS, type CallRouting } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -110,6 +114,39 @@ describe("T1 — call.initiated branches", () => {
     expect(kinds).toContain("ring");
     expect(kinds).toContain("janitor");
     expect(kinds).toContain("fanout-settle");
+  });
+
+  it("#721: every arrival route records why, on the machine and the call row", () => {
+    const cases: [Partial<InitiatedContext>, CallRouting][] = [
+      [{ blocked: true, lineBusy: true }, "blocked"],
+      [{ lineBusy: true, afterHoursVoicemail: true }, "line_busy"],
+      [{ screeningDivert: true, afterHoursVoicemail: true }, "screened"],
+      [{ afterHoursVoicemail: true }, "after_hours"],
+      [{ suspendedOrInactive: true }, "paused"],
+      [{ overCap: true }, "over_cap"],
+      [{ dialTargets: [], pushAudience: [] }, "nobody_reachable"],
+      [{}, "rang"],
+    ];
+    expect(new Set(cases.map(([, routing]) => routing))).toEqual(new Set(CALL_ROUTINGS));
+    for (const [overrides, routing] of cases) {
+      const r = reduce(null, { type: "initiated", context: initCtx(overrides) }, 1_000, keyGen());
+      expect(r.machine?.routing, routing).toBe(routing);
+      const mirror = r.effects.find((e) => e.kind === "mirror");
+      expect(mirror?.kind === "mirror" && mirror.set.routing, routing).toBe(routing);
+    }
+  });
+
+  it("#721: the database check allows exactly the shared routes", () => {
+    const migration = fileURLToPath(
+      new URL(
+        "../../../../supabase/migrations/20261111180000_calls_record_their_routing.sql",
+        import.meta.url,
+      ),
+    );
+    const allowed = [...readFileSync(migration, "utf8").matchAll(/'([a-z_]+)'/g)].map(
+      (match) => match[1],
+    );
+    expect(new Set(allowed)).toEqual(new Set(CALL_ROUTINGS));
   });
 
   it("T1a line busy → straight to voicemail_greeting (never a false ringing)", () => {
