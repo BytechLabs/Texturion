@@ -1,5 +1,7 @@
 # Android TalkBack pass on the rig emulator, 2026-11-10
 
+**Status: HISTORICAL RESEARCH (#323).** A dated record of one run, kept for what it found; `docs/ACCESSIBILITY.md` is the current statement.
+
 **What this is.** A real TalkBack pass, with TalkBack itself speaking, on an Android emulator. It is
 **not** the physical-device pass the protocol in `docs/ACCESSIBILITY.md` asks for, and it does not
 close it. A physical Android device and VoiceOver on an iPhone are still open. Per that protocol this
@@ -77,15 +79,27 @@ Fix commit: `29ec8f65` (all eleven, with their tests). It was one commit, so the
 
 On the same emulator: the tab bar ("Tab, 1 of 4"), the For you buttons and bell ("Unread, Notifications, Button"), "Selected, 30d, Button", the Inbox title ("Heading"), "Search, Button", "Selected, Open, Button", "PINNED, 1, Heading" as one stop, a row with "Actions available" and without the initials, the composer ("Selected, Text, Button"), and the undelivered-send announcement, which was heard. The incoming-message announcement could not be exercised for the reason above; it is covered by `ThreadAnnouncementTest`.
 
+## Fixed in a second round (commit `78c0ab83`)
+
+| # | Defect | Fix | Heard after |
+|---|---|---|---|
+| 12 | A message bubble and its time and delivery were two stops | one clickable node around both; Retry and the task icon stay separate | "Be there soon. Dana Brightside, 2:52 PM. Not delivered", then "Retry" |
+| 13 | The thread header read the status line after Call and More | avatar, name and status are one clickable node | "Back", "Maria Alvarez. 2 conversations, Open, Dana Brightside. Button", "Call", "More" |
+| 14 | Times read as "22h" | `spokenTime`: the time in the reader's locale and clock, with the date when not today, on the inbox row and the For you rows | "Nov 9, 2026, 3:54 PM" in the row. fr-CA is covered by a unit test, not heard |
+| 15 | The hint read "Double-tap to Go to that message" | the label is now "go to the message" / "aller au message" in both catalogues | not heard again (not on screen in the re-check) |
+| 16 | The notification primer title and the host header title (Settings and every hosted screen) were not headings | `heading()` on both; the host's back button also gets a button role | the Settings title was not walked again; covered by a test |
+
+Each has a test in `TalkBackSemanticsTest`, and each test failed with its fix reverted (the five checked together: bubble, hint, headings, row time; the header has no unit test because it needs a live controller, so it was checked by ear only).
+
+## The "Couldn't load your workspace" first load: an app bug, fixed
+
+Reproduced on the emulator and caught with a temporary log: the generic bootstrap failure was `NetworkOnMainThreadException`, thrown by `ApiClient.execute` reading `response.body.string()` on the main thread. The headers had arrived but the body had not, so the read blocked on the socket. It only shows when the body lags the headers, which is why it was intermittent and worse on a cold, slow start, and why a retry worked. It is not specific to the emulator: any slow connection can hit it. The read now happens on `Dispatchers.IO` (`ApiClient.kt`), and `ApiClientTest` fails without that change. After the fix the first load on the emulator succeeded.
+
 ## Not fixed
 
-- **Message bubbles** read the text and the time as two stops and carry direction only in the second. A bubble could say who sent it in one stop; that is a design choice for the thread and was not changed here.
-- **The thread header** reads the status line after the Call and More buttons.
-- **Relative times** are read as written ("22h", "5m").
-- **The go-to-message hint** reads "Double-tap to Go to that message" (a capital from the shared string).
-- **The notification primer's title** and the Settings title are not headings.
-- **The task view buttons and Account** were checked only as listed above.
-- **Cold start.** The first load after an install on this emulator often showed "Couldn't load your workspace." and needed "Try again" a few times. Not investigated; it looks like a slow emulator against the local worker.
+- The task detail, sign up, reset, bulk selection, ringing and in-call flows were still not walked on a device (see the table above).
+- The relative times on the other screens (calls, contacts, tasks, notifications) still read as "5m"; only the inbox and For you rows got the spoken form.
+- The bubble's long-press no longer shows a ripple (the press target is now the bubble and its meta line together).
 
 ## What stays open
 
