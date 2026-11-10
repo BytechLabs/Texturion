@@ -35,6 +35,7 @@ import { useExportContacts } from "@/lib/api/contacts-export-hook";
 import { ApiError } from "@/lib/api/error";
 import { useTags } from "@/lib/api/tags";
 import type { ContactListItem } from "@/lib/api/types";
+import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 
 /**
  * #695 - the selection bar over the customer list.
@@ -68,6 +69,7 @@ export function ContactsBulkBar({
   onClear: () => void;
 }) {
   const t = useT();
+  const canDeleteRecords = useCanDeleteRecords();
   const tags = useTags();
   const bulk = useBulkContacts();
   const exportContacts = useExportContacts();
@@ -211,7 +213,7 @@ export function ContactsBulkBar({
                 : t("contacts.bulkMerge")}
             </DropdownMenuItem>
           )}
-          {canEdit && (
+          {canDeleteRecords && (
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onSelect={() => setConfirmingDelete(true)}
