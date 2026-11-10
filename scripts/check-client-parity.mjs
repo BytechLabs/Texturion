@@ -84,6 +84,17 @@ const SURFACES = [
   // three, because the whole point of the issue is that a tech is a phone-first
   // reader who may have been handed a laptop instead.
   { key: "onboarding", web: "onboarding", android: "onboarding", ios: "Onboarding" },
+  {
+    key: "blocked",
+    // #696: the web keeps the block confirmation in its own folder because the
+    // thread, the contact page and settings all open it. Registered by file in
+    // FILES as "block-number".
+    web: "blocked",
+    android: null,
+    androidReason: "block and unblock live in features/thread and features/contacts, with no folder of their own",
+    ios: null,
+    iosReason: "block and unblock live in Features/Thread and Features/Contacts, with no folder of their own",
+  },
 
   // ---- deliberate asymmetries, each with its reason -----------------------
   {
@@ -406,6 +417,16 @@ const FILES = [
     android:
       "apps/android/app/src/main/kotlin/com/loonext/android/features/foryou/ReferralAskCard.kt",
     ios: "apps/ios/Loonext/Features/ForYou/ReferralAskCard.swift",
+  },
+  {
+    key: "block-number",
+    // #696 — block and unblock a number from the thread and the contact. The
+    // Blocked numbers list in settings is web-only, like the other back-office
+    // screens.
+    web: "apps/web/src/components/blocked/block-number.tsx",
+    android:
+      "apps/android/app/src/main/kotlin/com/loonext/android/features/thread/ThreadController.kt",
+    ios: "apps/ios/Loonext/Features/Thread/MessagingRepository.swift",
   },
 ];
 
