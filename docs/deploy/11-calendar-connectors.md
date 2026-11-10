@@ -10,6 +10,25 @@ you already hold. If you hold no Microsoft account at all, say so on #245 and
 leave Microsoft off: Google works without it, and the settings screen only
 offers a provider whose secrets are set.
 
+**Google, as set up on 2026-11-09.** Project `loonext-4125c` (Loonext) has:
+- the Calendar API enabled;
+- Google Auth Platform: External audience, in Testing, with the founder as the
+  one test user;
+- branding: home page, privacy and terms links, `loonext.com` as the authorized
+  domain, `support@loonext.com` as developer contact;
+- the two scopes below;
+- the web client `Loonext calendar` with the production callback.
+
+`loonext-api` holds `GOOGLE_CALENDAR_CLIENT_ID` and
+`GOOGLE_CALENDAR_CLIENT_SECRET`.
+
+Still open:
+- the consent screen's user support email moves to `support@loonext.com`, a
+  Google account on that address with OAuth Config Editor on the project;
+- step 3;
+- step 8;
+- section D's round trip.
+
 What each connector asks for, and why it is the narrowest that works:
 
 | Provider | Scopes | Why |
@@ -55,10 +74,11 @@ until every connection has been re-encrypted.
    billing needed).
 2. **APIs & Services** > **Library** > search **Google Calendar API** >
    **Enable**.
-3. **APIs & Services** > **Domain verification** > **Add domain** > enter the API
-   host's registrable domain (`loonext.com`) and verify it with the DNS TXT
-   record Google shows. Google rejects push notification channels to a domain
-   that is not registered here.
+3. Verify `loonext.com` in Google Search Console (a Domain property, DNS TXT
+   record on the Cloudflare zone) under the account that owns the project.
+   Step 8 needs it, because Google checks the authorized domain's ownership
+   there. The old **APIs & Services** > **Domain verification** page no longer
+   exists: its console address answered "URL not found" on 2026-11-09.
 4. **Google Auth Platform** (older consoles: **APIs & Services** > **OAuth
    consent screen**) > **Branding**: app name `Loonext`, user support email, app
    logo, application home page `https://loonext.com`, privacy policy
