@@ -53,7 +53,7 @@ ceiling was found.
 | realtime | Private-topic join and broadcast fan-out | `pnpm --filter @loonext/api capacity:deployed -- --target-id staging-capacity-251 --api-origin https://api-staging.example.net --supabase-origin https://abcdefghijklmnopqrst.supabase.co --scenario realtime` | 40 independent local websockets × 20 broadcasts = 800 exact deliveries. Rig: 160 private-topic joins held stable. Hosted: 500 private-topic joins held stable, no refusal (2c). Hosted fan-out: 500 sockets receive every delivery up to 30 inbound messages a second (2e) | Rig: 200 concurrent (tenant setting). Hosted joins: not reached; the driver stops at 500 and the project's setting is 10,000. Hosted delivery: at 500 sockets and 40 messages a second 14 to 16% of deliveries never arrive, with no error (2e); the cause is unknown. Each broadcast now carries a gapless topic sequence and a client resyncs on a hole after 2 s (D151); not yet re-measured against the hosted ceiling | Local delivery, rig joins, hosted joins to 500 and hosted fan-out measured; joins above 500 and the cause of the loss required |
 | durable-object | Call-session FIFO and bounded ring fan-out | `pnpm --filter @loonext/api test:workerd` | 12 hot objects × 24 targets = 288 completed dial effects; per-object peak ≤ 6. Rig: 32 simultaneous 12-person calls, no wrong or leaked call. Hosted, against a fake switch (2e): 32 simultaneous 12-person calls, all rang, were answered and ended, no 5xx | Rig: first 5xx acknowledgements between 8 and 32 simultaneous calls. Hosted: not reached at 32; last crew phone rings in about 2.5 s at 2 and at 32 calls. Co-tenancy not separable; calls above 32 unknown | Structure, rig latency and hosted latency to 32 calls measured; calls above 32 required |
 | degradation | Truthful error instead of hang or silent drop | `pnpm --filter @loonext/api exec vitest run src/db-timeout.test.ts src/routes/honest-failure.test.ts src/app.test.ts` | Database stall/refusal and Telnyx 429/503 paths are bounded and truthful. Rig: overload answered 503 with Retry-After at every level to 1,000 callers; webhook refusals retryable, none lost | Rig ceilings reached and honest. Hosted: past the ceiling the API answered 200 or went silent until the driver's 10 s deadline; no 429 or 5xx came back in that time. Behaviour with a longer client deadline unknown | Rig measured; hosted overload partly measured (2c); a longer-deadline hosted run required |
-| cost | Storage/vendor units and serving compute | `pnpm --filter @loonext/api exec vitest run src/billing/costs.test.ts` | Message, voice, AI, storage, and egress units modelled | API Worker CPU per `/v1/for-you` request: median 4 ms, mean 7 ms, p99 48 ms (2c). Call session: 145 ms of Durable Object CPU, 3.6 GB-s and 205 rows written per call; about $0.27 per 1,000 calls at published prices (2e). Durable Object use outside calls unknown | Partial; Worker reads and call sessions measured, other Durable Object usage required |
+| cost | Storage/vendor units and serving compute | `pnpm --filter @loonext/api exec vitest run src/billing/costs.test.ts` | Message, voice, AI, storage, and egress units modelled | API Worker CPU per `/v1/for-you` request: median 4 ms, mean 7 ms, p99 48 ms (2c). Call session: 145 ms of Durable Object CPU, 0.5 GB-s and about 190 rows written per call; about $0.23 per 1,000 calls at published prices (2e; 3.1 GB-s and $0.26 before the timer fix). Durable Object use outside calls unknown | Partial; Worker reads and call sessions measured, other Durable Object usage required |
 <!-- capacity-matrix:end -->
 
 ---
@@ -1334,15 +1334,36 @@ written and 120 rows read per call. The Worker took 59 ms of CPU per call over
 the ring time. The median wall time of a Durable Object invocation was 53 to
 72 ms.
 
-One result is unexplained, and it dominates duration. One invocation per call,
-about 1 in 30, stays open 17 to 20 s of wall time with about 10 ms of CPU
-(wall p99 is 20.0 s at every level). It starts after the driver has finished
-the call, the fake switch logged no slow or unanswered request, and the
-database's slowest statement was 529 ms. 20 s is the Telnyx client's timeout,
-so it may be a request this stack leaves unconfigured (push, FCM or the AI
-binding) waiting out its bound; it was not found. It makes the object active
-for about 28 s per call and the duration 3.6 GB-s. Without it, duration would
-be about a quarter of that.
+**The 17 to 20 s tail was a pending timer, and it is fixed (#703).** About 1 in
+30 Durable Object invocations stayed open 17 to 20 s of wall time with about
+10 ms of CPU (wall p99 was 20.0 s at every level). Nothing was slow: a
+`wrangler tail` of the same stack showed the call event finishing in about a
+second while its invocation stayed open for another 15 to 20 s. Every request
+this object makes (Telnyx, 20 s; the database, 10 s) was bounded with
+`AbortSignal.timeout`, and that timer keeps running after the answer arrives.
+The object stays active, and bills, while a timer is pending, so an invocation
+lasted as long as the longest deadline set before it, and the object was
+active about 15 to 27 s a call. The requests now use `deadline` and
+`fetchWithDeadline` (`src/http/deadline.ts`), which clear the timer once the
+response is read and still abort a request that hangs.
+
+Measured again on a second temporary stack (2026-11-10, Micro, us-east-1, the
+same Worker and fake switch, 12 workspaces of 12 phones, back to back after the
+change at 2, 8 and 12 simultaneous calls, windows read from Cloudflare's
+analytics 40 s after each run):
+
+| Calls | DO active time per call | DO duration per call | Slowest invocation (p99) |
+|---|---|---|---|
+| before: 2, 8, 12 | 14.9, 23.8, 26.7 s | 1.91, 3.04, 3.42 GB-s | 20.0, 16.2, 20.0 s |
+| after: 2, 8, 12 | 4.5, 3.6, 4.2 s | 0.58, 0.46, 0.54 GB-s | 2.2, 2.2, 1.7 s |
+
+Across the 22 calls, duration fell from 3.1 GB-s to 0.51 GB-s a call, CPU
+stayed at about 105 to 140 ms and rows written at about 190. Every call rang its
+whole crew, was answered and ended with no leg alive and no `5xx` in either
+run. Per invocation (from the tail), 15 of 369 stayed open more than 5 s before
+the change, none of 344 after, and the longest fell from 20.1 s to 2.7 s.
+Requests per call read 22 to 30 in these windows (analytics is sampled), so
+the table above keeps the 30 counted in the first run.
 
 ### Durable Object cost per 1,000 calls
 
@@ -1351,20 +1372,20 @@ Objects page "last updated Oct 18, 2026", Workers page "Oct 2, 2026"): Durable
 Object requests $0.15 per million, duration $12.50 per million GB-s, SQLite
 rows written $1.00 per million, rows read $0.001 per million; Workers requests
 $0.30 per million and CPU $0.02 per million ms. Durable Object CPU is not
-billed on its own. Using the measured 30 requests, 3.58 GB-s, 205 rows written
+billed on its own. Using the measured 30 requests, 3.58 GB-s (0.51 after the fix), 205 rows written
 and 120 rows read per call, and the Worker's 30 requests and 59 ms:
 
 | Per 1,000 calls | Quantity | Cost |
 |---|---|---|
 | Durable Object requests | 30,000 | $0.0045 |
-| Durable Object duration | 3,580 GB-s (about 900 without the unexplained tail) | $0.045 (about $0.011) |
+| Durable Object duration | 3,580 GB-s before the timer fix, 510 GB-s after | $0.045 before, $0.006 after |
 | Durable Object rows written | 205,000 | $0.205 |
 | Durable Object rows read | 120,000 | $0.0001 |
 | Worker requests for the webhooks | 30,000 | $0.009 |
 | Worker CPU | 59,000 ms | $0.001 |
-| **Total** | | **about $0.27, or $0.00027 a call** |
+| **Total** | | **about $0.27 before, about $0.23 after, or $0.00023 a call** |
 
-Rows written are about three quarters of it. The Workers Paid plan's monthly
+Rows written are now close to nine tenths of it, so the fix saved about $0.04 per 1,000 calls, not the $0.17 that reading duration as most of the bill suggested. The Workers Paid plan's monthly
 allowance covers the first 1 million Durable Object requests (about 33,000
 calls), 400,000 GB-s (about 110,000 calls) and 50 million rows written (about
 240,000 calls), so a crew taking a few hundred calls a month pays nothing
@@ -1385,12 +1406,16 @@ included messages. Workers and Durable Object usage was a few thousand
 requests, rows and GB-s, all inside the Workers Paid allowance. Under $0.05 in
 all.
 
+The #703 re-run used a temporary project `loonext-capacity-703` (BytechLabs,
+Micro, us-east-1) and the Workers `loonext-api-capacity-703` and
+`loonext-telnyx-fake-capacity-703`. All three were deleted afterwards and list
+calls confirm none exists. It ran about an hour, under $0.05.
+
 ### Still unknown after this run
 
 - **Why delivery fails between 30 and 40 messages a second at 500 sockets**,
   and whether the limit is per project, per topic or per second of fan-out;
   and fan-out above 500 sockets.
-- **The 17 to 20 s Durable Object invocation.**
 - **Calls above 32 at once**, and Durable Object cost for calls that last
   minutes.
 - What 2c lists that is not about Realtime or calls: compute above Micro, the
@@ -1504,8 +1529,8 @@ interactive experience, which is what section 1 measures.
 
 The API Worker's CPU per request is measured in section 2c (median 4 ms on the
 post-login landing). Durable Object compute per call is section 2e: 145 ms of
-CPU, 3.6 GB-s and 205 rows written, about $0.27 per 1,000 calls at published
-prices.
+CPU, 0.5 GB-s and about 190 rows written, about $0.23 per 1,000 calls at
+published prices (3.1 GB-s and $0.26 before the timer fix).
 
 Partially answered elsewhere rather than here. `node scripts/ops/storage-report.mjs`
 (#240) reports stored bytes, egress and derived monthly cost per workspace from
