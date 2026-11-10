@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.4](https://github.com/BytechLabs/Texturion/compare/android-v0.17.3...android-v0.17.4) (2026-11-10)
+
+
+### Bug Fixes
+
+* **android:** every control on the main screens is 44dp and fits at 200% text ([4f1d655](https://github.com/BytechLabs/Texturion/commit/4f1d655ef4cb20c34c10e14e98bded655671cc3d))
+
 ## [0.17.3](https://github.com/BytechLabs/Texturion/compare/android-v0.17.2...android-v0.17.3) (2026-11-07)
 
 
