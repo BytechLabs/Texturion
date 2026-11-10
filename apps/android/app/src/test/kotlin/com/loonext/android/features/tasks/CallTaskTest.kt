@@ -102,4 +102,34 @@ class CallTaskTest {
         )
         assertNull(answeredCallSessionOf(event("outcome" to "answered")))
     }
+
+    @Test
+    fun `a standalone task has no source and may have no conversation`() {
+        val t = json.decodeFromString<Task>(
+            """{"id":"t3","company_id":"c1","message_id":null,"conversation_id":null,
+               "source":null,"call":null,"contact":{"id":"k1","name":"Pat"},
+               "title":"Order a filter","created_by_user_id":"u1",
+               "created_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-01T00:00:00Z"}""",
+        )
+        assertNull(t.source)
+        assertNull(t.conversation_id)
+        assertEquals("Pat", t.contact?.name)
+        assertTrue(t.isCallTask)
+
+        val d = json.decodeFromString<TaskDetail>(
+            """{"id":"t3","company_id":"c1","message_id":null,"conversation_id":null,
+               "source":null,"title":"Order a filter","created_by_user_id":"u1",
+               "created_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-01T00:00:00Z"}""",
+        )
+        assertNull(d.conversation_id)
+        assertTrue(d.isCallTask)
+    }
+
+    @Test
+    fun `a For You task with no conversation decodes`() {
+        val row = json.decodeFromString<com.loonext.android.core.model.ForYouTask>(
+            """{"task_id":"t3","title":"Order a filter","conversation_id":null,"message_id":null}""",
+        )
+        assertNull(row.conversation_id)
+    }
 }

@@ -231,4 +231,30 @@ class TaskMutationsTest {
         assertEquals("/v1/tasks", recorded.url.encodedPath)
         assertEquals("""{"source_call_id":"call1","title":"Call from Ana"}""", recorded.body?.utf8())
     }
+
+    @Test
+    fun `a standalone task sends a title and its links, no source`() = runTest {
+        server.enqueue(MockResponse(code = 201, body = callTaskBody))
+        mutations.create(
+            companyId = "c1",
+            title = "Order a filter",
+            assignedUserId = "u1",
+            dueAt = null,
+            contactId = "k1",
+        )
+        assertEquals(
+            """{"title":"Order a filter","assigned_user_id":"u1","contact_id":"k1"}""",
+            server.takeRequest().body?.utf8(),
+        )
+
+        server.enqueue(MockResponse(code = 201, body = callTaskBody))
+        mutations.create(
+            companyId = "c1",
+            title = "Call back",
+            assignedUserId = null,
+            dueAt = null,
+            conversationId = "v1",
+        )
+        assertEquals("""{"title":"Call back","conversation_id":"v1"}""", server.takeRequest().body?.utf8())
+    }
 }

@@ -142,6 +142,8 @@ fun ForYouTab(
     modifier: Modifier = Modifier,
     onOpenCalls: (() -> Unit)? = null,
     onOpenThread: ((conversationId: String) -> Unit)? = null,
+    /** #689: opens a task that has no conversation to open instead. */
+    onOpenTask: ((taskId: String) -> Unit)? = null,
     onOpenNotifications: (() -> Unit)? = null,
     /**
      * #310/#503: the waiting-room card's doors.
@@ -485,6 +487,7 @@ fun ForYouTab(
                 unreadNotifications = unreadNotifications,
                 me = me,
                 onOpenConversation = { onOpenThread?.invoke(it) },
+                onOpenTask = { onOpenTask?.invoke(it) },
                 onOpenCalls = onOpenCalls,
                 onOpenNotifications = { onOpenNotifications?.invoke() },
                 onOpenContacts = onOpenContacts,
@@ -529,6 +532,7 @@ private fun ForYouList(
     unreadNotifications: Int,
     me: Me,
     onOpenConversation: (String) -> Unit,
+    onOpenTask: (String) -> Unit,
     onOpenCalls: (() -> Unit)?,
     onOpenNotifications: () -> Unit,
     /** #310/#503: the waiting-room card's doors. Required — see ForYouTab. */
@@ -791,7 +795,10 @@ private fun ForYouList(
                                     title = row.title,
                                     overdue = row.overdue,
                                     dueAt = row.due_at,
-                                    onClick = { onOpenConversation(row.conversation_id) },
+                                    onClick = {
+                                        row.conversation_id?.let(onOpenConversation)
+                                            ?: onOpenTask(row.task_id)
+                                    },
                                 )
                             }
                         }
@@ -833,7 +840,10 @@ private fun ForYouList(
                                 title = row.title,
                                 overdue = row.overdue,
                                 dueAt = row.due_at,
-                                onClick = { onOpenConversation(row.conversation_id) },
+                                onClick = {
+                                    row.conversation_id?.let(onOpenConversation)
+                                        ?: onOpenTask(row.task_id)
+                                },
                             )
                         }
                     }

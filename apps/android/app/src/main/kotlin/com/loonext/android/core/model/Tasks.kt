@@ -20,7 +20,10 @@ data class Task(
     val source: TaskSource? = null,
     /** D64: the promoted call (list and checklist rows); null for a message task. */
     val call: TaskSourceCall? = null,
-    val conversation_id: String,
+    /** #689: null for a standalone task that was not linked to a conversation. */
+    val conversation_id: String? = null,
+    /** #689: the contact a standalone task was linked to. */
+    val contact_id: String? = null,
     val title: String,
     val description: String = "",
     val assigned_user_id: String? = null,
@@ -101,7 +104,10 @@ data class TaskSourceCall(
     val has_voicemail: Boolean = false,
 )
 
-/** D64: a task with no message owns its done state, so it is written on the task. */
+/**
+ * D64: a task with no message owns its done state, so it is written on the task.
+ * True for a standalone task (#689) as well as a call task.
+ */
 val Task.isCallTask: Boolean get() = message_id == null
 val TaskDetail.isCallTask: Boolean get() = message_id == null
 
@@ -200,7 +206,11 @@ data class TaskDetail(
     val source: TaskSource? = null,
     /** D64: the promoted call; null for a message task or when withheld. */
     val source_call: TaskSourceCall? = null,
-    val conversation_id: String,
+    /** #689: null for a standalone task that was not linked to a conversation. */
+    val conversation_id: String? = null,
+    /** #689: the contact a standalone task was linked to. */
+    val contact_id: String? = null,
+    val contact: TaskContactLocation? = null,
     val title: String,
     val description: String = "",
     val assigned_user_id: String? = null,

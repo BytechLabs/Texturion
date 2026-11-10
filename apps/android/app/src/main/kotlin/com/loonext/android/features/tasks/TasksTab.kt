@@ -35,6 +35,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.material.icons.outlined.ViewKanban
@@ -170,6 +171,7 @@ private fun TaskListScreen(
     var debouncedQ by remember(companyId) { mutableStateOf("") }
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
     var pickerOpen by remember { mutableStateOf(false) }
+    var newTaskOpen by remember { mutableStateOf(false) }
     var pullRefreshing by remember(companyId) { mutableStateOf(false) }
     // #228: the done-toggle below writes from a coroutine, and the failure it
     // raises is a snackbar on this screen.
@@ -263,6 +265,18 @@ private fun TaskListScreen(
             ?.display_name?.ifBlank { null }
     }
 
+    if (newTaskOpen) {
+        NewTaskSheetHost(
+            graph = graph,
+            companyId = companyId,
+            conversationId = null,
+            contactId = null,
+            contactName = "",
+            onDismiss = { newTaskOpen = false },
+            onCreated = { refreshKey++ },
+        )
+    }
+
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             // ScreenTitle row with the paper search circle (spec 24).
@@ -273,6 +287,14 @@ private fun TaskListScreen(
                 verticalAlignment = Alignment.Bottom,
             ) {
                 ScreenTitle(t("contactsTasks.tasksTitle"), Modifier.weight(1f))
+                PaperCircleButton(
+                    icon = Icons.Outlined.AddTask,
+                    contentDescription = t("thread.newTask"),
+                    onClick = {
+                        haptics.tap()
+                        newTaskOpen = true
+                    },
+                )
                 if (view != TaskViewKind.Map) {
                     PaperCircleButton(
                         icon = Icons.Outlined.Search,

@@ -288,6 +288,8 @@ fun MakeTaskSheet(
     onDismiss: () -> Unit,
     /** D64: set for an answered call; seeds the title and has no text to enrich. */
     callTitle: String? = null,
+    /** #689: a task with no source: a blank title, and the rest under More. */
+    standalone: Boolean = false,
 ) {
     // Read in composition and held: `remember` runs outside it, and so does
     // every comparison below that has to line up with a chip's own label.
@@ -296,7 +298,8 @@ fun MakeTaskSheet(
     val tomorrowLabel = t("thread.dueTomorrow9")
     var title by remember {
         mutableStateOf(
-            callTitle ?: message?.body?.trim().orEmpty().take(120).ifBlank { fallbackTitle },
+            callTitle
+                ?: if (standalone) "" else message?.body?.trim().orEmpty().take(120).ifBlank { fallbackTitle },
         )
     }
     // Assigned to whoever is making it, matching the web. The default task
@@ -304,6 +307,7 @@ fun MakeTaskSheet(
     // unassigned landed in a list nobody was looking at. Nobody stays
     // selectable.
     var assigneeId by remember { mutableStateOf(meUserId) }
+    var moreOpen by remember { mutableStateOf(!standalone) }
     var due by remember { mutableStateOf<DueChoice?>(null) }
     var dueSuggested by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
@@ -404,15 +408,21 @@ fun MakeTaskSheet(
                             letterSpacing = (-0.01).em,
                         ),
                     )
-                    Text(
-                        t(
-                            if (callTitle != null) "thread.newTaskFromCall" else "thread.newTaskFrom",
-                            "name" to contactName,
-                        ),
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 3.dp),
-                    )
+                    if (!standalone || contactName.isNotBlank()) {
+                        Text(
+                            t(
+                                when {
+                                    standalone -> "thread.newTaskFor"
+                                    callTitle != null -> "thread.newTaskFromCall"
+                                    else -> "thread.newTaskFrom"
+                                },
+                                "name" to contactName,
+                            ),
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
                 }
                 Box(
                     Modifier
@@ -467,6 +477,21 @@ fun MakeTaskSheet(
                 )
             }
 
+            if (!moreOpen) {
+                Text(
+                    t("thread.newTaskMore"),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clickable {
+                            haptics.tap()
+                            moreOpen = true
+                        }
+                        .padding(vertical = 8.dp),
+                )
+            }
+
+            if (moreOpen) {
             // Assignee.
             Column {
                 TaskFieldLabel(t("thread.assignTo"))
@@ -574,6 +599,7 @@ fun MakeTaskSheet(
                     clearAddr()
                 },
             )
+            }
 
             // Create pill — gives under the finger like every other pill.
             val canCreate = title.isNotBlank()

@@ -22,8 +22,9 @@ data class ForYouWaiting(
 data class ForYouTask(
     val task_id: String,
     val title: String,
-    val conversation_id: String,
-    /** Null for a task promoted from a call (D64). */
+    /** Null for a standalone task with no conversation (#689). */
+    val conversation_id: String? = null,
+    /** Null for a task promoted from a call (D64), or a standalone one. */
     val message_id: String? = null,
     val assigned_user_id: String? = null,
     val due_at: String? = null,
@@ -98,8 +99,8 @@ data class ForYouTriageConversation(
 data class ForYouTriageTask(
     val task_id: String,
     val title: String,
-    val conversation_id: String,
-    /** Null for a task promoted from a call (D64). */
+    val conversation_id: String? = null,
+    /** Null for a task promoted from a call (D64), or a standalone one. */
     val message_id: String? = null,
     val due_at: String? = null,
     val overdue: Boolean = false,

@@ -562,6 +562,7 @@ fun ShellContent(
             graph, companyId, me, modifier,
             onOpenCalls = onOpenCalls,
             onOpenThread = { onOpenThread(it, null) },
+            onOpenTask = onOpenTask,
             onOpenNotifications = onOpenNotifications,
             onOpenUnanswered = onOpenUnanswered,
             // #503: the waiting-room card's three setup buttons. Contacts is a

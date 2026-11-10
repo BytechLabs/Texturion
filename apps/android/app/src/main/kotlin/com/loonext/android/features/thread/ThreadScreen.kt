@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.CheckBox
@@ -137,6 +138,7 @@ import com.loonext.android.features.settings.supportMailto
 import com.loonext.android.features.settings.supportSituation
 import com.loonext.android.features.settings.supportSubjectFor
 import com.loonext.android.features.tasks.CallTaskButton
+import com.loonext.android.features.tasks.NewTaskSheetHost
 import com.loonext.android.features.tasks.answeredCallSessionOf
 import com.loonext.android.features.tasks.callLineCallerOf
 import com.loonext.android.core.realtime.PRESENCE_HEARTBEAT_MS
@@ -644,6 +646,8 @@ private fun ThreadLoaded(
 
     Column(Modifier.fillMaxSize()) {
         ThreadHeader(
+            graph = graph,
+            companyId = companyId,
             controller = controller,
             contactName = contactName,
             phoneLabel = formatPhone(detail.contact.phone_e164),
@@ -1494,6 +1498,8 @@ private fun HeaderAvatar(name: String?) {
 
 @Composable
 private fun ThreadHeader(
+    graph: AppGraph,
+    companyId: String,
     controller: ThreadController,
     contactName: String,
     phoneLabel: String,
@@ -1512,6 +1518,7 @@ private fun ThreadHeader(
     val blockedWord = t("thread.blockedBadge")
     val mutedWord = t("thread.mutedBadge")
     var menuOpen by remember { mutableStateOf(false) }
+    var newTaskOpen by remember { mutableStateOf(false) }
     var assigneeSheetOpen by remember { mutableStateOf(false) }
     var confirmOptOut by remember { mutableStateOf(false) }
     var confirmBlock by remember { mutableStateOf(false) }
@@ -1726,11 +1733,27 @@ private fun ThreadHeader(
         }
     }
 
+    if (newTaskOpen) {
+        NewTaskSheetHost(
+            graph = graph,
+            companyId = companyId,
+            conversationId = detail.id,
+            contactId = null,
+            contactName = controller.contact?.name?.trim().takeUnless { it.isNullOrEmpty() }
+                ?: controller.contact?.phone_e164?.let(::formatPhone).orEmpty(),
+            onDismiss = { newTaskOpen = false },
+        )
+    }
+
     if (menuOpen) {
         ConversationSheet(
             controller = controller,
             detail = detail,
             members = members,
+            onNewTask = {
+                menuOpen = false
+                newTaskOpen = true
+            },
             onOpenContactPanel = {
                 menuOpen = false
                 onOpenContactPanel()
@@ -2108,6 +2131,7 @@ private fun ConversationSheet(
     onOpenContactPanel: () -> Unit,
     onAssign: () -> Unit,
     onOpenGallery: () -> Unit,
+    onNewTask: () -> Unit,
     onOptOut: () -> Unit,
     onRevokeOptOut: () -> Unit,
     onBlock: () -> Unit,
@@ -2267,6 +2291,12 @@ private fun ConversationSheet(
                             controller.setSpam(!detail.is_spam)
                             onDismiss()
                         },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SheetActionRow(
+                        icon = Icons.Outlined.AddTask,
+                        label = t("thread.newTask"),
+                        onClick = onNewTask,
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     // #696: a block sends this number's future texts and calls

@@ -281,8 +281,11 @@ class TaskMutations(private val api: ApiClient) {
         assignedUserId: String?,
         dueAt: String?,
         address: TaskAddressInput? = null,
-        /** D64: an answered call to promote instead. Exactly one of the two. */
+        /** D64: an answered call to promote instead. At most one of the two. */
         sourceCallId: String? = null,
+        /** #689: with neither source, a standalone task may link to these. */
+        contactId: String? = null,
+        conversationId: String? = null,
     ): Task = api.post(
         "/v1/tasks",
         buildJsonObject {
@@ -292,6 +295,8 @@ class TaskMutations(private val api: ApiClient) {
             if (assignedUserId != null) put("assigned_user_id", assignedUserId)
             if (dueAt != null) put("due_at", dueAt)
             if (address != null) put("address", taskAddressJson(address))
+            if (contactId != null) put("contact_id", contactId)
+            if (conversationId != null) put("conversation_id", conversationId)
         },
         companyId = companyId,
     )

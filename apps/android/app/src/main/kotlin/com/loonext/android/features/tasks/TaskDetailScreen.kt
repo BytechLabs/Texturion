@@ -215,6 +215,7 @@ internal fun TaskDetailScreen(
                     val conversation =
                         (event.payload["conversation_id"] as? JsonPrimitive)?.content
                     if (detail == null || conversation == null ||
+                        detail.conversation_id == null ||
                         conversation == detail.conversation_id
                     ) {
                         refreshKey++
@@ -846,9 +847,19 @@ private fun TaskDetailBody(
                         SourceMessageCard(
                             body = source.body.ifBlank { t("contactsTasks.aPhoto") },
                             createdAt = source.created_at,
-                            onOpenConversation = onOpenConversation?.let { open ->
-                                { open(detail.conversation_id, detail.message_id) }
+                            onOpenConversation = detail.conversation_id?.let { conversation ->
+                                onOpenConversation?.let { open ->
+                                    { open(conversation, detail.message_id) }
+                                }
                             },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 18.dp, end = 18.dp, top = 14.dp),
+                        )
+                    }
+                    if (detail.message_id == null && detail.source_call == null) {
+                        NoSourceCard(
+                            contactName = detail.contact?.name,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(start = 18.dp, end = 18.dp, top = 14.dp),
@@ -858,8 +869,10 @@ private fun TaskDetailBody(
                     if (sourceCall != null) {
                         SourceCallCard(
                             call = sourceCall,
-                            onOpenConversation = onOpenConversation?.let { open ->
-                                { open(detail.conversation_id, null) }
+                            onOpenConversation = detail.conversation_id?.let { conversation ->
+                                onOpenConversation?.let { open ->
+                                    { open(conversation, null) }
+                                }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1017,12 +1030,14 @@ private fun TaskDetailBody(
             }
         }
 
-        if (!noAccess) {
+        // A task with no conversation (#689) has no thread to post a note in.
+        val noteConversation = detail.conversation_id
+        if (!noAccess && noteConversation != null) {
             NoteComposer(
                 graph = graph,
                 mutations = mutations,
                 companyId = companyId,
-                conversationId = detail.conversation_id,
+                conversationId = noteConversation,
                 taskId = detail.id,
                 onPosted = onChanged,
             )

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -95,6 +96,7 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonListRow
+import com.loonext.android.features.tasks.NewTaskSheetHost
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
@@ -463,6 +465,7 @@ private fun ContactDetailBody(
                 )
             }
 
+            var newTaskOpen by remember { mutableStateOf(false) }
             // Contextual primary pill (#82) beside Call (#165). The messaging
             // destination hides until the shell wires it — a pill that goes
             // nowhere would be a lie; Call needs no shell wiring.
@@ -511,6 +514,27 @@ private fun ContactDetailBody(
                             micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
+                )
+                ActionPill(
+                    label = t("thread.newTask"),
+                    icon = Icons.Outlined.AddTask,
+                    container = MaterialTheme.colorScheme.surface,
+                    content = MaterialTheme.colorScheme.onSurface,
+                    onClick = {
+                        haptics.tap()
+                        newTaskOpen = true
+                    },
+                )
+            }
+            if (newTaskOpen) {
+                NewTaskSheetHost(
+                    graph = graph,
+                    companyId = companyId,
+                    conversationId = null,
+                    contactId = contact.id,
+                    contactName = contact.name?.trim().takeUnless { it.isNullOrEmpty() }
+                        ?: formatPhone(contact.phone_e164),
+                    onDismiss = { newTaskOpen = false },
                 )
             }
         }

@@ -246,6 +246,8 @@ object ContactsTasksStrings : AppStrings.Section {
         // D64: a task promoted from an answered call.
         "contactsTasks.sourceCallWhen" to "Source call · {when}",
         "contactsTasks.callFrom" to "Call from {name}",
+        "contactsTasks.noSource" to "No source",
+        "contactsTasks.noSourceHint" to "Created on its own, not from a text or a call.",
         "contactsTasks.callTalkTime" to "Talked for {duration}",
         "contactsTasks.callVoicemailLeft" to "Voicemail left",
         "contactsTasks.callUnknownCaller" to "Unknown caller",
@@ -942,6 +944,8 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.sourceMessageWhen" to "Texto d'origine · {when}",
         "contactsTasks.sourceCallWhen" to "Appel d'origine · {when}",
         "contactsTasks.callFrom" to "Appel de {name}",
+        "contactsTasks.noSource" to "Aucune origine",
+        "contactsTasks.noSourceHint" to "Créée seule, sans texto ni appel.",
         "contactsTasks.callTalkTime" to "Appel de {duration}",
         "contactsTasks.callVoicemailLeft" to "Message vocal laissé",
         "contactsTasks.callUnknownCaller" to "Appelant inconnu",
