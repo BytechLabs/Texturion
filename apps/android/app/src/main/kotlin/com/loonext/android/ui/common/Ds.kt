@@ -17,6 +17,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -55,7 +57,9 @@ fun SectionHeader(
     count: Int? = null,
 ) {
     Row(
-        modifier = modifier.padding(start = 6.dp, end = 6.dp, bottom = 7.dp),
+        modifier = modifier
+            .padding(start = 6.dp, end = 6.dp, bottom = 7.dp)
+            .semantics(mergeDescendants = true) { heading() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -85,7 +89,7 @@ fun SectionHeader(
 fun ScreenTitle(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
-        modifier = modifier,
+        modifier = modifier.semantics { heading() },
         style = MaterialTheme.typography.headlineMedium.copy(fontSize = 30.sp),
         color = MaterialTheme.colorScheme.onBackground,
     )

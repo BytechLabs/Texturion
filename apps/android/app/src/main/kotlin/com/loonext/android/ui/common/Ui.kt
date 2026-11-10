@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -216,9 +217,12 @@ fun InitialsAvatar(
     content: Color = MaterialTheme.colorScheme.onSecondaryContainer,
 ) {
     Box(
+        // Two letters are a picture of a person, not a word. Beside the name they were read
+        // as a stop of their own ("PN") before every contact.
         modifier = modifier
             .size(size)
-            .background(container, shape),
+            .background(container, shape)
+            .clearAndSetSemantics { },
         contentAlignment = Alignment.Center,
     ) {
         val rendered = boundedGlyph(size, glyph)

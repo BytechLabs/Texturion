@@ -40,6 +40,7 @@ import com.loonext.android.ui.common.MeasureHeader
 import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ProportionRing
+import com.loonext.android.ui.common.asToggleButton
 
 /**
  * #313 — the satisfaction panel, Paper & Olive, under response time.
@@ -134,6 +135,7 @@ fun SatisfactionCard(
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
                             .clickable { onWindow(option) }
+                            .asToggleButton(selected)
                             .padding(4.dp),
                     )
                 }

@@ -157,6 +157,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
+import com.loonext.android.ui.common.asToggleButton
+import com.loonext.android.ui.common.asButton
 
 // #280: internal rather than file-private so SavedViews.kt can translate a
 // stored view into a tab selection. Same module, same package.
@@ -1509,7 +1511,7 @@ private fun PaperIconButton(
             contentColor = MaterialTheme.colorScheme.onSurface,
             shadowElevation = 1.dp,
             interactionSource = pressSource,
-            modifier = Modifier.size(44.dp),
+            modifier = Modifier.size(44.dp).asButton(),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(18.dp))
@@ -1561,7 +1563,7 @@ private fun FilterPill(
                     onLongClick()
                 },
             )
-        }).semantics { this.selected = selected },
+        }).asToggleButton(selected),
         onClick = {
             haptics.tap()
             onClick()
@@ -1734,7 +1736,7 @@ private fun ConversationListPane(
                     first = index == 0,
                     last = index == controller.pinnedRows.lastIndex,
                     // Realtime arrivals fade in; re-sorts glide instead of jump.
-                    modifier = Modifier.animateItem(),
+                    modifier = Modifier.animateItem().then(conversationRowActions(row, controller)),
                     onClick = {
                         if (selecting) controller.toggleSelected(row.id) else onOpen(row.id)
                     },
@@ -1753,7 +1755,7 @@ private fun ConversationListPane(
             GroupedRow(
                 first = index == 0,
                 last = index == controller.rows.lastIndex,
-                modifier = Modifier.animateItem(),
+                modifier = Modifier.animateItem().then(conversationRowActions(row, controller)),
                 // #275: in selection mode a tap toggles rather than opens. That is
                 // the Android convention and it is also the only workable one — a
                 // long-press to start and then taps to continue, rather than
@@ -1780,6 +1782,47 @@ private fun ConversationListPane(
 }
 
 /**
+ * The two swipe shortcuts as TalkBack custom actions (#185). They have to sit on the
+ * row's OWN node, the clickable one: declared on a child inside it they were dropped
+ * in the merge, and TalkBack never said "Actions available" on the emulator pass.
+ *
+ * Marking a conversation UNREAD had no other path at all (opening the thread only
+ * ever clears the dot), so it was unreachable for anyone who cannot perform the drag.
+ */
+@Composable
+private fun conversationRowActions(
+    row: ConversationListItem,
+    controller: InboxController,
+): Modifier {
+    // The labels are read out here: `semantics { }` is not composition.
+    val readAction =
+        if (row.unread) t("inbox.actionMarkRead") else t("inbox.actionMarkUnread")
+    val statusAction = if (row.status == ConversationStatus.CLOSED) {
+        t("inbox.actionReopenConversation")
+    } else {
+        t("inbox.actionCloseConversation")
+    }
+    return rowActionsModifier(
+        readLabel = readAction,
+        statusLabel = statusAction,
+        onToggleRead = { controller.toggleRead(row) },
+        onToggleStatus = { controller.toggleStatus(row) },
+    )
+}
+
+internal fun rowActionsModifier(
+    readLabel: String,
+    statusLabel: String,
+    onToggleRead: () -> Unit,
+    onToggleStatus: () -> Unit,
+): Modifier = Modifier.semantics {
+    customActions = listOf(
+        CustomAccessibilityAction(readLabel) { onToggleRead(); true },
+        CustomAccessibilityAction(statusLabel) { onToggleStatus(); true },
+    )
+}
+
+/**
  * The inbox row wrapped in reveal-behind swipe actions (#185). Swipe right
  * toggles the unread dot; swipe left closes (or, on a closed row, reopens).
  * Both are shortcuts, never the only path (#185): opening the thread clears
@@ -1799,27 +1842,7 @@ private fun SwipeableConversationRow(
 ) {
     val haptics = rememberHaptics()
     val closed = row.status == ConversationStatus.CLOSED
-    // The two TalkBack actions are built inside `semantics { }`, which is not
-    // composition — so their words are read out here.
-    val readAction =
-        if (row.unread) t("inbox.actionMarkRead") else t("inbox.actionMarkUnread")
-    val statusAction = if (closed) {
-        t("inbox.actionReopenConversation")
-    } else {
-        t("inbox.actionCloseConversation")
-    }
     SwipeActionRow(
-        // #185 says a swipe is a shortcut, never the ONLY path — but marking a
-        // conversation UNREAD had no other path at all (opening the thread only
-        // ever clears the dot), so it was unreachable for anyone who cannot
-        // perform the drag. Exposing both as accessibility custom actions puts
-        // them in TalkBack's actions menu without changing the visual row.
-        modifier = Modifier.semantics {
-            customActions = listOf(
-                CustomAccessibilityAction(readAction) { controller.toggleRead(row); true },
-                CustomAccessibilityAction(statusAction) { controller.toggleStatus(row); true },
-            )
-        },
         startAction = SwipeAction(
             icon = if (row.unread) {
                 Icons.Outlined.MarkEmailRead
@@ -3321,7 +3344,12 @@ internal fun InboxAuditBody(rows: List<ConversationListItem>) {
         }
         Spacer(Modifier.height(14.dp))
         rows.forEachIndexed { index, row ->
-            GroupedRow(first = index == 0, last = index == rows.lastIndex, onClick = {}) {
+            GroupedRow(
+                first = index == 0,
+                last = index == rows.lastIndex,
+                modifier = rowActionsModifier("Mark read", "Close", {}, {}),
+                onClick = {},
+            ) {
                 ConversationRow(row, assigneeName = if (index == 0) "Dana" else null)
             }
         }

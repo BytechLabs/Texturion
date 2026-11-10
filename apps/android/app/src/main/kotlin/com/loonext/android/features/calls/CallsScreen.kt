@@ -129,6 +129,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.loonext.android.ui.common.asToggleButton
 
 /**
  * #228: a catalogue KEY rather than the word. The choice is
@@ -987,7 +988,7 @@ private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
         onClick = onClick,
         // Selected is a colour change and nothing else; this is what tells a
         // screen reader which filter is on.
-        modifier = Modifier.semantics { this.selected = selected },
+        modifier = Modifier.asToggleButton(selected),
         shape = CircleShape,
         color = if (selected) {
             MaterialTheme.colorScheme.secondaryContainer

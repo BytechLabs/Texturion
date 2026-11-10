@@ -9,6 +9,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 /**
  * #511 — pulling down looks the same everywhere.
@@ -58,7 +59,10 @@ fun RefreshBox(
             PullToRefreshDefaults.LoadingIndicator(
                 state = pullState,
                 isRefreshing = isRefreshing,
-                modifier = Modifier.align(Alignment.TopCenter),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    // Idle, it was read as "0 percent, progress bar" on every list.
+                    .clearAndSetSemantics { },
             )
         },
         modifier = modifier,

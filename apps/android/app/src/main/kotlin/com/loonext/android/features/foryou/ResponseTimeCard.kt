@@ -42,6 +42,7 @@ import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ProportionRing
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.asToggleButton
 
 /**
  * #239 — the response-time panel, Paper & Olive.
@@ -142,6 +143,7 @@ fun ResponseTimeCard(
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
                             .clickable { onWindow(option) }
+                            .asToggleButton(selected)
                             .padding(4.dp),
                     )
                 }

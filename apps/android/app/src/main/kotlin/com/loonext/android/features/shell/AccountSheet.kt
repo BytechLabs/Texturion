@@ -84,6 +84,7 @@ import com.loonext.android.ui.common.previewMe
 import com.loonext.android.ui.common.rememberHaptics
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import com.loonext.android.ui.common.asToggleButton
 
 /**
  * The 'You' sheet (#100, screen 08): ink identity tile with copyable numbers,
@@ -319,10 +320,12 @@ internal fun AccountSheetContent(
                                         onClick = { if (!selected) onSelectTheme(value) },
                                         shape = CircleShape,
                                         color = Color.Transparent,
-                                        modifier = Modifier.onGloballyPositioned {
-                                            segmentBounds[value] =
-                                                it.positionInParent().x to it.size
-                                        },
+                                        modifier = Modifier
+                                            .onGloballyPositioned {
+                                                segmentBounds[value] =
+                                                    it.positionInParent().x to it.size
+                                            }
+                                            .asToggleButton(selected),
                                     ) {
                                         Text(
                                             label,

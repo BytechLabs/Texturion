@@ -24,6 +24,7 @@ import com.loonext.android.core.auth.AuthManager
 import com.loonext.android.core.auth.PendingOAuth
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.ui.common.asButton
 
 /**
  * Google sign-in via Supabase's PKCE authorize flow (#166) — plain browser
@@ -194,7 +195,8 @@ fun GoogleSignInButton(
         shadowElevation = 1.dp,
         modifier = modifier
             .fillMaxWidth()
-            .alpha(if (busy) 0.55f else 1f),
+            .alpha(if (busy) 0.55f else 1f)
+            .asButton(),
     ) {
         Row(
             Modifier.padding(13.dp),

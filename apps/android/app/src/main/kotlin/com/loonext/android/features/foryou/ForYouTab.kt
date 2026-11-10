@@ -114,6 +114,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import kotlinx.coroutines.delay
 import java.time.Instant
+import com.loonext.android.ui.common.asButton
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 
 /**
  * /for-you — the default landing: Unassigned (every member since #416),
@@ -1392,6 +1395,8 @@ private fun CircleIconButton(
     onClick: () -> Unit,
     showDot: Boolean = false,
 ) {
+    // The coral dot was only a picture; a reader heard "Notifications" either way.
+    val unreadLabel = t("contactsTasks.notifStateUnread")
     val haptics = rememberHaptics()
     val pressSource = remember { MutableInteractionSource() }
     Surface(
@@ -1404,7 +1409,11 @@ private fun CircleIconButton(
         contentColor = MaterialTheme.colorScheme.onSurface,
         shadowElevation = 1.dp,
         interactionSource = pressSource,
-        modifier = Modifier.size(44.dp).pressScale(pressSource),
+        modifier = Modifier
+            .size(44.dp)
+            .pressScale(pressSource)
+            .asButton()
+            .semantics { if (showDot) stateDescription = unreadLabel },
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(17.dp))

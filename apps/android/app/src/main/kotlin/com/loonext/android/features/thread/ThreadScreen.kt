@@ -189,6 +189,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
 
 /**
  * One conversation: header (identity → contact panel, Call button, status,
@@ -585,6 +587,24 @@ private fun ThreadLoaded(
     }
 
     var showNewPill by remember { mutableStateOf(false) }
+
+    // An announcement event, not a live region: a one-pixel live-region node never
+    // spoke under TalkBack, with the sentence already set on it.
+    val announceView = LocalView.current
+    var heardMessages by remember(controller) { mutableStateOf<List<Message>?>(null) }
+    val incomingCopy = t("thread.announceIncoming", "body" to "{body}")
+    val failedCopy = t("thread.announceFailed")
+    LaunchedEffect(controller.messages) {
+        val said = threadAnnouncement(heardMessages, controller.messages)
+        heardMessages = controller.messages
+        val sentence = when (said) {
+            is ThreadAnnouncement.Incoming -> incomingCopy.replace("{body}", said.body)
+            ThreadAnnouncement.Failed -> failedCopy
+            null -> return@LaunchedEffect
+        }
+        @Suppress("DEPRECATION")
+        announceView.announceForAccessibility(sentence)
+    }
 
     // Your OWN sends always jump to the bottom — you want to see what you
     // just sent regardless of where you'd scrolled.
@@ -1631,6 +1651,7 @@ private fun ThreadHeader(
                     .clickable(
                         interactionSource = backInteraction,
                         indication = LocalIndication.current,
+                        role = Role.Button,
                         onClick = onBack,
                     ),
                 contentAlignment = Alignment.Center,
@@ -1764,6 +1785,7 @@ private fun ThreadHeader(
                         interactionSource = callInteraction,
                         indication = LocalIndication.current,
                         enabled = !calling,
+                        role = Role.Button,
                         onClick = onCall,
                     ),
                 contentAlignment = Alignment.Center,
@@ -1804,6 +1826,7 @@ private fun ThreadHeader(
                         .clickable(
                             interactionSource = moreInteraction,
                             indication = LocalIndication.current,
+                            role = Role.Button,
                         ) { menuOpen = true },
                     contentAlignment = Alignment.Center,
                 ) {

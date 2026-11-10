@@ -85,6 +85,7 @@ import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.loonext.android.ui.common.asButton
 
 /**
  * The live-call surface (specs 26/32): identity halo + Bricolage name + big
@@ -574,7 +575,8 @@ internal fun RingActionCircle(
             interactionSource = interaction,
             modifier = Modifier
                 .size(size)
-                .pressScale(interaction),
+                .pressScale(interaction)
+                .asButton(),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 // The label Text sits OUTSIDE the Surface, so the button itself

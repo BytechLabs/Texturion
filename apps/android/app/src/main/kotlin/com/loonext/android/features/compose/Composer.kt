@@ -135,6 +135,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.style.TextDecoration
+import com.loonext.android.ui.common.asToggleButton
 
 enum class ComposerMode { Text, Note }
 
@@ -1762,6 +1763,7 @@ private fun ModePill(
             .background(bg, RoundedCornerShape(50))
             .clip(RoundedCornerShape(50))
             .clickable(onClick = onClick)
+            .asToggleButton(selected)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }

@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.loonext.android.ui.common.boundedGlyph
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.asToggleButton
 
 /**
  * Paper & Olive atoms shared by the call surfaces (specs 03/04/05/25/26/32):
@@ -199,7 +200,8 @@ fun ControlCircle(
             shadowElevation = if (active) 0.dp else 1.dp,
             modifier = Modifier
                 .size(size)
-                .alpha(if (enabled) 1f else 0.45f),
+                .alpha(if (enabled) 1f else 0.45f)
+                .asToggleButton(active),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 // The label below is outside the button, so the button is named

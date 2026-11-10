@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.touchTarget
+import com.loonext.android.ui.common.asToggleButton
+import com.loonext.android.ui.common.asTab
 
 /**
  * Tasks-local pieces of the "paper & olive" grammar (screens 22–24, 31):
@@ -153,7 +155,7 @@ internal fun ViewPill(
         else MaterialTheme.colorScheme.surface,
         contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
         else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier,
+        modifier = modifier.asTab(selected),
     ) {
         Text(
             text,
@@ -181,7 +183,7 @@ internal fun FilterPill(
         else MaterialTheme.colorScheme.surface,
         contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
         else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier,
+        modifier = modifier.asToggleButton(selected),
     ) {
         Row(
             Modifier.padding(horizontal = 11.dp, vertical = 5.dp),

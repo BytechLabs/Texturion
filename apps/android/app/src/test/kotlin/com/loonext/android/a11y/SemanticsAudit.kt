@@ -73,6 +73,7 @@ internal object SemanticsAudit {
             }
             if (node.isHidden()) return@walk
             checkName(node)?.let(failures::add)
+            checkRole(node)?.let(failures::add)
             checkOnScreen(node, root)?.let(failures::add)
             val size = shortSide(node)
             if (size < MIN_TARGET_DP - EPSILON) failures += tooSmall(node, size, "needs $MIN_TARGET_DP")
@@ -90,6 +91,23 @@ internal object SemanticsAudit {
     private fun checkName(node: SemanticsNode): A11yFinding? {
         if (node.spokenName().isNotBlank()) return null
         return A11yFinding("SpeakableTextPresent", node.describe(), "actionable with no name a screen reader can say")
+    }
+
+    // --- Role ----------------------------------------------------------------
+
+    /**
+     * An icon-only control with nothing saying it is a control. TalkBack then reads the
+     * contentDescription and "Double-tap to activate" and never the word "button"; a
+     * `Surface(onClick)` or a bare `clickable` has no role of its own. Found on every
+     * icon button in the emulator TalkBack pass.
+     */
+    private fun checkRole(node: SemanticsNode): A11yFinding? {
+        val config = node.config
+        if (!config.contains(SemanticsActions.OnClick) || config.contains(SemanticsProperties.Role)) return null
+        if (config.contains(SemanticsActions.SetText)) return null
+        val hasText = config.getOrNull(SemanticsProperties.Text).orEmpty().any { it.text.isNotBlank() }
+        if (hasText) return null
+        return A11yFinding("RoleMissing", node.describe(), "icon-only control with no role, so it is not announced as a button")
     }
 
     /** Everything TalkBack would read to name this node, the typed value excluded. */

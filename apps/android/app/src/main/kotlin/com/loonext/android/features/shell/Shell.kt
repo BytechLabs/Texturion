@@ -61,6 +61,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
+import androidx.compose.foundation.selection.selectableGroup
+import com.loonext.android.ui.common.asTab
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -397,7 +399,7 @@ fun MainShell(
                     )
                 }
                 Row(
-                    Modifier.fillMaxSize(),
+                    Modifier.fillMaxSize().selectableGroup(),
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -508,7 +510,7 @@ private fun NavSlot(
             .pressScale(interaction)
             // Announce the active tab's selected state to accessibility
             // (this.selected = the SemanticsPropertyReceiver property).
-            .semantics { this.selected = selected },
+            .asTab(selected),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp))

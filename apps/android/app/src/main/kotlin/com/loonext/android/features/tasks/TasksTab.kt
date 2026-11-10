@@ -114,6 +114,7 @@ import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.loonext.android.ui.common.asTab
 
 /**
  * /tasks — the "paper & olive" tasks surface (spec 24 / dark 31): ScreenTitle,
@@ -797,6 +798,9 @@ private fun ViewToggle(
             checkedContentColor = MaterialTheme.colorScheme.onPrimary,
         ),
         contentPadding = PaddingValues(horizontal = 15.dp, vertical = 10.dp),
+        // A view switcher is one of four, not four checkboxes: it read "checked, List
+        // view, check box".
+        modifier = Modifier.asTab(checked),
     ) {
         Icon(
             icon,

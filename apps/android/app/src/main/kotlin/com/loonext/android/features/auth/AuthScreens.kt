@@ -77,6 +77,9 @@ import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import com.loonext.android.ui.common.asButton
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.hideFromAccessibility
 
 data class AuthUiState(
     val busy: Boolean = false,
@@ -423,6 +426,7 @@ private fun Wordmark() {
 private fun Headline(title: String, body: String?) {
     Text(
         title,
+        modifier = Modifier.semantics { heading() },
         style = MaterialTheme.typography.headlineMedium.copy(
             fontSize = 28.sp,
             lineHeight = 34.sp,
@@ -447,7 +451,7 @@ private fun BackCircle(contentDescription: String, onClick: () -> Unit) {
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 1.dp,
-        modifier = Modifier.size(44.dp),
+        modifier = Modifier.size(44.dp).asButton(),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -502,7 +506,11 @@ private fun AuthField(
                 letterSpacing = 0.1.em,
             ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 6.dp),
+            modifier = Modifier
+                .padding(start = 4.dp, end = 4.dp, bottom = 6.dp)
+                // The field below carries this word as its own name, so the screen
+                // reader stopped on the same label twice.
+                .semantics { hideFromAccessibility() },
         )
         Surface(
             shape = RoundedCornerShape(16.dp),
@@ -587,7 +595,8 @@ private fun InkPillButton(
         contentColor = MaterialTheme.colorScheme.onPrimary,
         modifier = modifier
             .fillMaxWidth()
-            .alpha(if (enabled) 1f else 0.55f),
+            .alpha(if (enabled) 1f else 0.55f)
+            .asButton(),
     ) {
         Row(
             Modifier.padding(start = 22.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
@@ -659,7 +668,7 @@ private fun FooterLink(prefix: String, action: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .heightIn(min = 48.dp),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
@@ -734,7 +743,7 @@ private fun LoginForm(
         modifier = Modifier
             .touchTarget()
             .fillMaxWidth()
-            .clickable(onClick = onForgot)
+            .clickable(role = Role.Button, onClick = onForgot)
             .padding(vertical = 8.dp),
     )
     Spacer(Modifier.height(10.dp))
