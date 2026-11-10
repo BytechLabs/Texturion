@@ -1399,6 +1399,88 @@ all.
 
 ---
 
+## 2f. Stored unread state for For You, and what it did not move (2026-11-10, #698)
+
+The next step 2d named, built and measured on a second temporary stack: a
+Supabase project `loonext-capacity-698` in the BytechLabs organization (Pro,
+us-east-1, Micro, all 393 migrations through the Management API) and a Worker
+`loonext-api-capacity-698` on `workers.dev` (no routes, no crons, fake vendor
+values). The fixture is 2d's shape: four workspaces of 5,000 conversations,
+the measured one with 35,000 messages, an ordinary member who owns 1,250 open
+conversations, 700 tasks. The old and new function ran on the same stack, same
+rows, swapped in place, so every pair below shares hardware and data. Both the
+project and the Worker were deleted afterwards; list calls show neither exists
+and the Durable Object namespace is gone. Production was not touched.
+
+**What was built.** `conversation_unread_basis`: one row per conversation
+holding the newest undeleted message, its sender, and the newest message by
+anyone else (D153). `api_for_you` and `api_list_conversations` read it instead
+of probing `messages`. Two more changes came from measuring, because the first
+alone barely moved anything: `api_for_you` is plpgsql so its plan is kept
+between calls, and its "is this job done" test reads the linked message by
+primary key rather than joining `messages`.
+
+| One call, no load (hosted, one session, interleaved) | ms |
+|---|---|
+| 2d's function (before) | 17.3 to 18.2 |
+| stored unread alone | 16.3 to 16.5 |
+| stored unread, plan kept between calls (shipped) | 13.0 |
+
+`EXPLAIN (ANALYZE, BUFFERS)` of the body as the member, hosted: before 7.4 ms
+planning, 19.4 ms executing, 7,696 buffers; stored unread alone 6.7 ms, 18.9
+ms, 7,696 buffers. The same buffers: on this fixture each conversation has four
+messages, so the old probe was one index lookup on `messages`, exactly what
+the stored row costs. The state pays off on long threads and on a cold cache,
+neither of which this fixture has. The saving that did show is planning (6.7 of
+about 25 ms) and the hash join of the whole `messages` table that a local
+planner chose for the jobs test (6 ms there; the hosted planner did not).
+Output is identical: 32 old/new comparisons across members, hidden numbers,
+limits and both unread filters, and the same on seven parameter sets with the
+cached plan.
+
+| Through PostgREST, 20 callers, function only (requests a second) | Before | Shipped |
+|---|---|---|
+| two alternating runs each | 26.1 and 27.2 | 31.0 and 30.8 |
+| mean `api_for_you` exec under that load | 80 and 73 ms | 50 and 51 ms |
+
+| `GET /v1/for-you` through the Worker, 20 / 40 / 80 callers | Requests a second | Mean exec |
+|---|---|---|
+| before | 12.1 / 12.8 / 12.9 | 128 ms |
+| stored unread alone | 12.0 / 12.6 / 12.7 | 134 ms |
+| shipped | 12.7 / 13.3 / 11.5 | 111 ms |
+
+p95 at 80 callers was 6.2 s before, 6.6 s with stored unread alone and 7.7 s
+shipped, which is run-to-run spread, not a regression the data can resolve.
+
+**The ceiling did not move through the Worker.** About 12 to 13 requests a
+second before and after. The function alone now holds about 31 a second behind
+PostgREST, so the database is no longer what limits the request. Facts that
+narrow where the rest is, none of them a diagnosis: a For You request makes
+exactly three statements on the database and the two that are not `api_for_you`
+take under 1 ms; the database had 1 to 2 active backends during the run, with
+PostgREST connections sitting idle in transaction; the Worker's `/health`
+answers 923 a second at 20 callers; and the same function called directly runs
+at 31 a second. What sits between 31 and 12.7 was not found. The target
+(p95 under 20 ms under load) is not met and this issue stays open.
+
+**Write cost.** An inbound message now also upserts its conversation's state
+row: about 80 microseconds on a local insert that takes about 850 (the broadcast
+and other triggers are most of that), or 3 ms of database time a second at 40
+messages a second. Twelve concurrent sessions ran about 28,000 and then about
+39,000 transactions of inserts, trashes and restores against three conversations with
+no failed transaction and no mismatch between the stored and the true state
+(`pgbench`, local).
+
+**What the run cost.** About 65 minutes of one Pro-tier Micro project at
+$0.01344 an hour is about $0.015, and the Worker handled a few thousand requests.
+Well under $0.05.
+
+**Still unknown.** What limits the Worker path between 12.7 and 31 requests a
+second. A compute size above Micro. A workspace with long threads, where the
+stored state should matter most.
+
+---
+
 ## 3. Where the declared ceilings already are
 
 Not measurements — these are limits the code sets deliberately, collected here

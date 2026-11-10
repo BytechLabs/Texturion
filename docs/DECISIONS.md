@@ -10204,3 +10204,70 @@ those due by the end of their own day, instead of every open task they own.
 
 **Not built.** A per-task mute other than Unfollow; a mention picker in the
 clients' comment box (the API takes the ids); following from a list row.
+
+## D153 - unread is stored once per conversation, not once per member (#698)
+
+**Decision.** "Is this conversation unread for member M" is answered from
+`conversation_unread_basis`, one row per conversation: the newest undeleted
+message (`latest_at`, `latest_by`) and the newest message by someone other than
+`latest_by` (`other_at`). A member's unread is `case when latest_by is distinct
+from M then latest_at else other_at end > conversation_reads.last_read_at`, or
+true with no read row and a message. The newest message not sent by M is either
+the newest message overall or, when M wrote that one, the newest by anyone else,
+so two timestamps and a sender hold every member's answer. `api_for_you` and
+`api_list_conversations` read it; the Trash filter (a trashed message has
+`deleted_at`) is part of the definition, not a second rule.
+
+**Why not a row or a counter per member.** The first shape that suggests itself
+is a counter per member, or a flag per (member, conversation). Each inbound
+message would then write one row per member who can see the thread, and a
+per-member counter is a single row every inbound message in the workspace
+updates. At the 40 inbound messages a second CAPACITY.md 2e measured, a
+five-member crew is 200 writes a second, and each counter is a lock all 40
+inserts a second queue on until their commits, so the whole workspace
+serialises per member. The per-conversation row is written once per message, by
+the transaction that already updates that conversation's `last_message_at`, so
+the only writers that wait on each other are two messages in one thread. It does
+not grow with crew size, it needs no write when somebody reads (reads stay in
+`conversation_reads`), and it is updated without touching an indexed column, so
+it is a HOT update with room left on the page by its fillfactor. Measured cost
+locally: about 80 microseconds on an insert that takes 850.
+
+**How it stays equal to the computed answer.** Triggers on `messages`: an insert
+of an undeleted message, and a restore, fold the message in without reading
+other rows. A soft or hard delete recomputes the conversation, but only when the
+message is at least as new as the older tracked timestamp (an older one cannot be
+either of the two). A change of sender, time or conversation recomputes. The
+recompute takes the state row's lock before it reads `messages`, so a message
+committing at the same moment is either seen or applied after; neither is lost.
+Assignment, closing, spam, snooze and number access are not stored, so they
+cannot drift. The proof is `for_you_unread.test.sql`: a seeded random sequence
+of 700 inserts (some backdated, some tied), reads, trashes, restores, deletes,
+sender and time changes and moves, with the stored answer compared with the old
+computed one for every member and conversation after every step, and the
+tracked timestamps compared with `messages` directly. The test fails if an
+action never ran, and it was shown to fail by dropping each trigger and by
+loosening the delete threshold. Twelve concurrent sessions of inserts, trashes
+and restores (`pgbench`, 67,000 transactions) left no mismatch. The migration
+backfills in the same transaction as the triggers; the test rebuilds the state
+with the backfill statement and compares.
+
+**What it did and did not do.** Measured on a hosted Micro (CAPACITY.md 2f), the
+stored state alone barely moves the call (17.3 to 16.4 ms): with short threads
+the old probe was one index lookup, which is what the state costs. Two changes
+found by measuring did the rest: `api_for_you` is plpgsql so its plan is kept
+between calls (planning was 6.7 of about 25 ms), and its job-done test reads the
+linked message by primary key instead of joining `messages`. One call is 17.5 ms
+before and 13 ms after; the function alone behind PostgREST goes from 27 to 31
+requests a second. `GET /v1/for-you` through the Worker stays at 12 to 13 a
+second, so the ceiling the issue names is set by something between the Worker
+and the function that was not found. The state matters most for long threads
+and cold caches, neither of which that fixture has. The issue stays open.
+
+**Consequences.** A new table (`conversation_unread_basis`) with the four guards:
+no client grants, in the tenant-scope rosters, in the personal-data inventory
+(references and times only), and reached by the workspace purge through its
+conversation's cascade. Anything that writes `messages.deleted_at`,
+`sent_by_user_id`, `created_at` or `conversation_id` needs no change; the
+triggers see it. A new place that decides unread must read this state, not
+probe `messages`.
