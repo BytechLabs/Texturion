@@ -81,6 +81,8 @@ final class ThreadController {
 
     private(set) var members: [Member] = []
     private(set) var contact: Contact?
+    /// #696: this thread's number on the block list, or nil when it is not.
+    private(set) var blockedSender: BlockedSender?
     private(set) var company: CompanyView?
     private(set) var usage: Usage?
     var filter = ThreadFilter()
@@ -252,6 +254,46 @@ final class ThreadController {
             }
         }
         Task { try? await self.refreshScheduled() }
+        Task { try? await self.refreshBlocked() }
+    }
+
+    private var threadPhone: String? {
+        contact?.phone_e164 ?? conversation?.contact.phone_e164
+    }
+
+    private func refreshBlocked() async throws {
+        guard let phone = threadPhone else { return }
+        blockedSender = try await repo.blockedSenders(companyId: companyId)
+            .first { $0.phone_e164 == phone }
+    }
+
+    /// #696: future texts and calls from this number go straight to spam.
+    func blockNumber() {
+        guard let phone = threadPhone else { return }
+        Task {
+            do {
+                blockedSender = try await repo.blockSender(
+                    companyId: companyId,
+                    phoneE164: phone
+                )
+                notify(t("thread.numberBlocked"))
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
+    func unblockNumber() {
+        guard let blocked = blockedSender else { return }
+        Task {
+            do {
+                try await repo.unblockSender(companyId: companyId, id: blocked.id)
+                blockedSender = nil
+                notify(t("thread.numberUnblocked"))
+            } catch {
+                notify(error.userMessage)
+            }
+        }
     }
 
     // MARK: - #233 send later

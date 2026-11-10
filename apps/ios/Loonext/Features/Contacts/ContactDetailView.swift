@@ -44,7 +44,10 @@ struct ContactDetailView: View {
     /// appear, rather than the screen refusing to open over them.
     @State private var customFieldDefs: [ContactFieldDef] = []
     @State private var confirmOptOut = false
+    @State private var confirmBlock = false
     @State private var confirmDelete = false
+    /// #696: this number's row on the block list, or nil when it is not.
+    @State private var blockedSender: BlockedSender?
     @State private var working = false
     @State private var placingCall = false
     /// #292: the timezone picker stays folded until asked for.
@@ -134,6 +137,26 @@ struct ContactDetailView: View {
             ) {
                 conversationId = found.id
             }
+        }
+        // #696: is this number on the block list? A failed read leaves it nil,
+        // so the action reads "Block number", and blocking twice is harmless.
+        .task(id: contact?.phone_e164 ?? "") {
+            guard let phone = contact?.phone_e164 else { return }
+            blockedSender = try? await MessagingRepository(api: graph.api)
+                .blockedSenders(companyId: companyId)
+                .first { $0.phone_e164 == phone }
+        }
+        .alert(t("thread.blockTitle"), isPresented: $confirmBlock) {
+            Button(t("thread.blockConfirm"), role: .destructive) {
+                guard let phone = contact?.phone_e164 else { return }
+                runAction {
+                    blockedSender = try await MessagingRepository(api: graph.api)
+                        .blockSender(companyId: companyId, phoneE164: phone)
+                }
+            }
+            Button(t("common.cancel"), role: .cancel) {}
+        } message: {
+            Text(t("thread.blockBody"))
         }
         .alert(t("contactsTasks.optOutTitle"), isPresented: $confirmOptOut) {
             Button(t("contactsTasks.optOut"), role: .destructive) {
@@ -993,6 +1016,26 @@ struct ContactDetailView: View {
                     ) { confirmOptOut = true }
                     RowDivider()
                 }
+                manageRow(
+                    text: blockedSender != nil
+                        ? t("thread.unblockCaption")
+                        : t("thread.blockCaption"),
+                    actionLabel: blockedSender != nil
+                        ? t("thread.unblockNumber")
+                        : t("thread.blockNumber"),
+                    destructive: false
+                ) {
+                    guard let blocked = blockedSender else {
+                        confirmBlock = true
+                        return
+                    }
+                    runAction {
+                        try await MessagingRepository(api: graph.api)
+                            .unblockSender(companyId: companyId, id: blocked.id)
+                        blockedSender = nil
+                    }
+                }
+                RowDivider()
                 manageRow(
                     text: t("contactsTasks.hideThisContact"),
                     actionLabel: t("contactsTasks.deleteContact"),

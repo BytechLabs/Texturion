@@ -21,6 +21,16 @@ enum MessageStatus {
     static let failed = "failed"
 }
 
+/// #696: a number this workspace sends straight to spam. A block is the
+/// business's choice about its inbox, not an opt-out: the crew can still text it.
+struct BlockedSender: Codable, Sendable {
+    let id: String
+    let phone_e164: String
+    let reason: String?
+    let blocked_by: String?
+    let created_at: String?
+}
+
 struct ContactSummary: Codable, Sendable {
     let id: String
     let name: String?

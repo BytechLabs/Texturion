@@ -230,6 +230,29 @@ struct MessagingRepository: Sendable {
         return page.data
     }
 
+    // MARK: - Blocked numbers (#696)
+
+    func blockedSenders(companyId: String) async throws -> [BlockedSender] {
+        let page: Page<BlockedSender> = try await api.get(
+            "/v1/blocked-senders",
+            companyId: companyId
+        )
+        return page.data
+    }
+
+    /// Idempotent on the server, so a double tap blocks once.
+    func blockSender(companyId: String, phoneE164: String) async throws -> BlockedSender {
+        try await api.post(
+            "/v1/blocked-senders",
+            body: JSONValue.object(["phone_e164": .string(phoneE164)]),
+            companyId: companyId
+        )
+    }
+
+    func unblockSender(companyId: String, id: String) async throws {
+        try await api.delete("/v1/blocked-senders/\(id)", companyId: companyId)
+    }
+
     func setSpam(
         companyId: String,
         conversationId: String,

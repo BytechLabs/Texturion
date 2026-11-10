@@ -130,6 +130,7 @@ private struct ThreadBody: View {
     @State private var detailSheet: ThreadDetailSheet?
     @State private var confirmOptOut = false
     @State private var confirmRevoke = false
+    @State private var confirmBlock = false
     @State private var confirmDiscardQueued: PendingSend?
     @State private var showNewPill = false
     /// #302: who else is on this thread, and this viewer's typing window.
@@ -455,6 +456,7 @@ private struct ThreadBody: View {
                         onOpenGallery: { detailSheet = nil; galleryOpen = true },
                         onOptOut: { detailSheet = nil; confirmOptOut = true },
                         onRevokeOptOut: { detailSheet = nil; confirmRevoke = true },
+                        onBlock: { detailSheet = nil; confirmBlock = true },
                         onRefresh: { detailSheet = nil; controller.refreshAfterReconnect() },
                         onDismiss: { detailSheet = nil }
                     )
@@ -537,6 +539,23 @@ private struct ThreadBody: View {
                 }
             } message: {
                 Text(AppStrings.translate(appLocale, "thread.optOutBody"))
+            }
+            .alert(
+                AppStrings.translate(appLocale, "thread.blockTitle"),
+                isPresented: $confirmBlock
+            ) {
+                Button(
+                    AppStrings.translate(appLocale, "common.cancel"),
+                    role: .cancel
+                ) {}
+                Button(
+                    AppStrings.translate(appLocale, "thread.blockConfirm"),
+                    role: .destructive
+                ) {
+                    controller.blockNumber()
+                }
+            } message: {
+                Text(AppStrings.translate(appLocale, "thread.blockBody"))
             }
             .alert(
                 AppStrings.translate(appLocale, "thread.revokeTitle"),
@@ -1323,6 +1342,9 @@ private struct ThreadHeader: View {
         if controller.contact?.opted_out == true {
             parts += " · " + AppStrings.translate(appLocale, "thread.optedOut")
         }
+        if controller.blockedSender != nil {
+            parts += " · " + AppStrings.translate(appLocale, "thread.blockedBadge")
+        }
         return parts
     }
 
@@ -1482,6 +1504,7 @@ private struct ConversationSheet: View {
     let onOpenGallery: @MainActor () -> Void
     let onOptOut: @MainActor () -> Void
     let onRevokeOptOut: @MainActor () -> Void
+    let onBlock: @MainActor () -> Void
     let onRefresh: @MainActor () -> Void
     let onDismiss: @MainActor () -> Void
 
@@ -1624,6 +1647,25 @@ private struct ConversationSheet: View {
             ) {
                 controller.setSpam(!detail.is_spam)
                 onDismiss()
+            }
+            RowDivider()
+            // #696: a block sends this number's future texts and calls
+            // straight to spam. Unblocking needs no confirmation: it only
+            // lets the next one through.
+            if controller.blockedSender != nil {
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.unblockNumber"),
+                    icon: "arrow.uturn.backward"
+                ) {
+                    controller.unblockNumber()
+                    onDismiss()
+                }
+            } else {
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.blockNumber"),
+                    icon: "hand.raised",
+                    action: onBlock
+                )
             }
             RowDivider()
             if controller.contact?.opted_out == true {

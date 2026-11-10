@@ -152,6 +152,18 @@ enum ThreadStrings {
                 + "This is recorded in the conversation timeline.",
             "thread.optOut": "Opt out",
             "thread.optOutOfTexts": "Opt out of texts",
+            "thread.blockNumber": "Block number",
+            "thread.unblockNumber": "Unblock number",
+            "thread.blockTitle": "Block this number?",
+            "thread.blockBody":
+                "Future texts and calls from this number go straight to spam. "
+                + "You can still text them.",
+            "thread.blockConfirm": "Block",
+            "thread.numberBlocked": "Number blocked",
+            "thread.numberUnblocked": "Number unblocked",
+            "thread.blockedBadge": "Blocked",
+            "thread.blockCaption": "Sends its future texts and calls to spam",
+            "thread.unblockCaption": "Its texts and calls go straight to spam",
             "thread.revokeTitle": "Remove the opt-out?",
             "thread.revokeBody":
                 "You'll be able to text this customer again. Only do this if they "
@@ -814,6 +826,18 @@ enum ThreadStrings {
                 + "retiré. C'est inscrit dans l'historique de la conversation.",
             "thread.optOut": "Désabonner",
             "thread.optOutOfTexts": "Désabonner des textos",
+            "thread.blockNumber": "Bloquer ce numéro",
+            "thread.unblockNumber": "Débloquer ce numéro",
+            "thread.blockTitle": "Bloquer ce numéro ?",
+            "thread.blockBody":
+                "Les prochains textos et appels de ce numéro iront directement aux "
+                + "pourriels. Vous pouvez quand même lui écrire.",
+            "thread.blockConfirm": "Bloquer",
+            "thread.numberBlocked": "Numéro bloqué",
+            "thread.numberUnblocked": "Numéro débloqué",
+            "thread.blockedBadge": "Bloqué",
+            "thread.blockCaption": "Envoie ses prochains textos et appels aux pourriels",
+            "thread.unblockCaption": "Ses textos et appels vont directement aux pourriels",
             "thread.revokeTitle": "Retirer le désabonnement ?",
             "thread.revokeBody":
                 "Vous pourrez de nouveau texter ce client. Ne faites ceci que s'il "
