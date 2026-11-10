@@ -1,5 +1,5 @@
 /**
- * Overdue task alert (#689 D, D150).
+ * Overdue task alert (#689 D, D152).
  *
  * `due-notice.ts` tells the assignee a job is about to come due. This tells them
  * it did, once, a grace period after the due time: long enough that a job
@@ -31,7 +31,7 @@ import { TASK_NOTIFY_COPY } from "./notify-copy";
 /** Tasks alerted per run, bounding a backlog into paced batches. */
 export const TASK_OVERDUE_BATCH = 100;
 
-/** How long after the due time before the job counts as overdue (D150). */
+/** How long after the due time before the job counts as overdue (D152). */
 export const TASK_OVERDUE_GRACE_MINUTES = 15;
 
 /** Beyond this the alert is stale and is not sent. */

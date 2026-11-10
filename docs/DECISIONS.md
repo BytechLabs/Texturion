@@ -10142,6 +10142,7 @@ newest `seq` seen, since the resync read everything.
 tracker. A loss at the very end of a burst, with nothing after it, shows no hole
 until the next event on the topic; the focus and connection resyncs still cover
 that.
+
 ## D152 - people follow a task, and a followed task pushes its changes (#689 D)
 
 **Decision.** A task has followers, GitHub-style, and a change to it pushes the

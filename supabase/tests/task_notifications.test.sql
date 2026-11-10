@@ -1,5 +1,5 @@
 -- [#689 D] Task subscribers and notifications: assertion suite for
--- supabase/migrations/20261110180000_task_subscribers.sql.
+-- supabase/migrations/20261110210000_task_subscribers.sql.
 --
 -- What is pinned:
 --   TN-1  the creator and the assignee follow a task from the moment it exists,

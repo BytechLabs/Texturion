@@ -1,5 +1,5 @@
 /**
- * Task subscriber notifications (#689 D, D150).
+ * Task subscriber notifications (#689 D, D152).
  *
  * A push to everyone who follows a task, never to the person who made the
  * change, when a task is unassigned from someone, has its time changed, is
