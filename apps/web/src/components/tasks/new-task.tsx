@@ -175,7 +175,10 @@ function NewTaskForm({
     try {
       await create.mutateAsync({
         title: trimmed,
-        assigned_user_id: assignee === UNASSIGNED ? null : assignee,
+        // Until `me` loads, leave it out so the API assigns the creator.
+        ...(assigneeOverride === null && !me.data
+          ? {}
+          : { assigned_user_id: assignee === UNASSIGNED ? null : assignee }),
         ...(due === "" ? {} : { due_at: new Date(due).toISOString() }),
         ...(notes.trim() === "" ? {} : { description: notes.trim() }),
         ...(address ? { address } : {}),
