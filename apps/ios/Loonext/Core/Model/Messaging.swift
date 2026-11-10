@@ -159,6 +159,20 @@ struct ConversationListItem: Codable, Sendable {
     /// memberwise-init parameter at every existing construction site.
     var snoozed_until: String? = nil
     var snooze_note: String? = nil
+    /// #694: THIS member's mute and follow on the thread. Muted silences push
+    /// and email for it, never a ring, an @mention or an assignment. Optional
+    /// `var … = nil` so they are not required memberwise-init parameters at
+    /// every construction site; read them as `== true`.
+    var muted: Bool? = nil
+    var muted_until: String? = nil
+    var followed: Bool? = nil
+}
+
+/// The answer to PUT on a thread's mute (#694).
+struct MemberThreadState: Codable, Sendable {
+    @Default<DefaultFalse> var muted: Bool
+    var muted_until: String?
+    @Default<DefaultFalse> var followed: Bool
 }
 
 struct AttachmentSummary: Codable, Sendable {
@@ -315,6 +329,13 @@ struct ConversationDetail: Codable, Sendable {
     /// them Thursday", and in the thread that is the difference between a
     /// reminder and a nap.
     var snooze_kind: String? = nil
+    /// #694: THIS member's mute and follow on the thread. Muted silences push
+    /// and email for it, never a ring, an @mention or an assignment. Optional
+    /// `var … = nil` so they are not required memberwise-init parameters at
+    /// every construction site; read them as `== true`.
+    var muted: Bool? = nil
+    var muted_until: String? = nil
+    var followed: Bool? = nil
     let messages: Page<Message>
     /// #244: nil on nearly every thread, and nil once somebody claims it — an
     /// acknowledged alert is history the timeline already records. `var … = nil`

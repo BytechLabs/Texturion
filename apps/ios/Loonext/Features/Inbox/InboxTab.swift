@@ -1876,6 +1876,16 @@ private struct ConversationRow: View {
                                 .background(BrandColor.inset, in: Capsule())
                                 .lineLimit(1)
                         }
+                        // #694: muted by me. It still counts as unread; it only
+                        // stops making noise.
+                        if row.muted == true {
+                            Image(systemName: "bell.slash")
+                                .font(.scaled(10, weight: .semibold))
+                                .foregroundStyle(BrandColor.muted600)
+                                .accessibilityLabel(
+                                    AppStrings.translate(appLocale, "thread.mutedBadge")
+                                )
+                        }
                         if row.is_spam {
                             Text(AppStrings.translate(appLocale, "inbox.spamLabel"))
                                 .font(.golos(10, weight: .bold))

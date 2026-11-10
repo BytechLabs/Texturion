@@ -1345,6 +1345,9 @@ private struct ThreadHeader: View {
         if controller.blockedSender != nil {
             parts += " · " + AppStrings.translate(appLocale, "thread.blockedBadge")
         }
+        if detail.muted == true {
+            parts += " · " + AppStrings.translate(appLocale, "thread.mutedBadge")
+        }
         return parts
     }
 
@@ -1513,7 +1516,22 @@ private struct ConversationSheet: View {
     /// is WHICH ladder it is completing; nil is closed.
     @State private var snoozePickerKind: DeferralKind?
 
+    /// #694: the mute durations are open in the sheet.
+    @State private var choosingMute = false
+
     @Environment(\.appLocale) private var appLocale
+
+    private struct MuteChoice: Identifiable {
+        let id: String
+        let key: String
+    }
+
+    private static let muteChoices = [
+        MuteChoice(id: "1h", key: "thread.mute1h"),
+        MuteChoice(id: "8h", key: "thread.mute8h"),
+        MuteChoice(id: "1w", key: "thread.mute1w"),
+        MuteChoice(id: "forever", key: "thread.muteForever"),
+    ]
 
     private let statuses = [
         ConversationStatus.new,
@@ -1666,6 +1684,45 @@ private struct ConversationSheet: View {
                     icon: "hand.raised",
                     action: onBlock
                 )
+            }
+            RowDivider()
+            // #694: mute and follow are this member's own. Mute opens the
+            // durations in place rather than a second sheet.
+            if detail.muted == true {
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.unmute"),
+                    icon: "bell"
+                ) {
+                    controller.unmute()
+                    onDismiss()
+                }
+            } else {
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.muteMenu"),
+                    icon: "bell.slash"
+                ) {
+                    choosingMute.toggle()
+                }
+                if choosingMute {
+                    ForEach(Self.muteChoices) { choice in
+                        sheetRow(
+                            AppStrings.translate(appLocale, choice.key),
+                            icon: "clock"
+                        ) {
+                            controller.mute(choice.id)
+                            onDismiss()
+                        }
+                    }
+                }
+            }
+            RowDivider()
+            toggleRow(
+                AppStrings.translate(appLocale, "thread.follow"),
+                icon: "bell.badge",
+                on: detail.followed == true
+            ) {
+                controller.setFollowed(detail.followed != true)
+                onDismiss()
             }
             RowDivider()
             if controller.contact?.opted_out == true {

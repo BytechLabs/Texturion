@@ -326,6 +326,46 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    // MARK: - #694 mute and follow (Android twin MessagingData.kt)
+
+    /// Mute this thread for ME. `duration` is "1h", "8h", "1w" or "forever".
+    func muteConversation(
+        companyId: String,
+        conversationId: String,
+        duration: String
+    ) async throws -> MemberThreadState {
+        try await api.put(
+            "/v1/conversations/\(conversationId)/mute",
+            body: JSONValue.object(["duration": .string(duration)]),
+            companyId: companyId
+        )
+    }
+
+    func unmuteConversation(companyId: String, conversationId: String) async throws {
+        try await api.delete(
+            "/v1/conversations/\(conversationId)/mute",
+            companyId: companyId
+        )
+    }
+
+    /// Follow (or stop following) this thread for ME.
+    func setFollowing(
+        companyId: String,
+        conversationId: String,
+        follow: Bool
+    ) async throws {
+        let path = "/v1/conversations/\(conversationId)/follow"
+        if follow {
+            let _: JSONValue = try await api.put(
+                path,
+                body: JSONValue.object([:]),
+                companyId: companyId
+            )
+        } else {
+            try await api.delete(path, companyId: companyId)
+        }
+    }
+
     // MARK: - #233 send later (Android twin MessagingData.kt)
 
     /// What is queued — one thread's, or the whole workspace's when

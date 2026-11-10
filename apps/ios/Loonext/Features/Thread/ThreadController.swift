@@ -283,6 +283,57 @@ final class ThreadController {
         }
     }
 
+    /// #694: mute for `duration` ("1h", "8h", "1w" or "forever").
+    func mute(_ duration: String) {
+        Task {
+            do {
+                let state = try await repo.muteConversation(
+                    companyId: companyId,
+                    conversationId: conversationId,
+                    duration: duration
+                )
+                conversation?.muted = state.muted
+                conversation?.muted_until = state.muted_until
+                conversation?.followed = state.followed
+                notify(t("thread.mutedToast"))
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
+    func unmute() {
+        Task {
+            do {
+                try await repo.unmuteConversation(
+                    companyId: companyId,
+                    conversationId: conversationId
+                )
+                conversation?.muted = false
+                conversation?.muted_until = nil
+                notify(t("thread.unmutedToast"))
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
+    func setFollowed(_ follow: Bool) {
+        Task {
+            do {
+                try await repo.setFollowing(
+                    companyId: companyId,
+                    conversationId: conversationId,
+                    follow: follow
+                )
+                conversation?.followed = follow
+                notify(t(follow ? "thread.followedToast" : "thread.unfollowedToast"))
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
     func unblockNumber() {
         guard let blocked = blockedSender else { return }
         Task {
@@ -1613,6 +1664,9 @@ extension ConversationDetail {
             snoozed_until: snoozed_until,
             snooze_note: snooze_note,
             snooze_kind: snooze_kind,
+            muted: muted,
+            muted_until: muted_until,
+            followed: followed,
             messages: messages,
             viewer_level: viewer_level,
             destination_clock: destination_clock,
@@ -1652,6 +1706,9 @@ extension ConversationDetail {
             // opt-out warning, the follow-up kind and the customer's clock
             // all vanished from a thread the server still had them on.
             snooze_kind: snooze_kind,
+            muted: muted,
+            muted_until: muted_until,
+            followed: followed,
             messages: messages,
             viewer_level: viewer_level,
             destination_clock: destination_clock,
