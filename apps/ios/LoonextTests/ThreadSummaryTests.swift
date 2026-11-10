@@ -1002,15 +1002,40 @@ final class ThreadSummaryTests: XCTestCase {
                 sites.append("\(relative):\(index + 1)  \(trimmed)")
             }
         }
+        // #716: two places, both a person tapping. The card's onAsk, and
+        // `catchMeUp()`, which the composer hint's Recap and the menu item call.
         XCTAssertEqual(
             sites.count,
-            1,
-            "a catch-up may be asked for from exactly one place — the card's "
-                + "onAsk, which is a person tapping. Found: \(sites)"
+            2,
+            "a catch-up may be asked for from exactly two places: the card's "
+                + "onAsk and catchMeUp. Found: \(sites)"
         )
         XCTAssertTrue(
-            sites.first?.contains("onAsk:") == true,
-            "the only ask for a catch-up must be the card's onAsk. Found: \(sites)"
+            sites.contains { $0.contains("onAsk:") },
+            "the card's onAsk must be one of the asks. Found: \(sites)"
+        )
+        let controller = try iosSource("Features/Thread/ThreadController.swift")
+        let wrapper = controller.range(of: "func catchMeUp()")
+            .map { String(controller[$0.upperBound...].prefix(120)) } ?? ""
+        XCTAssertTrue(
+            wrapper.contains("askForCatchUp()"),
+            "the other ask must be inside catchMeUp. Found: \(sites)"
+        )
+
+        // And catchMeUp itself is only ever a tap: the hint's Recap or the
+        // menu item's action.
+        let view = try iosSource("Features/Thread/ThreadView.swift")
+        let callers = view.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+            .filter { $0.contains("catchMeUp()") && !$0.hasPrefix("//") }
+        XCTAssertEqual(callers.count, 2, "catchMeUp callers: \(callers)")
+        XCTAssertTrue(
+            callers.contains { $0.contains("onRecap:") },
+            "the hint's Recap must be a caller. Found: \(callers)"
+        )
+        XCTAssertTrue(
+            view.contains("private func catchUpMenuAction()"),
+            "the other caller must be the menu item's action. Found: \(callers)"
         )
     }
 
