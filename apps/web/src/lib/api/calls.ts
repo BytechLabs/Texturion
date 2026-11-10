@@ -22,14 +22,28 @@ import type { Call, CallDetail, Page } from "./types";
 
 export type CallOutcomeFilter = "missed" | "answered" | "voicemail";
 
-export function useCalls(outcome?: CallOutcomeFilter) {
+/** #725: calls per reason over the last `days`, for settings (settings.manage). */
+export function useCallEffects(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.callEffects(companyId),
+    queryFn: () =>
+      apiFetch<{ days: number; counts: Record<string, number> }>("/v1/calls/effects", {
+        companyId,
+      }),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useCalls(outcome?: CallOutcomeFilter, reason?: string) {
   const companyId = useCompanyId();
   return useInfiniteQuery({
-    queryKey: keys.calls(companyId, outcome ?? "all"),
+    queryKey: keys.calls(companyId, outcome ?? "all", reason ?? "any"),
     queryFn: ({ pageParam }) =>
       apiFetch<Page<Call>>("/v1/calls", {
         companyId,
-        searchParams: { cursor: pageParam, outcome },
+        searchParams: { cursor: pageParam, outcome, reason },
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,

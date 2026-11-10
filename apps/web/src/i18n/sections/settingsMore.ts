@@ -747,6 +747,10 @@ export const settingsMoreEn = {
   /* The Settings shell and its nav (G8) */
   settingsHeading: "Settings",
   navSectionsAria: "Settings sections",
+  /** #725: what a call setting did in the last 30 days. */
+  callEffectOne: "This touched {count} call in the last {days} days.",
+  callEffectOther: "This touched {count} calls in the last {days} days.",
+  callEffectView: "See them",
   /** #727: the headings the sections are grouped under. */
   navGroupWorkspace: "Business",
   navGroupMessages: "Messages",
@@ -2028,6 +2032,9 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
 
   settingsHeading: "Paramètres",
   navSectionsAria: "Sections des paramètres",
+  callEffectOne: "Ce réglage a touché {count} appel ces {days} derniers jours.",
+  callEffectOther: "Ce réglage a touché {count} appels ces {days} derniers jours.",
+  callEffectView: "Les voir",
   navGroupWorkspace: "Entreprise",
   navGroupMessages: "Messages",
   navGroupPhone: "Appels et numéros",

@@ -18,7 +18,12 @@
  * and the #106 deny list still applies inside the SQL: a restricted member
  * cannot see a hidden number's calls by asking for the contact directly.
  */
-import type { CallEndReason, CallRouting } from "@loonext/shared";
+import {
+  CALL_END_REASONS,
+  CALL_ROUTINGS,
+  type CallEndReason,
+  type CallRouting,
+} from "@loonext/shared";
 import { Hono, type Context } from "hono";
 import { assertEgressWithinAllowance } from "../attachments/egress";
 import type { Env } from "../env";
@@ -77,7 +82,14 @@ const listQuerySchema = z.object({
   outcome: z.enum(["answered", "voicemail", "missed"]).optional(),
   // #205: optional per-contact narrowing for the contact history surface.
   contact_id: z.uuid().optional(),
+  // #725: the calls one reason touched, where the call went or why it ended.
+  reason: z.enum([...CALL_ROUTINGS, ...CALL_END_REASONS] as [string, ...string[]]).optional(),
 });
+
+/** #725: how far back a setting's effect is counted. */
+const EFFECT_DAYS = 30;
+/** A ceiling on the rows counted, far above a month of calls for a crew. */
+const EFFECT_ROW_CAP = 20_000;
 
 /** One row of GET /v1/calls (mirrored by the web `Call` type). */
 export interface CallRow {
@@ -127,10 +139,39 @@ export interface CallRow {
 
 export const callsRoutes = new Hono<AppEnv>();
 
+/**
+ * #725: how many calls each reason touched in the last 30 days, for the
+ * settings that cause them ("After hours: 12 calls"). Behind settings.manage,
+ * the same capability as the settings themselves; it counts every number, so
+ * it is never offered to a role a number may be hidden from.
+ */
+callsRoutes.get("/calls/effects", requireCapability("settings.manage"), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const since = new Date(Date.now() - EFFECT_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const rows = unwrap<{ routing: string | null; ended_reason: string | null }[]>(
+    await db
+      .from("calls")
+      .select("routing,ended_reason")
+      .eq("company_id", c.get("companyId"))
+      .is("deleted_at", null)
+      .gte("started_at", since)
+      .limit(EFFECT_ROW_CAP),
+    "call effects",
+  );
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    for (const reason of new Set([row.routing, row.ended_reason])) {
+      if (reason) counts[reason] = (counts[reason] ?? 0) + 1;
+    }
+  }
+  return c.json({ days: EFFECT_DAYS, counts });
+});
+
 callsRoutes.get("/calls", requireCapability("conversations.read"), async (c) => {
   const query = parseWith(listQuerySchema, {
     outcome: c.req.query("outcome"),
     contact_id: c.req.query("contact_id"),
+    reason: c.req.query("reason"),
   });
   const limit = parseLimit(c, 25, 100);
   const cursor = parseCursor(c);
@@ -150,6 +191,7 @@ callsRoutes.get("/calls", requireCapability("conversations.read"), async (c) => 
       p_cursor_id: cursor?.id ?? null,
       p_hidden_number_ids: access.hiddenNumberIds,
       p_contact_id: query.contact_id ?? null,
+      p_reason: query.reason ?? null,
     }),
     "calls list",
   );

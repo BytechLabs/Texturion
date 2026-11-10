@@ -8,6 +8,7 @@
  * screening, and caller ID (CNAM both directions). Cell forwarding is GONE
  * (D43 deleted it), so there is no cell to configure anywhere.
  */
+import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { DEFAULT_MCTB_MESSAGE, resolveLocale } from "@loonext/shared";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -534,6 +535,7 @@ function ScreeningCard({
           {t("appShell.screeningOwnersOnly")}
         </p>
       )}
+      <CallEffectNote reason="screened" />
     </SettingsCard>
   );
 }

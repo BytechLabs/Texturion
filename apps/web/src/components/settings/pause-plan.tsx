@@ -1,5 +1,6 @@
 "use client";
 
+import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { PauseCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -404,6 +405,7 @@ export function PausedPlanCard({
           </div>
         </div>
       </div>
+      <CallEffectNote reason="paused" />
     </SettingsCard>
   );
 }

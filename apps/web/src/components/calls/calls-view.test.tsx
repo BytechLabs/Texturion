@@ -67,6 +67,7 @@ vi.mock("next/navigation", () => ({
   // #459: the dialer routes to compose and to /contacts, so the view now pulls
   // a router in through it.
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/calls",
 }));
 
 import { CallsView } from "./calls-view";

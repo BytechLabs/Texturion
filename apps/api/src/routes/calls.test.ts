@@ -1238,3 +1238,56 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     expect(sb.find("PATCH", "/rest/v1/calls")).toHaveLength(0);
   });
 });
+
+describe("#725 calls by reason", () => {
+  it("passes one reason to the list, and refuses one it does not know", async () => {
+    const sb = callsStub([]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const ok = await apiRequest(app, env, await auth.token(), "/v1/calls?reason=after_hours", {
+      companyId: COMPANY_ID,
+    });
+    expect(ok.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_list_calls")[0].body).toMatchObject({
+      p_reason: "after_hours",
+    });
+    const bad = await apiRequest(app, env, await auth.token(), "/v1/calls?reason=nope", {
+      companyId: COMPANY_ID,
+    });
+    expect(bad.status).toBe(422);
+  });
+
+  it("counts each reason once per call over the last 30 days", async () => {
+    const sb = callsStub([], { role: "owner" });
+    sb.on("GET", "/rest/v1/calls", () => [
+      { routing: "after_hours", ended_reason: "left_voicemail" },
+      { routing: "after_hours", ended_reason: "caller_hung_up" },
+      { routing: "nobody_reachable", ended_reason: "nobody_reachable" },
+      { routing: "rang", ended_reason: "no_answer_in_time" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/effects", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      days: 30,
+      counts: {
+        after_hours: 2,
+        left_voicemail: 1,
+        caller_hung_up: 1,
+        nobody_reachable: 1,
+        rang: 1,
+        no_answer_in_time: 1,
+      },
+    });
+  });
+
+  it("is a settings read, so a member is refused", async () => {
+    const sb = callsStub([]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/effects", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(403);
+  });
+});

@@ -12,6 +12,9 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// #725: the effect note reads company and query context these tests do not mount.
+vi.mock("@/components/settings/call-effect-note", () => ({ CallEffectNote: () => null }));
+
 const { updateMutate, greetingRows } = vi.hoisted(() => ({
   updateMutate: vi.fn(),
   greetingRows: { current: [] as Record<string, unknown>[] },

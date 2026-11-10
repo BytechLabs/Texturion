@@ -1,5 +1,6 @@
 "use client";
 
+import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { Ban } from "lucide-react";
 
 import {
@@ -35,6 +36,7 @@ export default function BlockedNumbersPage() {
       title={t("blockedNumbers.title")}
       description={t("blockedNumbers.intro")}
     >
+      <CallEffectNote reason="blocked" />
       {list.isError ? (
         <LoadError
           message={t("blockedNumbers.loadFailed")}

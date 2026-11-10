@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// #725: the effect note reads company and query context these tests do not mount.
+vi.mock("@/components/settings/call-effect-note", () => ({ CallEffectNote: () => null }));
+
 import type { CompanyView, Usage } from "@/lib/api/types";
 
 // Hoisted mock state the hooks read; tests seed it before rendering.

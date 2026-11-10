@@ -1,5 +1,6 @@
 "use client";
 
+import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -218,6 +219,7 @@ export function RingCard({
           {t("settingsMore.ringOwnersOnly")}
         </p>
       )}
+      <CallEffectNote reason="no_answer_in_time" />
     </SettingsCard>
   );
 }

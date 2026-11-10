@@ -1,5 +1,6 @@
 "use client";
 
+import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { hasBusinessHours } from "@loonext/shared";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -231,6 +232,7 @@ export function AfterHoursCallsCard({
           {t("settings.afterHoursAdminOnly")}
         </p>
       )}
+      <CallEffectNote reason="after_hours" />
     </SettingsCard>
   );
 }

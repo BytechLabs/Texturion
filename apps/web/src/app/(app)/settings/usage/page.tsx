@@ -1,5 +1,6 @@
 "use client";
 
+import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { DEFAULT_LOCALE, type BillingCurrency } from "@loonext/shared";
 import { Gauge, OctagonPause, TrendingUp } from "lucide-react";
 import Link from "next/link";
@@ -663,6 +664,7 @@ export default function UsageSettingsPage() {
               current={normalizeMultiplier(company.data.overage_cap_multiplier)}
               includedSegments={usage.data.included_segments}
             />
+            <CallEffectNote reason="over_cap" />
           </SettingsCard>
 
           {/* #304: the file for whoever does the books, beside the numbers it

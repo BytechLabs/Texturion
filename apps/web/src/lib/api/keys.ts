@@ -190,8 +190,10 @@ export const keys = {
    * #129 /calls — the call log, one cursor list per outcome filter
    * ("all" | "missed" | "answered" | "voicemail").
    */
-  calls: (companyId: string, outcome: string) =>
-    [companyId, "calls", outcome] as const,
+  calls: (companyId: string, outcome: string, reason = "any") =>
+    [companyId, "calls", outcome, reason] as const,
+  /** #725: how many calls each reason touched, for the settings that cause them. */
+  callEffects: (companyId: string) => [companyId, "calls", "effects"] as const,
 
   /**
    * #239 response-time report, one entry per window. Keyed by the window so

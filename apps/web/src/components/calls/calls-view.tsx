@@ -12,9 +12,10 @@
  * #134/D42: calling is included on every plan, so the old module-off banner
  * is gone — there is no module state to warn about.
  */
-import { Grid3x3, PhoneIncoming } from "lucide-react";
+import { isCallEndReason, isCallRouting } from "@loonext/shared";
+import { Grid3x3, PhoneIncoming, X } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { CallRow } from "@/components/calls/call-row";
@@ -29,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type MessageKey } from "@/i18n/provider";
 import { useCalls, useRingMe, type CallOutcomeFilter } from "@/lib/api/calls";
+import { callEndReason, callRoutingReason } from "@/lib/format/call";
 import { useSoftphone } from "@/lib/softphone/provider";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +48,19 @@ export function CallsView() {
   const [outcome, setOutcome] = useState<CallOutcomeFilter | undefined>(
     undefined,
   );
-  const calls = useCalls(outcome);
+  // #725: a setting's "See them" link narrows the log to one reason.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const rawReason = searchParams.get("reason");
+  const reason =
+    rawReason && (isCallRouting(rawReason) || isCallEndReason(rawReason)) ? rawReason : undefined;
+  const reasonLabel = reason
+    ? isCallRouting(reason)
+      ? callRoutingReason(reason, t)
+      : callEndReason(reason, t)
+    : null;
+  const calls = useCalls(outcome, reason);
   // #210: the Ongoing card derives from the UNFILTERED query — the same cache
   // entry as the All filter — so a live call stays pinned above the log even
   // while Missed is selected (the missed query can't see outcome-null rows).
@@ -148,6 +162,21 @@ export function CallsView() {
           })}
         </div>
       </div>
+      {reason && (
+        <div className="flex items-center gap-1.5 pb-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-secondary py-0.5 pl-2 pr-1 text-[11px] font-medium text-secondary-foreground">
+            {reasonLabel ?? reason}
+            <button
+              type="button"
+              onClick={() => router.replace(pathname, { scroll: false })}
+              aria-label={t("inbox.removeFilterAria", { label: reasonLabel ?? reason })}
+              className="tap-target rounded-full p-0.5 text-muted-foreground transition-colors duration-150 ease-out hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="size-3" strokeWidth={1.75} aria-hidden />
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* #210: who is holding the line, pinned above the log. */}
       <OngoingCalls calls={ongoing} />
