@@ -2427,6 +2427,10 @@ struct MakeTaskSheet: View {
     /// task view is "open, assigned to me", so a task made here and left
     /// unassigned landed in a list nobody was looking at.
     @State private var assigneeId: String?
+    /// #689 C: a standalone task takes a crew of up to ten, default me. Message
+    /// and call tasks keep the single `assigneeId` above.
+    @State private var crew: [String] = []
+    @State private var crewCapHit = false
     @State private var due: Date?
     @State private var dueSuggested = false
     @State private var duePickerOpen = false
@@ -2480,6 +2484,7 @@ struct MakeTaskSheet: View {
         }
         _moreOpen = State(initialValue: !source.isStandalone)
         _assigneeId = State(initialValue: controller.meUserId)
+        _crew = State(initialValue: [controller.meUserId])
     }
 
     /// The thread's "Make a task" on a message.
@@ -2680,22 +2685,60 @@ struct MakeTaskSheet: View {
                         AssigneeChoiceChip(
                             name: name,
                             showsAvatar: true,
-                            selected: assigneeId == member.user_id
+                            selected: isAssignee(member.user_id)
                         ) {
-                            assigneeId =
-                                assigneeId == member.user_id ? nil : member.user_id
+                            toggleAssignee(member.user_id)
                         }
                     }
                     AssigneeChoiceChip(
                         name: AppStrings.translate(locale, "thread.nobody"),
                         showsAvatar: false,
-                        selected: assigneeId == nil
-                    ) { assigneeId = nil }
+                        selected: nobodyAssigned
+                    ) { clearAssignees() }
                 }
                 .padding(.horizontal, 1)
                 .padding(.vertical, 2)
             }
+            if source.isStandalone && (crewCapHit || crew.count >= taskAssigneeMax) {
+                Text(
+                    AppStrings.translate(
+                        locale,
+                        "contactsTasks.assigneesCap",
+                        ["max": String(taskAssigneeMax)]
+                    )
+                )
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.overdueAmber)
+                    .padding(.top, 4)
+            }
         }
+    }
+
+    private func isAssignee(_ id: String) -> Bool {
+        source.isStandalone ? crew.contains(id) : assigneeId == id
+    }
+
+    private var nobodyAssigned: Bool {
+        source.isStandalone ? crew.isEmpty : assigneeId == nil
+    }
+
+    private func toggleAssignee(_ id: String) {
+        guard source.isStandalone else {
+            assigneeId = assigneeId == id ? nil : id
+            return
+        }
+        if let next = taskAssigneesToggled(crew, id: id) {
+            crew = next
+            crewCapHit = false
+        } else {
+            crewCapHit = true
+        }
+    }
+
+    private func clearAssignees() {
+        assigneeId = nil
+        crew = []
+        crewCapHit = false
     }
 
     private var dueRow: some View {
@@ -2944,14 +2987,18 @@ struct MakeTaskSheet: View {
     private func create() {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        // #689 C: a standalone task sends its whole crew (an empty one means
+        // nobody, which is not the same as leaving it out).
+        var sent = meta
+        if source.isStandalone { sent.assigneeIds = crew }
         controller.createTask(
             from: source,
             title: String(trimmed.prefix(taskTitleMax)),
-            assignedUserId: assigneeId,
+            assignedUserId: source.isStandalone ? crew.first : assigneeId,
             dueAt: due.map { encodeDueAt($0) },
             address: addr,
             provenance: addrProvenance ?? AddressProvenance.manual,
-            meta: meta
+            meta: sent
         )
         // #431: report only on an actual create. Somebody who closed the sheet has
         // told us nothing about whether the address was any good, and counting that

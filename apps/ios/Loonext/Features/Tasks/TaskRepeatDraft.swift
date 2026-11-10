@@ -232,6 +232,9 @@ struct TaskDraftMeta: Equatable, Sendable {
     /// Names typed for tags that do not exist yet; created once the task is.
     var newLabelNames: [String] = []
     var repeatDraft: TaskRepeatDraft? = nil
+    /// #689 C: the crew chosen on a standalone task, nil when the sheet did not
+    /// choose one (a message or a call keeps the single-assignee shorthand).
+    var assigneeIds: [String]? = nil
 
     /// Prefix on the id of a not-yet-created label in the editor's list.
     static let pendingPrefix = "new:"

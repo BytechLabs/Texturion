@@ -147,15 +147,20 @@ struct TaskDetailView: View {
         .resyncOnForeground { refreshKey += 1 }
         .sheet(isPresented: $pickerOpen) {
             if let detail {
-                MemberPickerSheet(
+                AssigneePickerSheet(
                     members: members,
                     meUserId: me.user_id,
-                    selectedUserId: detail.assigned_user_id,
-                    showUnassigned: true
-                ) { userId in
+                    initial: detail.assigneeIds,
+                    titleKey: "contactsTasks.assigneesTitle",
+                    allowEmpty: true
+                ) { userIds in
+                    guard userIds != detail.assigneeIds else { return }
                     runScopedPatch { scope in
-                        try await mutations.assign(
-                            companyId: companyId, taskId: detail.id, userId: userId, scope: scope
+                        try await mutations.setAssignees(
+                            companyId: companyId,
+                            taskId: detail.id,
+                            userIds: userIds,
+                            scope: scope
                         )
                     }
                 }
@@ -345,7 +350,7 @@ struct TaskDetailView: View {
             updated_at: row.updated_at,
             done: detail.done,
             status: detail.status,
-            assignee: detail.assignee,
+            assignee: firstAssignee(after: row, detail: detail),
             created_by: detail.created_by,
             source_message: detail.source_message,
             attachments: detail.attachments,
@@ -376,8 +381,18 @@ struct TaskDetailView: View {
             labels: row.labels ?? detail.labels,
             series_id: row.series_id ?? detail.series_id,
             occurrence_no: row.occurrence_no ?? detail.occurrence_no,
-            `repeat`: row.`repeat` ?? detail.`repeat`
+            `repeat`: row.`repeat` ?? detail.`repeat`,
+            // #689 C: the crew the server answered with; the refetch settles names.
+            assignee_ids: row.assignee_ids ?? detail.assignee_ids,
+            assignees: row.assignees ?? detail.assignees
         )
+    }
+
+    /// The legacy single `assignee` profile names the FIRST assignee, so it
+    /// follows the crew a patch row answered with.
+    private func firstAssignee(after row: TaskRowPatch, detail: TaskDetail) -> TaskProfile? {
+        guard let crew = row.assignees else { return detail.assignee }
+        return crew.first
     }
 
     // MARK: - #693 scope
@@ -677,19 +692,10 @@ struct TaskDetailView: View {
     }
 
     private func metaChips(_ detail: TaskDetail) -> some View {
-        let assigneeLabel: String = {
-            if detail.assigned_user_id != nil && detail.assigned_user_id == me.user_id {
-                return AppStrings.translate(appLocale, "contactsTasks.you")
-            }
-            if let name = detail.assignee?.display_name, !name.isBlank { return name }
-            if let name = memberName(detail.assigned_user_id) { return name }
-            return AppStrings.translate(
-                appLocale,
-                detail.assigned_user_id == nil
-                    ? "contactsTasks.unassigned"
-                    : "contactsTasks.teammate"
-            )
-        }()
+        let assigneeFaces = detail.assigneeFaces(roster: { memberName($0) })
+        let assigneeLabel = taskAssigneeSummary(
+            assigneeFaces, meUserId: me.user_id, locale: appLocale
+        )
         let overdue = !detail.done && parseWireTimestamp(detail.due_at).map { $0 < Date() } == true
         let dueLabel: String = {
             if detail.due_at == nil {
@@ -712,7 +718,8 @@ struct TaskDetailView: View {
                 if !noAccess { pickerOpen = true }
             } label: {
                 HStack(spacing: 11) {
-                    metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.assignee"))
+                    metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.assignees"))
+                    AssigneeStack(faces: assigneeFaces, size: 24)
                     Text(assigneeLabel)
                         .font(.golos(13, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)

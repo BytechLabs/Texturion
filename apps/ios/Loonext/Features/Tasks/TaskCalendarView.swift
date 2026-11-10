@@ -421,7 +421,7 @@ struct TaskCalendarView: View {
         } else {
             PaperCard {
                 ForEach(tasks, id: \.id) { task in
-                    CalendarTaskRow(task: task, assigneeName: assigneeName(task)) { done in
+                    CalendarTaskRow(task: task, faces: assigneeFaces(task)) { done in
                         onToggleDone(task, done)
                     }
                     .contentShape(Rectangle())
@@ -491,13 +491,13 @@ struct TaskCalendarView: View {
         }
     }
 
-    /// The row's assignee initials come from the members roster — nil (no
-    /// avatar) when unassigned or the name is blank.
-    private func assigneeName(_ task: TaskItem) -> String? {
-        guard let id = task.assigned_user_id else { return nil }
-        if id == me.user_id { return me.display_name }
-        let name = members.first { $0.user_id == id }?.display_name
-        return (name?.isBlank ?? true) ? nil : name
+    /// The row's crew (#689 C): the payload's own names, else the members
+    /// roster. Empty when unassigned.
+    private func assigneeFaces(_ task: TaskItem) -> [AssigneeFace] {
+        task.assigneeFaces(roster: { id in
+            if id == me.user_id { return me.display_name }
+            return members.first { $0.user_id == id }?.display_name
+        })
     }
 
     // MARK: Labels
@@ -625,7 +625,7 @@ struct TaskCalendarView: View {
 /// touching that type-checker-fragile file).
 private struct CalendarTaskRow: View {
     let task: TaskItem
-    let assigneeName: String?
+    let faces: [AssigneeFace]
     let onToggleDone: @MainActor (Bool) -> Void
 
     @Environment(\.appLocale) private var appLocale
@@ -687,9 +687,7 @@ private struct CalendarTaskRow: View {
                 TaskRowBadges(task: task)
             }
             Spacer(minLength: 0)
-            if let assigneeName {
-                InitialsAvatar(name: assigneeName, size: 28)
-            }
+            AssigneeStack(faces: faces, size: 28)
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 13)

@@ -42,6 +42,7 @@ struct TasksTab: View {
     // reads it next.
     @State private var bulkSelection: BulkSelection = .empty
     @State private var bulkRunning = false
+    @State private var bulkAssignOpen = false
 
     @Environment(\.appLocale) private var appLocale
 
@@ -203,6 +204,23 @@ struct TasksTab: View {
             ) { userId in
                 assigneeChip = userId
                 if userId != nil { unassignedChip = false }
+            }
+        }
+        .sheet(isPresented: $bulkAssignOpen) {
+            AssigneePickerSheet(
+                members: members,
+                meUserId: me.user_id,
+                initial: [],
+                titleKey: "contactsTasks.assigneesBulkTitle",
+                noteKey: "contactsTasks.assigneesBulkNote",
+                allowEmpty: false
+            ) { userIds in
+                runBulk(
+                    action: "assign",
+                    verbOneKey: "contactsTasks.bulkAssignedOne",
+                    verbManyKey: "contactsTasks.bulkAssignedMany",
+                    assigneeIds: userIds
+                )
             }
         }
         .newTaskSheet(
@@ -590,7 +608,7 @@ struct TasksTab: View {
                         PaperCard {
                             ForEach(rows, id: \.id) { task in
                                 let picked = bulkSelection.isRowSelected(task.id)
-                                TaskListRow(task: task, assigneeName: assigneeName(task)) { done in
+                                TaskListRow(task: task, faces: assigneeFaces(task)) { done in
                                     toggleDone(task, done: done)
                                 }
                                 .contentShape(Rectangle())
@@ -671,13 +689,14 @@ struct TasksTab: View {
         }
     }
 
-    /// The row's assignee initials come from the members roster the picker
-    /// already fetches — nil (no avatar) when unassigned or the name is blank.
-    private func assigneeName(_ task: TaskItem) -> String? {
-        guard let id = task.assigned_user_id else { return nil }
-        if id == me.user_id { return me.display_name }
-        let name = members.first { $0.user_id == id }?.display_name
-        return (name?.isBlank ?? true) ? nil : name
+    /// The row's crew (#689 C): names come from the payload's own `assignees`,
+    /// else the members roster the picker already fetches. Empty when nobody is
+    /// assigned; a blank name draws no initials.
+    private func assigneeFaces(_ task: TaskItem) -> [AssigneeFace] {
+        task.assigneeFaces(roster: { id in
+            if id == me.user_id { return me.display_name }
+            return members.first { $0.user_id == id }?.display_name
+        })
     }
 
     /// Any filter change (including the ordering-flipping due chips) rebuilds
@@ -768,7 +787,7 @@ enum TaskViewKind: String, CaseIterable, Identifiable, Sendable {
 
 private struct TaskListRow: View {
     let task: TaskItem
-    let assigneeName: String?
+    let faces: [AssigneeFace]
     let onToggleDone: @MainActor (Bool) -> Void
 
     @Environment(\.appLocale) private var appLocale
@@ -846,9 +865,7 @@ private struct TaskListRow: View {
                 TaskRowBadges(task: task)
             }
             Spacer(minLength: 0)
-            if let assigneeName {
-                InitialsAvatar(name: assigneeName, size: 28)
-            }
+            AssigneeStack(faces: faces, size: 28)
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 13)
@@ -913,7 +930,12 @@ private func previewTask(
                     done: false,
                     dueAt: "2099-07-20T15:00:00Z"
                 ),
-                assigneeName: "Sam Carpenter",
+                faces: [
+                    AssigneeFace(id: "u1", name: "Sam Carpenter"),
+                    AssigneeFace(id: "u2", name: "Alex Mason"),
+                    AssigneeFace(id: "u3", name: "Jo Rivera"),
+                    AssigneeFace(id: "u4", name: "Pat Lee"),
+                ],
                 onToggleDone: { _ in }
             )
             RowDivider()
@@ -924,13 +946,13 @@ private func previewTask(
                     done: false,
                     dueAt: "2020-07-01T15:00:00Z" // past due → the amber Overdue line
                 ),
-                assigneeName: nil,
+                faces: [],
                 onToggleDone: { _ in }
             )
             RowDivider()
             TaskListRow(
                 task: previewTask(id: "t3", title: "Invoice the Hendersons", done: true),
-                assigneeName: "Alex Mason",
+                faces: [AssigneeFace(id: "u2", name: "Alex Mason")],
                 onToggleDone: { _ in }
             )
         }
@@ -987,22 +1009,10 @@ extension TasksTab {
                 .disabled(bulkRunning)
 
             Menu {
-                ForEach(members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
-                    let who = member.display_name.isBlank
-                        ? AppStrings.translate(appLocale, "contactsTasks.teammate")
-                        : member.display_name
-                    Button(
-                        AppStrings.translate(
-                            appLocale, "contactsTasks.assignTo", ["who": who]
-                        )
-                    ) {
-                        runBulk(
-                            action: "assign",
-                            verbOneKey: "contactsTasks.bulkAssignedOne",
-                            verbManyKey: "contactsTasks.bulkAssignedMany",
-                            targetUserId: member.user_id
-                        )
-                    }
+                // #689 C: pick people, then Apply; they are ADDED to every
+                // selected task (nobody is removed). Unassign clears everyone.
+                Button(AppStrings.translate(appLocale, "contactsTasks.addPeople")) {
+                    bulkAssignOpen = true
                 }
                 Button(AppStrings.translate(appLocale, "contactsTasks.unassign")) {
                     runBulk(
@@ -1134,7 +1144,8 @@ extension TasksTab {
         targetUserId: String? = nil,
         unassign: Bool = false,
         priority: String? = nil,
-        tagId: String? = nil
+        tagId: String? = nil,
+        assigneeIds: [String]? = nil
     ) {
         guard !bulkRunning else { return }
         bulkRunning = true
@@ -1164,9 +1175,10 @@ extension TasksTab {
                     targetUserId: targetUserId,
                     unassign: unassign,
                     priority: priority,
-                    tagId: tagId
+                    tagId: tagId,
+                    assigneeIds: assigneeIds
                 )
-                toggleError = bulkResultMessage(
+                var summary = bulkResultMessage(
                     verb: AppStrings.translate(appLocale, verbOneKey),
                     verbMany: AppStrings.translate(appLocale, verbManyKey),
                     applied: result.applied.count,
@@ -1177,6 +1189,15 @@ extension TasksTab {
                     nounMany: AppStrings.translate(appLocale, "contactsTasks.bulkTaskMany"),
                     locale: appLocale
                 )
+                // #689 C: a task already at the cap is reported, not silently skipped.
+                if result.failed.contains(where: { $0.reason == "too_many_assignees" }) {
+                    summary += AppStrings.translate(
+                        appLocale,
+                        "contactsTasks.bulkTooManyAssignees",
+                        ["max": String(taskAssigneeMax)]
+                    )
+                }
+                toggleError = summary
                 bulkSelection = .empty
                 refreshKey += 1
             } catch {

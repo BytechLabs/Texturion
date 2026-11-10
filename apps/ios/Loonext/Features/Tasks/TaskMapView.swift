@@ -435,6 +435,11 @@ private struct PinPeekCard: View {
                     // #693: how much it matters, whether it repeats, its labels.
                     if let single {
                         TaskRowBadges(task: single)
+                        AssigneeStack(
+                            faces: single.assigneeFaces(roster: { _ in nil }),
+                            size: 24
+                        )
+                            .padding(.top, 3)
                     }
                 }
                 Spacer(minLength: 0)
@@ -497,6 +502,10 @@ private struct PinPeekCard: View {
                             TaskPriorityMark(priority: task.priorityValue)
                             if taskShowsRepeatIcon(task.repeatRule) { TaskRepeatMark() }
                             Spacer(minLength: 0)
+                            AssigneeStack(
+                                faces: task.assigneeFaces(roster: { _ in nil }),
+                                size: 22
+                            )
                         }
                         .padding(.horizontal, 15)
                         .padding(.vertical, 10)

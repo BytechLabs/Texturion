@@ -307,6 +307,8 @@ private struct BoardCard: View {
                             : AnyShapeStyle(BrandColor.muted400)
                     )
                 Spacer()
+                // #689 C: the crew, from the names the payload carries.
+                AssigneeStack(faces: task.assigneeFaces(roster: { _ in nil }), size: 22)
                 Button {
                     onMove()
                 } label: {

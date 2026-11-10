@@ -1869,7 +1869,16 @@ extension TaskItem {
             lat: lat,
             lng: lng,
             source: source,
-            call: call
+            call: call,
+            priority: priority,
+            labels: labels,
+            series_id: series_id,
+            occurrence_no: occurrence_no,
+            `repeat`: `repeat`,
+            // #689 C: carried, or an optimistic done toggle would drop the crew
+            // from the checklist row until the next refetch.
+            assignee_ids: assignee_ids,
+            assignees: assignees
         )
     }
 }

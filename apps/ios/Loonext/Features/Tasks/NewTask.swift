@@ -91,7 +91,8 @@ final class NewTaskHost: TaskDraftHost {
                     contactId: contactId,
                     priority: meta.priorityWire,
                     labelIds: meta.labelIds,
-                    repeatRule: repeatBody
+                    repeatRule: repeatBody,
+                    assigneeIds: meta.assigneeIds
                 )
                 // A label typed by name is made once the task exists. The task
                 // is already saved, so a failure here is said, not undone.

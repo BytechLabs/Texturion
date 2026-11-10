@@ -78,6 +78,18 @@ func taskHistorySentence(
             return say("contactsTasks.histAssigned", ["name": name])
         }
         return say("contactsTasks.histReassigned")
+    case "assignee_added":
+        // #689 C: one line per person added to the crew. A person the roster
+        // cannot name reads as a plain update rather than a guess.
+        guard let name = item.to_user?.display_name, !name.isEmpty else {
+            return say("contactsTasks.histUpdated")
+        }
+        return say("contactsTasks.histAssigneeAdded", ["name": name])
+    case "assignee_removed":
+        guard let name = item.from_user?.display_name, !name.isEmpty else {
+            return say("contactsTasks.histUpdated")
+        }
+        return say("contactsTasks.histAssigneeRemoved", ["name": name])
     case "due":
         guard let due = text(item.to), let date = parseWireTimestamp(due) else {
             return say("contactsTasks.histDueCleared")

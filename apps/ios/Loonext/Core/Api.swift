@@ -337,7 +337,9 @@ struct TasksApi: Sendable {
         /// #693: for `set_priority`.
         priority: String? = nil,
         /// #693: for `add_label` and `remove_label`.
-        tagId: String? = nil
+        tagId: String? = nil,
+        /// #689 C: for `assign`, people added to every selected task.
+        assigneeIds: [String]? = nil
     ) async throws -> BulkTasksResult {
         return try await api.post(
             "/v1/tasks/bulk",
@@ -348,7 +350,8 @@ struct TasksApi: Sendable {
                 targetUserId: targetUserId,
                 unassign: unassign,
                 priority: priority,
-                tagId: tagId
+                tagId: tagId,
+                assigneeIds: assigneeIds
             ),
             companyId: companyId
         )

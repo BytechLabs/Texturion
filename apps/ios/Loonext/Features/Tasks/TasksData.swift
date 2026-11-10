@@ -31,6 +31,8 @@ func taskAssignBody(_ userId: String?) -> JSONValue {
     .object(["assigned_user_id": userId.map(JSONValue.string) ?? .null])
 }
 
+/// `{"assignee_ids": [...]}` is `taskAssigneesBody` (TaskAssignees.swift).
+
 /// `{"due_at": "…"}` — nil MUST send an explicit JSON null (clear).
 func taskDueBody(_ dueAt: String?) -> JSONValue {
     .object(["due_at": dueAt.map(JSONValue.string) ?? .null])
@@ -87,13 +89,17 @@ func taskCreateBody(
     priority: String? = nil,
     labelIds: [String] = [],
     /// The repeat rule from `TaskRepeatDraft.wireBody`.
-    repeatRule: JSONValue? = nil
+    repeatRule: JSONValue? = nil,
+    /// #689 C: the whole crew. Wins over `assignedUserId`; an empty array means
+    /// nobody (omitting both makes the creator the assignee).
+    assigneeIds: [String]? = nil
 ) -> JSONValue {
     var object: [String: JSONValue] = [:]
     if let messageId { object["message_id"] = .string(messageId) }
     if let sourceCallId { object["source_call_id"] = .string(sourceCallId) }
     if let title { object["title"] = .string(title) }
     if let assignedUserId { object["assigned_user_id"] = .string(assignedUserId) }
+    if let crew = taskAssigneesJSON(assigneeIds) { object["assignee_ids"] = crew }
     if let dueAt { object["due_at"] = .string(dueAt) }
     if let address { object["address"] = address }
     if let contactId { object["contact_id"] = .string(contactId) }
@@ -148,7 +154,10 @@ func taskBulkBody(
     targetUserId: String?,
     unassign: Bool,
     priority: String? = nil,
-    tagId: String? = nil
+    tagId: String? = nil,
+    /// #689 C: for `assign`, people ADDED to every selected task (nobody is
+    /// removed). Wins over `targetUserId`.
+    assigneeIds: [String]? = nil
 ) -> JSONValue {
     var body: [String: JSONValue] = ["action": .string(action)]
     if let ids {
@@ -169,7 +178,9 @@ func taskBulkBody(
     }
     // Explicit null is meaningful (unassign), so it is only written when the
     // caller says so rather than whenever the id is absent.
-    if let targetUserId {
+    if let assigneeIds, !assigneeIds.isEmpty {
+        body["assignee_ids"] = .array(assigneeIds.map { .string($0) })
+    } else if let targetUserId {
         body["target_user_id"] = .string(targetUserId)
     } else if unassign {
         body["target_user_id"] = .null
@@ -244,6 +255,10 @@ struct TaskRowPatch: Codable, Sendable {
     var series_id: String? = nil
     var occurrence_no: Int? = nil
     var `repeat`: TaskRepeatRule? = nil
+    /// #689 C: the crew after the mutation; `merged()` keeps the detail's own
+    /// when an older server leaves them out.
+    var assignee_ids: [String]? = nil
+    var assignees: [TaskProfile]? = nil
 }
 
 /// POST /v1/tasks/:id/tags: the tag that was attached and the task's labels now.
@@ -323,6 +338,20 @@ struct TaskMutations: Sendable {
             companyId: companyId,
             taskId: taskId,
             body: taskScoped(taskAssignBody(userId), scope: scope)
+        )
+    }
+
+    /// #689 C: replace the whole crew; an empty list unassigns everyone.
+    func setAssignees(
+        companyId: String,
+        taskId: String,
+        userIds: [String],
+        scope: String? = nil
+    ) async throws -> TaskRowPatch {
+        try await patch(
+            companyId: companyId,
+            taskId: taskId,
+            body: taskScoped(taskAssigneesBody(userIds), scope: scope)
         )
     }
 
@@ -486,7 +515,8 @@ struct TaskMutations: Sendable {
         contactId: String?,
         priority: String? = nil,
         labelIds: [String] = [],
-        repeatRule: JSONValue? = nil
+        repeatRule: JSONValue? = nil,
+        assigneeIds: [String]? = nil
     ) async throws -> TaskRowPatch {
         try await api.post(
             "/v1/tasks",
@@ -500,7 +530,8 @@ struct TaskMutations: Sendable {
                 conversationId: conversationId,
                 priority: priority,
                 labelIds: labelIds,
-                repeatRule: repeatRule
+                repeatRule: repeatRule,
+                assigneeIds: assigneeIds
             ),
             companyId: companyId
         )

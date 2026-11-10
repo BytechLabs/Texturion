@@ -60,6 +60,13 @@ struct TaskItem: Codable, Sendable {
     var occurrence_no: Int? = nil
     var `repeat`: TaskRepeatRule? = nil
 
+    /// #689 C: everyone on the task, first assignee first, and the same people
+    /// with their names. Optional with defaults so a row from an older server
+    /// decodes and the memberwise init stays source-compatible; read through
+    /// `assigneeIds` / `assigneeFaces`, which fall back to `assigned_user_id`.
+    var assignee_ids: [String]? = nil
+    var assignees: [TaskProfile]? = nil
+
     var priorityValue: TaskPriority { TaskPriority.from(priority) }
     var labelList: [TaskLabel] { labels ?? [] }
     var repeatRule: TaskRepeatRule? { `repeat` }
@@ -264,6 +271,11 @@ struct TaskDetail: Codable, Sendable {
     var series_id: String? = nil
     var occurrence_no: Int? = nil
     var `repeat`: TaskRepeatRule? = nil
+
+    /// #689 C: everyone on the task, first assignee first, and the same people
+    /// with their names (see `TaskItem`). `assignee` stays the first one.
+    var assignee_ids: [String]? = nil
+    var assignees: [TaskProfile]? = nil
 
     var priorityValue: TaskPriority { TaskPriority.from(priority) }
     var labelList: [TaskLabel] { labels ?? [] }
