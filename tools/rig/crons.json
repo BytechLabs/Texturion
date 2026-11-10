@@ -45,6 +45,7 @@
         "job:daily-summary",
         "job:notify-due-tasks",
         "job:notify-overdue-tasks",
+        "job:task-repeats",
         "job:reconcile-numbers",
         "job:retry-campaign-assignments",
         "job:sweep-deleted-attachments",

@@ -57,6 +57,9 @@ const NOT_A_FILTER: Record<string, string> = {
     "scopes the task list to one thread, which is how the thread screen " +
     "embeds it — not a lens somebody chooses",
   surface: "which saved-view surface is being asked about, not a filter on it",
+  scope:
+    "#693: 'this one' or 'this and future' on a repeating task's tag or " +
+    "delete route, not a lens on the list",
   field: "#291 contact-field filter — the contacts list is not a saved-view " +
     "surface",
   value: "the answer for `field`, same surface",

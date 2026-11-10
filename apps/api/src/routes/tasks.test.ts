@@ -26,7 +26,7 @@ import {
   completeEnv,
   createTestAuth,
   jwksRoute,
-  stubFetch,
+  stubFetch as stubFetchBase,
   type FetchRoute,
   type TestAuth,
 } from "../test/support";
@@ -126,6 +126,24 @@ function reminderRoutes(): FetchRoute[] {
       () => ({ outcome: "synced", removed: 0, added: 0 }),
     ).route,
   ];
+}
+
+/**
+ * #693: every task response carries its labels and repeat, read in one batch
+ * after the row. Appended last, so a test that stubs them keeps its own answer.
+ */
+function stubFetch(...routes: FetchRoute[]) {
+  return stubFetchBase(
+    ...routes,
+    stubRoute(
+      (url) => url.pathname.endsWith("/rest/v1/task_tags"),
+      () => [],
+    ).route,
+    stubRoute(
+      (url) => url.pathname.endsWith("/rest/v1/task_series"),
+      () => [],
+    ).route,
+  );
 }
 
 function numberAccessRoute(rules: unknown[] = []): FetchRoute {

@@ -59,7 +59,9 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { sendTextToConversation } from "../messaging/send-text";
+import { prioritySchema, repeatSchema, withLabelsAndRepeat } from "../tasks/repeat";
 import { parseJsonBody, pathUuid, unwrap } from "./core/http";
+import { setTaskRepeat, setTaskTags } from "./tasks";
 
 /**
  * What a public read returns for a contact.
@@ -74,7 +76,7 @@ const PUBLIC_CONTACT_COLUMNS =
   "id,phone_e164,name,email,business_name,address,notes,created_at,updated_at";
 
 const PUBLIC_TASK_COLUMNS =
-  "id,message_id,source_call_id,conversation_id,contact_id,title,description,due_at,assigned_user_id,created_at";
+  "id,message_id,source_call_id,conversation_id,contact_id,title,description,due_at,assigned_user_id,created_at,priority,series_id";
 
 /**
  * A public task keeps `message_id` (null for a task promoted from a call, D64,
@@ -85,7 +87,7 @@ const PUBLIC_TASK_COLUMNS =
  * just sees null where there is no message.
  */
 function publicTask(row: Record<string, unknown>): Record<string, unknown> {
-  const { source_call_id: callId, ...rest } = row;
+  const { source_call_id: callId, series_id: _series, ...rest } = row;
   const source =
     typeof rest.message_id === "string"
       ? { kind: "message", id: rest.message_id }
@@ -136,6 +138,11 @@ const createTaskSchema = z
     assigned_user_id: z.uuid().nullable().optional(),
     contact_id: z.uuid().optional(),
     conversation_id: z.uuid().optional(),
+    // #693: none, low, normal (default), high or urgent; workspace tag ids; and
+    // a repeat ({kind, unit, every, ...}, see docs/PUBLIC-API.md).
+    priority: prioritySchema.optional(),
+    label_ids: z.array(z.uuid()).max(20).optional(),
+    repeat: repeatSchema.optional(),
   })
   .refine((body) => body.message_id !== undefined || body.title !== undefined, {
     message: "title is required when the task has no message_id.",
@@ -447,7 +454,8 @@ publicApiRoutes.get(
         .limit(limit),
       "public tasks list",
     );
-    return c.json({ data: rows.map(publicTask), limit });
+    const decorated = await withLabelsAndRepeat(db, c.get("companyId"), rows);
+    return c.json({ data: decorated.map(publicTask), limit });
   },
 );
 
@@ -458,6 +466,13 @@ publicApiRoutes.post(
   async (c) => {
     const body = await parseJsonBody(c, createTaskSchema);
     const db = getDb(getEnv(c.env));
+    if (body.repeat?.kind === "schedule" && !body.due_at) {
+      return errorResponse(
+        c,
+        "validation_failed",
+        "repeat: a schedule needs a due_at to start from.",
+      );
+    }
 
     /*
      * #106 — the same check routes/tasks.ts makes on the identical act, and
@@ -538,6 +553,7 @@ publicApiRoutes.post(
       p_call_id: null,
       p_contact_id: body.contact_id ?? null,
       p_conversation_id: body.conversation_id ?? null,
+      p_priority: body.priority ?? "normal",
     });
     if (error) throw new Error(`public create_task failed: ${error.message}`);
 
@@ -584,7 +600,17 @@ publicApiRoutes.post(
       return errorResponse(c, "validation_failed", "title: required without a message_id.");
     }
     if (!result?.task) throw new Error("create_task returned no row");
-    return c.json(publicTask(result.task), 201);
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+    const taskId = result.task.id as string;
+    if (body.label_ids && body.label_ids.length > 0) {
+      await setTaskTags(db, { companyId, taskId, userId, add: body.label_ids });
+    }
+    const task = body.repeat
+      ? await setTaskRepeat(db, { companyId, taskId, userId, repeat: body.repeat })
+      : result.task;
+    const [decorated] = await withLabelsAndRepeat(db, companyId, [task]);
+    return c.json(publicTask(decorated), 201);
   },
 );
 

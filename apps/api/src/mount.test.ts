@@ -45,6 +45,7 @@ import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
 import { notifyDueTasksJob } from "./tasks/due-notice";
 import { notifyOverdueTasksJob } from "./tasks/overdue-notice";
+import { runTaskRepeatsJob } from "./tasks/repeat-job";
 import { runCalendarSyncJob } from "./calendar/worker";
 import { app, CRON_JOBS } from "./index";
 import {
@@ -538,6 +539,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runDailySummary,
       notifyDueTasksJob,
       notifyOverdueTasksJob,
+      runTaskRepeatsJob,
       reconcileNumbers,
       retryCampaignAssignments,
       sweepDeletedAttachments,

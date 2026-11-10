@@ -78,7 +78,11 @@ afterEach(() => {
  * `scopes` is the knob every test below turns; the point of the surface is
  * that holding one scope grants exactly one thing.
  */
-function stubWithKey(scopes: string[], role = "owner"): SupabaseStub {
+function stubWithKey(
+  scopes: string[],
+  role = "owner",
+  labelDefaults = true,
+): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on("POST", "/rest/v1/rpc/api_resolve_key", () => [
     { id: KEY_ID, company_id: COMPANY_ID, scopes, created_by: CREATOR },
@@ -88,6 +92,11 @@ function stubWithKey(scopes: string[], role = "owner"): SupabaseStub {
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, role),
   );
+  // #693: every task response carries its labels and repeat.
+  if (labelDefaults) {
+    sb.on("GET", "/rest/v1/task_tags", () => []);
+    sb.on("GET", "/rest/v1/task_series", () => []);
+  }
   return sb;
 }
 
@@ -493,6 +502,64 @@ describe("writes", () => {
       p_actor_user_id: CREATOR,
       p_title: "Fix the boiler",
     });
+  });
+
+  it("creates a task with a priority, labels and a repeat (#693)", async () => {
+    const TAG = "66666666-0000-4000-8000-000000000066";
+    const sb = stubWithKey(["tasks:write"], "owner", false);
+    sb.on("POST", "/rest/v1/rpc/create_task", () => ({
+      outcome: "created",
+      task: { id: "tk-3", title: "Annual backflow test", priority: "high", series_id: null },
+    }));
+    sb.on("POST", "/rest/v1/rpc/api_set_task_tags", () => ({ outcome: "updated", labels: [] }));
+    sb.on("POST", "/rest/v1/rpc/api_set_task_repeat", () => ({
+      outcome: "set",
+      task: { id: "tk-3", title: "Annual backflow test", priority: "high", series_id: "s-1" },
+    }));
+    sb.on("GET", "/rest/v1/task_tags", () => [
+      { task_id: "tk-3", tag: { id: TAG, name: "inspection", color: null } },
+    ]);
+    sb.on("GET", "/rest/v1/task_series", () => [
+      {
+        id: "s-1", kind: "schedule", unit: "year", every: 1, weekdays: null,
+        month_day: null, nth: null, nth_weekday: null, ends_kind: "never",
+        ends_on: null, ends_after: null, paused: false, stopped_at: null,
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Annual backflow test",
+        due_at: "2027-05-01T14:00:00.000Z",
+        priority: "high",
+        label_ids: [TAG],
+        repeat: { kind: "schedule", unit: "year" },
+      }),
+    });
+    expect(res.status).toBe(201);
+    expect(sb.find("POST", "/rest/v1/rpc/create_task")[0].body).toMatchObject({ p_priority: "high" });
+    expect(sb.find("POST", "/rest/v1/rpc/api_set_task_tags")[0].body).toMatchObject({ p_add: [TAG] });
+    const body = (await res.json()) as {
+      priority: string; labels: { name: string }[]; repeat: { unit: string }; series_id?: string;
+    };
+    expect(body.priority).toBe("high");
+    expect(body.labels[0].name).toBe("inspection");
+    expect(body.repeat.unit).toBe("year");
+    expect(body).not.toHaveProperty("series_id");
+  });
+
+  it("a schedule needs a due_at, said before anything is created (#693)", async () => {
+    const sb = stubWithKey(["tasks:write"]);
+    sb.on("POST", "/rest/v1/rpc/create_task", () => ({ outcome: "created", task: { id: "x" } }));
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      body: JSON.stringify({ title: "Weekly", repeat: { kind: "schedule", unit: "week" } }),
+    });
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(0);
   });
 
   it("creates a standalone task from a title alone, with source null", async () => {

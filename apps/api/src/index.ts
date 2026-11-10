@@ -44,6 +44,7 @@ import { runAupSignalsJob } from "./messaging/aup-watch";
 import { runRetentionEnforceJob } from "./workspace/retention-enforce";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { notifyDueTasksJob } from "./tasks/due-notice";
+import { runTaskRepeatsJob } from "./tasks/repeat-job";
 import { notifyOverdueTasksJob } from "./tasks/overdue-notice";
 import {
   ApiError,
@@ -658,6 +659,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     job("job:notify-due-tasks", notifyDueTasksJob),
     // #689 D: the same assignee, once, a grace period after the due time.
     job("job:notify-overdue-tasks", notifyOverdueTasksJob),
+    // #693: keep the next occurrences of schedule repeats created ahead of time,
+    // so they show on the calendar and the board before they are due. Every
+    // quarter hour is plenty: the unit is a day.
+    job("job:task-repeats", runTaskRepeatsJob),
     job("job:reconcile-numbers", reconcileNumbers),
     job("job:retry-campaign-assignments", retryCampaignAssignments),
     job("job:sweep-deleted-attachments", sweepDeletedAttachments),

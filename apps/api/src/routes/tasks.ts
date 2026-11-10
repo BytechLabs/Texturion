@@ -84,6 +84,16 @@ import { ApiError, errorResponse } from "../http/errors";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
 import { notifyTaskChangeSafely, type TaskChange } from "../tasks/notify";
+import {
+  PRIORITIES,
+  PRIORITY_RANK,
+  prioritySchema,
+  repeatSchema,
+  scopeSchema,
+  withLabelsAndRepeat,
+  withLabelsAndRepeatOne,
+  type TaskPriority,
+} from "../tasks/repeat";
 import { decodeCursor, encodeCursor } from "../http/pagination";
 import {
   buildEnrichmentMessages,
@@ -213,6 +223,10 @@ interface TaskFilters {
   dueBefore: string | undefined;
   dueAfter: string | undefined;
   overdue: boolean;
+  /** #693: any of these priorities. */
+  priorities?: string[];
+  /** #693: carries this tag. The caller adds the `task_tags!inner` embed. */
+  tagId?: string;
 }
 
 function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
@@ -225,6 +239,7 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
     lte(col: string, value: string): typeof q;
     gte(col: string, value: string): typeof q;
     lt(col: string, value: string): typeof q;
+    in(col: string, values: string[]): typeof q;
   };
   const { doneAtCol } = filters;
 
@@ -247,6 +262,10 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
     // Overdue = past due AND not yet done (a done task is never "overdue").
     q = q.lt("due_at", new Date().toISOString()).is(doneAtCol, null);
   }
+  if (filters.priorities && filters.priorities.length > 0) {
+    q = q.in("priority", filters.priorities);
+  }
+  if (filters.tagId !== undefined) q = q.eq("task_tags.tag_id", filters.tagId);
   return q as never as T;
 }
 
@@ -291,6 +310,44 @@ function dueKeysetFilter(cursor: DueCursor): string {
 }
 
 /**
+ * #693: the priority-sorted view orders by (priority_rank DESC, created_at DESC,
+ * id DESC), so its cursor carries all three.
+ */
+const priorityCursorSchema = z.object({
+  r: z.number().int().min(0).max(4),
+  ts: z.iso.datetime({ offset: true }),
+  id: z.uuid(),
+});
+
+type PriorityCursor = z.infer<typeof priorityCursorSchema>;
+
+function encodePriorityCursor(cursor: PriorityCursor): string {
+  return toBase64Url(JSON.stringify(priorityCursorSchema.parse(cursor)));
+}
+
+function parsePriorityCursor(rawCursor: string | undefined): PriorityCursor | null {
+  if (rawCursor === undefined) return null;
+  let candidate: unknown;
+  try {
+    candidate = JSON.parse(fromBase64Url(rawCursor));
+  } catch {
+    throw new ApiError("validation_failed", "Invalid cursor.");
+  }
+  const result = priorityCursorSchema.safeParse(candidate);
+  if (!result.success) throw new ApiError("validation_failed", "Invalid cursor.");
+  return result.data;
+}
+
+/** The strict successor of `cursor` under (rank DESC, created_at DESC, id DESC). */
+function priorityKeysetFilter(cursor: PriorityCursor): string {
+  return (
+    `priority_rank.lt.${cursor.r},` +
+    `and(priority_rank.eq.${cursor.r},created_at.lt.${cursor.ts}),` +
+    `and(priority_rank.eq.${cursor.r},created_at.eq.${cursor.ts},id.lt.${cursor.id})`
+  );
+}
+
+/**
  * Columns of the tasks row the API returns (T1.1). No status column: `done` is
  * derived (see TASK_DONE_AT) and added to each row by `withSource`/the callers.
  */
@@ -309,7 +366,9 @@ const TASK_COLUMNS =
   // `confirmed_at`: a crew confirmation is a note to ourselves, a customer one
   // is a promise, and a screen that showed them the same way would let a
   // dispatcher trust the weaker of the two.
-  "reminders_off,confirmed_at,confirmed_by";
+  "reminders_off,confirmed_at,confirmed_by," +
+  // #693: priority, and which repeat (if any) this task is an occurrence of.
+  "priority,series_id,occurrence_no";
 
 /**
  * The task's effective done time as a PostgREST computed column
@@ -451,6 +510,10 @@ const createSchema = z
   due_at: z.iso.datetime({ offset: true }).nullable().optional(),
   // #214: the confirmed enriched (or hand-entered) job address.
   address: addressSchema.nullable().optional(),
+  // #693: priority (default normal), workspace tags, and a repeat.
+  priority: prioritySchema.optional(),
+  label_ids: z.array(z.uuid()).max(20).optional(),
+  repeat: repeatSchema.optional(),
 })
   .refine((body) => body.message_id === undefined || body.source_call_id === undefined, {
     message: "Provide at most one of message_id or source_call_id.",
@@ -484,6 +547,12 @@ const patchSchema = z
     due_at: z.iso.datetime({ offset: true }).nullable().optional(),
     // #214: replace the whole address block (null clears it).
     address: addressSchema.nullable().optional(),
+    priority: prioritySchema.optional(),
+    // #693: set, change or (null) clear the repeat. Always "this and future".
+    repeat: repeatSchema.nullable().optional(),
+    // #693: on an occurrence of a repeat, whether the field edits also apply to
+    // the later occurrences nobody has finished. Default this one.
+    scope: scopeSchema.optional(),
   })
   .strict()
   .refine(
@@ -491,6 +560,8 @@ const patchSchema = z
       body.title !== undefined ||
       body.description !== undefined ||
       body.done !== undefined ||
+      body.priority !== undefined ||
+      "repeat" in body ||
       "assigned_user_id" in body ||
       "due_at" in body ||
       "address" in body,
@@ -525,6 +596,7 @@ const taskOutcomeSchema = z.object({
     "bad_link",
     "not_member",
     "conflict",
+    "bad_priority",
   ]),
   task: z.record(z.string(), z.unknown()).nullable().optional(),
 });
@@ -569,6 +641,11 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
+
+  // #693: a schedule repeats from a date. Said before anything is written.
+  if (body.repeat?.kind === "schedule" && !body.due_at) {
+    throw new ApiError("validation_failed", "repeat: a schedule needs a due date to start from.");
+  }
 
   // #106/#107: a member with no access to the source's number can't promote it
   // to a task (that number's content is hidden from them). Creating a task is
@@ -663,6 +740,7 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     // #689: the optional links of a standalone task.
     p_contact_id: body.contact_id ?? null,
     p_conversation_id: body.conversation_id ?? null,
+    p_priority: body.priority ?? "normal",
   });
   if (error) throw new Error(`create_task failed: ${error.message}`);
   const result = parseTaskOutcome(data);
@@ -741,6 +819,26 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     );
   }
   if (!result.task) throw new Error("create_task returned no row");
+  let created: Record<string, unknown> = result.task;
+
+  // #693: the labels and the repeat the form carried. After the task exists, so
+  // each is the same RPC a later edit uses.
+  if (body.label_ids && body.label_ids.length > 0) {
+    await setTaskTags(db, {
+      companyId,
+      taskId: created.id as string,
+      userId,
+      add: body.label_ids,
+    });
+  }
+  if (body.repeat) {
+    created = await setTaskRepeat(db, {
+      companyId,
+      taskId: created.id as string,
+      userId,
+      repeat: body.repeat,
+    });
+  }
 
   // #515: a task created already pointed at somebody is a hand-off like any
   // other. Creating one for yourself notifies nobody — `notifyAssigned` drops
@@ -781,8 +879,67 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     },
   });
 
-  return c.json(withSource(result.task), 201);
+  return c.json(await withLabelsAndRepeatOne(db, companyId, withSource(created)), 201);
 });
+
+/** The `api_set_task_tags` RPC, with its outcomes as API errors. Returns the labels. */
+export async function setTaskTags(
+  db: Db,
+  input: {
+    companyId: string;
+    taskId: string;
+    userId: string;
+    add?: string[];
+    remove?: string[];
+  },
+): Promise<unknown[]> {
+  const { data, error } = await db.rpc("api_set_task_tags", {
+    p_company_id: input.companyId,
+    p_task_id: input.taskId,
+    p_actor_user_id: input.userId,
+    p_add: input.add ?? null,
+    p_remove: input.remove ?? null,
+  });
+  if (error) throw new Error(`api_set_task_tags failed: ${error.message}`);
+  const result = data as { outcome: string; labels?: unknown[] };
+  if (result.outcome === "not_found") throw new ApiError("not_found", "No such task.");
+  if (result.outcome === "tag_not_found") {
+    throw new ApiError("validation_failed", "label: no such tag in this company.");
+  }
+  return result.labels ?? [];
+}
+
+/**
+ * The `api_set_task_repeat` RPC, with its outcomes as API errors. `null` clears
+ * the repeat. Returns the task row.
+ */
+export async function setTaskRepeat(
+  db: Db,
+  input: {
+    companyId: string;
+    taskId: string;
+    userId: string;
+    repeat: z.infer<typeof repeatSchema> | null;
+  },
+): Promise<Record<string, unknown>> {
+  const { data, error } = await db.rpc("api_set_task_repeat", {
+    p_company_id: input.companyId,
+    p_task_id: input.taskId,
+    p_actor_user_id: input.userId,
+    p_repeat: input.repeat,
+  });
+  if (error) throw new Error(`api_set_task_repeat failed: ${error.message}`);
+  const result = data as { outcome: string; reason?: string; task?: Record<string, unknown> };
+  if (result.outcome === "not_found") throw new ApiError("not_found", "No such task.");
+  if (result.outcome === "needs_due") {
+    throw new ApiError("validation_failed", "repeat: a schedule needs a due date to start from.");
+  }
+  if (result.outcome === "invalid") {
+    throw new ApiError("validation_failed", `repeat: ${result.reason ?? "not a valid rule"}.`);
+  }
+  if (!result.task) throw new Error("api_set_task_repeat returned no row");
+  return result.task;
+}
 
 /**
  * Fire the #515 hand-off alert without letting it touch the response.
@@ -1116,6 +1273,26 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   const rawAssignee = c.req.query("assigned_user_id");
   const unassigned = c.req.query("unassigned") === "true";
   const rawQ = c.req.query("q")?.trim();
+  // #693: filter by priority (comma list) and by tag; sort by created, due or priority.
+  const rawPriority = c.req.query("priority");
+  const priorities =
+    rawPriority === undefined || rawPriority === ""
+      ? undefined
+      : [...new Set(rawPriority.split(",").map((p) => p.trim()))];
+  if (priorities?.some((p) => !PRIORITIES.includes(p as TaskPriority))) {
+    throw new ApiError(
+      "validation_failed",
+      `priority must be a comma list of ${PRIORITIES.join(", ")}.`,
+    );
+  }
+  const tagId = c.req.query("tag_id");
+  if (tagId !== undefined && !z.uuid().safeParse(tagId).success) {
+    throw new ApiError("validation_failed", "tag_id must be a UUID.");
+  }
+  const sort = c.req.query("sort");
+  if (sort !== undefined && !["created", "due", "priority"].includes(sort)) {
+    throw new ApiError("validation_failed", "sort must be created, due or priority.");
+  }
 
   // Validate the filter params before they reach PostgREST — a malformed
   // uuid/timestamp otherwise raises a PostgREST type error (22P02) that surfaces
@@ -1160,6 +1337,8 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     conversationId !== undefined ||
     rawAssignee !== undefined ||
     unassigned ||
+    priorities !== undefined ||
+    tagId !== undefined ||
     (rawQ !== undefined && rawQ !== "");
   const effectiveStatus = status ?? (anyFilter ? undefined : "open");
   const assignee =
@@ -1171,11 +1350,20 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   // (due_at NULLS LAST, id); otherwise newest-first (created_at, id) DESC. Each
   // ordering has its OWN cursor shape, so decode the token against the shape
   // this request will use (a token minted for the other view → 422).
+  const prioritySorted = sort === "priority";
   const dueSorted =
-    overdue || dueBefore !== undefined || dueAfter !== undefined;
+    !prioritySorted &&
+    (sort === "due" ||
+      (sort === undefined &&
+        (overdue || dueBefore !== undefined || dueAfter !== undefined)));
   const dueCursor = dueSorted ? parseDueCursor(rawCursor) : null;
+  const priorityCursor = prioritySorted ? parsePriorityCursor(rawCursor) : null;
   const createdCursor =
-    dueSorted || rawCursor === undefined ? null : decodeCursor(rawCursor);
+    dueSorted || prioritySorted || rawCursor === undefined
+      ? null
+      : decodeCursor(rawCursor);
+  // The inner embed that makes `task_tags.tag_id` a row filter.
+  const tagEmbed = tagId === undefined ? "" : ",task_tags!inner(tag_id)";
 
   // The common (non-map) path reads `tasks` and selects the computed column
   // `task_done_at` (the source message's done_at, or the task's own when it has
@@ -1197,7 +1385,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     ? db
         .from("task_map_rows")
         .select(
-          `${TASK_COLUMNS},done_at,contact_id,contact_name,contact_lat,contact_lng,${CALENDAR_HOLD_EMBED}`,
+          `${TASK_COLUMNS},done_at,contact_id,contact_name,contact_lat,contact_lng,${CALENDAR_HOLD_EMBED}${tagEmbed}`,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null)
@@ -1206,7 +1394,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     : db
         .from("tasks")
         .select(
-          `${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}`,
+          `${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}${tagEmbed}`,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null);
@@ -1221,6 +1409,8 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     dueBefore,
     dueAfter,
     overdue,
+    priorities,
+    tagId,
   });
   if (hasLocation) {
     // #106/#107: the map exposes the source contact's NAME + geocode — that's
@@ -1257,6 +1447,12 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     // id) — NOT a bare `id > cursor.id`, which drops/misorders rows whose id is
     // unrelated to the due_at primary key (T6.1).
     if (dueCursor) query = query.or(dueKeysetFilter(dueCursor));
+  } else if (prioritySorted) {
+    query = query
+      .order("priority_rank", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (priorityCursor) query = query.or(priorityKeysetFilter(priorityCursor));
   } else {
     query = query
       .order("created_at", { ascending: false })
@@ -1267,6 +1463,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   interface TaskListRow {
     id: string;
     created_at: string;
+    priority: string;
     due_at: string | null;
     // Non-map path: `done` derives from the task_done_at computed column.
     done_state?: string | null;
@@ -1288,10 +1485,11 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
 
   const hasNext = rows.length > limit;
   const pageRows = hasNext ? rows.slice(0, limit) : rows;
-  const data = pageRows.map((row) => {
+  const shaped = pageRows.map((row) => {
     const rest = { ...row } as Record<string, unknown>;
     // Empty embeds are filtering artifacts, never part of the task contract.
     delete rest.calendar_hold;
+    delete rest.task_tags;
     if (hasLocation) {
       // Map view (task_map_rows view): `done` + the source contact's geocode
       // arrive as FLAT columns. Derive done, fold the geocode into `contact`
@@ -1343,8 +1541,15 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     const last = pageRows[pageRows.length - 1];
     nextCursor = dueSorted
       ? encodeDueCursor({ d: last.due_at, id: last.id })
-      : encodeCursor({ ts: last.created_at, id: last.id });
+      : prioritySorted
+        ? encodePriorityCursor({
+            r: PRIORITY_RANK[last.priority as TaskPriority],
+            ts: last.created_at,
+            id: last.id,
+          })
+        : encodeCursor({ ts: last.created_at, id: last.id });
   }
+  const data = await withLabelsAndRepeat(db, companyId, shaped);
 
   return c.json({ data, next_cursor: nextCursor });
 });
@@ -1414,7 +1619,15 @@ interface TaskBulkResult {
 
 const taskBulkSchema = z
   .object({
-    action: z.enum(["mark_done", "mark_undone", "assign", "delete"]),
+    action: z.enum([
+      "mark_done",
+      "mark_undone",
+      "assign",
+      "delete",
+      "set_priority",
+      "add_label",
+      "remove_label",
+    ]),
     /** Explicit selection. Omit to act on everything matching `filter`. */
     ids: z.array(z.uuid()).min(1).max(1000).optional(),
     /** Select-all-matching. Same field names as GET /v1/tasks. */
@@ -1427,10 +1640,25 @@ const taskBulkSchema = z
         due_before: z.string().optional(),
         due_after: z.string().optional(),
         overdue: z.boolean().optional(),
+        priority: z.array(prioritySchema).min(1).optional(),
+        tag_id: z.uuid().optional(),
       })
       .optional(),
     target_user_id: z.uuid().nullable().optional(),
+    /** `set_priority`'s value. */
+    priority: prioritySchema.optional(),
+    /** `add_label` / `remove_label`'s tag. */
+    tag_id: z.uuid().optional(),
   })
+  .refine((body) => body.action !== "set_priority" || body.priority !== undefined, {
+    message: "priority: needed to set a priority.",
+  })
+  .refine(
+    (body) =>
+      (body.action !== "add_label" && body.action !== "remove_label") ||
+      body.tag_id !== undefined,
+    { message: "tag_id: needed to add or remove a label." },
+  )
   .refine((body) => body.ids !== undefined || body.filter !== undefined, {
     // Neither means "every task in the company", which no UI should be able to
     // ask for by omitting a field.
@@ -1471,7 +1699,9 @@ tasksRoutes.post(
         excludeCalendarAttentionHolds(
           db
             .from("tasks")
-            .select(`id,${CALENDAR_HOLD_EMBED}`)
+            .select(
+              `id,${CALENDAR_HOLD_EMBED}${filter.tag_id ? ",task_tags!inner(tag_id)" : ""}`,
+            )
             .eq("company_id", companyId)
             .is("deleted_at", null),
           companyId,
@@ -1488,6 +1718,8 @@ tasksRoutes.post(
           dueBefore: filter.due_before,
           dueAfter: filter.due_after,
           overdue: filter.overdue === true,
+          priorities: filter.priority,
+          tagId: filter.tag_id,
         },
       );
       // One more than the RPC's cap, so `capped` can be honest: the RPC reports
@@ -1526,6 +1758,8 @@ tasksRoutes.post(
         p_ids: ids,
         p_target_user_id: body.target_user_id ?? null,
         p_hidden_number_ids: access.hiddenNumberIds ?? null,
+        p_priority: body.priority ?? null,
+        p_tag_id: body.tag_id ?? null,
       }),
       "api_bulk_tasks",
     );
@@ -1538,6 +1772,9 @@ tasksRoutes.post(
         "validation_failed",
         "That person is not an active member of this workspace.",
       );
+    }
+    if (result.error === "tag_not_found") {
+      throw new ApiError("validation_failed", "tag_id: no such tag in this company.");
     }
     return c.json(result);
   },
@@ -1614,17 +1851,21 @@ tasksRoutes.get(
       rows.map((row) => ({ id: row.id, message_id: row.message_id })),
     );
 
-    const data = rows.map((row) => {
-      const { done_state, source_call, ...rest } = row;
-      const done = (done_state ?? null) !== null;
-      return withSource({
-        ...rest,
-        done,
-        status: done ? "done" : "open",
-        call: publicSourceCall(source_call),
-        attachment_count: attachmentUnions.get(row.id)?.length ?? 0,
-      });
-    });
+    const data = await withLabelsAndRepeat(
+      db,
+      companyId,
+      rows.map((row) => {
+        const { done_state, source_call, ...rest } = row;
+        const done = (done_state ?? null) !== null;
+        return withSource({
+          ...rest,
+          done,
+          status: done ? "done" : "open",
+          call: publicSourceCall(source_call),
+          attachment_count: attachmentUnions.get(row.id)?.length ?? 0,
+        });
+      }),
+    );
     return c.json({ data });
   },
 );
@@ -1902,7 +2143,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
   const { messages, done_state, done_by, source_call, linked_contact, ...task } = row;
   const done = (done_state ?? null) !== null;
   const identity = {
-    ...withSource(task),
+    ...(await withLabelsAndRepeatOne(db, companyId, withSource(task))),
     subscribed: subscription[0] ? subscription[0].unsubscribed_at === null : false,
     contact: linkedContact(linked_contact),
     done,
@@ -2205,6 +2446,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   const touchesMeta =
     body.title !== undefined ||
     body.description !== undefined ||
+    body.priority !== undefined ||
     "due_at" in body ||
     "address" in body;
   const touchesAssignee = "assigned_user_id" in body;
@@ -2267,6 +2509,7 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
       // (null clears it); absent → the RPC leaves the address untouched.
       p_set_address: "address" in body,
       ...addressParams(body.address),
+      p_priority: body.priority ?? null,
     });
     if (error) throw new Error(`update_task failed: ${error.message}`);
     const result = parseTaskOutcome(data);
@@ -2370,6 +2613,45 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     }
   }
 
+  // #693: the repeat control. Always "this and future": it is the rule, not a
+  // field of one occurrence.
+  if ("repeat" in body) {
+    latest = await setTaskRepeat(db, {
+      companyId,
+      taskId: id,
+      userId,
+      repeat: body.repeat ?? null,
+    });
+    found = true;
+  }
+
+  // #693: "this and future" carries this edit to the later occurrences and to
+  // what new ones copy. The edit to THIS occurrence was made above.
+  if (body.scope === "future") {
+    const changes: Record<string, unknown> = {};
+    if (body.title !== undefined) changes.title = body.title;
+    if (body.description !== undefined) changes.description = body.description;
+    if (body.priority !== undefined) changes.priority = body.priority;
+    if ("assigned_user_id" in body) changes.assigned_user_id = body.assigned_user_id ?? null;
+    if ("address" in body) {
+      changes.address = body.address
+        ? {
+            street: body.address.street ?? null,
+            unit: body.address.unit ?? null,
+            city: body.address.city ?? null,
+            state: body.address.state ?? null,
+            postal_code: body.address.postal_code ?? null,
+            country: body.address.country ?? null,
+            provenance: body.address.provenance ?? null,
+          }
+        : null;
+    }
+    if (body.due_at) changes.due_at = body.due_at;
+    if (Object.keys(changes).length > 0) {
+      await editTaskSeries(db, { companyId, taskId: id, userId, changes });
+    }
+  }
+
   // Every RPC that ran returned the row (created/updated/unchanged/not_found);
   // `latest` is the freshest. If an assignee no-op preceded nothing else, or a
   // combined no-op, fall back to the current row so the response is always the
@@ -2377,15 +2659,171 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   // #237: unconditionally, whatever changed. See syncRemindersAfterWrite.
   if (found) await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
 
-  if (latest) return c.json(withSource(latest));
+  if (latest) {
+    return c.json(await withLabelsAndRepeatOne(db, companyId, withSource(latest)));
+  }
   if (found) {
     const current = await findTask(db, companyId, id);
     if (!current) return errorResponse(c, "not_found", "No such task.");
-    return c.json(current);
+    return c.json(await withLabelsAndRepeatOne(db, companyId, current));
   }
   // Neither branch ran (impossible under patchSchema's refine, but typed-safe).
   return errorResponse(c, "not_found", "No such task.");
 });
+
+/** The `api_edit_task_series` RPC: carry an edit to the later occurrences. */
+async function editTaskSeries(
+  db: Db,
+  input: {
+    companyId: string;
+    taskId: string;
+    userId: string;
+    changes: Record<string, unknown>;
+  },
+): Promise<void> {
+  const { data, error } = await db.rpc("api_edit_task_series", {
+    p_company_id: input.companyId,
+    p_task_id: input.taskId,
+    p_actor_user_id: input.userId,
+    p_changes: input.changes,
+  });
+  if (error) throw new Error(`api_edit_task_series failed: ${error.message}`);
+  const outcome = (data as { outcome?: string } | null)?.outcome;
+  if (outcome === "not_member") {
+    throw new ApiError(
+      "validation_failed",
+      "assigned_user_id: not an active member of this company.",
+    );
+  }
+  if (outcome === "bad_priority" || outcome === "invalid") {
+    throw new ApiError("validation_failed", "That edit is not valid.");
+  }
+}
+
+const taskTagBodySchema = z
+  .object({
+    tag_id: z.uuid().optional(),
+    name: z.string().trim().min(1).max(50).optional(),
+    scope: scopeSchema.optional(),
+  })
+  .refine((body) => (body.tag_id === undefined) !== (body.name === undefined), {
+    message: "Provide exactly one of tag_id or name.",
+  });
+
+/**
+ * POST /v1/tasks/:id/tags { tag_id } | { name }, optional scope: label a task.
+ *
+ * The workspace's one tag vocabulary: a name reuses the workspace's tag of that
+ * spelling, and creating a new one needs `settings.manage` when the workspace
+ * has locked its tag list. `scope: "future"` also labels the later occurrences
+ * of a repeat and what new ones copy.
+ */
+tasksRoutes.post("/tasks/:id/tags", requireCapability("conversations.note"), async (c) => {
+  const id = pathUuid(c, "id");
+  const body = await parseJsonBody(c, taskTagBodySchema);
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const db = getDb(getEnv(c.env));
+
+  if (!(await findTask(db, companyId, id))) {
+    return errorResponse(c, "not_found", "No such task.");
+  }
+
+  let tag: { id: string; name: string; color: string | null };
+  if (body.tag_id !== undefined) {
+    const rows = unwrap<{ id: string; name: string; color: string | null }[]>(
+      await db
+        .from("tags")
+        .select("id,name,color")
+        .eq("company_id", companyId)
+        .eq("id", body.tag_id)
+        .limit(1),
+      "tag lookup",
+    );
+    if (!rows[0]) return errorResponse(c, "not_found", "No such tag.");
+    tag = rows[0];
+  } else {
+    const rows = unwrap<
+      { id: string; name: string; color: string | null; refused: boolean; reason: string | null }[]
+    >(
+      await db.rpc("api_find_or_create_tag", {
+        p_company_id: companyId,
+        p_name: body.name as string,
+        p_may_create: roleHasCapability(c.get("role"), "settings.manage"),
+      }),
+      "tag find-or-create",
+    );
+    if (rows[0]?.refused === true) {
+      if (rows[0].reason === "at_ceiling") {
+        return errorResponse(
+          c,
+          "conflict",
+          "This workspace has hit its tag limit. Merge the duplicates in Settings, under Templates & tags.",
+        );
+      }
+      return errorResponse(
+        c,
+        "forbidden",
+        "Your workspace keeps a set list of tags. Pick an existing one, or ask an owner or admin to add this.",
+      );
+    }
+    if (!rows[0]) throw new Error("tag find-or-create: no row returned");
+    tag = rows[0];
+  }
+
+  const labels = await setTaskTags(db, { companyId, taskId: id, userId, add: [tag.id] });
+  if (body.scope === "future") {
+    await editTaskSeries(db, {
+      companyId,
+      taskId: id,
+      userId,
+      changes: { labels_add: [tag.id] },
+    });
+  }
+  return c.json({ tag, labels }, 201);
+});
+
+/** DELETE /v1/tasks/:id/tags/:tag_id?scope=this|future: take a label off a task. */
+tasksRoutes.delete(
+  "/tasks/:id/tags/:tag_id",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const tagId = pathUuid(c, "tag_id");
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+    const db = getDb(getEnv(c.env));
+    const scope = scopeSchema.safeParse(c.req.query("scope") ?? "this");
+    if (!scope.success) {
+      throw new ApiError("validation_failed", "scope must be this or future.");
+    }
+
+    if (!(await findTask(db, companyId, id))) {
+      return errorResponse(c, "not_found", "No such task.");
+    }
+    const had = unwrap<unknown[]>(
+      await db
+        .from("task_tags")
+        .select("tag_id")
+        .eq("company_id", companyId)
+        .eq("task_id", id)
+        .eq("tag_id", tagId),
+      "task tag lookup",
+    );
+    if (had.length === 0) return errorResponse(c, "not_found", "Tag is not attached.");
+
+    await setTaskTags(db, { companyId, taskId: id, userId, remove: [tagId] });
+    if (scope.data === "future") {
+      await editTaskSeries(db, {
+        companyId,
+        taskId: id,
+        userId,
+        changes: { labels_remove: [tagId] },
+      });
+    }
+    return c.body(null, 204);
+  },
+);
 
 /**
  * PUT /v1/tasks/:id/reminders — stop (or restart) this job's reminders.
@@ -2452,6 +2890,26 @@ tasksRoutes.delete("/tasks/:id", requireCapability("records.delete"), async (c) 
   const current = await findTask(db, companyId, id);
   if (!current) {
     return errorResponse(c, "not_found", "No such task.");
+  }
+
+  // #693: "this one" skips an occurrence; "this and future" ends the repeat and
+  // removes the later occurrences nobody finished. Finished ones stay.
+  const scope = scopeSchema.safeParse(c.req.query("scope") ?? "this");
+  if (!scope.success) {
+    throw new ApiError("validation_failed", "scope must be this or future.");
+  }
+  if (scope.data === "future" && current.series_id) {
+    const { data, error } = await db.rpc("api_delete_task_series", {
+      p_company_id: companyId,
+      p_task_id: id,
+      p_actor_user_id: userId,
+    });
+    if (error) throw new Error(`api_delete_task_series failed: ${error.message}`);
+    if ((data as { outcome?: string } | null)?.outcome === "not_found") {
+      return errorResponse(c, "not_found", "No such task.");
+    }
+    await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
+    return c.body(null, 204);
   }
 
   // #691: deleting is the `records.delete` capability, checked by the route gate.

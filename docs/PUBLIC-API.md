@@ -40,6 +40,23 @@ A contact row carries `tags`, the names of the workspace tags it has, sorted (em
 A task row names what it came from in `source` (`{ "kind": "message" | "call", "id": "…" }`).
 `message_id` is kept for existing integrations and is `null` for a task promoted from a call. A task with no message or call is a standalone task: `source` is `null`, and `POST` takes a required `title` with an optional `assigned_user_id`, `contact_id` and `conversation_id` (a task with no conversation is visible to every member).
 
+A task row also carries `priority`, `labels` and `repeat` (#693):
+
+- `priority` is `none`, `low`, `normal`, `high` or `urgent`. It defaults to `normal`; `POST` accepts it.
+- `labels` is `[{ "id", "name", "color" }]`, the workspace tags on the task (sorted by name). `POST` takes `label_ids`, an array of tag ids from this workspace; an id from another workspace is a 422.
+- `repeat` is `null` for a task that does not repeat, or the rule it belongs to:
+
+  ```json
+  { "id": "…", "kind": "after_done", "unit": "month", "every": 6,
+    "weekdays": null, "month_day": null, "nth": null, "nth_weekday": null,
+    "ends": { "kind": "never", "on": null, "after": null },
+    "paused": false, "stopped": false }
+  ```
+
+  `kind` is `schedule` (the next occurrences are created ahead of time: every Monday, the 1st, every Jan 15, every N units) or `after_done` (the next one is created when this one is completed, dated from the completion: every N days, weeks or months). `unit` is `day`, `week`, `month` or `year` (`after_done` takes no `year`). `weekdays` are ISO weekdays, 1 = Monday; a monthly schedule uses `month_day` or `nth` (1 to 4, or -1 for the last) with `nth_weekday`. `ends.kind` is `never`, `on` (with an `on` date) or `after` (with an `after` count, the first task counting as 1). A `schedule` needs `due_at`. `POST` accepts the same object as `repeat`.
+
+  Each occurrence is its own task with its own `id`, done state, comments and calendar event; it copies the title, description, assignee, labels, priority, address, contact and conversation. Creating the next one is idempotent. The customer-side reminder text for a repeating job ("your furnace service is due") is not part of this and sends nothing.
+
 Defined in `apps/api/src/routes/public-api.ts`. Every route carries **two**
 gates: the scope the key was granted, and the capability the person who created
 the key holds. See `apps/api/src/auth/api-key.ts`.
