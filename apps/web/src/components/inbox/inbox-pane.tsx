@@ -27,7 +27,6 @@ import {
   toConversationFilters,
   type InboxUrlFilters,
 } from "./filter-url";
-import { SavedViewsBar } from "./saved-views-bar";
 import { viewFiltersToUrl } from "./saved-view-filters";
 import { SearchResults } from "./search-results";
 
@@ -119,7 +118,6 @@ export function InboxPane() {
         </Button>
       </header>
       <FilterBar filters={filters} onChange={setFilters} />
-      <SavedViewsBar filters={filters} onApply={setFilters} />
       {searching ? (
         <SearchResults q={q} />
       ) : (

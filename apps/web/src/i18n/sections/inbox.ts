@@ -166,6 +166,8 @@ export const inboxEn = {
   removeFilterAria: "Remove {label} filter",
   addFilterAria: "Add filter",
   filterAction: "Filter",
+  /** #711: the Filter icon button's name while filters are on. */
+  filterActionCount: "Filters: {count} on",
   filterByPlaceholder: "Filter by…",
   filterNone: "No filters.",
   filterGroupAssignee: "Assignee",
@@ -254,6 +256,13 @@ export const inboxEn = {
 
   // --- Saved views (saved-views-bar.tsx) ------------------------------------
   viewsAria: "Saved views",
+  /** #711: the Views menu, its icon button's name, and its two actions. */
+  viewsMenu: "Views",
+  viewsMenuAria: "Views: {current}",
+  viewsSaveCurrent: "Save these filters as a view…",
+  viewsManage: "Manage views",
+  viewRenameAria: "Rename {name}",
+  viewDeleteAria: "Delete {name}",
   viewSharedAria: "Shared",
   viewsSave: "Save this view",
   viewOptionsAria: "Options for {name}",
@@ -631,6 +640,7 @@ export const inboxFr: Translated<typeof inboxEn> = {
   removeFilterAria: "Retirer le filtre {label}",
   addFilterAria: "Ajouter un filtre",
   filterAction: "Filtrer",
+  filterActionCount: "Filtres : {count} actifs",
   filterByPlaceholder: "Filtrer par…",
   filterNone: "Aucun filtre.",
   filterGroupAssignee: "Responsable",
@@ -721,6 +731,12 @@ export const inboxFr: Translated<typeof inboxEn> = {
 
   // --- Saved views -----------------------------------------------------------
   viewsAria: "Vues enregistrées",
+  viewsMenu: "Vues",
+  viewsMenuAria: "Vues : {current}",
+  viewsSaveCurrent: "Enregistrer ces filtres comme vue…",
+  viewsManage: "Gérer les vues",
+  viewRenameAria: "Renommer {name}",
+  viewDeleteAria: "Supprimer {name}",
   viewSharedAria: "Partagée",
   viewsSave: "Enregistrer cette vue",
   viewOptionsAria: "Options pour {name}",

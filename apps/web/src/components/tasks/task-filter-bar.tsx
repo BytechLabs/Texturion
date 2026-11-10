@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ListFilter, Search, X } from "lucide-react";
+import { Check, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -11,6 +11,8 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { SavedViewsMenu } from "@/components/saved-views/saved-views-menu";
+import { FilterButton } from "@/components/ui/filter-button";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -38,7 +40,12 @@ import {
   type TaskSource,
 } from "./task-view-url";
 
-import { TaskViewsMenu } from "./task-views-menu";
+import {
+  suggestTaskViewName,
+  taskStateToView,
+  taskViewMatches,
+  viewToTaskState,
+} from "./task-saved-views";
 
 /**
  * The /tasks page filter bar (T6.1 / D25) — one-glance, NO fly-out drawer,
@@ -61,6 +68,7 @@ export function TaskFilterBar({
   onChange: (next: TaskPageState) => void;
 }) {
   const t = useT();
+  const { userId } = useActiveCompany();
   // #113: only the tabs the active view actually applies (Board/Map organize
   // by status themselves, so Open/Done are a no-op there — show Mine | All).
   const visibleTabs = tabsForView(state.view);
@@ -98,43 +106,88 @@ export function TaskFilterBar({
   return (
     <div className="space-y-2.5">
       <SearchField state={state} onChange={onChange} />
-      <div
-        role="tablist"
-        aria-label={t("tasks.statusTabsAria")}
-        onKeyDown={onTabKeyDown}
-        className="flex max-w-md rounded-lg bg-app-line-soft p-0.5"
-      >
-        {shownTabs.map(({ id, labelKey }, i) => {
-            const selected = state.tab === id;
-            return (
-              <button
-                key={id}
-                ref={(el) => {
-                  tabRefs.current[i] = el;
-                }}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => onChange({ ...state, tab: id })}
-                className={cn(
-                  "flex min-h-11 flex-1 items-center justify-center rounded-md px-2 py-1 text-[13px] font-medium transition-colors duration-150 ease-out md:min-h-0",
-                  // T6.1: active segment is a QUIET stone pill, never petrol —
-                  // petrol is reserved for the page's primary action.
-                  selected
-                    ? "bg-app-paper text-app-ink"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t(labelKey)}
-              </button>
-            );
-          },
-        )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div
+          role="tablist"
+          aria-label={t("tasks.statusTabsAria")}
+          onKeyDown={onTabKeyDown}
+          className="flex w-full max-w-md rounded-lg bg-app-line-soft p-0.5 sm:w-auto sm:min-w-80"
+        >
+          {shownTabs.map(({ id, labelKey }, i) => {
+              const selected = state.tab === id;
+              return (
+                <button
+                  key={id}
+                  ref={(el) => {
+                    tabRefs.current[i] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => onChange({ ...state, tab: id })}
+                  className={cn(
+                    "flex min-h-11 flex-1 items-center justify-center rounded-md px-2 py-1 text-[13px] font-medium transition-colors duration-150 ease-out md:min-h-0",
+                    // T6.1: active segment is a QUIET stone pill, never petrol —
+                    // petrol is reserved for the page's primary action.
+                    selected
+                      ? "bg-app-paper text-app-ink"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {t(labelKey)}
+                </button>
+              );
+            },
+          )}
+        </div>
+        <FilterPopover state={state} onChange={onChange} />
+        <SavedViewsMenu
+          surface="tasks"
+          isCurrent={(view) => taskViewMatches(view, state, userId)}
+          onApply={(view) => onChange(viewToTaskState(view, userId, state))}
+          currentFilters={() => taskStateToView(state, userId)}
+          suggestName={() => suggestTaskViewName(state, t)}
+          hasFilters={taskFilterCount(state) > 0 || state.tab !== "open"}
+          saveDescription={t("tasks.viewSaveDescription")}
+          shareNote={t("tasks.viewShareNote")}
+        />
       </div>
-      <ChipRow state={state} onChange={onChange} />
+      {/* #711: only while something is applied. */}
+      {taskFilterCount(state) > 0 && <ChipRow state={state} onChange={onChange} />}
     </div>
   );
+}
+
+/** #711: the chips the row shows, which is also the Filter button's count. */
+export function taskFilterCount(state: TaskPageState): number {
+  return [
+    state.assignee,
+    state.unassigned,
+    state.due,
+    state.priority && state.priority.length > 0,
+    state.tag,
+    state.contact,
+    state.createdBy,
+    state.source,
+    state.files,
+    state.refs,
+    state.dueFrom || state.dueTo,
+    state.group && state.group !== "status",
+    state.sort && state.sort !== "created",
+  ].filter(Boolean).length;
+}
+
+/** Every filter off; the tab, view and search stay. */
+function clearTaskFilters(state: TaskPageState): TaskPageState {
+  const next = { ...state };
+  for (const key of [
+    "assignee", "unassigned", "due", "priority", "tag", "contact", "createdBy",
+    "source", "files", "refs", "dueFrom", "dueTo", "group", "sort",
+  ] as const) {
+    delete next[key];
+  }
+  return next;
 }
 
 /** Debounced title search (250ms → `q`). */
@@ -376,8 +429,13 @@ function ChipRow({
           }}
         />
       )}
-      <FilterPopover state={state} onChange={onChange} />
-      <TaskViewsMenu state={state} onChange={onChange} />
+      <button
+        type="button"
+        onClick={() => onChange(clearTaskFilters(state))}
+        className="tap-target inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-muted-foreground underline decoration-border underline-offset-2 transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {t("inbox.clearAll")}
+      </button>
     </div>
   );
 }
@@ -561,14 +619,7 @@ function FilterPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={t("tasks.addFilterAria")}
-          className="tap-target inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground"
-        >
-          <ListFilter className="size-3" strokeWidth={1.75} aria-hidden />
-          {t("tasks.filter")}
-        </button>
+        <FilterButton count={taskFilterCount(state)} />
       </PopoverTrigger>
       <PopoverContent align="start" sideOffset={6} className="w-64 p-0 shadow-lg">
         <Command

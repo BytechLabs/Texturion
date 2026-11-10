@@ -1,144 +1,112 @@
 /**
  * @vitest-environment happy-dom
  *
- * #291 — narrowing the contacts list to one answer.
+ * #291 / #711: narrowing the contacts list to a tag or one answer, behind the
+ * same Filter button every list uses.
  *
  * CTF-2 is the one to read twice. Only a dropdown or a yes/no field has a
  * closed set of answers. Offering to filter by a serial number would be a text
- * box that returns nothing until it is typed perfectly — which is search, and
+ * box that returns nothing until it is typed perfectly, which is search, and
  * search already reads those fields.
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { fieldDefs, onChange } = vi.hoisted(() => ({
+const { fieldDefs, tagRows, onField, onTag } = vi.hoisted(() => ({
   fieldDefs: vi.fn(),
-  onChange: vi.fn(),
+  tagRows: { current: [] as { id: string; name: string }[] },
+  onField: vi.fn(),
+  onTag: vi.fn(),
 }));
 
 vi.mock("@/lib/api/contact-fields", () => ({
   useContactFields: () => ({ isPending: false, data: fieldDefs() }),
 }));
+vi.mock("@/lib/api/tags", () => ({
+  useTags: () => ({ data: { data: tagRows.current } }),
+}));
 
-import { ContactFilter } from "./contact-filter";
+import { ContactActiveFilters, ContactListFilter } from "./contact-filter";
 
 afterEach(cleanup);
 
 beforeEach(() => {
-  onChange.mockReset();
+  onField.mockReset();
+  onTag.mockReset();
+  tagRows.current = [];
   fieldDefs.mockReturnValue({
     cap: 10,
     data: [
-      {
-        key: "system_type",
-        label: "System type",
-        kind: "select",
-        options: ["Combi", "System"],
-      },
+      { key: "system_type", label: "System type", kind: "select", options: ["Combi", "System"] },
       { key: "has_dog", label: "Dog on site", kind: "checkbox", options: null },
       { key: "serial", label: "Serial", kind: "text", options: null },
     ],
   });
 });
 
+function openFilter(props: { field?: { key: string; value: string }; tag?: string } = {}) {
+  render(<ContactListFilter {...props} onField={onField} onTag={onTag} />);
+  fireEvent.click(screen.getByRole("button", { name: /filter/i }));
+}
+
 describe("#291 the contacts filter", () => {
   it("CTF-1: renders nothing until the workspace has something to filter on", () => {
-    // A control that offers no choices is furniture on a list most workspaces
-    // never filter.
     fieldDefs.mockReturnValue({ cap: 10, data: [] });
-    const { container } = render(<ContactFilter onChange={onChange} />);
+    const { container } = render(<ContactListFilter onField={onField} onTag={onTag} />);
     expect(container.innerHTML).toBe("");
   });
 
   it("CTF-2: offers only the fields with a closed set of answers", () => {
-    // THE ONE THAT MATTERS. A serial number has no list to pick from, so a
-    // filter on it would be a text box returning nothing until typed exactly —
-    // which is what search is for.
-    render(<ContactFilter onChange={onChange} />);
-    const select = screen.getByLabelText("Narrow by") as HTMLSelectElement;
-    const labels = [...select.options].map((option) => option.textContent);
-    expect(labels).toContain("System type");
-    expect(labels).toContain("Dog on site");
-    expect(labels).not.toContain("Serial");
+    openFilter();
+    expect(screen.getByText("System type")).toBeTruthy();
+    expect(screen.getByText("Dog on site")).toBeTruthy();
+    expect(screen.queryByText("Serial")).toBeNull();
   });
 
-  it("CTF-3: renders nothing when every defined field is free text", () => {
-    // The empty case of CTF-2, which the definition list alone does not cover:
-    // three fields exist, none is filterable, so the control has no choices.
-    fieldDefs.mockReturnValue({
-      cap: 10,
-      data: [{ key: "serial", label: "Serial", kind: "text", options: null }],
-    });
-    const { container } = render(<ContactFilter onChange={onChange} />);
-    expect(container.innerHTML).toBe("");
+  it("CTF-3: tags are offered beside the fields", () => {
+    tagRows.current = [{ id: "t1", name: "Warranty" }];
+    openFilter();
+    fireEvent.click(screen.getByRole("option", { name: "Warranty" }));
+    expect(onTag).toHaveBeenCalledWith("t1");
   });
 
-  it("CTF-4: picking a field asks for an answer rather than filtering blind", () => {
-    // "System type is anything" is not a question anybody meant to ask. The
-    // pair goes out with an empty value, which IS a filter — "not set" — and
-    // the server refuses a field with no value at all.
-    render(<ContactFilter onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText("Narrow by"), {
-      target: { value: "system_type" },
-    });
-    expect(onChange).toHaveBeenCalledWith({ key: "system_type", value: "" });
+  it("CTF-4: an answer is chosen in one step", () => {
+    openFilter();
+    fireEvent.click(screen.getByRole("option", { name: "Combi" }));
+    expect(onField).toHaveBeenCalledWith({ key: "system_type", value: "Combi" });
   });
 
   it("CTF-5: 'Not set' is a real choice, and it is first", () => {
-    // The most useful filter of the lot: exactly the customers somebody still
-    // has to ask. Dropped, there would be no way to list them.
-    render(
-      <ContactFilter
-        value={{ key: "system_type", value: "Combi" }}
-        onChange={onChange}
-      />,
-    );
-    const values = screen.getByLabelText("System type") as HTMLSelectElement;
-    expect([...values.options].map((option) => option.value)).toEqual([
-      "",
-      "Combi",
-      "System",
-    ]);
+    openFilter();
+    const notSet = screen.getAllByRole("option", { name: "Not set" });
+    expect(notSet).toHaveLength(2);
+    fireEvent.click(notSet[0]);
+    expect(onField).toHaveBeenCalledWith({ key: "system_type", value: "" });
   });
 
   it("CTF-6: a yes/no field offers yes and no, not its own options list", () => {
-    render(
-      <ContactFilter
-        value={{ key: "has_dog", value: "yes" }}
-        onChange={onChange}
-      />,
-    );
-    const values = screen.getByLabelText("Dog on site") as HTMLSelectElement;
-    expect([...values.options].map((option) => option.value)).toEqual([
-      "",
-      "yes",
-      "no",
-    ]);
+    openFilter();
+    fireEvent.click(screen.getByRole("option", { name: "Yes" }));
+    expect(onField).toHaveBeenCalledWith({ key: "has_dog", value: "yes" });
   });
 
-  it("CTF-7: the filter can be cleared, and says so", () => {
-    // A list quietly filtered is a list that looks wrong — somebody scrolls
+  it("CTF-7: an applied filter shows as a chip that clears it", () => {
+    // A list quietly filtered is a list that looks wrong: somebody scrolls
     // for a customer who is not missing, they are excluded.
     render(
-      <ContactFilter
-        value={{ key: "system_type", value: "Combi" }}
-        onChange={onChange}
+      <ContactActiveFilters
+        field={{ key: "system_type", value: "Combi" }}
+        onField={onField}
+        onTag={onTag}
       />,
     );
-    fireEvent.click(screen.getByLabelText("Show everyone again"));
-    expect(onChange).toHaveBeenCalledWith(undefined);
+    expect(screen.getByText("System type: Combi")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove System type: Combi filter" }));
+    expect(onField).toHaveBeenCalledWith(undefined);
   });
 
-  it("CTF-8: choosing Everyone clears it too", () => {
-    render(
-      <ContactFilter
-        value={{ key: "system_type", value: "Combi" }}
-        onChange={onChange}
-      />,
-    );
-    fireEvent.change(screen.getByLabelText("Narrow by"), {
-      target: { value: "" },
-    });
-    expect(onChange).toHaveBeenCalledWith(undefined);
+  it("CTF-8: nothing applied, nothing shown", () => {
+    const { container } = render(<ContactActiveFilters onField={onField} onTag={onTag} />);
+    expect(container.innerHTML).toBe("");
   });
 });

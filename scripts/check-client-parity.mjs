@@ -85,6 +85,16 @@ const SURFACES = [
   // reader who may have been handed a laptop instead.
   { key: "onboarding", web: "onboarding", android: "onboarding", ios: "Onboarding" },
   {
+    key: "saved-views",
+    // #711: the one Views menu the inbox and Tasks share on web, kept in its
+    // own folder because both lists import it.
+    web: "saved-views",
+    android: null,
+    androidReason: "saved views live in features/inbox and features/tasks beside each list's filters",
+    ios: null,
+    iosReason: "saved views live in Features/Inbox and Features/Tasks beside each list's filters",
+  },
+  {
     key: "blocked",
     // #696: the web keeps the block confirmation in its own folder because the
     // thread, the contact page and settings all open it. Registered by file in

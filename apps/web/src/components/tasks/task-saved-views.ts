@@ -1,5 +1,6 @@
 import { sanitizeFilters, type SavedViewFilters } from "@loonext/shared";
 
+import type { Translate } from "@/i18n/provider";
 import type { TaskPriority } from "@/lib/api/types";
 
 import {
@@ -120,4 +121,23 @@ function localDayStart(date: string): Date {
 function localDate(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** A name for the filters on screen, so the save field is never empty. */
+export function suggestTaskViewName(state: TaskPageState, t: Translate): string {
+  if (state.refs) return t("tasks.hasLinks");
+  if (state.files) return t("tasks.hasFiles");
+  if (state.due === "overdue") return t("tasks.overdue");
+  if (state.source) {
+    const source = {
+      text: t("tasks.sourceText"),
+      call: t("tasks.sourceCall"),
+      none: t("tasks.sourceNone"),
+    }[state.source];
+    return t("tasks.chipSource", { source });
+  }
+  if (state.tab === "all") return t("tasks.tabAll");
+  if (state.tab === "done") return t("tasks.tabDone");
+  if (state.tab === "mine") return t("tasks.tabMine");
+  return t("tasks.tabOpen");
 }

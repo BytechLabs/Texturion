@@ -26,8 +26,7 @@ import {
   useContacts,
   type ContactFieldFilter,
 } from "@/lib/api/contacts";
-import { ContactFilter } from "@/components/contacts/contact-filter";
-import { ContactTagFilter } from "@/components/contacts/contact-tag-filter";
+import { ContactActiveFilters, ContactListFilter } from "@/components/contacts/contact-filter";
 import { ContactsBulkBar } from "@/components/contacts/contacts-bulk-bar";
 import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -115,27 +114,37 @@ export function ContactsTable({
 
   return (
     <div className="space-y-3">
-      <div className="relative max-w-sm">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-          strokeWidth={1.75}
-          aria-hidden
-        />
-        <Input
-          type="search"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder={t("contacts.searchPlaceholder")}
-          aria-label={t("contacts.searchLabel")}
-          className="pl-9"
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 max-w-sm flex-1">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            strokeWidth={1.75}
+            aria-hidden
+          />
+          <Input
+            type="search"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder={t("contacts.searchPlaceholder")}
+            aria-label={t("contacts.searchLabel")}
+            className="pl-9"
+          />
+        </div>
+        {/* #291 / #711: beside the search box, because both answer "show me
+            less", behind the same Filter button every list uses. */}
+        <ContactListFilter
+          field={fieldFilter}
+          onField={setFieldFilter}
+          tag={tagFilter}
+          onTag={setTagFilter}
         />
       </div>
-
-      {/* #291: beside the search box, because both answer "show me less".
-          Absent entirely unless the workspace defined a field with a closed
-          set of answers, so most lists look exactly as they did. */}
-      <ContactFilter value={fieldFilter} onChange={setFieldFilter} />
-      <ContactTagFilter value={tagFilter} onChange={setTagFilter} />
+      <ContactActiveFilters
+        field={fieldFilter}
+        onField={setFieldFilter}
+        tag={tagFilter}
+        onTag={setTagFilter}
+      />
 
       <div className="rounded-lg border bg-card">
         {contacts.isPending ? (

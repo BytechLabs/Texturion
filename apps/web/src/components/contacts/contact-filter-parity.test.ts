@@ -70,7 +70,7 @@ describe("#291 the contacts filter reads the same everywhere", () => {
     for (const [platform, path] of Object.entries(SOURCES)) {
       const text = code(path);
       expect(text, `${platform}: yes/no answers`).toMatch(
-        /listOf\("yes", "no"\)|\["yes", "no"\]|value="yes"/,
+        /listOf\("yes", "no"\)|\["yes", "no"\]|value="yes"|value: "yes"/,
       );
     }
   });
@@ -119,7 +119,7 @@ describe("#291 the contacts filter reads the same everywhere", () => {
     for (const [platform, path] of Object.entries(SOURCES)) {
       const text = code(path);
       expect(text, `${platform}: clears to nothing`).toMatch(
-        /onChange\(undefined\)|onChange\(null\)|onChange\(nil\)/,
+        /onChange\(undefined\)|onChange\(null\)|onChange\(nil\)|onField\(undefined\)/,
       );
     }
   });

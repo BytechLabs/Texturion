@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ListFilter, Search, X } from "lucide-react";
+import { Check, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -11,6 +11,8 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { SavedViewsMenu } from "@/components/saved-views/saved-views-menu";
+import { FilterButton } from "@/components/ui/filter-button";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -41,8 +43,15 @@ import {
   segmentOf,
   STATUS_CHIP_KEYS,
   type InboxUrlFilters,
+  serializeInboxFilters,
   type SecondaryFilterKey,
 } from "./filter-url";
+import {
+  suggestViewName,
+  urlFiltersToView,
+  viewFiltersToUrl,
+  viewMatchesUrl,
+} from "./saved-view-filters";
 
 /**
  * The §2 filter bar. There is **no fly-out drawer** — filtering is one-glance:
@@ -92,61 +101,78 @@ export function FilterBar({
       {/* Elevated segment (mockup .segment): a pill track with the selected tab
           lifted to a white pill. Behavior unchanged — these are the real inbox
           segments (Open/Mine/All/Closed), just crafted. */}
-      <div
-        role="tablist"
-        aria-label={t("inbox.statusTablistAria")}
-        aria-disabled={searching || undefined}
-        onKeyDown={onTablistKeyDown}
-        className={cn(
-          "flex gap-0.5 rounded-full bg-app-line-soft p-[3px] transition-opacity duration-150 ease-out dark:bg-white/5",
-          searching && "opacity-45",
-        )}
-      >
-        {INBOX_SEGMENTS.map(({ id, labelKey }, index) => {
-          const selected = segment === id;
-          const countLabel =
-            id === "open" ? formatOpenCount(openCount) : "";
-          return (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              disabled={searching}
-              tabIndex={selected ? 0 : -1}
-              ref={(el) => {
-                tabRefs.current[index] = el;
-              }}
-              onClick={() => onChange(applySegment(filters, id))}
-              className={cn(
-                // min-h-11 below md: the ≥44px mobile hit-target bar (§7).
-                "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-[28px]",
-                selected
-                  ? "bg-app-paper font-semibold text-app-ink"
-                  : "font-medium text-app-muted hover:text-app-ink",
-              )}
-            >
-              {t(labelKey)}
-              {countLabel !== "" && (
-                // Quiet stone count on Open only, shown when > 0, capped 9+
-                // (issue #64 / APP-UI-ELEVATION §2.1: petrol in this region is
-                // reserved for the compose action, never a count).
-                <span
-                  className="grid h-4 min-w-4 place-items-center rounded-full bg-app-line-soft px-1 text-[10.5px] font-semibold tabular-nums text-app-muted"
-                  aria-label={
-                    openCount > OPEN_COUNT_CAP
-                      ? t("inbox.openCountOverAria", { cap: OPEN_COUNT_CAP })
-                      : t("inbox.openCountAria", { count: openCount })
-                  }
-                >
-                  {countLabel}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <div className="flex items-center gap-1">
+        <div
+          role="tablist"
+          aria-label={t("inbox.statusTablistAria")}
+          aria-disabled={searching || undefined}
+          onKeyDown={onTablistKeyDown}
+          className={cn(
+            "flex min-w-0 flex-1 gap-0.5 rounded-full bg-app-line-soft p-[3px] transition-opacity duration-150 ease-out dark:bg-white/5",
+            searching && "opacity-45",
+          )}
+        >
+          {INBOX_SEGMENTS.map(({ id, labelKey }, index) => {
+            const selected = segment === id;
+            const countLabel =
+              id === "open" ? formatOpenCount(openCount) : "";
+            return (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                disabled={searching}
+                tabIndex={selected ? 0 : -1}
+                ref={(el) => {
+                  tabRefs.current[index] = el;
+                }}
+                onClick={() => onChange(applySegment(filters, id))}
+                className={cn(
+                  // min-h-11 below md: the ≥44px mobile hit-target bar (§7).
+                  "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-[28px]",
+                  selected
+                    ? "bg-app-paper font-semibold text-app-ink"
+                    : "font-medium text-app-muted hover:text-app-ink",
+                )}
+              >
+                {t(labelKey)}
+                {countLabel !== "" && (
+                  // Quiet stone count on Open only, shown when > 0, capped 9+
+                  // (issue #64 / APP-UI-ELEVATION §2.1: petrol in this region is
+                  // reserved for the compose action, never a count).
+                  <span
+                    className="grid h-4 min-w-4 place-items-center rounded-full bg-app-line-soft px-1 text-[10.5px] font-semibold tabular-nums text-app-muted"
+                    aria-label={
+                      openCount > OPEN_COUNT_CAP
+                        ? t("inbox.openCountOverAria", { cap: OPEN_COUNT_CAP })
+                        : t("inbox.openCountAria", { count: openCount })
+                    }
+                  >
+                    {countLabel}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <FilterPopover filters={filters} onChange={onChange} disabled={searching} />
+        <SavedViewsMenu
+          compact
+          surface="conversations"
+          isCurrent={(view) => viewMatchesUrl(view, filters)}
+          onApply={(view) => onChange(viewFiltersToUrl(view, filters))}
+          currentFilters={() => urlFiltersToView(filters)}
+          suggestName={() => suggestViewName(filters)}
+          hasFilters={serializeInboxFilters(filters) !== ""}
+          saveDescription={t("inbox.viewSaveDescription")}
+          shareNote={t("inbox.viewShareNote")}
+        />
       </div>
-      <ChipRow filters={filters} onChange={onChange} disabled={searching} />
+      {/* #711: only while something is applied. */}
+      {hasActiveFilters(filters) && (
+        <ChipRow filters={filters} onChange={onChange} disabled={searching} />
+      )}
       {searching && (
         // Said once, quietly, instead of leaving the row above to imply
         // otherwise. It names what search DOES rather than what it ignores.
@@ -325,11 +351,6 @@ function ChipRow({
             onRemove={() => onChange(clearSecondary(filters, chip.key))}
           />
         ))}
-        <FilterPopover
-          filters={filters}
-          onChange={onChange}
-          disabled={disabled}
-        />
       </div>
       {/* #548: the way back to the whole list, in one press. Last in the row
           because it is the exit, not the first thing to reach for, and absent
@@ -416,18 +437,10 @@ function FilterPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          disabled={disabled}
-          aria-label={t("inbox.addFilterAria")}
-          className="tap-target inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ListFilter className="size-3" strokeWidth={1.75} aria-hidden />
-          {t("inbox.filterAction")}
-        </button>
+        <FilterButton compact count={activeChips(filters).length} disabled={disabled} />
       </PopoverTrigger>
       <PopoverContent
-        align="start"
+        align="end"
         sideOffset={6}
         className="w-64 p-0 shadow-lg"
       >
