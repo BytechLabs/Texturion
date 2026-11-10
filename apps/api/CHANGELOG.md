@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.24.0](https://github.com/BytechLabs/Texturion/compare/api-v0.23.0...api-v0.24.0) (2026-11-10)
+
+
+### Features
+
+* **api:** deleting a task needs records.delete ([7ed1246](https://github.com/BytechLabs/Texturion/commit/7ed1246b9f37911a1023ea8b80691b03c52a8397))
+* **api:** records.delete gates delete, restore and purge of the Trash ([75f5f90](https://github.com/BytechLabs/Texturion/commit/75f5f90e72453b8394d41cba91edbd1f6ba119d6))
+* **api:** task priority, labels and repeating jobs ([ba57de6](https://github.com/BytechLabs/Texturion/commit/ba57de6de121610291b8957a999ae116f19af0c9))
+* **db:** broadcasts carry a gapless per-topic sequence ([812f030](https://github.com/BytechLabs/Texturion/commit/812f030c74a6f692312af914943291212397cac6))
+* **db:** tasks get a priority, labels and repeating jobs ([c4e8840](https://github.com/BytechLabs/Texturion/commit/c4e8840d4ac185032af0431f2401ea5660bc997b))
+* **tasks:** people who follow a task get a push when it changes ([fa6525f](https://github.com/BytechLabs/Texturion/commit/fa6525f6cdc75ad44b6cce5df42e4cd0c667f18f))
+
+
+### Bug Fixes
+
+* **api:** a due-soon reminder skips anyone denied the job's number ([7197335](https://github.com/BytechLabs/Texturion/commit/71973350d474c066792244a9664faf954f243dbc))
+* **api:** deleting contacts in bulk needs the delete permission ([ba6fc37](https://github.com/BytechLabs/Texturion/commit/ba6fc37f16c108eb2a97631e14cbbc64ddd9f119))
+
+
+### Performance
+
+* **api:** clear request timeouts so call sessions stop billing idle time ([9f2e67d](https://github.com/BytechLabs/Texturion/commit/9f2e67de2da538a9d01d3ffd692d3b7e48ebbbf2))
+* **db:** store each conversation's unread state and read it in For You ([6f0828e](https://github.com/BytechLabs/Texturion/commit/6f0828e018d0a9700e7248dc78a314d1bf2db6d7))
+
 ## [0.23.0](https://github.com/BytechLabs/Texturion/compare/api-v0.22.0...api-v0.23.0) (2026-11-10)
 
 

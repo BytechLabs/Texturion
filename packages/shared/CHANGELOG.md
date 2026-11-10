@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.16.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.15.0...shared-v0.16.0) (2026-11-10)
+
+
+### Features
+
+* **api:** records.delete gates delete, restore and purge of the Trash ([75f5f90](https://github.com/BytechLabs/Texturion/commit/75f5f90e72453b8394d41cba91edbd1f6ba119d6))
+* **shared:** saved task views can hold priority, label and sort ([ca30050](https://github.com/BytechLabs/Texturion/commit/ca300502d34852d69ff5ed9ae4dbf1f9276ac274))
+* **tasks:** people who follow a task get a push when it changes ([fa6525f](https://github.com/BytechLabs/Texturion/commit/fa6525f6cdc75ad44b6cce5df42e4cd0c667f18f))
+
 ## [0.15.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.14.0...shared-v0.15.0) (2026-11-10)
 
 

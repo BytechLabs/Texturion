@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.23.0](https://github.com/BytechLabs/Texturion/compare/web-v0.22.0...web-v0.23.0) (2026-11-10)
+
+
+### Features
+
+* **web:** delete records with undo and a Trash page under History ([2fc565c](https://github.com/BytechLabs/Texturion/commit/2fc565cf541411be6c8c6c78ab36df713b123f85))
+* **web:** follow a task from its header and set how loud task changes are ([86beea3](https://github.com/BytechLabs/Texturion/commit/86beea360386b397a46abe605db6e1bf401a032d))
+* **web:** resync when a topic sequence has a hole ([157eaf8](https://github.com/BytechLabs/Texturion/commit/157eaf84b54f00384422cd739f8319be30454ec3))
+* **web:** task delete is hidden without the delete permission ([d1e85d1](https://github.com/BytechLabs/Texturion/commit/d1e85d141259388a659625e1a5f7de4643f74ec4))
+* **web:** tasks get priority, labels and repeating jobs ([d72e251](https://github.com/BytechLabs/Texturion/commit/d72e251419232e25507a36288e1af67d1f6979f5))
+
+
+### Bug Fixes
+
+* **web:** bulk delete on contacts shows only for those who may delete ([35526ef](https://github.com/BytechLabs/Texturion/commit/35526ef2fd2ed104682559e273d4b797c5cdd281))
+
 ## [0.22.0](https://github.com/BytechLabs/Texturion/compare/web-v0.21.0...web-v0.22.0) (2026-11-10)
 
 
