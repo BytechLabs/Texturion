@@ -2001,7 +2001,7 @@
   {
     "line": "x tomorrow 9am",
     "now": "2026-11-11T15:30:00Z",
-    "timeZone": "America/Vancouver",
+    "timeZone": "America/Los_Angeles",
     "selfUserId": "00000000-0000-4000-8000-000000000001",
     "members": [
       {

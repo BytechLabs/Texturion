@@ -175,7 +175,7 @@ describe("times", () => {
 
 describe("whose clock", () => {
   it("is the member's zone", () => {
-    expect(due("x tomorrow 9am", { timeZone: "America/Vancouver" })).toBe("2026-11-12T17:00:00.000Z");
+    expect(due("x tomorrow 9am", { timeZone: "America/Los_Angeles" })).toBe("2026-11-12T17:00:00.000Z");
     expect(due("x tomorrow 9am", { timeZone: "UTC" })).toBe("2026-11-12T09:00:00.000Z");
   });
   it("uses the member's today, not the server's", () => {

@@ -530,7 +530,7 @@ const QUICK_ADD_INPUTS = [
   ["x tomorrow 25:00"],
   ["x tomorrow 13pm"],
   ["Room 9"],
-  ["x tomorrow 9am", { timeZone: "America/Vancouver" }],
+  ["x tomorrow 9am", { timeZone: "America/Los_Angeles" }],
   ["x tomorrow 9am", { timeZone: "UTC" }],
   ["x tomorrow 9am", { timeZone: "America/Regina" }],
   ["x today", { now: "2026-11-12T03:30:00Z" }],
