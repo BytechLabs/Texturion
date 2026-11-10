@@ -451,4 +451,40 @@ begin
   raise notice 'JR-11 PASSED: the timeline can say a customer rated the job';
 end $$;
 
+-- ===========================================================================
+-- JR-12. The cooldown is the workspace's own number, not a constant.
+-- ===========================================================================
+do $$
+declare
+  v_res jsonb;
+begin
+  update public.job_ratings set asked_at = now() - interval '3 days'
+   where contact_id = '5f000000-0000-4000-8000-0000000000d1'::uuid;
+
+  update public.companies set rating_ask_cooldown_days = 7
+   where id = '5f000000-0000-4000-8000-0000000000c1'::uuid;
+  v_res := pg_temp.claim(
+    '5f000000-0000-4000-8000-00000000ba02'::uuid,
+    '5f000000-0000-4000-8000-0000000000e1'::uuid,
+    '5f000000-0000-4000-8000-0000000000d1'::uuid,
+    '5f000000-0000-4000-8000-00000000000b'::uuid);
+  if v_res->>'outcome' is distinct from 'too_soon'
+     or (v_res->>'cooldown_days')::integer is distinct from 7 then
+    raise exception 'JR-12 FAILED: a 7 day cooldown returned %', v_res;
+  end if;
+
+  update public.companies set rating_ask_cooldown_days = 1
+   where id = '5f000000-0000-4000-8000-0000000000c1'::uuid;
+  v_res := pg_temp.claim(
+    '5f000000-0000-4000-8000-00000000ba02'::uuid,
+    '5f000000-0000-4000-8000-0000000000e1'::uuid,
+    '5f000000-0000-4000-8000-0000000000d1'::uuid,
+    '5f000000-0000-4000-8000-00000000000b'::uuid);
+  if v_res->>'outcome' is distinct from 'claimed' then
+    raise exception 'JR-12 FAILED: a 1 day cooldown returned %', v_res;
+  end if;
+
+  raise notice 'JR-12 PASSED: the cooldown follows the workspace setting';
+end $$;
+
 rollback;

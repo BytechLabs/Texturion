@@ -3239,6 +3239,30 @@ begin
     raise exception 'CS-15 FAILED: verified atomic fire %', v;
   end if;
 
+  -- The hold is the workspace's choice: with hold_reminders_unverified_calendar
+  -- off, the same unverified connection no longer holds the reminder.
+  update public.companies set hold_reminders_unverified_calendar = false
+   where id = pg_temp.company_id();
+  update public.calendar_connections set sync_due_at = now()
+   where id = v_connection_id;
+  insert into public.scheduled_messages (
+    company_id, conversation_id, task_id, origin, reminder_offset_minutes,
+    body, send_at, clock_timezone, clock_source, status,
+    expires_at, created_by
+  ) values (
+    pg_temp.company_id(), 'ca000000-0000-4000-8000-0000000000e1', v_task.id,
+    'reminder', 13, 'Setting off reminder', now() - interval '1 minute',
+    'America/Edmonton', 'contact', 'pending', now() + interval '1 hour', v_user_id
+  ) returning id into v_failed_reminder_id;
+  v := public.api_fire_scheduled_message(v_failed_reminder_id, 1);
+  if v->>'outcome' is distinct from 'fired' then
+    raise exception 'CS-15 FAILED: the hold setting was ignored %', v;
+  end if;
+  update public.companies set hold_reminders_unverified_calendar = true
+   where id = pg_temp.company_id();
+  update public.calendar_connections set sync_due_at = now() + interval '5 minutes'
+   where id = v_connection_id;
+
   insert into public.scheduled_messages (
     company_id, conversation_id, task_id, origin, reminder_offset_minutes,
     body, send_at, clock_timezone, clock_source, status,

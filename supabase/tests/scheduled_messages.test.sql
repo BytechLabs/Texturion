@@ -613,4 +613,37 @@ begin
   raise notice 'SM-12 PASSED: a missing watermark is filled from the thread';
 end $$;
 
+-- ===========================================================================
+-- SM-13. The automatic-text settings default to today's behaviour and refuse
+-- values that would make a text unsendable or unending.
+-- ===========================================================================
+do $$
+declare
+  v public.companies;
+begin
+  select * into v from public.companies
+   where id = '5d000000-0000-4000-8000-0000000000c1'::uuid;
+  if not (v.hold_scheduled_on_reply and v.hold_reminders_on_reply
+          and v.hold_rating_ask_on_reply and v.hold_reminders_unverified_calendar
+          and v.rating_ask_enabled)
+     or v.rating_ask_delay_hours is distinct from 4
+     or v.rating_ask_expiry_hours is distinct from 24
+     or v.rating_ask_cooldown_days is distinct from 30
+     or v.scheduled_text_expiry_hours is distinct from 24
+     or v.reminder_expiry_hours is distinct from 2
+     or v.auto_reply_cooldown_minutes is distinct from 180 then
+    raise exception 'SM-13 FAILED: a defaulted setting is not today''s behaviour: %', to_jsonb(v);
+  end if;
+
+  begin
+    update public.companies set scheduled_text_expiry_hours = 0
+     where id = v.id;
+    raise exception 'SM-13 FAILED: a zero-hour expiry was accepted';
+  exception when check_violation then
+    null;
+  end;
+
+  raise notice 'SM-13 PASSED: defaults are today''s behaviour and bounded';
+end $$;
+
 rollback;
