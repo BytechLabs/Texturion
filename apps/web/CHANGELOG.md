@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/BytechLabs/Texturion/compare/web-v0.24.0...web-v0.25.0) (2026-11-10)
+
+
+### Features
+
+* **web:** the terms and policies read in Canadian French ([e2560c8](https://github.com/BytechLabs/Texturion/commit/e2560c855fbfc69c13bac104398f74c67c0c8bd7))
+
 ## [0.24.0](https://github.com/BytechLabs/Texturion/compare/web-v0.23.0...web-v0.24.0) (2026-11-10)
 
 
