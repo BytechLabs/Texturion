@@ -3508,15 +3508,18 @@ const bulkContactsSchema = z
  * client builds the undo from the response: untag what was tagged, tag what was
  * untagged. A delete has no undo (UNDO-AUDIT: confirmation, not undo).
  *
- * TODO(#691): delete is gated by the same capability as a single-contact
- * delete (`conversations.note`) because `records.delete` does not exist yet.
- * When #691 lands, gate the `delete` action here and the single delete on it.
+ * Tagging needs `conversations.note`; deleting needs `records.delete`, the same
+ * as deleting one contact (#691).
  */
 contactsRoutes.post(
   "/contacts/bulk",
   requireCapability("conversations.note"),
   async (c) => {
     const body = await parseJsonBody(c, bulkContactsSchema);
+    const role = c.get("role");
+    if (body.action === "delete" && (role === undefined || !roleHasCapability(role, "records.delete"))) {
+      return errorResponse(c, "forbidden", "Insufficient role for this action.");
+    }
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
     const ids = [...new Set(body.ids)];

@@ -445,7 +445,7 @@ describe("POST /v1/contacts/bulk", () => {
   });
 
   it("soft-deletes the selection, reporting only the rows it touched", async () => {
-    const sb = stubWithRole("member");
+    const sb = stubWithRole("admin");
     sb.on("GET", "/rest/v1/contacts", () => [{ id: CONTACT_A }]);
     sb.on("PATCH", "/rest/v1/contacts", () => [{ id: CONTACT_A }]);
     stubFetch(jwksRoute(auth), sb.route);
@@ -467,6 +467,19 @@ describe("POST /v1/contacts/bulk", () => {
     expect(patch.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     // Only the live ones are named: a stranger's id never reaches the write.
     expect(patch.url.searchParams.get("id")).toBe(`in.(${CONTACT_A})`);
+  });
+
+  it("lets a member tag but not delete, because deleting needs records.delete", async () => {
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contacts/bulk", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { action: "delete", ids: [CONTACT_A] },
+    });
+    expect(res.status).toBe(403);
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
   });
 
   it("is not a read-only member's call, for tagging or for deleting", async () => {
