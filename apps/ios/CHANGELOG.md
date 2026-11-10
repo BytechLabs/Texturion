@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.19.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.18.0...ios-v0.19.0) (2026-11-10)
+
+
+### Features
+
+* **ios:** add a task from the Tasks tab, a contact or a conversation ([6209358](https://github.com/BytechLabs/Texturion/commit/6209358e471a57e87329097cbd42d5caedfce7dd))
+* **ios:** customers get tags and a way to undo a merge ([5fd8383](https://github.com/BytechLabs/Texturion/commit/5fd8383543991a93685a5650ab55a10eaa8aedfa))
+
+
+### Bug Fixes
+
+* **ios:** a task added from a contact carries that contact's name ([e3ea865](https://github.com/BytechLabs/Texturion/commit/e3ea86503d959766a6c4d8fe0aba0c09c118a3e7))
+* **ios:** a task added from a conversation is linked to that conversation ([db0f45a](https://github.com/BytechLabs/Texturion/commit/db0f45a11369675a5f17fac9c478b7e633ccc6a7))
+
 ## [0.18.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.17.2...ios-v0.18.0) (2026-11-10)
 
 

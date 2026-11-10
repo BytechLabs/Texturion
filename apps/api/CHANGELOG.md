@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.23.0](https://github.com/BytechLabs/Texturion/compare/api-v0.22.0...api-v0.23.0) (2026-11-10)
+
+
+### Features
+
+* **api:** contacts carry tags and can be acted on in bulk ([ceb55c7](https://github.com/BytechLabs/Texturion/commit/ceb55c7082f028287b35e598bb03817b53a63bc7))
+* **tasks:** a task can have no source, and the API creates one ([bf99d00](https://github.com/BytechLabs/Texturion/commit/bf99d00bbc93b2913c7ab43a5fdcc1dc4546f487))
+
+
+### Bug Fixes
+
+* **db:** tag usage counts contact tags and still shows each description ([a0a69a6](https://github.com/BytechLabs/Texturion/commit/a0a69a6ca22d94599e42657cb029d3d08d30963d))
+
 ## [0.22.0](https://github.com/BytechLabs/Texturion/compare/api-v0.21.1...api-v0.22.0) (2026-11-10)
 
 
