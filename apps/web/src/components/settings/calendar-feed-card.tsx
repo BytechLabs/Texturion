@@ -8,7 +8,7 @@ import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
-import { formatRelativeTime } from "@/lib/format/time";
+import { formatTimestamp } from "@/lib/format/time";
 import {
   useCalendarFeed,
   useCreateCalendarFeed,
@@ -138,12 +138,10 @@ export function CalendarFeedCard() {
             */}
             {status.data?.last_read_at
               ? t("calendarFeed.lastRead", {
-                  when: formatRelativeTime(
-                    status.data.last_read_at,
-                    new Date(),
+                  when: formatTimestamp(status.data.last_read_at, {
+                    style: "long",
                     t,
-                    t.locale,
-                  ),
+                  }),
                 })
               : t("calendarFeed.neverRead")}
           </p>

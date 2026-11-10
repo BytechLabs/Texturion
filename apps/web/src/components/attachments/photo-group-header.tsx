@@ -3,7 +3,7 @@
 import { WORK_PHASE_LABELS, type WorkPhase } from "@loonext/shared";
 
 import { useT } from "@/i18n/provider";
-import { formatAbsoluteDateTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 
 /**
  * #294 — the line above one visit's photos.
@@ -57,7 +57,7 @@ export function PhotoGroupHeader({
       )}
       <span className="text-[12.5px] text-app-ink">{who}</span>
       <span className="text-[12px] text-app-muted">
-        {formatAbsoluteDateTime(at, undefined, t.locale)}
+        <Timestamp at={at} style="long" />
       </span>
     </div>
   );

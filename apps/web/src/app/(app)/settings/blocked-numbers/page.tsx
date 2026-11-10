@@ -14,7 +14,7 @@ import { useT } from "@/i18n/provider";
 import { useBlockedSenders, useUnblockSender } from "@/lib/api/blocked-senders";
 import { ApiError } from "@/lib/api/error";
 import { formatPhone } from "@/lib/format/phone";
-import { formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 import { toast } from "sonner";
 
 /**
@@ -73,7 +73,7 @@ export default function BlockedNumbersPage() {
                       ? t("blockedNumbers.blockedBy", { name: who })
                       : t("blockedNumbers.blockedByUnknown")}
                     {" · "}
-                    {formatRelativeTime(row.created_at, new Date(), t)}
+                    <Timestamp at={row.created_at} style="long" />
                   </p>
                   {row.reason && (
                     <p className="text-xs text-muted-foreground">

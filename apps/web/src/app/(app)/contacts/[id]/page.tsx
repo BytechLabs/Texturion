@@ -63,6 +63,7 @@ import { useMembers } from "@/lib/api/team";
 import type { ContactDetail } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
+import { formatTimestamp } from "@/lib/format/time";
 import { NANP_TIMEZONES } from "@loonext/shared";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -138,10 +139,7 @@ function ConsentLine({ contact }: { contact: ContactDetail }) {
     );
   }
   const date = contact.consent_at
-    ? new Date(contact.consent_at).toLocaleDateString(t.locale, {
-        month: "short",
-        day: "numeric",
-      })
+    ? formatTimestamp(contact.consent_at, { style: "long", t })
     : null;
   if (contact.consent_source === "inbound_sms") {
     return (

@@ -1247,3 +1247,11 @@ export {
   tagToggleAction,
   type TagSelectionState,
 } from "./tag-selection";
+
+// #720: which words a date is shown in ("now", "12m", "3:42 PM", "Sat"…),
+// ported to Kotlin and Swift against vectors/timestamp-shape.json.
+export {
+  timestampShape,
+  type TimestampBucket,
+  type TimestampShape,
+} from "./timestamp-shape";

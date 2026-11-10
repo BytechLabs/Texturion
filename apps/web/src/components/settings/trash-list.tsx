@@ -27,7 +27,7 @@ import {
   type TrashRow,
 } from "@/lib/api/trash";
 import { useActiveCompany } from "@/lib/company/provider";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { formatTimestamp } from "@/lib/format/time";
 import {
   daysLeftLabel,
   detailLabel,
@@ -130,7 +130,7 @@ function TrashItem({ row, onPurge }: { row: TrashRow; onPurge: () => void }) {
         ? t("trash.you")
         : (members.data?.data.find((m) => m.user_id === row.deleted_by_user_id)
             ?.display_name ?? t("trash.someone"));
-  const when = formatRelativeTime(row.deleted_at, undefined, t);
+  const when = formatTimestamp(row.deleted_at, { style: "long", t });
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
@@ -142,10 +142,7 @@ function TrashItem({ row, onPurge }: { row: TrashRow; onPurge: () => void }) {
         <p className="truncate text-sm text-muted-foreground">
           {detailLabel(row, t)}
         </p>
-        <p
-          className="text-xs text-muted-foreground"
-          title={formatAbsoluteDateTime(row.deleted_at, undefined, t.locale)}
-        >
+        <p className="text-xs text-muted-foreground">
           {deletedBy
             ? t("trash.deletedByLine", { when, who: deletedBy })
             : t("trash.deletedByUnknown", { when })}

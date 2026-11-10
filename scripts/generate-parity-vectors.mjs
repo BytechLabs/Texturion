@@ -109,6 +109,7 @@ import { callLooksSpam } from "../packages/shared/src/call-screening.ts";
 import { CALL_ROUTINGS } from "../packages/shared/src/call-routing.ts";
 import { CALL_END_REASONS } from "../packages/shared/src/call-end-reasons.ts";
 import { tagSelectionState, tagToggleAction } from "../packages/shared/src/tag-selection.ts";
+import { timestampShape } from "../packages/shared/src/timestamp-shape.ts";
 import {
   paymentAmountProblem,
   paymentRequestCancellable,
@@ -736,6 +737,47 @@ function tagSelectionVectors() {
   });
 }
 
+// #720: [at, now, zone]. Zones with stable rules only: the local Node and the
+// phones may carry different tzdata for places that changed recently.
+const NOW = "2026-11-10T20:00:00Z";
+const TIMESTAMP_INPUTS = [
+  ["2026-11-10T19:59:30Z", NOW, "America/Toronto"],
+  ["2026-11-10T20:00:30Z", NOW, "America/Toronto"],
+  ["2026-11-10T19:55:00Z", NOW, "America/Toronto"],
+  ["2026-11-10T19:01:00Z", NOW, "America/Toronto"],
+  ["2026-11-10T18:59:00Z", NOW, "America/Toronto"],
+  ["2026-11-10T06:00:00Z", NOW, "America/Toronto"],
+  ["2026-11-10T04:00:00Z", NOW, "America/Toronto"],
+  ["2026-11-10T04:00:00Z", NOW, "UTC"],
+  ["2026-11-10T22:00:00Z", NOW, "America/Toronto"],
+  ["2026-11-11T06:00:00Z", NOW, "America/Toronto"],
+  ["2026-11-11T06:00:00Z", NOW, "UTC"],
+  ["2026-11-07T15:00:00Z", NOW, "America/Toronto"],
+  ["2026-11-04T15:00:00Z", NOW, "America/Toronto"],
+  ["2026-11-03T15:00:00Z", NOW, "America/Toronto"],
+  ["2026-11-13T15:00:00Z", NOW, "America/Toronto"],
+  ["2026-11-17T15:00:00Z", NOW, "America/Toronto"],
+  ["2026-01-02T15:00:00Z", NOW, "America/Toronto"],
+  ["2025-12-31T23:00:00Z", NOW, "America/Toronto"],
+  ["2026-01-01T03:00:00Z", NOW, "America/Toronto"],
+  ["2026-01-01T03:00:00Z", NOW, "UTC"],
+  ["2027-03-01T15:00:00Z", NOW, "America/Toronto"],
+  ["2026-11-10T07:00:00Z", "2026-11-10T20:00:00Z", "America/Vancouver"],
+  ["2026-11-10T07:00:00Z", "2026-11-10T20:00:00Z", "UTC"],
+  ["2026-03-08T06:00:00Z", "2026-03-09T15:00:00Z", "America/Toronto"],
+  ["2026-12-31T23:00:00Z", "2027-01-01T05:00:00Z", "America/Toronto"],
+  ["2026-12-31T23:00:00Z", "2027-01-01T05:00:00Z", "UTC"],
+];
+
+function timestampShapeVectors() {
+  return TIMESTAMP_INPUTS.map(([at, now, zone]) => ({
+    at,
+    now,
+    zone,
+    ...timestampShape(Date.parse(at), Date.parse(now), zone),
+  }));
+}
+
 const FILES = {
   "segments.json": segmentVectors,
   "nanp.json": nanpVectors,
@@ -750,6 +792,7 @@ const FILES = {
   "call-routing.json": routingVectors,
   "call-end-reasons.json": callEndReasonVectors,
   "tag-selection.json": tagSelectionVectors,
+  "timestamp-shape.json": timestampShapeVectors,
 };
 
 const check = process.argv.includes("--check");

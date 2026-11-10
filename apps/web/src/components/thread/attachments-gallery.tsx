@@ -15,7 +15,8 @@ import { useT } from "@/i18n/provider";
 import { useAttachmentGallery } from "@/lib/api/gallery";
 import { flattenPages } from "@/lib/api/pagination";
 import type { GalleryItem } from "@/lib/api/types";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
+import { formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import {
@@ -193,7 +194,7 @@ function GalleryThumb({
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const label = fileLabel(item);
-  const captured = formatRelativeTime(item.created_at, undefined, t);
+  const captured = formatTimestamp(item.created_at, { style: "long", t });
 
   if (failed) {
     return (
@@ -240,7 +241,6 @@ function GalleryThumb({
 
 /** A file row (name, origin, size, date) with a signed-URL download. */
 function GalleryFileRow({ item }: { item: GalleryItem }) {
-  const t = useT();
   const label = fileLabel(item);
   const size = formatBytes(item.size_bytes);
   return (
@@ -257,12 +257,10 @@ function GalleryFileRow({ item }: { item: GalleryItem }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm text-foreground">{label}</span>
-          <span
-            className="block text-[11px] tabular-nums text-muted-foreground"
-            title={formatAbsoluteDateTime(item.created_at, undefined, t.locale)}
-          >
+          <span className="block text-[11px] tabular-nums text-muted-foreground">
             {sourceLabel(item.source)}
-            {size ? ` · ${size}` : ""} · {formatRelativeTime(item.created_at, undefined, t)}
+            {size ? ` · ${size}` : ""} ·{" "}
+            <Timestamp at={item.created_at} style="short" />
           </span>
         </span>
         <Download

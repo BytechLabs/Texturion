@@ -141,6 +141,7 @@ import { useWrapUpRecorder } from "./use-wrap-up-recorder";
 import { WrapUpButton, WrapUpStrip } from "./wrap-up-dictation";
 import { WorkPhasePicker } from "@/components/thread/work-phase-picker";
 import { PhotoMarkupDialog } from "@/components/attachments/photo-markup-dialog";
+import { formatTimestamp } from "@/lib/format/time";
 
 export interface DraftAttachment {
   id: string;
@@ -1281,11 +1282,7 @@ export function Composer({
         setQuietConfirmFor(null);
         toast.success(
           t("thread.scheduledFor", {
-            when: new Date(sendAtIso).toLocaleString(t.locale, {
-              weekday: "short",
-              hour: "numeric",
-              minute: "2-digit",
-            }),
+            when: formatTimestamp(sendAtIso, { style: "long", t }),
           }),
         );
       } catch (cause) {

@@ -63,12 +63,16 @@ function byChronology(a: { created_at: string; id: string }, b: { created_at: st
 export function MessageList({
   conversationId,
   contact,
+  contactTimeZone = null,
   filter,
   onFilterChange,
   catchUp,
 }: {
   conversationId: string;
   contact: { name: string | null; phone_e164: string };
+  /** #720: the customer's zone when it is theirs (set or from their area code),
+   * never the workspace's fallback. */
+  contactTimeZone?: string | null;
   /** §5.1 in-thread filter — All | Messages | Notes | Events (URL-state). */
   filter: ThreadFilter;
   onFilterChange: (next: ThreadFilter) => void;
@@ -545,6 +549,7 @@ export function MessageList({
                             isLastOfCluster={index === item.messages.length - 1}
                             conversationId={conversationId}
                             contactName={contactName}
+                            contactTimeZone={contactTimeZone}
                             // #101: clusters split per author (clusters.ts), so
                             // one name is honest for the whole run. Null for
                             // inbound and for system sends.

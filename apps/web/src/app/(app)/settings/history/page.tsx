@@ -27,7 +27,7 @@ import { getApiBaseUrl } from "@/lib/api/client";
 import { useMembers } from "@/lib/api/team";
 import type { AuditEntry } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 import {
   auditActor,
   auditSentence,
@@ -294,13 +294,11 @@ function HistoryRow({ entry }: { entry: AuditEntry }) {
     <li className="px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-[15px] leading-snug">{auditSentence(entry)}</p>
-        <time
-          dateTime={entry.occurred_at}
-          title={formatAbsoluteDateTime(entry.occurred_at, undefined, t.locale)}
-          className="shrink-0 text-xs tabular-nums text-muted-foreground"
-        >
-          {formatRelativeTime(entry.occurred_at, undefined, t)}
-        </time>
+        <Timestamp
+          at={entry.occurred_at}
+          style="long"
+          className="shrink-0 text-xs text-muted-foreground"
+        />
       </div>
       {hasDetail && (
         <details className="mt-1.5">

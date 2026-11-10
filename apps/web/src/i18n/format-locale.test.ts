@@ -12,7 +12,7 @@
  * ("Facturé le Mar 5"), a thousands separator from the wrong convention, and a
  * French inbox whose rows said `Now` and `Tue`.
  *
- * The same happened for `formatRelativeTime(iso)`: its translator defaulted to
+ * The same happened for the old `formatRelativeTime(iso)`: its translator defaulted to
  * English, and thirty callers never passed one, so the inbox list, the screen
  * a crew looks at most, was the least translated surface in the product.
  *
@@ -22,7 +22,7 @@
  *      `undefined`. The one legitimate zero-argument use is asking the runtime
  *      for its TIME ZONE (`Intl.DateTimeFormat().resolvedOptions()`), which is
  *      not a language at all.
- * F-2  every `formatRelativeTime(` and `formatAbsoluteDateTime(` caller hands
+ * F-2  every `formatTimestamp(` and `formatAbsoluteDateTime(` caller hands
  *      over the reader's translator or locale.
  * F-3  a fixed locale string is allowed only where the roster below says why.
  *
@@ -114,6 +114,10 @@ const FIXED_LOCALE: readonly { file: string; why: string }[] = [
     why: "en-CA is how the wall-clock parts are read as YYYY-MM-DD, a machine format.",
   },
   {
+    file: "components/ui/timestamp.tsx",
+    why: "Two wall clocks are compared for equality, never shown, so the locale cannot matter.",
+  },
+  {
     file: "components/public/quote-page.tsx",
     why: "The customer-facing quote page: a stranger's language is unknown, and a quote is stated in Canadian dollars and dates.",
   },
@@ -163,12 +167,14 @@ describe("#228 formatting follows the app's language, not the browser's", () => 
     ).toEqual([]);
   });
 
-  it("F-2: every relative and absolute time caller passes the reader's language", () => {
-    const relativeCalls = calls(/\bformat(?:RelativeTime|AbsoluteDateTime)\(/g).filter(
+  it("F-2: every timestamp and absolute time caller passes the reader's language", () => {
+    const relativeCalls = calls(/\bformat(?:Timestamp|AbsoluteDateTime)\(/g).filter(
       (call) => call.rel !== "lib/format/time.ts",
     );
-    expect(relativeCalls.length, "the callers were not found").toBeGreaterThanOrEqual(60);
+    expect(relativeCalls.length, "the callers were not found").toBeGreaterThanOrEqual(40);
     const bare = relativeCalls.filter((call) => {
+      // `formatTimestamp(iso, { style, t })` carries the translator as `t`.
+      if (call.call.startsWith("formatTimestamp")) return !/\bt\b/.test(call.list);
       let depth = 0;
       let commas = 0;
       for (const char of call.list) {
@@ -181,7 +187,7 @@ describe("#228 formatting follows the app's language, not the browser's", () => 
     expect(
       bare.map(where),
       "These format a time in English whatever the reader's language is. " +
-        "Call `formatRelativeTime(iso, undefined, t)` or `formatAbsoluteDateTime(iso, undefined, t.locale)`:\n  " +
+        "Call `formatTimestamp(iso, { style, t })` or `formatAbsoluteDateTime(iso, undefined, t.locale)`:\n  " +
         bare.map(where).join("\n  "),
     ).toEqual([]);
   });

@@ -15,7 +15,7 @@ import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { sayWith, useT } from "@/i18n/provider";
+import { sayWith, useT, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateOnCallShift,
@@ -25,6 +25,7 @@ import {
 } from "@/lib/api/on-call";
 import { useMembers } from "@/lib/api/team";
 import { cn } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/format/time";
 
 /**
  * #244 — who is holding the phone tonight.
@@ -69,12 +70,8 @@ function offsetMinutesNow(): number {
   return -new Date().getTimezoneOffset();
 }
 
-function formatUntil(iso: string, locale: string): string {
-  return new Date(iso).toLocaleString(locale, {
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function formatUntil(iso: string, t: Translate): string {
+  return formatTimestamp(iso, { style: "long", t });
 }
 
 export function OnCallCard({ canEdit }: { canEdit: boolean }) {
@@ -131,7 +128,7 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
       ) : live ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-[14px] text-app-ink">
-            {onCallLine(nameOf(live.user_id), formatUntil(live.ends_at, t.locale), say)}
+            {onCallLine(nameOf(live.user_id), formatUntil(live.ends_at, t), say)}
           </p>
           {canEdit ? (
             <Button
@@ -157,8 +154,8 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
               className="flex items-center justify-between gap-3 text-[13px] text-app-muted-2"
             >
               <span>
-                {nameOf(shift.user_id)} · {formatUntil(shift.starts_at, t.locale)} →{" "}
-                {formatUntil(shift.ends_at, t.locale)}
+                {nameOf(shift.user_id)} · {formatUntil(shift.starts_at, t)} →{" "}
+                {formatUntil(shift.ends_at, t)}
               </span>
               {canEdit ? (
                 <button

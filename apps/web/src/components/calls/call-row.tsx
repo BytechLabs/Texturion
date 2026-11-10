@@ -24,7 +24,7 @@ import { useT, type Translate } from "@/i18n/provider";
 import type { Call } from "@/lib/api/types";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
-import { formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
 import { avatarInitials } from "@loonext/shared";
 
@@ -129,7 +129,7 @@ export function CallRow({ call }: { call: Call }) {
             aria-hidden={threaded || undefined}
             className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2"
           >
-            {formatRelativeTime(call.started_at, undefined, t)}
+            <Timestamp at={call.started_at} style="short" />
           </span>
         </span>
         {/* #566: `min-w-0` so this line may be narrower than its content —

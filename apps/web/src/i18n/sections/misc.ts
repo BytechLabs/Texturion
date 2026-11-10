@@ -326,6 +326,13 @@ export const miscEn = {
   unknownContact: "Unknown",
   /** The freshest a relative timestamp gets. */
   timeNow: "now",
+  /** #720: a date one day either side of today, alone and with its time. */
+  timeYesterday: "Yesterday",
+  timeTomorrow: "Tomorrow",
+  timeYesterdayAt: "Yesterday {time}",
+  timeTomorrowAt: "Tomorrow {time}",
+  /** #720: the same instant on somebody else's clock, under the full time. */
+  timeElsewhere: "{time} for {whose}",
   /** A call row's outcome. Outbound speaks from the crew's side: a customer
       who did not pick up is "No answer", never "Missed" — nothing was missed
       by the crew. */
@@ -644,6 +651,11 @@ export const miscFr: Translated<typeof miscEn> = {
   // --- Les formateurs partagés ----------------------------------------------
   unknownContact: "Inconnu",
   timeNow: "maintenant",
+  timeYesterday: "Hier",
+  timeTomorrow: "Demain",
+  timeYesterdayAt: "Hier {time}",
+  timeTomorrowAt: "Demain {time}",
+  timeElsewhere: "{time} pour {whose}",
   callNoAnswer: "Sans réponse",
   callMissed: "Manqué",
   callVoicemail: "Message vocal",

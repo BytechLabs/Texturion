@@ -21,7 +21,7 @@ import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useDeleteTemplate, useTemplates } from "@/lib/api/templates";
 import type { Template } from "@/lib/api/types";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { formatTimestamp } from "@/lib/format/time";
 
 import { groupTemplates } from "./grouping";
 import { TemplateDialog } from "./template-dialog";
@@ -46,10 +46,7 @@ function TemplateRow({
         <p className="line-clamp-2 text-sm text-muted-foreground">
           {template.body}
         </p>
-        <p
-          className="mt-1 text-xs text-muted-foreground"
-          title={formatAbsoluteDateTime(template.updated_at, undefined, t.locale)}
-        >
+        <p className="mt-1 text-xs text-muted-foreground">
           {/* #419: not a permission — visibility. A template is the only
               object here where one person's edit changes what everyone else
               says to customers, and in a crew of ten "Sam changed this on
@@ -58,7 +55,7 @@ function TemplateRow({
               left the crew or predates the column.
               *Applying: G10 — system states must be precise.* */}
           {t("appShell.templateUpdatedAgo", {
-            when: formatRelativeTime(template.updated_at, undefined, t),
+            when: formatTimestamp(template.updated_at, { style: "long", t }),
           })}
           {editorName !== null &&
             t("appShell.templateUpdatedBy", { name: editorName })}

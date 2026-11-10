@@ -19,6 +19,7 @@ import { ApiError } from "@/lib/api/error";
 import type { ContactDetail } from "@/lib/api/types";
 import { contactDisplayName } from "@/lib/format/phone";
 import { useActiveCompany } from "@/lib/company/provider";
+import { formatTimestamp } from "@/lib/format/time";
 import { roleHasCapability } from "@loonext/shared";
 
 /**
@@ -47,10 +48,7 @@ export function MergedFrom({ contact }: { contact: ContactDetail }) {
     { name: merged.name, phone_e164: merged.phone_e164 },
     t,
   );
-  const date = new Intl.DateTimeFormat(t.locale, {
-    month: "short",
-    day: "numeric",
-  }).format(new Date(merged.merged_at));
+  const date = formatTimestamp(merged.merged_at, { style: "long", t });
 
   return (
     <>

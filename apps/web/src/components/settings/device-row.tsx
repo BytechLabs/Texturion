@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useT, type Translate } from "@/i18n/provider";
 import type { SessionClient } from "@/lib/api/sessions";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 /**
@@ -94,17 +94,13 @@ export function DeviceRow({
           {secondary ?? location ?? t("settings.deviceNoLocation")}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          <span title={formatAbsoluteDateTime(lastActiveAt, undefined, t.locale)}>
-            {t("settings.deviceLastActive", {
-              when: formatRelativeTime(lastActiveAt, undefined, t),
-            })}
-          </span>
+          {t("settings.deviceLastActive", {
+            when: formatTimestamp(lastActiveAt, { style: "long", t }),
+          })}
           {" · "}
-          <span title={formatAbsoluteDateTime(signedInAt, undefined, t.locale)}>
-            {t("settings.deviceSignedIn", {
-              when: formatRelativeTime(signedInAt, undefined, t),
-            })}
-          </span>
+          {t("settings.deviceSignedIn", {
+            when: formatTimestamp(signedInAt, { style: "long", t }),
+          })}
         </p>
         {userAgent && (
           // Kept, but at the bottom of the visual hierarchy: it is the thing

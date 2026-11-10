@@ -14,6 +14,7 @@ import { SettingsCard } from "@/components/settings/section";
 import { sayWith, useT } from "@/i18n/provider";
 import { useReferrals } from "@/lib/api/billing";
 import { type PlanId } from "@/lib/api/types";
+import { Timestamp } from "@/components/ui/timestamp";
 
 /**
  * #399 — the referral link, and what it has done.
@@ -128,12 +129,11 @@ export function ReferralCard({
                   <span className="text-muted-foreground">
                     {say(REFERRAL_STAGE_LABELS[row.stage])}
                   </span>
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {new Date(row.created_at).toLocaleDateString(t.locale, {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
+                  <Timestamp
+                    at={row.created_at}
+                    style="short"
+                    className="shrink-0 text-xs text-muted-foreground"
+                  />
                 </li>
               ))}
             </ul>

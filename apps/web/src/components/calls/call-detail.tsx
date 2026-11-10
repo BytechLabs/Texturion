@@ -15,7 +15,7 @@ import { useT } from "@/i18n/provider";
 import { useCall } from "@/lib/api/calls";
 import { outcomeLine, transcriptState } from "./call-detail-copy";
 import { callRoutingReason } from "@/lib/format/call";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 import { formatPhone } from "@/lib/format/phone";
 
 /**
@@ -86,9 +86,7 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
         meta={
           <p className="text-sm text-muted-foreground">
             {outcomeLine(row, t)} ·{" "}
-            <span title={formatAbsoluteDateTime(row.started_at, undefined, t.locale)}>
-              {formatRelativeTime(row.started_at, undefined, t)}
-            </span>
+            <Timestamp at={row.started_at} style="long" />
           </p>
         }
         trailing={
@@ -171,13 +169,11 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
           </Row>
         )}
         <Row label={t("shell.startedLabel")}>
-          <span title={formatAbsoluteDateTime(row.started_at, undefined, t.locale)}>
-            {formatAbsoluteDateTime(row.started_at, undefined, t.locale)}
-          </span>
+          <Timestamp at={row.started_at} style="long" />
         </Row>
         {row.ended_at && (
           <Row label={t("shell.endedLabel")}>
-            {formatAbsoluteDateTime(row.ended_at, undefined, t.locale)}
+            <Timestamp at={row.ended_at} style="long" />
           </Row>
         )}
         {row.stir_attestation && (

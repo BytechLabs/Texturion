@@ -10,7 +10,8 @@ import { useT } from "@/i18n/provider";
 import { useDataExports, useRequestDataExport } from "@/lib/api/exports";
 import { ApiError } from "@/lib/api/error";
 import type { DataExport } from "@/lib/api/types";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
+import { formatAbsoluteDateTime, formatTimestamp } from "@/lib/format/time";
 
 /**
  * #227 — taking a copy of your workspace.
@@ -78,7 +79,7 @@ export function ExportDataCard() {
         {latestFailed && !building && (
           <p className="text-sm text-destructive">
             {t("settings.exportDataFailed", {
-              when: formatRelativeTime(latestFailed.requested_at, undefined, t),
+              when: formatTimestamp(latestFailed.requested_at, { style: "long", t }),
             })}
           </p>
         )}
@@ -110,12 +111,7 @@ function ReadyExport({ row }: { row: DataExport }) {
         <p className="text-sm font-medium">{t("settings.exportDataLatest")}</p>
         <p className="text-xs tabular-nums text-muted-foreground">
           {t("settings.exportDataRecords", { count: total.toLocaleString(t.locale) })} ·{" "}
-          <time
-            dateTime={row.completed_at ?? row.requested_at}
-            title={formatAbsoluteDateTime(row.completed_at ?? row.requested_at, undefined, t.locale)}
-          >
-            {formatRelativeTime(row.completed_at ?? row.requested_at, undefined, t)}
-          </time>
+          <Timestamp at={row.completed_at ?? row.requested_at} style="long" />
         </p>
       </div>
 

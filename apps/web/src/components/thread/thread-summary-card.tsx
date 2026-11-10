@@ -16,7 +16,7 @@ import {
 } from "@/lib/api/thread-summary";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
 
 /**
@@ -362,12 +362,11 @@ export function ThreadSummaryCard({
                             server orders by it so the later word reads last;
                             this is what lets a reader see that "Tuesday" was
                             said three weeks ago. */}
-                        <span
-                          title={formatAbsoluteDateTime(line.at, undefined, t.locale)}
-                          className="shrink-0 pt-0.5 text-[11px] tabular-nums text-app-muted-2"
-                        >
-                          {formatRelativeTime(line.at, undefined, t)}
-                        </span>
+                        <Timestamp
+                          at={line.at}
+                          style="short"
+                          className="shrink-0 pt-0.5 text-[11px] text-app-muted-2"
+                        />
                       </button>
                     </li>
                   ))}

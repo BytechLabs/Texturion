@@ -24,7 +24,7 @@ import {
   useReportAttachment,
 } from "@/lib/api/attachments";
 import { ApiError } from "@/lib/api/error";
-import { formatAbsoluteDateTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
 
 import { formatBytes } from "@/components/thread/gallery-grouping";
@@ -295,11 +295,9 @@ function ImageAttachmentRow({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm text-foreground">{label}</span>
-          <span
-            className="block text-[11px] tabular-nums text-muted-foreground"
-            title={formatAbsoluteDateTime(attachment.created_at, undefined, t.locale)}
-          >
-            {subLine([t("misc.attachmentKindImage"), size, meta])}
+          <span className="block text-[11px] tabular-nums text-muted-foreground">
+            {subLine([t("misc.attachmentKindImage"), size, meta])} ·{" "}
+            <Timestamp at={attachment.created_at} style="short" />
           </span>
         </span>
       </button>
@@ -375,11 +373,9 @@ function FileAttachmentRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm text-foreground">{label}</span>
-        <span
-          className="block text-[11px] tabular-nums text-muted-foreground"
-          title={formatAbsoluteDateTime(attachment.created_at, undefined, t.locale)}
-        >
-          {subLine([typeLabel, size, meta])}
+        <span className="block text-[11px] tabular-nums text-muted-foreground">
+          {subLine([typeLabel, size, meta])} ·{" "}
+          <Timestamp at={attachment.created_at} style="short" />
         </span>
       </span>
       <Download

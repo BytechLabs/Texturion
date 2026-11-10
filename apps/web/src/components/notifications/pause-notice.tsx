@@ -1,6 +1,6 @@
 import { useT } from "@/i18n/provider";
 import type { AlertPause } from "@/lib/api/types";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 
 /**
  * #343 — "your notifications are paused", said to the crew rather than only to
@@ -48,9 +48,7 @@ export function NotificationPauseNotice({ pause }: { pause?: AlertPause }) {
     <div className="border-b border-border bg-amber-50 px-4 py-2.5 dark:bg-amber-950/30">
       <p className="text-[12.5px] text-amber-900 dark:text-amber-200">
         {t("misc.alertsPausedBody", { what, still })}{" "}
-        <time dateTime={pause.resets_at} title={formatAbsoluteDateTime(pause.resets_at, undefined, t.locale)}>
-          {formatRelativeTime(pause.resets_at, undefined, t)}
-        </time>
+        <Timestamp at={pause.resets_at} style="long" />
         {t("misc.alertsPausedBodyEnd")}
       </p>
     </div>

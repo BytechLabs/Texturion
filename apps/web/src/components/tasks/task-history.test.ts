@@ -86,8 +86,11 @@ describe("taskHistorySentence", () => {
   });
 
   it("reads a due time as a weekday and time, and a cleared one as cleared", () => {
+    // Computed from now: the shared rule says "3:42 PM" for today and a weekday
+    // within the week, so a fixed date would change its answer on its own day.
+    const inThreeDays = new Date(Date.now() + 3 * 86_400_000).toISOString();
     const set = taskHistorySentence(
-      event({ event: "due", to: "2026-11-10T14:00:00.000Z" }),
+      event({ event: "due", to: inThreeDays }),
       "Rehman",
       t,
     );

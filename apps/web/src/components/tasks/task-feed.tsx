@@ -1,6 +1,5 @@
 "use client";
 
-import { format } from "date-fns";
 import { Loader2, MoreHorizontal, Paperclip } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -32,6 +31,7 @@ import {
   ATTACHMENT_ACCEPT,
   MAX_ATTACHMENTS_PER_OWNER,
 } from "@/lib/attachments/validate";
+import { Timestamp } from "@/components/ui/timestamp";
 
 import { taskHistorySentence } from "./task-history";
 import { taskNumberLabel } from "@loonext/shared";
@@ -43,8 +43,6 @@ import { useReferenceTrigger } from "./use-reference-trigger";
 type CommentItem = Extract<TaskFeedItem, { kind: "comment" }>;
 
 const COMMENT_MAX_LENGTH = 4000;
-
-const stamp = (iso: string) => format(new Date(iso), "MMM d, h:mm a");
 
 /**
  * A task's activity: what changed on it, what the crew said, and the thread note
@@ -122,7 +120,7 @@ function HistoryLine({ item }: { item: Extract<TaskFeedItem, { kind: "event" }> 
     <p className="text-[12px] leading-relaxed text-app-muted-2">
       {taskHistorySentence(item, by, t)}
       <span className="ml-1 tabular-nums text-app-muted-2/80">
-        · {stamp(item.created_at)}
+        · <Timestamp at={item.created_at} style="long" />
       </span>
     </p>
   );
@@ -169,7 +167,7 @@ function ReferenceLine({
   const body = (
     <>
       {sentence}
-      <span className="ml-1 tabular-nums text-app-muted-2/80">· {stamp(item.created_at)}</span>
+      <span className="ml-1 tabular-nums text-app-muted-2/80">· <Timestamp at={item.created_at} style="long" /></span>
     </>
   );
   return (
@@ -194,9 +192,11 @@ function Note({ item }: { item: Extract<TaskFeedItem, { kind: "note" }> }) {
       <div className="min-w-0 flex-1 rounded-app-card border border-app-amber-line bg-app-amber-bg px-3 py-2">
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-[12px] font-semibold text-app-amber-ink">{name}</span>
-          <span className="shrink-0 text-[11px] tabular-nums text-app-amber-ink/70">
-            {stamp(item.created_at)}
-          </span>
+          <Timestamp
+            at={item.created_at}
+            style="long"
+            className="shrink-0 text-[11px] text-app-amber-ink/70"
+          />
         </div>
         <p className="mt-0.5 text-[13px] text-app-amber-ink">
           <ReferenceText text={item.body} />
@@ -247,7 +247,7 @@ function Comment({
         <div className="flex items-baseline gap-2">
           <span className="text-[12px] font-semibold text-app-ink">{name}</span>
           <span className="text-[11px] tabular-nums text-app-muted-2">
-            {stamp(item.created_at)}
+            <Timestamp at={item.created_at} style="long" />
             {item.edited_at !== null && ` · ${t("tasks.commentEdited")}`}
           </span>
           {(canEdit || canDelete) && !editing && (

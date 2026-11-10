@@ -31,7 +31,7 @@ import {
 } from "@/lib/api/calendar";
 import {
   formatAbsoluteDateTime,
-  formatRelativeTime,
+  formatTimestamp,
   instantFromZonedWallClock,
 } from "@/lib/format/time";
 
@@ -50,7 +50,7 @@ function connectLabel(t: Translate, provider: CalendarProvider): string {
 }
 
 function relative(iso: string, t: Translate): string {
-  return formatRelativeTime(iso, new Date(), t, t.locale);
+  return formatTimestamp(iso, { style: "long", t });
 }
 
 function ScheduleSnapshot({

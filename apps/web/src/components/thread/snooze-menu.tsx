@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { makeTranslate, useT, type Translate } from "@/i18n/provider";
+import { formatTimestamp } from "@/lib/format/time";
 
 /** English, for a caller with no provider around it. */
 const EN = makeTranslate(DEFAULT_LOCALE);
@@ -161,7 +162,7 @@ function DeferralSubmenu({
           >
             <span>{preset.label}</span>
             <span className="ml-auto pl-4 text-xs tabular-nums text-muted-foreground">
-              {formatPresetHint(preset.at, t.locale)}
+              {formatPresetHint(preset.at, t)}
             </span>
           </DropdownMenuItem>
         ))}
@@ -274,15 +275,8 @@ export function SnoozeDialog({
 }
 
 /** "3:00 PM" / "Mon 8:00 AM" — enough to know what you are choosing. */
-function formatPresetHint(at: number, locale: string): string {
-  const date = new Date(at);
-  const time = date.toLocaleTimeString(locale, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  return snoozeReturnShape(date) === "today"
-    ? time
-    : `${date.toLocaleDateString(locale, { weekday: "short" })} ${time}`;
+function formatPresetHint(at: number, t: Translate): string {
+  return formatTimestamp(new Date(at).toISOString(), { style: "long", t });
 }
 
 /**

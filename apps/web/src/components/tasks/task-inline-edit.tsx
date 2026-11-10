@@ -1,6 +1,5 @@
 "use client";
 
-import { format } from "date-fns";
 import { CalendarClock } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -14,6 +13,7 @@ import { useT } from "@/i18n/provider";
 import { useUpdateTask } from "@/lib/api/tasks";
 import type { Task } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/format/time";
 
 import { AssigneeField } from "./assignee-field";
 import { taskAssigneeIds } from "./task-assignees";
@@ -54,7 +54,7 @@ export function InlineDue({ task }: { task: Task }) {
 
   const label =
     task.due_at !== null
-      ? format(new Date(task.due_at), "MMM d, h:mm a")
+      ? formatTimestamp(task.due_at, { style: "long", t })
       : t("tasks.setDue");
 
   return (

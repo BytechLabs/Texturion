@@ -15,7 +15,7 @@ import { useT } from "@/i18n/provider";
 import { useSnoozeConversation } from "@/lib/api/conversations";
 import { useOutstandingQuotes } from "@/lib/api/quotes";
 import { useActiveCompany } from "@/lib/company/provider";
-import { formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 import { Section } from "@/components/for-you/section";
 
 /** #287: a morning's worth. The rest is the thread list's job. */
@@ -99,7 +99,7 @@ export function OutstandingQuotesSection() {
                   fact that decides whether to chase; the deadline is the reason
                   the row will vanish on its own. */}
               <span className="shrink-0 text-[12px] text-app-muted-2">
-                {quote.sent_at ? formatRelativeTime(quote.sent_at, undefined, t) : ""}
+                <Timestamp at={quote.sent_at} style="short" />
               </span>
             </Link>
             {canChase && (

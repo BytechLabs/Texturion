@@ -1,6 +1,5 @@
 "use client";
 
-import { format } from "date-fns";
 import { Ban, Check, ChevronDown, Copy, Plus, Sparkles, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -61,7 +60,8 @@ import { flattenPages } from "@/lib/api/pagination";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 import type { ConversationDetail, ContactDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
+import { formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { ContactLanguage, useContactLanguageLabel } from "./contact-language";
@@ -82,7 +82,7 @@ function consentLine(
   if (contact.consent_source === "inbound_sms") {
     return contact.consent_at
       ? t("contacts.consentTextedFirstOn", {
-          date: format(new Date(contact.consent_at), "MMM d"),
+          date: formatTimestamp(contact.consent_at, { style: "long", t }),
         })
       : t("contacts.consentTextedFirst");
   }
@@ -91,7 +91,7 @@ function consentLine(
     return contact.consent_at
       ? t("contacts.consentRecordedByOn", {
           name: by,
-          date: format(new Date(contact.consent_at), "MMM d"),
+          date: formatTimestamp(contact.consent_at, { style: "long", t }),
         })
       : t("contacts.consentRecordedBy", { name: by });
   }
@@ -718,12 +718,11 @@ function PriorConversations({
           >
             <span className="flex items-center gap-2">
               <StatusPill status={row.status} />
-              <span
+              <Timestamp
+                at={row.last_message_at}
+                style="short"
                 className="text-[13px] text-muted-foreground"
-                title={formatAbsoluteDateTime(row.last_message_at, undefined, t.locale)}
-              >
-                {formatRelativeTime(row.last_message_at, undefined, t)}
-              </span>
+              />
             </span>
           </Link>
         </li>

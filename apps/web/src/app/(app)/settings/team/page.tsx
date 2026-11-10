@@ -70,7 +70,7 @@ import {
 } from "@/lib/api/team";
 import type { Invite, Member } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { formatTimestamp } from "@/lib/format/time";
 import {
   countActiveMembers,
   countPendingInvites,
@@ -161,20 +161,13 @@ function MemberRow({
             </span>
           )}
         </p>
-        <p
-          className="text-xs text-muted-foreground"
-          title={formatAbsoluteDateTime(
-            deactivated ? (member.deactivated_at as string) : member.created_at,
-            undefined,
-            t.locale,
-          )}
-        >
+        <p className="text-xs text-muted-foreground">
           {deactivated
             ? t("appShell.teamDeactivatedAgo", {
-                when: formatRelativeTime(member.deactivated_at as string, undefined, t),
+                when: formatTimestamp(member.deactivated_at as string, { style: "long", t }),
               })
             : t("appShell.teamJoinedAgo", {
-                when: formatRelativeTime(member.created_at, undefined, t),
+                when: formatTimestamp(member.created_at, { style: "long", t }),
               })}
         </p>
       </div>
@@ -522,10 +515,7 @@ function InviteRow({ invite }: { invite: Invite }) {
           {expired
             ? t("appShell.teamInviteExpired")
             : t("appShell.teamInviteExpires", {
-                date: new Date(invite.expires_at).toLocaleDateString(t.locale, {
-                  month: "short",
-                  day: "numeric",
-                }),
+                date: formatTimestamp(invite.expires_at, { style: "long", t }),
               })}
         </p>
         {/* #521: what this person will be told, still readable by the person

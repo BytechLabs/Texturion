@@ -1,9 +1,9 @@
 "use client";
 
 import type { QuickAddResult } from "@loonext/shared";
-import { format } from "date-fns";
 
 import { useT } from "@/i18n/provider";
+import { formatTimestamp } from "@/lib/format/time";
 
 import { priorityLabelKey } from "./task-planning";
 
@@ -22,10 +22,9 @@ export function QuickAddPreview({ parsed }: { parsed: QuickAddResult }) {
     rows.push({ label: t("tasks.quickAssignee"), value: parsed.assignee.name });
   }
   if (parsed.dueAt) {
-    const due = new Date(parsed.dueAt);
     rows.push({
       label: t("tasks.quickDue"),
-      value: format(due, parsed.dueHasTime ? "EEE MMM d, h:mm a" : "EEE MMM d, h:mm a"),
+      value: formatTimestamp(parsed.dueAt, { style: "long", t }),
     });
   }
   if (parsed.priority) {

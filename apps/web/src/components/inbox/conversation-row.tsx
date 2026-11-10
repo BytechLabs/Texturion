@@ -32,7 +32,8 @@ import type {
 } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { formatAbsoluteDateTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
 
 import { isSnoozed } from "@/lib/api/filters";
@@ -291,9 +292,11 @@ export const ConversationRow = memo(function ConversationRow({
                 aria-label={t("inbox.rowMutedAria")}
               />
             )}
-            <span className="text-[11.5px] tabular-nums text-app-muted-2">
-              {formatRelativeTime(conversation.last_message_at, undefined, t)}
-            </span>
+            <Timestamp
+              at={conversation.last_message_at}
+              style="short"
+              className="text-[11.5px] text-app-muted-2"
+            />
           </span>
         </span>
 

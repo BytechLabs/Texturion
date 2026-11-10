@@ -28,7 +28,7 @@ import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useMergeTags, useTagUsage, useUpdateTag, type TagUsage } from "@/lib/api/tags";
 import { Input } from "@/components/ui/input";
-import { formatRelativeTime } from "@/lib/format/time";
+import { formatTimestamp } from "@/lib/format/time";
 
 /**
  * #298 — the tag list, with how much each one is actually used, and a way to
@@ -155,7 +155,7 @@ function TagUsageRow({
               the count alone cannot say that. */}
           {row.last_used !== null &&
             t("settingsMore.tagLastUsed", {
-              when: formatRelativeTime(row.last_used, undefined, t),
+              when: formatTimestamp(row.last_used, { style: "long", t }),
             })}
         </span>
         {canManage && (

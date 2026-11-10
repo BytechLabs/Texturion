@@ -1,17 +1,16 @@
-import { format } from "date-fns";
-
 import { taskNumberLabel } from "@loonext/shared";
 
 import type { MessageKey, Translate } from "@/i18n/provider";
 import type { TaskFeedItem } from "@/lib/api/types";
+import { formatTimestamp } from "@/lib/format/time";
 
 import { priorityLabelKey, repeatSummary } from "./task-planning";
 
 type EventItem = Extract<TaskFeedItem, { kind: "event" }>;
 
 /** "Tue 9:00 AM": the day name is enough for a job due this week. */
-function formatDueTime(iso: string): string {
-  return format(new Date(iso), "EEE h:mm a");
+function formatDueTime(iso: string, t: Translate): string {
+  return formatTimestamp(iso, { style: "long", t });
 }
 
 const asString = (value: unknown): string | null =>
@@ -103,7 +102,7 @@ export function taskHistorySentence(
     case "due": {
       const due = asString(item.to);
       return due
-        ? t("tasks.histDue", { by, due: formatDueTime(due) })
+        ? t("tasks.histDue", { by, due: formatDueTime(due, t) })
         : t("tasks.histDueCleared", { by });
     }
     case "reminders":

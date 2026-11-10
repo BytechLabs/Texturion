@@ -35,7 +35,8 @@ import type {
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
-import { formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
+import { formatTimestamp } from "@/lib/format/time";
 import { CustomiseDashboard } from "@/components/for-you/customise-dashboard";
 import { OutstandingQuotesSection } from "@/components/for-you/outstanding-quotes-section";
 import { Section } from "@/components/for-you/section";
@@ -122,10 +123,10 @@ function WaitingRow({ item }: { item: ForYouWaiting }) {
     ? t("inbox.forYouWhyOverdueTask")
     : item.unread
       ? t("inbox.forYouWhyUnread", {
-          when: formatRelativeTime(item.last_message_at, undefined, t),
+          when: formatTimestamp(item.last_message_at, { style: "long", t }),
         })
       : t("inbox.forYouWhyWaiting", {
-          when: formatRelativeTime(item.last_message_at, undefined, t),
+          when: formatTimestamp(item.last_message_at, { style: "long", t }),
         });
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
@@ -165,10 +166,10 @@ function FollowUpRow({ item }: { item: ForYouFollowUp }) {
   const why = item.note
     ? t("inbox.forYouWhyFollowUpNote", {
         note: item.note,
-        when: formatRelativeTime(item.due_at, undefined, t),
+        when: formatTimestamp(item.due_at, { style: "long", t }),
       })
     : t("inbox.forYouWhyNoReply", {
-        when: formatRelativeTime(item.last_message_at, undefined, t),
+        when: formatTimestamp(item.last_message_at, { style: "long", t }),
       });
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
@@ -232,10 +233,7 @@ function TaskRow({ task }: { task: ForYouTask }) {
   const why = task.overdue
     ? t("inbox.forYouWhyOverdueTask")
     : task.due_at
-      ? // formatDue (forward-looking: Today / Tomorrow / MMM d), NOT
-        // formatRelativeTime — the latter is an ELAPSED-time helper for PAST
-        // timestamps, so a future due_at collapsed to "Due now" for every task.
-        t("inbox.forYouWhyDue", { when: formatDue(task.due_at) })
+      ? t("inbox.forYouWhyDue", { when: formatDue(task.due_at, t) })
       : t("inbox.forYouWhyOpenTask");
 
   return (
@@ -297,7 +295,7 @@ function UnreadRow({ item }: { item: ForYouUnread }) {
         <span className="mt-0.5 block">
           <Why
             text={t("inbox.forYouWhyUnread", {
-              when: formatRelativeTime(item.last_message_at, undefined, t),
+              when: formatTimestamp(item.last_message_at, { style: "long", t }),
             })}
           />
         </span>
@@ -327,7 +325,7 @@ function TriageConvRow({ item }: { item: ForYouTriageConversation }) {
           </span>
         </span>
         <span className="mt-0.5 block">
-          <Why text={formatRelativeTime(item.last_message_at, undefined, t)} />
+          <Why text={formatTimestamp(item.last_message_at, { style: "long", t })} />
         </span>
       </span>
     </Card>
@@ -393,9 +391,11 @@ function RecentCallRow({ call }: { call: Call }) {
           <span className="min-w-0 truncate text-[13.5px] font-semibold text-app-ink">
             {name}
           </span>
-          <span className="shrink-0 text-[11.5px] tabular-nums text-app-muted-2">
-            {formatRelativeTime(call.started_at, undefined, t)}
-          </span>
+          <Timestamp
+            at={call.started_at}
+            style="short"
+            className="shrink-0 text-[11.5px] text-app-muted-2"
+          />
         </span>
         {/* #566: the same unbounded label as the /calls row, on a card that is
             narrower still. `callOutcomeLabel` renders "Answered by
@@ -520,10 +520,9 @@ function SummaryTile({
       : tile.signal.kind === "overdue"
         ? t("inbox.forYouTileOverdue", { count: tile.signal.count })
         : t("inbox.forYouTileOldest", {
-            when: formatRelativeTime(
+            when: formatTimestamp(
               new Date(Date.now() - tile.signal.ageMillis).toISOString(),
-              undefined,
-              t,
+              { style: "short", t },
             ),
           });
 
@@ -859,7 +858,7 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
     ? t("inbox.forYouSpamWhyTexted")
     : item.sustained
       ? t("inbox.forYouSpamWhySustained", {
-          when: formatRelativeTime(item.last_inbound_at, undefined, t),
+          when: formatTimestamp(item.last_inbound_at, { style: "long", t }),
         })
       : t("inbox.forYouSpamWhyCount", { count: item.inbound_since });
 

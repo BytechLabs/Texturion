@@ -33,6 +33,7 @@ import { DEFAULT_LOCALE } from "@loonext/shared";
 import { makeTranslate, useT, type Translate } from "@/i18n/provider";
 import type { DestinationClock } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/format/time";
 
 /**
  * #233 — "send this Monday at 8", from the composer.
@@ -101,7 +102,7 @@ export function SendLaterMenuItems({
             <Clock className="size-4" strokeWidth={1.75} />
             <span>{preset.label}</span>
             <span className="ml-auto pl-4 text-xs tabular-nums text-muted-foreground">
-              {formatPresetHint(preset.at, zone, t.locale)}
+              {formatPresetHint(preset.at, zone, t)}
             </span>
           </DropdownMenuItem>
         ) : null,
@@ -320,13 +321,8 @@ export function QuietHoursConfirm({
 }
 
 /** "Tue 8:00 AM" in the DESTINATION's zone — enough to know what you picked. */
-function formatPresetHint(at: Date, timeZone: string, locale: string): string {
-  return at.toLocaleString(locale, {
-    timeZone,
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function formatPresetHint(at: Date, timeZone: string, t: Translate): string {
+  return formatTimestamp(at.toISOString(), { style: "long", t, timeZone });
 }
 
 function formatHour(hour: number): string {

@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/contact-timeline";
 import { useMembers } from "@/lib/api/team";
 import { reducedMotionScrollBehavior } from "@/lib/motion";
+import { formatTimestamp } from "@/lib/format/time";
 
 /**
  * #324 — "what have we done for this customer?", answered by scrolling once.
@@ -294,7 +295,7 @@ function rowDetail(entry: TimelineEntry, t: Translate): string {
   if (entry.kind === "task") {
     if (entry.done) return t("contacts.timelineDone");
     return entry.due_at
-      ? t("contacts.timelineDue", { date: dayOf(entry.due_at, t.locale) })
+      ? t("contacts.timelineDue", { date: formatTimestamp(entry.due_at, { style: "long", t }) })
       : t("contacts.timelineOpen");
   }
   if (entry.kind === "call") {
@@ -320,13 +321,6 @@ function timeOf(iso: string, locale: string): string {
   return new Date(iso).toLocaleTimeString(locale, {
     hour: "numeric",
     minute: "2-digit",
-  });
-}
-
-function dayOf(iso: string, locale: string): string {
-  return new Date(iso).toLocaleDateString(locale, {
-    month: "short",
-    day: "numeric",
   });
 }
 

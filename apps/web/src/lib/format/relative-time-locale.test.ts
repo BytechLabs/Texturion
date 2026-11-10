@@ -1,25 +1,29 @@
 /**
  * #228: a time in a list row speaks the reader's language.
  *
- * `formatRelativeTime` took its translator as an optional third argument that
+ * The old relative formatter took its translator as an optional argument that
  * defaulted to English, and thirty callers never passed one. The inbox list,
  * the For You queue and the call log therefore said `now` and `Tue` to a French
- * reader. The locale now rides on the translator, so passing the translator is
- * the whole job.
+ * reader. #720 replaced it with `formatTimestamp`; the locale still rides on
+ * the translator, so passing the translator is the whole job.
  */
 import { describe, expect, it } from "vitest";
 
 import { makeTranslate } from "@/i18n/provider";
 
-import { formatRelativeTime, twoClockLabel } from "./time";
+import { formatTimestamp, twoClockLabel } from "./time";
 
 const NOW = new Date("2026-07-15T12:00:00.000Z");
 
-describe("#228 formatRelativeTime follows the translator", () => {
+const UTC = "UTC";
+
+describe("#228 formatTimestamp follows the translator", () => {
   it("says `now` in the reader's language", () => {
     const iso = new Date(NOW.getTime() - 5_000).toISOString();
-    expect(formatRelativeTime(iso, NOW, makeTranslate("en"))).toBe("now");
-    expect(formatRelativeTime(iso, NOW, makeTranslate("fr-CA"))).toBe("maintenant");
+    const at = (locale: "en" | "fr-CA") =>
+      formatTimestamp(iso, { now: NOW, t: makeTranslate(locale), timeZone: UTC });
+    expect(at("en")).toBe("now");
+    expect(at("fr-CA")).toBe("maintenant");
   });
 
   it("names the weekday and the month in the reader's language, from the translator alone", () => {
@@ -31,17 +35,19 @@ describe("#228 formatRelativeTime follows the translator", () => {
 
     // The locale is NOT passed as a fourth argument: carrying it on the
     // translator is what stops a caller from supplying a mismatched pair.
-    expect(formatRelativeTime(threeDays, NOW, en)).toMatch(/^Sun$/);
-    expect(formatRelativeTime(threeDays, NOW, fr)).not.toBe("Sun");
-    expect(formatRelativeTime(threeDays, NOW, fr)).toMatch(/dim/i);
+    const draw = (iso: string, t: typeof en) =>
+      formatTimestamp(iso, { now: NOW, t, timeZone: UTC });
+    expect(draw(threeDays, en)).toMatch(/^Sun$/);
+    expect(draw(threeDays, fr)).not.toBe("Sun");
+    expect(draw(threeDays, fr)).toMatch(/dim/i);
 
-    expect(formatRelativeTime(lastYear, NOW, en)).toBe("Mar 5 2025");
-    expect(formatRelativeTime(lastYear, NOW, fr)).toMatch(/mars/i);
+    expect(draw(lastYear, en)).toBe("Mar 5, 2025");
+    expect(draw(lastYear, fr)).toMatch(/mars/i);
   });
 
   it("keeps the English output unchanged when no translator is given", () => {
     const iso = new Date(NOW.getTime() - 5_000).toISOString();
-    expect(formatRelativeTime(iso, NOW)).toBe("now");
+    expect(formatTimestamp(iso, { now: NOW, timeZone: UTC })).toBe("now");
   });
 });
 

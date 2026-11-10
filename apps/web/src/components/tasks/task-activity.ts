@@ -1,8 +1,7 @@
-import { format } from "date-fns";
-
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/provider";
+import { formatTimestamp } from "@/lib/format/time";
 
 /** English, for a caller that has not been extracted yet. See `formatDue`. */
 const EN = makeTranslate(DEFAULT_LOCALE);
@@ -86,15 +85,7 @@ export function isTaskEventType(type: string): boolean {
   );
 }
 
-/** "today 3:00 PM" / "Jul 8 9:00 AM" for a due-set line. */
+/** "3:00 PM" / "Jul 8, 9:00 AM" for a due-set line. */
 function formatDue(iso: string, t: Translate): string {
-  const date = new Date(iso);
-  const now = new Date();
-  const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-  const time = format(date, "h:mm a");
-  if (sameDay) return t("tasks.eventDueToday", { time });
-  return `${format(date, "MMM d")} ${time}`;
+  return formatTimestamp(iso, { style: "long", t });
 }

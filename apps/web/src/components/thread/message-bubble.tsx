@@ -10,7 +10,6 @@ import {
   Lock,
   Pin,
 } from "lucide-react";
-import { format } from "date-fns";
 
 import {
   failureReasonOf,
@@ -24,10 +23,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Timestamp } from "@/components/ui/timestamp";
 import { useT } from "@/i18n/provider";
 import { useRetryMessage } from "@/lib/api/messages";
 import type { Message, MessageTaskLink } from "@/lib/api/types";
-import { formatAbsoluteDateTime } from "@/lib/format/time";
+import { formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { NoteAttachments } from "@/components/attachments/note-attachments";
@@ -54,9 +54,12 @@ import { MessageActions } from "./message-actions";
 export function DeliveryState({
   message,
   conversationId,
+  elsewhere,
 }: {
   message: Message;
   conversationId: string;
+  /** The customer's clock, said in the time's tooltip when it differs. */
+  elsewhere?: { timeZone: string; whose: string };
 }) {
   const t = useT();
   const retry = useRetryMessage(conversationId);
@@ -92,7 +95,7 @@ export function DeliveryState({
     );
   }
 
-  const time = format(new Date(message.created_at), "h:mm a");
+  const time = formatTimestamp(message.created_at, { style: "long", t });
   let state: React.ReactNode = null;
   let srState = "";
   if (message.status === "queued") {
@@ -117,11 +120,10 @@ export function DeliveryState({
   }
 
   return (
-    <span
-      className="text-[12px] text-muted-foreground"
-      title={formatAbsoluteDateTime(message.created_at, undefined, t.locale)}
-    >
-      <span aria-hidden>{time}</span>
+    <span className="text-[12px] text-muted-foreground">
+      <span aria-hidden>
+        <Timestamp at={message.created_at} style="long" elsewhere={elsewhere} />
+      </span>
       {state !== null && (
         <>
           <span aria-hidden> · </span>
@@ -248,18 +250,25 @@ export const MessageBubble = memo(function MessageBubble({
   isLastOfCluster,
   conversationId,
   contactName,
+  contactTimeZone = null,
   senderName = null,
 }: {
   message: Message;
   isLastOfCluster: boolean;
   conversationId: string;
   contactName: string;
+  /** #720: the customer's own zone, when we know it, so a time can be read on
+   * their clock too. Null when only the workspace's zone is known. */
+  contactTimeZone?: string | null;
   /** #101 shared-inbox attribution: the teammate who sent/wrote this cluster.
    * Null for inbound (the contact) and for system sends (auto-replies — the
    * timeline's event lines already narrate those). */
   senderName?: string | null;
 }) {
   const t = useT();
+  const elsewhere = contactTimeZone
+    ? { timeZone: contactTimeZone, whose: contactName }
+    : undefined;
   const outbound = message.direction === "outbound";
   const note = message.direction === "note";
   const attachments = message.attachments ?? [];
@@ -432,16 +441,17 @@ export const MessageBubble = memo(function MessageBubble({
             )}
             {(isLastOfCluster || failed) &&
               (note || !outbound ? (
-                <span
+                <Timestamp
+                  at={message.created_at}
+                  style="long"
+                  elsewhere={elsewhere}
                   className="text-[12px] text-muted-foreground"
-                  title={formatAbsoluteDateTime(message.created_at, undefined, t.locale)}
-                >
-                  {format(new Date(message.created_at), "h:mm a")}
-                </span>
+                />
               ) : (
                 <DeliveryState
                   message={message}
                   conversationId={conversationId}
+                  elsewhere={elsewhere}
                 />
               ))}
           </span>

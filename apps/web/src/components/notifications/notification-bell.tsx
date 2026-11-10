@@ -32,7 +32,7 @@ import { usePushSubscription } from "@/lib/push/use-push-subscription";
 import type { NotificationItem, NotificationType } from "@/lib/api/types";
 import { contactDisplayName } from "@/lib/format/phone";
 import { NotificationPauseNotice } from "./pause-notice";
-import { formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 import { useForYouNotificationsRealtime } from "@/lib/realtime/for-you-notifications";
 import { cn } from "@/lib/utils";
 
@@ -117,7 +117,7 @@ function NotificationRow({
           {describe(item, name, t)}
         </span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
-          {formatRelativeTime(item.created_at, undefined, t)}
+          <Timestamp at={item.created_at} style="short" />
         </span>
       </span>
     </>

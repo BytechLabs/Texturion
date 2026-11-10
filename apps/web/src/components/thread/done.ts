@@ -1,9 +1,8 @@
-import { format } from "date-fns";
-
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/provider";
 import type { ConversationEvent, Message } from "@/lib/api/types";
+import { formatTimestamp } from "@/lib/format/time";
 
 /**
  * English, for a caller with no provider around it — the unit tests below call
@@ -112,7 +111,7 @@ export function doneBadgeLabel(
   t: Translate = EN,
 ): string {
   if (message.done_at === null) return "";
-  const time = format(new Date(message.done_at), "h:mm a");
+  const time = formatTimestamp(message.done_at, { style: "long", t });
   const name =
     message.done_by_user_id !== null
       ? memberName(message.done_by_user_id)

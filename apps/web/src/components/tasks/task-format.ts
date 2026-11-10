@@ -1,10 +1,9 @@
-import { format, isSameYear, isToday, isTomorrow } from "date-fns";
-
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/provider";
 import type { Task } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
+import { formatTimestamp } from "@/lib/format/time";
 
 /**
  * #228: English, for a caller that has not been extracted yet.
@@ -30,8 +29,9 @@ export function isOverdue(task: Task, now: Date = new Date()): boolean {
 }
 
 /**
- * A short, human due label for a chip/cell: "Today", "Tomorrow", "Jul 8",
- * "Jul 8 2027". Null due → "" (the caller renders nothing).
+ * The due label for a string context, from the shared timestamp rule: "3:42 PM",
+ * "Tomorrow 3:42 PM", "Jul 8, 3:42 PM". Null due → "" (the caller renders
+ * nothing). A chip draws `<Timestamp>` instead, so it can be hovered.
  *
  * `t` defaults to English so a call site outside the tasks slice keeps
  * compiling and keeps saying exactly what it said before. Pass the reader's own
@@ -39,11 +39,7 @@ export function isOverdue(task: Task, now: Date = new Date()): boolean {
  */
 export function formatDue(dueAt: string | null, t: Translate = EN): string {
   if (dueAt === null) return "";
-  const date = new Date(dueAt);
-  if (isToday(date)) return t("tasks.today");
-  if (isTomorrow(date)) return t("tasks.tomorrow");
-  if (isSameYear(date, new Date())) return format(date, "MMM d");
-  return format(date, "MMM d yyyy");
+  return formatTimestamp(dueAt, { style: "long", t });
 }
 
 /**

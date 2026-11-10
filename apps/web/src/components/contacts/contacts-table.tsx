@@ -33,7 +33,7 @@ import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { flattenPages } from "@/lib/api/pagination";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
-import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 
 function SkeletonRows() {
   const t = useT();
@@ -286,15 +286,7 @@ export function ContactsTable({
                           fresh text (G10). Timestamps recede to the muted
                           colour: tertiary fails contrast on card. */}
                       {contact.last_activity_at ? (
-                        <span
-                          title={formatAbsoluteDateTime(
-                            contact.last_activity_at,
-                            undefined,
-                            t.locale,
-                          )}
-                        >
-                          {formatRelativeTime(contact.last_activity_at, undefined, t)}
-                        </span>
+                        <Timestamp at={contact.last_activity_at} style="short" />
                       ) : (
                         <>
                           <span aria-hidden>–</span>

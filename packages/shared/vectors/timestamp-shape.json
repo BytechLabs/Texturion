@@ -1,0 +1,184 @@
+[
+  {
+    "at": "2026-11-10T19:59:30Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "now",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-10T20:00:30Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "now",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-10T19:55:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "minutesAgo",
+    "minutes": 5
+  },
+  {
+    "at": "2026-11-10T19:01:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "minutesAgo",
+    "minutes": 59
+  },
+  {
+    "at": "2026-11-10T18:59:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "today",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-10T06:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "today",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-10T04:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "yesterday",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-10T04:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "UTC",
+    "bucket": "today",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-10T22:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "today",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-11T06:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "tomorrow",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-11T06:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "UTC",
+    "bucket": "tomorrow",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-07T15:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "thisWeek",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-04T15:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "thisWeek",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-03T15:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "thisYear",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-13T15:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "thisWeek",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-17T15:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "thisYear",
+    "minutes": 0
+  },
+  {
+    "at": "2026-01-02T15:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "thisYear",
+    "minutes": 0
+  },
+  {
+    "at": "2025-12-31T23:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "older",
+    "minutes": 0
+  },
+  {
+    "at": "2026-01-01T03:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "older",
+    "minutes": 0
+  },
+  {
+    "at": "2026-01-01T03:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "UTC",
+    "bucket": "thisYear",
+    "minutes": 0
+  },
+  {
+    "at": "2027-03-01T15:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "older",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-10T07:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "America/Vancouver",
+    "bucket": "yesterday",
+    "minutes": 0
+  },
+  {
+    "at": "2026-11-10T07:00:00Z",
+    "now": "2026-11-10T20:00:00Z",
+    "zone": "UTC",
+    "bucket": "today",
+    "minutes": 0
+  },
+  {
+    "at": "2026-03-08T06:00:00Z",
+    "now": "2026-03-09T15:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "yesterday",
+    "minutes": 0
+  },
+  {
+    "at": "2026-12-31T23:00:00Z",
+    "now": "2027-01-01T05:00:00Z",
+    "zone": "America/Toronto",
+    "bucket": "yesterday",
+    "minutes": 0
+  },
+  {
+    "at": "2026-12-31T23:00:00Z",
+    "now": "2027-01-01T05:00:00Z",
+    "zone": "UTC",
+    "bucket": "yesterday",
+    "minutes": 0
+  }
+]

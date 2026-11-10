@@ -2,16 +2,8 @@ import {
   bothClocks,
   bothClocksSpoken,
   DEFAULT_LOCALE,
-  type Locale as UiLocale,
+  timestampShape,
 } from "@loonext/shared";
-import {
-  differenceInCalendarDays,
-  differenceInHours,
-  differenceInMinutes,
-  format,
-  isSameYear,
-} from "date-fns";
-import { frCA } from "date-fns/locale";
 
 import { makeTranslate, type Translate } from "@/i18n/provider";
 
@@ -156,8 +148,9 @@ export function instantFromZonedWallClock(
 
 /**
  * Absolute datetime with zone abbreviation for timestamp tooltips (D15):
- * "Jul 2, 2026, 2:14 PM EDT" in the viewer's browser timezone. `timeZone`
- * is a parameter only so tests can pin a zone; product code omits it.
+ * "Thu, Jul 2, 2026, 2:14 PM EDT" in the viewer's browser timezone.
+ * `timeZone` is a parameter only so tests can pin a zone; product code omits
+ * it.
  */
 export function formatAbsoluteDateTime(
   iso: string,
@@ -169,6 +162,7 @@ export function formatAbsoluteDateTime(
   if (!iso || Number.isNaN(parsed.getTime())) return "";
   // timeZoneName cannot combine with dateStyle/timeStyle — components only.
   return new Intl.DateTimeFormat(locale, {
+    weekday: "short",
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -180,43 +174,75 @@ export function formatAbsoluteDateTime(
 }
 
 /**
- * Relative timestamps for list rows (G4/G10): `2m`, `1h`, `Tue` under
- * 7 days; absolute (`Jun 12`, `Jun 12 2025`) after.
- *
- * ## #228: one word of copy, and a pile of names that are not copy
- *
- * `now` is the only sentence here and it comes from the catalogue. `m` and `h`
- * stay: they are the unit symbols, and a row this narrow reads the same in both
- * languages — a translated `2 min` would wrap the timestamp column.
- *
- * The WEEKDAY and MONTH names are data, not copy, so they go through date-fns's
- * own locale rather than into the catalogue — the same rule the catalogue
- * header states for dates and money. `frCA` is passed rather than the format
- * tokens being changed, so the English output is byte-for-byte what it was.
+ * #720: how wide a timestamp may be. `short` fits a list column ("Sat",
+ * "Sep 9"); `long` adds the time wherever the row has room ("Sat 3:42 PM",
+ * "Sep 9, 3:42 PM").
  */
-export function formatRelativeTime(
+export type TimestampStyle = "short" | "long";
+
+/**
+ * #720: the label a date is shown with, from the shared rule
+ * (`timestampShape`), in the reader's language and zone. A bad or absent
+ * timestamp is blank, never "Invalid Date".
+ */
+export function formatTimestamp(
   iso: string,
-  now: Date = new Date(),
-  t: Translate = makeTranslate(DEFAULT_LOCALE),
-  locale: UiLocale = t.locale,
+  {
+    style = "short",
+    now = new Date(),
+    t = makeTranslate(DEFAULT_LOCALE),
+    timeZone,
+  }: {
+    style?: TimestampStyle;
+    now?: Date;
+    t?: Translate;
+    /** Pinned by tests; product code reads the browser's own zone. */
+    timeZone?: string;
+  } = {},
 ): string {
-  const date = new Date(iso);
-  // A bad/absent timestamp must render blank, not "NaNm" or a 1970 date.
-  if (!iso || Number.isNaN(date.getTime())) return "";
-  const minutes = differenceInMinutes(now, date);
-  if (minutes < 1) return t("misc.timeNow");
-  if (minutes < 60) return `${minutes}m`;
-  const hours = differenceInHours(now, date);
-  if (hours < 24) return `${hours}h`;
-  const options = locale === "fr-CA" ? { locale: frCA } : undefined;
-  // Calendar days, not truncated 24h periods: a message from last <weekday>
-  // exactly 7 calendar days back is ~6d10h → differenceInDays truncates to 6 →
-  // would render today's weekday ("Mon" for both). Calendar-days gates it to
-  // the absolute date instead, so the weekday window never repeats today's.
-  const days = differenceInCalendarDays(now, date);
-  if (days < 7) return format(date, "EEE", options);
-  if (isSameYear(date, now)) return format(date, "MMM d", options);
-  return format(date, "MMM d yyyy", options);
+  const at = new Date(iso);
+  if (!iso || Number.isNaN(at.getTime())) return "";
+  const zone = timeZone ?? browserTimezone() ?? "UTC";
+  const draw = (options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat(t.locale, { ...options, timeZone: zone }).format(at);
+  const clock = () => draw({ hour: "numeric", minute: "2-digit" });
+  const long = style === "long";
+
+  const shape = timestampShape(at.getTime(), now.getTime(), zone);
+  switch (shape.bucket) {
+    case "now":
+      return t("misc.timeNow");
+    case "minutesAgo":
+      return `${shape.minutes}m`;
+    case "today":
+      return clock();
+    case "yesterday":
+      return long
+        ? t("misc.timeYesterdayAt", { time: clock() })
+        : t("misc.timeYesterday");
+    case "tomorrow":
+      return long
+        ? t("misc.timeTomorrowAt", { time: clock() })
+        : t("misc.timeTomorrow");
+    case "thisWeek":
+      return long
+        ? draw({ weekday: "short", hour: "numeric", minute: "2-digit" })
+        : draw({ weekday: "short" });
+    case "thisYear":
+      return long
+        ? draw({ month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+        : draw({ month: "short", day: "numeric" });
+    case "older":
+      return long
+        ? draw({
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })
+        : draw({ year: "numeric", month: "short", day: "numeric" });
+  }
 }
 
 /**

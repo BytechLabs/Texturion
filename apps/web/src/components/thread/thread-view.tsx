@@ -360,6 +360,12 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           key={`messages-${conversationId}`}
           conversationId={conversationId}
           contact={conversation.contact}
+          contactTimeZone={
+            conversation.destination_clock &&
+            conversation.destination_clock.source !== "company"
+              ? conversation.destination_clock.timezone
+              : null
+          }
           filter={threadFilter}
           onFilterChange={setThreadFilter}
           catchUp={{

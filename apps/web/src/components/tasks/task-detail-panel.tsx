@@ -1,6 +1,5 @@
 "use client";
 
-import { format } from "date-fns";
 import {
   ArrowUpRight,
   Bell,
@@ -55,7 +54,7 @@ import { useT, type MessageKey, type Translate } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatCallDuration } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
-import { formatRelativeTime } from "@/lib/format/time";
+import { Timestamp } from "@/components/ui/timestamp";
 import { taskThreadHref, taskThreadId } from "./task-format";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { ApiError } from "@/lib/api/error";
@@ -620,7 +619,7 @@ function TaskDetailLoaded({
                 })}
               </p>
               <p className="mt-1 text-[12px] tabular-nums text-muted-foreground">
-                {formatRelativeTime(task.source_call.started_at, undefined, t)}
+                <Timestamp at={task.source_call.started_at} style="long" />
                 {task.source_call.forward_seconds > 0 &&
                   ` · ${t("tasks.callTalkTime", {
                     duration: formatCallDuration(task.source_call.forward_seconds),

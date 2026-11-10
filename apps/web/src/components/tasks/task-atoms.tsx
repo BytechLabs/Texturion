@@ -7,10 +7,11 @@ import { useMemberNames } from "@/components/inbox/member-avatar";
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
+import { Timestamp } from "@/components/ui/timestamp";
 
 import { AssigneeStack, assigneeSummary } from "./assignee-field";
 import { assigneeNames } from "./task-assignees";
-import { formatDue, isOverdue, taskThreadId } from "./task-format";
+import { isOverdue, taskThreadId } from "./task-format";
 import { useTaskDone } from "./use-task-mutations";
 
 /**
@@ -124,7 +125,7 @@ export function TaskDue({
       {overdue && (
         <span className="sr-only">{t("tasks.overdueSrPrefix")}</span>
       )}
-      {formatDue(task.due_at, t)}
+      <Timestamp at={task.due_at} style="long" />
     </span>
   );
 }
