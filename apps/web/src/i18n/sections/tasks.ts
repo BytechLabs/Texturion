@@ -47,8 +47,29 @@ export const tasksEn = {
   emptyFiltered: "Nothing on this list.",
   emptyTitle: "No tasks yet.",
   emptyBody:
-    "Promote a message from its ⋯ menu in a conversation to track it as a " +
-    "task here.",
+    "Add one with New task, or promote a message from its ⋯ menu in a " +
+    "conversation.",
+
+  // -------------------------------------------------------------------------
+  // New task (#689): a task with no text or call behind it.
+  // -------------------------------------------------------------------------
+  newTask: "New task",
+  newTaskDescription: "Only the title is required.",
+  newTaskTitleLabel: "What needs doing?",
+  newTaskTitlePlaceholder: "Order a furnace filter",
+  newTaskMore: "More",
+  newTaskNotesLabel: "Notes",
+  newTaskFor: "For {name}",
+  newTaskInThisConversation: "Linked to this conversation",
+  newTaskCreate: "Create task",
+  newTaskCreated: "Task created.",
+  newTaskFailed: "Couldn't create the task. Try again.",
+  newTaskTitleRequired: "Give the task a title.",
+  noSourceAria: "Source",
+  noSource: "No source",
+  noSourceHint: "Created on its own, not from a text or a call.",
+  linkedContact: "Contact",
+  linkedConversation: "Open the conversation",
 
   // -------------------------------------------------------------------------
   // The /tasks page and its view switcher.
@@ -398,8 +419,29 @@ export const tasksFr: Translated<typeof tasksEn> = {
   emptyFiltered: "Rien dans cette liste.",
   emptyTitle: "Aucune tâche pour le moment.",
   emptyBody:
-    "Promouvez un message depuis son menu ⋯ dans une conversation pour en " +
-    "faire une tâche suivie ici.",
+    "Ajoutez-en une avec Nouvelle tâche, ou promouvez un message depuis son " +
+    "menu ⋯ dans une conversation.",
+
+  // -------------------------------------------------------------------------
+  // Nouvelle tâche (#689) : une tâche sans texto ni appel derrière.
+  // -------------------------------------------------------------------------
+  newTask: "Nouvelle tâche",
+  newTaskDescription: "Seul le titre est obligatoire.",
+  newTaskTitleLabel: "Que faut-il faire ?",
+  newTaskTitlePlaceholder: "Commander un filtre de fournaise",
+  newTaskMore: "Plus",
+  newTaskNotesLabel: "Notes",
+  newTaskFor: "Pour {name}",
+  newTaskInThisConversation: "Liée à cette conversation",
+  newTaskCreate: "Créer la tâche",
+  newTaskCreated: "Tâche créée.",
+  newTaskFailed: "Impossible de créer la tâche. Réessayez.",
+  newTaskTitleRequired: "Donnez un titre à la tâche.",
+  noSourceAria: "Origine",
+  noSource: "Aucune origine",
+  noSourceHint: "Créée seule, sans texto ni appel.",
+  linkedContact: "Contact",
+  linkedConversation: "Ouvrir la conversation",
 
   // -------------------------------------------------------------------------
   // La page /tasks et son sélecteur de vue.

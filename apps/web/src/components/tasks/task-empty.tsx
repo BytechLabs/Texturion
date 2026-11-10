@@ -7,9 +7,8 @@ import { hasActiveChips, type TaskPageState } from "./task-view-url";
 /**
  * The calm empty state (T6.1 / T5.3). Two voices:
  *  - a filtered/tab view with nothing in it → one quiet line ("Nothing here");
- *  - the true first-run all-empty → a one-line sentence that TEACHES promotion
- *    (the discoverability fix — tasks are created only by promoting a message
- *    from its ⋯ menu, T5.3), since there is no standalone "+ Add task".
+ *  - the true first-run all-empty → a one-line sentence that names the two ways
+ *    to add one: New task, or promoting a message from its ⋯ menu (T5.3).
  *
  * No illustration, generous air (per APP-UI-ELEVATION §3.1 calm empty states).
  */

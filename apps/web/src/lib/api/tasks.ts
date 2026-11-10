@@ -321,6 +321,9 @@ export interface CreateTaskInput {
   due_at?: string | null;
   /** #214 confirmed enriched / hand-entered job address (null = none). */
   address?: TaskAddressInput | null;
+  /** A standalone task (#689) may link to a contact and/or a conversation. */
+  contact_id?: string;
+  conversation_id?: string;
 }
 
 /**
@@ -358,10 +361,16 @@ export function useCreateTaskFromMessage(conversationId: string) {
             : {}),
           ...(input.due_at !== undefined ? { due_at: input.due_at } : {}),
           ...(input.address !== undefined ? { address: input.address } : {}),
+          ...(input.contact_id !== undefined
+            ? { contact_id: input.contact_id }
+            : {}),
+          ...(input.conversation_id !== undefined
+            ? { conversation_id: input.conversation_id }
+            : {}),
         },
       }),
     onSuccess: (task) => {
-      invalidateTasks(queryClient, companyId, task.conversation_id);
+      invalidateTasks(queryClient, companyId, task.conversation_id ?? conversationId);
       // The `task_created` line lands in the open timeline (§4.3).
       void queryClient.invalidateQueries({
         queryKey: keys.conversations.events(companyId, conversationId),

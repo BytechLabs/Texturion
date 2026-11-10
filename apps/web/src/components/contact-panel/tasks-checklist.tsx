@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { undoableToast } from "@/components/ui/optimistic-undo";
+import { NewTaskButton } from "@/components/tasks/new-task";
 import { InlineAssignee, InlineDue } from "@/components/tasks/task-inline-edit";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { useT } from "@/i18n/provider";
@@ -32,8 +33,7 @@ import { cn } from "@/lib/utils";
  * opacity + the petrol check); assignee + due recede to stone; due is amber
  * ONLY when overdue (never a red scare); no count badge, no progress bar.
  * Optimistic with a 5s undo (the inverse `done` PATCH, itself a D14 no-op-safe
- * route). There is NO "+ Add task" here — tasks are created only by promoting a
- * message from its ⋯ menu (T0.1); the empty state teaches that.
+ * route). New task adds a standalone task linked to this conversation.
  */
 export function TasksChecklist({
   conversationId,
@@ -66,8 +66,7 @@ export function TasksChecklist({
   const rows = tasks.data.data;
 
   if (rows.length === 0) {
-    // First-run empty state teaches promotion (T5.3 discoverability) — the
-    // checklist has no standalone add affordance by design.
+    // First-run empty state teaches promotion (T5.3 discoverability).
     //
     // #228: the ⋯ is INTERPOLATED rather than wrapped in its own
     // `<span aria-hidden>`, because the glyph does not sit in the same place in
@@ -77,22 +76,30 @@ export function TasksChecklist({
     // reader now reaches the glyph; the alternative was French that reads
     // backwards.
     return (
-      <p className="px-2 text-[13px] leading-relaxed text-muted-foreground">
-        {t("contacts.tasksEmpty", { menu: "⋯" })}
-      </p>
+      <div className="space-y-2 px-2">
+        <p className="text-[13px] leading-relaxed text-muted-foreground">
+          {t("contacts.tasksEmpty", { menu: "⋯" })}
+        </p>
+        <NewTaskButton context={{ conversationId }} />
+      </div>
     );
   }
 
   return (
-    <ul className="space-y-0.5">
-      {rows.map((task) => (
-        <TaskRow
-          key={task.id}
-          task={task}
-          conversationId={conversationId}
-        />
-      ))}
-    </ul>
+    <div className="space-y-2">
+      <ul className="space-y-0.5">
+        {rows.map((task) => (
+          <TaskRow
+            key={task.id}
+            task={task}
+            conversationId={conversationId}
+          />
+        ))}
+      </ul>
+      <div className="px-2">
+        <NewTaskButton context={{ conversationId }} />
+      </div>
+    </div>
   );
 }
 

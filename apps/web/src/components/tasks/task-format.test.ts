@@ -2,18 +2,31 @@ import { describe, expect, it } from "vitest";
 
 import { makeTranslate } from "@/i18n/provider";
 
-import { taskCallerName, taskThreadHref } from "./task-format";
+import {
+  NO_CONVERSATION,
+  taskCallerName,
+  taskThreadHref,
+  taskThreadId,
+} from "./task-format";
 
 const t = makeTranslate("en");
 
 describe("D64 a task that came from a call", () => {
   it("links a message task to its message and a call task to the thread", () => {
-    expect(taskThreadHref({ conversation_id: "c1", message_id: "m1" })).toBe(
+    expect(taskThreadHref({ id: "t1", conversation_id: "c1", message_id: "m1" })).toBe(
       "/inbox/c1?message=m1",
     );
-    expect(taskThreadHref({ conversation_id: "c1", message_id: null })).toBe(
+    expect(taskThreadHref({ id: "t1", conversation_id: "c1", message_id: null })).toBe(
       "/inbox/c1",
     );
+  });
+
+  it("links a standalone task with no conversation to its own panel (#689)", () => {
+    expect(
+      taskThreadHref({ id: "t9", conversation_id: null, message_id: null }),
+    ).toBe("/tasks?task=t9");
+    expect(taskThreadId({ conversation_id: null })).toBe(NO_CONVERSATION);
+    expect(taskThreadId({ conversation_id: "c1" })).toBe("c1");
   });
 
   it("names who rang: CNAM name, else the number, else unknown; null for a message task", () => {

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
 import { TaskAssignee, TaskDue } from "../task-atoms";
-import { taskThreadHref } from "../task-format";
+import { taskThreadHref, taskThreadId } from "../task-format";
 import { EmptyTasks } from "../task-empty";
 import { useTaskDone } from "../use-task-mutations";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
@@ -169,7 +169,7 @@ function Column({
               done.mutate({
                 taskId: task.id,
                 messageId: task.message_id,
-                conversationId: task.conversation_id,
+                conversationId: taskThreadId(task),
                 done: !task.done,
               })
             }
@@ -191,7 +191,7 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
         e.dataTransfer.setData("text/task-id", task.id);
         e.dataTransfer.setData("text/task-done", task.done ? "1" : "0");
         e.dataTransfer.setData("text/task-message", task.message_id ?? "");
-        e.dataTransfer.setData("text/task-conversation", task.conversation_id);
+        e.dataTransfer.setData("text/task-conversation", taskThreadId(task));
       }}
       className="cursor-grab rounded-lg border border-border bg-card p-3 active:cursor-grabbing"
     >

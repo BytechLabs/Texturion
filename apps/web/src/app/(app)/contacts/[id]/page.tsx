@@ -13,6 +13,7 @@ import {
   useBlockedNumber,
 } from "@/components/blocked/block-number";
 import { CallButton } from "@/components/calls/call-button";
+import { NewTaskButton } from "@/components/tasks/new-task";
 import { ContactLanguage } from "@/components/contact-panel/contact-language";
 import { AddressList } from "@/components/contacts/address-list";
 import { PhoneList } from "@/components/contacts/phone-list";
@@ -387,6 +388,12 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           contactId={existingConversation ? undefined : contact.id}
           contactName={contact.name?.trim() || formatPhone(contact.phone_e164)}
           className="ml-auto"
+        />
+        <NewTaskButton
+          context={{
+            contactId: contact.id,
+            contactName: contact.name?.trim() || formatPhone(contact.phone_e164),
+          }}
         />
         <Button asChild>
           <Link

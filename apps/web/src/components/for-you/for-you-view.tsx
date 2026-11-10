@@ -268,13 +268,15 @@ function TaskRow({ task }: { task: ForYouTask }) {
           <Why text={why} warn={task.overdue} />
         </span>
       </button>
-      <Link
-        href={`/inbox/${task.conversation_id}`}
-        aria-label={t("inbox.forYouOpenConversationAria")}
-        className="shrink-0 text-app-muted-2 transition-colors hover:text-app-ink"
-      >
-        <ArrowRight className="size-4" strokeWidth={1.75} aria-hidden />
-      </Link>
+      {task.conversation_id !== null && (
+        <Link
+          href={`/inbox/${task.conversation_id}`}
+          aria-label={t("inbox.forYouOpenConversationAria")}
+          className="shrink-0 text-app-muted-2 transition-colors hover:text-app-ink"
+        >
+          <ArrowRight className="size-4" strokeWidth={1.75} aria-hidden />
+        </Link>
+      )}
     </div>
   );
 }
@@ -335,7 +337,13 @@ function TriageConvRow({ item }: { item: ForYouTriageConversation }) {
 function TriageTaskRow({ task }: { task: ForYouTriageTask }) {
   const t = useT();
   return (
-    <Card href={`/inbox/${task.conversation_id}`}>
+    <Card
+      href={
+        task.conversation_id === null
+          ? `/tasks?task=${task.task_id}`
+          : `/inbox/${task.conversation_id}`
+      }
+    >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13.5px] font-semibold text-app-ink">
           {task.title}

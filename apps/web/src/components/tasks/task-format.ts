@@ -66,7 +66,21 @@ export function taskCallerName(
   return t("shell.unknownCaller");
 }
 
-export function taskThreadHref(task: Pick<Task, "conversation_id" | "message_id">): string {
+/**
+ * The conversation id the caches and mutations key a task on. A task with no
+ * conversation (#689) has no thread caches, so it gets a key nothing else uses.
+ */
+export const NO_CONVERSATION = "no-conversation";
+
+export function taskThreadId(task: Pick<Task, "conversation_id">): string {
+  return task.conversation_id ?? NO_CONVERSATION;
+}
+
+export function taskThreadHref(
+  task: Pick<Task, "id" | "conversation_id" | "message_id">,
+): string {
+  // A standalone task with no conversation opens its own panel (#689).
+  if (task.conversation_id === null) return `/tasks?task=${task.id}`;
   // A task promoted from a call has no message to anchor to (D64): the thread.
   return task.message_id === null
     ? `/inbox/${task.conversation_id}`

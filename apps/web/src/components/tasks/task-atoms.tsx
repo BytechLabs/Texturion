@@ -7,7 +7,7 @@ import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
-import { formatDue, isOverdue } from "./task-format";
+import { formatDue, isOverdue, taskThreadId } from "./task-format";
 import { useTaskDone } from "./use-task-mutations";
 
 /**
@@ -41,7 +41,7 @@ export function TaskDoneCheckbox({
         done.mutate({
           taskId: task.id,
           messageId: task.message_id,
-          conversationId: task.conversation_id,
+          conversationId: taskThreadId(task),
           done: !task.done,
         });
       }}

@@ -1028,7 +1028,10 @@ export interface Task {
   source?: TaskSource | null;
   /** The promoted call, when `source.kind === 'call'` (list and checklist rows). */
   call?: TaskSourceCall | null;
-  conversation_id: string;
+  /** Null only for a standalone task that was not linked to a conversation. */
+  conversation_id: string | null;
+  /** The contact a standalone task was linked to. */
+  contact_id?: string | null;
   title: string;
   description: string;
   assigned_user_id: string | null;
@@ -1879,7 +1882,7 @@ export interface SearchConversationHit {
 export interface SearchTaskHit {
   id: string;
   title: string;
-  conversation_id: string;
+  conversation_id: string | null;
   done: boolean;
   matched_at: string;
 }
@@ -2353,8 +2356,9 @@ export interface ForYouFollowUp {
 export interface ForYouTask {
   task_id: string;
   title: string;
-  conversation_id: string;
-  /** Null for a task promoted from a call (D64). */
+  /** Null for a standalone task with no conversation (#689). */
+  conversation_id: string | null;
+  /** Null for a task promoted from a call (D64), or a standalone one. */
   message_id: string | null;
   assigned_user_id: string | null;
   due_at: string | null;
@@ -2383,8 +2387,8 @@ export interface ForYouTriageConversation {
 export interface ForYouTriageTask {
   task_id: string;
   title: string;
-  conversation_id: string;
-  message_id: string;
+  conversation_id: string | null;
+  message_id: string | null;
   due_at: string | null;
   overdue: boolean;
 }

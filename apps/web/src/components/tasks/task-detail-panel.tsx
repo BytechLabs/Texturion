@@ -60,7 +60,7 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { formatCallDuration } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
-import { taskThreadHref } from "./task-format";
+import { taskThreadHref, taskThreadId } from "./task-format";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
@@ -171,7 +171,7 @@ function TaskDetailLoaded({
   const me = useMe();
   const members = useMembers();
   const { role } = useActiveCompany();
-  const conversationId = task.conversation_id;
+  const conversationId = taskThreadId(task);
 
   // #107: the task is global (always shown), but its source conversation is on
   // a number this viewer can't access — the server withheld the message, files,
@@ -406,6 +406,32 @@ function TaskDetailLoaded({
           </section>
         )}
 
+        {/* A standalone task (#689): no text or call behind it. */}
+        {!task.source && task.message_id === null && !task.source_call_id && !noAccess && (
+          <section aria-label={t("tasks.noSourceAria")} className="space-y-1.5">
+            <p className="text-[13px] font-medium text-app-ink">
+              {t("tasks.noSource")}
+            </p>
+            <p className="text-[13px] text-app-muted">{t("tasks.noSourceHint")}</p>
+            {task.contact && (
+              <Link
+                href={`/contacts/${task.contact.id}`}
+                className="block text-[13px] text-app-ink underline-offset-2 hover:underline"
+              >
+                {t("tasks.linkedContact")}: {task.contact.name?.trim() || t("shell.unknownCaller")}
+              </Link>
+            )}
+            {task.conversation_id !== null && (
+              <Link
+                href={taskThreadHref(task)}
+                className="block text-[13px] text-app-ink underline-offset-2 hover:underline"
+              >
+                {t("tasks.linkedConversation")}
+              </Link>
+            )}
+          </section>
+        )}
+
         {/* Source message + thread link. */}
         {task.source_message && (
           <section aria-label={t("tasks.sourceMessageAria")} className="space-y-1.5">
@@ -551,7 +577,7 @@ function TaskDetailLoaded({
               onCheckedChange={(on) =>
                 setReminders.mutate({
                   taskId: task.id,
-                  conversationId: task.conversation_id,
+                  conversationId,
                   off: !on,
                 })
               }
@@ -619,7 +645,7 @@ function TaskDetailLoaded({
 
       {/* Note composer — posts a note linked to conversation + task (D-D). A
           no-access viewer can't note the hidden conversation, so it's hidden. */}
-      {!noAccess && (
+      {!noAccess && task.conversation_id !== null && (
         <TaskNoteComposer taskId={task.id} conversationId={conversationId} />
       )}
 

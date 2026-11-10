@@ -92,7 +92,7 @@ export const contactsEn = {
   tasksGroup: "Tasks",
   tasksLoadFailed: "Couldn't load tasks for this conversation.",
   tasksEmpty:
-    "No tasks yet. Promote a message from its {menu} menu to track it here.",
+    "No tasks yet. Add one with New task, or promote a message from its {menu} menu.",
   taskFilesTitle: "Open the task to see its files",
   fileOnTask: "file on this task",
   filesOnTask: "files on this task",
@@ -561,8 +561,8 @@ export const contactsFr: Translated<typeof contactsEn> = {
   tasksGroup: "Tâches",
   tasksLoadFailed: "Impossible de charger les tâches de cette conversation.",
   tasksEmpty:
-    "Aucune tâche. Transformez un message en tâche depuis son menu {menu} pour " +
-    "la suivre ici.",
+    "Aucune tâche. Ajoutez-en une avec Nouvelle tâche, ou transformez un " +
+    "message en tâche depuis son menu {menu}.",
   taskFilesTitle: "Ouvrir la tâche pour voir ses fichiers",
   fileOnTask: "fichier sur cette tâche",
   filesOnTask: "fichiers sur cette tâche",

@@ -32,7 +32,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
-import { taskThreadHref } from "../task-format";
+import { taskThreadHref, taskThreadId } from "../task-format";
 import { useTaskReschedule } from "../use-task-mutations";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
 
@@ -372,7 +372,7 @@ function DayChip({ task }: { task: Task }) {
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/task-id", task.id);
-          e.dataTransfer.setData("text/task-conversation", task.conversation_id);
+          e.dataTransfer.setData("text/task-conversation", taskThreadId(task));
           e.dataTransfer.setData("text/task-due", task.due_at ?? "");
         }}
         title={task.title}
@@ -404,7 +404,7 @@ function DayChip({ task }: { task: Task }) {
               onSelect={() =>
                 reschedule.mutate({
                   taskId: task.id,
-                  conversationId: task.conversation_id,
+                  conversationId: taskThreadId(task),
                   due_at: movedDueAt(task.due_at, move.days, new Date()),
                 })
               }

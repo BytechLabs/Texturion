@@ -25,7 +25,7 @@ import { useMembers } from "@/lib/api/team";
 import type { Task } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
-import { isOverdue } from "./task-format";
+import { isOverdue, taskThreadId } from "./task-format";
 
 /** Sentinel <Select> value for "unassigned" (Radix forbids an empty string). */
 const UNASSIGNED = "__unassigned__";
@@ -42,7 +42,7 @@ export function InlineAssignee({ task }: { task: Task }) {
   const t = useT();
   const me = useMe();
   const members = useMembers();
-  const update = useUpdateTask(task.conversation_id);
+  const update = useUpdateTask(taskThreadId(task));
   const memberOptions = members.data?.data ?? [];
   const value = task.assigned_user_id ?? UNASSIGNED;
   const name =
@@ -102,7 +102,7 @@ export function InlineAssignee({ task }: { task: Task }) {
 /** A compact due-date editor: the due chip opens a datetime popover. */
 export function InlineDue({ task }: { task: Task }) {
   const t = useT();
-  const update = useUpdateTask(task.conversation_id);
+  const update = useUpdateTask(taskThreadId(task));
   const [open, setOpen] = useState(false);
   const overdue = isOverdue(task);
 

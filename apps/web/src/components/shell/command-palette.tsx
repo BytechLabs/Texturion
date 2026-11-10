@@ -1,5 +1,6 @@
 "use client";
 
+import { openNewTask } from "@/components/tasks/new-task";
 import { useCanOpenSettings } from "@/components/settings/settings-link-guard";
 import {
   Ban,
@@ -491,6 +492,16 @@ export function CommandPalette() {
           >
             <PenSquare className="size-4" strokeWidth={1.75} />
             {t("shell.newConversation")}
+          </CommandItem>
+          <CommandItem
+            value="new task"
+            onSelect={() => {
+              close();
+              openNewTask(conversationId ? { conversationId } : {});
+            }}
+          >
+            <ListChecks className="size-4" strokeWidth={1.75} />
+            {t("tasks.newTask")}
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
 
+import { NewTaskDialog } from "@/components/tasks/new-task";
 import { CommandPalette } from "./command-palette";
 import { ComposeFab } from "./compose-fab";
 import { MobileTabBar } from "./mobile-tab-bar";
@@ -118,6 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <CallBar />
         <ComposeFab />
         <CommandPalette />
+        <NewTaskDialog />
         {/* TASKS-V2 D-A: the URL-driven (`?task=`) task detail drawer, openable
           from the /tasks views, the checklist, and thread task-event lines. */}
         <TaskDrawerHost />

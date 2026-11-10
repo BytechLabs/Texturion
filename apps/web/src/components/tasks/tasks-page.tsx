@@ -7,6 +7,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
+import { NewTaskButton } from "./new-task";
 import { TaskFilterBar } from "./task-filter-bar";
 import { ExportTasks } from "./export-tasks";
 import {
@@ -62,6 +63,7 @@ export function TasksPage() {
           <h1 className="text-2xl font-semibold tracking-tight">
             {t("tasks.pageTitle")}
           </h1>
+          <NewTaskButton variant="default" className="ml-auto" />
           <ViewSwitcher
             view={state.view}
             onChange={(view) =>
