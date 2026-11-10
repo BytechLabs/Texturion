@@ -134,6 +134,8 @@ internal fun ContactDetailScreen(
     callerIdName: String = "",
     /** #695: Unmerge is gated like merge (settings.manage); the line is for everyone. */
     canUnmerge: Boolean = false,
+    /** #691: deleting a contact needs records.delete. */
+    canDelete: Boolean = false,
     /**
      * #228: the workspace's own language, so the inherit option can NAME what
      * it inherits. The shell's value seeds it; see [liveCompanyLocale] below for
@@ -255,6 +257,7 @@ internal fun ContactDetailScreen(
                 companyId = companyId,
                 callerIdName = callerIdName,
                 canUnmerge = canUnmerge,
+                canDelete = canDelete,
                 companyLocale = liveCompanyLocale,
                 contact = current.value,
                 members = members,
@@ -275,6 +278,7 @@ private fun ContactDetailBody(
     companyId: String,
     callerIdName: String,
     canUnmerge: Boolean,
+    canDelete: Boolean,
     companyLocale: String,
     contact: Contact,
     members: List<Member>,
@@ -1023,14 +1027,16 @@ private fun ContactDetailBody(
                     }
                 },
             )
-            Spacer(Modifier.height(10.dp))
-            FooterAction(
-                label = t("contactsTasks.deleteContact"),
-                caption = t("contactsTasks.deleteContactCaption"),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                enabled = !working,
-                onClick = { confirmDelete = true },
-            )
+            if (canDelete) {
+                Spacer(Modifier.height(10.dp))
+                FooterAction(
+                    label = t("contactsTasks.deleteContact"),
+                    caption = t("contactsTasks.deleteContactCaption"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    enabled = !working,
+                    onClick = { confirmDelete = true },
+                )
+            }
         }
 
         Spacer(Modifier.height(24.dp))

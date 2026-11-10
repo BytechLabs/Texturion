@@ -68,6 +68,7 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.MessageLocale
+import com.loonext.android.core.model.canDeleteRecords
 import com.loonext.android.core.update.UpdatePrompt
 import com.loonext.android.core.update.UpdateState
 import com.loonext.android.features.auth.AuthCallbacks
@@ -915,6 +916,7 @@ private fun ReadyShell(
                         // #695: Unmerge is gated like merge, which the server
                         // holds to settings.manage (owner and admin).
                         canUnmerge = MemberRole.atLeast(role, MemberRole.ADMIN),
+                        canDelete = canDeleteRecords(role),
                         // #228: the contact's language row names what "same as
                         // workspace" currently means, which it cannot do
                         // without the workspace's own setting.
