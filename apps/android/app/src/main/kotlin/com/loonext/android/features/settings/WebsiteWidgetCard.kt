@@ -134,6 +134,7 @@ fun WebsiteWidgetCard(
     ).mapNotNull { id -> routable.firstOrNull { it.id == id } }
 
     SettingsCard(
+        anchor = "website-widget",
         title = t("settings.widgetTitle"),
         description = t("settings.widgetBlurb"),
     ) {

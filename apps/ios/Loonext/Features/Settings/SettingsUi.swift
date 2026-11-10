@@ -8,16 +8,57 @@ import UIKit
 
 // MARK: - Card
 
+/// #719: the setting a search result opened this section for. A card whose
+/// `anchor` is this id scrolls into view and flashes once; every other card
+/// ignores it, and an id no card carries simply opens the section.
+private struct SettingsAnchorKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
+extension EnvironmentValues {
+    var settingsAnchor: String? {
+        get { self[SettingsAnchorKey.self] }
+        set { self[SettingsAnchorKey.self] = newValue }
+    }
+}
+
+/// Names a card for the section's scroll view, only when it has an anchor: an
+/// id derived from a title that changes would reset the card's state.
+private struct SettingsAnchorId: ViewModifier {
+    let anchor: String?
+
+    func body(content: Content) -> some View {
+        if let anchor {
+            content.id(anchor)
+        } else {
+            content
+        }
+    }
+}
+
 struct SettingsCard<Content: View>: View {
     let title: String
+    /// #719: this card's id in the settings index (see SettingsSearch.swift).
+    var anchor: String?
     var description: String?
     @ViewBuilder let content: () -> Content
 
-    init(title: String, description: String? = nil, @ViewBuilder content: @escaping () -> Content) {
+    @Environment(.settingsAnchor) private var target
+    @State private var flashing = false
+
+    init(
+        title: String,
+        anchor: String? = nil,
+        description: String? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
         self.title = title
+        self.anchor = anchor
         self.description = description
         self.content = content
     }
+
+    private var isTarget: Bool { anchor != nil && anchor == target }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -35,9 +76,23 @@ struct SettingsCard<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(
+            flashing ? BrandColor.lime.opacity(0.3) : BrandColor.paper,
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .animation(.easeInOut(duration: 0.4), value: flashing)
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
+        // The section's scroll view looks cards up by this id.
+        .modifier(SettingsAnchorId(anchor: anchor))
+        .task(id: isTarget) {
+            guard isTarget else { return }
+            // A beat for the section to scroll here, then the flash.
+            try? await Task.sleep(for: .milliseconds(450))
+            flashing = true
+            try? await Task.sleep(for: .milliseconds(1800))
+            flashing = false
+        }
     }
 }
 

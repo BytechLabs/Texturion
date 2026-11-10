@@ -102,7 +102,7 @@ private struct MyDevicesCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.devicesMineTitle"),
+            title: t("settings.devicesMineTitle"), anchor: "my-devices",
             description: t("settings.devicesMineIntro")
         ) {
             VStack(alignment: .leading, spacing: 0) {
@@ -240,7 +240,7 @@ private struct CrewDevicesCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.devicesCrewTitle"),
+            title: t("settings.devicesCrewTitle"), anchor: "crew-devices",
             description: t("settings.devicesCrewIntro")
         ) {
             VStack(alignment: .leading, spacing: 0) {

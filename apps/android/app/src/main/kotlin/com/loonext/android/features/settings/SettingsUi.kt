@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -23,7 +25,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -46,15 +57,43 @@ import com.loonext.android.ui.theme.BrandColor
 /** #178: every fair-use mention (Usage, Billing) links to the same policy. */
 internal const val FAIR_USE_URL = "https://loonext.com/legal/fair-use"
 
+/**
+ * #719: the setting a search result opened this section for. A card whose
+ * `anchor` is this id scrolls into view and flashes once; every other card
+ * ignores it, and an id no card carries simply opens the section.
+ */
+internal val LocalSettingsAnchor = compositionLocalOf<String?> { null }
+
 @Composable
 fun SettingsCard(
     title: String,
     description: String? = null,
     modifier: Modifier = Modifier,
+    /** #719: this card's id in the settings index (see SettingsSearch.kt). */
+    anchor: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val target = LocalSettingsAnchor.current
+    val requester = remember { BringIntoViewRequester() }
+    var flashing by remember { mutableStateOf(false) }
+    val isTarget = anchor != null && anchor == target
+    LaunchedEffect(isTarget) {
+        if (!isTarget) return@LaunchedEffect
+        // A beat for the section to lay out, then bring the card into view.
+        delay(250)
+        requester.bringIntoView()
+        flashing = true
+        delay(1800)
+        flashing = false
+    }
+    val fill by animateColorAsState(
+        if (flashing) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surface,
+        animationSpec = tween(durationMillis = 400),
+        label = "settings-anchor-flash",
+    )
     Column(
         modifier = modifier
+            .bringIntoViewRequester(requester)
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             // #462: "In light mode, some sections are very hard to determine,
@@ -72,7 +111,7 @@ fun SettingsCard(
             // it read as a light-mode problem. The paper fill is the
             // separation, in both themes, and it is what iOS has always drawn.
             .background(
-                color = MaterialTheme.colorScheme.surface,
+                color = fill,
                 shape = MaterialTheme.shapes.large,
             )
             .padding(16.dp),

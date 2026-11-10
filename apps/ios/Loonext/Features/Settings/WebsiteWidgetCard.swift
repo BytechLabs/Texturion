@@ -90,7 +90,7 @@ struct WebsiteWidgetCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.widgetTitle"),
+            title: t("settings.widgetTitle"), anchor: "website-widget",
             description: t("settings.widgetBlurb")
         ) {
             if !open {

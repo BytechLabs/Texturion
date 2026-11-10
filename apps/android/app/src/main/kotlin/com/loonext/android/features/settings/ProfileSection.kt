@@ -99,6 +99,7 @@ private fun DisplayNameCard(scope: SettingsScope) {
     val valid = trimmed.length in 1..80
 
     SettingsCard(
+        anchor = "display-name",
         title = t("settingsMore.yourName"),
         description = t("settingsMore.yourNameDesc"),
     ) {
@@ -285,7 +286,7 @@ private fun ThemeCard(scope: SettingsScope) {
     val theme by scope.graph.prefs.theme.collectAsState(initial = "system")
     val coroutines = rememberCoroutineScope()
 
-    SettingsCard(title = t("settingsMore.theme")) {
+    SettingsCard(title = t("settingsMore.theme"), anchor = "theme") {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             THEME_VALUES.forEachIndexed { index, value ->
                 SegmentedButton(
@@ -510,7 +511,7 @@ private fun ChangePasswordBlock(scope: SettingsScope, authClient: SettingsAuthCl
 
 @Composable
 private fun SignOutCard(onSignOut: () -> Unit) {
-    SettingsCard(title = t("settingsMore.signOut")) {
+    SettingsCard(title = t("settingsMore.signOut"), anchor = "sign-out") {
         OutlinedButton(onClick = onSignOut) { Text(t("settingsMore.signOutThisDevice")) }
     }
 }

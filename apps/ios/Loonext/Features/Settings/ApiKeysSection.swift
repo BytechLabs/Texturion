@@ -216,7 +216,7 @@ private struct CreateApiKeyCard: View {
     }
 
     var body: some View {
-        SettingsCard(title: words("apiKeys.createTitle")) {
+        SettingsCard(title: words("apiKeys.createTitle"), anchor: "api-key-create") {
             VStack(alignment: .leading, spacing: 4) {
                 Text(words("apiKeys.nameLabel")).font(.caption.weight(.medium))
                 TextField(words("apiKeys.namePlaceholder"), text: $name)

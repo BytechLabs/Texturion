@@ -20,7 +20,7 @@ struct ReferralCard: View {
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
-        SettingsCard(title: AppStrings.translate(appLocale, ReferralShare.titleKey)) {
+        SettingsCard(title: AppStrings.translate(appLocale, ReferralShare.titleKey), anchor: "referral") {
             VStack(alignment: .leading, spacing: 12) {
                 // The reward line is `ReferralShare`'s, asserted against the
                 // shared TypeScript; only the full stop is ours. #228: read

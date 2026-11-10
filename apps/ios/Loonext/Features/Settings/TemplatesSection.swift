@@ -130,7 +130,7 @@ struct TemplatesSectionView: View {
                 .padding(.top, 4)
                 .padding(.bottom, 2)
 
-            SettingsCard(title: t("settingsMore.savedReplies")) {
+            SettingsCard(title: t("settingsMore.savedReplies"), anchor: "templates-list") {
                 VStack(alignment: .leading, spacing: 0) {
                     if templates.isEmpty {
                         ReadOnlyLine(t("settingsMore.noTemplatesYet"))

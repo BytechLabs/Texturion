@@ -364,7 +364,7 @@ struct UsageExportCard: View {
     /// screen that does not exist.
     private var card: some View {
         SettingsCard(
-            title: t("settingsMore.dataExport"),
+            title: t("settingsMore.dataExport"), anchor: "usage-export",
             description: open ? nil : t("settingsMore.exportUsageBlurb")
         ) {
             VStack(alignment: .leading, spacing: 12) {

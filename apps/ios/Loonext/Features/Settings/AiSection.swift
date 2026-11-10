@@ -51,7 +51,7 @@ struct AiSectionView: View {
                 .padding(.top, 4)
                 .padding(.bottom, 2)
 
-            SettingsCard(title: t("settings.aiTaskCard")) {
+            SettingsCard(title: t("settings.aiTaskCard"), anchor: "ai-task") {
                 VStack(alignment: .leading, spacing: 0) {
                     LabeledToggleRow(
                         label: t("settings.aiSuggestAddress"),
@@ -91,7 +91,7 @@ struct AiSectionView: View {
                 }
             }
 
-            SettingsCard(title: t("settings.aiBusinessCard")) {
+            SettingsCard(title: t("settings.aiBusinessCard"), anchor: "ai-business") {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(t("settings.aiBusinessHelp"))
                         .font(.golos(12.5))
@@ -136,7 +136,7 @@ struct AiSectionView: View {
                 }
             }
 
-            SettingsCard(title: t("settings.aiReplyCard")) {
+            SettingsCard(title: t("settings.aiReplyCard"), anchor: "ai-replies") {
                 LabeledToggleRow(
                     label: t("settings.aiDraftReplies"),
                     supporting: t("settings.aiDraftRepliesHelp"),
@@ -156,7 +156,7 @@ struct AiSectionView: View {
                 )
             }
 
-            SettingsCard(title: t("settings.aiVoicemailCard")) {
+            SettingsCard(title: t("settings.aiVoicemailCard"), anchor: "ai-voicemail") {
                 LabeledToggleRow(
                     label: t("settings.aiTranscribe"),
                     supporting: t("settings.aiTranscribeHelp"),
@@ -210,7 +210,7 @@ struct AiSectionView: View {
             // of those left out is a sentence a member could read as "Loonext
             // hears my calls", which would be false — and this card is exactly
             // where somebody who believed that would come looking.
-            SettingsCard(title: t("settings.aiWrapUpCard")) {
+            SettingsCard(title: t("settings.aiWrapUpCard"), anchor: "ai-wrapup") {
                 LabeledToggleRow(
                     label: t("settings.aiWrapUp"),
                     supporting: t("settings.aiWrapUpHelp"),
@@ -239,7 +239,7 @@ struct AiSectionView: View {
             // "Never a record" is the load-bearing sentence. A wrong summary is
             // worse than none, because a crew ACTS on it, and this card is
             // exactly where somebody deciding whether to trust it would look.
-            SettingsCard(title: t("settings.aiThreadCard")) {
+            SettingsCard(title: t("settings.aiThreadCard"), anchor: "ai-catchup") {
                 LabeledToggleRow(
                     label: t("settings.aiCatchUp"),
                     // The thresholds are interpolated from the shipped

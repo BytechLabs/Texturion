@@ -24,7 +24,7 @@ struct ProfileSectionView: View {
         // #314: directly under the password, because it is the same question —
         // how somebody proves they are you.
         TwoFactorCard(scope: scope)
-        SettingsCard(title: AppStrings.translate(appLocale, "settingsMore.signOut")) {
+        SettingsCard(title: AppStrings.translate(appLocale, "settingsMore.signOut"), anchor: "sign-out") {
             // Destructive (red) — the founder-feedback sign-out styling (#186).
             Button(
                 AppStrings.translate(appLocale, "settingsMore.signOutThisDevice"),
@@ -60,7 +60,7 @@ private struct DisplayNameCard: View {
 
     var body: some View {
         SettingsCard(
-            title: AppStrings.translate(appLocale, "settingsMore.yourName"),
+            title: AppStrings.translate(appLocale, "settingsMore.yourName"), anchor: "display-name",
             description: AppStrings.translate(appLocale, "settingsMore.yourNameDesc")
         ) {
             TextField(
@@ -113,7 +113,7 @@ private struct ThemeCard: View {
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
-        SettingsCard(title: AppStrings.translate(appLocale, "settingsMore.theme")) {
+        SettingsCard(title: AppStrings.translate(appLocale, "settingsMore.theme"), anchor: "theme") {
             // Styled segmented control (ink pill), matching Android/web (#186).
             ThemeSegmentedControl(theme: $prefs.theme)
         }

@@ -1166,7 +1166,7 @@ private struct MyAccessCard: View {
     var body: some View {
         if let note = numberAccessSelfNote(rows, locale: appLocale) {
             SettingsCard(
-                title: AppStrings.translate(appLocale, "settingsMore.whatYouReach"),
+                title: AppStrings.translate(appLocale, "settingsMore.whatYouReach"), anchor: "my-access",
                 description: AppStrings.translate(
                     appLocale, "settingsMore.whatYouReachDesc"
                 )

@@ -164,7 +164,7 @@ fun TeamSection(scope: SettingsScope, company: CompanyView) {
                     onChanged = { refreshKey++ },
                 )
             } else {
-                SettingsCard(title = t("settingsMore.invites")) {
+                SettingsCard(title = t("settingsMore.invites"), anchor = "team-invites") {
                     ReadOnlyLine(t("settingsMore.onlyAdminsInvite"))
                 }
             }
@@ -178,6 +178,7 @@ private fun MembersCard(scope: SettingsScope, members: List<Member>, onChanged: 
     val deactivated = members.filter { it.deactivated_at != null }
 
     SettingsCard(
+        anchor = "team-members",
         title = t("settingsMore.members"),
         description = t("settingsMore.membersDesc"),
     ) {

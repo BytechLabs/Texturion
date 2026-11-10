@@ -273,7 +273,7 @@ private fun AddEndpointCard(
     // its own key.
     val needOneEvent = t("webhooks.needOneEvent")
 
-    SettingsCard(title = t("webhooks.addTitle")) {
+    SettingsCard(title = t("webhooks.addTitle"), anchor = "webhook-add") {
         OutlinedTextField(
             value = url,
             onValueChange = { url = it },

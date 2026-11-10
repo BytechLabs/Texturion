@@ -56,12 +56,14 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -316,6 +318,10 @@ fun SettingsHome(
     section: SettingsSection?,
     onOpenSection: (SettingsSection) -> Unit,
     onSignOut: () -> Unit,
+    /** #719: the setting a search result opened [section] for, when it did. */
+    anchor: String? = null,
+    /** #719: a search result: the section, and the setting to scroll to. */
+    onOpenSetting: (SettingsSection, String) -> Unit = { target, _ -> onOpenSection(target) },
 ) {
     val repo = remember(graph) { SettingsRepository(graph.api) }
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
@@ -408,6 +414,7 @@ fun SettingsHome(
                         },
                         usage = usage,
                         onOpen = onOpenSection,
+                        onOpenSetting = onOpenSetting,
                         onCopyNumber = { number ->
                             copyToClipboard(context, clipLabel, number)
                             settingsScope.showMessage(
@@ -428,7 +435,7 @@ fun SettingsHome(
                     // The host header already carries the section title and
                     // the one back affordance (#200); a section is only its
                     // scrolling content.
-                    else -> SectionContainer {
+                    else -> SectionContainer(anchor) {
                         when (active) {
                             SettingsSection.Workspace -> WorkspaceSection(
                                 settingsScope, company, onCompanyUpdated,
@@ -533,7 +540,9 @@ internal fun SettingsIndex(
     onOpen: (SettingsSection) -> Unit,
     onCopyNumber: (String) -> Unit,
     ownershipPrompt: @Composable () -> Unit = {},
+    onOpenSetting: (SettingsSection, String) -> Unit = { target, _ -> onOpen(target) },
 ) {
+    var query by rememberSaveable { mutableStateOf("") }
     // #180: the hub already scrolls at any height; condense the inter-card
     // rhythm on short/landscape viewports so more of the list clears the fold.
     val compact = isCompactHeight()
@@ -558,6 +567,13 @@ internal fun SettingsIndex(
         // backup owner is routinely a plain member with no Team row. Draws
         // nothing when nothing is theirs.
         ownershipPrompt()
+        // #719: finds a setting by what it does ("time zone"), not by guessing
+        // which section holds it. Results replace the list while there is a query.
+        SettingsSearchField(query, onQueryChange = { query = it })
+        if (query.isNotBlank()) {
+            SettingsSearchResults(query, role, onOpen = onOpenSetting)
+            return@Column
+        }
         usage?.let { UsageStatusCard(it, onOpen = { onOpen(SettingsSection.Usage) }) }
         // #461: a member saw every section and could act on almost none of
         // them. The list is now what is theirs.
@@ -1033,14 +1049,14 @@ private fun iconFor(section: SettingsSection): ImageVector = when (section) {
  * only, so a settings section physically has nowhere to grow a second bar.
  */
 @Composable
-private fun SectionContainer(content: @Composable () -> Unit) {
+private fun SectionContainer(anchor: String?, content: @Composable () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(vertical = 10.dp),
     ) {
-        content()
+        CompositionLocalProvider(LocalSettingsAnchor provides anchor) { content() }
     }
 }
 

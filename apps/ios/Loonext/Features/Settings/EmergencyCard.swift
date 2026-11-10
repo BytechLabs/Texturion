@@ -86,7 +86,7 @@ struct EmergencyCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.emergencyTitle"),
+            title: t("settings.emergencyTitle"), anchor: "emergency-words",
             description: t("settings.emergencyIntro")
         ) {
             Text(t("settings.emergencyWordsHeading"))

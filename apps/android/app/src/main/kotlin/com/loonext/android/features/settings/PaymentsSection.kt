@@ -152,6 +152,7 @@ private fun PayoutCard(
     val isOwner = scope.role == MemberRole.OWNER
 
     SettingsCard(
+        anchor = "payments-setup",
         title = t("payments.settingsTitle"),
         description = readinessWords(account.title_key, account.title, locale),
     ) {

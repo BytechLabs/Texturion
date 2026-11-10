@@ -108,7 +108,7 @@ struct TeamSectionView: View {
                         invites: invites
                     ) { refreshKey += 1 }
                 } else {
-                    SettingsCard(title: t("settingsMore.invites")) {
+                    SettingsCard(title: t("settingsMore.invites"), anchor: "team-invites") {
                         ReadOnlyLine(t("settingsMore.onlyAdminsInvite"))
                     }
                 }
@@ -154,7 +154,7 @@ private struct MembersCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settingsMore.members"),
+            title: t("settingsMore.members"), anchor: "team-members",
             description: t("settingsMore.membersDesc")
         ) {
             let active = members.filter { $0.deactivated_at == nil }

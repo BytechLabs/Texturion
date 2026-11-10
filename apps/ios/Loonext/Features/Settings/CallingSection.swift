@@ -145,7 +145,7 @@ private struct TextBackCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.textBackTitle"),
+            title: t("settings.textBackTitle"), anchor: "missed-call-text-back",
             description: t("settings.textBackIntro")
         ) {
             // The toggle alone decides WHETHER the text-back fires; a blank
@@ -291,7 +291,7 @@ private struct VoicemailCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.voicemailTitle"),
+            title: t("settings.voicemailTitle"), anchor: "voicemail",
             description: t("settings.voicemailIntro")
         ) {
             if canEdit {
@@ -401,7 +401,7 @@ private struct AfterHoursCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.afterHoursTitle"),
+            title: t("settings.afterHoursTitle"), anchor: "after-hours-calls",
             description: t("settings.afterHoursIntro")
         ) {
             if !hoursSet {
@@ -545,7 +545,7 @@ private struct ScreeningCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.screeningTitle"),
+            title: t("settings.screeningTitle"), anchor: "call-screening",
             description: t("settings.screeningIntro")
         ) {
             ForEach(screeningChoices) { choice in
@@ -662,7 +662,7 @@ private struct CallerIdCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.callerIdTitle"),
+            title: t("settings.callerIdTitle"), anchor: "caller-id",
             description: t("settings.callerIdIntro")
         ) {
             Text(t("settings.callerIdOutboundHeading"))

@@ -87,7 +87,7 @@ private struct BusinessHoursCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.hoursTitle"),
+            title: t("settings.hoursTitle"), anchor: "business-hours",
             description: t(
                 "settings.hoursIntro",
                 ["timezone": company.timezone.replacingOccurrences(of: "_", with: " ")]
@@ -216,7 +216,7 @@ private struct AwayReplyCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.awayTitle"),
+            title: t("settings.awayTitle"), anchor: "away-reply",
             description: t("settings.awayIntro")
         ) {
             LabeledToggleRow(

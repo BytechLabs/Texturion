@@ -443,7 +443,7 @@ private fun CancelCard(
         }
     }
 
-    SettingsCard(title = t("settings.cancelTitle")) {
+    SettingsCard(title = t("settings.cancelTitle"), anchor = "cancel-subscription") {
         if (!SettingsRoleGate.canCancelSubscription(scope.role)) {
             // The same three facts as the owner's version above, but never in
             // the second person, because none of it is theirs to do. "Cancel
@@ -921,7 +921,7 @@ private fun OffRampCard(scope: SettingsScope, company: CompanyView) {
     }
 
     Spacer(Modifier.height(10.dp))
-    SettingsCard(title = t("settings.offRampTitle")) {
+    SettingsCard(title = t("settings.offRampTitle"), anchor = "off-ramp") {
         Text(
             // Two whole sentences rather than a clause spliced mid-sentence: the
             // date lands inside the subordinate clause, and French moves it.
@@ -1192,7 +1192,7 @@ private fun CanceledSubscriptionCard(
     val releaseOn = releaseDate(canceledAt)
     val released = canceledAt != null && !withinGrace
 
-    SettingsCard(title = t("settings.subscriptionTitle")) {
+    SettingsCard(title = t("settings.subscriptionTitle"), anchor = "subscription") {
         Text(
             if (released) {
                 t("settings.subscriptionCanceled")
@@ -1365,7 +1365,7 @@ private fun PlanCard(
     // were on screen at once.
     val facts = planFacts(company.plan, company.billing_currency, company.country)
     if (facts == null) {
-        SettingsCard(title = t("settings.planTitle")) {
+        SettingsCard(title = t("settings.planTitle"), anchor = "plan") {
             Text(
                 t("settings.planNone"),
                 style = MaterialTheme.typography.bodyMedium,
@@ -1923,6 +1923,7 @@ private fun ModulesCard(scope: SettingsScope) {
             val modules = current.value
             if (modules.isEmpty()) return
             SettingsCard(
+                anchor = "add-ons",
                 title = t("settings.modulesTitle"),
                 description = t("settings.modulesIntro"),
             ) {

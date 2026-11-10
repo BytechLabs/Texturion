@@ -26,7 +26,7 @@ struct LeaveWorkspaceCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.leaveTitle"),
+            title: t("settings.leaveTitle"), anchor: "leave-workspace",
             description: t("settings.leaveIntro")
         ) {
             ReadOnlyLine(t("settings.leaveAccessEnds"))

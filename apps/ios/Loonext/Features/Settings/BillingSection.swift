@@ -465,7 +465,7 @@ private struct PlanCard: View {
         // itself mid-render.
         let shape = planCardShape(read)
         if company.subscription_status == SubscriptionStatus.canceled {
-            SettingsCard(title: t("settings.subscriptionTitle")) {
+            SettingsCard(title: t("settings.subscriptionTitle"), anchor: "subscription") {
                 Text(t("settings.subscriptionCanceled"))
                     .font(.callout)
                 // #277 follow-up: the answer to what they told us on the way
@@ -509,7 +509,7 @@ private struct PlanCard: View {
             // precisely to stop that one rendering on a fact nobody has read.
             unconfirmedPlan(facts: facts, checking: checking)
         } else if let facts = planFacts(company.plan, company.billedIn) {
-            SettingsCard(title: t("settings.planTitle")) {
+            SettingsCard(title: t("settings.planTitle"), anchor: "plan") {
                 HStack(spacing: 10) {
                     // #328: priced in what this workspace's card is actually
                     // charged, not a hardcoded dollar sign. A Canadian owner
@@ -1093,7 +1093,7 @@ private struct ModulesCard: View {
             case .ready(let modules):
                 if !modules.isEmpty {
                     SettingsCard(
-                        title: t("settings.modulesTitle"),
+                        title: t("settings.modulesTitle"), anchor: "add-ons",
                         description: t("settings.modulesIntro")
                     ) {
                         ForEach(modules, id: \.id) { module in
@@ -1294,7 +1294,7 @@ private struct OffRampCard: View {
         Group {
             if company.subscription_status == SubscriptionStatus.canceled,
                SettingsRoleGate.canManageBilling(scope.role) {
-                SettingsCard(title: t("settings.offRampTitle")) {
+                SettingsCard(title: t("settings.offRampTitle"), anchor: "off-ramp") {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(blurb)
                             .font(.golos(12.5))
@@ -1551,7 +1551,7 @@ private struct CancelCard: View {
     }
 
     var body: some View {
-        SettingsCard(title: t("settings.cancelTitle"), description: consequence) {
+        SettingsCard(title: t("settings.cancelTitle"), anchor: "cancel-subscription", description: consequence) {
             if !canCancel {
                 // Said out loud rather than by omission: being sent to hunt for
                 // a button that is not on that page is worse than being told.

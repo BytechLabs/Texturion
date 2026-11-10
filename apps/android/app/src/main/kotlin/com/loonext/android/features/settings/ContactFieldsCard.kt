@@ -113,6 +113,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
     }
 
     SettingsCard(
+        anchor = "contact-fields",
         title = t(ContactFields.Copy.HEADING),
         description = t(ContactFields.Copy.INTRO),
     ) {

@@ -242,6 +242,7 @@ private fun CapCard(
     val locale = LocalAppLocale.current
 
     SettingsCard(
+        anchor = "spending-cap",
         title = t("settingsMore.spendingCap"),
         description = t("settingsMore.spendingCapDesc"),
     ) {
@@ -802,6 +803,7 @@ private fun DeliveryCard(usage: Usage) {
     }
 
     SettingsCard(
+        anchor = "usage-delivery",
         title = t("settingsMore.deliveryTitle"),
         description = t("settingsMore.deliveryDesc"),
     ) {

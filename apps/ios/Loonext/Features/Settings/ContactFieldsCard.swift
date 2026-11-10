@@ -51,7 +51,7 @@ struct ContactFieldsCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t(ContactFields.Copy.heading),
+            title: t(ContactFields.Copy.heading), anchor: "contact-fields",
             description: t(ContactFields.Copy.intro)
         ) {
             if !loaded {

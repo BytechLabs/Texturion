@@ -145,7 +145,7 @@ struct TwoFactorCard: View {
     @ViewBuilder
     private func card(_ mfa: MfaState) -> some View {
         SettingsCard(
-            title: t("settingsMore.twoFactorTitle"),
+            title: t("settingsMore.twoFactorTitle"), anchor: "two-factor",
             description: t("settingsMore.twoFactorDesc")
         ) {
             VStack(alignment: .leading, spacing: 10) {

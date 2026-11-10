@@ -47,7 +47,7 @@ struct ReminderRulesCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settingsMore.remindersTitle"),
+            title: t("settingsMore.remindersTitle"), anchor: "appointment-reminders",
             description: t("settingsMore.remindersDesc")
         ) {
             if !loaded {

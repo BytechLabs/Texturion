@@ -84,7 +84,7 @@ struct PaymentsSectionView: View {
     @ViewBuilder
     private func accountCard(_ account: PayoutAccount) -> some View {
         SettingsCard(
-            title: AppStrings.translate(appLocale, "payments.settingsTitle"),
+            title: AppStrings.translate(appLocale, "payments.settingsTitle"), anchor: "payments-setup",
             description: readinessWords(account.title_key, account.title)
         ) {
             VStack(alignment: .leading, spacing: 0) {

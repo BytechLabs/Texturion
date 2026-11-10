@@ -69,7 +69,7 @@ private struct NameCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settingsMore.workspaceName"),
+            title: t("settingsMore.workspaceName"), anchor: "workspace-name",
             description: t("settingsMore.workspaceNameDesc")
         ) {
             if SettingsRoleGate.canEditWorkspace(scope.role) {
@@ -140,7 +140,7 @@ private struct BusinessIdentificationCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settingsMore.businessIdCard"),
+            title: t("settingsMore.businessIdCard"), anchor: "business-identification",
             description: t("settingsMore.businessIdCardDesc")
         ) {
             switch state {
@@ -293,7 +293,7 @@ private struct TimezoneCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settingsMore.timezone"),
+            title: t("settingsMore.timezone"), anchor: "time-zone",
             description: t("settingsMore.timezoneDesc")
         ) {
             Text(company.timezone)
@@ -466,7 +466,7 @@ private struct SignTextsCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settingsMore.signTextsTitle"),
+            title: t("settingsMore.signTextsTitle"), anchor: "signature",
             description: t("settingsMore.signTextsDesc")
         ) {
             LabeledToggleRow(
@@ -541,7 +541,7 @@ private struct QuietHoursCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settingsMore.nightTextTitle"),
+            title: t("settingsMore.nightTextTitle"), anchor: "night-texting",
             description: t("settingsMore.nightTextDesc")
         ) {
             LabeledToggleRow(
@@ -640,7 +640,7 @@ private struct LanguageCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settingsMore.automatedLanguageTitle"),
+            title: t("settingsMore.automatedLanguageTitle"), anchor: "language",
             description: t("settingsMore.automatedLanguageDesc")
         ) {
             ForEach(MessageLocale.all, id: \.self) { locale in

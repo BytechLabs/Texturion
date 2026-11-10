@@ -149,6 +149,7 @@ fun EmergencyCard(
     }
 
     SettingsCard(
+        anchor = "emergency-words",
         title = t("settings.emergencyTitle"),
         description = t("settings.emergencyIntro"),
     ) {

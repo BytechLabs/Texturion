@@ -271,6 +271,7 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
     )
 
     SettingsCard(
+        anchor = "help-email",
         title = t("settings.helpEmailTitle"),
         description = t("settings.helpEmailIntro"),
     ) {
@@ -291,6 +292,7 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
     }
 
     SettingsCard(
+        anchor = "help-no-mail",
         title = t("settings.helpNoMailAppTitle"),
         description = t("settings.helpNoMailAppIntro", "email" to SUPPORT_EMAIL),
     ) {
@@ -301,6 +303,7 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
     // from a working contractor are the highest-signal product input available
     // to us, and there was no way for one to arrive.
     SettingsCard(
+        anchor = "help-idea",
         title = t("settings.helpIdeaTitle"),
         description = t("settings.helpIdeaIntro"),
     ) {
@@ -323,6 +326,7 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
     // #253 — the answers already exist, in banners you have to hit and legal
     // pages you have to leave the app to find. The gap was the index.
     SettingsCard(
+        anchor = "help-faq",
         title = t("settings.helpFaqTitle"),
         description = t("settings.helpFaqIntro"),
     ) {
@@ -335,6 +339,7 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
     }
 
     SettingsCard(
+        anchor = "help-expect",
         title = t("settings.helpExpectTitle"),
         description = t("settings.helpExpectIntro"),
     ) {

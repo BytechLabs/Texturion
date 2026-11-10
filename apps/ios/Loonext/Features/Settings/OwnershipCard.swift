@@ -52,7 +52,7 @@ struct OwnershipCard: View {
 
     var body: some View {
         SettingsCard(
-            title: AppStrings.translate(appLocale, "settingsMore.ownershipTitle"),
+            title: AppStrings.translate(appLocale, "settingsMore.ownershipTitle"), anchor: "ownership",
             description: AppStrings.translate(appLocale, "settingsMore.ownershipDesc")
         ) {
             VStack(alignment: .leading, spacing: 14) {

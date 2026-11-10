@@ -120,6 +120,7 @@ private fun BusinessHoursCard(
     }
 
     SettingsCard(
+        anchor = "business-hours",
         title = t("settings.hoursTitle"),
         description = t(
             "settings.hoursIntro",
@@ -253,6 +254,7 @@ private fun AwayReplyCard(
     )
 
     SettingsCard(
+        anchor = "away-reply",
         title = t("settings.awayTitle"),
         description = t("settings.awayIntro"),
     ) {

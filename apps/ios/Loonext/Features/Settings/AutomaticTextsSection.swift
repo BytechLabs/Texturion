@@ -57,7 +57,7 @@ struct AutomaticTextsSectionView: View {
 
     private var replyGroup: some View {
         SettingsCard(
-            title: t("domain.autoTextsHoldTitle"),
+            title: t("domain.autoTextsHoldTitle"), anchor: "auto-text-reply",
             description: t("domain.autoTextsHoldIntro")
         ) {
             VStack(alignment: .leading, spacing: 10) {
@@ -82,7 +82,7 @@ struct AutomaticTextsSectionView: View {
     }
 
     private var ratingGroup: some View {
-        SettingsCard(title: t("domain.autoTextsRatingTitle")) {
+        SettingsCard(title: t("domain.autoTextsRatingTitle"), anchor: "auto-text-rating") {
             VStack(alignment: .leading, spacing: 10) {
                 AutoTextSwitchRow(
                     flag: .ratingEnabled, scope: scope, company: company,
@@ -105,7 +105,7 @@ struct AutomaticTextsSectionView: View {
     }
 
     private var waitGroup: some View {
-        SettingsCard(title: t("domain.autoTextsWaitTitle")) {
+        SettingsCard(title: t("domain.autoTextsWaitTitle"), anchor: "auto-text-wait") {
             VStack(alignment: .leading, spacing: 10) {
                 AutoTextPickerRow(
                     number: .scheduledExpiry, scope: scope, company: company,

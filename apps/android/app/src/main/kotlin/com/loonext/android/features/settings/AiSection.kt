@@ -106,7 +106,7 @@ fun AiSection(scope: SettingsScope) {
 
             is LoadState.Ready -> {
                 val settings = current.value
-                SettingsCard(title = t("settings.aiTaskCard")) {
+                SettingsCard(title = t("settings.aiTaskCard"), anchor = "ai-task") {
                     LabeledSwitchRow(
                         label = t("settings.aiSuggestAddress"),
                         supporting = t("settings.aiSuggestAddressHelp"),
@@ -128,7 +128,7 @@ fun AiSection(scope: SettingsScope) {
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                SettingsCard(title = t("settings.aiBusinessCard")) {
+                SettingsCard(title = t("settings.aiBusinessCard"), anchor = "ai-business") {
                     // Held locally while typing and saved when focus leaves, so
                     // a settings screen does not write per keystroke and a
                     // half-typed sentence never reaches a draft.
@@ -178,7 +178,7 @@ fun AiSection(scope: SettingsScope) {
                 // #247. BEFORE the replying card, because that is the order the
                 // day happens in: you open a thread you have lost the thread of,
                 // you read it, and then you answer. A catch-up is a reading aid.
-                SettingsCard(title = t("settings.aiThreadCard")) {
+                SettingsCard(title = t("settings.aiThreadCard"), anchor = "ai-catchup") {
                     LabeledSwitchRow(
                         label = t("settings.aiCatchUp"),
                         // The disclosure is the first sentence, not the last.
@@ -204,7 +204,7 @@ fun AiSection(scope: SettingsScope) {
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                SettingsCard(title = t("settings.aiReplyCard")) {
+                SettingsCard(title = t("settings.aiReplyCard"), anchor = "ai-replies") {
                     LabeledSwitchRow(
                         label = t("settings.aiDraftReplies"),
                         supporting = t("settings.aiDraftRepliesHelp"),
@@ -219,7 +219,7 @@ fun AiSection(scope: SettingsScope) {
                 // #507. Its own card, between replying and voicemail, because
                 // that is where it falls in a day: the customer was answered,
                 // the phone call happened, and this is the minute after it.
-                SettingsCard(title = t("settings.aiWrapUpCard")) {
+                SettingsCard(title = t("settings.aiWrapUpCard"), anchor = "ai-wrapup") {
                     LabeledSwitchRow(
                         label = t("settings.aiWrapUp"),
                         // Says exactly whose voice and for how long, because
@@ -236,7 +236,7 @@ fun AiSection(scope: SettingsScope) {
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                SettingsCard(title = t("settings.aiVoicemailCard")) {
+                SettingsCard(title = t("settings.aiVoicemailCard"), anchor = "ai-voicemail") {
                     LabeledSwitchRow(
                         label = t("settings.aiTranscribe"),
                         supporting = t("settings.aiTranscribeHelp"),

@@ -144,6 +144,7 @@ private fun MyDevicesCard(
     val unknownLocation = t("settings.devicesLocationUnknown")
 
     SettingsCard(
+        anchor = "my-devices",
         title = t("settings.devicesMineTitle"),
         description = t("settings.devicesMineIntro"),
     ) {
@@ -273,6 +274,7 @@ private fun CrewDevicesCard(
     val haptics = rememberHaptics()
 
     SettingsCard(
+        anchor = "crew-devices",
         title = t("settings.devicesCrewTitle"),
         description = t("settings.devicesCrewIntro"),
     ) {

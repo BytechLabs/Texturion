@@ -207,6 +207,9 @@ struct SettingsHome: View {
     var initialSection: SettingsSection? = nil
 
     @State private var path = NavigationPath()
+    /// #719: what the search box holds, and the setting a result sent us to.
+    @State private var query = ""
+    @State private var settingAnchor: String?
     @State private var companyState: LoadState<CompanyView> = .loading
     @State private var refreshKey = 0
     @State private var toast: String?
@@ -325,6 +328,20 @@ struct SettingsHome: View {
                 // member with no Team row. Draws nothing when nothing is
                 // theirs.
                 OwnershipPrompt(scope: scope) { refreshKey += 1 }
+                // #719: finds a setting by what it does ("time zone"), not by
+                // guessing which section holds it. Results replace the list
+                // while there is a query.
+                SettingsSearchField(query: $query)
+                if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                    SettingsSearchResults(
+                        query: query,
+                        visible: visibleSections,
+                        onOpen: { section, anchor in
+                            settingAnchor = anchor
+                            path.append(section)
+                        }
+                    )
+                } else {
                 // #727: under group headings; a group with nothing this role
                 // can open is left out.
                 let showWhatsNewMarker = hasUnseenWhatsNew(
@@ -350,6 +367,7 @@ struct SettingsHome: View {
                     }
                 }
                 VersionFooter()
+                }
             }
             .padding(.horizontal, 18)
             .padding(.top, 8)
@@ -500,6 +518,7 @@ struct SettingsHome: View {
         }
         let refreshCompany: @MainActor () -> Void = { refreshKey += 1 }
 
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 switch section {
@@ -565,9 +584,21 @@ struct SettingsHome: View {
             // readable column instead of spanning the full width (#180).
             .contentMaxWidth()
         }
+        .environment(.settingsAnchor, settingAnchor)
+        // #719: a result opened this section for one setting; bring it into
+        // view once the section has laid out.
+        .task(id: settingAnchor) {
+            guard let anchor = settingAnchor else { return }
+            try? await Task.sleep(for: .milliseconds(300))
+            withAnimation { proxy.scrollTo(anchor, anchor: .top) }
+        }
         .background(BrandColor.canvas)
         .navigationTitle(t(section.titleKey))
         .navigationBarTitleDisplayMode(.inline)
+        .onDisappear {
+            if path.isEmpty { settingAnchor = nil }
+        }
+        }
     }
 
     // MARK: - Load + toast

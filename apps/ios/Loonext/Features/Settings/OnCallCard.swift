@@ -48,7 +48,7 @@ struct OnCallCard: View {
 
     var body: some View {
         SettingsCard(
-            title: AppStrings.translate(appLocale, "settingsMore.onCallTitle"),
+            title: AppStrings.translate(appLocale, "settingsMore.onCallTitle"), anchor: "on-call",
             description: AppStrings.translate(appLocale, OnCall.escalationKey)
         ) {
             if !loaded {

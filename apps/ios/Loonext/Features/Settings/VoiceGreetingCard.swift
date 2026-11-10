@@ -56,7 +56,7 @@ struct VoiceGreetingCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settingsMore.ownVoiceTitle"),
+            title: t("settingsMore.ownVoiceTitle"), anchor: "voice-greeting",
             description: t("settingsMore.ownVoiceDesc")
         ) {
             Text(

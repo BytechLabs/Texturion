@@ -1346,6 +1346,7 @@ private fun MyAccessCard(scope: SettingsScope) {
     val restricted = rows.sortedForOwner().filter { it.level != "text" }
 
     SettingsCard(
+        anchor = "my-access",
         title = t("settingsMore.whatYouReach"),
         description = t("settingsMore.whatYouReachDesc"),
     ) {

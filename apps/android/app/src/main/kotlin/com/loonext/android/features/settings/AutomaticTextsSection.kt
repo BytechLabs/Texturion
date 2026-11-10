@@ -78,6 +78,7 @@ fun AutomaticTextsSection(
     )
 
     SettingsCard(
+        anchor = "auto-text-reply",
         title = t("domain.autoTextsHoldTitle"),
         description = t("domain.autoTextsHoldIntro"),
     ) {
@@ -94,7 +95,7 @@ fun AutomaticTextsSection(
         }
     }
 
-    SettingsCard(title = t("domain.autoTextsRatingTitle")) {
+    SettingsCard(title = t("domain.autoTextsRatingTitle"), anchor = "auto-text-rating") {
         val on = AutoTexts.ratingEnabled.read(company)
         LabeledSwitchRow(
             label = t(AutoTexts.ratingEnabled.labelKey),
@@ -111,7 +112,7 @@ fun AutomaticTextsSection(
         }
     }
 
-    SettingsCard(title = t("domain.autoTextsWaitTitle")) {
+    SettingsCard(title = t("domain.autoTextsWaitTitle"), anchor = "auto-text-wait") {
         AutoTexts.waitGroup.forEach { field ->
             AutoTextsPickerRow(field, company, locale, enabled) {
                 save(AutoTexts.patch(field, it))

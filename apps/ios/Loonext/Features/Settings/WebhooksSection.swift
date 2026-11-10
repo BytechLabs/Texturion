@@ -285,7 +285,7 @@ private struct AddWebhookCard: View {
     }
 
     var body: some View {
-        SettingsCard(title: words("webhooks.addTitle")) {
+        SettingsCard(title: words("webhooks.addTitle"), anchor: "webhook-add") {
             VStack(alignment: .leading, spacing: 4) {
                 Text(words("webhooks.urlLabel")).font(.caption.weight(.medium))
                 TextField("https://", text: $url)

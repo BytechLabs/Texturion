@@ -150,7 +150,7 @@ fun OnCallCard(scope: SettingsScope) {
         }
     }
 
-    SettingsCard(title = t("settingsMore.onCallTitle"), description = OnCall.ESCALATION) {
+    SettingsCard(title = t("settingsMore.onCallTitle"), anchor = "on-call", description = OnCall.ESCALATION) {
         when {
             !loaded ->
                 Text(

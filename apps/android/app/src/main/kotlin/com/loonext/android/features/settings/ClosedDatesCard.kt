@@ -110,6 +110,7 @@ fun ClosedDatesCard(
     }
 
     SettingsCard(
+        anchor = "closed-dates",
         title = t("settings.closedDatesTitle"),
         description = t("settings.closedDatesIntro"),
     ) {

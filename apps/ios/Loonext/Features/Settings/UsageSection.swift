@@ -312,7 +312,7 @@ private struct CapCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settingsMore.spendingCap"),
+            title: t("settingsMore.spendingCap"), anchor: "spending-cap",
             description: t("settingsMore.spendingCapDesc")
         ) {
             if !isOwner {
@@ -869,7 +869,7 @@ private struct DeliveryCard: View {
                 $0.delivered + $0.failed + $0.pending > 0
             }
             SettingsCard(
-                title: t("settingsMore.deliveryTitle"),
+                title: t("settingsMore.deliveryTitle"), anchor: "usage-delivery",
                 description: t("settingsMore.deliveryDesc")
             ) {
                 Text(summaryLine(delivery))

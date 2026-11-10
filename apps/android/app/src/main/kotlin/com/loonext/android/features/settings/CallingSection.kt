@@ -167,6 +167,7 @@ private fun TextBackCard(
     }
 
     SettingsCard(
+        anchor = "missed-call-text-back",
         title = t("settings.textBackTitle"),
         description = t("settings.textBackIntro"),
     ) {
@@ -267,6 +268,7 @@ private fun VoicemailCard(
     val greetingSaved = t("settings.voicemailSaved")
 
     SettingsCard(
+        anchor = "voicemail",
         title = t("settings.voicemailTitle"),
         description = t("settings.voicemailIntro"),
     ) {
@@ -367,6 +369,7 @@ private fun ScreeningCard(
     val screeningUpdated = t("settings.screeningUpdated")
 
     SettingsCard(
+        anchor = "call-screening",
         title = t("settings.screeningTitle"),
         description = t("settings.screeningIntro"),
     ) {
@@ -475,6 +478,7 @@ private fun RingCard(
     val ringLengthUpdated = t("settings.ringLengthUpdated")
 
     SettingsCard(
+        anchor = "phone-ringing",
         title = t("settings.ringTitle"),
         description = t("settings.ringIntro"),
     ) {
@@ -641,6 +645,7 @@ private fun AfterHoursCard(
     val afterHoursUpdated = t("settings.afterHoursUpdated")
 
     SettingsCard(
+        anchor = "after-hours-calls",
         title = t("settings.afterHoursTitle"),
         description = t("settings.afterHoursIntro"),
     ) {
@@ -815,6 +820,7 @@ private fun CallerIdCard(
     }
 
     SettingsCard(
+        anchor = "caller-id",
         title = t("settings.callerIdTitle"),
         description = t("settings.callerIdIntro"),
     ) {

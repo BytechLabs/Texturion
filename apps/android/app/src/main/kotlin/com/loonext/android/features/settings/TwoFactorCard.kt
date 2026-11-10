@@ -244,6 +244,7 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
     }
 
     SettingsCard(
+        anchor = "two-factor",
         title = t("settingsMore.twoFactorTitle"),
         description = t("settingsMore.twoFactorDesc"),
     ) {

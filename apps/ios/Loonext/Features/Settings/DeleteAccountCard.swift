@@ -40,7 +40,7 @@ struct DeleteAccountCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.deleteTitle"),
+            title: t("settings.deleteTitle"), anchor: "delete-account",
             description: t("settings.deleteIntro")
         ) {
             if !expanded {

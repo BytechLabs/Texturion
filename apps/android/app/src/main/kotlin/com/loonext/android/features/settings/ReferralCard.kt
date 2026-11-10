@@ -44,7 +44,7 @@ import com.loonext.android.core.referral.ReferralShare
  */
 @Composable
 fun ReferralCard(view: ReferralsView) {
-    SettingsCard(title = ReferralShare.TITLE) {
+    SettingsCard(title = ReferralShare.TITLE, anchor = "referral") {
         Text(
             "${ReferralShare.REWARD_LINE}.",
             style = MaterialTheme.typography.bodyMedium,

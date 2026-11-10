@@ -75,7 +75,7 @@ struct CalendarFeedCard: View {
 
     private var card: some View {
         SettingsCard(
-            title: t("calendarFeed.title"),
+            title: t("calendarFeed.title"), anchor: "calendar-read-only-feed",
             description: t("calendarFeed.description")
         ) {
             if let url {

@@ -57,6 +57,7 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
     val deleteFailed = t("settings.deleteFailed")
 
     SettingsCard(
+        anchor = "delete-account",
         title = t("settings.deleteTitle"),
         description = t("settings.deleteIntro"),
     ) {

@@ -250,6 +250,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
     }
 
     SettingsCard(
+        anchor = "voice-greeting",
         title = t("settingsMore.ownVoiceTitle"),
         description = t("settingsMore.ownVoiceDesc"),
     ) {

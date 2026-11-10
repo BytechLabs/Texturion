@@ -282,6 +282,7 @@ fun UsageExportCard(scope: SettingsScope) {
     }
 
     SettingsCard(
+        anchor = "usage-export",
         title = t("settingsMore.dataExport"),
         description = if (open) null else t(EXPORT_USAGE_BLURB_KEY),
     ) {

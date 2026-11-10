@@ -48,6 +48,7 @@ fun LeaveWorkspaceCard(
     val locale = LocalAppLocale.current
 
     SettingsCard(
+        anchor = "leave-workspace",
         title = t("settings.leaveTitle"),
         description = t("settings.leaveIntro"),
     ) {

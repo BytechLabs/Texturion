@@ -107,6 +107,7 @@ private fun NameCard(
     val valid = trimmed.length in 1..200
 
     SettingsCard(
+        anchor = "workspace-name",
         title = t("settingsMore.workspaceName"),
         description = t("settingsMore.workspaceNameDesc"),
     ) {
@@ -174,6 +175,7 @@ private fun BusinessIdentificationCard(scope: SettingsScope, company: CompanyVie
     ) { scope.repo.registration(scope.companyId) }
 
     SettingsCard(
+        anchor = "business-identification",
         title = t("settingsMore.businessIdCard"),
         description = t("settingsMore.businessIdCardDesc"),
     ) {
@@ -310,6 +312,7 @@ private fun TimezoneCard(
     val localTime = zone?.let { TimestampFormat.clock(now.withZoneSameInstant(it), locale) }
 
     SettingsCard(
+        anchor = "time-zone",
         title = t("settingsMore.timezone"),
         description = t("settingsMore.timezoneDesc"),
     ) {
@@ -482,6 +485,7 @@ private fun SignTextsCard(
     var error by remember { mutableStateOf<String?>(null) }
 
     SettingsCard(
+        anchor = "signature",
         title = t("settingsMore.signTextsTitle"),
         description = t("settingsMore.signTextsDesc"),
     ) {
@@ -551,6 +555,7 @@ private fun QuietHoursCard(
     var error by remember { mutableStateOf<String?>(null) }
 
     SettingsCard(
+        anchor = "night-texting",
         title = t("settingsMore.nightTextTitle"),
         description = t("settingsMore.nightTextDesc"),
     ) {
@@ -623,6 +628,7 @@ private fun LanguageCard(
     val locale = LocalAppLocale.current
 
     SettingsCard(
+        anchor = "language",
         title = t("settingsMore.automatedLanguageTitle"),
         description = t("settingsMore.automatedLanguageDesc"),
     ) {

@@ -235,7 +235,7 @@ private fun CreateApiKeyCard(
     // renders its own key.
     val needOneScope = t("apiKeys.needOneScope")
 
-    SettingsCard(title = t("apiKeys.createTitle")) {
+    SettingsCard(title = t("apiKeys.createTitle"), anchor = "api-key-create") {
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },

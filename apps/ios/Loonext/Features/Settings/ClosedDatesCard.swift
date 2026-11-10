@@ -38,7 +38,7 @@ struct ClosedDatesCard: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.closedDatesTitle"),
+            title: t("settings.closedDatesTitle"), anchor: "closed-dates",
             description: t("settings.closedDatesIntro")
         ) {
             if existing.isEmpty {

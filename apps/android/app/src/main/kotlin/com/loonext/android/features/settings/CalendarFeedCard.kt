@@ -219,6 +219,7 @@ private fun CalendarFeedBody(
     }
 
     SettingsCard(
+        anchor = "calendar-read-only-feed",
         title = t("calendarFeed.title"),
         description = t("calendarFeed.description"),
     ) {

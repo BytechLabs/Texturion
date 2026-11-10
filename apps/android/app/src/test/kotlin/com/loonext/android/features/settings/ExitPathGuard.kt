@@ -160,10 +160,10 @@ internal object ExitPath {
         Escape(
             "an early return above the card's body, in front of the role gate",
             listOf(
-                "    SettingsCard(title = t(\"settings.cancelTitle\")) {\n" +
+                "    SettingsCard(title = t(\"settings.cancelTitle\"), anchor = \"cancel-subscription\") {\n" +
                     "        if (!SettingsRoleGate.canCancelSubscription(scope.role)) {" to
                     "    if (pause is PauseRead.Loading) return\n" +
-                    "    SettingsCard(title = t(\"settings.cancelTitle\")) {\n" +
+                    "    SettingsCard(title = t(\"settings.cancelTitle\"), anchor = \"cancel-subscription\") {\n" +
                     "        if (!SettingsRoleGate.canCancelSubscription(scope.role)) {",
             ),
         ),

@@ -113,6 +113,7 @@ fun ReminderRulesCard(scope: SettingsScope) {
     }
 
     SettingsCard(
+        anchor = "appointment-reminders",
         title = t("settingsMore.remindersTitle"),
         description = t("settingsMore.remindersDesc"),
     ) {

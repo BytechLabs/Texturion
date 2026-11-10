@@ -136,7 +136,7 @@ fun TemplatesSection(
 
             is LoadState.Ready -> {
                 val templates = current.value
-                SettingsCard(title = t("settingsMore.savedReplies")) {
+                SettingsCard(title = t("settingsMore.savedReplies"), anchor = "templates-list") {
                     if (templates.isEmpty()) {
                         ReadOnlyLine(t("settingsMore.noTemplatesYet"))
                     } else {

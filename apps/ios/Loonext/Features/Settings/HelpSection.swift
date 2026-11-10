@@ -283,7 +283,7 @@ struct HelpSectionView: View {
 
     var body: some View {
         SettingsCard(
-            title: t("settings.helpEmailTitle"),
+            title: t("settings.helpEmailTitle"), anchor: "help-email",
             description: t("settings.helpEmailIntro")
         ) {
             Button(AppStrings.translate(
@@ -308,7 +308,7 @@ struct HelpSectionView: View {
         }
 
         SettingsCard(
-            title: t("settings.helpNoMailAppTitle"),
+            title: t("settings.helpNoMailAppTitle"), anchor: "help-no-mail",
             description: AppStrings.translate(
                 appLocale, "settings.helpNoMailAppIntro", ["email": supportEmail]
             )
@@ -320,7 +320,7 @@ struct HelpSectionView: View {
         // requests from a working contractor are the highest-signal product
         // input available to us, and there was no way for one to arrive.
         SettingsCard(
-            title: t("settings.helpIdeaTitle"),
+            title: t("settings.helpIdeaTitle"), anchor: "help-idea",
             description: t("settings.helpIdeaIntro")
         ) {
             Button(t("settings.helpIdeaAction")) {
@@ -345,7 +345,7 @@ struct HelpSectionView: View {
         // #253 — the answers already exist, in banners you have to hit and
         // legal pages you have to leave the app to find. The gap was the index.
         SettingsCard(
-            title: t("settings.helpFaqTitle"),
+            title: t("settings.helpFaqTitle"), anchor: "help-faq",
             description: t("settings.helpFaqIntro")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -361,7 +361,7 @@ struct HelpSectionView: View {
         }
 
         SettingsCard(
-            title: t("settings.helpExpectTitle"),
+            title: t("settings.helpExpectTitle"), anchor: "help-expect",
             description: t("settings.helpExpectIntro")
         ) {
             ReadOnlyLine(

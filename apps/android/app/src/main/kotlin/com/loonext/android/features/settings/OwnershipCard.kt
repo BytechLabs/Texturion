@@ -155,6 +155,7 @@ fun OwnershipCard(
     }
 
     SettingsCard(
+        anchor = "ownership",
         title = t("settingsMore.ownershipTitle"),
         description = t("settingsMore.ownershipDesc"),
     ) {
