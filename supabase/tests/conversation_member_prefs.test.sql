@@ -124,7 +124,7 @@ begin
    where id = 'af000000-0000-4000-8000-0000000000e1'::uuid;
   select count(*) into v_left from public.conversation_member_prefs
    where conversation_id = 'af000000-0000-4000-8000-0000000000e1'::uuid;
-  if v_left <> 0 then
+  if v_left is distinct from 0 then
     raise exception 'MF-4 FAILED: % pref row(s) outlived their conversation', v_left;
   end if;
   raise notice 'MF-4 PASSED: rows cascade with the conversation';

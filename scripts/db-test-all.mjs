@@ -181,6 +181,8 @@ const SUITES = [
   "posthog_reader",
   // #694: per-member mute and follow on one conversation.
   "conversation_member_prefs",
+  // #356 / D64: a task promotes a message or an answered call.
+  "call_anchored_tasks",
 ];
 
 const args = process.argv.slice(2);
