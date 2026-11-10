@@ -704,11 +704,31 @@ function routingVectors() {
   }));
 }
 
-// TODO(#725): add the English wording for each reason here, read from the web
-// catalogue the way routingVectors reads it, once those strings exist. Until
-// then the vector pins the reason list and its order on every client.
+// #725: null where the outcome already says it (call.ts END_REASON_KEYS).
+const END_REASON_KEYS = {
+  answered: null,
+  left_voicemail: null,
+  no_answer: null,
+  caller_hung_up: "callEndedCallerHungUp",
+  no_answer_in_time: "callEndedNoAnswerInTime",
+  declined_by_everyone: "callEndedDeclinedByEveryone",
+  nobody_reachable: "callEndedNobodyReachable",
+  rejected_blocked: "callEndedRejectedBlocked",
+  rejected_over_limit: "callEndedRejectedOverLimit",
+  line_paused: "callEndedLinePaused",
+  stuck_call_cleaned_up: "callEndedStuckCallCleanedUp",
+  intent_expired: "callEndedIntentExpired",
+  voicemail_failed: "callEndedVoicemailFailed",
+  carrier_refused: "callEndedCarrierRefused",
+  placer_hung_up: "callEndedPlacerHungUp",
+  customer_hung_up: "callEndedCustomerHungUp",
+};
+
 function callEndReasonVectors() {
-  return CALL_END_REASONS.map((reason) => ({ reason }));
+  return CALL_END_REASONS.map((reason) => ({
+    reason,
+    words: END_REASON_KEYS[reason] === null ? null : miscEnglish(END_REASON_KEYS[reason]),
+  }));
 }
 
 function screeningVectors() {

@@ -3,9 +3,10 @@
  * direction-aware outcome line, including the in-flight (null-outcome)
  * labels — the bare "Call" placeholder must never render.
  */
+import { CALL_END_REASONS } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
-import { callOutcomeLabel, formatCallDuration } from "./call";
+import { callEndReason, callOutcomeLabel, formatCallDuration } from "./call";
 
 describe("formatCallDuration", () => {
   it("renders seconds-only under a minute", () => {
@@ -150,5 +151,45 @@ describe("callOutcomeLabel", () => {
     expect(callOutcomeLabel({ outcome: null, forward_seconds: 0 })).toBe(
       "In progress",
     );
+  });
+});
+
+describe("#725 why a call ended", () => {
+  it("a missed call says why nobody picked up", () => {
+    expect(
+      callOutcomeLabel({ outcome: "missed", forward_seconds: 0, ended_reason: "no_answer_in_time" }),
+    ).toBe("Missed · Nobody answered in time");
+    expect(
+      callOutcomeLabel({ outcome: "missed", forward_seconds: 0, ended_reason: "caller_hung_up" }),
+    ).toBe("Missed · The caller hung up");
+  });
+
+  it("where the call went outranks how it ended", () => {
+    expect(
+      callOutcomeLabel({
+        outcome: "voicemail",
+        forward_seconds: 0,
+        routing: "after_hours",
+        ended_reason: "left_voicemail",
+      }),
+    ).toBe("Voicemail · After hours, nobody on call");
+  });
+
+  it("an outbound call the carrier refused says so", () => {
+    expect(
+      callOutcomeLabel({
+        outcome: "missed",
+        direction: "outbound",
+        forward_seconds: 0,
+        ended_reason: "carrier_refused",
+      }),
+    ).toBe("No answer · The carrier refused the call");
+  });
+
+  it("every reason the outcome does not already say has words", () => {
+    const saidByOutcome = new Set(["answered", "left_voicemail", "no_answer"]);
+    for (const reason of CALL_END_REASONS) {
+      expect(callEndReason(reason) === null, reason).toBe(saidByOutcome.has(reason));
+    }
   });
 });

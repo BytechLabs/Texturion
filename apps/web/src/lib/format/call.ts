@@ -1,6 +1,6 @@
-import { DEFAULT_LOCALE, type CallRouting } from "@loonext/shared";
+import { DEFAULT_LOCALE, type CallEndReason, type CallRouting } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type MessageKey, type Translate } from "@/i18n/provider";
 
 import { formatCallDuration } from "./call-duration";
 
@@ -36,6 +36,37 @@ export function callRoutingReason(
   }
 }
 
+/**
+ * #725: why a call ended, or null where the outcome already says it ("Answered",
+ * a voicemail that was left, an outbound "No answer").
+ */
+const END_REASON_KEYS: Record<CallEndReason, MessageKey | null> = {
+  answered: null,
+  left_voicemail: null,
+  no_answer: null,
+  caller_hung_up: "misc.callEndedCallerHungUp",
+  no_answer_in_time: "misc.callEndedNoAnswerInTime",
+  declined_by_everyone: "misc.callEndedDeclinedByEveryone",
+  nobody_reachable: "misc.callEndedNobodyReachable",
+  rejected_blocked: "misc.callEndedRejectedBlocked",
+  rejected_over_limit: "misc.callEndedRejectedOverLimit",
+  line_paused: "misc.callEndedLinePaused",
+  stuck_call_cleaned_up: "misc.callEndedStuckCallCleanedUp",
+  intent_expired: "misc.callEndedIntentExpired",
+  voicemail_failed: "misc.callEndedVoicemailFailed",
+  carrier_refused: "misc.callEndedCarrierRefused",
+  placer_hung_up: "misc.callEndedPlacerHungUp",
+  customer_hung_up: "misc.callEndedCustomerHungUp",
+};
+
+export function callEndReason(
+  reason: CallEndReason | null | undefined,
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
+): string | null {
+  const key = reason ? END_REASON_KEYS[reason] : null;
+  return key ? t(key) : null;
+}
+
 /** The row's plain-language outcome line. D38: outbound calls speak from
  *  the crew's side ("You called…"; a customer no-answer is "No answer",
  *  never "Missed" — nothing was missed by the crew). A null outcome is a
@@ -57,6 +88,8 @@ export function callOutcomeLabel(
     answered_by_name?: string | null;
     /** #721: where the call went when it arrived. */
     routing?: CallRouting | null;
+    /** #725: why it ended. */
+    ended_reason?: CallEndReason | null;
   },
   t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
@@ -64,11 +97,14 @@ export function callOutcomeLabel(
   const dur =
     call.forward_seconds > 0 ? ` · ${formatCallDuration(call.forward_seconds)}` : "";
   const actor = call.answered_by_name ?? null;
-  const reason = callRoutingReason(call.routing ?? null, t);
+  // Where the call went explains a call nobody answered better than how it
+  // ended: "After hours, nobody on call" over "The caller hung up".
+  const reason =
+    callRoutingReason(call.routing ?? null, t) ?? callEndReason(call.ended_reason, t);
   const why = reason ? ` · ${reason}` : "";
   switch (call.outcome) {
     case "missed":
-      return outbound ? t("misc.callNoAnswer") : `${t("misc.callMissed")}${why}`;
+      return `${outbound ? t("misc.callNoAnswer") : t("misc.callMissed")}${why}`;
     case "voicemail":
       return `${t("misc.callVoicemail")}${why}`;
     case "answered":

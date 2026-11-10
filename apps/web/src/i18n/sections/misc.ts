@@ -353,6 +353,20 @@ export const miscEn = {
   callRoutingPaused: "Line paused",
   callRoutingOverCap: "Calling limit reached",
   callRoutingNobodyReachable: "Nobody could be rung",
+  /** #725: why a call ended, when the outcome alone does not say. */
+  callEndedCallerHungUp: "The caller hung up",
+  callEndedNoAnswerInTime: "Nobody answered in time",
+  callEndedDeclinedByEveryone: "Everyone declined",
+  callEndedNobodyReachable: "Nobody could be rung",
+  callEndedRejectedBlocked: "Blocked number",
+  callEndedRejectedOverLimit: "Calling limit reached",
+  callEndedLinePaused: "Line paused",
+  callEndedStuckCallCleanedUp: "The call stopped responding and was ended",
+  callEndedIntentExpired: "The transfer timed out",
+  callEndedVoicemailFailed: "The voicemail could not record",
+  callEndedCarrierRefused: "The carrier refused the call",
+  callEndedPlacerHungUp: "Hung up on our side",
+  callEndedCustomerHungUp: "The customer hung up",
 } as const;
 
 export const miscFr: Translated<typeof miscEn> = {
@@ -672,4 +686,17 @@ export const miscFr: Translated<typeof miscEn> = {
   callRoutingPaused: "Ligne en pause",
   callRoutingOverCap: "Limite d'appels atteinte",
   callRoutingNobodyReachable: "Aucun téléphone n'a pu sonner",
+  callEndedCallerHungUp: "L'appelant a raccroché",
+  callEndedNoAnswerInTime: "Personne n'a répondu à temps",
+  callEndedDeclinedByEveryone: "Tout le monde a refusé",
+  callEndedNobodyReachable: "Aucun téléphone n'a pu sonner",
+  callEndedRejectedBlocked: "Numéro bloqué",
+  callEndedRejectedOverLimit: "Limite d'appels atteinte",
+  callEndedLinePaused: "Ligne en pause",
+  callEndedStuckCallCleanedUp: "L'appel ne répondait plus et a été terminé",
+  callEndedIntentExpired: "Le transfert a expiré",
+  callEndedVoicemailFailed: "Le message vocal n'a pas pu être enregistré",
+  callEndedCarrierRefused: "L'opérateur a refusé l'appel",
+  callEndedPlacerHungUp: "Raccroché de notre côté",
+  callEndedCustomerHungUp: "Le client a raccroché",
 };

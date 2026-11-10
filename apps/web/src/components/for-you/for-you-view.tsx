@@ -407,14 +407,14 @@ function RecentCallRow({ call }: { call: Call }) {
         <span className="mt-0.5 flex min-w-0 items-center">
           {missedInbound ? (
             <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-warning/15 dark:text-warning">
-              {callOutcomeLabel(call)}
+              {callOutcomeLabel(call, t)}
             </span>
           ) : (
             <span
               className="min-w-0 truncate text-[11.5px] text-app-muted-2"
-              title={callOutcomeLabel(call)}
+              title={callOutcomeLabel(call, t)}
             >
-              {callOutcomeLabel(call)}
+              {callOutcomeLabel(call, t)}
             </span>
           )}
         </span>

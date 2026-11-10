@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useCall } from "@/lib/api/calls";
 import { outcomeLine, transcriptState } from "./call-detail-copy";
-import { callRoutingReason } from "@/lib/format/call";
+import { callEndReason, callRoutingReason } from "@/lib/format/call";
 import { Timestamp } from "@/components/ui/timestamp";
 import { formatPhone } from "@/lib/format/phone";
 
@@ -71,6 +71,7 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
     (row.caller_e164 ? formatPhone(row.caller_e164) : t("shell.unknownCaller"));
   const transcript = transcriptState(row, t);
   const routingReason = callRoutingReason(row.routing ?? null, t);
+  const endReason = callEndReason(row.ended_reason, t);
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-5 px-4 py-6 sm:px-6">
@@ -191,6 +192,7 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
         {routingReason && (
           <Row label={t("shell.whyNoPhoneRang")}>{routingReason}</Row>
         )}
+        {endReason && <Row label={t("shell.howItEnded")}>{endReason}</Row>}
       </section>
 
     </div>

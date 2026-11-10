@@ -61,7 +61,8 @@ function DirectionIcon({ call }: { call: Call }) {
 /** The one tinted element per row (accent budget): INBOUND misses only —
  *  an outbound no-answer is not crew-actionable urgency. */
 function OutcomePill({ call }: { call: Call }) {
-  const label = callOutcomeLabel(call);
+  const t = useT();
+  const label = callOutcomeLabel(call, t);
   if (call.outcome === "missed" && call.direction !== "outbound") {
     // "Missed" / "No answer" — fixed and short, so it never yields. `shrink-0`
     // matters even here: a pill that shrinks breaks its text at the space and
@@ -115,7 +116,7 @@ export function CallRow({ call }: { call: Call }) {
                 href={`/inbox/${call.conversation_id}`}
                 aria-label={t("shell.callFromAria", {
                   name,
-                  outcome: callOutcomeLabel(call).toLowerCase(),
+                  outcome: callOutcomeLabel(call, t).toLowerCase(),
                 })}
                 className="outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
               >

@@ -1,50 +1,66 @@
 [
   {
-    "reason": "answered"
+    "reason": "answered",
+    "words": null
   },
   {
-    "reason": "caller_hung_up"
+    "reason": "caller_hung_up",
+    "words": "The caller hung up"
   },
   {
-    "reason": "no_answer_in_time"
+    "reason": "no_answer_in_time",
+    "words": "Nobody answered in time"
   },
   {
-    "reason": "declined_by_everyone"
+    "reason": "declined_by_everyone",
+    "words": "Everyone declined"
   },
   {
-    "reason": "nobody_reachable"
+    "reason": "nobody_reachable",
+    "words": "Nobody could be rung"
   },
   {
-    "reason": "left_voicemail"
+    "reason": "left_voicemail",
+    "words": null
   },
   {
-    "reason": "rejected_blocked"
+    "reason": "rejected_blocked",
+    "words": "Blocked number"
   },
   {
-    "reason": "rejected_over_limit"
+    "reason": "rejected_over_limit",
+    "words": "Calling limit reached"
   },
   {
-    "reason": "line_paused"
+    "reason": "line_paused",
+    "words": "Line paused"
   },
   {
-    "reason": "stuck_call_cleaned_up"
+    "reason": "stuck_call_cleaned_up",
+    "words": "The call stopped responding and was ended"
   },
   {
-    "reason": "intent_expired"
+    "reason": "intent_expired",
+    "words": "The transfer timed out"
   },
   {
-    "reason": "voicemail_failed"
+    "reason": "voicemail_failed",
+    "words": "The voicemail could not record"
   },
   {
-    "reason": "carrier_refused"
+    "reason": "carrier_refused",
+    "words": "The carrier refused the call"
   },
   {
-    "reason": "placer_hung_up"
+    "reason": "placer_hung_up",
+    "words": "Hung up on our side"
   },
   {
-    "reason": "customer_hung_up"
+    "reason": "customer_hung_up",
+    "words": "The customer hung up"
   },
   {
-    "reason": "no_answer"
+    "reason": "no_answer",
+    "words": null
   }
 ]

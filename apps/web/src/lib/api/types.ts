@@ -7,7 +7,7 @@ import {
 } from "@loonext/shared";
 import type { PipelineStage } from "@loonext/shared";
 import type { DeferralKind } from "@loonext/shared";
-import type { CallRouting } from "@loonext/shared";
+import type { CallEndReason, CallRouting } from "@loonext/shared";
 import type { WorkPhase } from "@loonext/shared";
 
 import { pricingEn } from "@/i18n/marketing/pricing";
@@ -1992,6 +1992,8 @@ export interface Call {
   /** #721: where the call went when it arrived. Null for outbound and older
    *  calls; absent from lists that do not select it. */
   routing?: CallRouting | null;
+  /** #725: why the call ended. Null for calls before the column. */
+  ended_reason?: CallEndReason | null;
   voicemail_seconds: number | null;
   /**
    * What the voicemail says, written best-effort after the recording is
