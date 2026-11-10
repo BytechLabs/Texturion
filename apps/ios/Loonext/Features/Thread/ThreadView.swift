@@ -294,6 +294,17 @@ private struct ThreadBody: View {
         }
     }
 
+    /// #726: owners manage lead sources where a number's source is set;
+    /// everyone else is not offered it.
+    private func addLeadSourceAction() -> (@MainActor () -> Void)? {
+        let role = me.memberships.first(where: { $0.company_id == companyId })?.role
+        guard canAddLeadSource(role: role) else { return nil }
+        return {
+            detailSheet = nil
+            AppRouter.shared.openSettingsSection = .numbers
+        }
+    }
+
     @ViewBuilder
     private var loaded: some View {
         if let detail = controller.conversation {
@@ -600,16 +611,7 @@ private struct ThreadBody: View {
                             startCall(detail: detail, contactName: contactName)
                         },
                         calling: placingCall,
-                        // #726: owners manage lead sources where a number's
-                        // source is set; everyone else is not offered it.
-                        onAddLeadSource: canAddLeadSource(
-                            role: me.memberships.first { $0.company_id == companyId }?.role
-                        )
-                            ? {
-                                detailSheet = nil
-                                AppRouter.shared.openSettingsSection = .numbers
-                            }
-                            : nil
+                        onAddLeadSource: addLeadSourceAction()
                     )
                 case .assignee:
                     AssigneePickerSheet(
