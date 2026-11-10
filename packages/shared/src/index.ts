@@ -1264,3 +1264,7 @@ export {
   type TimestampBucket,
   type TimestampShape,
 } from "./timestamp-shape";
+
+// #722 phase 1: every lifecycle as data (states, edges, entry-only effects,
+// allowed actions per role). Namespaced so its helper names cannot collide.
+export * as stateMachines from "./state-machines/index";
