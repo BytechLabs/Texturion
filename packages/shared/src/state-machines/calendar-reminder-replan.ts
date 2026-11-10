@@ -8,9 +8,9 @@ import { defineMachine } from "./define-machine";
  */
 export type CalendarReminderReplanState = "queued" | "leased" | "completed" | "cancelled";
 
+/** The queue that re-plans appointment reminders after a calendar change. */
 export const calendarReminderReplanMachine = defineMachine<CalendarReminderReplanState>({
   id: "calendar_reminder_replan",
-  description: "The queue that re-plans appointment reminders after a calendar change.",
   authority: "internal",
   db: {
     kind: "check",

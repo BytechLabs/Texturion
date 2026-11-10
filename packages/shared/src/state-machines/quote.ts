@@ -13,9 +13,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type QuoteState = "draft" | "sent" | "viewed" | "accepted" | "declined" | "expired";
 
+/** A quote (#287). */
 export const quoteMachine = defineMachine<QuoteState>({
   id: "quote",
-  description: "A quote (#287).",
   authority: "internal",
   db: {
     kind: "none",

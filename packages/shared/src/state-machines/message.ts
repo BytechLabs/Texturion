@@ -13,9 +13,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type MessageState = "received" | "queued" | "sent" | "delivered" | "failed";
 
+/** messages.status for texts. */
 export const messageMachine = defineMachine<MessageState>({
   id: "message",
-  description: "messages.status for texts.",
   authority: "provider",
   db: {
     kind: "enum",

@@ -11,9 +11,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type CalendarLinkState = "active" | "conflict" | "event_removed" | "refused" | "unlinked";
 
+/** The mapping between one task and one provider event. */
 export const calendarLinkMachine = defineMachine<CalendarLinkState>({
   id: "calendar_link",
-  description: "The mapping between one task and one provider event.",
   authority: "internal",
   db: {
     kind: "check",

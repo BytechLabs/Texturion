@@ -60,7 +60,6 @@ export interface MachineDb {
 
 export interface MachineDefinition<S extends string> {
   id: string;
-  description: string;
   authority: Authority;
   db: MachineDb;
   states: readonly S[];
@@ -84,7 +83,6 @@ export interface MachineDefinition<S extends string> {
 
 export interface Machine<S extends string> {
   readonly id: string;
-  readonly description: string;
   readonly authority: Authority;
   readonly db: MachineDb;
   readonly states: readonly S[];
@@ -135,7 +133,6 @@ export function defineMachine<const S extends string>(
   }
   return Object.freeze({
     id: definition.id,
-    description: definition.description,
     authority: definition.authority,
     db: definition.db,
     states: definition.states,

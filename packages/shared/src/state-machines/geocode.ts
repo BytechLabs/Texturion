@@ -9,9 +9,9 @@ import { defineMachine } from "./define-machine";
  */
 export type GeocodeState = "pending" | "ok" | "failed" | "no_address";
 
+/** Address geocoding status for contacts and tasks (geocode-contacts.ts, geocode-tasks.ts). */
 export const geocodeMachine = defineMachine<GeocodeState>({
   id: "geocode",
-  description: "Address geocoding status for contacts and tasks (geocode-contacts.ts, geocode-tasks.ts).",
   authority: "internal",
   db: {
     kind: "check",

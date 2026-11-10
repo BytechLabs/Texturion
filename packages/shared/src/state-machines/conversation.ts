@@ -12,9 +12,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type ConversationState = "new" | "open" | "waiting" | "closed";
 
+/** conversations.status. */
 export const conversationMachine = defineMachine<ConversationState>({
   id: "conversation",
-  description: "conversations.status.",
   authority: "internal",
   db: {
     kind: "enum",

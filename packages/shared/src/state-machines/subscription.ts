@@ -13,9 +13,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type SubscriptionState = "incomplete" | "incomplete_expired" | "active" | "past_due" | "unpaid" | "canceled";
 
+/** companies.subscription_status, a mirror of the Stripe subscription (syncSubscription in apps/api/src/webhooks/stripe.ts, via mirrorSubscriptionStatus). */
 export const subscriptionMachine = defineMachine<SubscriptionState>({
   id: "subscription",
-  description: "companies.subscription_status, a mirror of the Stripe subscription (syncSubscription in apps/api/src/webhooks/stripe.ts, via mirrorSubscriptionStatus).",
   authority: "provider",
   db: {
     kind: "enum",

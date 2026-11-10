@@ -14,9 +14,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type CallState = "dialing" | "ringing" | "answered" | "voicemail_greeting" | "voicemail_recording" | "ended_answered" | "ended_voicemail" | "ended_missed" | "ended_rejected";
 
+/** An inbound or outbound call (calls v3, docs/CALLS-V3.md section 3.1). */
 export const callMachine = defineMachine<CallState>({
   id: "call",
-  description: "An inbound or outbound call (calls v3, docs/CALLS-V3.md section 3.1).",
   authority: "internal",
   db: {
     kind: "check",

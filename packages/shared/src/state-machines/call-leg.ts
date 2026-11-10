@@ -13,9 +13,9 @@ import { defineMachine } from "./define-machine";
  */
 export type CallLegState = "ringing" | "answered" | "failed";
 
+/** One member's leg of a call (ring, consult or transfer). */
 export const callLegMachine = defineMachine<CallLegState>({
   id: "call_leg",
-  description: "One member's leg of a call (ring, consult or transfer).",
   authority: "internal",
   db: {
     kind: "check",

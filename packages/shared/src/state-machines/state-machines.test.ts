@@ -55,7 +55,6 @@ describe("defineMachine", () => {
     expect(() =>
       defineMachine({
         id: "bad",
-        description: "bad",
         authority: "internal",
         db: { kind: "none", columns: [], note: "test" },
         states: ["a", "b"],
@@ -69,7 +68,6 @@ describe("defineMachine", () => {
     expect(() =>
       defineMachine({
         id: "bad",
-        description: "bad",
         authority: "internal",
         db: { kind: "none", columns: [], note: "test" },
         states: ["a", "b"],
@@ -80,7 +78,6 @@ describe("defineMachine", () => {
     expect(() =>
       defineMachine({
         id: "bad",
-        description: "bad",
         authority: "internal",
         db: { kind: "none", columns: [], note: "test" },
         states: ["a", "b"],

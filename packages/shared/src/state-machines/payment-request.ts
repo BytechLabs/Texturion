@@ -11,9 +11,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type PaymentRequestState = "requested" | "paid" | "cancelled" | "expired";
 
+/** A payment link sent in a thread. */
 export const paymentRequestMachine = defineMachine<PaymentRequestState>({
   id: "payment_request",
-  description: "A payment link sent in a thread.",
   authority: "internal",
   db: {
     kind: "check",

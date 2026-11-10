@@ -10,9 +10,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type DataExportState = "pending" | "running" | "ready" | "failed";
 
+/** Workspace and history exports (export.ts). */
 export const dataExportMachine = defineMachine<DataExportState>({
   id: "data_export",
-  description: "Workspace and history exports (export.ts).",
   authority: "internal",
   db: {
     kind: "check",

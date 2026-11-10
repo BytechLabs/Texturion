@@ -11,9 +11,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type TaskState = "open" | "done" | "trashed";
 
+/** A task's lifecycle, derived from task_done_at(tasks) and deleted_at. */
 export const taskMachine = defineMachine<TaskState>({
   id: "task",
-  description: "A task's lifecycle, derived from task_done_at(tasks) and deleted_at.",
   authority: "derived",
   db: {
     kind: "none",

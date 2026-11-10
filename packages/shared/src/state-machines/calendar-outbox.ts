@@ -10,9 +10,9 @@ import { defineMachine } from "./define-machine";
  */
 export type CalendarOutboxState = "queued" | "leased" | "completed" | "cancelled";
 
+/** The queue of writes to a member's calendar provider. */
 export const calendarOutboxMachine = defineMachine<CalendarOutboxState>({
   id: "calendar_outbox",
-  description: "The queue of writes to a member's calendar provider.",
   authority: "internal",
   db: {
     kind: "check",

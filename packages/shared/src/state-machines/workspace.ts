@@ -12,9 +12,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type WorkspaceState = "active" | "paused" | "closed" | "purged";
 
+/** A workspace's lifecycle, derived from paused_at, deleted_at and purged_at on companies. */
 export const workspaceMachine = defineMachine<WorkspaceState>({
   id: "workspace",
-  description: "A workspace's lifecycle, derived from paused_at, deleted_at and purged_at on companies.",
   authority: "derived",
   db: {
     kind: "none",

@@ -9,9 +9,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type InviteState = "pending" | "accepted" | "revoked" | "expired";
 
+/** A team invite, derived from accepted_at, revoked_at and expires_at on invites (routes/team.ts). */
 export const inviteMachine = defineMachine<InviteState>({
   id: "invite",
-  description: "A team invite, derived from accepted_at, revoked_at and expires_at on invites (routes/team.ts).",
   authority: "derived",
   db: {
     kind: "none",

@@ -13,9 +13,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type ScheduledMessageState = "pending" | "held" | "sent" | "canceled" | "expired" | "failed";
 
+/** A text scheduled for later, including appointment reminders (#325, #237). */
 export const scheduledMessageMachine = defineMachine<ScheduledMessageState>({
   id: "scheduled_message",
-  description: "A text scheduled for later, including appointment reminders (#325, #237).",
   authority: "internal",
   db: {
     kind: "check",

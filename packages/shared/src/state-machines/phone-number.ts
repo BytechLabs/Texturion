@@ -11,9 +11,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type PhoneNumberState = "provisioning" | "active" | "suspended" | "released" | "provision_failed" | "ported_out";
 
+/** phone_numbers.status. */
 export const phoneNumberMachine = defineMachine<PhoneNumberState>({
   id: "phone_number",
-  description: "phone_numbers.status.",
   authority: "internal",
   db: {
     kind: "enum",

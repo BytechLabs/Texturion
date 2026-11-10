@@ -13,9 +13,9 @@ import { defineMachine } from "./define-machine";
  */
 export type CalendarPushSubscriptionState = "active" | "renewing" | "error" | "expired" | "revoking" | "revoked";
 
+/** A provider push channel for a calendar connection. */
 export const calendarPushSubscriptionMachine = defineMachine<CalendarPushSubscriptionState>({
   id: "calendar_push_subscription",
-  description: "A provider push channel for a calendar connection.",
   authority: "internal",
   db: {
     kind: "check",

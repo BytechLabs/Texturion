@@ -10,9 +10,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type TextEnablementState = "pending" | "action-required" | "in-progress" | "completed" | "failed" | "cancelled";
 
+/** Hosted-messaging orders for enabling texting on an existing landline (text-enablement.ts). */
 export const textEnablementMachine = defineMachine<TextEnablementState>({
   id: "text_enablement",
-  description: "Hosted-messaging orders for enabling texting on an existing landline (text-enablement.ts).",
   authority: "provider",
   db: {
     kind: "enum",

@@ -11,9 +11,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type CalendarConnectionState = "active" | "reauth_required" | "disconnected" | "revoked";
 
+/** A member's two-way calendar connection (#245, D137). */
 export const calendarConnectionMachine = defineMachine<CalendarConnectionState>({
   id: "calendar_connection",
-  description: "A member's two-way calendar connection (#245, D137).",
   authority: "internal",
   db: {
     kind: "check",

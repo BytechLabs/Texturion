@@ -13,9 +13,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type RegistrationState = "draft" | "submitted" | "pending" | "approved" | "rejected" | "suspended";
 
+/** US 10DLC brand and campaign registration. */
 export const registrationMachine = defineMachine<RegistrationState>({
   id: "registration",
-  description: "US 10DLC brand and campaign registration.",
   authority: "provider",
   db: {
     kind: "enum",

@@ -9,9 +9,9 @@ import { defineMachine } from "./define-machine";
  */
 export type NumberHealthState = "healthy" | "degraded";
 
+/** Per-number delivery health (D142). */
 export const numberHealthMachine = defineMachine<NumberHealthState>({
   id: "number_health",
-  description: "Per-number delivery health (D142).",
   authority: "internal",
   db: {
     kind: "check",

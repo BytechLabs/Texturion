@@ -10,9 +10,9 @@ import { defineMachine } from "./define-machine";
  */
 export type ConsentState = "implied" | "express" | "revoked";
 
+/** The consent ledger (contact_consent_events.state): each row is the state a contact entered, and the latest row wins. */
 export const consentMachine = defineMachine<ConsentState>({
   id: "consent",
-  description: "The consent ledger (contact_consent_events.state): each row is the state a contact entered, and the latest row wins.",
   authority: "internal",
   db: {
     kind: "check",

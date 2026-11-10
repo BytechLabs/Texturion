@@ -11,9 +11,9 @@ import { defineMachine } from "./define-machine";
  */
 export type WebhookDeliveryState = "pending" | "delivering" | "succeeded" | "failed";
 
+/** One outbound webhook delivery attempt chain (#243). */
 export const webhookDeliveryMachine = defineMachine<WebhookDeliveryState>({
   id: "webhook_delivery",
-  description: "One outbound webhook delivery attempt chain (#243).",
   authority: "internal",
   db: {
     kind: "check",

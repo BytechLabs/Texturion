@@ -10,9 +10,9 @@ import { defineMachine } from "./define-machine";
  */
 export type BillingDisputeState = "warning_needs_response" | "warning_under_review" | "warning_closed" | "needs_response" | "under_review" | "won" | "lost";
 
+/** A Stripe dispute, recorded by record_billing_dispute (billing/disputes.ts). */
 export const billingDisputeMachine = defineMachine<BillingDisputeState>({
   id: "billing_dispute",
-  description: "A Stripe dispute, recorded by record_billing_dispute (billing/disputes.ts).",
   authority: "provider",
   db: {
     kind: "none",

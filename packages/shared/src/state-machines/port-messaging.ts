@@ -9,9 +9,9 @@ import { defineMachine } from "./define-machine";
  */
 export type PortMessagingState = "not_applicable" | "pending" | "activating" | "ported" | "exception";
 
+/** Number porting, messaging track (#50): ALLOWED_MESSAGING_TRANSITIONS in porting.ts, copied verbatim. */
 export const portMessagingMachine = defineMachine<PortMessagingState>({
   id: "port_messaging",
-  description: "Number porting, messaging track (#50): ALLOWED_MESSAGING_TRANSITIONS in porting.ts, copied verbatim.",
   authority: "provider",
   db: {
     kind: "enum",

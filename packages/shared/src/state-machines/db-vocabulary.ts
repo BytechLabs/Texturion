@@ -97,7 +97,7 @@ export function readDbVocabulary(): DbVocabulary {
     }
     if (/alter type\s+(?:public\.)?\w+\s+rename value/i.test(sql)) {
       throw new Error(
-        `${file} renames an enum value; db-vocabulary.ts does not model that. Teach it before trusting the state-machine parity tests.`,
+        `enum value renamed in ${file}, which db-vocabulary.ts cannot model yet`,
       );
     }
   }

@@ -11,9 +11,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type ConversationVisibilityState = "live" | "spam" | "trashed";
 
+/** Whether a conversation is shown, derived from is_spam and deleted_at. */
 export const conversationVisibilityMachine = defineMachine<ConversationVisibilityState>({
   id: "conversation_visibility",
-  description: "Whether a conversation is shown, derived from is_spam and deleted_at.",
   authority: "derived",
   db: {
     kind: "none",

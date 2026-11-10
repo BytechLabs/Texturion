@@ -12,9 +12,9 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type PortState = "draft" | "in-process" | "submitted" | "exception" | "foc-date-confirmed" | "activation-in-progress" | "ported" | "cancel-pending" | "cancelled";
 
+/** Number porting, voice track. */
 export const portMachine = defineMachine<PortState>({
   id: "port",
-  description: "Number porting, voice track.",
   authority: "provider",
   db: {
     kind: "enum",
