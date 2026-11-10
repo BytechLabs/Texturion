@@ -193,7 +193,7 @@ state never regresses), and terminal-state mirrors retry until they land
 | `ended_answered` | Terminal. Talk time billed from the bri anchor. | `answered` |
 | `ended_voicemail` | Terminal. Recording stored + threaded. | `voicemail` |
 | `ended_missed` | Terminal. Caller gave up / rang out / hung up in voicemail without a keepable message. MCTB + crew alert fire here. | `missed` |
-| `ended_rejected` | Terminal. Server rejected the call (voice spending cap — USER_BUSY per D36). MCTB still fires (D36 binding). | `missed` |
+| `ended_rejected` | Terminal. Server rejected the call (voice spending cap — USER_BUSY per D36, or a caller on the workspace's block list, #696). MCTB still fires for the cap (D36 binding); for a blocked caller it does not: the call is threaded onto the number's closed spam conversation and nobody is texted or alerted. | `missed` |
 
 `outcome` is retained unchanged for every existing consumer (line-busy claim,
 `api_list_calls`, billing, sweepers). `state` is the granular truth; the

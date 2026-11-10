@@ -328,6 +328,8 @@ function persistStub(): Stub {
 function serve(...stubs: Stub[]) {
   const d43Defaults: Stub[] = [
     stubRoute(restMatch(env, "GET", "call_member_legs"), () => []),
+    // Nobody is blocked unless a test says so (#696).
+    stubRoute(restMatch(env, "GET", "blocked_senders"), () => []),
     // Default GET calls: a bare {id} row. Enough for the terminal handler's
     // "does a genuine server-created row exist?" security check on
     // forward/out_agent/out_customer legs to pass (a real call has one), but
@@ -789,6 +791,52 @@ describe("handleCallEvent — terminal → text-back", () => {
 
     expect(claim.calls).toHaveLength(1);
     expect(sms.calls).toHaveLength(1);
+  });
+
+  it("#696: a blocked caller's miss closes the thread as spam, with no text-back and no crew alert", async () => {
+    const claim = claimStub();
+    const sms = telnyxSms();
+    const close = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/conversations",
+      () => [],
+    );
+    const audit = stubRoute(restMatch(env, "POST", "audit_log"), () =>
+      Response.json([], { status: 201 }),
+    );
+    serve(
+      numberStub(),
+      stubRoute(restMatch(env, "GET", "blocked_senders"), () => [{ id: "b-1" }]),
+      close,
+      audit,
+      ...companyStubs(null),
+      mctbSettingsStub(), callerLocaleStub(),
+      ...sendGateStubs(),
+      claim,
+      sms,
+      persistStub(),
+      ...alertStubs(),
+    );
+
+    await handleCallEvent(
+      env,
+      event("call.hangup", {
+        call_control_id: CC_ID,
+        call_session_id: SESSION,
+        direction: "incoming",
+        from: CALLER,
+        to: OUR_NUMBER,
+        hangup_cause: "normal_clearing",
+      }),
+    );
+
+    expect(close.calls).toHaveLength(1);
+    expect(close.calls[0]!.body).toMatchObject({
+      is_spam: true,
+      status: "closed",
+    });
+    expect(claim.calls).toHaveLength(0);
+    expect(sms.calls).toHaveLength(0);
   });
 
   it("REGRESSION (#135): a genuine voicemail-leg hangup with NO `direction` still resolves (Telnyx omits it on answered legs)", async () => {

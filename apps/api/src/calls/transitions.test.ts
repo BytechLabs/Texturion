@@ -56,6 +56,7 @@ function initCtx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
     suspendedOrInactive: false,
     noticeAllowed: false,
     overCap: false,
+    blocked: false,
     dialTargets: [{ userId: "u1", sipUsername: "sip1" }],
     pushAudience: ["u1"],
     ...overrides,
@@ -317,6 +318,26 @@ describe("T1 — call.initiated branches", () => {
   it("T1c over cap → reject USER_BUSY, rejectedForCap flag", () => {
     const r = reduce(null, { type: "initiated", context: initCtx({ overCap: true }) }, 1_000, keyGen());
     expect(r.machine?.rejectedForCap).toBe(true);
+    expect(has(r.effects, "telnyx-reject")).toBe(true);
+  });
+
+  it("T0 blocked caller → reject before anything rings, nobody dialled or pushed", () => {
+    const r = reduce(null, { type: "initiated", context: initCtx({ blocked: true }) }, 1_000, keyGen());
+    expect(r.machine?.rejectedForCap).toBe(true);
+    expect(has(r.effects, "telnyx-reject")).toBe(true);
+    expect(has(r.effects, "telnyx-dial")).toBe(false);
+    expect(has(r.effects, "push-fanout")).toBe(false);
+    expect(has(r.effects, "telnyx-answer-notice")).toBe(false);
+  });
+
+  it("T0 outranks line-busy and a suspended line: a blocked caller is never sent to voicemail or a notice", () => {
+    const r = reduce(
+      null,
+      { type: "initiated", context: initCtx({ blocked: true, lineBusy: true, suspendedOrInactive: true }) },
+      1_000,
+      keyGen(),
+    );
+    expect(r.machine?.state).toBe("ringing");
     expect(has(r.effects, "telnyx-reject")).toBe(true);
   });
 

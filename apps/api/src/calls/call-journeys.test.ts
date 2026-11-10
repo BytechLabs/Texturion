@@ -212,6 +212,7 @@ const tables = {
   calls: [] as Row[],
   call_member_legs: [] as Row[],
   outbound_call_authorizations: [] as Row[],
+  blocked_senders: [] as Row[],
 };
 
 const OUTBOUND_HOLD_MS = 30_000;

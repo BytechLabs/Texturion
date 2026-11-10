@@ -57,6 +57,7 @@ import {
   parseConsultState,
   parseTransferState,
 } from "./live-call";
+import { closeBlockedThread, isBlockedSender } from "./spam-flag";
 import { computeMissedFromEvent } from "./missed-call";
 import { sendMissedCallText } from "./missed-call";
 import type { TelnyxEvent } from "./types";
@@ -916,6 +917,22 @@ export async function handleTerminalCallEvent(
       forwardSeconds: call.forward_seconds ?? 0,
       direction: outboundLeg ? "outbound" : "inbound",
     });
+  }
+
+  // A blocked caller was refused at the door (#696): the call is on the closed
+  // spam thread, and the crew is neither texted back nor alerted about it.
+  if (!outboundLeg && outcome.missed && finalCaller) {
+    if (await isBlockedSender(db, resolved.companyId, finalCaller)) {
+      if (thread?.conversationId) {
+        await closeBlockedThread(db, {
+          companyId: resolved.companyId,
+          conversationId: thread.conversationId,
+          fromE164: finalCaller,
+          action: "spam.blocked_caller_arrived",
+        });
+      }
+      return;
+    }
   }
 
   // The missed-call text-back is an INBOUND behavior only — an outbound

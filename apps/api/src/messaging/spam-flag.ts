@@ -30,6 +30,54 @@ export interface SpamOutcome {
 
 const NOT_SPAM: SpamOutcome = { blocked: false, suspected: false };
 
+/** Has this workspace blocked this number? */
+export async function isBlockedSender(
+  db: SupabaseClient,
+  companyId: string,
+  e164: string,
+): Promise<boolean> {
+  const { data } = await db
+    .from("blocked_senders")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("phone_e164", e164)
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * A blocked number reached the inbox, by text or by call: mark its thread spam
+ * and closed. The actor is the CONTACT arriving, not a member — nobody pressed
+ * anything today. The block itself was audited when it was created.
+ */
+export async function closeBlockedThread(
+  db: SupabaseClient,
+  args: {
+    companyId: string;
+    conversationId: string;
+    fromE164: string;
+    action: "spam.blocked_sender_arrived" | "spam.blocked_caller_arrived";
+  },
+): Promise<void> {
+  await db
+    .from("conversations")
+    .update({
+      is_spam: true,
+      status: "closed",
+      closed_at: new Date().toISOString(),
+    })
+    .eq("id", args.conversationId)
+    .eq("company_id", args.companyId);
+  await recordAudit(db, {
+    companyId: args.companyId,
+    actorUserId: null,
+    action: args.action,
+    targetType: "conversation",
+    targetId: args.conversationId,
+    after: { from: args.fromE164 },
+  });
+}
+
 /**
  * Has this workspace ever texted this thread, and does the contact carry a
  * name somebody typed?
@@ -86,32 +134,12 @@ export async function classifyInbound(
   try {
     // A block is checked first and short-circuits: if a person already said
     // "never again", there is nothing for a classifier to weigh.
-    const { data: blocked } = await db
-      .from("blocked_senders")
-      .select("id")
-      .eq("company_id", args.companyId)
-      .eq("phone_e164", args.fromE164)
-      .maybeSingle();
-
-    if (blocked) {
-      await db
-        .from("conversations")
-        .update({
-          is_spam: true,
-          status: "closed",
-          closed_at: new Date().toISOString(),
-        })
-        .eq("id", args.conversationId)
-        .eq("company_id", args.companyId);
-      // The actor is the CONTACT arriving, not a member — nobody pressed
-      // anything today. The block itself was audited when it was created.
-      await recordAudit(db, {
+    if (await isBlockedSender(db, args.companyId, args.fromE164)) {
+      await closeBlockedThread(db, {
         companyId: args.companyId,
-        actorUserId: null,
+        conversationId: args.conversationId,
+        fromE164: args.fromE164,
         action: "spam.blocked_sender_arrived",
-        targetType: "conversation",
-        targetId: args.conversationId,
-        after: { from: args.fromE164 },
       });
       return { blocked: true, suspected: false };
     }

@@ -510,6 +510,24 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
     expect(body.attachments).toEqual([]);
   });
 
+  it("#696: a number on the block list can still be texted — a block is not an opt-out", async () => {
+    const stubs = sendStubs({ view: sendView() });
+    const blockList = stubRoute(restMatch(env, "GET", "blocked_senders"), () => [
+      { id: "b-1", phone_e164: "+16135551000" },
+    ]);
+    stubFetch(...stubs.all, blockList.route);
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "Sorry, wrong number blocked by mistake - are you still coming Friday?",
+    });
+
+    expect(response.status).toBe(201);
+    expect(stubs.telnyx.calls).toHaveLength(1);
+    expect(stubs.telnyx.calls[0].body).toMatchObject({ to: "+16135551000" });
+    expect(blockList.calls).toHaveLength(0);
+  });
+
   it("same Idempotency-Key twice → one Telnyx call, second response 200", async () => {
     const key = crypto.randomUUID();
     let calls = 0;

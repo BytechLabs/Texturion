@@ -193,6 +193,7 @@ export type AuditAction =
   // decided, because that one is a person refusing a number.
   | "spam.suspected"
   | "spam.blocked_sender_arrived"
+  | "spam.blocked_caller_arrived"
   | "spam.sender_blocked"
   | "spam.sender_unblocked"
   | "registration.reset"

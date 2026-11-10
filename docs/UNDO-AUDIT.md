@@ -60,6 +60,8 @@ toast on something that just vanished is the only way back.
 | Action | Removes from view? | W | A | I |
 |---|:-:|:-:|:-:|:-:|
 | Mark spam | yes (hides the thread) | undo | undo | undo |
+| Block number | no (the thread stays; it only goes to spam from the next text or call) | confirm ³ | confirm ³ | confirm ³ |
+| Unblock number | no | reverse button | reverse button | reverse button |
 | Close a conversation | yes (leaves the open filter) | **undo** ¹ | undo | **undo** ¹ |
 | Assign / unassign | no | undo | re-pick | re-pick |
 | Complete a task (inline) | no | undo | tap again | tap again |
@@ -68,6 +70,13 @@ toast on something that just vanished is the only way back.
 ¹ Added by this audit. Web's status control and iOS's swipe-close both changed
 status with no undo at all, while Android had offered one since its swipe
 shipped — so this was the parity gap, and it was in the row that needed it most.
+
+³ Block is not a state flip of something on screen: it changes what happens to
+every FUTURE text and call from the number (straight to spam, calls refused
+before anyone is rung), so it confirms once, in words that say so and that the
+crew can still text the number. Unblock is the reverse control, in the thread
+menu, on the contact page and in Settings, Blocked numbers (web-only back-office
+list, like the other settings lists). Neither removes anything from view.
 
 **Undo toast sites, exhaustively:** web has five (`for-you-view.tsx`,
 `tasks-checklist.tsx`, and three in `thread-header.tsx`); Android and iOS have two

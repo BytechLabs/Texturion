@@ -269,6 +269,7 @@ export function ctx(overrides: Partial<InitiatedContext> = {}): InitiatedContext
     suspendedOrInactive: false,
     noticeAllowed: false,
     overCap: false,
+    blocked: false,
     dialTargets: [{ userId: "u1", sipUsername: "s1" }],
     pushAudience: ["u1"],
     ...overrides,

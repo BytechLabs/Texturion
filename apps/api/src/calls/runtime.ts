@@ -51,6 +51,7 @@ import {
 } from "../messaging/voice-webhook";
 import { normalizeNanpPhone } from "../routes/core/phone";
 import { notifyMissedCall } from "../notifications/missed-call";
+import { closeBlockedThread, isBlockedSender } from "../messaging/spam-flag";
 import { sendMissedCallText } from "../messaging/missed-call";
 import {
   notifyIncomingCall,
@@ -713,6 +714,37 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         throw new Error(`call metadata stamp failed: ${metaError.message}`);
       }
 
+      // #696: a number this workspace blocked is refused before anyone is
+      // rung. Asked after the line claim so the calls row exists for the
+      // hangup to merge into, and before the routing reads a refused call
+      // would never use.
+      if (callerE164 && (await isBlockedSender(db, number.company_id, callerE164))) {
+        return {
+          callSessionId: payload.call_session_id,
+          inboundCcid: payload.call_control_id,
+          companyId: number.company_id,
+          phoneNumberId: number.id,
+          companyName: company.name,
+          locale: (company as { locale?: string | null }).locale ?? undefined,
+          greeting: company.voicemail_greeting,
+          callerE164,
+          businessNumberE164: payload.to,
+          lineBusy: false,
+          screeningDivert: false,
+          afterHours: false,
+          nextOpenLabel: null,
+          afterHoursVoicemail: false,
+          ringStrategy: "all",
+          ringSeconds: RING_SECONDS_MAX,
+          suspendedOrInactive: false,
+          noticeAllowed: false,
+          overCap: false,
+          blocked: true,
+          dialTargets: [],
+          pushAudience: [],
+        };
+      }
+
       const screeningDivert =
         company.call_screening === "divert" &&
         screeningFlagged(payload.call_screening_result);
@@ -866,6 +898,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         suspendedOrInactive,
         noticeAllowed,
         overCap,
+        blocked: false,
         dialTargets: routedTargets,
         pushAudience: routedAudience,
       };
@@ -1274,6 +1307,17 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       // ran (join-only), so the journey line is intact either way.
       if (machine.direction === "outbound") return;
       if (outcome !== "missed" || !machine.callerE164 || !machine.businessNumberE164) {
+        return;
+      }
+      if (await isBlockedSender(db, machine.companyId, machine.callerE164)) {
+        if (thread?.conversationId) {
+          await closeBlockedThread(db, {
+            companyId: machine.companyId,
+            conversationId: thread.conversationId,
+            fromE164: machine.callerE164,
+            action: "spam.blocked_caller_arrived",
+          });
+        }
         return;
       }
       const textBack = await sendMissedCallText(env, db, {

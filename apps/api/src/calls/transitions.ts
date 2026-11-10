@@ -239,6 +239,7 @@ export interface SessionMachine {
   startedAtMs: number;
   answeredByUserId: string | null;
   answeredAtIso: string | null;
+  /** Refused before ringing: over the voice cap, or a blocked caller (#696). */
   rejectedForCap: boolean;
   unattended: boolean;
   /** #490: this session answered a suspended line to speak the unavailable
@@ -352,6 +353,9 @@ export interface InitiatedContext {
    *  cheap to write: the fallback is the behaviour it replaces. */
   noticeAllowed: boolean;
   overCap: boolean;
+  /** The workspace blocked this caller's number (#696): refused before any
+   *  crew member is rung, exactly as an over-cap call is. */
+  blocked: boolean;
   dialTargets: { userId: string; sipUsername: string }[];
   /** §5.4: #106-'text'-eligible members holding ANY push channel AND
    *  push-enabled per notification_prefs (#146) — same filter the delegate
@@ -1329,6 +1333,18 @@ function reduceInitiated(
   const effects: Effect[] = [
     { kind: "arm-alarm", alarm: "janitor", atMs: nowMs + JANITOR_MS },
   ];
+
+  // T0: a blocked caller → reject before anything rings. The hangup runs
+  // T5→ended_rejected; the terminal merge threads the call onto the closed spam
+  // thread and sends no text-back or crew alert. Checked before every other
+  // arm: a person already said "never again", so busy, after-hours and
+  // suspended handling have nothing left to decide.
+  if (context.blocked) {
+    base.rejectedForCap = true;
+    effects.push({ kind: "telnyx-reject", ccid: context.inboundCcid, cause: "USER_BUSY" });
+    effects.push({ kind: "mirror", set: { state: "ringing" }, terminal: false });
+    return { machine: base, effects };
+  }
 
   // T1a: line busy, or screening divert + flagged → VM-ENTRY now, state
   // minted voicemail_greeting (never a false `ringing` broadcast — §16.8).
