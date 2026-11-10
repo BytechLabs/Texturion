@@ -1,5 +1,5 @@
 -- Gapless per-topic broadcast sequence: assertion suite for
--- supabase/migrations/20261110180000_broadcasts_carry_a_gapless_topic_sequence.sql.
+-- supabase/migrations/20261110200000_broadcasts_carry_a_gapless_topic_sequence.sql.
 --
 -- Clients detect a lost Realtime delivery by a hole in `seq`, so a hole the
 -- server makes itself (a rolled-back send that still spent a number) would send
