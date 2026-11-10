@@ -297,6 +297,11 @@ object ThreadStrings : AppStrings.Section {
         "thread.summaryReady" to "Lou's catch-up",
         "thread.summaryRetry" to "Try the catch-up again",
         "thread.summaryOffer" to "Catch me up",
+        // #716: the one-line offer above the composer, and the pins' count label.
+        "thread.catchUpHint" to "Catch up on this thread?",
+        "thread.catchUpRecap" to "Recap",
+        "thread.notNow" to "Not now",
+        "thread.morePinnedAria" to "{count} more pinned",
         "thread.summaryTruncated" to
             "The thread is longer than this — Lou read the most recent part.",
         "thread.summaryLineAria" to "{text}. Open the message this came from.",
@@ -1040,6 +1045,10 @@ object ThreadStrings : AppStrings.Section {
         "thread.summaryReady" to "Le résumé de Lou",
         "thread.summaryRetry" to "Réessayer le résumé",
         "thread.summaryOffer" to "Faites-moi un résumé",
+        "thread.catchUpHint" to "Rattraper cette conversation ?",
+        "thread.catchUpRecap" to "Résumé",
+        "thread.notNow" to "Pas maintenant",
+        "thread.morePinnedAria" to "{count} autres épinglés",
         "thread.summaryTruncated" to
             "La conversation est plus longue que ceci — Lou a lu la partie la " +
             "plus récente.",

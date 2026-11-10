@@ -346,7 +346,9 @@ fun ThreadSummaryCard(
     onOpenMessage: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (state is CatchUpState.Hidden) return
+    // #716: the resting offer is the composer's one-line hint now, not a row
+    // above the stream. The card exists once an ask has been made.
+    if (state is CatchUpState.Hidden || state is CatchUpState.Offered) return
 
     // The `semantics` block below is not composition, so the language is read
     // here and the sentence is built there.
@@ -365,8 +367,7 @@ fun ThreadSummaryCard(
         // The header row. Tappable ONLY while it is an offer or a retry: once
         // lines are on screen the row is a label, and a header that still
         // responds to a tap invites the re-roll this surface does not have.
-        val askable = state is CatchUpState.Offered ||
-            (state is CatchUpState.Refused && state.askAgain)
+        val askable = state is CatchUpState.Refused && state.askAgain
         Row(
             Modifier
                 .fillMaxWidth()

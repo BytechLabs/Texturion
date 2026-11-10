@@ -11,7 +11,7 @@ import org.junit.Test
 
 /** #710: the menu's grouping, and the hints and notice labels it leans on. */
 class ConversationMenuTest {
-    private val flat get() = conversationMenuGroups(canDelete = true).flatten()
+    private val flat get() = conversationMenuGroups(canDelete = true, canCatchUp = true).flatten()
 
     @Test
     fun groupsFollowTheWebOrderWithDestructiveLast() {

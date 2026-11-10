@@ -307,6 +307,10 @@ enum ThreadStrings {
             "thread.summaryReading": "Reading the thread…",
             "thread.summaryReady": "Lou's catch-up",
             "thread.summaryOffer": "Catch me up",
+            "thread.catchUpHint": "Catch up on this thread?",
+            "thread.catchUpRecap": "Recap",
+            "thread.notNow": "Not now",
+            "thread.morePinnedAria": "{count} more pinned",
             "thread.summaryOfferAria": "Catch me up on this thread",
             "thread.summaryOfferHint":
                 "Lou reads the thread and shows what they asked, what you said, and "
@@ -1043,6 +1047,10 @@ enum ThreadStrings {
             "thread.summaryReading": "Lecture de la conversation…",
             "thread.summaryReady": "Le résumé de Lou",
             "thread.summaryOffer": "Faites-moi un résumé",
+            "thread.catchUpHint": "Rattraper cette conversation ?",
+            "thread.catchUpRecap": "Résumé",
+            "thread.notNow": "Pas maintenant",
+            "thread.morePinnedAria": "{count} autres épinglés",
             "thread.summaryOfferAria": "Faites-moi un résumé de cette conversation",
             "thread.summaryOfferHint":
                 "Lou lit la conversation et montre ce que le client a demandé, ce "

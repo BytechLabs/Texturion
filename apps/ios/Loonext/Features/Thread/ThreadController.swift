@@ -46,6 +46,8 @@ final class ThreadController {
     private(set) var loadingOlder = false
     private(set) var events: [ConversationEvent] = []
     private(set) var pinnedMessages: [Message] = []
+    /// #716: the message the composer's catch-up hint was last answered for.
+    private(set) var catchUpAnsweredId: String?
     private(set) var pendingSends: [PendingSend] = []
     /// #691: this conversation was deleted from here. The thread swaps to a
     /// "moved to the Trash" pane with an Undo instead of vanishing, because the
@@ -146,6 +148,7 @@ final class ThreadController {
         self.companyId = companyId
         self.conversationId = conversationId
         self.meUserId = meUserId
+        self.catchUpAnsweredId = CatchUpAnswerStore.read(conversationId)
     }
 
     var newestMessageId: String? {
@@ -1172,6 +1175,26 @@ final class ThreadController {
     /// no.
     var catchUpOffer: ThreadCatchUpOffer {
         threadCatchUpOffer(for: messages)
+    }
+
+    /// #716: the newest customer-visible message somebody else sent. The hint
+    /// comes back when it changes.
+    var newestFromOthersId: String? {
+        newestMessageIdFromOthers(messages, meUserId: meUserId)
+    }
+
+    /// #716: Recap or Not now was pressed. Hides the hint until a newer message
+    /// from someone else arrives.
+    func answerCatchUp() {
+        guard let id = newestFromOthersId else { return }
+        CatchUpAnswerStore.write(id, conversationId: conversationId)
+        catchUpAnsweredId = id
+    }
+
+    /// #716: Recap, or the sheet's Catch me up. The same ask the card always made.
+    func catchMeUp() {
+        answerCatchUp()
+        askForCatchUp()
     }
 
     /// One tap, one AI unit. Never automatic on open, and never on an inbound.

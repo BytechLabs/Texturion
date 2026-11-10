@@ -284,6 +284,16 @@ private struct ThreadBody: View {
         }
     }
 
+    /// #716: the sheet's Catch me up row, present while the thread offers one
+    /// and none has been asked for.
+    private func catchUpMenuAction() -> (@MainActor () -> Void)? {
+        guard controller.catchUpOffer.isOffered, controller.catchUp.isIdle else { return nil }
+        return {
+            detailSheet = nil
+            controller.catchMeUp()
+        }
+    }
+
     @ViewBuilder
     private var loaded: some View {
         if let detail = controller.conversation {
@@ -349,13 +359,17 @@ private struct ThreadBody: View {
                 }
 
                 if !controller.pinnedMessages.isEmpty {
-                    PinnedBanner(pinned: controller.pinnedMessages) { messageId in
+                    PinnedStack(
+                        conversationId: controller.conversationId,
+                        pinned: pinsNewestFirst(controller.pinnedMessages)
+                    ) { messageId in
                         Task {
                             if await controller.ensureMessageLoaded(messageId) {
                                 jumpToMessageId = messageId
                             }
                         }
                     }
+                    .id(controller.conversationId)
                 }
 
                 // #247: the catch-up, LAST in the banner stack and immediately
@@ -453,6 +467,20 @@ private struct ThreadBody: View {
                     viewerLevel: detail.viewer_level,
                     onSent: { controller.refreshAfterReconnect() }
                 )
+                // #716: Lou's catch-up offer, one line beside the input.
+                // Answering it (Recap or Not now) hides it until somebody else
+                // sends something newer; the conversation sheet keeps Catch me up.
+                if catchUpHintShown(
+                    offered: controller.catchUpOffer.isOffered,
+                    recapOpen: !controller.catchUp.isIdle,
+                    newestFromOthersId: controller.newestFromOthersId,
+                    answeredId: controller.catchUpAnsweredId
+                ) {
+                    CatchUpHint(
+                        onRecap: { controller.catchMeUp() },
+                        onNotNow: { controller.answerCatchUp() }
+                    )
+                }
                 composerPane(detail: detail)
             }
         // #302: presence for as long as this thread is on screen.
@@ -536,6 +564,7 @@ private struct ThreadBody: View {
                         onAssign: { detailSheet = .assignee },
                         onOpenGallery: { detailSheet = nil; galleryOpen = true },
                         onNewTask: { detailSheet = nil; newTaskOpen = true },
+                        onCatchUp: catchUpMenuAction(),
                         onOptOut: { detailSheet = nil; confirmOptOut = true },
                         onRevokeOptOut: { detailSheet = nil; confirmRevoke = true },
                         onBlock: { detailSheet = nil; confirmBlock = true },
@@ -1694,6 +1723,8 @@ private struct ConversationSheet: View {
     let onAssign: @MainActor () -> Void
     let onOpenGallery: @MainActor () -> Void
     let onNewTask: @MainActor () -> Void
+    /// #716: nil when the thread does not offer a catch-up, which hides the row.
+    let onCatchUp: (@MainActor () -> Void)?
     let onOptOut: @MainActor () -> Void
     let onRevokeOptOut: @MainActor () -> Void
     let onBlock: @MainActor () -> Void
@@ -1849,6 +1880,14 @@ private struct ConversationSheet: View {
                 icon: "text.badge.plus",
                 action: onNewTask
             )
+            if let onCatchUp = onCatchUp {
+                RowDivider()
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.summaryOffer"),
+                    icon: "sparkles",
+                    action: onCatchUp
+                )
+            }
             RowDivider()
             sheetRow(
                 AppStrings.translate(appLocale, "thread.refresh"),
@@ -2349,89 +2388,6 @@ private struct SnoozedBanner: View {
         .accessibilityHint(
             AppStrings.translate(appLocale, "thread.bringBackHint")
         )
-    }
-}
-
-/// Collapsed "Pinned · N" disclosure; expanded rows jump to the message.
-/// Pinned lives in the warm cream well ("Paper & Olive").
-@MainActor
-private struct PinnedBanner: View {
-    let pinned: [Message]
-    let onJump: @MainActor (String) -> Void
-
-    @State private var expanded = false
-    @Environment(\.appLocale) private var appLocale
-
-    /// A media-only pinned message is named by what it carries, not "Photo".
-    private func pinnedPreview(_ message: Message) -> String {
-        guard message.body.isBlank else { return message.body }
-        let kinds = message.attachments.map { MediaKind.of($0.content_type) }
-        guard !kinds.isEmpty else { return message.body }
-        return attachmentLabel(
-            kind: sharedMediaKind(kinds) ?? .file,
-            count: kinds.count
-        )
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Button {
-                withAnimation { expanded.toggle() }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "pin.fill")
-                        .font(.scaled(12))
-                        .foregroundStyle(BrandColor.muted700)
-                    Text(
-                        AppStrings.translate(
-                            appLocale,
-                            "thread.pinnedCount",
-                            ["count": String(pinned.count)]
-                        )
-                    )
-                    .font(.golos(11.5, weight: .semibold))
-                        .foregroundStyle(BrandColor.muted900)
-                    Spacer()
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.scaled(12, weight: .semibold))
-                        .foregroundStyle(BrandColor.muted700)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(
-                AppStrings.translate(
-                    appLocale,
-                    expanded ? "thread.collapsePinned" : "thread.expandPinned"
-                )
-            )
-
-            if expanded {
-                ForEach(pinned, id: \.id) { message in
-                    Button {
-                        onJump(message.id)
-                    } label: {
-                        HStack(spacing: 8) {
-                            Text(pinnedPreview(message))
-                                .font(.golos(12.5))
-                                .foregroundStyle(BrandColor.ink)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(bubbleTime(message.created_at))
-                                .font(.golos(10.5))
-                                .foregroundStyle(BrandColor.muted400)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .background(BrandColor.cream, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .padding(.horizontal, 14)
-        .padding(.vertical, 4)
     }
 }
 
@@ -3243,7 +3199,8 @@ private func previewMessage(
     )
     return ScrollView {
         VStack(spacing: 0) {
-            PinnedBanner(
+            PinnedStack(
+                conversationId: "preview",
                 pinned: [
                     previewMessage(
                         id: "m0",

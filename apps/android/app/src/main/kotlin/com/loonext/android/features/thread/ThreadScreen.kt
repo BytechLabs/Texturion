@@ -46,11 +46,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.Block
@@ -65,6 +62,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material.icons.outlined.Schedule
@@ -731,6 +729,19 @@ private fun ThreadLoaded(
         }
     }
 
+    val newestFromOthers = newestNotMineId(controller.messages, me.user_id)
+    var answeredCatchUp by remember(controller.conversationId) {
+        mutableStateOf(readCatchUpAnswered(context, controller.conversationId))
+    }
+    val catchUpOffered = shouldOfferThreadSummaryFor(controller.messages, System.currentTimeMillis())
+    val recapOpen = controller.summary != null || controller.summarizing
+    val answerCatchUp = {
+        newestFromOthers?.let {
+            writeCatchUpAnswered(context, controller.conversationId, it)
+            answeredCatchUp = it
+        }
+    }
+
     Column(Modifier.fillMaxSize()) {
         ThreadHeader(
             graph = graph,
@@ -741,6 +752,14 @@ private fun ThreadLoaded(
             members = controller.members,
             meUserId = me.user_id,
             canDelete = canDelete,
+            onCatchUp = if (catchUpOffered && !recapOpen) {
+                {
+                    answerCatchUp()
+                    controller.askForSummary()
+                }
+            } else {
+                null
+            },
             onBack = onBack,
             calling = placingCall,
             onCall = callOrAskForMic,
@@ -791,8 +810,9 @@ private fun ThreadLoaded(
         }
 
         if (controller.pinnedMessages.isNotEmpty()) {
-            PinnedBanner(
-                pinned = controller.pinnedMessages,
+            PinnedStack(
+                conversationId = controller.conversationId,
+                pinned = pinsNewestFirst(controller.pinnedMessages),
                 onJump = { messageId ->
                     scope.launch {
                         if (controller.ensureMessageLoaded(messageId)) {
@@ -1239,6 +1259,25 @@ private fun ThreadLoaded(
             )
         }
 
+        // #716: Lou's catch-up offer, one line beside the input. Answering it
+        // (Recap or Not now) hides it until somebody else sends something newer.
+        // Its state is declared at the top of this screen, where the
+        // conversation menu can reach it too.
+        if (catchUpHintShown(catchUpOffered, recapOpen, newestFromOthers, answeredCatchUp)) {
+            CatchUpHint(
+                onRecap = {
+                    haptics.tap()
+                    answerCatchUp()
+                    controller.askForSummary()
+                },
+                onNotNow = {
+                    haptics.tap()
+                    answerCatchUp()
+                },
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+
         ThreadComposer(
             state = composer,
             references = references,
@@ -1630,6 +1669,8 @@ private fun ThreadHeader(
     members: List<Member>,
     meUserId: String,
     canDelete: Boolean,
+    /** #716: null when the thread does not offer a catch-up. */
+    onCatchUp: (() -> Unit)?,
     onBack: () -> Unit,
     calling: Boolean,
     onCall: () -> Unit,
@@ -1882,6 +1923,12 @@ private fun ThreadHeader(
             controller = controller,
             detail = detail,
             members = members,
+            onCatchUp = onCatchUp?.let { ask ->
+                {
+                    menuOpen = false
+                    ask()
+                }
+            },
             onNewTask = {
                 menuOpen = false
                 newTaskOpen = true
@@ -2193,94 +2240,6 @@ private fun SnoozedBanner(label: String, onBringBack: () -> Unit) {
 }
 
 /**
- * Collapsed "Pinned · N" disclosure; expanded rows jump to the message.
- * Rendered as the cream pinned-well from the token table (paper-raised in
- * dark, where cream has no counterpart).
- */
-@Composable
-private fun PinnedBanner(
-    pinned: List<Message>,
-    onJump: (String) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(
-                if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceContainerHigh
-                else BrandColor.Cream,
-            ),
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Filled.PushPin,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(14.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            // The count swaps with a quiet fade when pins change.
-            Box(Modifier.weight(1f)) {
-                AnimatedContent(
-                    targetState = pinned.size,
-                    transitionSpec = {
-                        fadeIn(tween(durationMillis = 180)) togetherWith
-                            fadeOut(tween(durationMillis = 120))
-                    },
-                    label = "pinned-count",
-                ) { count ->
-                    Text(
-                        t("thread.pinnedCount", "count" to count.toString()),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Icon(
-                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = if (expanded) t("thread.collapse")
-                else t("thread.expand"),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (expanded) {
-            pinned.forEach { message ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { onJump(message.id) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        message.body.ifBlank { t("thread.photo") },
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        bubbleTime(message.created_at),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
-}
-
-
-/**
  * The conversation menu + info sheet (founder: "a proper card like the
  * filters, at the bottom, with nice controls" — replaces BOTH header
  * dropdowns). Identity on top (tap-through to the full contact panel), the
@@ -2292,6 +2251,8 @@ private fun ConversationSheet(
     controller: ThreadController,
     detail: com.loonext.android.core.model.ConversationDetail,
     members: List<Member>,
+    /** #716: null when the thread does not offer a catch-up. */
+    onCatchUp: (() -> Unit)?,
     onOpenContactPanel: () -> Unit,
     onAssign: () -> Unit,
     onOpenGallery: () -> Unit,
@@ -2418,7 +2379,10 @@ private fun ConversationSheet(
             val assignee = members
                 .firstOrNull { it.user_id == detail.assigned_user_id }
                 ?.display_name?.ifBlank { null }
-            conversationMenuGroups(canDelete = onDeleteConversation != null).forEach { group ->
+            conversationMenuGroups(
+                canDelete = onDeleteConversation != null,
+                canCatchUp = onCatchUp != null,
+            ).forEach { group ->
                 // #293: deferral is a CHOICE (which "later"), not a toggle, so
                 // it keeps its own card rather than folding four presets into
                 // the one-tap rows.
@@ -2452,6 +2416,11 @@ private fun ConversationSheet(
                                         controller.toggleConversationPin()
                                         onDismiss()
                                     },
+                                )
+                                ConversationMenuItem.CATCH_UP -> SheetActionRow(
+                                    icon = Icons.Outlined.AutoAwesome,
+                                    label = t("thread.summaryOffer"),
+                                    onClick = { onCatchUp?.invoke() },
                                 )
                                 ConversationMenuItem.NEW_TASK -> SheetActionRow(
                                     icon = Icons.Outlined.AddTask,

@@ -5,6 +5,7 @@ internal enum class ConversationMenuItem {
     ASSIGN,
     PINNED,
     NEW_TASK,
+    CATCH_UP,
     SNOOZE,
     MUTE,
     FOLLOW,
@@ -21,8 +22,17 @@ internal enum class ConversationMenuItem {
  * ones last in a card of their own. Delete comes before Opt out, never in the
  * middle. Each inner list is one card, so a card break is the divider.
  */
-internal fun conversationMenuGroups(canDelete: Boolean): List<List<ConversationMenuItem>> = listOf(
-    listOf(ConversationMenuItem.ASSIGN, ConversationMenuItem.PINNED, ConversationMenuItem.NEW_TASK),
+internal fun conversationMenuGroups(
+    canDelete: Boolean,
+    /** #716: Catch me up lives here once the hint can be dismissed. */
+    canCatchUp: Boolean = false,
+): List<List<ConversationMenuItem>> = listOf(
+    listOfNotNull(
+        ConversationMenuItem.ASSIGN,
+        ConversationMenuItem.PINNED,
+        ConversationMenuItem.NEW_TASK,
+        ConversationMenuItem.CATCH_UP.takeIf { canCatchUp },
+    ),
     listOf(ConversationMenuItem.SNOOZE),
     listOf(ConversationMenuItem.MUTE, ConversationMenuItem.FOLLOW),
     listOf(ConversationMenuItem.ATTACHMENTS),

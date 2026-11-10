@@ -68,7 +68,9 @@ struct ThreadSummaryCard: View {
 
     var body: some View {
         Group {
-            if offer.isOffered {
+            // #716: no resting row. The offer is the composer's one-line hint, and
+            // this card exists once an ask has been made.
+            if offer.isOffered && !state.isIdle {
                 // Spacing only ever applies between the notice and the phase
                 // below it — every arm of the switch is one child — and 8 is the
                 // gap the notice used to sit at when it was drawn inside the
