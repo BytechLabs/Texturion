@@ -50,7 +50,7 @@ import { getEnv } from "../env";
 import { notifyPromotedMessageDone } from "../tasks/notify";
 import { askForJobRating } from "../messaging/job-ratings";
 import { ApiError } from "../http/errors";
-import { buildPage } from "../http/pagination";
+import { encodeCursor, type Cursor } from "../http/pagination";
 import {
   decodeOutboundMedia,
   MAX_OUTBOUND_MEDIA_BODY_BYTES,
@@ -654,6 +654,30 @@ function onPromotedMessageDone(
   executionCtxOf(c)?.waitUntil(work);
 }
 
+/** Keyset for rows strictly NEWER than the cursor, (created_at, id) ascending. */
+function newerKeysetFilter(cursor: Cursor): string {
+  return `created_at.gt.${cursor.ts},and(created_at.eq.${cursor.ts},id.gt.${cursor.id})`;
+}
+
+/** `?direction=newer` pages toward the newest message; absent means older. */
+function parseDirection(c: Context): "older" | "newer" {
+  const raw = c.req.query("direction");
+  if (raw === undefined || raw === "older") return "older";
+  if (raw === "newer") return "newer";
+  throw new ApiError("validation_failed", "direction must be older or newer.");
+}
+
+/** `?around=<message id>`: a malformed id is a client error, not a miss. */
+function parseAround(c: Context): string | null {
+  const raw = c.req.query("around");
+  if (raw === undefined) return null;
+  const parsed = z.uuid().safeParse(raw);
+  if (!parsed.success) {
+    throw new ApiError("validation_failed", "around must be a message id.");
+  }
+  return parsed.data;
+}
+
 messageRoutes.get(
   "/conversations/:id/messages",
   requireCapability("conversations.read"),
@@ -663,6 +687,8 @@ messageRoutes.get(
     const conversationId = pathUuid(c, "id");
     const limit = parseLimit(c, 50, 100);
     const cursor = parseCursor(c);
+    const direction = parseDirection(c);
+    const around = parseAround(c);
     const db = getDb(env);
 
     // Company-scoped existence check (§10) — 404 before listing.
@@ -688,31 +714,100 @@ messageRoutes.get(
       need: "read",
     });
 
-    let query = db
-      .from("messages")
-      .select(
-        "id,conversation_id,direction,body,status,segments,encoding," +
-          "sent_by_user_id,error_code,error_reason,error_detail,telnyx_message_id," +
-          "done_at,done_by_user_id,pinned_at,pinned_by_user_id,task_id," +
-          "created_at,message_attachments(id,content_type,size_bytes)",
-      )
-      .eq("company_id", companyId)
-      .eq("conversation_id", conversationId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(limit + 1);
-    if (cursor) {
-      query = query.or(keysetFilter("created_at", cursor));
-    }
-    const rows = unwrap<
-      (Record<string, unknown> & {
-        id: string;
-        message_attachments?: AttachmentSummary[];
-      })[]
-    >(await query, "messages list");
+    const MESSAGE_SELECT =
+      "id,conversation_id,direction,body,status,segments,encoding," +
+      "sent_by_user_id,error_code,error_reason,error_detail,telnyx_message_id," +
+      "done_at,done_by_user_id,pinned_at,pinned_by_user_id,task_id," +
+      "created_at,message_attachments(id,content_type,size_bytes)";
+    type Row = Record<string, unknown> & {
+      id: string;
+      created_at: string;
+      message_attachments?: AttachmentSummary[];
+    };
+    const base = () =>
+      db
+        .from("messages")
+        .select(MESSAGE_SELECT)
+        .eq("company_id", companyId)
+        .eq("conversation_id", conversationId)
+        .is("deleted_at", null);
+    const cursorOf = (row: Row): string =>
+      encodeCursor({ ts: row.created_at, id: row.id });
+    /** Up to `count` rows strictly older than `from`, newest-first. */
+    const olderThan = async (from: Cursor | null, count: number) => {
+      let q = base()
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(count + 1);
+      if (from) q = q.or(keysetFilter("created_at", from));
+      const rows = unwrap<Row[]>(await q, "messages list");
+      return { rows: rows.slice(0, count), more: rows.length > count };
+    };
+    /** Up to `count` rows strictly newer than `from`, returned newest-first. */
+    const newerThan = async (from: Cursor, count: number) => {
+      const q = base()
+        .or(newerKeysetFilter(from))
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(count + 1);
+      const rows = unwrap<Row[]>(await q, "messages newer list");
+      return {
+        rows: rows.slice(0, count).reverse(),
+        more: rows.length > count,
+      };
+    };
 
-    const page = buildPage(rows, limit, "created_at");
+    let rows: Row[];
+    let nextCursor: string | null = null;
+    let newerCursor: string | null = null;
+    let anchorId: string | null = null;
+    let anchorMissing = false;
+
+    if (direction === "newer") {
+      if (!cursor) {
+        throw new ApiError(
+          "validation_failed",
+          "direction=newer needs a cursor.",
+        );
+      }
+      const page = await newerThan(cursor, limit);
+      rows = page.rows;
+      newerCursor = page.more && rows.length > 0 ? cursorOf(rows[0]) : null;
+      // Continues downward from this page's oldest row, which is what lets a
+      // client refetch a stack of newer pages by following next_cursor alone.
+      nextCursor = rows.length > 0 ? cursorOf(rows[rows.length - 1]) : null;
+    } else if (around !== null) {
+      const anchors = unwrap<Row[]>(
+        await base().eq("id", around).limit(1),
+        "message anchor lookup",
+      );
+      const anchor = anchors[0];
+      if (!anchor) {
+        anchorMissing = true;
+        const page = await olderThan(cursor, limit);
+        rows = page.rows;
+        nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
+      } else {
+        anchorId = anchor.id;
+        const half = Math.floor((limit - 1) / 2);
+        const at = { ts: anchor.created_at, id: anchor.id };
+        const [older, newer] = await Promise.all([
+          olderThan(at, limit - 1 - half),
+          newerThan(at, half),
+        ]);
+        rows = [...newer.rows, anchor, ...older.rows];
+        nextCursor = older.more
+          ? cursorOf(older.rows[older.rows.length - 1])
+          : null;
+        newerCursor = newer.more ? cursorOf(newer.rows[0]) : null;
+      }
+    } else {
+      const page = await olderThan(cursor, limit);
+      rows = page.rows;
+      nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
+    }
+
+    const page = { data: rows };
     // Two independent per-page task annotations, resolved in ONE parallel
     // round-trip: D17/T5.1 flags messages that carry a live task (the stone
     // task indicator on a promoted message), and TASKS-V2 D-D resolves the
@@ -742,7 +837,10 @@ messageRoutes.get(
             ? taskLinks.get(rest.task_id) ?? null
             : null,
       })),
-      next_cursor: page.next_cursor,
+      next_cursor: nextCursor,
+      newer_cursor: newerCursor,
+      anchor_id: anchorId,
+      ...(anchorMissing ? { anchor_missing: true } : {}),
     });
   },
 );

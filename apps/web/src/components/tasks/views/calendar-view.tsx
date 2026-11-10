@@ -32,7 +32,8 @@ import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
-import { taskThreadHref, taskThreadId } from "../task-format";
+import { taskThreadId } from "../task-format";
+import { useTaskDrawer } from "../use-task-drawer";
 import { useTaskReschedule } from "../use-task-mutations";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
 
@@ -363,11 +364,13 @@ export function movedDueAt(dueAt: string | null, days: number, now: Date): strin
 function DayChip({ task }: { task: Task }) {
   const t = useT();
   const reschedule = useTaskReschedule();
+  const { hrefForTask } = useTaskDrawer();
 
   return (
     <div className="group/chip flex items-center gap-0.5">
       <Link
-        href={taskThreadHref(task)}
+        href={hrefForTask(task.id)}
+        scroll={false}
         draggable
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = "move";

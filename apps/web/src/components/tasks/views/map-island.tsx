@@ -24,7 +24,7 @@ import {
 } from "@/lib/maps/basemap";
 import { createTileHealth, reportTileFailure } from "@/lib/maps/tile-health";
 
-import { taskThreadHref } from "../task-format";
+import { useTaskDrawer } from "../use-task-drawer";
 import { PriorityMark } from "../task-planning-ui";
 import { mapsDirectionsHref, type LocatedTask } from "./map-types";
 
@@ -294,6 +294,7 @@ function Clusters({ tasks }: { tasks: LocatedTask[] }) {
 /** The single-pin peek card → the task's source message + conversation. */
 function TaskPeek({ task }: { task: LocatedTask }) {
   const t = useT();
+  const { hrefForTask } = useTaskDrawer();
   return (
     <div className="min-w-[180px] space-y-1">
       <p className="text-[13px] font-medium text-foreground">{task.title}</p>
@@ -303,7 +304,8 @@ function TaskPeek({ task }: { task: LocatedTask }) {
       )}
       <div className="flex items-center gap-3 pt-0.5">
         <Link
-          href={taskThreadHref(task)}
+          href={hrefForTask(task.id)}
+          scroll={false}
           className="text-[12px] font-medium text-primary hover:underline"
         >
           {t("tasks.mapOpenTask")}
@@ -333,6 +335,7 @@ function ClusterPeek({
   onZoom: () => void;
 }) {
   const t = useT();
+  const { hrefForTask } = useTaskDrawer();
   return (
     <div className="min-w-[200px] space-y-1.5">
       <p className="text-[12px] font-semibold text-foreground">
@@ -342,7 +345,8 @@ function ClusterPeek({
         {tasks.slice(0, 6).map((task) => (
           <li key={task.id}>
             <Link
-              href={taskThreadHref(task)}
+              href={hrefForTask(task.id)}
+              scroll={false}
               className="block truncate text-[12px] text-foreground hover:text-primary"
             >
               {task.title}

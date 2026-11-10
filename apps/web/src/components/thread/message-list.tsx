@@ -18,6 +18,7 @@ import { useConversationEvents } from "@/lib/api/conversations";
 import {
   useConversationPinnedMessages,
   useMessages,
+  useThreadAnchor,
 } from "@/lib/api/messages";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Message } from "@/lib/api/types";
@@ -26,6 +27,7 @@ import { reducedMotionScrollBehavior } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import { buildThreadItems, type ThreadItem } from "./clusters";
+import { AnchorMissingNotice } from "./anchor-missing-notice";
 import { MessageBubble } from "./message-bubble";
 import {
   PinnedStack,
@@ -43,6 +45,22 @@ import {
   threadFilterEmptyCopy,
   type ThreadFilter,
 } from "./thread-filter";
+
+type JumpTarget = { kind: "message" | "call"; id: string };
+
+/** Whether a thread item is the message, or the call's line, a jump is after. */
+function itemHasTarget(item: ThreadItem, target: JumpTarget): boolean {
+  if (target.kind === "message") {
+    return (
+      item.kind === "cluster" && item.messages.some((m) => m.id === target.id)
+    );
+  }
+  return (
+    item.kind === "event" &&
+    item.event.type === "call_completed" &&
+    item.event.payload.call_session_id === target.id
+  );
+}
 
 const NEAR_BOTTOM_PX = 96;
 const PREPEND_TRIGGER_PX = 320;
@@ -67,6 +85,8 @@ export function MessageList({
   filter,
   onFilterChange,
   catchUp,
+  callSessionId = null,
+  onJumpToLatest,
 }: {
   conversationId: string;
   contact: { name: string | null; phone_e164: string };
@@ -76,6 +96,10 @@ export function MessageList({
   /** §5.1 in-thread filter — All | Messages | Notes | Events (URL-state). */
   filter: ThreadFilter;
   onFilterChange: (next: ThreadFilter) => void;
+  /** #718: open at this call's line in the stream (`?call=`). */
+  callSessionId?: string | null;
+  /** #718: leave an anchored window for the newest messages. */
+  onJumpToLatest?: () => void;
   /** #716: the thread view's catch-up (`useCatchUp`), answered here. */
   catchUp: {
     offered: boolean;
@@ -86,6 +110,14 @@ export function MessageList({
 }) {
   const t = useT();
   const messagesQuery = useMessages(conversationId);
+  // #718: the message this thread was opened at (`?message=`). Its window is the
+  // first page; a window that stops short of the newest has `hasPreviousPage`.
+  const anchorId = useThreadAnchor();
+  const anchorMissing =
+    messagesQuery.data?.pages.some((page) => page.anchor_missing === true) ??
+    false;
+  const hasNewer = messagesQuery.hasPreviousPage === true;
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
   const eventsQuery = useConversationEvents(conversationId);
   const memberNames = useMemberNames();
 
@@ -140,11 +172,17 @@ export function MessageList({
     }
   }, [eventsQuery, oldestLoadedEventAt, oldestLoadedMessageAt]);
 
+  const newestLoadedMessageAt = messages[messages.length - 1]?.created_at ?? null;
   const visibleEvents = useMemo(() => {
-    if (allMessagesLoaded) return events;
+    // A window that stops short of the newest must not show the events past it.
+    const upTo = (rows: typeof events) =>
+      hasNewer && newestLoadedMessageAt !== null
+        ? rows.filter((e) => e.created_at <= newestLoadedMessageAt)
+        : rows;
+    if (allMessagesLoaded) return upTo(events);
     if (oldestLoadedMessageAt === null) return [];
-    return events.filter((e) => e.created_at >= oldestLoadedMessageAt);
-  }, [events, allMessagesLoaded, oldestLoadedMessageAt]);
+    return upTo(events.filter((e) => e.created_at >= oldestLoadedMessageAt));
+  }, [events, allMessagesLoaded, oldestLoadedMessageAt, hasNewer, newestLoadedMessageAt]);
 
   const allItems: ThreadItem[] = useMemo(
     () => buildThreadItems(messages, visibleEvents),
@@ -208,15 +246,20 @@ export function MessageList({
   // Notes-only); tapping Jump would otherwise dead-end silently. If the target
   // is in the full stream but filtered out, restore all categories and complete
   // the jump from the effect below once it's rendered.
-  const pendingJump = useRef<string | null>(null);
+  // #718: a jump lands on a message, or on a call's line in the stream.
+  const pendingJump = useRef<JumpTarget | null>(null);
   // #465: the message a jump landed on says so for a moment. Without it the
   // thread scrolls and nothing tells you which of the bubbles now on screen
-  // was the one you asked for.
+  // was the one you asked for. (A call's line is found by its session id.)
   const [foundMessageId, setFoundMessageId] = useState<string | null>(null);
   const foundTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const markFound = useCallback((messageId: string) => {
+  // Estimated row heights shift as the real ones are measured; for a moment
+  // after a jump the target is re-centred so the thread does not drift off it.
+  const settle = useRef<{ target: JumpTarget; until: number } | null>(null);
+  const markFound = useCallback((target: JumpTarget) => {
     if (foundTimer.current) clearTimeout(foundTimer.current);
-    setFoundMessageId(messageId);
+    setFoundMessageId(target.id);
+    settle.current = { target, until: Date.now() + 900 };
     foundTimer.current = setTimeout(() => setFoundMessageId(null), 1600);
   }, []);
   useEffect(
@@ -225,14 +268,12 @@ export function MessageList({
     },
     [],
   );
-  const clusterHas = (item: ThreadItem, messageId: string) =>
-    item.kind === "cluster" && item.messages.some((m) => m.id === messageId);
-  const scrollToMessage = useCallback(
-    (messageId: string) => {
-      const index = items.findIndex((item) => clusterHas(item, messageId));
+  const scrollToTarget = useCallback(
+    (target: JumpTarget) => {
+      const index = items.findIndex((item) => itemHasTarget(item, target));
       if (index >= 0) {
         virtualizer.scrollToIndex(index, { align: "center" });
-        markFound(messageId);
+        markFound(target);
         return;
       }
       // Not on the current filtered page: the target is either filtered out
@@ -241,15 +282,42 @@ export function MessageList({
       // jump, pulling older pages until it appears (previously a silent no-op
       // for a pin on an unloaded page).
       if (
-        allItems.some((item) => clusterHas(item, messageId)) ||
+        allItems.some((item) => itemHasTarget(item, target)) ||
         messagesQuery.hasNextPage
       ) {
-        pendingJump.current = messageId;
+        pendingJump.current = target;
         onFilterChange(ALL_CATEGORIES_ON);
       }
     },
     [items, allItems, virtualizer, onFilterChange, messagesQuery, markFound],
   );
+  // #3: jump to a pinned message from the banner.
+  const scrollToMessage = useCallback(
+    (messageId: string) => scrollToTarget({ kind: "message", id: messageId }),
+    [scrollToTarget],
+  );
+
+  // #718: opened at a message (or a call) by a link. The window the API sent
+  // is already the first page, so this is the same jump as a pin's, just
+  // started once the first page lands — and the thread does not open at the
+  // bottom, which is where it would otherwise go.
+  const openedAtTarget = useRef(false);
+  useEffect(() => {
+    if (openedAtTarget.current || !messagesQuery.data) return;
+    const target: JumpTarget | null =
+      anchorId !== null && !anchorMissing
+        ? { kind: "message", id: anchorId }
+        : callSessionId !== null
+          ? { kind: "call", id: callSessionId }
+          : null;
+    if (target === null) return;
+    openedAtTarget.current = true;
+    didInitialScroll.current = true;
+    atBottomRef.current = false;
+    setAtBottom(false);
+    pendingJump.current = target;
+    onFilterChange(ALL_CATEGORIES_ON);
+  }, [messagesQuery.data, anchorId, anchorMissing, callSessionId, onFilterChange]);
 
   // Finish a pending jump: once the (restored, possibly older) stream includes
   // the target, scroll to it. While it's still absent, pull the next older page
@@ -257,20 +325,29 @@ export function MessageList({
   // loaded and the target genuinely isn't there.
   useEffect(() => {
     const target = pendingJump.current;
-    if (target === null) return;
-    const index = items.findIndex((item) => clusterHas(item, target));
+    if (target === null || !messagesQuery.data) return;
+    const index = items.findIndex((item) => itemHasTarget(item, target));
     if (index >= 0) {
       pendingJump.current = null;
       virtualizer.scrollToIndex(index, { align: "center" });
       markFound(target);
       return;
     }
+    if (target.kind === "call") {
+      // A call's line lives in the events stream, which is shown only as deep
+      // as the messages loaded: pull events first, then older messages.
+      if (eventsQuery.isPending) return;
+      if (eventsQuery.hasNextPage) {
+        if (!eventsQuery.isFetchingNextPage) void eventsQuery.fetchNextPage();
+        return;
+      }
+    }
     if (messagesQuery.hasNextPage) {
       if (!messagesQuery.isFetchingNextPage) void messagesQuery.fetchNextPage();
     } else {
       pendingJump.current = null; // fully loaded, still absent — stop.
     }
-  }, [items, virtualizer, messagesQuery, markFound]);
+  }, [items, virtualizer, messagesQuery, eventsQuery, markFound]);
 
   // Anchored prepend: remember total size + scrollTop before older pages
   // land, restore the visual position after (G5 "anchored scroll on
@@ -292,6 +369,25 @@ export function MessageList({
     prevOldestMessageId.current = oldestMessageId;
   }, [oldestMessageId, virtualizer, items.length]);
 
+  // #718: in a window that stops short of the newest, reaching the bottom pulls
+  // the next newer page. Those rows are not "arrivals": no pill, no announcement.
+  const loadingNewer = useRef(false);
+  const loadNewerIfNear = useCallback(() => {
+    const el = scrollRef.current;
+    if (
+      !el ||
+      !didInitialScroll.current ||
+      !messagesQuery.hasPreviousPage ||
+      messagesQuery.isFetchingPreviousPage ||
+      el.scrollHeight - el.scrollTop - el.clientHeight > PREPEND_TRIGGER_PX
+    ) {
+      return;
+    }
+    loadingNewer.current = true;
+    void messagesQuery.fetchPreviousPage().then((result) => {
+      if (result.isError) loadingNewer.current = false;
+    });
+  }, [messagesQuery]);
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -317,7 +413,8 @@ export function MessageList({
         if (result.isError) prependAnchor.current = null;
       });
     }
-  }, [messagesQuery, virtualizer]);
+    loadNewerIfNear();
+  }, [messagesQuery, virtualizer, loadNewerIfNear]);
 
   // Initial position: bottom of the thread (double rAF so measurements land).
   useEffect(() => {
@@ -341,12 +438,23 @@ export function MessageList({
   useLayoutEffect(() => {
     if (totalSize === prevTotalSize.current) return;
     prevTotalSize.current = totalSize;
+    const settling = settle.current;
+    if (settling && Date.now() < settling.until) {
+      const index = items.findIndex((item) => itemHasTarget(item, settling.target));
+      if (index >= 0) virtualizer.scrollToIndex(index, { align: "center" });
+      return;
+    }
     if (!didInitialScroll.current) return;
     if (prependAnchor.current) return;
     if (!atBottomRef.current) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [totalSize]);
+  }, [totalSize, items, virtualizer]);
+
+  // A window shorter than the viewport never scrolls, so it asks on its own.
+  useEffect(() => {
+    loadNewerIfNear();
+  }, [loadNewerIfNear, totalSize]);
 
   // New tail message: stick when at bottom; pill when scrolled up (G5).
   const lastMessage: Message | undefined = messages[messages.length - 1];
@@ -358,8 +466,13 @@ export function MessageList({
   const [recentArrivalId, setRecentArrivalId] = useState<string | null>(null);
   useEffect(() => {
     if (!lastMessageId || lastMessageId === prevLastMessageId.current) return;
+    const firstLoad = prevLastMessageId.current === undefined;
     prevLastMessageId.current = lastMessageId;
-    if (!didInitialScroll.current) return;
+    if (!didInitialScroll.current || firstLoad) return;
+    if (loadingNewer.current) {
+      loadingNewer.current = false;
+      return;
+    }
     setRecentArrivalId(lastMessageId);
     const timer = setTimeout(() => setRecentArrivalId(null), 400);
     if (atBottomRef.current) {
@@ -479,6 +592,9 @@ export function MessageList({
           />
         </div>
       )}
+      {anchorMissing && !noticeDismissed && (
+        <AnchorMissingNotice onDismiss={() => setNoticeDismissed(true)} />
+      )}
       <div
         ref={scrollRef}
         onScroll={onScroll}
@@ -512,7 +628,13 @@ export function MessageList({
                   key={virtualItem.key}
                   data-index={virtualItem.index}
                   ref={virtualizer.measureElement}
-                  className="absolute inset-x-0 top-0"
+                  className={cn(
+                    "absolute inset-x-0 top-0",
+                    item.kind === "event" &&
+                      foundMessageId !== null &&
+                      item.event.payload.call_session_id === foundMessageId &&
+                      "app-motion-message-found",
+                  )}
                   style={{ transform: `translateY(${virtualItem.start}px)` }}
                 >
                   {item.kind === "divider" ? (
@@ -568,9 +690,27 @@ export function MessageList({
             })}
           </div>
         )}
+        {messagesQuery.isFetchingPreviousPage && (
+          <p className="py-2 text-center text-xs text-muted-foreground">
+            {t("thread.loadingNewer")}
+          </p>
+        )}
       </div>
 
-      {newWhileScrolledUp && !atBottom && (
+      {hasNewer && onJumpToLatest && (
+        <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2">
+          <button
+            type="button"
+            onClick={onJumpToLatest}
+            className="app-motion-message-in flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors duration-150 ease-out hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t("thread.jumpToLatest")}{" "}
+            <ArrowDown className="size-3.5" strokeWidth={1.75} aria-hidden />
+          </button>
+        </div>
+      )}
+
+      {newWhileScrolledUp && !atBottom && !hasNewer && (
         // Centering lives on the wrapper: the pill's own transform is spent by
         // the app-message-in keyframe (fade + 4px rise), so it can't also hold
         // the -translate-x-1/2. The pill now eases in instead of hard-cutting

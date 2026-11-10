@@ -12,6 +12,7 @@ import type {
   ConversationSnippet,
   Message,
   MessageStatus,
+  MessagesPage,
   Page,
 } from "./types";
 
@@ -23,7 +24,7 @@ import type {
  * side-effect free and unit-tested as plain functions.
  */
 
-export type ThreadData = InfiniteData<Page<Message>>;
+export type ThreadData = InfiniteData<MessagesPage>;
 export type ConversationListData = InfiniteData<Page<ConversationListItem>>;
 
 /** DESC comparator over (timestamp, id) — the SPEC §7 sort key. */
@@ -142,9 +143,13 @@ export function threadUpsertMessages(
   });
 
   const fresh = incoming.filter((message) => !inserted.has(message.id));
-  if (fresh.length > 0) {
+  const first: MessagesPage = pages[0] ?? { data: [], next_cursor: null };
+  // #718: a thread opened at an old message holds a window that stops short of
+  // the newest. A live message is newer than every row in it, so it belongs
+  // after the gap rather than at the window's edge; the server has it, and it
+  // arrives when the window grows to reach the newest.
+  if (fresh.length > 0 && !first.newer_cursor) {
     changed = true;
-    const first = pages[0] ?? { data: [], next_cursor: null };
     const merged = [...fresh, ...first.data].sort((a, b) =>
       byKeyDesc(a.created_at, a.id, b.created_at, b.id),
     );

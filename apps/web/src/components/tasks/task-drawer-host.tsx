@@ -8,7 +8,10 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { usePathname } from "next/navigation";
+
 import { useT } from "@/i18n/provider";
+import { useIsXl } from "@/lib/use-is-xl";
 
 import { TaskDetailPanel } from "./task-detail-panel";
 import { useTaskDrawer } from "./use-task-drawer";
@@ -36,7 +39,11 @@ export function TaskDrawerHost() {
 function TaskDrawerHostInner() {
   const t = useT();
   const { openTaskId, closeTask } = useTaskDrawer();
-  const open = openTaskId !== null;
+  // #718: on a wide screen a thread docks the task in its own side panel
+  // (thread-view.tsx), so the drawer stays out of the way there.
+  const onThread = /^\/inbox\/[^/]+/.test(usePathname());
+  const wide = useIsXl();
+  const open = openTaskId !== null && !(onThread && wide);
 
   return (
     <Sheet

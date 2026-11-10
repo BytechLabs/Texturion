@@ -28,6 +28,7 @@ import {
   useNotificationsUnreadCount,
 } from "@/lib/api/notifications";
 import { flattenPages } from "@/lib/api/pagination";
+import { threadHref } from "@/lib/inbox/thread-href";
 import { usePushSubscription } from "@/lib/push/use-push-subscription";
 import type { NotificationItem, NotificationType } from "@/lib/api/types";
 import { contactDisplayName } from "@/lib/format/phone";
@@ -76,7 +77,14 @@ function describe(item: NotificationItem, name: string, t: Translate): string {
  * conversation the work is about). Null when there is nothing to open.
  */
 function deepLink(item: NotificationItem): string | null {
-  return item.conversation_id ? `/inbox/${item.conversation_id}` : null;
+  // #718: a task assignment is about the task, so it opens the task; every
+  // other item opens its thread at the message it names, when it names one.
+  if (item.type === "task_assigned" && item.task_id) {
+    return `/tasks?task=${item.task_id}`;
+  }
+  return item.conversation_id
+    ? threadHref(item.conversation_id, { messageId: item.message_id })
+    : null;
 }
 
 function NotificationRow({

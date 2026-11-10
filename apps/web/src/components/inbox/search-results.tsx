@@ -12,6 +12,7 @@ import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 
 import { StatusPill } from "./status-pill";
+import { threadHref } from "@/lib/inbox/thread-href";
 
 /**
  * ts_headline emits <b>…</b> around matches (api_search SQL). Parse just
@@ -80,7 +81,7 @@ export function SearchResults({ q }: { q: string }) {
           {conversations.map((hit) => (
             <Link
               key={hit.id}
-              href={`/inbox/${hit.id}`}
+              href={threadHref(hit.id, { messageId: hit.matched_message_id })}
               className="flex items-center gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
               <span className="min-w-0 flex-1">

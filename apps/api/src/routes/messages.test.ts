@@ -1768,6 +1768,190 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
   });
 });
 
+/** #718: anchored loading. Message n sits at 2026-07-01T<n>:00 so ids order with time. */
+describe("GET /v1/conversations/:id/messages — anchored (#718)", () => {
+  const mid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const row = (n: number) => ({
+    id: mid(n),
+    conversation_id: CONVERSATION_ID,
+    direction: "inbound",
+    body: `m${n}`,
+    status: "received",
+    created_at: `2026-07-01T${String(n).padStart(2, "0")}:00:00.000Z`,
+    message_attachments: [],
+  });
+  const cursorTs = (cursor: string | null): { ts: string; id: string } =>
+    JSON.parse(
+      atob(
+        (cursor ?? "").replaceAll("-", "+").replaceAll("_", "/"),
+      ),
+    );
+
+  interface Window {
+    ids: string[];
+    next_cursor: string | null;
+    newer_cursor: string | null;
+    anchor_id: string | null;
+    anchor_missing?: boolean;
+  }
+
+  /** The 20 messages of the thread; serves the stubs like PostgREST would. */
+  async function get(query: string, anchorExists = true) {
+    const all = Array.from({ length: 20 }, (_, i) => row(i + 1));
+    const listCalls: URL[] = [];
+    const messages = stubRoute(restMatch(env, "GET", "messages"), (call) => {
+      const q = call.url.searchParams;
+      listCalls.push(call.url);
+      const idEq = q.get("id");
+      if (idEq?.startsWith("eq.")) {
+        return anchorExists ? all.filter((r) => r.id === idEq.slice(3)) : [];
+      }
+      const limit = Number(q.get("limit"));
+      const or = q.get("or") ?? "";
+      const asc = q.get("order") === "created_at.asc,id.asc";
+      const pivot = /created_at.(?:lt|gt).([^,]+)/.exec(or)?.[1];
+      let pool = asc ? [...all] : [...all].reverse();
+      if (pivot) {
+        pool = pool.filter((r) =>
+          or.includes("created_at.gt.")
+            ? r.created_at > pivot
+            : r.created_at < pivot,
+        );
+      }
+      return pool.slice(0, limit);
+    });
+    stubFetch(
+      jwksRoute(auth),
+      authorizeRoute(env, {
+        id: "11111111-0000-4000-8000-000000000011",
+        role: "member",
+      }),
+      stubRoute(restMatch(env, "GET", "conversations"), () => [
+        { id: CONVERSATION_ID },
+      ]).route,
+      stubRoute(restMatch(env, "GET", "tasks"), () => []).route,
+      stubRoute(rpcMatch(env, "member_number_levels"), () => []).route,
+      messages.route,
+    );
+    const response = await app.fetch(
+      new Request(
+        `https://api.loonext.com/v1/conversations/${CONVERSATION_ID}/messages?${query}`,
+        {
+          headers: {
+            Authorization: `Bearer ${await auth.token()}`,
+            "X-Company-Id": COMPANY_ID,
+          },
+        },
+      ),
+      env,
+    );
+    const json = (await response.json()) as {
+      data?: { id: string }[];
+      next_cursor?: string | null;
+      newer_cursor?: string | null;
+      anchor_id?: string | null;
+      anchor_missing?: boolean;
+    };
+    return {
+      status: response.status,
+      listCalls,
+      body: {
+        ids: (json.data ?? []).map((m) => m.id),
+        next_cursor: json.next_cursor ?? null,
+        newer_cursor: json.newer_cursor ?? null,
+        anchor_id: json.anchor_id ?? null,
+        anchor_missing: json.anchor_missing,
+      } as Window,
+    };
+  }
+
+  it("returns half older, half newer and the anchor, newest-first, with both cursors", async () => {
+    const { status, body, listCalls } = await get(
+      `around=${mid(10)}&limit=5`,
+    );
+    expect(status).toBe(200);
+    expect(body.ids).toEqual([12, 11, 10, 9, 8].map(mid));
+    expect(body.anchor_id).toBe(mid(10));
+    expect(cursorTs(body.next_cursor).id).toBe(mid(8));
+    expect(cursorTs(body.newer_cursor).id).toBe(mid(12));
+    // Nothing outside the window is asked for: anchor + two bounded probes.
+    expect(listCalls).toHaveLength(3);
+    const limits = listCalls
+      .map((u) => u.searchParams.get("limit"))
+      .filter((l) => l !== "1")
+      .sort();
+    expect(limits).toEqual(["3", "3"]);
+  });
+
+  it("an anchor at the newest end has no newer cursor", async () => {
+    const { body } = await get(`around=${mid(20)}&limit=5`);
+    expect(body.ids).toEqual([20, 19, 18].map(mid));
+    expect(body.newer_cursor).toBeNull();
+    expect(body.next_cursor).not.toBeNull();
+  });
+
+  it("an anchor at the oldest end has no older cursor", async () => {
+    const { body } = await get(`around=${mid(1)}&limit=5`);
+    expect(body.ids).toEqual([3, 2, 1].map(mid));
+    expect(body.next_cursor).toBeNull();
+    expect(body.newer_cursor).not.toBeNull();
+  });
+
+  it("a missing anchor falls back to the newest page and says so", async () => {
+    const { status, body } = await get(
+      `around=${mid(10)}&limit=3`,
+      false,
+    );
+    expect(status).toBe(200);
+    expect(body.anchor_missing).toBe(true);
+    expect(body.anchor_id).toBeNull();
+    expect(body.ids).toEqual([20, 19, 18].map(mid));
+    expect(body.newer_cursor).toBeNull();
+    expect(body.next_cursor).not.toBeNull();
+  });
+
+  it("scopes the anchor lookup to this company and conversation", async () => {
+    const { listCalls } = await get(`around=${mid(10)}&limit=3`);
+    const q = listCalls[0].searchParams;
+    expect(q.get("id")).toBe(`eq.${mid(10)}`);
+    expect(q.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(q.get("conversation_id")).toBe(`eq.${CONVERSATION_ID}`);
+    expect(q.get("deleted_at")).toBe("is.null");
+  });
+
+  it("422s a malformed anchor id", async () => {
+    const { status } = await get("around=not-a-uuid");
+    expect(status).toBe(422);
+  });
+
+  it("422s direction=newer without a cursor and an unknown direction", async () => {
+    expect((await get("direction=newer")).status).toBe(422);
+    expect((await get("direction=sideways")).status).toBe(422);
+  });
+
+  it("direction=newer pages toward the newest, newest-first, with its own cursor", async () => {
+    const first = await get(`around=${mid(5)}&limit=3`);
+    expect(first.body.ids).toEqual([6, 5, 4].map(mid));
+    const next = await get(
+      `cursor=${first.body.newer_cursor}&direction=newer&limit=3`,
+    );
+    expect(next.status).toBe(200);
+    expect(next.body.ids).toEqual([9, 8, 7].map(mid));
+    expect(cursorTs(next.body.newer_cursor).id).toBe(mid(9));
+    expect(cursorTs(next.body.next_cursor).id).toBe(mid(7));
+    expect(next.listCalls).toHaveLength(1);
+    expect(next.listCalls[0].searchParams.get("limit")).toBe("4");
+
+    const last = await get(
+      `cursor=${next.body.newer_cursor}&direction=newer&limit=50`,
+    );
+    expect(last.body.ids).toEqual(
+      [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10].map(mid),
+    );
+    expect(last.body.newer_cursor).toBeNull();
+  });
+});
+
 describe("POST /v1/messages/send — #475 which saved reply produced this", () => {
   it("records the use when the send names a template", async () => {
     const stubs = sendStubs();

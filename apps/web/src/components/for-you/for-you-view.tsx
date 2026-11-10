@@ -337,9 +337,8 @@ function TriageTaskRow({ task }: { task: ForYouTriageTask }) {
   return (
     <Card
       href={
-        task.conversation_id === null
-          ? `/tasks?task=${task.task_id}`
-          : `/inbox/${task.conversation_id}`
+        // #718: a task row opens the task, not the thread it came from.
+        `/tasks?task=${task.task_id}`
       }
     >
       <span className="min-w-0 flex-1">

@@ -611,14 +611,24 @@ describe("POST /v1/tasks — promote a message", () => {
 // GET /v1/tasks — filtered list + DERIVED completion (T6.1, T2)
 // --------------------------------------------------------------------------
 describe("GET /v1/tasks — list filters + derived status", () => {
+  // #718: the list also looks up each message source's direction.
+  function withDirections(stub: Stub): Stub {
+    const directions = stubRoute(restMatch(env, "GET", "messages"), () => []);
+    return {
+      ...stub,
+      route: async (url, request) =>
+        (await stub.route(url, request)) ?? directions.route(url, request),
+    };
+  }
+
   function listStub(rows: Record<string, unknown>[]): Stub {
-    return stubRoute(restMatch(env, "GET", "tasks"), () => rows);
+    return withDirections(stubRoute(restMatch(env, "GET", "tasks"), () => rows));
   }
 
   // The has_location (Map) path reads the flat task_map_rows view (#221), not
   // the tasks table.
   function mapStub(rows: Record<string, unknown>[]): Stub {
-    return stubRoute(restMatch(env, "GET", "task_map_rows"), () => rows);
+    return withDirections(stubRoute(restMatch(env, "GET", "task_map_rows"), () => rows));
   }
 
   it("rejects malformed filter params with 422 before touching the DB", async () => {
@@ -698,6 +708,21 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     expect(body.data[1]).toMatchObject({ done: true, status: "done" });
     expect(body.data[0]).not.toHaveProperty("done_state");
     expect(body.data[0]).not.toHaveProperty("calendar_hold");
+  });
+
+  it("#718: a message source carries its direction, so a note reads as a note", async () => {
+    const MESSAGE_ID = "77777777-0000-4000-8000-0000000000d1";
+    const tasks = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      taskRow({ id: TASK_ID, message_id: MESSAGE_ID }),
+    ]);
+    const notes = stubRoute(restMatch(env, "GET", "messages"), () => [
+      { id: MESSAGE_ID, direction: "note" },
+    ]);
+    stubFetch(jwksRoute(auth), membersRoute(), tasks.route, notes.route);
+
+    const response = await request("GET", "/v1/tasks");
+    const body = (await response.json()) as { data: { source: unknown }[] };
+    expect(body.data[0].source).toEqual({ kind: "message", id: MESSAGE_ID, direction: "note" });
   });
 
   it("lists a call-anchored task with its source and the call", async () => {

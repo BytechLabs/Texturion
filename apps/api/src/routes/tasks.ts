@@ -567,6 +567,27 @@ export function taskSource(row: {
   return null;
 }
 
+/**
+ * #718: a message source carries the message's direction, so a list row can
+ * say "Mentioned in a note" rather than "From a text". One query per page.
+ */
+async function withSourceDirections<
+  T extends { source: { kind: "message" | "call"; id: string } | null },
+>(db: ReturnType<typeof getDb>, companyId: string, rows: T[]): Promise<T[]> {
+  const ids = rows.flatMap((row) => (row.source?.kind === "message" ? [row.source.id] : []));
+  if (ids.length === 0) return rows;
+  const found = unwrap<{ id: string; direction: string }[]>(
+    await db.from("messages").select("id,direction").eq("company_id", companyId).in("id", ids),
+    "task source directions",
+  );
+  const direction = new Map(found.map((row) => [row.id, row.direction]));
+  return rows.map((row) =>
+    row.source?.kind === "message"
+      ? { ...row, source: { ...row.source, direction: direction.get(row.source.id) ?? null } }
+      : row,
+  );
+}
+
 /** A task row (RPC or PostgREST) with its `source` attached. */
 export function withSource<T extends Record<string, unknown>>(
   row: T,
@@ -1750,7 +1771,11 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
           })
         : encodeCursor({ ts: updatedSorted ? last.updated_at : last.created_at, id: last.id });
   }
-  const data = await withLabelsAndRepeat(db, companyId, shaped);
+  const data = await withLabelsAndRepeat(
+    db,
+    companyId,
+    await withSourceDirections(db, companyId, shaped),
+  );
 
   return c.json({ data, next_cursor: nextCursor });
 });

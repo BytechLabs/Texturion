@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -17,7 +16,8 @@ import { groupTasks, type TaskColumn } from "../task-grouping";
 import { priorityLabelKey } from "../task-planning";
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
-import { taskThreadHref, taskThreadId } from "../task-format";
+import { taskThreadId } from "../task-format";
+import { useTaskDrawer } from "../use-task-drawer";
 import { EmptyTasks } from "../task-empty";
 import { useTaskDone } from "../use-task-mutations";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
@@ -249,6 +249,7 @@ function Column({
 /** A calm draggable card + a keyboard-accessible "move" button. */
 function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
   const t = useT();
+  const { hrefForTask } = useTaskDrawer();
   return (
     <article
       draggable
@@ -263,7 +264,8 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
     >
       <div className="flex items-start justify-between gap-2">
         <Link
-          href={taskThreadHref(task)}
+          href={hrefForTask(task.id)}
+          scroll={false}
           className={cn(
             "min-w-0 flex-1 text-[13px] font-medium text-foreground hover:text-primary",
             task.done && "text-muted-foreground line-through opacity-70",
@@ -271,13 +273,6 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
         >
           <TaskNumber task={task} className="mr-1.5" />
           {task.title}
-        </Link>
-        <Link
-          href={taskThreadHref(task)}
-          aria-label={t("tasks.openConversation")}
-          className="tap-target shrink-0 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowUpRight className="size-3.5" strokeWidth={1.75} aria-hidden />
         </Link>
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 empty:hidden">

@@ -120,6 +120,11 @@ export const threadEn = {
   // --- The timeline (message-list.tsx) --------------------------------------
   conversationLoadFailed: "We couldn't load this conversation.",
   loadingEarlier: "Loading earlier messages…",
+  /** #718: a link opened the thread at a message that is deleted or past retention. */
+  messageGone: "That message is no longer here.",
+  loadingNewer: "Loading newer messages…",
+  jumpToLatest: "Jump to latest",
+  dismissNotice: "Dismiss",
   newMessage: "New message",
   showingFilter: "Showing {kinds}",
   showingFilterAria: "Showing {kinds} only. Show everything.",
@@ -888,6 +893,10 @@ export const threadFr: Translated<typeof threadEn> = {
   // --- The timeline ---------------------------------------------------------
   conversationLoadFailed: "Impossible de charger cette conversation.",
   loadingEarlier: "Chargement des messages précédents…",
+  messageGone: "Ce message n'existe plus.",
+  loadingNewer: "Chargement des messages plus récents…",
+  jumpToLatest: "Aller au plus récent",
+  dismissNotice: "Fermer",
   newMessage: "Nouveau message",
   showingFilter: "Affichage : {kinds}",
   showingFilterAria: "Affichage de {kinds} seulement. Tout afficher.",

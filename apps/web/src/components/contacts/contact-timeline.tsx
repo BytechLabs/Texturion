@@ -14,6 +14,7 @@ import {
   type TimelineEntry,
 } from "@/lib/api/contact-timeline";
 import { useMembers } from "@/lib/api/team";
+import { threadHref } from "@/lib/inbox/thread-href";
 import { reducedMotionScrollBehavior } from "@/lib/motion";
 import { formatTimestamp } from "@/lib/format/time";
 
@@ -240,9 +241,17 @@ function TimelineRow({
   // than a plain row.
   return (
     <li>
-      {entry.conversation_id ? (
+      {entry.kind === "task" ? (
+        // #718: a task row opens the task; its thread is one tap from there.
         <Link
-          href={`/inbox/${entry.conversation_id}`}
+          href={`/tasks?task=${entry.id}`}
+          className="block hover:bg-app-tint/60"
+        >
+          {body}
+        </Link>
+      ) : entry.conversation_id ? (
+        <Link
+          href={threadHref(entry.conversation_id)}
           className="block hover:bg-app-tint/60"
         >
           {body}

@@ -39,6 +39,7 @@ import { useSearch } from "@/lib/api/search";
 import { useMembers } from "@/lib/api/team";
 import type { ConversationStatus } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { threadHref } from "@/lib/inbox/thread-href";
 
 /** ts_headline snippets carry <b> markers; the palette renders plain text. */
 function plainSnippet(snippet: string): string {
@@ -340,7 +341,9 @@ export function CommandPalette() {
               <CommandItem
                 key={hit.id}
                 value={`conversation-${hit.id}`}
-                onSelect={() => go(`/inbox/${hit.id}`)}
+                onSelect={() =>
+                  go(threadHref(hit.id, { messageId: hit.matched_message_id }))
+                }
               >
                 <Inbox className="size-4" strokeWidth={1.75} />
                 <span className="min-w-0 flex-1 truncate">

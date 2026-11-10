@@ -55,7 +55,8 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { formatCallDuration } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
-import { taskThreadHref, taskThreadId } from "./task-format";
+import { taskSourceLink, taskThreadId } from "./task-format";
+import { threadHref } from "@/lib/inbox/thread-href";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
@@ -195,6 +196,8 @@ function TaskDetailLoaded({
   const members = useMembers();
   const { role } = useActiveCompany();
   const conversationId = taskThreadId(task);
+  // #718: the named link to where this task came from; null for a standalone one.
+  const sourceLink = taskSourceLink(task, t);
 
   // #107: the task is global (always shown), but its source conversation is on
   // a number this viewer can't access — the server withheld the message, files,
@@ -565,7 +568,7 @@ function TaskDetailLoaded({
             )}
             {task.conversation_id !== null && (
               <Link
-                href={taskThreadHref(task)}
+                href={threadHref(task.conversation_id, { taskId: task.id })}
                 className="block text-[13px] text-app-ink underline-offset-2 hover:underline"
               >
                 {t("tasks.linkedConversation")}
@@ -578,7 +581,7 @@ function TaskDetailLoaded({
         {task.source_message && (
           <section aria-label={t("tasks.sourceMessageAria")} className="space-y-1.5">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-              {t("tasks.fromThisMessage")}
+              {sourceLink?.label ?? t("tasks.fromThisMessage")}
             </p>
             <div className="rounded-app-card border border-app-line bg-app-inset p-3">
               <p className="whitespace-pre-wrap break-words text-[13px] text-app-ink">
@@ -586,13 +589,15 @@ function TaskDetailLoaded({
                   ? t("tasks.sourcePhotoOnly")
                   : task.source_message.body}
               </p>
-              <Link
-                href={taskThreadHref(task)}
-                className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-app-olive hover:text-app-olive-deep"
-              >
-                {t("tasks.viewInConversation")}
-                <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
-              </Link>
+              {sourceLink && (
+                <Link
+                  href={sourceLink.href}
+                  className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-app-olive hover:text-app-olive-deep"
+                >
+                  {t("tasks.viewInConversation")}
+                  <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
+                </Link>
+              )}
             </div>
           </section>
         )}
@@ -601,7 +606,7 @@ function TaskDetailLoaded({
         {task.source_call && (
           <section aria-label={t("tasks.sourceCallAria")} className="space-y-1.5">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-              {t("tasks.fromThisCall")}
+              {sourceLink?.label ?? t("tasks.fromThisCall")}
             </p>
             <div className="rounded-app-card border border-app-line bg-app-inset p-3">
               <p className="flex items-center gap-2 text-[13px] font-medium text-app-ink">
@@ -634,13 +639,15 @@ function TaskDetailLoaded({
                   />
                 </div>
               )}
-              <Link
-                href={taskThreadHref(task)}
-                className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-app-olive hover:text-app-olive-deep"
-              >
-                {t("tasks.viewInConversation")}
-                <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
-              </Link>
+              {sourceLink && (
+                <Link
+                  href={sourceLink.href}
+                  className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-app-olive hover:text-app-olive-deep"
+                >
+                  {t("tasks.viewInConversation")}
+                  <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
+                </Link>
+              )}
             </div>
           </section>
         )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { GripVertical } from "lucide-react";
+import { GripVertical, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -40,6 +40,13 @@ import { useMessages } from "@/lib/api/messages";
 import type { ConversationDetail } from "@/lib/api/types";
 import { useUsage } from "@/lib/api/usage";
 import { contactDisplayName } from "@/lib/format/phone";
+import {
+  THREAD_CALL_PARAM,
+  THREAD_MESSAGE_PARAM,
+  THREAD_TASK_PARAM,
+} from "@/lib/inbox/thread-href";
+import { useIsXl } from "@/lib/use-is-xl";
+import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 
 import { AttachmentsGallery } from "./attachments-gallery";
 import {
@@ -219,6 +226,31 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
     [router, pathname, searchParams],
   );
 
+  // #718: a link can open the thread at a message (`?message=`) or a call
+  // (`?call=`) and with a task beside it (`?task=`). The task takes the side
+  // panel's place at xl; below that the global task drawer shows it.
+  const taskId = searchParams.get(THREAD_TASK_PARAM);
+  const callSessionId = searchParams.get(THREAD_CALL_PARAM);
+  const wide = useIsXl();
+  const closeTask = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(THREAD_TASK_PARAM);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }, [router, pathname, searchParams]);
+  // Back to the plain thread: the anchor is dropped and the newest page loads.
+  const jumpToLatest = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(THREAD_MESSAGE_PARAM);
+    params.delete(THREAD_CALL_PARAM);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }, [router, pathname, searchParams]);
+
   // Desktop panel preference persists (G3); mobile uses a bottom sheet.
   const [panelOpen, setPanelOpen] = useState(readPanelPref);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
@@ -368,6 +400,8 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           }
           filter={threadFilter}
           onFilterChange={setThreadFilter}
+          callSessionId={callSessionId}
+          onJumpToLatest={jumpToLatest}
           catchUp={{
             offered: catchUp.offered,
             askToken: catchUp.askToken,
@@ -457,11 +491,15 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
       {/* Desktop context drawer (PORTAL-UX §3.2: ~300px slide-in, hairline
           left border, no shadow; the calm floating layer). Auto-collapses below
           ~1100px to the header toggle so the thread keeps a comfortable measure. */}
-      {panelOpen && (
+      {(panelOpen || (taskId !== null && wide)) && (
         <aside
-          aria-label={t("thread.conversationInfoForAria", {
-            name: contactDisplayName(conversation.contact),
-          })}
+          aria-label={
+            taskId !== null
+              ? t("tasks.drawerTitle")
+              : t("thread.conversationInfoForAria", {
+                  name: contactDisplayName(conversation.contact),
+                })
+          }
           style={{ width: panelWidth }}
           className="relative hidden shrink-0 border-l border-app-line bg-app-paper xl:flex xl:flex-col"
         >
@@ -530,13 +568,31 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             </DropdownMenuContent>
           </DropdownMenu>
           <div className="min-h-0 flex-1">
-            <ContactPanel
-              conversation={conversation}
-              contact={contact.data}
-              contactPending={contact.isPending}
-              onOpenGallery={openGallery}
-              active={panelOpen}
-            />
+            {taskId !== null ? (
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="flex shrink-0 justify-end px-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeTask}
+                    aria-label={t("common.close")}
+                    className="tap-target grid size-8 place-items-center rounded-full text-app-muted-2 transition-colors hover:bg-app-hover hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <X className="size-4" strokeWidth={1.75} aria-hidden />
+                  </button>
+                </div>
+                <div className="min-h-0 flex-1">
+                  <TaskDetailPanel taskId={taskId} onClose={closeTask} />
+                </div>
+              </div>
+            ) : (
+              <ContactPanel
+                conversation={conversation}
+                contact={contact.data}
+                contactPending={contact.isPending}
+                onOpenGallery={openGallery}
+                active={panelOpen}
+              />
+            )}
           </div>
         </aside>
       )}

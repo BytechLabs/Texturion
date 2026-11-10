@@ -45,6 +45,11 @@ export const tasksEn = {
   // The calm empty state.
   // -------------------------------------------------------------------------
   emptyFiltered: "Nothing on this list.",
+  /** #718: your own list is empty; the workspace may not be. */
+  emptyMine: "Nothing open is assigned to you.",
+  emptyMineDone: "You have not finished any tasks yet.",
+  emptyMineAny: "No tasks are assigned to you.",
+  emptySeeAll: "See all tasks",
   emptyTitle: "No tasks yet.",
   emptyBody:
     "Add one with New task, or promote a message from its ⋯ menu in a " +
@@ -234,6 +239,11 @@ export const tasksEn = {
   /** Stands in for the body of a source message that was only a picture. */
   sourcePhotoOnly: "A photo",
   viewInConversation: "View in conversation",
+  /** #718: names where a task came from; shown only when there is a source. */
+  linkFromText: "From a text from {name}",
+  linkFromTextUnnamed: "From a text",
+  linkFromCall: "From a call with {name}",
+  linkNote: "Mentioned in a note",
   /** The source section of a task that was promoted from a call (D64). */
   sourceCallAria: "Source call",
   fromThisCall: "From this call",
@@ -647,6 +657,10 @@ export const tasksFr: Translated<typeof tasksEn> = {
   // La liste vide.
   // -------------------------------------------------------------------------
   emptyFiltered: "Rien dans cette liste.",
+  emptyMine: "Aucune tâche ouverte ne vous est assignée.",
+  emptyMineDone: "Vous n'avez encore terminé aucune tâche.",
+  emptyMineAny: "Aucune tâche ne vous est assignée.",
+  emptySeeAll: "Voir toutes les tâches",
   emptyTitle: "Aucune tâche pour le moment.",
   emptyBody:
     "Ajoutez-en une avec Nouvelle tâche, ou promouvez un message depuis son " +
@@ -831,6 +845,10 @@ export const tasksFr: Translated<typeof tasksEn> = {
   fromThisMessage: "À partir de ce message",
   sourcePhotoOnly: "Une photo",
   viewInConversation: "Voir dans la conversation",
+  linkFromText: "À partir d'un texto de {name}",
+  linkFromTextUnnamed: "À partir d'un texto",
+  linkFromCall: "À partir d'un appel avec {name}",
+  linkNote: "Mentionnée dans une note",
   sourceCallAria: "Appel d'origine",
   fromThisCall: "À partir de cet appel",
   callFrom: "Appel de {name}",

@@ -195,6 +195,18 @@ export interface Page<T> {
   next_cursor: string | null;
 }
 
+/**
+ * One page of a thread (#718). `newer_cursor` is null when the page reaches
+ * the newest message (and absent on a page from a server without anchoring);
+ * `anchor_id` echoes the message a window was opened around, and
+ * `anchor_missing` says it was asked for and is gone.
+ */
+export interface MessagesPage extends Page<Message> {
+  newer_cursor?: string | null;
+  anchor_id?: string | null;
+  anchor_missing?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // me / company
 // ---------------------------------------------------------------------------
@@ -1165,7 +1177,12 @@ export interface Task {
 }
 
 /** `source` on every task row (D64). */
-export type TaskSource = { kind: "message" | "call"; id: string };
+export type TaskSource = {
+  kind: "message" | "call";
+  id: string;
+  /** #718: a message source's direction, on list rows; "note" is a note. */
+  direction?: string | null;
+};
 
 /** The call a task was promoted from, as the task list and detail show it. */
 export interface TaskSourceCall {

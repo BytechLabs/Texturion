@@ -34,7 +34,7 @@ import { EmptyTasks } from "../task-empty";
 import { InlineAssignee, InlineDue } from "../task-inline-edit";
 import { useTaskDrawer } from "../use-task-drawer";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
-import { taskCallerName, taskThreadHref } from "../task-format";
+import { taskSourceLink } from "../task-format";
 
 /**
  * The List view (T6.1, default) — a calm flat table over GET /v1/tasks. Roomy
@@ -223,7 +223,7 @@ export function ListView({ state }: { state: TaskPageState }) {
 /**
  * One roomy list row — desktop grid, mobile stacked. The title opens the task
  * detail drawer (TASKS-V2 D-A); assignee + due are inline quick-edits (D-B); a
- * quiet "Open conversation" link still deep-links to the source thread.
+ * quiet link names the source and deep-links to it, and only when there is one.
  */
 function TaskRow({
   task,
@@ -236,6 +236,7 @@ function TaskRow({
 }) {
   const t = useT();
   const { openTask } = useTaskDrawer();
+  const source = taskSourceLink(task, t);
   return (
     <li className="group border-b border-border-subtle">
       <div className="flex items-center gap-3 px-3 py-3 transition-colors duration-150 ease-out hover:bg-app-hover md:grid md:min-w-[640px] md:grid-cols-[minmax(0,1fr)_160px_128px_96px] md:gap-4">
@@ -274,15 +275,15 @@ function TaskRow({
               <RepeatMark repeat={task.repeat} />
               <LabelChips labels={task.labels} />
             </div>
-            <Link
-              href={taskThreadHref(task)}
-              className="mt-0.5 inline-flex items-center gap-1 truncate text-[12px] text-muted-foreground hover:text-foreground"
-            >
-              {taskCallerName(task, t) !== null
-                ? t("tasks.callFrom", { name: taskCallerName(task, t) ?? "" })
-                : t("tasks.openConversation")}
-              <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
-            </Link>
+            {source && (
+              <Link
+                href={source.href}
+                className="mt-0.5 inline-flex max-w-full items-center gap-1 truncate text-[12px] text-muted-foreground hover:text-foreground"
+              >
+                {source.label}
+                <ArrowUpRight className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
+              </Link>
+            )}
             {/* Mobile-only meta row (the desktop grid shows these as columns). */}
             <div className="mt-1.5 flex items-center gap-2 md:hidden">
               <InlineAssignee task={task} />

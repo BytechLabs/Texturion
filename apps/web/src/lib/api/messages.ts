@@ -6,7 +6,11 @@ import {
 } from "@tanstack/react-query";
 import type { MmsMediaType } from "@loonext/shared";
 
+import { useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+
 import { useT } from "@/i18n/provider";
+import { THREAD_MESSAGE_PARAM } from "@/lib/inbox/thread-href";
 import { useCompanyId } from "@/lib/company/provider";
 
 import {
@@ -27,12 +31,12 @@ import { ApiError } from "./error";
 import { listApplyConversation } from "./cache";
 import { patchConversationLists } from "./conversations";
 import { keys } from "./keys";
-import { nextCursorParam } from "./pagination";
 import type {
   ConversationDetail,
   ConversationListItem,
   Me,
   Message,
+  MessagesPage,
   Page,
 } from "./types";
 
@@ -60,18 +64,123 @@ export function fetchMessagesPage(
 }
 
 /**
+ * What one page of a thread was asked for. `undefined` is the newest page.
+ * `around` opens at a message (#718), `direction: "newer"` pages toward the
+ * newest, a bare `cursor` pages toward the oldest.
+ */
+export interface MessagesParam {
+  cursor?: string;
+  direction?: "newer";
+  around?: string;
+}
+
+/** The URL params one thread page is fetched with, in one place so a test can pin them. */
+export function messagesSearchParams(
+  param: MessagesParam | undefined,
+  limit?: number,
+): Record<string, string | number | undefined> {
+  return {
+    cursor: param?.cursor,
+    direction: param?.direction,
+    around: param?.around,
+    limit,
+  };
+}
+
+export function fetchMessagesWindow(
+  companyId: string,
+  conversationId: string,
+  param: MessagesParam | undefined,
+): Promise<MessagesPage> {
+  return apiFetch<MessagesPage>(
+    `/v1/conversations/${conversationId}/messages`,
+    { companyId, searchParams: messagesSearchParams(param) },
+  );
+}
+
+/** Older pages continue from the oldest row loaded; this is the whole older chain. */
+export function nextMessagesParam(
+  lastPage: MessagesPage,
+): MessagesParam | undefined {
+  return lastPage.next_cursor ? { cursor: lastPage.next_cursor } : undefined;
+}
+
+/** Newer pages continue from the newest row loaded, or stop at the newest message. */
+export function previousMessagesParam(
+  firstPage: MessagesPage,
+): MessagesParam | undefined {
+  return firstPage.newer_cursor
+    ? { cursor: firstPage.newer_cursor, direction: "newer" }
+    : undefined;
+}
+
+/**
+ * Whether a cached thread is the one this URL asks for. A thread opened at a
+ * message holds a window from the middle of the history, and the plain thread
+ * must never be served that window (or the reverse): the window is only valid
+ * for its own anchor, or once it has grown to reach the newest message.
+ */
+export function threadCacheMatches(
+  cached: { pages: MessagesPage[]; pageParams: unknown[] } | undefined,
+  anchorId: string | null,
+): boolean {
+  if (!cached) return true;
+  if (anchorId !== null) {
+    return cached.pageParams.some(
+      (param) => (param as MessagesParam | undefined)?.around === anchorId,
+    );
+  }
+  return !cached.pages[0]?.newer_cursor;
+}
+
+/** The message the URL asks the thread to open at (`?message=`), if any. */
+export function useThreadAnchor(): string | null {
+  return useSearchParams().get(THREAD_MESSAGE_PARAM);
+}
+
+/**
  * Thread messages — newest-first cursor pages (SPEC §7: (created_at, id)
  * DESC, default 50). Rendering reverses for display; `flattenPages` dedupes.
+ *
+ * #718: with `?message=<id>` the first page is the window AROUND that message,
+ * so a message far back opens at once without walking the history. Older pages
+ * continue from `next_cursor`, newer ones from `newer_cursor`
+ * (`fetchPreviousPage`); once the window reaches the newest message the thread
+ * is the ordinary one again and realtime inserts land in it.
  */
 export function useMessages(conversationId: string) {
   const companyId = useCompanyId();
-  return useInfiniteQuery({
-    queryKey: keys.thread(companyId, conversationId),
+  const queryClient = useQueryClient();
+  const anchorId = useThreadAnchor();
+  const queryKey = keys.thread(companyId, conversationId);
+  const cached = queryClient.getQueryData<ThreadData>(queryKey);
+  const valid = threadCacheMatches(cached, anchorId);
+  // A cache from the other mode is dropped (not shown, not refetched in
+  // place); the query then starts clean from this URL's first page.
+  useEffect(() => {
+    if (!valid) queryClient.removeQueries({ queryKey, exact: true });
+  }, [valid, queryClient, queryKey]);
+
+  const query = useInfiniteQuery({
+    queryKey,
     queryFn: ({ pageParam }) =>
-      fetchMessagesPage(companyId, conversationId, pageParam),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: nextCursorParam,
+      fetchMessagesWindow(companyId, conversationId, pageParam),
+    initialPageParam: (anchorId ? { around: anchorId } : undefined) as
+      | MessagesParam
+      | undefined,
+    getNextPageParam: nextMessagesParam,
+    getPreviousPageParam: previousMessagesParam,
+    enabled: valid,
   });
+  if (valid) return query;
+  return {
+    ...query,
+    data: undefined,
+    isPending: true,
+    isError: false,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  } as typeof query;
 }
 
 /**
