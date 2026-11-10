@@ -501,8 +501,10 @@ begin
      assigned_user_id, due_at, created_by_user_id, priority,
      addr_street, addr_unit, addr_city, addr_state, addr_postal_code,
      addr_country, addr_provenance,
-     -- The customer-side reminder text for a repeating job is a separate,
-     -- opt-in toggle (#693, not built). Until then no occurrence texts anyone.
+     -- TODO(#693): the customer-side reminder text for a repeating job ("your
+     -- furnace service is due, reply to book") is a separate opt-in toggle, off
+     -- by default and bound by the opt-out rules. Until it exists no occurrence
+     -- texts anyone.
      reminders_off,
      series_id, occurrence_no, occurrence_on)
   values
