@@ -126,8 +126,10 @@ describe("TaskBulkBar priority and labels (#693)", () => {
     expect(onAddLabel).not.toHaveBeenCalled();
   });
 
-  it("offers the workspace tags under add and remove", () => {
+  it("#713: offers the workspace tags as one Labels control", () => {
     openMore();
-    expect(screen.getAllByText("Warranty")).toHaveLength(2);
+    expect(screen.getAllByText("Labels")).toHaveLength(1);
+    expect(screen.queryByText("Add label")).toBeNull();
+    expect(screen.queryByText("Remove label")).toBeNull();
   });
 });

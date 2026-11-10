@@ -171,6 +171,13 @@ export function ListView({ state }: { state: TaskPageState }) {
           onRemoveLabel={(tagId) =>
             runBulk({ action: "remove_label", tag_id: tagId })
           }
+          selectedLabelIds={
+            selection.mode === "ids"
+              ? tasks
+                  .filter((task) => selection.ids.has(task.id))
+                  .map((task) => (task.labels ?? []).map((label) => label.id))
+              : null
+          }
         />
       )}
       {/* Column header — quiet stone labels, hidden on mobile (the row carries

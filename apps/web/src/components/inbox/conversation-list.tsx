@@ -325,8 +325,18 @@ export function ConversationList({
           onAssign={(userId) =>
             runBulk({ action: "assign", target_user_id: userId }, "Assigned")
           }
-          onTag={(tagId) =>
-            runBulk({ action: "add_tag", target_tag_id: tagId }, "Tagged")
+          onTag={(tagId, action) =>
+            runBulk(
+              { action: action === "add" ? "add_tag" : "remove_tag", target_tag_id: tagId },
+              action === "add" ? "Tagged" : "Untagged",
+            )
+          }
+          selectedTagIds={
+            selection.mode === "ids"
+              ? rows
+                  .filter((row) => selection.ids.has(row.id))
+                  .map((row) => row.tags.map((tag) => tag.id))
+              : null
           }
           onDelete={
             canDelete && selectedIds !== null

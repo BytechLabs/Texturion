@@ -12,6 +12,7 @@ import {
 
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
+import { TagChecklist } from "@/components/ui/tag-checklist";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,6 +69,7 @@ export function BulkBar({
   onSpam,
   onAssign,
   onTag,
+  selectedTagIds,
   onDelete,
 }: {
   selection: BulkSelection;
@@ -81,7 +83,9 @@ export function BulkBar({
   onClose: () => void;
   onSpam: () => void;
   onAssign: (userId: string | null) => void;
-  onTag: (tagId: string) => void;
+  onTag: (tagId: string, action: "add" | "remove") => void;
+  /** #713: each selected row's tag ids; null when the selection is a filter. */
+  selectedTagIds: readonly (readonly string[])[] | null;
   /** #691: absent when the member cannot delete records, or the selection is
    *  a filter (the delete endpoint takes named ids only, never a filter). */
   onDelete?: () => void;
@@ -208,12 +212,14 @@ export function BulkBar({
           {(tags.data?.data.length ?? 0) > 0 && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>{t("inbox.bulkAddTag")}</DropdownMenuLabel>
-              {tags.data?.data.map((tag) => (
-                <DropdownMenuItem key={tag.id} onSelect={() => onTag(tag.id)}>
-                  {tag.name}
-                </DropdownMenuItem>
-              ))}
+              <TagChecklist
+                asSubmenu
+                label={t("inbox.bulkTags")}
+                tags={tags.data?.data ?? []}
+                itemTagIds={selectedTagIds}
+                selectionKey={selection.mode === "ids" ? [...selection.ids].sort().join(",") : "filter"}
+                onToggle={(tag, action) => onTag(tag.id, action)}
+              />
             </>
           )}
           {onDelete && (

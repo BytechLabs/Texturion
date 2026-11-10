@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, Flag, Tag, Trash2, Undo2, UserPlus } from "lucide-react";
+import { Check, Flag, Trash2, Undo2, UserPlus } from "lucide-react";
 import { useState } from "react";
 
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
+import { TagChecklist } from "@/components/ui/tag-checklist";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -134,6 +135,7 @@ export function TaskBulkBar({
   onSetPriority,
   onAddLabel,
   onRemoveLabel,
+  selectedLabelIds = null,
 }: {
   selection: BulkSelection;
   loadedIds: readonly string[];
@@ -149,6 +151,8 @@ export function TaskBulkBar({
   onSetPriority: (priority: TaskPriority) => void;
   onAddLabel: (tagId: string) => void;
   onRemoveLabel: (tagId: string) => void;
+  /** #713: each selected task's label ids; null when the selection is a filter. */
+  selectedLabelIds?: readonly (readonly string[])[] | null;
 }) {
   const t = useT();
   const canDelete = useCanDeleteRecords();
@@ -208,28 +212,18 @@ export function TaskBulkBar({
             {tags.length > 0 && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="flex items-center gap-1.5">
-                  <Tag className="size-3.5" aria-hidden />
-                  {t("tasks.bulkAddLabel")}
-                </DropdownMenuLabel>
-                {tags.map((tag) => (
-                  <DropdownMenuItem key={`add-${tag.id}`} onSelect={() => onAddLabel(tag.id)}>
-                    {tag.name}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="flex items-center gap-1.5">
-                  <Tag className="size-3.5" aria-hidden />
-                  {t("tasks.bulkRemoveLabel")}
-                </DropdownMenuLabel>
-                {tags.map((tag) => (
-                  <DropdownMenuItem
-                    key={`remove-${tag.id}`}
-                    onSelect={() => onRemoveLabel(tag.id)}
-                  >
-                    {tag.name}
-                  </DropdownMenuItem>
-                ))}
+                <TagChecklist
+                  asSubmenu
+                  label={t("tasks.labels")}
+                  tags={tags}
+                  itemTagIds={selectedLabelIds}
+                  selectionKey={
+                    selection.mode === "ids" ? [...selection.ids].sort().join(",") : "filter"
+                  }
+                  onToggle={(tag, action) =>
+                    action === "add" ? onAddLabel(tag.id) : onRemoveLabel(tag.id)
+                  }
+                />
               </>
             )}
             {canDelete && (

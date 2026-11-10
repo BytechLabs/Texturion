@@ -133,7 +133,7 @@ export const inboxEn = {
   bulkMore: "More",
   bulkAssignTo: "Assign to",
   bulkNobody: "Nobody",
-  bulkAddTag: "Add tag",
+  bulkTags: "Tags",
 
   // --- The filter bar (filter-bar.tsx + filter-url.ts) ----------------------
   segmentOpen: "Open",
@@ -599,7 +599,7 @@ export const inboxFr: Translated<typeof inboxEn> = {
   bulkMore: "Plus",
   bulkAssignTo: "Assigner à",
   bulkNobody: "Personne",
-  bulkAddTag: "Ajouter une étiquette",
+  bulkTags: "Étiquettes",
 
   // --- The filter bar --------------------------------------------------------
   segmentOpen: "Ouvertes",

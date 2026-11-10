@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, MoreHorizontal, Tag, X } from "lucide-react";
+import { Download, MoreHorizontal, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -8,6 +8,7 @@ import {
   MergeDialog,
 } from "@/components/contacts/duplicate-contacts-card";
 import { Button } from "@/components/ui/button";
+import { TagChecklist } from "@/components/ui/tag-checklist";
 import {
   Dialog,
   DialogContent,
@@ -20,8 +21,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { undoableToast } from "@/components/ui/optimistic-undo";
@@ -115,37 +114,6 @@ export function ContactsBulkBar({
     });
   }
 
-  function tagMenu(action: "add_tag" | "remove_tag", label: string) {
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" disabled={!canEdit || bulk.isPending}>
-            <Tag className="size-3.5" strokeWidth={1.75} aria-hidden />
-            {label}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-          <DropdownMenuLabel>{t("contacts.bulkPickTag")}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {tagList.length === 0 ? (
-            <p className="max-w-56 px-2 py-1.5 text-sm text-muted-foreground">
-              {t("contacts.bulkNoTags")}
-            </p>
-          ) : (
-            tagList.map((tag) => (
-              <DropdownMenuItem
-                key={tag.id}
-                onSelect={() => changeTag(action, tag.id, tag.name)}
-              >
-                {tag.name}
-              </DropdownMenuItem>
-            ))
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
-
   const mergePair: DuplicatePair | null =
     selected.length === 2
       ? {
@@ -168,8 +136,17 @@ export function ContactsBulkBar({
       <span className="text-sm font-medium tabular-nums">
         {t("contacts.bulkSelected", { count: selected.length })}
       </span>
-      {tagMenu("add_tag", t("contacts.bulkTag"))}
-      {tagMenu("remove_tag", t("contacts.bulkUntag"))}
+      <TagChecklist
+        label={t("contacts.bulkTags")}
+        tags={tagList}
+        itemTagIds={selected.map((row) => (row.tags ?? []).map((tag) => tag.id))}
+        selectionKey={ids.join(",")}
+        emptyLabel={t("contacts.bulkNoTags")}
+        disabled={!canEdit || bulk.isPending}
+        onToggle={(tag, action) =>
+          changeTag(action === "add" ? "add_tag" : "remove_tag", tag.id, tag.name)
+        }
+      />
       <Button
         variant="outline"
         size="sm"
@@ -192,37 +169,40 @@ export function ContactsBulkBar({
         {t("contacts.bulkExport")}
       </Button>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={t("contacts.bulkMore")}
-          >
-            <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {canMerge && (
-            <DropdownMenuItem
-              disabled={mergePair === null}
-              onSelect={() => setMerging(mergePair)}
+      {/* #713: both items are role-gated; with neither, the menu would open empty. */}
+      {(canMerge || canDeleteRecords) && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={t("contacts.bulkMore")}
             >
-              {mergePair === null
-                ? t("contacts.bulkMergeNeedsTwo")
-                : t("contacts.bulkMerge")}
-            </DropdownMenuItem>
-          )}
-          {canDeleteRecords && (
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onSelect={() => setConfirmingDelete(true)}
-            >
-              {t("contacts.bulkDelete")}
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {canMerge && (
+              <DropdownMenuItem
+                disabled={mergePair === null}
+                onSelect={() => setMerging(mergePair)}
+              >
+                {mergePair === null
+                  ? t("contacts.bulkMergeNeedsTwo")
+                  : t("contacts.bulkMerge")}
+              </DropdownMenuItem>
+            )}
+            {canDeleteRecords && (
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() => setConfirmingDelete(true)}
+              >
+                {t("contacts.bulkDelete")}
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
       <Button
         variant="ghost"
