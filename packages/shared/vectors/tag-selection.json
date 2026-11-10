@@ -1,0 +1,70 @@
+[
+  {
+    "items": [
+      [
+        "a"
+      ],
+      [
+        "a",
+        "b"
+      ]
+    ],
+    "tagId": "a",
+    "state": "all",
+    "action": "remove"
+  },
+  {
+    "items": [
+      [
+        "a"
+      ],
+      [
+        "b"
+      ]
+    ],
+    "tagId": "a",
+    "state": "some",
+    "action": "add"
+  },
+  {
+    "items": [
+      [
+        "b"
+      ],
+      []
+    ],
+    "tagId": "a",
+    "state": "none",
+    "action": "add"
+  },
+  {
+    "items": [
+      []
+    ],
+    "tagId": "a",
+    "state": "none",
+    "action": "add"
+  },
+  {
+    "items": [
+      [
+        "a"
+      ]
+    ],
+    "tagId": "a",
+    "state": "all",
+    "action": "remove"
+  },
+  {
+    "items": null,
+    "tagId": "a",
+    "state": "unknown",
+    "action": "add"
+  },
+  {
+    "items": [],
+    "tagId": "a",
+    "state": "unknown",
+    "action": "add"
+  }
+]

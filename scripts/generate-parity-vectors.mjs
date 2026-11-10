@@ -107,6 +107,7 @@ import { parseQuickAdd } from "../packages/shared/src/quick-add.ts";
 import { parseReferenceTokens, referenceQueryAt } from "../packages/shared/src/task-references.ts";
 import { callLooksSpam } from "../packages/shared/src/call-screening.ts";
 import { CALL_ROUTINGS } from "../packages/shared/src/call-routing.ts";
+import { tagSelectionState, tagToggleAction } from "../packages/shared/src/tag-selection.ts";
 import {
   paymentAmountProblem,
   paymentRequestCancellable,
@@ -709,6 +710,24 @@ function screeningVectors() {
   }));
 }
 
+// #713: the one tag control's state for a selection, and what choosing it does.
+const TAG_SELECTION_INPUTS = [
+  [[["a"], ["a", "b"]], "a"],
+  [[["a"], ["b"]], "a"],
+  [[["b"], []], "a"],
+  [[[]], "a"],
+  [[["a"]], "a"],
+  [null, "a"],
+  [[], "a"],
+];
+
+function tagSelectionVectors() {
+  return TAG_SELECTION_INPUTS.map(([items, tagId]) => {
+    const state = tagSelectionState(items, tagId);
+    return { items, tagId, state, action: tagToggleAction(state) };
+  });
+}
+
 const FILES = {
   "segments.json": segmentVectors,
   "nanp.json": nanpVectors,
@@ -721,6 +740,7 @@ const FILES = {
   "task-references.json": referenceVectors,
   "call-screening.json": screeningVectors,
   "call-routing.json": routingVectors,
+  "tag-selection.json": tagSelectionVectors,
 };
 
 const check = process.argv.includes("--check");
