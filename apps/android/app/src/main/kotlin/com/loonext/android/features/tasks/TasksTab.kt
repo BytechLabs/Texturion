@@ -85,6 +85,10 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Task
+import com.loonext.android.core.model.Capability
+import com.loonext.android.core.model.MemberRole
+import com.loonext.android.features.inbox.SavedView
+import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.core.model.canDeleteRecords
 import com.loonext.android.features.inbox.BulkSelection
 import com.loonext.android.features.inbox.bulkResultMessage
@@ -173,19 +177,36 @@ private fun TaskListScreen(
     var tagFilterId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var tagFilterName by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var sortName by rememberSaveable(companyId) { mutableStateOf(TaskSort.Created.name) }
-    var prioritySheetOpen by remember { mutableStateOf(false) }
-    var labelSheetOpen by remember { mutableStateOf(false) }
+    // #690 / #689 G: the Filters sheet's own dimensions, and the view-only group.
+    var contactFilterId by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    var contactName by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    var createdByFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    var sourceFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    var hasFilesFilter by rememberSaveable(companyId) { mutableStateOf(false) }
+    var hasLinksFilter by rememberSaveable(companyId) { mutableStateOf(false) }
+    var dueAfterFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    var dueBeforeFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
+    var groupName by rememberSaveable(companyId) { mutableStateOf(TaskGroup.Status.name) }
+    var filtersSheetOpen by remember { mutableStateOf(false) }
+    var quickAddOpen by remember { mutableStateOf(false) }
     var sortSheetOpen by remember { mutableStateOf(false) }
     val extra = TaskExtraFilters(
         priorities = priorityCsv.split(',').filter { it.isNotEmpty() }.toSet(),
         tagId = tagFilterId,
         sort = TaskSort.entries.firstOrNull { it.name == sortName } ?: TaskSort.Created,
+        contactId = contactFilterId,
+        createdBy = createdByFilter,
+        source = sourceFilter,
+        hasAttachments = hasFilesFilter,
+        hasReferences = hasLinksFilter,
+        dueAfter = dueAfterFilter,
+        dueBefore = dueBeforeFilter,
+        group = TaskGroup.entries.firstOrNull { it.name == groupName } ?: TaskGroup.Status,
     )
     var search by rememberSaveable(companyId) { mutableStateOf("") }
     var searchOpen by rememberSaveable(companyId) { mutableStateOf(false) }
     var debouncedQ by remember(companyId) { mutableStateOf("") }
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
-    var pickerOpen by remember { mutableStateOf(false) }
     var newTaskOpen by remember { mutableStateOf(false) }
     var pullRefreshing by remember(companyId) { mutableStateOf(false) }
     // #228: the done-toggle below writes from a coroutine, and the failure it
@@ -280,6 +301,99 @@ private fun TaskListScreen(
             ?.display_name?.ifBlank { null }
     }
 
+    val currentState = TaskViewState(tab, assigneeChip, unassignedChip, dueChip, extra)
+
+    /** Every control at once, so a view or a sheet change reloads the list ONCE. */
+    fun applyState(next: TaskViewState, nextContactName: String?, nextTagName: String?) {
+        tab = next.tab
+        assigneeChip = next.assigneeChip
+        unassignedChip = next.unassigned
+        dueChipName = next.dueChip?.name
+        priorityCsv = TaskPriority.PICKER.filter { it in next.extra.priorities }.joinToString(",")
+        tagFilterId = next.extra.tagId
+        tagFilterName = nextTagName?.takeIf { next.extra.tagId != null }
+        sortName = next.extra.sort.name
+        contactFilterId = next.extra.contactId
+        contactName = nextContactName?.takeIf { next.extra.contactId != null }
+        createdByFilter = next.extra.createdBy
+        sourceFilter = next.extra.source
+        hasFilesFilter = next.extra.hasAttachments
+        hasLinksFilter = next.extra.hasReferences
+        dueAfterFilter = next.extra.dueAfter
+        dueBeforeFilter = next.extra.dueBefore
+        groupName = next.extra.group.name
+    }
+
+    // Saved views ride the plumbing the inbox uses, on the "tasks" surface.
+    val viewsRepo = remember(graph) { MessagingRepository(graph.api) }
+    val viewsReferences = remember(graph) { ReferenceRepository(graph.api) }
+    var savedViews by remember(companyId) { mutableStateOf<List<SavedView>>(emptyList()) }
+    var defaultViewId by remember(companyId) { mutableStateOf<String?>(null) }
+    var landed by rememberSaveable(companyId) { mutableStateOf(false) }
+
+    fun applyView(view: SavedView) {
+        applyState(taskViewToState(view.filters, me.user_id), null, null)
+    }
+
+    fun loadViews() {
+        scope.launch {
+            runCatching { viewsRepo.savedViews(companyId, TASKS_SURFACE) }.onSuccess { page ->
+                savedViews = page.data
+                defaultViewId = page.defaults.tasks
+            }
+        }
+    }
+
+    fun saveView(name: String, shared: Boolean, done: (String?) -> Unit) {
+        scope.launch {
+            runCatching {
+                viewsRepo.createSavedView(
+                    companyId = companyId,
+                    name = name.trim(),
+                    filters = taskStateToView(currentState, me.user_id),
+                    shared = shared,
+                    surface = TASKS_SURFACE,
+                )
+            }.onSuccess {
+                loadViews()
+                done(null)
+            }.onFailure { done(it.userMessage(locale)) }
+        }
+    }
+
+    LaunchedEffect(companyId) {
+        runCatching { viewsRepo.savedViews(companyId, TASKS_SURFACE) }.onSuccess { page ->
+            savedViews = page.data
+            defaultViewId = page.defaults.tasks
+            // Land on the chosen view only from an untouched screen: somebody
+            // who has already filtered has said what they want to see.
+            val untouched = tab == TasksTabKind.Open && assigneeChip == null && !unassignedChip &&
+                dueChip == null && !extra.isCustom
+            if (!landed && untouched) {
+                page.data.firstOrNull { it.id == page.defaults.tasks }?.let { applyView(it) }
+            }
+            landed = true
+        }
+    }
+    // A view applied from storage knows ids, not names; the Filters rows read them back.
+    LaunchedEffect(contactFilterId) {
+        val id = contactFilterId
+        if (id != null && contactName == null) {
+            runCatching { graph.api.get<com.loonext.android.core.model.ContactSummary>("/v1/contacts/$id", companyId = companyId) }
+                .onSuccess { contactName = it.name?.ifBlank { null } ?: it.phone_e164 }
+        }
+    }
+    LaunchedEffect(tagFilterId) {
+        val id = tagFilterId
+        if (id != null && tagFilterName == null) {
+            runCatching { mutations.tags(companyId).data }
+                .onSuccess { all -> tagFilterName = all.firstOrNull { it.id == id }?.name }
+        }
+    }
+    val suggestedViewName = suggestTaskViewName(currentState, tagFilterName, contactName) { key ->
+        AppStrings.translate(locale, key)
+    }
+
     if (newTaskOpen) {
         NewTaskSheetHost(
             graph = graph,
@@ -307,7 +421,7 @@ private fun TaskListScreen(
                     contentDescription = t("thread.newTask"),
                     onClick = {
                         haptics.tap()
-                        newTaskOpen = true
+                        quickAddOpen = true
                     },
                 )
                 if (view != TaskViewKind.Map) {
@@ -417,7 +531,9 @@ private fun TaskListScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // The filter pill rail: status tabs + assignee/unassigned/due.
+            // The rail: status tabs, ONE Filters control, the sort and the saved
+            // views. Everything else that narrows the list lives in the Filters
+            // sheet (#689 G), so the rail never grows a pill per filter.
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -426,18 +542,11 @@ private fun TaskListScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    t("contactsTasks.filter"),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                )
-                // Which pills actually DO something per view (#113, the web's
+                // Which tabs actually DO something per view (#113, the web's
                 // tabsForView): Board's columns ARE the status dimension, so
                 // it keeps Mine | All; Map's contract consumes only the
-                // assignee chips, so status tabs (and due chips, below)
-                // disappear there; List and Calendar consume all four —
-                // Calendar applies Open/Done client-side over the month grid.
+                // assignee chips, so status tabs disappear there; List and
+                // Calendar consume all four.
                 val tabs = when (view) {
                     TaskViewKind.Board -> listOf(TasksTabKind.Mine, TasksTabKind.All)
                     TaskViewKind.Map -> emptyList()
@@ -453,105 +562,65 @@ private fun TaskListScreen(
                         },
                     )
                 }
-                val assigneeName = assigneeChip?.let { id ->
-                    if (id == me.user_id) youLabel
-                    else members.firstOrNull { it.user_id == id }
-                        ?.display_name?.ifBlank { null } ?: teammateLabel
+                val filterCount = listOf(
+                    assigneeChip != null || unassignedChip,
+                    dueChip != null,
+                ).count { it } + extra.activeCount
+                FilterPill(
+                    text = if (filterCount > 0) {
+                        t("taskViews.filtersCount", "count" to "$filterCount")
+                    } else {
+                        t("taskViews.filters")
+                    },
+                    selected = filterCount > 0,
+                    onClick = {
+                        haptics.tap()
+                        filtersSheetOpen = true
+                    },
+                )
+                if (view == TaskViewKind.List) {
+                    FilterPill(
+                        text = t("contactsTasks.sortedBy", "sort" to t(extra.sort.labelKey)),
+                        selected = extra.sort != TaskSort.Created,
+                        onClick = {
+                            haptics.tap()
+                            sortSheetOpen = true
+                        },
+                    )
                 }
-                FilterPill(
-                    text = assigneeName ?: t("contactsTasks.assignee"),
-                    selected = assigneeChip != null,
-                    onClick = {
-                        haptics.tap()
-                        pickerOpen = true
-                    },
-                    trailing = if (assigneeChip != null) {
-                        {
-                            Icon(
-                                Icons.Outlined.Close,
-                                contentDescription = t("contactsTasks.clearAssigneeFilter"),
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .clickable {
-                                        haptics.tap()
-                                        assigneeChip = null
-                                    },
-                            )
-                        }
-                    } else null,
-                )
-                FilterPill(
-                    text = t("contactsTasks.unassigned"),
-                    selected = unassignedChip,
-                    onClick = {
-                        haptics.tap()
-                        unassignedChip = !unassignedChip
-                        if (unassignedChip) assigneeChip = null
-                    },
-                )
-                if (view != TaskViewKind.Map) {
-                    DueChip.entries.forEach { chip ->
-                        FilterPill(
-                            text = t(chip.labelKey),
-                            selected = dueChip == chip,
-                            onClick = {
-                                haptics.tap()
-                                dueChipName = if (dueChip == chip) null else chip.name
-                            },
-                        )
-                    }
-                    // #693: priority, label and sort. Priority and label refine the
-                    // list and the board; sort orders the list only.
-                    if (view == TaskViewKind.List || view == TaskViewKind.Board) {
-                        FilterPill(
-                            text = when (extra.priorities.size) {
-                                0 -> t("contactsTasks.priority")
-                                1 -> t(TaskPriority.labelKey(extra.priorities.first()))
-                                else -> t(
-                                    "contactsTasks.priorityMany",
-                                    "count" to "${extra.priorities.size}",
-                                )
-                            },
-                            selected = extra.priorities.isNotEmpty(),
-                            onClick = {
-                                haptics.tap()
-                                prioritySheetOpen = true
-                            },
-                        )
-                        FilterPill(
-                            text = tagFilterName ?: t("contactsTasks.label"),
-                            selected = tagFilterId != null,
-                            onClick = {
-                                haptics.tap()
-                                labelSheetOpen = true
-                            },
-                            trailing = if (tagFilterId != null) {
-                                {
-                                    Icon(
-                                        Icons.Outlined.Close,
-                                        contentDescription = t("contactsTasks.clearLabelFilter"),
-                                        modifier = Modifier
-                                            .size(12.dp)
-                                            .clickable {
-                                                haptics.tap()
-                                                tagFilterId = null
-                                                tagFilterName = null
-                                            },
-                                    )
-                                }
-                            } else null,
-                        )
-                    }
-                    if (view == TaskViewKind.List) {
-                        FilterPill(
-                            text = t("contactsTasks.sortedBy", "sort" to t(extra.sort.labelKey)),
-                            selected = extra.sort != TaskSort.Created,
-                            onClick = {
-                                haptics.tap()
-                                sortSheetOpen = true
-                            },
-                        )
-                    }
+                if (view == TaskViewKind.List || view == TaskViewKind.Board) {
+                    TaskViewsControl(
+                        views = savedViews,
+                        activeId = savedViews.firstOrNull {
+                            taskViewMatches(it.filters, currentState, me.user_id)
+                        }?.id,
+                        defaultId = defaultViewId,
+                        canShare = MemberRole.has(
+                            me.memberships.firstOrNull { it.company_id == companyId }?.role,
+                            Capability.SETTINGS_MANAGE,
+                        ),
+                        onApply = { applyView(it) },
+                        onSave = { name, shared, done -> saveView(name, shared, done) },
+                        onRename = { id, name ->
+                            scope.launch {
+                                runCatching { viewsRepo.renameSavedView(companyId, id, name.trim()) }
+                                    .onSuccess { loadViews() }
+                            }
+                        },
+                        onDelete = { id ->
+                            scope.launch {
+                                runCatching { viewsRepo.deleteSavedView(companyId, id) }
+                                    .onSuccess { loadViews() }
+                            }
+                        },
+                        onDefault = { id ->
+                            scope.launch {
+                                runCatching { viewsRepo.setDefaultSavedView(companyId, id, TASKS_SURFACE) }
+                                    .onSuccess { defaultViewId = id }
+                            }
+                        },
+                        suggestedName = suggestedViewName,
+                    )
                 }
             }
 
@@ -649,34 +718,21 @@ private fun TaskListScreen(
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 
-    if (prioritySheetOpen) {
-        OptionSheet(
-            title = t("contactsTasks.priority"),
-            options = TaskPriority.PICKER.map { SheetOption(it, t(TaskPriority.labelKey(it))) },
-            selected = extra.priorities,
-            onPick = { p ->
-                val next = if (p in extra.priorities) extra.priorities - p else extra.priorities + p
-                priorityCsv = TaskPriority.PICKER.filter { it in next }.joinToString(",")
-            },
-            onDismiss = { prioritySheetOpen = false },
-        )
-    }
-    if (labelSheetOpen) {
-        TagChoiceSheet(
-            title = t("contactsTasks.labels"),
+    if (filtersSheetOpen) {
+        TaskFiltersSheet(
+            state = currentState,
+            names = FilterNames(contactName, tagFilterName),
+            members = members,
+            meUserId = me.user_id,
+            companyId = companyId,
+            repo = viewsReferences,
             loadTags = { mutations.tags(companyId).data },
-            selectedId = tagFilterId,
-            onPick = { tag ->
-                if (tagFilterId == tag.id) {
-                    tagFilterId = null
-                    tagFilterName = null
-                } else {
-                    tagFilterId = tag.id
-                    tagFilterName = tag.name
-                }
-                labelSheetOpen = false
-            },
-            onDismiss = { labelSheetOpen = false },
+            showAdvanced = view == TaskViewKind.List || view == TaskViewKind.Board,
+            showDue = view != TaskViewKind.Map,
+            showGroup = view == TaskViewKind.List || view == TaskViewKind.Board,
+            onChange = { next, names -> applyState(next, names.contact, names.tag) },
+            onClearAll = { applyState(TaskViewState(tab, null, false, null, TaskExtraFilters(sort = extra.sort, group = extra.group)), null, null) },
+            onDismiss = { filtersSheetOpen = false },
         )
     }
     if (sortSheetOpen) {
@@ -692,19 +748,18 @@ private fun TaskListScreen(
         )
     }
 
-    if (pickerOpen) {
-        MemberPickerSheet(
-            members = members,
+    if (quickAddOpen) {
+        QuickAddSheet(
+            mutations = mutations,
+            companyId = companyId,
             meUserId = me.user_id,
-            selectedUserId = assigneeChip,
-            showUnassigned = false,
-            onPick = { userId ->
-                haptics.tap()
-                assigneeChip = userId
-                if (userId != null) unassignedChip = false
-                pickerOpen = false
+            members = members,
+            onDismiss = { quickAddOpen = false },
+            onCreated = { refreshKey++ },
+            onMoreOptions = {
+                quickAddOpen = false
+                newTaskOpen = true
             },
-            onDismiss = { pickerOpen = false },
         )
     }
 }
@@ -895,9 +950,14 @@ private fun TaskList(
                 }
             } else {
                 // Rows arrive open-first (the loader drains the open arm
-                // before done), so the status partition preserves order.
-                val openRows = rows.filter { !it.done }
-                val doneRows = rows.filter { it.done }
+                // before done), so the status partition preserves order. #689 G:
+                // the chosen group splits them by assignee or priority instead.
+                val buckets = bucketTasks(rows, extra.group) { task ->
+                    taskAssigneeNames(task.assigneeIdList, task.assignees, memberName).firstOrNull()
+                }
+                val bucketLabels = buckets.map { bucket ->
+                    bucket.name ?: bucket.labelKey?.let { t(it) }.orEmpty()
+                }
                 val loadedIds = rows.map { it.id }
 
                 fun runBulk(
@@ -1043,39 +1103,24 @@ private fun TaskList(
                     )
                 }
 
-                // A LazyColumn's content is a LazyListScope, not a composition,
-                // so the two section headings are read here.
-                val toDoLabel = t("contactsTasks.columnToDo")
-                val doneLabel = t("contactsTasks.columnDone")
-
                 LazyColumn(
                     Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
-                    taskSection(
-                        sectionKey = "todo",
-                        label = toDoLabel,
-                        tasks = openRows,
-                        memberName = memberName,
-                        onOpenTask = onOpenTask,
-                        onToggleDone = onToggleDone,
-                        selection = selection,
-                        onToggleSelected = { id ->
-                            selection = selection.toggleRow(id, loadedIds)
-                        },
-                    )
-                    taskSection(
-                        sectionKey = "done",
-                        label = doneLabel,
-                        tasks = doneRows,
-                        memberName = memberName,
-                        onOpenTask = onOpenTask,
-                        onToggleDone = onToggleDone,
-                        selection = selection,
-                        onToggleSelected = { id ->
-                            selection = selection.toggleRow(id, loadedIds)
-                        },
-                    )
+                    buckets.forEachIndexed { index, bucket ->
+                        taskSection(
+                            sectionKey = bucket.id,
+                            label = bucketLabels[index],
+                            tasks = bucket.tasks,
+                            memberName = memberName,
+                            onOpenTask = onOpenTask,
+                            onToggleDone = onToggleDone,
+                            selection = selection,
+                            onToggleSelected = { id ->
+                                selection = selection.toggleRow(id, loadedIds)
+                            },
+                        )
+                    }
                     if (current.value.hasMore) {
                         item(key = "load-more") {
                             Box(
@@ -1309,9 +1354,12 @@ internal fun TaskListRow(
                 }
             }
             // D64: a call task names the call where a message task names the contact.
-            val context = task.call?.let {
+            val contextName = task.call?.let {
                 t("contactsTasks.callFrom", "name" to taskCallerName(it, locale))
             } ?: task.contact?.name?.ifBlank { null }
+            // #690: the number leads the quiet line, so "T-142" can be said aloud and typed after a #.
+            val context = listOfNotNull(task.number?.let { taskNumberLabel(it) }, contextName)
+                .joinToString(" · ").ifEmpty { null }
             if (dueText != null || context != null) {
                 Row(
                     Modifier.padding(top = 3.dp),

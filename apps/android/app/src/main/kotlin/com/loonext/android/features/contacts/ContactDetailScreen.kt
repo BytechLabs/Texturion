@@ -97,6 +97,9 @@ import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonListRow
 import com.loonext.android.features.tasks.NewTaskSheetHost
+import com.loonext.android.features.tasks.LinkedOwner
+import com.loonext.android.features.tasks.LinkedTasksList
+import com.loonext.android.features.tasks.ReferenceRepository
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
@@ -131,6 +134,8 @@ internal fun ContactDetailScreen(
     onOpenConversation: ((conversationId: String) -> Unit)?,
     onComposeNew: ((contactId: String) -> Unit)?,
     modifier: Modifier = Modifier,
+    /** #690: open a task linked to this customer. Null hides the linked tasks. */
+    onOpenTask: ((taskId: String) -> Unit)? = null,
     callerIdName: String = "",
     /** #695: Unmerge is gated like merge (settings.manage); the line is for everyone. */
     canUnmerge: Boolean = false,
@@ -266,6 +271,7 @@ internal fun ContactDetailScreen(
                 onDeleted = onBack,
                 onOpenConversation = onOpenConversation,
                 onComposeNew = onComposeNew,
+                onOpenTask = onOpenTask,
             )
         }
     }
@@ -287,6 +293,7 @@ private fun ContactDetailBody(
     onDeleted: () -> Unit,
     onOpenConversation: ((String) -> Unit)?,
     onComposeNew: ((String) -> Unit)?,
+    onOpenTask: ((String) -> Unit)?,
 ) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
@@ -969,6 +976,18 @@ private fun ContactDetailBody(
         // so a long relationship is many conversations; this is the overview
         // and the Calls section below stays as the detail view (voicemail
         // plays in place there).
+        if (onOpenTask != null) {
+            Column {
+                SectionHeader(t("taskLinks.linkedTasks"))
+                LinkedTasksList(
+                    repo = remember(graph) { ReferenceRepository(graph.api) },
+                    companyId = companyId,
+                    owner = LinkedOwner.Contact(contact.id),
+                    onOpenTask = onOpenTask,
+                )
+            }
+        }
+
         ContactTimelineSection(
             graph = graph,
             mutations = mutations,

@@ -1,6 +1,9 @@
 package com.loonext.android.features.tasks
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -182,7 +185,34 @@ internal fun TaskBoard(
 
         is LoadState.Ready -> {
             val snapshot = current.value
-            Row(
+            if (extra.group != TaskGroup.Status) {
+                // #689 G: columns by assignee or priority instead of by status.
+                GroupedBoard(
+                    todo = snapshot.todo,
+                    done = snapshot.done,
+                    group = extra.group,
+                    hasMore = snapshot.todoHasMore || snapshot.doneHasMore,
+                    onLoadMore = {
+                        scope.launch {
+                            runCatching {
+                                val todoPage = if (snapshot.todoHasMore) snapshot.todoLoader.nextPage() else emptyList()
+                                val donePage = if (snapshot.doneHasMore) snapshot.doneLoader.nextPage() else emptyList()
+                                cache.put(
+                                    cacheKey,
+                                    snapshot.copy(
+                                        todo = snapshot.todo + todoPage,
+                                        done = snapshot.done + donePage,
+                                        todoHasMore = snapshot.todoLoader.hasMore,
+                                        doneHasMore = snapshot.doneLoader.hasMore,
+                                    ),
+                                )
+                            }
+                        }
+                    },
+                    onOpenTask = onOpenTask,
+                    onToggleDone = onToggleDone,
+                )
+            } else Row(
                 Modifier
                     .fillMaxSize()
                     .padding(horizontal = 18.dp),
@@ -260,6 +290,9 @@ private fun BoardColumn(
     onOpenTask: (String) -> Unit,
     onMove: (Task) -> Unit,
     modifier: Modifier = Modifier,
+    /** A grouped board mixes done and open cards in one column, so the arrow is per card. */
+    moveLabelFor: ((Task) -> String)? = null,
+    moveIconFor: ((Task) -> androidx.compose.ui.graphics.vector.ImageVector)? = null,
 ) {
     val haptics = rememberHaptics()
     Column(modifier.fillMaxSize()) {
@@ -287,8 +320,8 @@ private fun BoardColumn(
                 items(tasks, key = { it.id }) { task ->
                     BoardCard(
                         task = task,
-                        moveLabel = moveLabel,
-                        moveIcon = moveIcon(),
+                        moveLabel = moveLabelFor?.invoke(task) ?: moveLabel,
+                        moveIcon = moveIconFor?.invoke(task) ?: moveIcon(),
                         onOpen = { onOpenTask(task.id) },
                         onMove = { onMove(task) },
                         modifier = Modifier.animateItem(),
@@ -358,15 +391,18 @@ private fun BoardCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val overdue = isOverdue(task)
+                val dueLine = when {
+                    task.due_at == null -> ""
+                    overdue -> t("contactsTasks.overdue")
+                    else -> t(
+                        "contactsTasks.dueWhen",
+                        "when" to formatDue(task.due_at, locale = LocalAppLocale.current),
+                    )
+                }
                 Text(
-                    when {
-                        task.due_at == null -> ""
-                        overdue -> t("contactsTasks.overdue")
-                        else -> t(
-                            "contactsTasks.dueWhen",
-                            "when" to formatDue(task.due_at, locale = LocalAppLocale.current),
-                        )
-                    },
+                    // #690: "T-142 · due tomorrow".
+                    listOfNotNull(task.number?.let { taskNumberLabel(it) }, dueLine.ifEmpty { null })
+                        .joinToString(" · "),
                     fontSize = 11.5.sp,
                     fontWeight = if (overdue) FontWeight.SemiBold else FontWeight.Normal,
                     // Overdue = olive emphasis, never a red scare.
@@ -423,6 +459,63 @@ private fun BoardSkeleton() {
                     Spacer(Modifier.height(8.dp))
                 }
             }
+        }
+    }
+}
+
+/**
+ * The board with its columns chosen by [group] (assignee or priority): the same
+ * cards as the status board, laid out as one scrolling row of columns. A card's
+ * own arrow still flips done, so nothing here is a second way to finish a task.
+ */
+@Composable
+private fun GroupedBoard(
+    todo: List<Task>,
+    done: List<Task>,
+    group: TaskGroup,
+    hasMore: Boolean,
+    onLoadMore: () -> Unit,
+    onOpenTask: (String) -> Unit,
+    onToggleDone: (Task, Boolean) -> Unit,
+) {
+    val buckets = bucketTasks(todo + done, group) { task ->
+        taskAssigneeNames(task.assigneeIdList, task.assignees) { null }.firstOrNull()
+    }
+    val labels = buckets.map { bucket -> bucket.name ?: bucket.labelKey?.let { t(it) }.orEmpty() }
+    val toDone = t("contactsTasks.moveToDone")
+    val toToDo = t("contactsTasks.moveToToDo")
+    val haptics = rememberHaptics()
+    Row(
+        Modifier
+            .fillMaxSize()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        buckets.forEachIndexed { index, bucket ->
+            BoardColumn(
+                title = labels[index],
+                count = bucket.tasks.size,
+                tasks = bucket.tasks,
+                emptyCopy = "",
+                hasMore = false,
+                moveLabel = toDone,
+                moveIcon = { Icons.AutoMirrored.Outlined.ArrowForward },
+                moveLabelFor = { task -> if (task.done) toToDo else toDone },
+                moveIconFor = { task ->
+                    if (task.done) Icons.AutoMirrored.Outlined.Undo else Icons.AutoMirrored.Outlined.ArrowForward
+                },
+                onLoadMore = {},
+                onOpenTask = onOpenTask,
+                onMove = { task -> onToggleDone(task, !task.done) },
+                modifier = Modifier.width(260.dp),
+            )
+        }
+        if (hasMore) {
+            TextButton(onClick = {
+                haptics.tap()
+                onLoadMore()
+            }) { Text(t("contactsTasks.loadMore")) }
         }
     }
 }

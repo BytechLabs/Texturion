@@ -98,6 +98,8 @@ data class Task(
      */
     val assignee_ids: List<String> = emptyList(),
     val assignees: List<TaskProfile> = emptyList(),
+    /** #690: the workspace-wide task number, shown as "T-142". Null on an older server. */
+    val number: Int? = null,
 )
 
 /** #693: a workspace tag as it appears on a task. */
@@ -242,7 +244,25 @@ data class TaskFeedItem(
     val author: TaskProfile? = null,
     val edited_at: String? = null,
     val attachments: List<TaskFeedFile> = emptyList(),
+    // kind = reference (#690): "in" = something points at this task, "out" = this
+    // task's own text points elsewhere.
+    val direction: String? = null,
+    /** "note", "task_description" or "task_comment". */
+    val source_kind: String? = null,
+    /** For direction "out": "task", "contact" or "conversation". */
+    val target_kind: String? = null,
+    val conversation_id: String? = null,
+    val contact: TaskRefContact? = null,
+    val task: TaskRefTask? = null,
 )
+
+/** #690: the contact on a reference item. */
+@Serializable
+data class TaskRefContact(val id: String, val name: String? = null)
+
+/** #690: the task on a reference item. */
+@Serializable
+data class TaskRefTask(val id: String, val number: Int? = null, val title: String? = null)
 
 /**
  * #294 — POST /v1/tasks/:id/photos/share.
@@ -363,6 +383,8 @@ data class TaskDetail(
      */
     val assignee_ids: List<String> = emptyList(),
     val assignees: List<TaskProfile> = emptyList(),
+    /** #690: the workspace-wide task number, shown as "T-142". Null on an older server. */
+    val number: Int? = null,
 )
 
 // ---------------------------------------------------------------------------

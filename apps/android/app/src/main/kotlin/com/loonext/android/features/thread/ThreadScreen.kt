@@ -138,6 +138,9 @@ import com.loonext.android.features.compose.bannerKind
 import com.loonext.android.features.contacts.contactRepeatBadge
 import com.loonext.android.features.settings.openExternal
 import com.loonext.android.features.settings.supportMailto
+import com.loonext.android.features.tasks.ReferenceSource
+import com.loonext.android.features.tasks.ReferenceTarget
+import com.loonext.android.features.tasks.rememberReferenceSource
 import com.loonext.android.features.settings.supportSituation
 import com.loonext.android.features.settings.supportSubjectFor
 import com.loonext.android.features.tasks.CallTaskButton
@@ -226,6 +229,15 @@ fun ThreadScreen(
     // controller's snackbars.
     val readerLocale = LocalAppLocale.current
     val repo = remember(graph) { MessagingRepository(graph.api) }
+    // #690: chips in internal notes and the `#` picker in the note box. A tap
+    // opens the task, customer or conversation the chip names.
+    val references = rememberReferenceSource(graph, companyId) { target ->
+        when (target) {
+            is ReferenceTarget.Task -> onOpenTask?.invoke(target.id)
+            is ReferenceTarget.Contact -> onOpenContact?.invoke(target.id)
+            is ReferenceTarget.Conversation -> onOpenConversation?.invoke(target.id)
+        }
+    }
     val uploader = remember(graph, readerLocale) {
         NoteFileUploader(graph.api, BuildConfig.API_URL, readerLocale)
     }
@@ -366,6 +378,7 @@ fun ThreadScreen(
                 } else {
                     ThreadLoaded(
                         graph = graph,
+                        references = references,
                         controller = controller,
                         repo = repo,
                         companyId = companyId,
@@ -452,6 +465,7 @@ fun ThreadScreen(
 @Composable
 private fun ThreadLoaded(
     graph: AppGraph,
+    references: ReferenceSource,
     controller: ThreadController,
     repo: MessagingRepository,
     companyId: String,
@@ -824,6 +838,7 @@ private fun ThreadLoaded(
                                 val message = item.message
                                 MessageBubble(
                                     message = message,
+                                    references = references,
                                     // #101 shared-inbox attribution: in a shared
                                     // inbox the first question about an
                                     // outbound text is who already answered
@@ -1190,6 +1205,7 @@ private fun ThreadLoaded(
 
         ThreadComposer(
             state = composer,
+            references = references,
             noteOnly = detail.viewer_level == "note",
             readOnly = viewerReadOnly,
             hasJobToday = hasJobToday,
@@ -1408,6 +1424,7 @@ private fun ThreadLoaded(
     if (contactPanelOpen) {
         ContactPanelSheet(
             controller = controller,
+            references = references,
             members = controller.members,
             onOpenConversation = onOpenConversation?.let { open ->
                 { conversationId ->

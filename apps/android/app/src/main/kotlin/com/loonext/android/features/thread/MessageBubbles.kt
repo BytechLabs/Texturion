@@ -80,6 +80,8 @@ import com.loonext.android.core.model.sendFailureMessage
 import com.loonext.android.features.compose.MmsKind
 import com.loonext.android.features.compose.icon
 import com.loonext.android.features.compose.mmsKindOf
+import com.loonext.android.features.tasks.ReferenceSource
+import com.loonext.android.features.tasks.ReferenceText
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.touchTarget
@@ -149,6 +151,8 @@ fun MessageBubble(
     onOpenFile: (Attachment) -> Unit,
     onOpenAttachment: (AttachmentSummary) -> Unit,
     onOpenTask: ((taskId: String) -> Unit)? = null,
+    /** #690: draws `#T-142` and friends as chips. Only an internal note uses it. */
+    references: ReferenceSource? = null,
     modifier: Modifier = Modifier,
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
@@ -244,7 +248,18 @@ fun MessageBubble(
                     )
                 }
 
-            if (message.body.isNotBlank()) {
+            if (message.body.isNotBlank() && note && references != null) {
+                // An internal note only: the words to a customer are never read for references.
+                ReferenceText(
+                    text = message.body,
+                    source = references,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        textDecoration = if (done) TextDecoration.LineThrough else null,
+                    ),
+                )
+            } else if (message.body.isNotBlank()) {
                 Text(
                     message.body,
                     style = MaterialTheme.typography.bodyMedium.copy(

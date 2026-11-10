@@ -22,6 +22,8 @@ data class SearchTaskHit(
     val conversation_id: String,
     val done: Boolean = false,
     val matched_at: String,
+    /** #690: the task number, so a picker can write `#T-142`. */
+    val number: Int? = null,
 )
 
 @Serializable

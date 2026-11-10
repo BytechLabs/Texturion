@@ -904,6 +904,9 @@ private fun ReadyShell(
                         onOpenConversation = { conversationId, messageId ->
                             push(Overlay.Thread(conversationId, messageId))
                         },
+                        // #690: a chip or a link in the task opens its target.
+                        onOpenTask = { push(Overlay.Task(it)) },
+                        onOpenContact = { push(Overlay.Contact(it)) },
                     )
 
                     is Overlay.Contact -> ContactDetailScreen(
@@ -926,6 +929,7 @@ private fun ReadyShell(
                         onBack = { pop() },
                         onOpenConversation = { push(Overlay.Thread(it)) },
                         onComposeNew = { push(Overlay.Compose(it)) },
+                        onOpenTask = { push(Overlay.Task(it)) },
                     )
 
                     is Overlay.Compose -> NewConversationScreen(

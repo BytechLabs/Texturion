@@ -82,6 +82,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -89,6 +93,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -170,6 +176,10 @@ internal fun TaskDetailScreen(
     onBack: () -> Unit,
     onOpenConversation: ((conversationId: String, messageId: String?) -> Unit)?,
     modifier: Modifier = Modifier,
+    /** #690: a chip or a link in the task opens another task. */
+    onOpenTask: ((taskId: String) -> Unit)? = null,
+    /** #690: a customer chip opens the customer. */
+    onOpenContact: ((contactId: String) -> Unit)? = null,
 ) {
     BackHandler(onBack = onBack)
 
@@ -289,6 +299,8 @@ internal fun TaskDetailScreen(
             onDeleted = onBack,
             onBack = onBack,
             onOpenConversation = onOpenConversation,
+            onOpenTask = onOpenTask,
+            onOpenContact = onOpenContact,
             modifier = modifier,
         )
     }
@@ -388,12 +400,23 @@ private fun TaskDetailBody(
     onDeleted: () -> Unit,
     onBack: () -> Unit,
     onOpenConversation: ((String, String?) -> Unit)?,
+    onOpenTask: ((String) -> Unit)?,
+    onOpenContact: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     val locale = LocalAppLocale.current
     val teammateLabel = t("contactsTasks.teammate")
+    // #690: one resolver for the chips in the description, the notes, the
+    // comments and the composer below. A tap opens what the chip names.
+    val references = rememberReferenceSource(graph, companyId) { target ->
+        when (target) {
+            is ReferenceTarget.Task -> onOpenTask?.invoke(target.id)
+            is ReferenceTarget.Contact -> onOpenContact?.invoke(target.id)
+            is ReferenceTarget.Conversation -> onOpenConversation?.invoke(target.id, null)
+        }
+    }
     val notSavedLabel = t("contactsTasks.scopeNotSaved")
     val noAccess = detail.viewer_level == "none"
 
@@ -716,6 +739,21 @@ private fun TaskDetailBody(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
+                    detail.number?.let { number ->
+                        Text(
+                            taskNumberLabel(number),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.semantics {
+                                contentDescription = AppStrings.translate(
+                                    locale,
+                                    "taskLinks.numberLabel",
+                                    mapOf("number" to "$number"),
+                                )
+                            },
+                        )
+                    }
                     // AnimatedContent so the done flip morphs the chip instead
                     // of hard-swapping it.
                     AnimatedContent(
@@ -1093,6 +1131,22 @@ private fun TaskDetailBody(
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
+                            references = references,
+                        )
+                    }
+                }
+
+                if (!noAccess) {
+                    item(key = "links") {
+                        TaskLinksSection(
+                            repo = references.repo,
+                            companyId = companyId,
+                            taskId = detail.id,
+                            canEdit = true,
+                            reloadKey = detail.updated_at.hashCode() + feedReload,
+                            onOpenTask = onOpenTask,
+                            onLinksChanged = { feedReload++ },
+                            modifier = Modifier.padding(horizontal = 18.dp).padding(top = 14.dp),
                         )
                     }
                 }
@@ -1207,6 +1261,7 @@ private fun TaskDetailBody(
                             author = who ?: teammateLabel,
                             body = item.body.orEmpty(),
                             createdAt = item.created_at,
+                            references = references,
                             modifier = Modifier.animateItem(),
                         )
 
@@ -1221,6 +1276,7 @@ private fun TaskDetailBody(
                             taskId = detail.id,
                             onChanged = { feedReload++ },
                             onError = onActionError,
+                            references = references,
                             modifier = Modifier.animateItem(),
                         )
 
@@ -1242,11 +1298,19 @@ private fun TaskDetailBody(
                             Text(
                                 t(
                                     "contactsTasks.activityLine",
-                                    "sentence" to taskHistorySentence(
-                                        item,
-                                        by = who ?: "Loonext",
-                                        locale = locale,
-                                    ),
+                                    "sentence" to if (item.kind == "reference") {
+                                        taskReferenceSentence(
+                                            item,
+                                            by = who ?: "Loonext",
+                                            locale = locale,
+                                        )
+                                    } else {
+                                        taskHistorySentence(
+                                            item,
+                                            by = who ?: "Loonext",
+                                            locale = locale,
+                                        )
+                                    },
                                     "when" to relativeTime(item.created_at),
                                 ),
                                 fontSize = 12.sp,
@@ -1270,6 +1334,7 @@ private fun TaskDetailBody(
                 companyId = companyId,
                 conversationId = if (asComment) null else noteConversation,
                 taskId = detail.id,
+                references = references,
                 onPosted = {
                     feedReload++
                     onChanged()
@@ -1947,17 +2012,43 @@ private fun InlineEditField(
     textStyle: androidx.compose.ui.text.TextStyle,
     onSave: suspend (String) -> String?,
     modifier: Modifier = Modifier,
+    /** #690: when set, `#` opens the picker and a read view draws chips. */
+    references: ReferenceSource? = null,
 ) {
-    var value by remember(key) { mutableStateOf(initial) }
+    var field by remember(key) { mutableStateOf(TextFieldValue(initial)) }
+    val value = field.text
     var focused by remember(key) { mutableStateOf(false) }
     var error by remember(key) { mutableStateOf<String?>(null) }
+    var editRequested by remember(key) { mutableStateOf(false) }
+    val focusRequester = remember(key) { FocusRequester() }
     val scope = rememberCoroutineScope()
+    val showChips = references != null && !focused && !editRequested &&
+        parseReferenceTokens(value).isNotEmpty()
+    LaunchedEffect(editRequested) {
+        if (editRequested) focusRequester.requestFocus()
+    }
 
     Column(modifier) {
+        if (showChips) {
+            // The read view: chips open their target, a tap anywhere else edits.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { editRequested = true }
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+            ) {
+                ReferenceText(
+                    text = value,
+                    source = references,
+                    style = textStyle,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        } else {
         OutlinedTextField(
-            value = value,
+            value = field,
             onValueChange = {
-                value = it.take(maxLength)
+                field = it.copy(text = it.text.take(maxLength))
                 error = null
             },
             textStyle = textStyle,
@@ -1979,20 +2070,30 @@ private fun InlineEditField(
             keyboardOptions = KeyboardOptions.Default,
             modifier = Modifier
                 .fillMaxWidth()
+                .focusRequester(focusRequester)
                 .onFocusChanged { focusState ->
                     val wasFocused = focused
                     focused = focusState.isFocused
                     if (wasFocused && !focusState.isFocused) {
+                        editRequested = false
                         val trimmed = value.trim()
                         if (trimmed == initial.trim()) return@onFocusChanged
                         if (trimmed.isEmpty() && !allowEmpty) {
-                            value = initial // empty snaps back
+                            field = TextFieldValue(initial) // empty snaps back
                             return@onFocusChanged
                         }
                         scope.launch { error = onSave(trimmed) }
                     }
                 },
         )
+        }
+        if (focused) {
+            ReferencePickerFor(
+                source = references,
+                value = field,
+                onValueChange = { field = it.copy(text = it.text.take(maxLength)) },
+            )
+        }
         if (error != null) {
             Text(
                 error.orEmpty(),
@@ -2150,6 +2251,7 @@ private fun NoteCard(
     author: String,
     body: String,
     createdAt: String,
+    references: ReferenceSource?,
     modifier: Modifier = Modifier,
 ) {
     val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.75f)
@@ -2193,10 +2295,10 @@ private fun NoteCard(
             )
         }
         if (body.isNotBlank()) {
-            Text(
-                body,
-                fontSize = 12.5.sp,
-                lineHeight = 18.sp,
+            ReferenceText(
+                text = body,
+                source = references,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp, lineHeight = 18.sp),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = 3.dp),
             )
@@ -2216,6 +2318,7 @@ private fun CommentCard(
     taskId: String,
     onChanged: () -> Unit,
     onError: (String?) -> Unit,
+    references: ReferenceSource?,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -2322,10 +2425,10 @@ private fun CommentCard(
                 }) { Text(t("common.cancel")) }
             }
         } else {
-            Text(
-                item.body.orEmpty(),
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
+            ReferenceText(
+                text = item.body.orEmpty(),
+                source = references,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 18.sp),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = 3.dp),
             )
@@ -2376,6 +2479,7 @@ private fun NoteComposer(
     // Null posts a comment on the task instead of a note in its thread.
     conversationId: String?,
     taskId: String,
+    references: ReferenceSource?,
     onPosted: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -2386,7 +2490,8 @@ private fun NoteComposer(
     // composition, so their sentences are resolved from a locale read here.
     val locale = LocalAppLocale.current
 
-    var body by remember(taskId) { mutableStateOf("") }
+    var bodyField by remember(taskId) { mutableStateOf(TextFieldValue("")) }
+    val body = bodyField.text
     var staged by remember(taskId) { mutableStateOf(listOf<StagedFile>()) }
     var posting by remember(taskId) { mutableStateOf(false) }
     var error by remember(taskId) { mutableStateOf<String?>(null) }
@@ -2456,6 +2561,13 @@ private fun NoteComposer(
                 modifier = Modifier.padding(vertical = 2.dp),
             )
         }
+        // #690: `#` offers a task, a customer or a conversation. This composer
+        // writes internal notes and task comments only; never a text to a customer.
+        ReferencePickerFor(
+            source = references,
+            value = bodyField,
+            onValueChange = { bodyField = it.copy(text = it.text.take(NOTE_BODY_MAX)) },
+        )
         Surface(
             shape = RoundedCornerShape(26.dp),
             color = MaterialTheme.colorScheme.surface,
@@ -2481,9 +2593,9 @@ private fun NoteComposer(
                     )
                 }
                 BasicTextField(
-                    value = body,
+                    value = bodyField,
                     onValueChange = {
-                        body = it.take(NOTE_BODY_MAX)
+                        bodyField = it.copy(text = it.text.take(NOTE_BODY_MAX))
                         error = null
                     },
                     textStyle = LocalTextStyle.current.copy(
@@ -2562,7 +2674,7 @@ private fun NoteComposer(
                                         failures++
                                     }
                                 }
-                                body = ""
+                                bodyField = TextFieldValue("")
                                 staged = emptyList()
                                 error = if (failures > 0) {
                                     AppStrings.translate(

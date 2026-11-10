@@ -84,6 +84,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -94,6 +96,10 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.features.thread.MentionLogic
+import com.loonext.android.features.tasks.ReferencePickerPanel
+import com.loonext.android.features.tasks.ReferenceSource
+import com.loonext.android.features.tasks.composerReferenceQuery
+import com.loonext.android.features.tasks.insertReference
 import com.loonext.android.features.thread.MentionableMember
 import com.loonext.android.features.thread.PickedMention
 import com.loonext.android.core.model.DestinationClock
@@ -444,6 +450,11 @@ fun ThreadComposer(
     onScheduleSend: (
         suspend (body: String, sendAtIso: String, quietHoursConfirmed: Boolean) -> ScheduleOutcome
     )? = null,
+    /**
+     * #690: the `#` picker for an internal NOTE. Null shows no picker. It is
+     * only ever consulted in note mode: a text to a customer keeps a `#` as a `#`.
+     */
+    references: ReferenceSource? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -467,6 +478,7 @@ fun ThreadComposer(
 
     var templatePickerOpen by remember { mutableStateOf(false) }
     var mentionPickerOpen by remember { mutableStateOf(false) }
+    var caret by remember { mutableIntStateOf(0) }
 
     /**
      * #475: which saved reply is in the box, and what it said when it arrived.
@@ -1103,6 +1115,21 @@ fun ThreadComposer(
             )
         }
 
+        // #690: `#` in an internal note offers a task, a customer or a
+        // conversation. composerReferenceQuery is the only door and it answers
+        // null for a text, so nothing here can open while writing to a customer.
+        val referenceQuery = composerReferenceQuery(isNote, state.text, caret)
+        if (references != null && referenceQuery != null) {
+            ReferencePickerPanel(
+                source = references,
+                query = referenceQuery,
+                onPick = { insert ->
+                    val (next, _) = insertReference(state.text, referenceQuery, caret, insert)
+                    state.onTextChange(next)
+                },
+            )
+        }
+
         // Mode colors crossfade (#185) so a swipe reads as one smooth turn of
         // the pill, not a hard repaint.
         val pillBg by animateColorAsState(
@@ -1295,6 +1322,7 @@ fun ThreadComposer(
                 },
                 placeholder = if (isNote) t("thread.notePlaceholder")
                 else t("thread.textPlaceholder"),
+                onCaretChange = { caret = it },
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 4.dp),
@@ -1596,10 +1624,20 @@ fun ComposerField(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
+    /** Where the caret is, for a picker that opens at it. Nothing is read from the words here. */
+    onCaretChange: ((Int) -> Unit)? = null,
 ) {
+    // The field keeps its own selection so the caret can be reported; a change
+    // that arrives from outside (a saved reply, a picked mention) moves it to the end.
+    var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
+    LaunchedEffect(field.selection.end) { onCaretChange?.invoke(field.selection.end) }
     BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
+        value = field,
+        onValueChange = {
+            field = it
+            if (it.text != value) onValueChange(it.text)
+        },
         textStyle = MaterialTheme.typography.bodyLarge.copy(
             color = MaterialTheme.colorScheme.onSurface,
         ),

@@ -69,8 +69,16 @@ data class TaskListFilters(
     /** #693: priorities to keep (sent as a comma list), a workspace tag, a sort. */
     val priorities: List<String> = emptyList(),
     val tagId: String? = null,
-    /** "due" or "priority"; null leaves the server's created order. */
+    /** "due", "priority" or "updated"; null leaves the server's created order. */
     val sort: String? = null,
+    /** #690: a customer (their own tasks and those of their conversations). */
+    val contactId: String? = null,
+    /** #690: [ASSIGNEE_ME] or a member id. */
+    val createdBy: String? = null,
+    /** #690: "text", "call" or "none". */
+    val source: String? = null,
+    val hasAttachments: Boolean = false,
+    val hasReferences: Boolean = false,
 )
 
 /**
@@ -111,6 +119,11 @@ fun taskQueryParams(
         "priority" to filters.priorities.joinToString(",").ifEmpty { null },
         "tag_id" to filters.tagId,
         "sort" to filters.sort,
+        "contact_id" to filters.contactId,
+        "created_by" to filters.createdBy,
+        "source" to filters.source,
+        "has_attachments" to if (filters.hasAttachments) "true" else null,
+        "has_references" to if (filters.hasReferences) "true" else null,
         "cursor" to cursor,
         "limit" to limit.toString(),
     )
@@ -162,7 +175,8 @@ fun taskListArms(
     clock: Clock = Clock.systemDefaultZone(),
     extra: TaskExtraFilters = TaskExtraFilters(),
 ): List<TaskListFilters> {
-    val dueFilters = due?.let { dueChipFilters(it, clock) } ?: TaskListFilters()
+    val dueFilters = due?.let { dueChipFilters(it, clock) }
+        ?: TaskListFilters(dueAfter = extra.dueAfter, dueBefore = extra.dueBefore)
     val query = q?.trim()?.ifEmpty { null }
 
     val baseAssignee = when {
@@ -183,6 +197,11 @@ fun taskListArms(
         priorities = TaskPriority.PICKER.filter { it in extra.priorities },
         tagId = extra.tagId,
         sort = extra.sort.wire,
+        contactId = extra.contactId,
+        createdBy = extra.createdBy,
+        source = extra.source,
+        hasAttachments = extra.hasAttachments,
+        hasReferences = extra.hasReferences,
     )
 
     return when (tab) {

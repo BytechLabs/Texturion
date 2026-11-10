@@ -214,10 +214,70 @@ fun taskHistorySentence(
             ?.let { say("contactsTasks.histRepeat", "rule" to repeatSummary(it, locale)) }
             ?: say("contactsTasks.histRepeatCleared")
 
+        // #690: "Blocked by T-4 Order the part", "Sub-task of ...", and the removals.
+        "link_added", "link_removed" -> {
+            val added = item.event == "link_added"
+            val link = linkedTaskOf(if (added) item.to else item.from)
+            if (link == null) {
+                say("contactsTasks.histUpdated")
+            } else {
+                say(TaskRelation.historyKey(link.first, added), "task" to link.second)
+            }
+        }
+
         "done" -> say("contactsTasks.histDone")
         "reopened" -> say("contactsTasks.histReopened")
         "deleted" -> say("contactsTasks.histDeleted")
         else -> say("contactsTasks.histUpdated")
+    }
+}
+
+/**
+ * The relation and the other task's label out of a link event's `from` / `to`
+ * value ({relation, task_id, number, title}). Null when it is not one.
+ */
+internal fun linkedTaskOf(element: kotlinx.serialization.json.JsonElement?): Pair<String, String>? {
+    val obj = element as? kotlinx.serialization.json.JsonObject ?: return null
+    fun text(key: String): String? =
+        (obj[key] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
+    val relation = text("relation") ?: return null
+    val number = (obj["number"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+    val label = taskLinkLabel(number, text("title").orEmpty())
+    return relation to label.ifBlank { "" }
+}
+
+/**
+ * One quiet line for a "reference" item in a task's activity (#690): something
+ * points at this task (direction "in") or this task's own text points elsewhere
+ * ("out"). [by] is the resolved author name.
+ */
+fun taskReferenceSentence(item: TaskFeedItem, by: String, locale: String? = null): String {
+    fun say(key: String, vararg vars: Pair<String, String>) =
+        AppStrings.translate(locale, key, mapOf("by" to by) + vars.toMap())
+
+    val someone = AppStrings.translate(locale, "taskLinks.someone")
+    val another = AppStrings.translate(locale, "taskLinks.anotherTask")
+    val contactName = item.contact?.name?.takeIf { it.isNotBlank() }
+    val taskLabel = item.task?.let { taskLinkLabel(it.number, it.title.orEmpty()).ifBlank { another } } ?: another
+    return if (item.direction == "out") {
+        when (item.target_kind) {
+            "contact" -> say("taskLinks.refOutContact", "who" to (contactName ?: someone))
+            "conversation" -> say("taskLinks.refOutConversation", "who" to (contactName ?: someone))
+            "task" -> say("taskLinks.refOutTask", "task" to taskLabel)
+            else -> say("taskLinks.refSomething")
+        }
+    } else {
+        when (item.source_kind) {
+            "note" -> if (contactName != null) {
+                say("taskLinks.refInNote", "who" to contactName)
+            } else {
+                say("taskLinks.refInNoteNoName")
+            }
+
+            "task_description" -> say("taskLinks.refInDescription", "task" to taskLabel)
+            "task_comment" -> say("taskLinks.refInComment", "task" to taskLabel)
+            else -> say("taskLinks.refSomething")
+        }
     }
 }
 

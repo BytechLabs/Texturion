@@ -49,6 +49,9 @@ import com.loonext.android.features.contacts.CONTACT_ADDRESS_MAX
 import com.loonext.android.features.contacts.CONTACT_NAME_MAX
 import com.loonext.android.features.contacts.CONTACT_NOTES_MAX
 import com.loonext.android.features.contacts.consentLine
+import com.loonext.android.features.tasks.LinkedOwner
+import com.loonext.android.features.tasks.LinkedTasksList
+import com.loonext.android.features.tasks.ReferenceSource
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
@@ -80,6 +83,8 @@ internal fun ContactPanelSheet(
      */
     onOpenContact: ((contactId: String) -> Unit)?,
     onDismiss: () -> Unit,
+    /** #690: the tasks that point at this conversation. Null hides the section. */
+    references: ReferenceSource? = null,
 ) {
     val detail = controller.conversation ?: return
     val contact = controller.contact
@@ -195,6 +200,17 @@ internal fun ContactPanelSheet(
                     onToggle = { controller.toggleTaskDone(it) },
                     onOpenTask = onOpenTask,
                 )
+            }
+
+            if (references != null) {
+                SheetSection(t("taskLinks.linkedTasks")) {
+                    LinkedTasksList(
+                        repo = references.repo,
+                        companyId = references.companyId,
+                        owner = LinkedOwner.Conversation(detail.id),
+                        onOpenTask = onOpenTask,
+                    )
+                }
             }
 
             SheetSection(t("thread.sectionOtherConversations")) {

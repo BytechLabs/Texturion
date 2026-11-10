@@ -48,6 +48,14 @@ enum class TaskSort(val wire: String?, val labelKey: String) {
     Created(null, "contactsTasks.sortCreated"),
     Due("due", "contactsTasks.sortDue"),
     Priority("priority", "contactsTasks.sortPriority"),
+    Updated("updated", "taskViews.sortUpdated"),
+}
+
+/** #689 G: how the board (and the list sections) group tasks. A view setting: no request carries it. */
+enum class TaskGroup(val wire: String, val labelKey: String) {
+    Status("status", "taskViews.groupStatus"),
+    Assignee("assignee", "taskViews.groupAssignee"),
+    Priority("priority", "taskViews.groupPriority"),
 }
 
 /** The #693 filter dimensions, carried beside the tab and chips as one value. */
@@ -55,18 +63,54 @@ data class TaskExtraFilters(
     val priorities: Set<String> = emptySet(),
     val tagId: String? = null,
     val sort: TaskSort = TaskSort.Created,
+    /** #690: the customer, whoever made it, where it came from, and what it carries. */
+    val contactId: String? = null,
+    val createdBy: String? = null,
+    val source: String? = null,
+    val hasAttachments: Boolean = false,
+    val hasReferences: Boolean = false,
+    /** A due window that came from a saved view; the Overdue / Today / Week chips are separate. */
+    val dueAfter: String? = null,
+    val dueBefore: String? = null,
+    val group: TaskGroup = TaskGroup.Status,
 ) {
-    val isFiltering: Boolean get() = priorities.isNotEmpty() || tagId != null
+    val isFiltering: Boolean
+        get() = priorities.isNotEmpty() || tagId != null || contactId != null ||
+            createdBy != null || source != null || hasAttachments || hasReferences ||
+            dueAfter != null || dueBefore != null
+
+    /** How many of the Filters sheet's own filters are on (the number on the pill). */
+    val activeCount: Int
+        get() = listOf(
+            priorities.isNotEmpty(), tagId != null, contactId != null, createdBy != null,
+            source != null, hasAttachments, hasReferences, dueAfter != null || dueBefore != null,
+        ).count { it }
 
     /** True when anything differs from the plain list. */
-    val isCustom: Boolean get() = isFiltering || sort != TaskSort.Created
+    val isCustom: Boolean get() = isFiltering || sort != TaskSort.Created || group != TaskGroup.Status
 
     /** Stable text for cache keys: the same filters always spell the same. */
-    fun key(): String = listOf(
-        TaskPriority.PICKER.filter { it in priorities }.joinToString(",").ifEmpty { "-" },
-        tagId ?: "-",
-        sort.wire ?: "-",
-    ).joinToString("/")
+    fun key(): String {
+        val base = listOf(
+            TaskPriority.PICKER.filter { it in priorities }.joinToString(",").ifEmpty { "-" },
+            tagId ?: "-",
+            sort.wire ?: "-",
+        )
+        // The #690 parts are appended only when one is set, so the key of a plain
+        // list is the key it always was.
+        val more = listOf(
+            contactId ?: "-",
+            createdBy ?: "-",
+            source ?: "-",
+            if (hasAttachments) "files" else "-",
+            if (hasReferences) "refs" else "-",
+            dueAfter ?: "-",
+            dueBefore ?: "-",
+            group.wire,
+        )
+        val plain = more.dropLast(1).all { it == "-" } && group == TaskGroup.Status
+        return (if (plain) base else base + more).joinToString("/")
+    }
 }
 
 /** Which occurrences an edit or a delete reaches on a repeating job. */

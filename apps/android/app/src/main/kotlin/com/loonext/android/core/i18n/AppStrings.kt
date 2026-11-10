@@ -74,6 +74,7 @@ object AppStrings {
         SettingsMoreStrings,
         SettingsStrings,
         ShellStrings,
+        TaskLinksStrings,
         ThreadStrings,
         WebhooksStrings,
     )

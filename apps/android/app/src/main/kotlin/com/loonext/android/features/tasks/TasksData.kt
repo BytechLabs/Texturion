@@ -81,13 +81,22 @@ class TaskMutations(private val api: ApiClient) {
             } else if (filters != null) {
                 putJsonObject("filter") {
                     filters.status?.let { put("status", it) }
-                    filters.assignedUserId?.let { put("assigned_user_id", it) }
+                    // "all" is UI sugar for no assignee pin; the server takes ids only.
+                    filters.assignedUserId?.takeUnless { it == ASSIGNEE_ALL }
+                        ?.let { put("assigned_user_id", it) }
                     if (filters.unassigned) put("unassigned", true)
                     if (filters.overdue) put("overdue", true)
                     if (filters.priorities.isNotEmpty()) {
                         putJsonArray("priority") { filters.priorities.forEach { add(it) } }
                     }
                     filters.tagId?.let { put("tag_id", it) }
+                    filters.dueBefore?.let { put("due_before", it) }
+                    filters.dueAfter?.let { put("due_after", it) }
+                    filters.contactId?.let { put("contact_id", it) }
+                    filters.createdBy?.let { put("created_by", it) }
+                    filters.source?.let { put("source", it) }
+                    if (filters.hasAttachments) put("has_attachments", true)
+                    if (filters.hasReferences) put("has_references", true)
                 }
             }
             // Explicit null is meaningful (unassign), so it is only written when
