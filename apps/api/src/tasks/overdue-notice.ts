@@ -20,10 +20,10 @@
 import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "../notifications/deliver";
+import { assigneeMayHear } from "./assignee-access";
 import { dueNoticeBody, dueNoticeLink } from "./due-notice";
 import { TASK_DUE_COPY } from "./due-notice-copy";
 import { TASK_NOTIFY_COPY } from "./notify-copy";
@@ -141,41 +141,4 @@ export async function notifyOverdueTasksJob(
       `task overdue alerts: ${failures.length} step(s) failed`,
     );
   }
-}
-
-/** Active member, and not denied the number the task's thread is on. */
-async function assigneeMayHear(
-  db: SupabaseClient,
-  task: OverdueTaskRow,
-): Promise<boolean> {
-  if (task.conversation_id !== null) {
-    const conversation = await db
-      .from("conversations")
-      .select("phone_number_id")
-      .eq("company_id", task.company_id)
-      .eq("id", task.conversation_id)
-      .limit(1);
-    if (conversation.error) {
-      throw new Error(`conversation lookup failed: ${conversation.error.message}`);
-    }
-    const row = ((conversation.data ?? []) as { phone_number_id: string | null }[])[0];
-    if (!row) return false;
-    const viewers = await listConversationViewers(db, {
-      companyId: task.company_id,
-      phoneNumberId: row.phone_number_id,
-    });
-    return viewers.some((viewer) => viewer.user_id === task.assigned_user_id);
-  }
-
-  const members = await db
-    .from("company_members")
-    .select("user_id")
-    .eq("company_id", task.company_id)
-    .eq("user_id", task.assigned_user_id)
-    .is("deactivated_at", null)
-    .limit(1);
-  if (members.error) {
-    throw new Error(`membership lookup failed: ${members.error.message}`);
-  }
-  return (members.data ?? []).length > 0;
 }

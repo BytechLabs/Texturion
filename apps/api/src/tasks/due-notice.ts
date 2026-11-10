@@ -45,6 +45,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "../notifications/deliver";
+import { assigneeMayHear } from "./assignee-access";
 import { TASK_DUE_COPY } from "./due-notice-copy";
 
 /**
@@ -183,23 +184,16 @@ export async function notifyDueTasksJob(
     }
     if ((claimed ?? []).length === 0) continue;
 
-    // Still one of the crew? Deactivation leaves the assignment in place, so
-    // this is the only thing standing between a removed member and a workspace
-    // they can no longer open.
-    const membership = await db
-      .from("company_members")
-      .select("user_id")
-      .eq("company_id", task.company_id)
-      .eq("user_id", task.assigned_user_id)
-      .is("deactivated_at", null)
-      .limit(1);
-    if (membership.error) {
-      failures.push(
-        new Error(`membership lookup failed: ${membership.error.message}`),
-      );
+    // Still one of the crew, and still allowed the thread's number (#106)?
+    // Deactivation leaves the assignment in place, and a number can be taken
+    // away after the job was assigned, so a title would otherwise reach someone
+    // who can no longer open the conversation it came from.
+    try {
+      if (!(await assigneeMayHear(db, task))) continue;
+    } catch (cause) {
+      failures.push(cause);
       continue;
     }
-    if ((membership.data ?? []).length === 0) continue;
 
     const prefRows = await db
       .from("notification_prefs")

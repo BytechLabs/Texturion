@@ -23,6 +23,7 @@ const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
 const TASK_ID = "77777777-0000-4000-8000-000000000001";
 const ASSIGNEE = "10000000-aaaa-4000-8000-000000000001";
+const NUMBER_ID = "dddddddd-0000-4000-8000-00000000000d";
 const NOW = new Date("2026-07-25T14:00:00.000Z");
 
 afterEach(() => {
@@ -57,6 +58,8 @@ function world(
      * always empty passes while asserting nothing.
      */
     devices?: Record<string, unknown>[];
+    /** The task's thread is on a number the assignee is denied (#106). */
+    deniedOnNumber?: boolean;
   } = {},
 ): SupabaseStub {
   const sb = supabaseStub(env);
@@ -71,8 +74,14 @@ function world(
         : [{ id: TASK_ID }],
   );
   sb.on("GET", "/rest/v1/company_members", () =>
-    options.members ?? [{ user_id: ASSIGNEE }],
+    options.members ?? [{ user_id: ASSIGNEE, role: "member" }],
   );
+  sb.on("GET", "/rest/v1/conversations", () => [
+    { phone_number_id: options.deniedOnNumber ? NUMBER_ID : null },
+  ]);
+  sb.on("POST", "/rest/v1/rpc/number_member_levels", () => [
+    { user_id: ASSIGNEE, role: "member", level: options.deniedOnNumber ? "none" : "text" },
+  ]);
   sb.on("GET", "/rest/v1/notification_prefs", () => options.prefs ?? []);
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
   sb.on("GET", "/rest/v1/device_push_tokens", () => options.devices ?? []);
@@ -208,8 +217,19 @@ describe("notifyDueTasksJob", () => {
     expect(sb.find("GET", "/rest/v1/notification_prefs")).toHaveLength(0);
   });
 
+  it("never reminds someone denied the number the job's thread is on", async () => {
+    // The title is a member's own words and often a customer's address, so a
+    // reminder must not carry it to someone the thread is now hidden from.
+    const sb = world({ deniedOnNumber: true });
+    stubFetch(sb.route);
+
+    await notifyDueTasksJob(env, NOW);
+
+    expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(0);
+  });
+
   it("asks for the assignee's membership scoped to the task's company", async () => {
-    const sb = world();
+    const sb = world({ tasks: [dueTask({ conversation_id: null })] });
     stubFetch(sb.route);
 
     await notifyDueTasksJob(env, NOW);
