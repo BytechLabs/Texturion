@@ -202,6 +202,8 @@ const SUITES = [
   "task_priority_labels_repeats",
   // #689 C: more than one person on a task.
   "task_assignees",
+  // #690: task numbers, references and relations.
+  "task_references",
 ];
 
 const args = process.argv.slice(2);

@@ -73,6 +73,8 @@ declare
     'task_subscribers', 'task_notify_windows',
     -- #689 C: which members are on a task. References only.
     'task_assignees',
+    -- #690: references, relations and the task counter.
+    'record_references', 'task_links', 'task_counters',
     'lead_sources',
     -- #224: text-to-pay.
     'payment_requests', 'stripe_connect_accounts',

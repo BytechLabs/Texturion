@@ -58,6 +58,9 @@ declare
     'task_subscribers', 'task_notify_windows',
     -- #689 C: which members are on a task. References only.
     'task_assignees',
+    -- #690: what a note, a task or a comment points at, which tasks block
+    -- which, and the per-workspace task counter. References and numbers only.
+    'record_references', 'task_links', 'task_counters',
     'number_port_outs',
     -- #291: a customer's addresses, plural. Squarely contact data — it is
     -- where somebody lives, which is the most sensitive thing in the

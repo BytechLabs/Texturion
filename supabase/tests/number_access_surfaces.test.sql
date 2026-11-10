@@ -60,6 +60,13 @@ declare
     -- #689: a task's history and comments. A task on a denied number is not
     -- found, so its comments and field changes never reach the member.
     'api_task_activity',
+    -- #690: a task's relations, what a thread or contact links to, and the two
+    -- writes. A hidden task must not be linked to, listed or confirmed.
+    'api_linked_tasks',
+    'api_resolve_references',
+    'api_set_task_link',
+    'api_sync_references',
+    'api_task_links',
     -- #275: the bulk WRITE surface, and the only one on this roster that is not
     -- a read. It belongs here for a stronger reason than the reads do: a missing
     -- filter on a read leaks rows, and a missing filter here MODIFIES them —
@@ -335,6 +342,46 @@ begin
          where conversation_id = '36800000-0000-4000-8000-000000000030'),
        hidden)->>'outcome' is distinct from 'ok' then
     raise exception 'NA-3 FAILED: api_task_activity hid a task on an allowed number';
+  end if;
+
+  -- #690: the relation, reference and linked-task surfaces. Called first with
+  -- the denied list, read after.
+  if public.api_task_links(co,
+       (select id from public.tasks
+         where conversation_id = '36800000-0000-4000-8000-000000000031'),
+       hidden)->>'outcome' is distinct from 'not_found' then
+    raise exception 'NA-3 FAILED: api_task_links read a task on a denied number';
+  end if;
+  if public.api_linked_tasks(co, 'conversation',
+       '36800000-0000-4000-8000-000000000031', hidden)->>'outcome'
+       is distinct from 'not_found' then
+    raise exception 'NA-3 FAILED: api_linked_tasks listed a denied conversation';
+  end if;
+  if public.api_set_task_link(co,
+       (select id from public.tasks
+         where conversation_id = '36800000-0000-4000-8000-000000000031'),
+       (select id from public.tasks
+         where conversation_id = '36800000-0000-4000-8000-000000000030'),
+       'blocks', true, usr, hidden)->>'outcome' is distinct from 'not_found' then
+    raise exception 'NA-3 FAILED: api_set_task_link linked a task on a denied number';
+  end if;
+  if jsonb_array_length(public.api_sync_references(co, 'task_description',
+       (select id from public.tasks
+         where conversation_id = '36800000-0000-4000-8000-000000000030'),
+       '#T-' || (select number from public.tasks
+                  where conversation_id = '36800000-0000-4000-8000-000000000031'),
+       usr, hidden)->'references') is distinct from 0 then
+    raise exception 'NA-3 FAILED: api_sync_references confirmed a task on a denied number';
+  end if;
+
+  if jsonb_array_length(public.api_resolve_references(co, array[(select number from public.tasks
+         where conversation_id = '36800000-0000-4000-8000-000000000031')],
+       null, null, hidden)->'tasks') is distinct from 0 then
+    raise exception 'NA-3 FAILED: api_resolve_references resolved a task on a denied number';
+  end if;
+  if jsonb_array_length(public.api_resolve_references(co, array[(select number from public.tasks
+         where conversation_id = '36800000-0000-4000-8000-000000000031')])->'tasks') is distinct from 1 then
+    raise exception 'NA-3 FAILED: api_resolve_references hid a task from an unrestricted caller';
   end if;
 
   -- api_for_you
