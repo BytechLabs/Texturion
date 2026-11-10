@@ -351,6 +351,14 @@ enum ShellStrings {
              * that file's.
              */
             "shell.ringing": "Ringing…",
+            // #721: why no phone rang, after a missed call or voicemail.
+            "shell.callRoutingBlocked": "Blocked number",
+            "shell.callRoutingLineBusy": "Line busy",
+            "shell.callRoutingScreened": "Screened as spam",
+            "shell.callRoutingAfterHours": "After hours, nobody on call",
+            "shell.callRoutingPaused": "Line paused",
+            "shell.callRoutingOverCap": "Calling limit reached",
+            "shell.callRoutingNobodyReachable": "Nobody could be rung",
             "shell.withMember": "With {who}",
             "shell.onTheLine": "On the line",
             "shell.leavingVoicemail": "Leaving a voicemail",
@@ -629,6 +637,13 @@ enum ShellStrings {
 
             // ── When calling itself refuses ───────────────────────────────────
             "shell.ringing": "Sonnerie…",
+            "shell.callRoutingBlocked": "Numéro bloqué",
+            "shell.callRoutingLineBusy": "Ligne occupée",
+            "shell.callRoutingScreened": "Filtré comme pourriel",
+            "shell.callRoutingAfterHours": "Hors des heures, personne de garde",
+            "shell.callRoutingPaused": "Ligne en pause",
+            "shell.callRoutingOverCap": "Limite d'appels atteinte",
+            "shell.callRoutingNobodyReachable": "Aucun téléphone n'a pu sonner",
             "shell.withMember": "Avec {who}",
             "shell.onTheLine": "En ligne",
             "shell.leavingVoicemail": "Laisse un message vocal",

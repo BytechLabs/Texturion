@@ -126,15 +126,65 @@ final class CallsLogicTests: XCTestCase {
         XCTAssertFalse(isActionableMiss(call(outcome: "answered")))
     }
 
-    func testScreeningLabelsStayQuietUnlessTheCarrierFlaggedTheCall() {
-        XCTAssertNil(screeningLabel(nil))
-        XCTAssertNil(screeningLabel(""))
-        XCTAssertNil(screeningLabel("no_flag"))
-        XCTAssertNil(screeningLabel("CLEAN"))
-        XCTAssertEqual("Spam likely", screeningLabel("SPAM"))
-        XCTAssertEqual("Spam likely", screeningLabel("fraud_risk"))
-        XCTAssertEqual("Spam likely", screeningLabel("robocall"))
-        XCTAssertNil(screeningLabel("unknown_verdict"))
+    private struct ScreeningVector: Decodable {
+        let result: String?
+        let callerName: String?
+        let spam: Bool
+    }
+
+    /// #721: the cases `packages/shared/src/call-screening.ts` generates. Every
+    /// production call carries `"action":"flag_calls"`, and the old word match
+    /// labelled all of them spam.
+    func testScreeningAgreesWithTheSharedVectors() throws {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var cases: [ScreeningVector] = []
+        while dir.path != "/" {
+            let candidate = dir.appendingPathComponent("packages/shared/vectors/call-screening.json")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                cases = try JSONDecoder().decode([ScreeningVector].self, from: Data(contentsOf: candidate))
+                break
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        XCTAssertFalse(cases.isEmpty, "call-screening.json not found; run node scripts/generate-parity-vectors.mjs")
+        for vector in cases {
+            XCTAssertEqual(
+                callLooksSpam(vector.result, callerName: vector.callerName),
+                vector.spam,
+                "result \(vector.result ?? "nil"), caller \(vector.callerName ?? "nil")"
+            )
+        }
+        XCTAssertEqual("Spam likely", screeningLabel("spam_likely", callerName: nil))
+        XCTAssertNil(screeningLabel(#"{"action":"flag_calls","reputation":0}"#, callerName: nil))
+    }
+
+    private struct RoutingVector: Decodable {
+        let routing: String
+        let reason: String?
+    }
+
+    /// #721: every route's reason, in the web's words.
+    func testRoutingReasonsAgreeWithTheSharedVectors() throws {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var cases: [RoutingVector] = []
+        while dir.path != "/" {
+            let candidate = dir.appendingPathComponent("packages/shared/vectors/call-routing.json")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                cases = try JSONDecoder().decode([RoutingVector].self, from: Data(contentsOf: candidate))
+                break
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        XCTAssertFalse(cases.isEmpty, "call-routing.json not found; run node scripts/generate-parity-vectors.mjs")
+        for vector in cases {
+            XCTAssertEqual(callRoutingReason(vector.routing), vector.reason, vector.routing)
+        }
+        var voicemail = call(outcome: "voicemail")
+        voicemail.routing = "after_hours"
+        XCTAssertEqual(callOutcomeLabel(voicemail), "Voicemail · After hours, nobody on call")
+        var rang = call(outcome: "missed")
+        rang.routing = "rang"
+        XCTAssertEqual(callOutcomeLabel(rang), "Missed")
     }
 
     func testDurationsFormatLikeTheWeb() {

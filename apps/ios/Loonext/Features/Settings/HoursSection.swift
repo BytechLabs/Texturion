@@ -230,6 +230,14 @@ private struct AwayReplyCard: View {
             // swallowed so it never breaks inbound ingest. A switch reading ON
             // while every US customer gets silence is the first week of every
             // US workspace.
+            // #721: the reply fires outside the hours; with none set, only a
+            // closed date sends it.
+            if enabled, !company.business_hours.values.contains(where: { day in
+                guard let day else { return false }
+                return day.open != day.close
+            }) {
+                ReachNote(text: t("settings.awayNoHours"))
+            }
             if enabled, !usSendApproved(company) {
                 ReachNote(
                     text: t(

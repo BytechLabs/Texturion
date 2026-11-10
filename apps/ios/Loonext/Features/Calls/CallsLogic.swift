@@ -40,6 +40,23 @@ func formatCallDuration(_ seconds: Int) -> String {
     return rest == 0 ? "\(minutes)m" : "\(minutes)m \(rest)s"
 }
 
+/// #721: why no phone rang, in the web's words (checked against
+/// `vectors/call-routing.json`); nil when the call rang or predates the column.
+func callRoutingReason(_ routing: String?, _ locale: String? = nil) -> String? {
+    let key: String
+    switch routing {
+    case "blocked": key = "shell.callRoutingBlocked"
+    case "line_busy": key = "shell.callRoutingLineBusy"
+    case "screened": key = "shell.callRoutingScreened"
+    case "after_hours": key = "shell.callRoutingAfterHours"
+    case "paused": key = "shell.callRoutingPaused"
+    case "over_cap": key = "shell.callRoutingOverCap"
+    case "nobody_reachable": key = "shell.callRoutingNobodyReachable"
+    default: return nil
+    }
+    return AppStrings.translate(locale, key)
+}
+
 /// The row's plain-language outcome line (web parity). Outbound speaks from
 /// the crew's side ("You called…", "No answer" — nothing was missed by the
 /// crew). A null outcome is a session still in flight. #191: an answered call
@@ -51,11 +68,12 @@ func callOutcomeLabel(_ call: Call) -> String {
         ? " · \(formatCallDuration(call.forward_seconds))"
         : ""
     let actor = call.answered_by_name
+    let why = callRoutingReason(call.routing).map { " · \($0)" } ?? ""
     switch call.outcome {
     case CallOutcome.missed:
-        return outbound ? "No answer" : "Missed"
+        return outbound ? "No answer" : "Missed" + why
     case CallOutcome.voicemail:
-        return "Voicemail"
+        return "Voicemail" + why
     case CallOutcome.answered:
         if outbound {
             // "Sam called" when the placer is known; "You called" (crew's-side
@@ -75,14 +93,44 @@ func isActionableMiss(_ call: Call) -> Bool {
     call.outcome == CallOutcome.missed && call.direction != "outbound"
 }
 
-/// Honest carrier-screening label from the raw verdict (web parity). Quiet by
-/// design — the verdict came from the network, not from us.
-func screeningLabel(_ result: String?) -> String? {
-    guard let result, !result.isBlank else { return nil }
-    let value = result.lowercased()
-    if value.contains("no_flag") || value.contains("clean") { return nil }
-    let markers = ["spam", "fraud", "scam", "robo", "flag", "spoof"]
-    return markers.contains(where: { value.contains($0) }) ? "Spam likely" : nil
+private func isSpamLikelyWord(_ value: String) -> Bool {
+    value.trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+        .replacingOccurrences(of: "[\\s-]+", with: "_", options: .regularExpression)
+        == "spam_likely"
+}
+
+private func resultSaysSpamLikely(_ result: String) -> Bool {
+    if isSpamLikelyWord(result) { return true }
+    guard let data = result.data(using: .utf8),
+          let parsed = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+    else { return false }
+    if let text = parsed as? String { return isSpamLikelyWord(text) }
+    guard let object = parsed as? [String: Any] else { return false }
+    return object.contains { key, value in
+        if key == "action" { return false }
+        if let text = value as? String { return isSpamLikelyWord(text) }
+        // JSONSerialization hands numbers back as NSNumber, which also casts to
+        // Bool; only a real JSON true counts, as in the TypeScript.
+        if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() {
+            return number.boolValue && isSpamLikelyWord(key)
+        }
+        return false
+    }
+}
+
+/// #721: Swift port of `packages/shared/src/call-screening.ts`, checked against
+/// `vectors/call-screening.json`. True only on Telnyx's explicit `spam_likely`;
+/// the `"action":"flag_calls"` every call carries is our own mode, not a verdict.
+func callLooksSpam(_ result: String?, callerName: String?) -> Bool {
+    if let result, !result.isBlank, resultSaysSpamLikely(result) { return true }
+    guard let callerName, !callerName.isBlank else { return false }
+    return isSpamLikelyWord(callerName)
+}
+
+/// The carrier's spam verdict as a label (web parity); anything else shows nothing.
+func screeningLabel(_ result: String?, callerName: String?) -> String? {
+    callLooksSpam(result, callerName: callerName) ? "Spam likely" : nil
 }
 
 /// "0:42" / "12:04" / "1:02:33" — the live in-call timer.

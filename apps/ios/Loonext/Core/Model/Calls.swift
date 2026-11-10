@@ -56,6 +56,9 @@ struct Call: Codable, Sendable {
     /// anchor. Absent on rows written before the api_list_calls projection
     /// shipped it; readers fall back to `started_at`.
     var answered_at: String? = nil
+    /// #721: where the call went when it arrived. Nil for outbound and older
+    /// calls, and for a cached payload written before the column existed.
+    var routing: String? = nil
 
     /// Display resolution order: contact > CNAM dip > raw number.
     var displayName: String? {

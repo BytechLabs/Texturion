@@ -785,7 +785,7 @@ private struct CallRow: View {
                         // whether the rest of the line is worth reading. Its text
                         // is a fixed literal ("Spam likely"), so giving it
                         // priority costs nothing.
-                        if let label = screeningLabel(call.screening_result) {
+                        if let label = screeningLabel(call.screening_result, callerName: call.caller_name) {
                             DsChip(
                                 text: label,
                                 container: BrandColor.inset,

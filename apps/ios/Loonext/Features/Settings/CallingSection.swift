@@ -392,7 +392,11 @@ private struct AfterHoursCard: View {
 
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
     private var hoursSet: Bool {
-        company.business_hours.values.contains { $0 != nil }
+        // #721: the server rule, hasBusinessHours: a zero-length window is not hours.
+        company.business_hours.values.contains { day in
+            guard let day else { return false }
+            return day.open != day.close
+        }
     }
 
     var body: some View {

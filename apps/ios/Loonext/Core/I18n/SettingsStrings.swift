@@ -900,6 +900,7 @@ private let settingsHoursEn: [String: String] = [
     "settings.awayUsPending":
         "Customers with US numbers won't get this reply until your registration is "
         + "approved. Canadian numbers get it now.",
+    "settings.awayNoHours": "No business hours are set, so this reply only goes out on dates you've marked closed.",
     "settings.awayCount":
         "{count}/1000 · {first_name} and {business_name} fill in automatically.",
     "settings.awayEmergencySwitch": "Treat an emergency word as an emergency",
@@ -949,6 +950,7 @@ private let settingsHoursFr: [String: String] = [
         "Les clients avec un numéro américain ne recevront pas cette réponse tant "
         + "que votre inscription n'est pas approuvée. Les numéros canadiens la "
         + "reçoivent dès maintenant.",
+    "settings.awayNoHours": "Aucune heure d'ouverture n'est définie : cette réponse ne part donc que les jours que vous avez marqués comme fermés.",
     "settings.awayCount":
         "{count}/1000 · {first_name} et {business_name} se remplissent automatiquement.",
     "settings.awayEmergencySwitch": "Traiter un mot d'urgence comme une urgence",
