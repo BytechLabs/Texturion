@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.17.0...shared-v0.18.0) (2026-11-10)
+
+
+### Features
+
+* **api:** automatic texts follow the workspace's own settings ([4e0d32f](https://github.com/BytechLabs/Texturion/commit/4e0d32fec037bcadc3f35a97d4d73a357a24e39c))
+
+
+### Bug Fixes
+
+* **api:** calls ring when no business hours are set ([9e09c46](https://github.com/BytechLabs/Texturion/commit/9e09c46d701f7fc23fb3c6a47b7c58bc1b6f5b71))
+
 ## [0.17.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.16.0...shared-v0.17.0) (2026-11-10)
 
 

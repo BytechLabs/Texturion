@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.26.0](https://github.com/BytechLabs/Texturion/compare/web-v0.25.0...web-v0.26.0) (2026-11-10)
+
+
+### Features
+
+* **web:** an Automatic texts settings page for how texts behave ([a99b3e8](https://github.com/BytechLabs/Texturion/commit/a99b3e87539d9fc3f833339439707538a711153c))
+
+
+### Bug Fixes
+
+* **web:** call rows say why no phone rang, and only spam is flagged ([8d3f4d4](https://github.com/BytechLabs/Texturion/commit/8d3f4d4215ec7d71e0d35282f9107d4691ab6dbc))
+
 ## [0.25.0](https://github.com/BytechLabs/Texturion/compare/web-v0.24.0...web-v0.25.0) (2026-11-10)
 
 

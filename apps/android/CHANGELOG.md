@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.22.0](https://github.com/BytechLabs/Texturion/compare/android-v0.21.1...android-v0.22.0) (2026-11-10)
+
+
+### Features
+
+* **android:** an Automatic texts settings screen for how texts behave ([96055b4](https://github.com/BytechLabs/Texturion/commit/96055b4063eb2882f629ffb4d1f275350123babc))
+
+
+### Bug Fixes
+
+* **android:** call rows say why no phone rang, and only spam is flagged ([1ff14a2](https://github.com/BytechLabs/Texturion/commit/1ff14a29b63003101ffd54c0bfafd96c685bd882))
+
 ## [0.21.1](https://github.com/BytechLabs/Texturion/compare/android-v0.21.0...android-v0.21.1) (2026-11-10)
 
 
