@@ -113,6 +113,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.loonext.android.ui.common.asButton
 
 /** A navigation request parsed from a notification tap / app-link intent. */
 sealed interface DeepLink {
@@ -1055,7 +1058,8 @@ private fun OverlayScaffold(
                     shadowElevation = 1.dp,
                     modifier = Modifier
                         .size(44.dp)
-                        .align(Alignment.CenterStart),
+                        .align(Alignment.CenterStart)
+                        .asButton(),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -1065,15 +1069,7 @@ private fun OverlayScaffold(
                         )
                     }
                 }
-                Text(
-                    title,
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.Center),
-                )
+                OverlayTitle(title, Modifier.align(Alignment.Center))
                 actions?.let { slot ->
                     Box(Modifier.align(Alignment.CenterEnd)) { slot() }
                 }
@@ -1125,4 +1121,18 @@ private fun ExternalStep(
         TextButton(onClick = onSignOut) { Text(t("shell.signOut")) }
       }
     }
+}
+
+/** The host's one header title. A heading, so a screen reader can jump to it. */
+@Composable
+internal fun OverlayTitle(title: String, modifier: Modifier = Modifier) {
+    Text(
+        title,
+        style = MaterialTheme.typography.labelLarge.copy(
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+        ),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.semantics { heading() },
+    )
 }

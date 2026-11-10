@@ -231,7 +231,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.openTask" to "Open task",
         "thread.hasTask" to "Has a task",
         "thread.openTheTask" to "Open the task",
-        "thread.goToMessage" to "Go to that message",
+        "thread.goToMessage" to "go to the message",
         // Spoken, never drawn: a screen reader hears a customer's text arrive and a send fail.
         "thread.announceIncoming" to "New message: {body}",
         "thread.announceFailed" to "Message not delivered. Retry is on the message.",
@@ -966,7 +966,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.openTask" to "Ouvrir la tâche",
         "thread.hasTask" to "A une tâche",
         "thread.openTheTask" to "Ouvrir la tâche",
-        "thread.goToMessage" to "Aller à ce message",
+        "thread.goToMessage" to "aller au message",
         "thread.announceIncoming" to "Nouveau message : {body}",
         "thread.announceFailed" to "Message non livré. Le bouton Réessayer est sur le message.",
         "thread.photoUnavailable" to "Photo indisponible · touchez pour réessayer",

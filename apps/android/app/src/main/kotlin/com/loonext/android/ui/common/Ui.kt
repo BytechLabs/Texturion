@@ -33,6 +33,10 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
+import androidx.compose.ui.semantics.contentDescription
+import com.loonext.android.core.i18n.LocalAppLocale
 
 /** A load-once screen state (first load only — realtime updates patch data). */
 sealed interface LoadState<out T> {
@@ -340,6 +344,30 @@ fun relativeTime(iso: String, now: Instant = Instant.now()): String {
 
         else -> zoned.format(DateTimeFormatter.ofPattern("MMM d yyyy"))
     }
+}
+
+/**
+ * What a screen reader says for a time the screen draws as "22h": the time itself, in the
+ * reader's locale and clock ("10:42 PM", or "22 h 42" in fr-CA), with the date when it
+ * is not today.
+ */
+fun spokenTime(iso: String, locale: String, now: Instant = Instant.now()): String {
+    val instant = runCatching { Instant.parse(iso) }.getOrNull() ?: return ""
+    val zone = ZoneId.systemDefault()
+    val tag = Locale.forLanguageTag(locale)
+    val zoned = instant.atZone(zone)
+    return if (zoned.toLocalDate() == now.atZone(zone).toLocalDate()) {
+        zoned.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(tag))
+    } else {
+        zoned.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(tag))
+    }
+}
+
+/** Draws a compact time but speaks [spokenTime]. */
+@Composable
+fun Modifier.spokenTimeOf(iso: String): Modifier {
+    val spoken = spokenTime(iso, LocalAppLocale.current)
+    return clearAndSetSemantics { contentDescription = spoken }
 }
 
 fun absoluteTime(iso: String): String {

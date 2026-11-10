@@ -184,120 +184,135 @@ fun MessageBubble(
                     else -> MaterialTheme.colorScheme.surface
                 },
             )
-            .combinedClickable(onClick = {}, onLongClick = onLongPress)
             // 12dp makes a one-line bubble 44dp, the product's target size.
             .padding(horizontal = 14.dp, vertical = 12.dp)
 
-        Column(bubbleModifier) {
-            if (note) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Outlined.Lock,
-                        contentDescription = t("thread.internalNote"),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(13.dp),
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        authorName ?: t("thread.internalNote"),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
+        // The bubble and its time and delivery line are one stop for a screen reader, so a
+        // swipe moves message by message. Retry and the task icon stay their own controls.
+        Column(
+            Modifier.combinedClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+                onLongClick = onLongPress,
+            ),
+            horizontalAlignment = when {
+                note -> Alignment.CenterHorizontally
+                outbound -> Alignment.End
+                else -> Alignment.Start
+            },
+        ) {
+            Column(bubbleModifier) {
+                if (note) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.Lock,
+                            contentDescription = t("thread.internalNote"),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(13.dp),
+                        )
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            authorName ?: t("thread.internalNote"),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.height(3.dp))
+                }
+
+                // Inline MMS images — signed URL minted per view, never cached.
+                message.attachments
+                    .filter { it.content_type.startsWith("image/") }
+                    .forEach { attachment ->
+                        SignedAttachmentImage(
+                            attachment = attachment,
+                            mintUrl = mintAttachmentUrl,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
+
+                // Audio plays inline, right where the message is — a voice message
+                // is a message, not a hand-off to another app.
+                message.attachments
+                    .filter { mmsKindOf(it.content_type) == MmsKind.Audio }
+                    .forEach { attachment ->
+                        AttachmentAudio(
+                            attachment = attachment,
+                            mintUrl = mintAttachmentUrl,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
+
+                // #189 remaining non-image MMS media: one calm tappable file chip.
+                message.attachments
+                    .filter {
+                        val kind = mmsKindOf(it.content_type)
+                        kind != MmsKind.Image && kind != MmsKind.Audio
+                    }
+                    .forEach { attachment ->
+                        AttachmentFileChip(
+                            attachment = attachment,
+                            onInk = outbound,
+                            onOpen = { onOpenAttachment(attachment) },
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                    }
+
+                if (message.body.isNotBlank() && note && references != null) {
+                    // An internal note only: the words to a customer are never read for references.
+                    ReferenceText(
+                        text = message.body,
+                        source = references,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            textDecoration = if (done) TextDecoration.LineThrough else null,
                         ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-                Spacer(Modifier.height(3.dp))
-            }
-
-            // Inline MMS images — signed URL minted per view, never cached.
-            message.attachments
-                .filter { it.content_type.startsWith("image/") }
-                .forEach { attachment ->
-                    SignedAttachmentImage(
-                        attachment = attachment,
-                        mintUrl = mintAttachmentUrl,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                }
-
-            // Audio plays inline, right where the message is — a voice message
-            // is a message, not a hand-off to another app.
-            message.attachments
-                .filter { mmsKindOf(it.content_type) == MmsKind.Audio }
-                .forEach { attachment ->
-                    AttachmentAudio(
-                        attachment = attachment,
-                        mintUrl = mintAttachmentUrl,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                }
-
-            // #189 remaining non-image MMS media: one calm tappable file chip.
-            message.attachments
-                .filter {
-                    val kind = mmsKindOf(it.content_type)
-                    kind != MmsKind.Image && kind != MmsKind.Audio
-                }
-                .forEach { attachment ->
-                    AttachmentFileChip(
-                        attachment = attachment,
-                        onInk = outbound,
-                        onOpen = { onOpenAttachment(attachment) },
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                }
-
-            if (message.body.isNotBlank() && note && references != null) {
-                // An internal note only: the words to a customer are never read for references.
-                ReferenceText(
-                    text = message.body,
-                    source = references,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                        textDecoration = if (done) TextDecoration.LineThrough else null,
-                    ),
-                )
-            } else if (message.body.isNotBlank()) {
-                Text(
-                    message.body,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp,
-                    ),
-                    color = if (outbound) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurface,
-                    textDecoration = if (done) TextDecoration.LineThrough else null,
-                )
-            }
-
-            if (note) {
-                NoteFilesSection(
-                    noteId = message.id,
-                    state = noteFilesState,
-                    onLoad = onLoadNoteFiles,
-                    onOpenFile = onOpenFile,
-                )
-                val taskLink = message.task ?: message.promoted_task
-                if (taskLink != null) {
+                } else if (message.body.isNotBlank()) {
                     Text(
-                        t("thread.noteOnTask", "title" to taskLink.title),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(top = 4.dp),
+                        message.body,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                        ),
+                        color = if (outbound) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurface,
+                        textDecoration = if (done) TextDecoration.LineThrough else null,
                     )
                 }
-            }
-        }
 
-        MessageMetaLine(
-            message = message,
-            authorName = authorName,
-            doneByName = doneByName,
-            onRetry = onRetry,
-            onOpenTask = onOpenTask,
-        )
+                if (note) {
+                    NoteFilesSection(
+                        noteId = message.id,
+                        state = noteFilesState,
+                        onLoad = onLoadNoteFiles,
+                        onOpenFile = onOpenFile,
+                    )
+                    val taskLink = message.task ?: message.promoted_task
+                    if (taskLink != null) {
+                        Text(
+                            t("thread.noteOnTask", "title" to taskLink.title),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
+            }
+
+            MessageMetaLine(
+                message = message,
+                authorName = authorName,
+                doneByName = doneByName,
+                onRetry = onRetry,
+                onOpenTask = onOpenTask,
+            )
+        }
     }
 }
 

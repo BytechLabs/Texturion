@@ -159,6 +159,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import com.loonext.android.ui.common.asToggleButton
 import com.loonext.android.ui.common.asButton
+import com.loonext.android.ui.common.spokenTimeOf
 
 // #280: internal rather than file-private so SavedViews.kt can translate a
 // stored view into a tab selection. Same module, same package.
@@ -1935,6 +1936,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                     relativeTime(row.last_message_at),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.spokenTimeOf(row.last_message_at),
                 )
             }
             val snippet = row.last_message?.let { last ->

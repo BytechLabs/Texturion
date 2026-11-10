@@ -1666,93 +1666,96 @@ private fun ThreadHeader(
 
             // The identity block opens the contact panel sheet (#165); the
             // status line beneath the name anchors the status menu.
-            Box(Modifier.clickable { menuOpen = true }) {
+            // One stop for the contact: name, then status. Three separate clickables read
+            // the status after the Call and More buttons that sit beside it.
+            Row(
+                Modifier
+                    .weight(1f)
+                    .clickable(role = Role.Button) { menuOpen = true },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 HeaderAvatar(contactName)
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    contactName,
-                    style = MaterialTheme.typography.titleSmall.copy(
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.clickable { menuOpen = true },
-                )
-                Box {
-                    val assigneeName = members
-                        .firstOrNull { it.user_id == detail.assigned_user_id }
-                        ?.display_name?.ifBlank { null }
-                    // #505 — the repeat-customer signal, on the surface the
-                    // person replying is actually looking at. It lived only in
-                    // the contact panel, which opens on a tap nobody takes
-                    // mid-reply.
-                    //
-                    // On this line rather than beside the name, which is where
-                    // web puts it. The phone header's identity column is about
-                    // 142dp on a 360dp device, and an unweighted chip in a Row
-                    // is measured BEFORE the weighted name — so a long count at
-                    // a large system font scale could squeeze the contact's
-                    // name to nothing. This line already ellipsizes, already
-                    // joins secondary facts with " · ", and cannot push
-                    // anything off screen.
-                    //
-                    // FIRST in the string, so it is the last thing truncation
-                    // takes: a tech in a truck is exactly who this is for, and
-                    // the narrow screen is exactly where it would be lost.
-                    //
-                    // The count comes from the contact DETAIL read (the same
-                    // `controller.contact` the opted-out marker below uses) —
-                    // the conversation embed carries no relationship summary,
-                    // and reading a defaulted 0 off it would badge nobody.
-                    val repeatBadge =
-                        contactRepeatBadge(controller.contact?.conversation_count, locale)
-                    val subtitle = buildString {
-                        // Absent entirely below two conversations: a first-time
-                        // caller's header is what it always was.
-                        if (repeatBadge != null) {
-                            append(repeatBadge)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        contactName,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Box {
+                        val assigneeName = members
+                            .firstOrNull { it.user_id == detail.assigned_user_id }
+                            ?.display_name?.ifBlank { null }
+                        // #505 — the repeat-customer signal, on the surface the
+                        // person replying is actually looking at. It lived only in
+                        // the contact panel, which opens on a tap nobody takes
+                        // mid-reply.
+                        //
+                        // On this line rather than beside the name, which is where
+                        // web puts it. The phone header's identity column is about
+                        // 142dp on a 360dp device, and an unweighted chip in a Row
+                        // is measured BEFORE the weighted name — so a long count at
+                        // a large system font scale could squeeze the contact's
+                        // name to nothing. This line already ellipsizes, already
+                        // joins secondary facts with " · ", and cannot push
+                        // anything off screen.
+                        //
+                        // FIRST in the string, so it is the last thing truncation
+                        // takes: a tech in a truck is exactly who this is for, and
+                        // the narrow screen is exactly where it would be lost.
+                        //
+                        // The count comes from the contact DETAIL read (the same
+                        // `controller.contact` the opted-out marker below uses) —
+                        // the conversation embed carries no relationship summary,
+                        // and reading a defaulted 0 off it would badge nobody.
+                        val repeatBadge =
+                            contactRepeatBadge(controller.contact?.conversation_count, locale)
+                        val subtitle = buildString {
+                            // Absent entirely below two conversations: a first-time
+                            // caller's header is what it always was.
+                            if (repeatBadge != null) {
+                                append(repeatBadge)
+                                append(" · ")
+                            }
+                            append(statusLabel(detail.status, locale))
                             append(" · ")
+                            append(assigneeName ?: phoneLabel)
+                            if (controller.contact?.opted_out == true) {
+                                append(" · ")
+                                append(optedOutWord)
+                            }
+                            if (controller.blockedSender != null) {
+                                append(" · ")
+                                append(blockedWord)
+                            }
+                            if (detail.muted) {
+                                append(" · ")
+                                append(mutedWord)
+                            }
                         }
-                        append(statusLabel(detail.status, locale))
-                        append(" · ")
-                        append(assigneeName ?: phoneLabel)
-                        if (controller.contact?.opted_out == true) {
-                            append(" · ")
-                            append(optedOutWord)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier
+                                    .size(6.dp)
+                                    .background(
+                                        if (isSystemInDarkTheme()) BrandColor.Lime
+                                        else BrandColor.LimeBright,
+                                        CircleShape,
+                                    ),
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                subtitle,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
-                        if (controller.blockedSender != null) {
-                            append(" · ")
-                            append(blockedWord)
-                        }
-                        if (detail.muted) {
-                            append(" · ")
-                            append(mutedWord)
-                        }
-                    }
-                    Row(
-                        Modifier.clickable { menuOpen = true },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            Modifier
-                                .size(6.dp)
-                                .background(
-                                    if (isSystemInDarkTheme()) BrandColor.Lime
-                                    else BrandColor.LimeBright,
-                                    CircleShape,
-                                ),
-                        )
-                        Spacer(Modifier.width(5.dp))
-                        Text(
-                            subtitle,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
                     }
                 }
             }

@@ -6,6 +6,7 @@ import com.loonext.android.core.auth.SessionSource
 import com.loonext.android.core.auth.SupabaseAuth
 import com.loonext.android.core.auth.await
 import com.loonext.android.core.diag.RecentErrors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -365,8 +366,12 @@ class ApiClient(
                 messageKey = "common.errNetwork",
             )
         }
+        // The caller may be on the main thread, and the body can still be in flight when
+        // the headers arrive: reading it there throws NetworkOnMainThreadException.
         return response.use {
-            RawResponse(it.code, it.body?.string().orEmpty(), label = "$method $path")
+            withContext(Dispatchers.IO) {
+                RawResponse(it.code, it.body?.string().orEmpty(), label = "$method $path")
+            }
         }
     }
 }

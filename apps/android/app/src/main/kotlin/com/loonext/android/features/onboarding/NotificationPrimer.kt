@@ -20,6 +20,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.loonext.android.core.i18n.t
 import com.loonext.android.push.PushPrefs
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 
 /**
  * #286 — the POST_NOTIFICATIONS ask, with a reason in front of it.
@@ -123,7 +126,7 @@ fun NotificationPrimer(suppressed: Boolean = false) {
             dismissed = true
         },
         icon = { Icon(Icons.Outlined.Notifications, contentDescription = null) },
-        title = { Text(t("shell.primerTitle")) },
+        title = { Text(t("shell.primerTitle"), Modifier.semantics { heading() }) },
         text = {
             Text(
                 t("shell.primerBody"),

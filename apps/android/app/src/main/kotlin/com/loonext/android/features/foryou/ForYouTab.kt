@@ -117,6 +117,7 @@ import java.time.Instant
 import com.loonext.android.ui.common.asButton
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import com.loonext.android.ui.common.spokenTimeOf
 
 /**
  * /for-you — the default landing: Unassigned (every member since #416),
@@ -787,6 +788,7 @@ private fun ForYouList(
                                 PersonRow(
                                     name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
                                     why = relativeTime(row.last_message_at),
+                                    whyAt = row.last_message_at,
                                     unread = row.unread,
                                     chipLabel = if (row.unread) t("inbox.forYouNewLead") else null,
                                     onClick = { onOpenConversation(row.conversation_id) },
@@ -821,6 +823,7 @@ private fun ForYouList(
                             PersonRow(
                                 name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
                                 why = relativeTime(row.last_message_at),
+                                whyAt = row.last_message_at,
                                 unread = row.unread,
                                 onClick = { onOpenConversation(row.conversation_id) },
                             )
@@ -866,6 +869,7 @@ private fun ForYouList(
                             PersonRow(
                                 name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
                                 why = relativeTime(row.last_message_at),
+                                whyAt = row.last_message_at,
                                 unread = true,
                                 onClick = { onOpenConversation(row.conversation_id) },
                             )
@@ -1138,6 +1142,8 @@ private fun PersonRow(
     why: String,
     unread: Boolean,
     chipLabel: String? = null,
+    /** The moment [why] abbreviates, so a reader hears a time and not "22h". */
+    whyAt: String? = null,
     onClick: () -> Unit,
 ) {
     val pressSource = remember { MutableInteractionSource() }
@@ -1183,7 +1189,9 @@ private fun PersonRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .then(if (whyAt != null) Modifier.spokenTimeOf(whyAt) else Modifier),
             )
         }
         RowArrow()

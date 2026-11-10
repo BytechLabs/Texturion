@@ -3,12 +3,14 @@ package com.loonext.android.core.net
 import com.loonext.android.core.auth.Session
 import com.loonext.android.core.auth.SessionSource
 import com.loonext.android.core.auth.SupabaseAuth
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.Serializable
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
+import okio.buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -76,6 +78,46 @@ class ApiClientTest {
             publishableKey = "pk",
         ),
     )
+
+    @Test
+    fun `the body is read off the thread that called`() {
+        val readers = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val watching = OkHttpClient.Builder().addInterceptor { chain ->
+            val response = chain.proceed(chain.request())
+            val inner = response.body!!
+            val watched = object : okio.ForwardingSource(inner.source()) {
+                override fun read(sink: okio.Buffer, byteCount: Long): Long {
+                    readers += Thread.currentThread().name
+                    return super.read(sink, byteCount)
+                }
+            }
+            response.newBuilder().body(
+                object : okhttp3.ResponseBody() {
+                    override fun contentType() = inner.contentType()
+                    override fun contentLength() = inner.contentLength()
+                    override fun source() = watched.buffer()
+                },
+            ).build()
+        }.build()
+        val api2 = ApiClient(
+            http = watching,
+            baseUrl = api.url("/").toString().trimEnd('/'),
+            sessionStore = sessions,
+            supabaseAuth = SupabaseAuth(
+                client = OkHttpClient(),
+                supabaseUrl = gotrue.url("/").toString().trimEnd('/'),
+                publishableKey = "pk",
+            ),
+        )
+        api.enqueue(MockResponse.Builder().body("""{"ok":true}""").build())
+        val caller = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "the-caller") }
+        try {
+            kotlinx.coroutines.runBlocking(caller.asCoroutineDispatcher()) { api2.raw("GET", "/ping") }
+        } finally {
+            caller.shutdown()
+        }
+        assertTrue(readers.toString(), readers.isNotEmpty() && readers.none { it.startsWith("the-caller") })
+    }
 
     @Test
     fun `sends bearer, company id, and idempotency headers`() = runTest {
