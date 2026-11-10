@@ -1,5 +1,5 @@
 -- [#694] Mute and follow: assertion suite for
--- supabase/migrations/20261110100000_a_member_can_mute_or_follow_one_conversation.sql.
+-- supabase/migrations/20261110110000_a_member_can_mute_or_follow_one_conversation.sql.
 --
 -- Pins what would fail silently: one row per (conversation, member), a
 -- deadline that only exists on a muted row, the workspace purge reaching the
