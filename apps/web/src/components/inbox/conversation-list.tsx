@@ -33,6 +33,9 @@ import {
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { toast } from "sonner";
 
+import { DeleteConversationsDialog } from "@/components/thread/delete-conversations-dialog";
+import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
+
 import { BulkBar } from "./bulk-bar";
 import { useInboxShortcuts } from "./use-inbox-shortcuts";
 import { ConversationRow, ROW_HEIGHT } from "./conversation-row";
@@ -168,6 +171,11 @@ export function ConversationList({
   const loadedIds = rows.map((row) => row.id);
   const [selection, setSelection] = useState<BulkSelection>(EMPTY_SELECTION);
   const bulk = useBulkConversations();
+  // #691: delete takes named ids, so it is offered for a pointed-at selection
+  // only, and only to members who hold records.delete.
+  const canDelete = useCanDeleteRecords();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const selectedIds = selectionIds(selection);
 
   /**
    * Run one bulk action, then offer ONE undo for the batch.
@@ -320,6 +328,19 @@ export function ConversationList({
           onTag={(tagId) =>
             runBulk({ action: "add_tag", target_tag_id: tagId }, "Tagged")
           }
+          onDelete={
+            canDelete && selectedIds !== null
+              ? () => setConfirmingDelete(true)
+              : undefined
+          }
+        />
+      )}
+      {canDelete && selectedIds !== null && (
+        <DeleteConversationsDialog
+          ids={selectedIds}
+          open={confirmingDelete}
+          onOpenChange={setConfirmingDelete}
+          onDeleted={() => setSelection(EMPTY_SELECTION)}
         />
       )}
     <div

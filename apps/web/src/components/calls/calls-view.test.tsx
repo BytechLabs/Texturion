@@ -21,6 +21,12 @@ const state: {
   hasNextPage: false,
 };
 
+// #691: the delete menu is its own surface (call-actions.test.tsx); these tests
+// are about the row, so a member who cannot delete keeps the row as it was.
+vi.mock("@/lib/hooks/use-records-delete", () => ({
+  useCanDeleteRecords: () => false,
+  useDeletedToast: () => () => undefined,
+}));
 vi.mock("@/lib/api/calls", () => ({
   useCalls: () => ({
     data: { pages: [{ data: state.rows, next_cursor: null }] },

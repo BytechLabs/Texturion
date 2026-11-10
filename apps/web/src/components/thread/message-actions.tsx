@@ -8,6 +8,7 @@ import {
   MoreHorizontal,
   Pin,
   RotateCw,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -18,6 +19,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuToggleItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -34,10 +36,17 @@ import {
   useSetMessageDone,
   useSetMessagePinned,
 } from "@/lib/api/messages";
+import { ApiError } from "@/lib/api/error";
+import { useDeleteMessage } from "@/lib/api/trash";
 import type { Message } from "@/lib/api/types";
+import {
+  useCanDeleteRecords,
+  useDeletedToast,
+} from "@/lib/hooks/use-records-delete";
 import { prefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
+import { deletedMessageKey } from "./delete-message";
 import {
   doneToggleLabel,
   isDone,
@@ -154,6 +163,9 @@ function MessageOverflow({
   const t = useT();
   const retry = useRetryMessage(conversationId);
   const setPinned = useSetMessagePinned(conversationId);
+  const canDelete = useCanDeleteRecords();
+  const deleteMessage = useDeleteMessage();
+  const announceDeleted = useDeletedToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const retryable = isRetryable(message);
@@ -174,6 +186,21 @@ function MessageOverflow({
     } catch {
       toast.error(t("thread.copyFailed"));
     }
+  };
+
+  // #691: a move to the Trash, so an undo toast and no confirmation. The toast
+  // says when the customer still has the text (see deletedMessageKey).
+  const removeMessage = () => {
+    deleteMessage.mutate(message.id, {
+      onSuccess: () =>
+        announceDeleted(t(deletedMessageKey(message)), [
+          { kind: "message", id: message.id },
+        ]),
+      onError: (error) =>
+        toast.error(
+          error instanceof ApiError ? error.message : t("trash.messageDeleteFailed"),
+        ),
+    });
   };
 
   return (
@@ -254,6 +281,21 @@ function MessageOverflow({
               <RotateCw className="size-4" strokeWidth={1.75} aria-hidden />
               {t("thread.retrySend")}
             </DropdownMenuItem>
+          )}
+          {canDelete && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={removeMessage}
+                disabled={deleteMessage.isPending}
+              >
+                <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
+                {message.direction === "note"
+                  ? t("trash.deleteNote")
+                  : t("trash.deleteMessage")}
+              </DropdownMenuItem>
+            </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>

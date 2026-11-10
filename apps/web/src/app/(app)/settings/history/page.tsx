@@ -1,6 +1,7 @@
 "use client";
 
-import { Download, ShieldCheck } from "lucide-react";
+import { Download, ShieldCheck, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -32,6 +33,7 @@ import {
   auditSentence,
   AUDIT_ACTION_LABELS,
 } from "@/lib/settings/audit-sentence";
+import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { getAccessToken } from "@/lib/supabase/browser";
 
 /** Everyone / all actions. Sentinel values, since a Select cannot hold "". */
@@ -79,6 +81,7 @@ export default function HistorySettingsPage() {
   const [since, setSince] = useState<string>(defaultSince);
   const [until, setUntil] = useState<string>("");
   const [exporting, setExporting] = useState(false);
+  const canDelete = useCanDeleteRecords();
 
   const filters: AuditLogFilters = useMemo(
     () => ({
@@ -202,6 +205,14 @@ export default function HistorySettingsPage() {
           <p className="text-xs text-muted-foreground">
             {t("appShell.historyRetention")}
           </p>
+          {canDelete && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/settings/history/trash">
+                <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
+                {t("trash.navLink")}
+              </Link>
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

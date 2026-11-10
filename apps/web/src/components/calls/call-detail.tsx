@@ -2,7 +2,9 @@
 
 import { ArrowLeft, MessageSquare, User } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
+import { CallActions } from "@/components/calls/call-actions";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { LoadError } from "@/components/settings/section";
@@ -43,6 +45,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export function CallDetail({ sessionId }: { sessionId: string }) {
   const t = useT();
   const call = useCall(sessionId);
+  const router = useRouter();
 
   if (call.isPending) {
     return (
@@ -76,7 +79,15 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
       </Button>
 
       <header className="space-y-1">
-        <h1 className="text-xl font-semibold">{who}</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-xl font-semibold">{who}</h1>
+          <CallActions
+            callId={row.id}
+            callerName={who}
+            hasVoicemail={row.has_voicemail}
+            onDeleted={() => router.replace("/calls")}
+          />
+        </div>
         <p className="text-sm text-muted-foreground">
           {outcomeLine(row, t)} ·{" "}
           <span title={formatAbsoluteDateTime(row.started_at, undefined, t.locale)}>

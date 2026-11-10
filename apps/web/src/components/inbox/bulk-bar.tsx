@@ -6,6 +6,7 @@ import {
   Loader2,
   MailOpen,
   ShieldAlert,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -67,6 +68,7 @@ export function BulkBar({
   onSpam,
   onAssign,
   onTag,
+  onDelete,
 }: {
   selection: BulkSelection;
   loadedIds: readonly string[];
@@ -80,6 +82,9 @@ export function BulkBar({
   onSpam: () => void;
   onAssign: (userId: string | null) => void;
   onTag: (tagId: string) => void;
+  /** #691: absent when the member cannot delete records, or the selection is
+   *  a filter (the delete endpoint takes named ids only, never a filter). */
+  onDelete?: () => void;
 }) {
   const t = useT();
   const memberNames = useMemberNames();
@@ -209,6 +214,15 @@ export function BulkBar({
                   {tag.name}
                 </DropdownMenuItem>
               ))}
+            </>
+          )}
+          {onDelete && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
+                {t("trash.bulkDelete")}
+              </DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>

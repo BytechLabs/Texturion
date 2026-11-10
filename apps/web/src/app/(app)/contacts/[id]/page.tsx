@@ -60,6 +60,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import { useMembers } from "@/lib/api/team";
 import type { ContactDetail } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
+import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { NANP_TIMEZONES } from "@loonext/shared";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -321,6 +322,8 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   const optOut = useOptOutContact();
   const revoke = useRevokeOptOut();
   const deleteContact = useDeleteContact();
+  // #691: the server gates DELETE /contacts/:id on records.delete now.
+  const canDelete = useCanDeleteRecords();
 
   // #82: the Message button is contextual — if this contact already has a
   // conversation, open it directly instead of the compose screen. (Compose
@@ -630,19 +633,21 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               </Button>
             </div>
           )}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              {t("appShell.contactHideNote")}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-destructive"
-              onClick={() => setConfirmingDelete(true)}
-            >
-              {t("appShell.contactDeleteAction")}
-            </Button>
-          </div>
+          {canDelete && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                {t("appShell.contactHideNote")}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                {t("appShell.contactDeleteAction")}
+              </Button>
+            </div>
+          )}
         </div>
       </SettingsCard>
 

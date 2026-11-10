@@ -63,6 +63,7 @@ import { apiKeysEn, apiKeysFr } from "./sections/apiKeys";
 import { blockedNumbersEn, blockedNumbersFr } from "./sections/blockedNumbers";
 import { calendarFeedEn, calendarFeedFr } from "./sections/calendarFeed";
 import { domainEn, domainFr } from "./sections/domain";
+import { trashEn, trashFr } from "./sections/trash";
 import { quotesEn, quotesFr } from "./sections/quotes";
 import { webhooksEn, webhooksFr } from "./sections/webhooks";
 import { shellEn, shellFr } from "./sections/shell";
@@ -335,6 +336,7 @@ export const EN = {
   settings: settingsEn,
   settingsMore: settingsMoreEn,
   domain: domainEn,
+  trash: trashEn,
   quotes: quotesEn,
   webhooks: webhooksEn,
   apiKeys: apiKeysEn,
@@ -364,6 +366,7 @@ export const FR_CA: Catalog = {
   settings: settingsFr,
   settingsMore: settingsMoreFr,
   domain: domainFr,
+  trash: trashFr,
   quotes: quotesFr,
   webhooks: webhooksFr,
   apiKeys: apiKeysFr,

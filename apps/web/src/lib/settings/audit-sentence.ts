@@ -56,6 +56,9 @@ export function auditActionLabels(t: Translate = EN): Record<string, string> {
     "contacts.imported": t("appShell.auditActionContactsImported"),
     "contacts.exported": t("appShell.auditActionContactsExported"),
     "contacts.bulk_deleted": t("appShell.auditActionContactsBulkDeleted"),
+    "record.deleted": t("trash.auditActionDeleted"),
+    "record.restored": t("trash.auditActionRestored"),
+    "record.purged": t("trash.auditActionPurged"),
   };
 }
 
@@ -143,6 +146,28 @@ function accessPhrase(after: Record<string, unknown>, t: Translate): string {
     : t("appShell.auditAccessPeople", { count: people });
 }
 
+/** What a #691 deletion row was about: its kind, never its content. */
+function recordNoun(entry: AuditEntry, t: Translate): string {
+  switch (entry.target_type) {
+    case "message":
+      return t("trash.auditTargetMessage");
+    case "conversation":
+      return t("trash.auditTargetConversation");
+    case "call":
+      return t("trash.auditTargetCall");
+    case "voicemail":
+      return t("trash.auditTargetVoicemail");
+    case "contact":
+      return t("trash.auditTargetContact");
+    default:
+      return t("trash.auditTargetOther");
+  }
+}
+
+function capitalised(text: string): string {
+  return text.charAt(0).toLocaleUpperCase() + text.slice(1);
+}
+
 /**
  * The full sentence, actor included. Falls back to the raw action for a row
  * written by a newer server than this build — an unknown action must still
@@ -206,6 +231,16 @@ export function auditSentence(entry: AuditEntry, t: Translate = EN): string {
         who,
         count: String(after.count ?? t("appShell.auditCountFallback")),
       });
+    case "record.deleted":
+      return t("trash.auditDeleted", { who, what: recordNoun(entry, t) });
+    case "record.restored":
+      return t("trash.auditRestored", { who, what: recordNoun(entry, t) });
+    case "record.purged":
+      // The expiry job is not a person; naming "Loonext" as the one who erased
+      // it would read as the product choosing to. Never content, only the kind.
+      return after.by === "trash_expiry"
+        ? t("trash.auditPurgedByExpiry", { what: capitalised(recordNoun(entry, t)) })
+        : t("trash.auditPurgedByPerson", { who, what: recordNoun(entry, t) });
     default:
       return t("appShell.auditUnknownAction", {
         who,

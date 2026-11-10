@@ -13,11 +13,13 @@ import {
   MoreHorizontal,
   OctagonAlert,
   Pin,
+  Trash2,
   TriangleAlert,
   Undo2,
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -37,6 +39,7 @@ import {
 } from "@/components/blocked/block-number";
 import { CallButton } from "@/components/calls/call-button";
 import { avatarColorClass } from "@/components/shell/avatar-color";
+import { DeleteConversationsDialog } from "@/components/thread/delete-conversations-dialog";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +80,7 @@ import type {
   ContactDetail,
 } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
+import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { useIsBelowMd } from "@/lib/use-is-below-md";
@@ -104,6 +108,31 @@ const UNASSIGNED_VALUE = "__unassigned__";
 
 function onApiError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback);
+}
+
+/**
+ * #691: mounted only while the confirmation is open, so a thread nobody is
+ * deleting carries none of the delete machinery (router, mutation, toast).
+ * After the delete the thread is gone, so the pane goes back to the inbox.
+ */
+function DeleteThisConversation({
+  conversationId,
+  onClose,
+}: {
+  conversationId: string;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  return (
+    <DeleteConversationsDialog
+      ids={[conversationId]}
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      onDeleted={() => router.replace("/inbox")}
+    />
+  );
 }
 
 /**
@@ -149,6 +178,9 @@ export function ThreadHeader({
   const { userId } = useActiveCompany();
   const [confirmOptOut, setConfirmOptOut] = useState(false);
   const [confirmBlock, setConfirmBlock] = useState(false);
+  // #691: owned here for the same reason as the snooze picker above.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const canDelete = useCanDeleteRecords();
   // #293: owned HERE, not inside the overflow menu — a Radix Dialog mounted
   // inside DropdownMenuContent is unmounted the moment the menu closes, so the
   // picker would flash and vanish.
@@ -766,6 +798,15 @@ export function ThreadHeader({
                   {t("blockedNumbers.blockAction")}
                 </DropdownMenuItem>
               ))}
+            {canDelete && (
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="size-4" strokeWidth={1.75} />
+                {t("trash.deleteConversation")}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             {contact?.opted_out ? (
               // A STOP the customer sent is a carrier block, and only they can
@@ -817,6 +858,13 @@ export function ThreadHeader({
         open={confirmBlock}
         onOpenChange={setConfirmBlock}
       />
+
+      {canDelete && confirmDelete && (
+        <DeleteThisConversation
+          conversationId={conversation.id}
+          onClose={() => setConfirmDelete(false)}
+        />
+      )}
 
       <Dialog open={confirmOptOut} onOpenChange={setConfirmOptOut}>
         <DialogContent className="sm:max-w-sm">

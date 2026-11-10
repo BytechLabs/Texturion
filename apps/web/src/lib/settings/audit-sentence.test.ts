@@ -130,3 +130,51 @@ describe("auditSentence", () => {
     );
   });
 });
+
+describe("auditSentence: deletion (#691)", () => {
+  it("names the kind of record and never its content", () => {
+    expect(
+      auditSentence(
+        entry({ action: "record.deleted", target_type: "conversation" }),
+      ),
+    ).toBe("Sam deleted a conversation");
+    expect(
+      auditSentence(entry({ action: "record.deleted", target_type: "voicemail" })),
+    ).toBe("Sam deleted a voicemail");
+    expect(
+      auditSentence(entry({ action: "record.deleted", target_type: "contact" })),
+    ).toBe("Sam deleted a contact");
+    expect(
+      auditSentence(entry({ action: "record.restored", target_type: "message" })),
+    ).toBe("Sam restored a message from the Trash");
+  });
+
+  it("says whether the Trash expired or a person erased it", () => {
+    expect(
+      auditSentence(
+        entry({
+          action: "record.purged",
+          target_type: "call",
+          actor_user_id: null,
+          actor_name: null,
+          after: { by: "trash_expiry" },
+        }),
+      ),
+    ).toBe("A call was erased after 30 days in the Trash");
+    expect(
+      auditSentence(
+        entry({
+          action: "record.purged",
+          target_type: "call",
+          after: { by: "delete_forever" },
+        }),
+      ),
+    ).toBe("Sam erased a call for good");
+  });
+
+  it("falls back to a generic noun for a kind this build does not know", () => {
+    expect(
+      auditSentence(entry({ action: "record.deleted", target_type: "widget" })),
+    ).toBe("Sam deleted a record");
+  });
+});

@@ -16,6 +16,7 @@ import {
   VoicemailPlayer,
 } from "@/components/calls/voicemail-player";
 import { VoicemailIntakeSummary } from "@/components/calls/voicemail-intake-summary";
+import { CallActions } from "@/components/calls/call-actions";
 import { MakeCallTask } from "@/components/calls/make-call-task";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { avatarColorClass } from "@/components/shell/avatar-color";
@@ -218,6 +219,13 @@ export function CallRow({ call }: { call: Call }) {
           callerName={name}
         />
       )}
+      {/* #691: delete the call, or its voicemail alone. Hidden without
+          records.delete (the component renders nothing). */}
+      <CallActions
+        callId={call.id}
+        callerName={name}
+        hasVoicemail={(call.voicemail_seconds ?? 0) > 0}
+      />
     </>
   );
 

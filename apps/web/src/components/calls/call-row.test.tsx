@@ -21,7 +21,7 @@
  * these assert the mechanism, and the screenshots in the issue carry the pixels.
  */
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { CallRow } from "./call-row";
 
@@ -60,6 +60,12 @@ function metaLine(html: string): string {
   return html.slice(start, start + 1400);
 }
 
+// #691: the delete menu is its own surface (call-actions.test.tsx); these tests
+// are about the row, so a member who cannot delete keeps the row as it was.
+vi.mock("@/lib/hooks/use-records-delete", () => ({
+  useCanDeleteRecords: () => false,
+  useDeletedToast: () => () => undefined,
+}));
 describe("#566 the meta line cannot be reflowed by a name", () => {
   it("lets the outcome label — and only it — yield", () => {
     // The label is the one element that can be long, so it is the one that

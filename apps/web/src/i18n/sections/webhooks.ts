@@ -125,6 +125,9 @@ export const webhooksEn = {
   "event.taskCreated": "A job is added",
   "event.taskCompleted": "A job is finished",
   "event.contactCreated": "A new customer is added",
+  "event.messageDeleted": "A message is deleted",
+  "event.conversationDeleted": "A conversation is deleted",
+  "event.callDeleted": "A call or voicemail is deleted",
 
   /* Why an address was refused */
   "urlError.notAUrl": "That doesn't look like a web address.",
@@ -243,6 +246,9 @@ export const webhooksFr: Translated<typeof webhooksEn> = {
   "event.taskCreated": "Une tâche est ajoutée",
   "event.taskCompleted": "Une tâche est terminée",
   "event.contactCreated": "Un nouveau client est ajouté",
+  "event.messageDeleted": "Un message est supprimé",
+  "event.conversationDeleted": "Une conversation est supprimée",
+  "event.callDeleted": "Un appel ou un message vocal est supprimé",
 
   "urlError.notAUrl": "Ça ne ressemble pas à une adresse web.",
   "urlError.notHttps":
