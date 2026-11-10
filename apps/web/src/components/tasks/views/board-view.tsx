@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { LoadError } from "@/components/settings/section";
+import { RecordContextMenu } from "@/components/ui/record-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useAllTasks } from "@/lib/api/tasks";
@@ -17,6 +18,7 @@ import { priorityLabelKey } from "../task-planning";
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
 import { taskThreadId } from "../task-format";
+import { useTaskRowActions } from "../task-actions";
 import { useTaskDrawer } from "../use-task-drawer";
 import { EmptyTasks } from "../task-empty";
 import { useTaskDone } from "../use-task-mutations";
@@ -250,7 +252,10 @@ function Column({
 function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
   const t = useT();
   const { hrefForTask } = useTaskDrawer();
+  // #712: right-click, long-press or the menu key opens the task's one action list.
+  const { actions, dialogs } = useTaskRowActions(task);
   return (
+    <RecordContextMenu actions={actions}>
     <article
       draggable
       onDragStart={(e) => {
@@ -294,7 +299,9 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
           ? t("tasks.boardMoveToToDo")
           : t("tasks.boardMoveToDone")}
       </button>
+      {dialogs}
     </article>
+    </RecordContextMenu>
   );
 }
 

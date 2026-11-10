@@ -1,11 +1,5 @@
 "use client";
 
-import {
-  AlarmClock,
-  AlarmClockOff,
-  BellRing,
-  CalendarClock,
-} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -19,13 +13,6 @@ import {
   snoozeReturnShape,
 } from "@loonext/shared";
 
-import {
-  DropdownMenuItem,
-  DropdownMenuHint,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,139 +28,6 @@ import { formatTimestamp } from "@/lib/format/time";
 
 /** English, for a caller with no provider around it. */
 const EN = makeTranslate(DEFAULT_LOCALE);
-
-/**
- * #293 — "needs attention, but on Thursday", in the overflow menu.
- *
- * Design notes, and the principles behind them:
- *
- * - **Zen of Clarity.** This lives inside the existing overflow submenu rather
- *   than becoming a fifth control in a header that #2 was explicitly about
- *   decluttering. Deferring is a secondary action; it does not earn bar space.
- * - **Chunking.** At most four presets are ever shown, and the ladder shrinks
- *   as the day goes: at 4pm there is no "This afternoon" to offer, so it is not
- *   offered — a disabled button is a worse answer than a shorter list.
- * - **Smart Defaults.** "Pick a date…" opens pre-filled with the next preset,
- *   never an empty field. Nobody should have to type a date to defer a thread.
- * - **No ethical friction.** A snooze is reversible in one tap and cancels
- *   itself the moment the customer replies, so it gets a plain confirm, not a
- *   confirmation dialog. Friction is for the irreversible.
- *
- * Every instant is resolved in the DEVICE's clock, which is the user's clock
- * (#292) — the shared module decides which instants, so the phone apps offer
- * the same ladder to the minute.
- *
- * The custom-date dialog is NOT rendered here, and that is load-bearing: a
- * Radix Dialog mounted inside DropdownMenuContent is unmounted the instant the
- * menu closes, so choosing "Pick a date…" would close the menu and take the
- * dialog with it — a control that silently does nothing. The parent owns the
- * dialog and renders `SnoozeDialog` outside the menu.
- */
-export function SnoozeMenuItems({
-  snoozedUntil,
-  snoozeKind,
-  onSnooze,
-  onUnsnooze,
-  onPickCustom,
-}: {
-  /** The caller's own return time, or null when the thread is not deferred. */
-  snoozedUntil: string | null;
-  /** How it comes back. Null when the thread is not deferred. */
-  snoozeKind: DeferralKind | null;
-  onSnooze: (until: string, kind: DeferralKind) => void;
-  onUnsnooze: () => void;
-  /** Open the parent-owned custom-date dialog for this kind. */
-  onPickCustom: (kind: DeferralKind) => void;
-}) {
-  const t = useT();
-  // Resolved on every render rather than memoized. The ladder only changes when
-  // the clock crosses a preset's hour, and on that render the NEW ladder is the
-  // correct one — a memo would keep offering "This afternoon" at 3:05pm.
-  if (snoozedUntil) {
-    return (
-      <DropdownMenuItem onSelect={onUnsnooze}>
-        <AlarmClockOff className="size-4" strokeWidth={1.75} />
-        {snoozeKind === "follow_up"
-          ? t("thread.cancelTheReminder")
-          : t("thread.bringBackNow")}
-      </DropdownMenuItem>
-    );
-  }
-
-  return (
-    <>
-      <DeferralSubmenu
-        kind="snooze"
-        label={t("thread.snoozeUntilMenu")}
-        hint={t("thread.snoozeHint")}
-        icon={<AlarmClock className="size-4" strokeWidth={1.75} />}
-        presets={snoozePresets()}
-        onSnooze={onSnooze}
-        onPickCustom={onPickCustom}
-      />
-      {/* #293: a SECOND ladder, not a second label on the first. "This
-          afternoon" is a sensible time to pick a thread back up and a
-          meaningless time to chase a quote — one ladder for both would put
-          three useless options in front of whichever job you were doing. */}
-      <DeferralSubmenu
-        kind="follow_up"
-        label={t("thread.remindMeToChaseMenu")}
-        icon={<BellRing className="size-4" strokeWidth={1.75} />}
-        presets={followUpPresets()}
-        onSnooze={onSnooze}
-        onPickCustom={onPickCustom}
-      />
-    </>
-  );
-}
-
-function DeferralSubmenu({
-  kind,
-  label,
-  hint,
-  icon,
-  presets,
-  onSnooze,
-  onPickCustom,
-}: {
-  kind: DeferralKind;
-  label: string;
-  hint?: string;
-  icon: React.ReactNode;
-  presets: { id: string; label: string; at: number }[];
-  onSnooze: (until: string, kind: DeferralKind) => void;
-  onPickCustom: (kind: DeferralKind) => void;
-}) {
-  const t = useT();
-  return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger>
-        {icon}
-        {label}
-      </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent>
-        {hint && <DropdownMenuHint>{hint}</DropdownMenuHint>}
-        {presets.map((preset) => (
-          <DropdownMenuItem
-            key={preset.id}
-            onSelect={() =>
-              onSnooze(new Date(preset.at).toISOString(), kind)
-            }
-          >
-            <span>{preset.label}</span>
-            <span className="ml-auto pl-4 text-xs tabular-nums text-muted-foreground">
-              {formatPresetHint(preset.at, t)}
-            </span>
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuItem onSelect={() => onPickCustom(kind)}>
-          <CalendarClock className="size-4" strokeWidth={1.75} />
-          {t("thread.pickADate")}
-        </DropdownMenuItem>
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
-  );
-}
 
 /**
  * The custom-date dialog. Rendered by the PARENT, outside the dropdown — see
@@ -275,7 +129,7 @@ export function SnoozeDialog({
 }
 
 /** "3:00 PM" / "Mon 8:00 AM" — enough to know what you are choosing. */
-function formatPresetHint(at: number, t: Translate): string {
+export function formatPresetHint(at: number, t: Translate): string {
   return formatTimestamp(new Date(at).toISOString(), { style: "long", t });
 }
 

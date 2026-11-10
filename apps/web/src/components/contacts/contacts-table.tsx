@@ -28,11 +28,36 @@ import {
 } from "@/lib/api/contacts";
 import { ContactActiveFilters, ContactListFilter } from "@/components/contacts/contact-filter";
 import { ContactsBulkBar } from "@/components/contacts/contacts-bulk-bar";
+import { useContactActions } from "@/components/contacts/contact-record-actions";
+import { RecordContextMenu } from "@/components/ui/record-menu";
 import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { flattenPages } from "@/lib/api/pagination";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
+
+/**
+ * #712: right-click, long-press or the menu key on a contact row opens the
+ * contact's one action list (the same one the contact page's ⋯ opens).
+ */
+function ContactRowMenu({
+  contact,
+  children,
+}: {
+  contact: Parameters<typeof useContactActions>[0]["contact"];
+  children: React.ReactElement;
+}) {
+  const { actions, dialogs } = useContactActions({
+    contact,
+    openHref: `/contacts/${contact.id}`,
+  });
+  return (
+    <>
+      <RecordContextMenu actions={actions}>{children}</RecordContextMenu>
+      {dialogs}
+    </>
+  );
+}
 
 function SkeletonRows() {
   const t = useT();
@@ -224,8 +249,8 @@ export function ContactsTable({
               </TableHeader>
               <TableBody>
                 {rows.map((contact) => (
+                  <ContactRowMenu key={contact.id} contact={contact}>
                   <TableRow
-                    key={contact.id}
                     className="cursor-pointer"
                     // Mouse convenience only. Keyboard and screen reader users
                     // get the real link in the name cell, so the row itself
@@ -306,6 +331,7 @@ export function ContactsTable({
                       )}
                     </TableCell>
                   </TableRow>
+                  </ContactRowMenu>
                 ))}
               </TableBody>
             </Table>

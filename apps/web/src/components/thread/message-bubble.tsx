@@ -39,7 +39,7 @@ import { AttachmentAudio } from "./attachment-audio";
 import { AttachmentFileChip } from "./attachment-file";
 import { AttachmentImage } from "./attachment-image";
 import { doneBadgeLabel, isDone } from "./done";
-import { MessageActions } from "./message-actions";
+import { MessageActions, MessageMenuScope } from "./message-actions";
 
 /**
  * Delivery-state line (G5): "Sending…" → "Sent ✓" → "Delivered ✓✓";
@@ -292,6 +292,9 @@ export const MessageBubble = memo(function MessageBubble({
   const pinned = message.pinned_at !== null;
 
   return (
+    // #712: right-click, long-press, or the menu key on the row opens the same
+    // action list the ⋯ button does.
+    <MessageMenuScope message={message} conversationId={conversationId}>
     <div
       className={cn(
         "group/message flex w-full items-center gap-0.5",
@@ -461,5 +464,6 @@ export const MessageBubble = memo(function MessageBubble({
           is items-center; the cluster is self-center). */}
       <MessageActions message={message} conversationId={conversationId} />
     </div>
+    </MessageMenuScope>
   );
 });

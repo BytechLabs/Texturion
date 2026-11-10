@@ -1,9 +1,13 @@
 "use client";
 
 import { Loader2, MoreHorizontal, Paperclip } from "lucide-react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  ActivityTimeline,
+  type ActivityExtraItem,
+} from "@/components/activity/activity-timeline";
 import { AttachmentItem } from "@/components/attachments/attachment-item";
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
@@ -33,9 +37,6 @@ import {
 } from "@/lib/attachments/validate";
 import { Timestamp } from "@/components/ui/timestamp";
 
-import { taskHistorySentence } from "./task-history";
-import { taskNumberLabel } from "@loonext/shared";
-import Link from "next/link";
 import { ReferencePicker } from "./reference-picker";
 import { ReferenceText } from "./reference-text";
 import { useReferenceTrigger } from "./use-reference-trigger";
@@ -45,9 +46,10 @@ type CommentItem = Extract<TaskFeedItem, { kind: "comment" }>;
 const COMMENT_MAX_LENGTH = 4000;
 
 /**
- * A task's activity: what changed on it, what the crew said, and the thread note
- * a message task came from, in one list oldest first (#689 E). The comment box
- * is a separate piece pinned under the panel.
+ * A task's activity is the shared timeline (#714): what changed, who was
+ * mentioned, what points at it, and the texts and calls on its thread, with the
+ * crew's comments and the thread note it came from folded in by time, oldest
+ * first. The comment box is a separate piece pinned under the panel.
  */
 export function TaskFeed({
   taskId,
@@ -59,127 +61,51 @@ export function TaskFeed({
   /** An owner or admin may delete anyone's comment. */
   canModerate: boolean;
 }) {
-  const t = useT();
   const activity = useTaskActivity(taskId);
 
-  if (activity.isPending) {
-    return <Loader2 className="size-4 animate-spin text-app-muted" aria-hidden />;
-  }
-  if (activity.isError) {
-    return (
-      <p className="text-[13px] text-app-muted">{t("tasks.activityLoadFailed")}</p>
-    );
-  }
-  if (activity.items.length === 0) {
-    return <p className="text-[13px] text-app-muted">{t("tasks.activityEmpty")}</p>;
-  }
+  // The #689 feed still carries what only it holds: the comments (editable,
+  // with files) and the note. Its events and references are the timeline's now.
+  const extraItems = useMemo<ActivityExtraItem[]>(
+    () =>
+      activity.items.flatMap((item) => {
+        if (item.kind === "comment") {
+          return [
+            {
+              id: item.id,
+              occurred_at: item.created_at,
+              node: (
+                <Comment
+                  taskId={taskId}
+                  item={item}
+                  canEdit={item.author?.user_id === userId}
+                  canDelete={canModerate || item.author?.user_id === userId}
+                />
+              ),
+            },
+          ];
+        }
+        if (item.kind === "note") {
+          return [{ id: item.id, occurred_at: item.created_at, node: <Note item={item} /> }];
+        }
+        return [];
+      }),
+    [activity.items, taskId, userId, canModerate],
+  );
 
   return (
-    <div className="space-y-3">
-      {activity.hasNextPage && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => void activity.fetchNextPage()}
-          disabled={activity.isFetchingNextPage}
-          className="text-app-muted"
-        >
-          {t("tasks.activityEarlier")}
-        </Button>
-      )}
-      <ul className="space-y-3">
-        {activity.items.map((item) => (
-          <li key={`${item.kind}:${item.id}`}>
-            {item.kind === "event" ? (
-              <HistoryLine item={item} />
-            ) : item.kind === "comment" ? (
-              <Comment
-                taskId={taskId}
-                item={item}
-                canEdit={item.author?.user_id === userId}
-                canDelete={canModerate || item.author?.user_id === userId}
-              />
-            ) : item.kind === "reference" ? (
-              <ReferenceLine item={item} />
-            ) : (
-              <Note item={item} />
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function HistoryLine({ item }: { item: Extract<TaskFeedItem, { kind: "event" }> }) {
-  const t = useT();
-  // A change nobody made (a job, the customer's reply) is the product's own.
-  const by = item.actor?.display_name ?? (item.actor ? t("tasks.aTeammate") : "Loonext");
-  return (
-    <p className="text-[12px] leading-relaxed text-app-muted-2">
-      {taskHistorySentence(item, by, t)}
-      <span className="ml-1 tabular-nums text-app-muted-2/80">
-        · <Timestamp at={item.created_at} style="long" />
-      </span>
-    </p>
-  );
-}
-
-/**
- * #690: where this task is referenced from, or what its own text points at.
- * A back-reference whose conversation is on a number this member may not see
- * never arrives, so there is nothing here to hide.
- */
-function ReferenceLine({
-  item,
-}: {
-  item: Extract<TaskFeedItem, { kind: "reference" }>;
-}) {
-  const t = useT();
-  const by = item.author?.display_name ?? (item.author ? t("tasks.aTeammate") : "Loonext");
-  const customer = item.contact?.name ?? t("tasks.aCustomer");
-  const task = item.task
-    ? `${taskNumberLabel(item.task.number)} ${item.task.title ?? ""}`.trim()
-    : "";
-  let sentence: string;
-  let href: string | null = null;
-  if (item.direction === "in") {
-    if (item.source_kind === "note") {
-      sentence = t("tasks.refInNote", { by, customer });
-      href = item.conversation_id ? `/inbox/${item.conversation_id}` : null;
-    } else if (item.task) {
-      sentence = t("tasks.refInTask", { by, task });
-      href = `/tasks?task=${item.task.id}`;
-    } else {
-      sentence = t("tasks.refInComment", { by });
-    }
-  } else if (item.target_kind === "contact") {
-    sentence = t("tasks.refOutContact", { customer });
-    href = item.contact ? `/contacts/${item.contact.id}` : null;
-  } else if (item.target_kind === "conversation") {
-    sentence = t("tasks.refOutConversation", { customer });
-    href = item.conversation_id ? `/inbox/${item.conversation_id}` : null;
-  } else {
-    sentence = t("tasks.refOutTask", { task });
-    href = item.task ? `/tasks?task=${item.task.id}` : null;
-  }
-  const body = (
-    <>
-      {sentence}
-      <span className="ml-1 tabular-nums text-app-muted-2/80">· <Timestamp at={item.created_at} style="long" /></span>
-    </>
-  );
-  return (
-    <p className="text-[12px] leading-relaxed text-app-muted-2">
-      {href ? (
-        <Link href={href} className="hover:text-app-ink hover:underline">
-          {body}
-        </Link>
-      ) : (
-        body
-      )}
-    </p>
+    <ActivityTimeline
+      recordType="task"
+      recordId={taskId}
+      extraItems={extraItems}
+      extraMore={{
+        hasMore: activity.hasNextPage,
+        fetching: activity.isFetchingNextPage,
+        fetch: () => void activity.fetchNextPage(),
+      }}
+      oldestFirst
+      compact
+      hideHeading
+    />
   );
 }
 

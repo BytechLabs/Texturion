@@ -33,10 +33,12 @@ import type {
 import { useCompanyId } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
+import { RecordContextMenu } from "@/components/ui/record-menu";
 import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
 
 import { isSnoozed } from "@/lib/api/filters";
+import { useConversationActions } from "../thread/conversation-actions";
 import { deferralReturnLabel } from "../thread/snooze-menu";
 
 import { avatarColorClass } from "../shell/avatar-color";
@@ -164,6 +166,11 @@ export const ConversationRow = memo(function ConversationRow({
   const t = useT();
   const memberNames = useMemberNames();
   const snippet = useSnippet(conversation);
+  // #712: the conversation's one action list, shared with the thread header's ⋯.
+  const { actions, dialogs } = useConversationActions({
+    conversation,
+    openHref: `/inbox/${conversation.id}`,
+  });
   const unread = conversation.unread;
   const pinned = conversation.pinned_at !== null;
   // #694: THIS member muted the thread. It still counts as unread; it only
@@ -227,6 +234,8 @@ export const ConversationRow = memo(function ConversationRow({
     // Everything else on the card is hidden from screen readers because the
     // label carries it: EVERY state a sighted user sees (unread, pinned,
     // internal note, assignee, spam, snooze) plus the latest message.
+    <>
+    <RecordContextMenu actions={actions}>
     <div
       style={{ height: ROW_HEIGHT }}
       className={cn(
@@ -380,5 +389,8 @@ export const ConversationRow = memo(function ConversationRow({
         />
       )}
     </div>
+    </RecordContextMenu>
+    {dialogs}
+    </>
   );
 });

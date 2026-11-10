@@ -21,11 +21,9 @@ import { useMemo, useState } from "react";
 import { LoadError } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  RecordContextMenu,
+  RecordOverflowMenu,
+} from "@/components/ui/record-menu";
 import { useT, type MessageKey } from "@/i18n/provider";
 import { useAllTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
@@ -34,6 +32,7 @@ import type { Task } from "@/lib/api/types";
 
 import { taskThreadId } from "../task-format";
 import { useTaskDrawer } from "../use-task-drawer";
+import { useTaskRowActions } from "../task-actions";
 import { useTaskReschedule } from "../use-task-mutations";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
 
@@ -302,37 +301,7 @@ function DayCell({
   );
 }
 
-/**
- * The moves the menu offers, and why these.
- *
- * Not a full date picker. WCAG 2.5.7 asks for a way to do the DRAG without
- * dragging, and on a calendar the drag people actually perform is "this job
- * slipped, push it". Three relative moves cover that in one click; an
- * arbitrary date is still reachable by dragging or from the task itself, so
- * nothing is lost by keeping this list short enough to read.
- */
-export const RESCHEDULE_MOVES: readonly {
-  labelKey: MessageKey;
-  days: number;
-}[] = [
-  { labelKey: "tasks.rescheduleDayEarlier", days: -1 },
-  { labelKey: "tasks.rescheduleDayLater", days: 1 },
-  { labelKey: "tasks.rescheduleWeekLater", days: 7 },
-];
-
-/**
- * The new instant for a move, keeping the time of day.
- *
- * The same rule the drop handler follows: dragging a chip to another cell
- * moves the DATE and leaves the appointment time alone, and a menu that reset
- * every job to midnight would be a different operation wearing the same name.
- */
-export function movedDueAt(dueAt: string | null, days: number, now: Date): string {
-  const from = dueAt ? new Date(dueAt) : now;
-  const next = new Date(from);
-  next.setDate(next.getDate() + days);
-  return next.toISOString();
-}
+export { movedDueAt, RESCHEDULE_MOVES } from "../task-reschedule";
 
 /**
  * A calm draggable day chip → its source message + conversation.
@@ -363,10 +332,11 @@ export function movedDueAt(dueAt: string | null, days: number, now: Date): strin
  */
 function DayChip({ task }: { task: Task }) {
   const t = useT();
-  const reschedule = useTaskReschedule();
+  const { actions, dialogs } = useTaskRowActions(task);
   const { hrefForTask } = useTaskDrawer();
 
   return (
+    <RecordContextMenu actions={actions}>
     <div className="group/chip flex items-center gap-0.5">
       <Link
         href={hrefForTask(task.id)}
@@ -388,8 +358,13 @@ function DayChip({ task }: { task: Task }) {
       >
         {task.title}
       </Link>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      {/* #712: the chip's ⋯ and its right-click menu are the SAME list as the
+          board card's and the task panel's. The trigger stays in the DOM, never
+          hover-only (#238), and absent only when nothing is allowed. */}
+      <RecordOverflowMenu
+        actions={actions}
+        label={t("tasks.rescheduleAria", { title: task.title })}
+        trigger={
           <button
             type="button"
             // Named for the task, because a screen reader reading thirty of
@@ -399,24 +374,10 @@ function DayChip({ task }: { task: Task }) {
           >
             <CalendarClock className="size-3.5" strokeWidth={1.75} aria-hidden />
           </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {RESCHEDULE_MOVES.map((move) => (
-            <DropdownMenuItem
-              key={move.labelKey}
-              onSelect={() =>
-                reschedule.mutate({
-                  taskId: task.id,
-                  conversationId: taskThreadId(task),
-                  due_at: movedDueAt(task.due_at, move.days, new Date()),
-                })
-              }
-            >
-              {t(move.labelKey)}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        }
+      />
+      {dialogs}
     </div>
+    </RecordContextMenu>
   );
 }

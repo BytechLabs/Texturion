@@ -22,6 +22,7 @@ import {
   toggleRow,
   type BulkSelection,
 } from "@/lib/inbox/bulk-selection";
+import { RecordContextMenu } from "@/components/ui/record-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAllTasks, useTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
@@ -32,6 +33,7 @@ import { TaskDoneCheckbox, TaskNumber, TaskStatusPill } from "../task-atoms";
 import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
 import { EmptyTasks } from "../task-empty";
 import { InlineAssignee, InlineDue } from "../task-inline-edit";
+import { useTaskRowActions } from "../task-actions";
 import { useTaskDrawer } from "../use-task-drawer";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
 import { taskSourceLink } from "../task-format";
@@ -237,7 +239,10 @@ function TaskRow({
   const t = useT();
   const { openTask } = useTaskDrawer();
   const source = taskSourceLink(task, t);
+  // #712: right-click, long-press or the menu key opens the task's one action list.
+  const { actions, dialogs } = useTaskRowActions(task);
   return (
+    <RecordContextMenu actions={actions}>
     <li className="group border-b border-border-subtle">
       <div className="flex items-center gap-3 px-3 py-3 transition-colors duration-150 ease-out hover:bg-app-hover md:grid md:min-w-[640px] md:grid-cols-[minmax(0,1fr)_160px_128px_96px] md:gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3 md:items-center">
@@ -301,7 +306,9 @@ function TaskRow({
           <TaskStatusPill task={task} />
         </div>
       </div>
+      {dialogs}
     </li>
+    </RecordContextMenu>
   );
 }
 

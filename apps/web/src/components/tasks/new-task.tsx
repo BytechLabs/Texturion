@@ -253,7 +253,7 @@ function NewTaskForm({
       if (labelFailed) toast.error(t("tasks.labelAddFailed"));
       if (context.contactId !== undefined) {
         void queryClient.invalidateQueries({
-          queryKey: [companyId, "contact-timeline", context.contactId],
+          queryKey: [companyId, "record-activity", "contact", context.contactId],
         });
       }
       createdToast({

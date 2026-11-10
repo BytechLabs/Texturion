@@ -16,7 +16,10 @@ import {
   VoicemailPlayer,
 } from "@/components/calls/voicemail-player";
 import { VoicemailIntakeSummary } from "@/components/calls/voicemail-intake-summary";
-import { CallActions } from "@/components/calls/call-actions";
+import {
+  CallActionsMenu,
+  useCallActions,
+} from "@/components/calls/call-actions";
 import { MakeCallTask } from "@/components/calls/make-call-task";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { avatarColorClass } from "@/components/shell/avatar-color";
@@ -24,6 +27,7 @@ import { useT, type Translate } from "@/i18n/provider";
 import type { Call } from "@/lib/api/types";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
+import { RecordContextMenu } from "@/components/ui/record-menu";
 import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
 import { avatarInitials } from "@loonext/shared";
@@ -94,6 +98,15 @@ export function CallRow({ call }: { call: Call }) {
   const name = callerName(call, t);
   const screening = screeningLabel(call.screening_result, call.caller_name, t);
   const threaded = Boolean(call.conversation_id);
+  // #712: one action list for the ⋯ button and the right-click menu.
+  const actions = useCallActions({
+    callId: call.id,
+    callerName: name,
+    hasVoicemail: (call.voicemail_seconds ?? 0) > 0,
+    conversationId: call.conversation_id,
+    contactId: call.contact_id,
+    callerE164: call.caller_e164,
+  });
   const body = (
     <>
       <span
@@ -222,11 +235,7 @@ export function CallRow({ call }: { call: Call }) {
       )}
       {/* #691: delete the call, or its voicemail alone. Hidden without
           records.delete (the component renders nothing). */}
-      <CallActions
-        callId={call.id}
-        callerName={name}
-        hasVoicemail={(call.voicemail_seconds ?? 0) > 0}
-      />
+      <CallActionsMenu actions={actions} callerName={name} />
     </>
   );
 
@@ -235,6 +244,7 @@ export function CallRow({ call }: { call: Call }) {
   const rowClass =
     "relative flex items-start gap-[11px] border-b border-app-line-soft p-[11px] last:border-b-0";
   return (
+    <RecordContextMenu actions={actions}>
     <div
       className={cn(
         rowClass,
@@ -244,5 +254,6 @@ export function CallRow({ call }: { call: Call }) {
     >
       {body}
     </div>
+    </RecordContextMenu>
   );
 }

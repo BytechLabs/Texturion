@@ -7,20 +7,13 @@ import {
   BellOff,
   ChevronDown,
   Copy,
-  Images,
   Info,
-  MailOpen,
   MoreHorizontal,
-  OctagonAlert,
-  Pin,
-  Trash2,
   TriangleAlert,
-  Undo2,
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -33,27 +26,13 @@ import {
 
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
-import {
-  BlockNumberDialog,
-  useBlockedNumber,
-} from "@/components/blocked/block-number";
+import { useBlockedNumber } from "@/components/blocked/block-number";
 import { CallButton } from "@/components/calls/call-button";
 import { avatarColorClass } from "@/components/shell/avatar-color";
-import { DeleteConversationsDialog } from "@/components/thread/delete-conversations-dialog";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
-import { AiOrb } from "@/components/ui/ai-orb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { undoableToast } from "@/components/ui/optimistic-undo";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuChoiceItem,
@@ -65,15 +44,8 @@ import {
   DropdownMenuToggleItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { useT } from "@/i18n/provider";
-import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
-import {
-  useMarkConversationUnread,
-  useSnoozeConversation,
-  useUnsnoozeConversation,
-  useUpdateConversation,
-} from "@/lib/api/conversations";
-import { ApiError } from "@/lib/api/error";
 import { useMembers } from "@/lib/api/team";
 import type {
   ConversationDetail,
@@ -81,19 +53,14 @@ import type {
   ContactDetail,
 } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
-import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { useIsBelowMd } from "@/lib/use-is-below-md";
+import { useNavigate } from "@/lib/use-navigate";
 import { cn } from "@/lib/utils";
 
-import { MuteFollowMenuItems } from "./mute-menu";
-import {
-  SnoozeDialog,
-  SnoozeMenuItems,
-  deferralReturnLabel,
-  toastSnoozed,
-} from "./snooze-menu";
+import { useConversationActions } from "./conversation-actions";
+import { deferralReturnLabel } from "./snooze-menu";
 import {
   THREAD_CATEGORIES,
   threadCategoryLabel,
@@ -107,41 +74,12 @@ const STATUSES: ConversationStatus[] = ["new", "open", "waiting", "closed"];
  *  User ids are UUIDs, so this sentinel cannot collide with one. */
 const UNASSIGNED_VALUE = "__unassigned__";
 
-function onApiError(error: unknown, fallback: string) {
-  toast.error(error instanceof ApiError ? error.message : fallback);
-}
-
-/**
- * #691: mounted only while the confirmation is open, so a thread nobody is
- * deleting carries none of the delete machinery (router, mutation, toast).
- * After the delete the thread is gone, so the pane goes back to the inbox.
- */
-function DeleteThisConversation({
-  conversationId,
-  onClose,
-}: {
-  conversationId: string;
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  return (
-    <DeleteConversationsDialog
-      ids={[conversationId]}
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      onDeleted={() => router.replace("/inbox")}
-    />
-  );
-}
-
 /**
  * G5 thread header (decluttered per issue #2): back (mobile), contact name
  * (tap → contact panel) with a copy-number button beside the number, Call, the
  * status select (the single status control), the assignee select, an Info
  * toggle (desktop) for the contact panel, and a lean overflow (spam /
- * attachments / opt-out).
+ * attachments / opt-out), drawn from the conversation's one action list (#712).
  *
  * Removed: the redundant Done/Reopen bar button — "Closed" is one option in the
  * status dropdown, so the bar button just duplicated it — and the dedicated
@@ -171,24 +109,23 @@ export function ThreadHeader({
   onCatchUp?: () => void;
 }) {
   const t = useT();
-  const update = useUpdateConversation(conversation.id);
-  const unread = useMarkConversationUnread();
-  const snooze = useSnoozeConversation();
-  const unsnooze = useUnsnoozeConversation();
-  const optOut = useOptOutContact();
-  const revokeOptOut = useRevokeOptOut();
+  const navigate = useNavigate();
+  const { actions, dialogs, setStatus, assignTo, bringBack, updating } =
+    useConversationActions({
+      conversation,
+      optOut: contact
+        ? {
+            optedOut: contact.opted_out,
+            carrierEnforced: isCarrierEnforcedOptOut(contact.opt_out_source),
+          }
+        : undefined,
+      onOpenGallery,
+      onCatchUp,
+      onDeleted: () => navigate("/inbox", { replace: true }),
+    });
   const members = useMembers();
   const memberNames = useMemberNames();
   const { userId } = useActiveCompany();
-  const [confirmOptOut, setConfirmOptOut] = useState(false);
-  const [confirmBlock, setConfirmBlock] = useState(false);
-  // #691: owned here for the same reason as the snooze picker above.
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const canDelete = useCanDeleteRecords();
-  // #293: owned HERE, not inside the overflow menu — a Radix Dialog mounted
-  // inside DropdownMenuContent is unmounted the moment the menu closes, so the
-  // picker would flash and vanish.
-  const [snoozePicker, setSnoozePicker] = useState<DeferralKind | null>(null);
   // #76: the phone-only "Show" filter items are MOUNTED conditionally (not just
   // md:hidden) — a display:none menu item still lives in Radix's menu collection
   // and can silently capture typeahead ("m" → hidden "Messages" instead of "Mark
@@ -230,119 +167,8 @@ export function ThreadHeader({
     }
   };
 
-  const setStatus = (status: ConversationStatus) => {
-    if (status === conversation.status) return;
-    // #295: closing a conversation removes it from the open inbox, so it is the
-    // one status change with no obvious way back — the same reasoning that put an
-    // Undo on Android's swipe-close since it shipped. The other directions leave
-    // the thread in front of you, where the control that changed it is still
-    // there. Spam and assignment above have had this treatment for longer; the
-    // status control was simply missed.
-    const previous = conversation.status;
-    const closing = status === "closed";
-    update.mutate(
-      { status },
-      {
-        onError: (e) => onApiError(e, t("thread.statusUpdateFailed")),
-        onSuccess: closing
-          ? () =>
-              undoableToast({
-                undoLabel: t("thread.undo"),
-                message: t("thread.conversationClosed"),
-                onUndo: () =>
-                  update.mutate(
-                    { status: previous },
-                    { onError: (e) => onApiError(e, t("thread.undoFailed")) },
-                  ),
-              })
-          : undefined,
-      },
-    );
-  };
-
-  const toggleSpam = () => {
-    const wasSpam = conversation.is_spam;
-    update.mutate(
-      { is_spam: !wasSpam },
-      {
-        onError: (e) => onApiError(e, t("thread.spamUpdateFailed")),
-        onSuccess: () =>
-          undoableToast({
-            undoLabel: t("thread.undo"),
-            message: wasSpam
-              ? t("thread.markedAsNotSpam")
-              : t("thread.markedAsSpam"),
-            onUndo: () =>
-              update.mutate(
-                { is_spam: wasSpam },
-                { onError: (e) => onApiError(e, t("thread.undoFailed")) },
-              ),
-          }),
-      },
-    );
-  };
-
-  // #3: pin/unpin the whole conversation to the top of the inbox. Trivially
-  // reversible from the same menu, so a plain confirm toast (no undo affordance).
-  const pinned = conversation.pinned_at !== null;
-  const markUnread = () => {
-    unread.mutate(conversation.id, {
-      onError: (e) => onApiError(e, t("thread.markUnreadFailed")),
-      onSuccess: () => toast.success(t("thread.markedUnread")),
-    });
-  };
-
-  // #293: deferral. Reversible in one tap and cancelled outright by a customer
-  // reply, so a plain confirm rather than an undo affordance — and the confirm
-  // says WHEN it comes back, because "Snoozed" alone leaves the user guessing
-  // what they just agreed to.
   const snoozedUntil = conversation.snoozed_until ?? null;
   const snoozeKind = (conversation.snooze_kind ?? null) as DeferralKind | null;
-  const snoozeUntil = (
-    until: string,
-    kind: DeferralKind = "snooze",
-    note?: string,
-  ) => {
-    snooze.mutate(
-      { conversationId: conversation.id, until, kind, note },
-      {
-        onError: (e) =>
-          onApiError(
-            e,
-            kind === "follow_up"
-              ? t("thread.reminderSetFailed")
-              : t("thread.snoozeFailed"),
-          ),
-        onSuccess: () => toastSnoozed(until, kind, t),
-      },
-    );
-  };
-  const bringBack = () => {
-    unsnooze.mutate(conversation.id, {
-      onError: (e) => onApiError(e, t("thread.bringBackFailed")),
-      onSuccess: () =>
-        toast.success(
-          snoozeKind === "follow_up"
-            ? t("thread.reminderCancelled")
-            : t("thread.backInYourInbox"),
-        ),
-    });
-  };
-
-  const togglePin = () => {
-    update.mutate(
-      { pinned: !pinned },
-      {
-        onError: (e) => onApiError(e, t("thread.pinUpdateFailed")),
-        onSuccess: () =>
-          toast.success(
-            pinned
-              ? t("thread.conversationUnpinned")
-              : t("thread.conversationPinned"),
-          ),
-      },
-    );
-  };
 
   // Lifted out of the JSX only so the #505 badge can sit beside it in a flex
   // row without the no-badge path having to render a wrapper it does not need.
@@ -363,33 +189,6 @@ export function ThreadHeader({
       <span className="block truncate">{name}</span>
     </button>
   );
-
-  const assignTo = (assignId: string | null) => {
-    const prev = conversation.assigned_user_id;
-    if (assignId === prev) return;
-    const label =
-      assignId === null
-        ? t("thread.unassigned")
-        : t("thread.assignedTo", {
-            name: memberNames.get(assignId) ?? t("thread.teammateLower"),
-          });
-    update.mutate(
-      { assigned_user_id: assignId },
-      {
-        onError: (e) => onApiError(e, t("thread.assignFailed")),
-        onSuccess: () =>
-          undoableToast({
-            undoLabel: t("thread.undo"),
-            message: label,
-            onUndo: () =>
-              update.mutate(
-                { assigned_user_id: prev },
-                { onError: (e) => onApiError(e, t("thread.undoFailed")) },
-              ),
-          }),
-      },
-    );
-  };
 
   return (
     // #81: the whole header opens the contact panel, not just the name. The
@@ -599,7 +398,7 @@ export function ThreadHeader({
                 status: conversation.status,
               })}
               className="flex min-h-11 items-center gap-0.5 rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring md:min-h-0"
-              disabled={update.isPending}
+              disabled={updating}
             >
               <StatusPill status={conversation.status} />
               <ChevronDown
@@ -639,7 +438,7 @@ export function ThreadHeader({
                   : t("thread.assignAria")
               }
               className="flex min-h-11 min-w-11 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring md:min-h-0 md:min-w-0"
-              disabled={update.isPending}
+              disabled={updating}
             >
               {assigneeName ? (
                 <MemberAvatar name={assigneeName} className="size-6" />
@@ -699,9 +498,14 @@ export function ThreadHeader({
           <Info className="size-4" strokeWidth={1.75} />
         </Button>
 
-        {/* Overflow — spam / attachments / opt-out. */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        {/* #712: the overflow renders the conversation's one action list, the
+            same one the inbox row's right-click menu opens. The phone-only
+            Show filter and info item are VIEW controls, not record actions,
+            so they ride in front of it. */}
+        <RecordOverflowMenu
+          actions={actions}
+          label={t("thread.moreActions")}
+          trigger={
             <Button
               variant="ghost"
               size="icon-sm"
@@ -709,209 +513,42 @@ export function ThreadHeader({
             >
               <MoreHorizontal className="size-4" strokeWidth={1.75} />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {/* #76: on a phone the segmented filter bar is hidden, so filtering
-                lives here as a "Show" section. Mounted only below md (not
-                md:hidden) so these items never enter the desktop menu's
-                typeahead/roving-focus collection. */}
-            {isBelowMd && (
-              <>
-                {/* #89: the dedicated contact-info button is desktop-only
-                    (`hidden md:inline-flex`), so on a phone opening the contact
-                    panel (bottom sheet) lives here at the top of the menu. */}
-                <DropdownMenuItem onSelect={onToggleContactPanel}>
-                  <Info className="size-4" strokeWidth={1.75} aria-hidden />
-                  {t("thread.conversationInfo")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>{t("thread.showLabel")}</DropdownMenuLabel>
-                {/* #89: each kind is an independent toggle (mix-and-match), all
-                    on by default. `onSelect`-preventDefault keeps the menu open
-                    so several can be flipped in one pass. */}
-                {THREAD_CATEGORIES.map((category) => (
-                  <DropdownMenuToggleItem
-                    key={category}
-                    checked={filter[category]}
-                    onSelect={(event) => event.preventDefault()}
-                    onCheckedChange={() =>
-                      onFilterChange(toggleThreadCategory(filter, category))
-                    }
-                  >
-                    {threadCategoryLabel(category, t)}
-                  </DropdownMenuToggleItem>
-                ))}
-                <DropdownMenuSeparator />
-              </>
-            )}
-            {/* Opening a thread marks it read, so glancing at one you meant
-                to come back to used to lose the only mark that said so. Both
-                phone apps have had this as an inbox swipe since #185. */}
-            <DropdownMenuItem onSelect={markUnread}>
-              <MailOpen className="size-4" strokeWidth={1.75} />
-              {t("thread.markUnread")}
-            </DropdownMenuItem>
-            {/* #716: the composer's hint can be dismissed, so the catch-up
-                lives here too and is never more than this menu away. */}
-            {onCatchUp && (
-              <DropdownMenuItem onSelect={onCatchUp}>
-                <AiOrb size={16} />
-                {t("thread.catchMeUp")}
+          }
+          before={
+            isBelowMd && (
+            <>
+              {/* #89: the dedicated contact-info button is desktop-only
+                  (`hidden md:inline-flex`), so on a phone opening the contact
+                  panel (bottom sheet) lives here at the top of the menu. */}
+              <DropdownMenuItem onSelect={onToggleContactPanel}>
+                <Info className="size-4" strokeWidth={1.75} aria-hidden />
+                {t("thread.conversationInfo")}
               </DropdownMenuItem>
-            )}
-            {/* #465: pinned and spam are STATES, not commands. They are drawn
-                as toggles and named as states, so they stop looking like
-                "Copy text" two rows down. */}
-            <DropdownMenuToggleItem
-              checked={pinned}
-              onSelect={(event) => event.preventDefault()}
-              onCheckedChange={togglePin}
-            >
-              <Pin className="size-4" strokeWidth={1.75} />
-              {t("thread.pinned")}
-            </DropdownMenuToggleItem>
-            <SnoozeMenuItems
-              snoozedUntil={snoozedUntil}
-              snoozeKind={snoozeKind}
-              onSnooze={snoozeUntil}
-              onUnsnooze={bringBack}
-              onPickCustom={setSnoozePicker}
-            />
-            {/* #710: alerts apart from Snooze, so the two read as different things. */}
-            <DropdownMenuSeparator />
-            <MuteFollowMenuItems
-              conversationId={conversation.id}
-              muted={muted}
-              followed={conversation.followed === true}
-            />
-            <DropdownMenuSeparator />
-            {/* §5.2: the gallery's single entry point. */}
-            <DropdownMenuItem onSelect={onOpenGallery}>
-              <Images className="size-4" strokeWidth={1.75} />
-              {t("thread.viewAttachments")}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuToggleItem
-              checked={conversation.is_spam}
-              onSelect={(event) => event.preventDefault()}
-              onCheckedChange={toggleSpam}
-            >
-              <OctagonAlert className="size-4" strokeWidth={1.75} />
-              {t("thread.spam")}
-            </DropdownMenuToggleItem>
-            {blockedNumber.canManage &&
-              (blocked ? (
-                <DropdownMenuItem
-                  disabled={blockedNumber.unblocking}
-                  onSelect={blockedNumber.unblock}
-                >
-                  <Undo2 className="size-4" strokeWidth={1.75} />
-                  {t("blockedNumbers.unblockAction")}
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onSelect={() => setConfirmBlock(true)}>
-                  <Ban className="size-4" strokeWidth={1.75} />
-                  {t("blockedNumbers.blockAction")}
-                </DropdownMenuItem>
-              ))}
-            {canDelete && (
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => setConfirmDelete(true)}
-              >
-                <Trash2 className="size-4" strokeWidth={1.75} />
-                {t("trash.deleteConversation")}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            {contact?.opted_out ? (
-              // A STOP the customer sent is a carrier block, and only they can
-              // lift it. Offering to undo it here promised something the next
-              // send would immediately contradict.
-              isCarrierEnforcedOptOut(contact.opt_out_source) ? (
-                <DropdownMenuLabel className="max-w-64 whitespace-normal text-xs font-normal text-muted-foreground">
-                  {t("thread.carrierStopNote")}
-                </DropdownMenuLabel>
-              ) : (
-                <DropdownMenuItem
-                  onSelect={() =>
-                    revokeOptOut.mutate(conversation.contact_id, {
-                      onSuccess: () =>
-                        toast.success(t("thread.markedOptedInAgain")),
-                      onError: (e) =>
-                        onApiError(e, t("thread.optOutUpdateFailed")),
-                    })
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>{t("thread.showLabel")}</DropdownMenuLabel>
+              {/* #89: each kind is an independent toggle (mix-and-match), all
+                  on by default. `onSelect`-preventDefault keeps the menu open
+                  so several can be flipped in one pass. */}
+              {THREAD_CATEGORIES.map((category) => (
+                <DropdownMenuToggleItem
+                  key={category}
+                  checked={filter[category]}
+                  onSelect={(event) => event.preventDefault()}
+                  onCheckedChange={() =>
+                    onFilterChange(toggleThreadCategory(filter, category))
                   }
                 >
-                  <Undo2 className="size-4" strokeWidth={1.75} />
-                  {t("thread.markOptedInAgain")}
-                </DropdownMenuItem>
-              )
-            ) : (
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => setConfirmOptOut(true)}
-              >
-                <Ban className="size-4" strokeWidth={1.75} />
-                {t("thread.optOutContact")}
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                  {threadCategoryLabel(category, t)}
+                </DropdownMenuToggleItem>
+              ))}
+              <DropdownMenuSeparator />
+            </>
+            )
+          }
+        />
       </div>
 
-      <SnoozeDialog
-        open={snoozePicker !== null}
-        kind={snoozePicker ?? "snooze"}
-        onOpenChange={(next) => setSnoozePicker(next ? "snooze" : null)}
-        onConfirm={(until, note) =>
-          snoozeUntil(until, snoozePicker ?? "snooze", note)
-        }
-      />
-
-      <BlockNumberDialog
-        phone={phone}
-        open={confirmBlock}
-        onOpenChange={setConfirmBlock}
-      />
-
-      {canDelete && confirmDelete && (
-        <DeleteThisConversation
-          conversationId={conversation.id}
-          onClose={() => setConfirmDelete(false)}
-        />
-      )}
-
-      <Dialog open={confirmOptOut} onOpenChange={setConfirmOptOut}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("thread.optOutTitle", { name })}</DialogTitle>
-            <DialogDescription>
-              {t("thread.optOutDescription")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOptOut(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={optOut.isPending}
-              onClick={() =>
-                optOut.mutate(conversation.contact_id, {
-                  onSuccess: () => {
-                    setConfirmOptOut(false);
-                    toast.success(t("thread.contactOptedOut"));
-                  },
-                  onError: (e) => onApiError(e, t("thread.optOutFailed")),
-                })
-              }
-            >
-              {optOut.isPending ? t("thread.optingOut") : t("thread.optOut")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {dialogs}
     </header>
   );
 }

@@ -62,6 +62,10 @@ function metaLine(html: string): string {
 
 // #691: the delete menu is its own surface (call-actions.test.tsx); these tests
 // are about the row, so a member who cannot delete keeps the row as it was.
+vi.mock("@/lib/api/trash", () => ({
+  useDeleteCall: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteVoicemail: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 vi.mock("@/lib/hooks/use-records-delete", () => ({
   useCanDeleteRecords: () => false,
   useDeletedToast: () => () => undefined,

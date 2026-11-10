@@ -24,6 +24,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/api/conversations", () => ({
   useUpdateConversation: () => ({ mutate: vi.fn(), isPending: false }),
   useMarkConversationUnread: () => ({ mutate: vi.fn(), isPending: false }),
+  useMarkConversationRead: () => ({ mutate: vi.fn(), isPending: false }),
   useSnoozeConversation: () => ({ mutate: vi.fn(), isPending: false }),
   useUnsnoozeConversation: () => ({ mutate: vi.fn(), isPending: false }),
   useMuteConversation: () => ({ mutate: vi.fn(), isPending: false }),

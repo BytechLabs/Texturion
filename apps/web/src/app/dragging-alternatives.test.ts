@@ -65,7 +65,10 @@ const DRAG_SURFACES: Record<
     why: "A visible 'Move to To do / Move to Done' button on every card.",
   },
   "components/tasks/views/calendar-view.tsx": {
-    pointerAlternative: ["RESCHEDULE_MOVES.map"],
+    // #712: the chip's menu is the task's one action list (task-actions.tsx,
+    // whose "Move due date" submenu is built from RESCHEDULE_MOVES), so the
+    // marker is the chip rendering that list, not the moves themselves.
+    pointerAlternative: ["<RecordOverflowMenu", "useTaskRowActions(task)"],
     why: "A per-chip menu with relative moves — a day earlier, a day later, a week later.",
   },
   "components/thread/thread-view.tsx": {

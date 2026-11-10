@@ -19,6 +19,50 @@ import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { MicPermissionError, useSoftphone } from "@/lib/softphone/provider";
 
+/**
+ * #712: placing a call, as a hook, so the Call button and the call row's menu
+ * (Call back) share one path: one busy rule, one mic-permission message, one
+ * place the server's refusal reaches the toast.
+ */
+export function usePlaceCall() {
+  const t = useT();
+  const softphone = useSoftphone();
+  // Phase 3 (call waiting): a member can hold one call and start another —
+  // the button rests only at the 2-call ceiling or while one is connecting.
+  const liveCount =
+    softphone?.calls.filter((c) => c.phase !== "ended").length ?? 0;
+  const busy =
+    liveCount >= 2 || softphone?.calls.some((c) => c.phase === "connecting");
+
+  function place(args: {
+    conversationId?: string;
+    contactId?: string;
+    contactName: string;
+  }) {
+    if (!softphone) {
+      toast.error(t("shell.callingUnavailable"));
+      return;
+    }
+    void softphone
+      .placeCall(args)
+      .catch((cause) =>
+        toast.error(
+          // MicPermissionError carries the only actionable copy in this path
+          // ("Microphone access is blocked. Click the 🎤 or 🔒 icon…"), and the
+          // concurrency ceiling now throws a written message too. Narrowing on
+          // ApiError alone showed "Try again." for both — advice that cannot
+          // work for a blocked mic. Anything else still gets the calm generic,
+          // so a raw fetch/chunk-load failure never reaches the user.
+          cause instanceof MicPermissionError || cause instanceof ApiError
+            ? cause.message
+            : t("shell.callStartFailedRetry"),
+        ),
+      );
+  }
+
+  return { place, busy: busy === true };
+}
+
 export function CallButton({
   conversationId,
   contactId,
@@ -44,34 +88,10 @@ export function CallButton({
   className?: string;
 }) {
   const t = useT();
-  const softphone = useSoftphone();
-  // Phase 3 (call waiting): a member can hold one call and start another —
-  // the button rests only at the 2-call ceiling or while one is connecting.
-  const liveCount =
-    softphone?.calls.filter((c) => c.phase !== "ended").length ?? 0;
-  const busy =
-    liveCount >= 2 || softphone?.calls.some((c) => c.phase === "connecting");
+  const { place, busy } = usePlaceCall();
 
   function onClick() {
-    if (!softphone) {
-      toast.error(t("shell.callingUnavailable"));
-      return;
-    }
-    void softphone
-      .placeCall({ conversationId, contactId, contactName })
-      .catch((cause) =>
-        toast.error(
-          // MicPermissionError carries the only actionable copy in this path
-          // ("Microphone access is blocked. Click the 🎤 or 🔒 icon…"), and the
-          // concurrency ceiling now throws a written message too. Narrowing on
-          // ApiError alone showed "Try again." for both — advice that cannot
-          // work for a blocked mic. Anything else still gets the calm generic,
-          // so a raw fetch/chunk-load failure never reaches the user.
-          cause instanceof MicPermissionError || cause instanceof ApiError
-            ? cause.message
-            : t("shell.callStartFailedRetry"),
-        ),
-      );
+    place({ conversationId, contactId, contactName });
   }
 
   const icon = busy ? (

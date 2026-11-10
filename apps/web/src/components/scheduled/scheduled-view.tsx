@@ -29,7 +29,7 @@
  * visible; an edit box here would let somebody change what a customer reads
  * without seeing what they said last.
  */
-import { AlertTriangle, CalendarClock, Clock } from "lucide-react";
+import { AlertTriangle, CalendarClock, Clock, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -41,13 +41,16 @@ import {
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sendAtLabel } from "@/components/thread/scheduled-strip";
-import { useT } from "@/i18n/provider";
+import { RecordContextMenu } from "@/components/ui/record-menu";
+import { useT, type Translate } from "@/i18n/provider";
 import {
   scheduledRecipient,
   useCancelScheduledMessage,
   useScheduledMessages,
   type ScheduledMessage,
 } from "@/lib/api/scheduled-messages";
+import type { RecordAction } from "@/lib/record-actions/types";
+import { useNavigate } from "@/lib/use-navigate";
 import { cn } from "@/lib/utils";
 
 export function ScheduledView() {
@@ -165,6 +168,40 @@ function ScheduledGroup({
   );
 }
 
+/**
+ * #712: the scheduled text's ONE action list. The row's visible Cancel button
+ * and its right-click / long-press menu both run this list, so they cannot
+ * offer different things. Cancelling something that has not gone is plain and
+ * reversible by scheduling again, so it asks nothing.
+ */
+export function buildScheduledActions(input: {
+  t: Translate;
+  cancelling: boolean;
+  run: { open: () => void; cancel: () => void };
+}): RecordAction[] {
+  const { t, run } = input;
+  return [
+    {
+      id: "open",
+      label: t("recordMenu.openConversation"),
+      icon: ExternalLink,
+      group: "primary",
+      allowed: true,
+      onSelect: run.open,
+    },
+    {
+      id: "cancel",
+      label: t("recordMenu.cancelScheduled"),
+      icon: X,
+      group: "danger",
+      allowed: true,
+      destructive: true,
+      disabled: input.cancelling,
+      onSelect: run.cancel,
+    },
+  ];
+}
+
 function ScheduledListRow({
   row,
   onCancel,
@@ -175,11 +212,21 @@ function ScheduledListRow({
   cancelling: boolean;
 }) {
   const t = useT();
+  const navigate = useNavigate();
+  const actions = buildScheduledActions({
+    t,
+    cancelling,
+    run: {
+      open: () => navigate(`/inbox/${row.conversation_id}`),
+      cancel: onCancel,
+    },
+  });
   const held = row.status === "held";
   // #228: the key where this client has words for it, the stored English
   // otherwise.
   const holdText = scheduledHoldText(row.held_reason_key, row.held_reason, t);
   return (
+    <RecordContextMenu actions={actions}>
     <li className="flex items-start gap-[11px] border-b border-app-line-soft p-[11px] last:border-b-0">
       {held ? (
         <AlertTriangle
@@ -237,5 +284,6 @@ function ScheduledListRow({
         {t("common.cancel")}
       </button>
     </li>
+    </RecordContextMenu>
   );
 }

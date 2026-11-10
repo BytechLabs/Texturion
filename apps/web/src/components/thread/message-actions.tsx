@@ -10,19 +10,21 @@ import {
   RotateCw,
   Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 
 import { failureReasonOf, isRetryableFailure } from "@loonext/shared";
 
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuToggleItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  RecordContextMenu,
+  RecordOverflowMenu,
+} from "@/components/ui/record-menu";
 import {
   Popover,
   PopoverAnchor,
@@ -30,7 +32,7 @@ import {
   PopoverHeader,
   PopoverTitle,
 } from "@/components/ui/popover";
-import { useT } from "@/i18n/provider";
+import { useT, type Translate } from "@/i18n/provider";
 import {
   useRetryMessage,
   useSetMessageDone,
@@ -44,6 +46,7 @@ import {
   useDeletedToast,
 } from "@/lib/hooks/use-records-delete";
 import { prefersReducedMotion } from "@/lib/motion";
+import type { RecordAction } from "@/lib/record-actions/types";
 import { cn } from "@/lib/utils";
 
 import { deletedMessageKey } from "./delete-message";
@@ -148,17 +151,105 @@ function DoneToggle({
 }
 
 /**
- * §4.1 overflow (⋯): holds the rest so the bubble edge stays calm (two
- * controls max — done + overflow). Make a task (D17 promote, real POST
- * /v1/tasks {message_id}), Copy text, and (failed-retryable outbound) Retry.
- * Same reveal rules as the done toggle.
+ * #712 — the message's ONE action list. The bubble's ⋯ menu and the bubble's
+ * right-click / long-press menu both render it.
  */
-function MessageOverflow({
+export interface MessageActionsInput {
+  t: Translate;
+  message: Pick<Message, "body" | "direction"> & { pinned: boolean };
+  canDelete: boolean;
+  /** A promoted message can't be re-promoted (server 409), and a never-sent one has nothing to track. */
+  promotable: boolean;
+  retryable: boolean;
+  retrying: boolean;
+  deleting: boolean;
+  run: {
+    copyText: () => void;
+    retry: () => void;
+    makeTask: () => void;
+    togglePin: (next: boolean) => void;
+    remove: () => void;
+  };
+}
+
+export function buildMessageActions(input: MessageActionsInput): RecordAction[] {
+  const { t, message, run } = input;
+  return [
+    {
+      id: "copy-text",
+      label: t("thread.copyText"),
+      icon: Copy,
+      group: "primary",
+      allowed: message.body.trim() !== "",
+      onSelect: run.copyText,
+    },
+    {
+      id: "retry",
+      label: t("thread.retrySend"),
+      icon: RotateCw,
+      group: "primary",
+      allowed: input.retryable,
+      disabled: input.retrying,
+      onSelect: run.retry,
+    },
+    {
+      id: "make-task",
+      label: t("thread.makeATask"),
+      icon: ListChecks,
+      group: "state",
+      allowed: input.promotable,
+      onSelect: run.makeTask,
+    },
+    {
+      // #465: pinned is a STATE, named as one and drawn as a toggle.
+      id: "pin",
+      label: t("thread.pinned"),
+      icon: Pin,
+      group: "state",
+      allowed: true,
+      checked: message.pinned,
+      onSelect: () => run.togglePin(!message.pinned),
+    },
+    {
+      id: "delete",
+      label: t(
+        message.direction === "note" ? "trash.deleteNote" : "trash.deleteMessage",
+      ),
+      icon: Trash2,
+      group: "danger",
+      allowed: input.canDelete,
+      destructive: true,
+      disabled: input.deleting,
+      onSelect: run.remove,
+    },
+  ];
+}
+
+interface MessageMenu {
+  actions: RecordAction[];
+}
+
+/** Outside a MessageMenuScope there is no list, so the ⋯ simply is not offered. */
+const MessageMenuContext = createContext<MessageMenu>({ actions: [] });
+
+function useMessageMenu(): MessageMenu {
+  return useContext(MessageMenuContext);
+}
+
+/**
+ * Owns one message's action list and the inline task form it can open, so the
+ * ⋯ button and the right-click menu share ONE set of mutations and ONE form.
+ * The form is anchored to the message row (`children`), whichever menu opened it.
+ */
+export function MessageMenuScope({
   message,
   conversationId,
+  children,
 }: {
   message: Message;
   conversationId: string;
+  /** The message row: one element that takes a ref and props. */
+  children: React.ReactElement;
 }) {
   const t = useT();
   const retry = useRetryMessage(conversationId);
@@ -166,150 +257,108 @@ function MessageOverflow({
   const canDelete = useCanDeleteRecords();
   const deleteMessage = useDeleteMessage();
   const announceDeleted = useDeletedToast();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
-  const retryable = isRetryable(message);
-  const pinned = message.pinned_at !== null;
-  const hasBody = message.body.trim() !== "";
-  // A promoted message can't be re-promoted (server 409); hide the affordance
-  // when we already know it's a task, so the primary path is a clean create.
-  const alreadyTask = message.has_task === true;
-  // Promoting a never-sent outbound (queued/failed) to a task is nonsensical —
-  // nothing reached the customer, so there is nothing to track. Withhold "Make
-  // a task" alongside the Done toggle (withheld in MessageActions below).
-  const promotable = !alreadyTask && !isUnsentOutbound(message);
 
-  const copyText = async () => {
-    try {
-      await navigator.clipboard.writeText(message.body);
-      toast.success(t("thread.copied"));
-    } catch {
-      toast.error(t("thread.copyFailed"));
-    }
-  };
-
-  // #691: a move to the Trash, so an undo toast and no confirmation. The toast
-  // says when the customer still has the text (see deletedMessageKey).
-  const removeMessage = () => {
-    deleteMessage.mutate(message.id, {
-      onSuccess: () =>
-        announceDeleted(t(deletedMessageKey(message)), [
-          { kind: "message", id: message.id },
-        ]),
-      onError: (error) =>
-        toast.error(
-          error instanceof ApiError ? error.message : t("trash.messageDeleteFailed"),
-        ),
-    });
-  };
+  const actions = buildMessageActions({
+    t,
+    message: {
+      body: message.body,
+      direction: message.direction,
+      pinned: message.pinned_at !== null,
+    },
+    canDelete,
+    // A promoted message can't be re-promoted (server 409); hide the
+    // affordance when we already know it's a task. Promoting a never-sent
+    // outbound is nonsensical, so it is withheld as well.
+    promotable: message.has_task !== true && !isUnsentOutbound(message),
+    retryable: isRetryable(message),
+    retrying: retry.isPending,
+    deleting: deleteMessage.isPending,
+    run: {
+      copyText: async () => {
+        try {
+          await navigator.clipboard.writeText(message.body);
+          toast.success(t("thread.copied"));
+        } catch {
+          toast.error(t("thread.copyFailed"));
+        }
+      },
+      retry: () => retry.mutate(message.id),
+      // Open the form on the NEXT TICK: the menu is closing, and opening a
+      // popover in the same tick lets the menu's dismiss/focus event reach it
+      // and close it again (it flashed open then vanished).
+      makeTask: () => {
+        setTimeout(() => setTaskFormOpen(true), 0);
+      },
+      togglePin: (next) =>
+        setPinned.mutate({ messageId: message.id, pinned: next }),
+      // #691: a move to the Trash, so an undo toast and no confirmation. The
+      // toast says when the customer still has the text (see deletedMessageKey).
+      remove: () =>
+        deleteMessage.mutate(message.id, {
+          onSuccess: () =>
+            announceDeleted(t(deletedMessageKey(message)), [
+              { kind: "message", id: message.id },
+            ]),
+          onError: (error) =>
+            toast.error(
+              error instanceof ApiError
+                ? error.message
+                : t("trash.messageDeleteFailed"),
+            ),
+        }),
+    },
+  });
 
   return (
-    // The task form Popover is ANCHORED to the same overflow button (its
-    // trigger), so selecting "Make a task" closes the menu and opens a compact
-    // inline prefilled form in place (T5.1) — not a direct create.
-    <Popover open={taskFormOpen} onOpenChange={setTaskFormOpen}>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        {/* PopoverAnchor (positioning only, no click handler) so the click that
-            opens the menu can't also toggle the popover — the popover opens
-            solely via setTaskFormOpen when "Make a task" is selected. */}
+    <MessageMenuContext.Provider value={{ actions }}>
+      <Popover open={taskFormOpen} onOpenChange={setTaskFormOpen}>
         <PopoverAnchor asChild>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={t("thread.moreActions")}
-              className={cn(
-                "tap-target shrink-0 rounded-full p-1 text-foreground-tertiary transition-[color,opacity] duration-150 ease-out",
-                "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                // Match the done toggle's reveal — subtle-always mobile, hover desktop.
-                "data-[state=open]:opacity-100 md:opacity-0 md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100 md:focus-visible:opacity-100",
-              )}
-            >
-              <MoreHorizontal aria-hidden className="size-4" strokeWidth={1.75} />
-            </button>
-          </DropdownMenuTrigger>
+          <RecordContextMenu actions={actions}>{children}</RecordContextMenu>
         </PopoverAnchor>
-        <DropdownMenuContent
-          align="end"
-          className="w-44"
-          // The Popover shares this menu's anchor button but via PopoverAnchor
-          // (not PopoverTrigger), so it is NOT excluded from the popover's
-          // outside-dismiss. If the menu returns focus to that button on close,
-          // the popover sees a focus-outside and closes instantly (the "Make a
-          // task" form flashed open then vanished). Suppress the focus return.
-          onCloseAutoFocus={(event) => event.preventDefault()}
+        <PopoverContent align="end" className="w-80">
+          <PopoverHeader className="mb-3">
+            <PopoverTitle>{t("thread.makeATask")}</PopoverTitle>
+          </PopoverHeader>
+          <MakeTaskForm
+            message={message}
+            conversationId={conversationId}
+            onDone={() => setTaskFormOpen(false)}
+          />
+        </PopoverContent>
+      </Popover>
+    </MessageMenuContext.Provider>
+  );
+}
+
+/**
+ * §4.1 overflow (⋯): holds the rest so the bubble edge stays calm (two
+ * controls max — done + overflow). Renders the message's action list; the
+ * button is absent when nothing is allowed. Same reveal rules as the done toggle.
+ */
+function MessageOverflow() {
+  const t = useT();
+  const { actions } = useMessageMenu();
+  return (
+    <RecordOverflowMenu
+      actions={actions}
+      label={t("thread.moreActions")}
+      contentClassName="w-44"
+      trigger={
+        <button
+          type="button"
+          aria-label={t("thread.moreActions")}
+          className={cn(
+            "tap-target shrink-0 rounded-full p-1 text-foreground-tertiary transition-[color,opacity] duration-150 ease-out",
+            "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            // Match the done toggle's reveal — subtle-always mobile, hover desktop.
+            "data-[state=open]:opacity-100 md:opacity-0 md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100 md:focus-visible:opacity-100",
+          )}
         >
-          {/* #3: pin/unpin surfaces an important message (address, quote, gate
-              code) at the top of the thread. Shared/team-wide, any message. */}
-          {/* #465: pinned is a STATE. Drawn as a toggle and named as one, so it
-              stops looking like "Copy text" two rows down. */}
-          <DropdownMenuToggleItem
-            checked={pinned}
-            onCheckedChange={(next) =>
-              setPinned.mutate({ messageId: message.id, pinned: next })
-            }
-          >
-            <Pin className="size-4" strokeWidth={1.75} aria-hidden />
-            {t("thread.pinned")}
-          </DropdownMenuToggleItem>
-          {promotable && (
-            <DropdownMenuItem
-              onSelect={() => {
-                // Close the menu, then open the inline form on the NEXT TICK.
-                // Both share the overflow button as anchor; opening the popover
-                // in the same tick lets the menu's closing dismiss/focus event
-                // reach the popover and immediately close it (it flashed open
-                // then vanished). Deferring past the menu's teardown fixes it.
-                setMenuOpen(false);
-                setTimeout(() => setTaskFormOpen(true), 0);
-              }}
-            >
-              <ListChecks className="size-4" strokeWidth={1.75} aria-hidden />
-              {t("thread.makeATask")}
-            </DropdownMenuItem>
-          )}
-          {hasBody && (
-            <DropdownMenuItem onSelect={() => void copyText()}>
-              <Copy className="size-4" strokeWidth={1.75} aria-hidden />
-              {t("thread.copyText")}
-            </DropdownMenuItem>
-          )}
-          {retryable && (
-            <DropdownMenuItem
-              onSelect={() => retry.mutate(message.id)}
-              disabled={retry.isPending}
-            >
-              <RotateCw className="size-4" strokeWidth={1.75} aria-hidden />
-              {t("thread.retrySend")}
-            </DropdownMenuItem>
-          )}
-          {canDelete && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={removeMessage}
-                disabled={deleteMessage.isPending}
-              >
-                <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
-                {message.direction === "note"
-                  ? t("trash.deleteNote")
-                  : t("trash.deleteMessage")}
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <PopoverContent align="end" className="w-80">
-        <PopoverHeader className="mb-3">
-          <PopoverTitle>{t("thread.makeATask")}</PopoverTitle>
-        </PopoverHeader>
-        <MakeTaskForm
-          message={message}
-          conversationId={conversationId}
-          onDone={() => setTaskFormOpen(false)}
-        />
-      </PopoverContent>
-    </Popover>
+          <MoreHorizontal aria-hidden className="size-4" strokeWidth={1.75} />
+        </button>
+      }
+    />
   );
 }
 
@@ -326,13 +375,13 @@ export function MessageActions({
 }) {
   // A never-sent outbound (queued/failed) has no delivered work to complete, so
   // its Done toggle is withheld (marking it done is nonsensical). "Make a task"
-  // is withheld inside MessageOverflow for the same reason. The overflow itself
-  // stays (Copy text / Retry send remain useful on a failed send).
+  // is withheld from its action list for the same reason. The overflow stays
+  // (Copy text / Retry send remain useful on a failed send).
   const done = !isUnsentOutbound(message);
   return (
     <div className="flex shrink-0 items-center gap-0.5 self-center">
       {done && <DoneToggle message={message} conversationId={conversationId} />}
-      <MessageOverflow message={message} conversationId={conversationId} />
+      <MessageOverflow />
     </div>
   );
 }
