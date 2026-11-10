@@ -86,6 +86,7 @@ import { AiOrb } from "@/components/ui/ai-orb";
 import { cn } from "@/lib/utils";
 
 import { TaskDoneCheckbox } from "./task-atoms";
+import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
 import { useSetTaskReminders, useTaskDone } from "./use-task-mutations";
 import { TaskCommentComposer, TaskFeed } from "./task-feed";
@@ -100,8 +101,8 @@ const UNASSIGNED = "__unassigned__";
  * source message (with a link into its thread), editable title / description /
  * assignee / due wired to the existing hooks with optimistic update + rollback,
  * the D28 DERIVED attachments union (a read view — files enter through the
- * discussion's notes, never a task upload), a delete action (creator or
- * owner/admin), and one merged activity+discussion timeline (task events +
+ * discussion's notes, never a task upload), a delete action (records.delete
+ * holders), and one merged activity+discussion timeline (task events +
  * linked notes) with a note composer at the bottom that stages files
  * (pick / drop / paste) and uploads them with the created note.
  *
@@ -267,11 +268,8 @@ function TaskDetailLoaded({
     );
   };
 
-  // Delete is the creator, or an owner/admin (T4 M*).
-  const canDelete =
-    role === "owner" ||
-    role === "admin" ||
-    me.data?.user_id === task.created_by_user_id;
+  // Delete follows the server gate: only a member holding records.delete.
+  const canDelete = useCanDeleteRecords();
 
   // #89: deleting is destructive and has no restore UI, so a task carrying a
   // discussion (notes) or files confirms first; a plain task (only the auto
@@ -373,7 +371,7 @@ function TaskDetailLoaded({
                 {t("tasks.markDoneAction")}
               </DropdownMenuToggleItem>
             )}
-            {/* #89: a real, destructive Delete (creator or owner/admin only).
+            {/* #89: a real, destructive Delete (records.delete only).
                 Confirms first when the task carries notes or files. */}
             {canDelete && (
               <>

@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useT } from "@/i18n/provider";
+import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import {
   canEscalate,
   selectionLabel,
@@ -62,6 +63,7 @@ export function TaskBulkBar({
   onDelete: () => void;
 }) {
   const t = useT();
+  const canDelete = useCanDeleteRecords();
   const memberNames = useMemberNames();
   const showEscalate = canEscalate(selection, loadedIds, hasMore);
 
@@ -120,10 +122,12 @@ export function TaskBulkBar({
               <Undo2 className="size-3.5" aria-hidden />
               {t("tasks.markNotDone")}
             </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-              <Trash2 className="size-3.5" aria-hidden />
-              {t("common.delete")}
-            </DropdownMenuItem>
+            {canDelete && (
+              <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+                <Trash2 className="size-3.5" aria-hidden />
+                {t("common.delete")}
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 
