@@ -28,6 +28,8 @@ struct ContactDetailView: View {
     /// #695: Unmerge is gated like merge (settings.manage); the line is for
     /// everyone. Defaulted so the previews keep compiling.
     var canUnmerge: Bool = false
+    /// #691: deleting a contact needs records.delete.
+    var canDelete: Bool = false
 
     private enum DetailState {
         case loading
@@ -1127,12 +1129,14 @@ struct ContactDetailView: View {
                         blockedSender = nil
                     }
                 }
-                RowDivider()
-                manageRow(
-                    text: t("contactsTasks.hideThisContact"),
-                    actionLabel: t("contactsTasks.deleteContact"),
-                    destructive: false
-                ) { confirmDelete = true }
+                if canDelete {
+                    RowDivider()
+                    manageRow(
+                        text: t("contactsTasks.hideThisContact"),
+                        actionLabel: t("contactsTasks.deleteContact"),
+                        destructive: false
+                    ) { confirmDelete = true }
+                }
             }
         }
     }
