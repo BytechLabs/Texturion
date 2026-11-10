@@ -34,8 +34,11 @@ Project `loonext-4125c` has:
 `loonext-api` holds `GOOGLE_CALENDAR_CLIENT_ID` and
 `GOOGLE_CALENDAR_CLIENT_SECRET`.
 
+Step 3 is done: `sc-domain:loonext.com` is a verified Search Console property
+of the owning account. Google matched the `google-site-verification` TXT record
+already on the zone, so no DNS change was needed.
+
 Still open:
-- step 3;
 - step 8;
 - section D's round trip.
 
