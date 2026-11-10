@@ -1132,6 +1132,38 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
     expect(nq.get("direction")).toBe("eq.note");
   });
 
+  it("a task linked to a deleted contact has no contact (#689)", async () => {
+    const CONTACT_ID = "c0000000-0000-4000-8000-0000000000c9";
+    const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      taskRow({
+        message_id: null,
+        conversation_id: null,
+        contact_id: CONTACT_ID,
+        linked_contact: {
+          id: CONTACT_ID,
+          name: "Pat Plumber",
+          deleted_at: "2026-11-01T00:00:00.000Z",
+        },
+        messages: null,
+      }),
+    ]);
+    const empty = (table: string) => stubRoute(restMatch(env, "GET", table), () => []);
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      numberAccessRoute(),
+      detail.route,
+      empty("profiles").route,
+      empty("attachments").route,
+      empty("message_attachments").route,
+      empty("conversation_events").route,
+      empty("messages").route,
+    );
+    const response = await request("GET", `/v1/tasks/${TASK_ID}`);
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { contact: unknown }).contact).toBeNull();
+  });
+
   it("a standalone task with no conversation: source null, linked contact, full access for a restricted member (#689)", async () => {
     const CONTACT_ID = "c0000000-0000-4000-8000-0000000000c9";
     const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [

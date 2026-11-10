@@ -332,13 +332,21 @@ const SOURCE_CALL_EMBED = `source_call:calls!source_call_id(${SOURCE_CALL_COLUMN
  * The contact a standalone task was linked to (#689). `!contact_id` names the
  * one foreign key so the embed can never become ambiguous.
  */
-const LINKED_CONTACT_EMBED = "linked_contact:contacts!contact_id(id,name)";
+const LINKED_CONTACT_EMBED =
+  "linked_contact:contacts!contact_id(id,name,deleted_at)";
 
-/** The linked-contact embed in the `contact` shape the map rows already use. */
+/**
+ * The linked-contact embed in the `contact` shape the map rows already use. A
+ * contact that was deleted is no contact: its page is gone.
+ */
 function linkedContact(
-  contact: { id: string; name: string | null } | null | undefined,
+  contact:
+    | { id: string; name: string | null; deleted_at?: string | null }
+    | null
+    | undefined,
 ): { id: string; name: string | null; lat: null; lng: null } | null {
-  return contact ? { id: contact.id, name: contact.name, lat: null, lng: null } : null;
+  if (!contact || (contact.deleted_at ?? null) !== null) return null;
+  return { id: contact.id, name: contact.name, lat: null, lng: null };
 }
 
 interface SourceCallRow {
