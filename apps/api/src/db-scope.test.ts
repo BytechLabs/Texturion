@@ -104,6 +104,8 @@ const TENANT_TABLES = new Set([
   "task_calendar_links", "calendar_outbox", "calendar_reminder_replans",
   // #689 E: a task's history and its comments.
   "task_events", "task_comments",
+  // #693: a task's labels, and a repeating job's rule and template.
+  "task_tags", "task_series",
   // #689 D: who follows a task, and the 60-second collapse windows.
   "task_subscribers", "task_notify_windows",
   "lead_sources",

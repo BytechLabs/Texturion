@@ -474,7 +474,7 @@ begin
      or has_function_privilege('public',
        'public.task_event_actor(uuid)', 'execute')
      or has_function_privilege('authenticated',
-       'public.update_task(uuid, uuid, text, text, timestamptz, boolean, uuid, boolean, text, text, text, text, text, text, text)',
+       'public.update_task(uuid, uuid, text, text, timestamptz, boolean, uuid, boolean, text, text, text, text, text, text, text, text)',
        'execute') then
     raise exception 'TH-8 FAILED: a function regained its hosted default EXECUTE';
   end if;

@@ -198,6 +198,8 @@ const SUITES = [
   "task_notifications",
   // #698: the stored per-conversation unread state equals the computed answer.
   "for_you_unread",
+  // #693: task priority, labels and repeating jobs.
+  "task_priority_labels_repeats",
 ];
 
 const args = process.argv.slice(2);

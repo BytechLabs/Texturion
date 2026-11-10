@@ -143,10 +143,11 @@ begin
   --   written.
   -- + four mutable #245 calendar ledgers: connections, webhook subscriptions,
   --   task links and the outbox. OAuth state is append/consume and has none.
+  -- + task_series (#693), a repeat whose rule and pause are edited in place.
   -- The generic attachments table (D19) is append-only and deliberately has NO
   -- moddatetime trigger.
-  if n is distinct from 22 then
-    raise exception 'T5 FAILED: expected 22 set_updated_at triggers, found %', n;
+  if n is distinct from 23 then
+    raise exception 'T5 FAILED: expected 23 set_updated_at triggers, found %', n;
   end if;
 
   select count(*) into n
