@@ -1113,7 +1113,11 @@ final class ThreadController {
                 replaceMessage(
                     message.replacingPromotedTask(MessageTaskLink(id: task.id, title: task.title))
                 )
-                notify(t("thread.taskCreated"))
+                // #724: Open goes to the task that was just made.
+                let taskId = task.id
+                notify(t("thread.taskCreated"), actionLabel: t("common.open")) {
+                    AppRouter.shared.openTaskId = taskId
+                }
             } catch {
                 if (error as? ApiError)?.code == ApiErrorCode.conflict {
                     notify(t("thread.alreadyHasTask"))

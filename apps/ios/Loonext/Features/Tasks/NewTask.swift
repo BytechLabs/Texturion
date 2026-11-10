@@ -12,7 +12,8 @@ final class NewTaskHost: TaskDraftHost {
     private let graph: AppGraph
     private let companyId: String
     private let locale: String
-    private let onNotice: @MainActor (String) -> Void
+    /// The sentence, and (#724) the created task's id when Open should go to it.
+    private let onNotice: @MainActor (String, String?) -> Void
     private let onCreated: @MainActor () -> Void
 
     init(
@@ -21,7 +22,7 @@ final class NewTaskHost: TaskDraftHost {
         members: [Member],
         meUserId: String,
         locale: String,
-        onNotice: @escaping @MainActor (String) -> Void,
+        onNotice: @escaping @MainActor (String, String?) -> Void,
         onCreated: @escaping @MainActor () -> Void
     ) {
         self.graph = graph
@@ -113,10 +114,11 @@ final class NewTaskHost: TaskDraftHost {
                         labelFailed
                             ? "contactsTasks.taskCreatedLabelFailed"
                             : "thread.taskCreatedStandalone"
-                    )
+                    ),
+                    row.id
                 )
             } catch {
-                onNotice(error.userMessage)
+                onNotice(error.userMessage, nil)
             }
         }
     }
@@ -129,7 +131,7 @@ private struct NewTaskSheetContent: View {
     let conversationId: String?
     let contactId: String?
     let contactName: String
-    let onNotice: @MainActor (String) -> Void
+    let onNotice: @MainActor (String, String?) -> Void
     let onCreated: @MainActor () -> Void
     let onDismiss: @MainActor () -> Void
 
@@ -179,6 +181,8 @@ private struct NewTaskSheetModifier: ViewModifier {
     let onCreated: @MainActor () -> Void
 
     @State private var notice: String?
+    /// #724: set when the confirmation can open the task it names.
+    @State private var noticeTaskId: String?
     @Environment(\.appLocale) private var appLocale
 
     func body(content: Content) -> some View {
@@ -190,7 +194,10 @@ private struct NewTaskSheetModifier: ViewModifier {
                     conversationId: conversationId,
                     contactId: contactId,
                     contactName: contactName,
-                    onNotice: { notice = $0 },
+                    onNotice: { text, taskId in
+                        notice = text
+                        noticeTaskId = taskId
+                    },
                     onCreated: onCreated,
                     onDismiss: { isPresented = false }
                 )
@@ -202,7 +209,17 @@ private struct NewTaskSheetModifier: ViewModifier {
                     set: { if !$0 { notice = nil } }
                 )
             ) {
-                Button(AppStrings.translate(appLocale, "common.close")) { notice = nil }
+                if let taskId = noticeTaskId {
+                    Button(AppStrings.translate(appLocale, "common.open")) {
+                        notice = nil
+                        noticeTaskId = nil
+                        AppRouter.shared.openTaskId = taskId
+                    }
+                }
+                Button(AppStrings.translate(appLocale, "common.close"), role: .cancel) {
+                    notice = nil
+                    noticeTaskId = nil
+                }
             }
     }
 }

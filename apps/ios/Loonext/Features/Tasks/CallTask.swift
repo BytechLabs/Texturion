@@ -165,7 +165,8 @@ final class CallTaskHost: TaskDraftHost {
     let meUserId: String
     private let graph: AppGraph
     private let companyId: String
-    private let onNotice: @MainActor (String) -> Void
+    /// The sentence, and (#724) the created task's id when Open should go to it.
+    private let onNotice: @MainActor (String, String?) -> Void
     private let locale: String
 
     init(
@@ -174,7 +175,7 @@ final class CallTaskHost: TaskDraftHost {
         members: [Member],
         meUserId: String,
         locale: String,
-        onNotice: @escaping @MainActor (String) -> Void
+        onNotice: @escaping @MainActor (String, String?) -> Void
     ) {
         self.graph = graph
         self.companyId = companyId
@@ -206,7 +207,7 @@ final class CallTaskHost: TaskDraftHost {
         let mutations = TaskMutations(api: graph.api)
         Task { [companyId, locale, onNotice] in
             do {
-                _ = try await mutations.createFromCall(
+                let row = try await mutations.createFromCall(
                     companyId: companyId,
                     callId: callId,
                     title: title,
@@ -214,12 +215,12 @@ final class CallTaskHost: TaskDraftHost {
                     dueAt: dueAt,
                     address: addressBody
                 )
-                onNotice(AppStrings.translate(locale, "thread.taskCreatedFromCall"))
+                onNotice(AppStrings.translate(locale, "thread.taskCreatedFromCall"), row.id)
             } catch {
                 if (error as? ApiError)?.code == ApiErrorCode.conflict {
-                    onNotice(AppStrings.translate(locale, "thread.alreadyHasCallTask"))
+                    onNotice(AppStrings.translate(locale, "thread.alreadyHasCallTask"), nil)
                 } else {
-                    onNotice(error.userMessage)
+                    onNotice(error.userMessage, nil)
                 }
             }
         }
@@ -246,6 +247,8 @@ struct CallTaskButton: View {
     @State private var sheetOpen = false
     @State private var loading = false
     @State private var notice: String?
+    /// #724: set when the confirmation can open the task it names.
+    @State private var noticeTaskId: String?
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
@@ -283,7 +286,17 @@ struct CallTaskButton: View {
                 set: { if !$0 { notice = nil } }
             )
         ) {
-            Button(AppStrings.translate(appLocale, "common.close")) { notice = nil }
+            if let taskId = noticeTaskId {
+                Button(AppStrings.translate(appLocale, "common.open")) {
+                    notice = nil
+                    noticeTaskId = nil
+                    AppRouter.shared.openTaskId = taskId
+                }
+            }
+            Button(AppStrings.translate(appLocale, "common.close"), role: .cancel) {
+                notice = nil
+                noticeTaskId = nil
+            }
         }
     }
 
@@ -314,12 +327,16 @@ struct CallTaskButton: View {
                     members: page?.data ?? [],
                     meUserId: me.user_id,
                     locale: appLocale,
-                    onNotice: { notice = $0 }
+                    onNotice: { text, taskId in
+                        notice = text
+                        noticeTaskId = taskId
+                    }
                 )
                 resolvedCallId = id
                 sheetOpen = true
             } catch {
                 notice = error.userMessage
+                noticeTaskId = nil
             }
         }
     }
