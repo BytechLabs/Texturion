@@ -38,8 +38,8 @@
  *   node scripts/theme-audit.mjs --authed         # only the ones that do
  *   node scripts/theme-audit.mjs --base http://localhost:3100
  */
-import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 import { chromium } from "playwright";
 
 import { classifyFocusStop } from "./focus-classify.mjs";
@@ -1024,6 +1024,101 @@ for (const theme of ["light", "dark"]) {
     await page.close();
   }
   await context.close();
+}
+
+/**
+ * #714: EVERY app route scrolls inside <main>, never the document, at desktop
+ * and phone width. The surfaces above are a small, chosen set; this sweep reads
+ * the route tree itself, so a new page is covered the day it exists. Dynamic
+ * segments use the dev seed's fixed ids; a segment with no seeded id is listed
+ * as skipped rather than passed over silently.
+ */
+const SEEDED = {
+  "[conversationId]": "b0000000-0000-4000-8000-000000000001",
+  "[id]@contacts": "a0000000-0000-4000-8000-000000000001",
+  "[id]@tasks": "e0000000-0000-4000-8000-000000000001",
+  "[sessionId]": "seed-call-1",
+};
+function appRoutes() {
+  const root = join("apps", "web", "src", "app", "(app)");
+  const routes = [];
+  const skipped = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name === "page.tsx") {
+        const parts = relative(root, dir).split(/[\\/]/).filter(Boolean);
+        const resolved = parts.map((part, i) => {
+          if (!part.startsWith("[")) return part;
+          return SEEDED[part] ?? SEEDED[`${part}@${parts[i - 1]}`] ?? null;
+        });
+        const path = `/${parts.join("/")}`;
+        if (resolved.includes(null)) skipped.push(path);
+        else routes.push(`/${resolved.join("/")}`);
+      }
+    }
+  };
+  walk(root);
+  return { routes: routes.sort(), skipped };
+}
+
+let swept = 0;
+if (needsAuth) {
+  const { routes, skipped } = appRoutes();
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    const context = await browser.newContext({ viewport });
+    await login(context);
+    for (const route of routes) {
+      const page = await context.newPage();
+      try {
+        await page.goto(`${base}${route}`, { waitUntil: "networkidle", timeout: 45_000 });
+        await page.waitForTimeout(300);
+        const overflow = await page.evaluate(() => {
+          const main = document.getElementById("main-content");
+          main?.scrollTo(0, main.scrollHeight);
+          const doc = document.scrollingElement;
+          return doc ? doc.scrollHeight - doc.clientHeight : 0;
+        });
+        swept += 1;
+        if (overflow > 1) {
+          problems.push({
+            theme: `${viewport.width}px`,
+            surface: route,
+            kind: "DOC-SCROLL",
+            what: route,
+            detail: `the document scrolls by ${overflow}px; app pages must scroll inside <main>`,
+          });
+        }
+      } catch (error) {
+        problems.push({
+          theme: `${viewport.width}px`,
+          surface: route,
+          kind: "ERROR",
+          what: route,
+          detail: String(error?.message ?? error),
+        });
+      }
+      await page.close();
+    }
+    await context.close();
+  }
+  if (swept === 0) {
+    problems.push({
+      theme: "-",
+      surface: "route sweep",
+      kind: "ERROR",
+      what: "apps/web/src/app/(app)",
+      detail: "no app route was swept, so the document-scroll check covered nothing",
+    });
+  }
+  console.log(
+    `theme-audit: swept ${swept} route/width pairs for document scroll` +
+      (skipped.length ? `; skipped (no seeded id): ${skipped.join(", ")}` : ""),
+  );
 }
 
 await browser.close();
