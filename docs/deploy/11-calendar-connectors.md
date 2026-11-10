@@ -10,7 +10,15 @@ you already hold. If you hold no Microsoft account at all, say so on #245 and
 leave Microsoft off: Google works without it, and the settings screen only
 offers a provider whose secrets are set.
 
-**Google, as set up on 2026-11-09.** Project `loonext-4125c` (Loonext) has:
+**Google, as set up on 2026-11-09.** The account holds two projects. Since
+2026-11-09 their display names say which is which; only the ids are used
+anywhere:
+- `loonext`, "Loonext sign-in": the OAuth client Supabase Auth uses for
+  "Continue with Google".
+- `loonext-4125c`, "Loonext push and calendar": Firebase push for the apps, and
+  the calendar connector.
+
+Project `loonext-4125c` has:
 - the Calendar API enabled;
 - Google Auth Platform: External audience, in Testing, with the founder as the
   one test user;
