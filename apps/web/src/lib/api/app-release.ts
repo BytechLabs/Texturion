@@ -10,7 +10,12 @@
  * Every failure path resolves to "no policy", which every consumer treats as
  * "ask nothing". A network blip must never become an update wall.
  */
-import { updateRequirement, type AppReleasePolicy, type UpdateRequirement } from "@loonext/shared";
+import {
+  isOlderThan,
+  updateRequirement,
+  type AppReleasePolicy,
+  type UpdateRequirement,
+} from "@loonext/shared";
 import { useQuery } from "@tanstack/react-query";
 
 /** This build, injected from package.json at build time (next.config.ts). */
@@ -62,8 +67,48 @@ export function useAppRelease() {
   });
 }
 
+/**
+ * #710: the version the web app is serving now, from `/app-version.json`.
+ * Same failure rule as the policy: anything unreadable is null, and null never
+ * asks for an update.
+ */
+async function fetchDeployedVersion(): Promise<string | null> {
+  try {
+    const response = await fetch("/app-version.json", { cache: "no-store" });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { version?: unknown };
+    return typeof body.version === "string" ? body.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Every ten minutes and on returning to the tab: a deploy should not wait an hour to be noticed. */
+export function useDeployedVersion() {
+  return useQuery({
+    queryKey: ["app-version", "web"],
+    queryFn: fetchDeployedVersion,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
+}
+
+/** The policy's demand, or a soft reload when a newer deploy is live (#710); never a block for a deploy. */
+export function requirementFor(
+  current: string | null,
+  policy: AppReleasePolicy | null,
+  deployed: string | null,
+): UpdateRequirement {
+  const fromPolicy = updateRequirement(current, policy);
+  if (fromPolicy !== "none") return fromPolicy;
+  return isOlderThan(current, deployed) ? "soft" : "none";
+}
+
 /** What this build should do about itself: "none" | "soft" | "block". */
 export function useUpdateRequirement(): UpdateRequirement {
   const { data } = useAppRelease();
-  return updateRequirement(APP_VERSION, data ?? null);
+  const { data: deployed } = useDeployedVersion();
+  return requirementFor(APP_VERSION, data ?? null, deployed ?? null);
 }

@@ -130,6 +130,9 @@ const DECLARED_TOP_LEVEL_ROUTES = [
   // the point: a dotted directory is invisible to a `ls */` and was invisible to
   // every test in this file.
   ".well-known",
+  // #710: the live web version, read by open tabs to offer a reload. Public on
+  // purpose (a version number), carries no session and no token.
+  "app-version.json",
 ] as const;
 
 describe("#558 top-level routes are declared, not discovered", () => {

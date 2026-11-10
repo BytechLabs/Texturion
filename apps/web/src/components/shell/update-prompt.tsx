@@ -5,7 +5,12 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
-import { APP_VERSION, useAppRelease, useUpdateRequirement } from "@/lib/api/app-release";
+import {
+  APP_VERSION,
+  useAppRelease,
+  useDeployedVersion,
+  useUpdateRequirement,
+} from "@/lib/api/app-release";
 
 /**
  * #339 — the two things we can say about an old build, and they are not the
@@ -44,17 +49,20 @@ export function UpdatePrompt() {
   const t = useT();
   const requirement = useUpdateRequirement();
   const { data: policy } = useAppRelease();
+  const { data: deployed } = useDeployedVersion();
+  // The version being offered: the policy's, or a newer deploy (#710).
+  const offered = policy?.recommended_version ?? deployed ?? null;
   const [dismissed, setDismissed] = useState(false);
 
   // sessionStorage is unavailable during SSR, so the hydrate runs client-side.
   useEffect(() => {
-    if (!policy?.recommended_version) return;
+    if (!offered) return;
     try {
-      setDismissed(sessionStorage.getItem(dismissKey(policy.recommended_version)) === "1");
+      setDismissed(sessionStorage.getItem(dismissKey(offered)) === "1");
     } catch {
       // A browser with storage disabled simply sees the card each session.
     }
-  }, [policy?.recommended_version]);
+  }, [offered]);
 
   if (requirement === "block") return <UpdateBlock />;
   if (requirement !== "soft" || dismissed) return null;
@@ -62,7 +70,7 @@ export function UpdatePrompt() {
   const dismiss = () => {
     setDismissed(true);
     try {
-      sessionStorage.setItem(dismissKey(policy?.recommended_version ?? null), "1");
+      sessionStorage.setItem(dismissKey(offered), "1");
     } catch {
       // Dismissal that does not persist is still a dismissal for this view.
     }

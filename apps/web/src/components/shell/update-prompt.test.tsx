@@ -23,10 +23,13 @@ let policy: AppReleasePolicy | null = {
   update_url: null,
 };
 
+let deployed: string | null = null;
+
 vi.mock("@/lib/api/app-release", () => ({
   APP_VERSION: "1.0.0",
   useUpdateRequirement: () => requirement,
   useAppRelease: () => ({ data: policy }),
+  useDeployedVersion: () => ({ data: deployed }),
 }));
 
 const { UpdatePrompt, dismissKey } = await import("./update-prompt");
