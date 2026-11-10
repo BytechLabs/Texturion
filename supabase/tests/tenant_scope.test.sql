@@ -65,6 +65,8 @@ declare
     'calendar_feed_tokens',
     'calendar_connections', 'oauth_states', 'webhook_subscriptions',
     'task_calendar_links', 'calendar_outbox', 'calendar_reminder_replans',
+    -- #689 E: a task's history and its comments.
+    'task_events', 'task_comments',
     'lead_sources',
     -- #224: text-to-pay.
     'payment_requests', 'stripe_connect_accounts',

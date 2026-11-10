@@ -46,11 +46,14 @@ function harness(options: { found?: boolean } = {}) {
   const order: string[] = [];
   const sb = supabaseStub(env);
   sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
-  sb.on("PATCH", "/rest/v1/tasks", () => {
+  sb.on("POST", "/rest/v1/rpc/set_task_reminders_off", () => {
     order.push("set-flag");
     return options.found === false
-      ? []
-      : [{ id: TASK_ID, reminders_off: true, confirmed_at: null }];
+      ? { outcome: "not_found", task: null }
+      : {
+          outcome: "updated",
+          task: { id: TASK_ID, reminders_off: true, confirmed_at: null },
+        };
   });
   // The sync's own reads, which follow.
   sb.on("GET", "/rest/v1/tasks", () => {

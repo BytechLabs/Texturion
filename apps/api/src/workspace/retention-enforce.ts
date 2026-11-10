@@ -136,6 +136,17 @@ const MESSAGE_OBJECT_SOURCES = [
     bucket: ATTACHMENTS_BUCKET,
     stripPrefix: null,
   },
+  {
+    table: "attachments",
+    // #689 E: the files on a comment on one of those tasks. The comment goes
+    // with its task (on delete cascade) and `owner_id` has no foreign key, so
+    // these are found by comment id before the task is deleted.
+    key: "owner_id",
+    ownerType: "task_comment",
+    column: "storage_path",
+    bucket: ATTACHMENTS_BUCKET,
+    stripPrefix: null,
+  },
 ] as const;
 
 export interface RetentionEnforceSummary {
@@ -318,11 +329,12 @@ async function enforceCompany(
     // Resolved BEFORE anything is destroyed: a task's files hang off the TASK,
     // and once the task is gone there is nothing left to find them by.
     const taskIds = await taskIdsFor(db, companyId, ids);
+    const commentIds = await commentIdsFor(db, companyId, taskIds);
 
-    objects += await removeMessageObjects(db, ids, taskIds);
+    objects += await removeMessageObjects(db, ids, taskIds, commentIds);
 
     // The rows whose pointers are app-enforced, so nothing cascades them.
-    await deleteAttachmentRows(db, companyId, ids, taskIds);
+    await deleteAttachmentRows(db, companyId, ids, taskIds, commentIds);
     // The two `on delete restrict` edges, cleared in the order that leaves the
     // least behind if the pass is interrupted: the task (which cannot outlive
     // its message) before the meter (which must).
@@ -457,6 +469,22 @@ async function taskIdsFor(
   return ((data ?? []) as { id: string }[]).map((row) => row.id);
 }
 
+/** #689 E: the comments on these tasks, whose files hang off the comment id. */
+async function commentIdsFor(
+  db: SupabaseClient,
+  companyId: string,
+  taskIds: string[],
+): Promise<string[]> {
+  if (taskIds.length === 0) return [];
+  const { data, error } = await db
+    .from("task_comments")
+    .select("id")
+    .eq("company_id", companyId)
+    .in("task_id", taskIds);
+  if (error) throw new Error(`retention comment lookup failed: ${error.message}`);
+  return ((data ?? []) as { id: string }[]).map((row) => row.id);
+}
+
 /**
  * Delete the `attachments` rows for this batch — a note's by the message id,
  * a task's by the task id.
@@ -475,10 +503,12 @@ async function deleteAttachmentRows(
   companyId: string,
   messageIds: string[],
   taskIds: string[],
+  commentIds: string[],
 ): Promise<void> {
   const owners: { ownerType: string; ids: string[] }[] = [
     { ownerType: "note", ids: messageIds },
     { ownerType: "task", ids: taskIds },
+    { ownerType: "task_comment", ids: commentIds },
   ];
   for (const owner of owners) {
     if (owner.ids.length === 0) continue;
@@ -563,11 +593,17 @@ async function removeMessageObjects(
   db: SupabaseClient,
   messageIds: string[],
   taskIds: string[],
+  commentIds: string[],
 ): Promise<number> {
   let removed = 0;
 
   for (const source of MESSAGE_OBJECT_SOURCES) {
-    const keyIds = source.ownerType === "task" ? taskIds : messageIds;
+    const keyIds =
+      source.ownerType === "task"
+        ? taskIds
+        : source.ownerType === "task_comment"
+          ? commentIds
+          : messageIds;
     if (keyIds.length === 0) continue;
     let query = db
       .from(source.table)

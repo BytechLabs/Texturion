@@ -2937,6 +2937,8 @@ conversationsRoutes.get(
       )
       .eq("company_id", companyId)
       .eq("conversation_id", id)
+      // #689 E: a file on a task comment belongs to the task's activity.
+      .in("owner_type", ["note", "task"])
       .is("deleted_at", null)
       .is("quarantined_at", null) // #317, same reason as the MMS arm above
       .order("created_at", { ascending: false })

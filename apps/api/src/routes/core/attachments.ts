@@ -30,11 +30,12 @@ export const MAX_ATTACHMENTS_PER_OWNER = 10;
 export const ATTACHMENT_SIGNED_URL_TTL_SECONDS = 300;
 
 /**
- * The two owner discriminators the generic table CARRIES (D19). Read paths
- * (list / signed URL / delete / gallery union) accept both — existing
- * `owner_type='task'` rows keep working forever.
+ * The owner discriminators the generic table CARRIES (D19). Read paths
+ * (list / signed URL / delete) accept all of them; existing
+ * `owner_type='task'` rows keep working forever. `task_comment` (#689 E)
+ * is a file on a task comment; it stays out of the conversation gallery.
  */
-export const OWNER_TYPES = ["note", "task"] as const;
+export const OWNER_TYPES = ["note", "task", "task_comment"] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 
 /**
@@ -42,8 +43,9 @@ export type OwnerType = (typeof OWNER_TYPES)[number];
  * notes ONLY. `'task'` was removed from the ingress — a task shows a derived
  * union of its message's MMS media and its notes' files instead, so the
  * upload route 422s `owner_type='task'` with plain copy pointing at notes.
+ * #689 E amends D28 for tasks: a task comment (`task_comment`) may carry files.
  */
-export const UPLOAD_OWNER_TYPES = ["note"] as const;
+export const UPLOAD_OWNER_TYPES = ["note", "task_comment"] as const;
 export type UploadOwnerType = (typeof UPLOAD_OWNER_TYPES)[number];
 
 /**

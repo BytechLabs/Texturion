@@ -132,6 +132,39 @@ async function resolveNoteOwner(
   return { conversationId: note.conversation_id };
 }
 
+/**
+ * #689 E: the owning task comment. Its files carry the task's conversation (null
+ * for a task with none) so every existing read gate applies unchanged. Only the
+ * comment's author attaches to it; anyone else gets the not-found a missing
+ * comment gets.
+ */
+async function resolveCommentOwner(
+  db: Db,
+  companyId: string,
+  userId: string,
+  commentId: string,
+): Promise<{ conversationId: string | null } | null> {
+  const rows = unwrap<
+    {
+      author_user_id: string;
+      tasks: { conversation_id: string | null; deleted_at: string | null } | null;
+    }[]
+  >(
+    await db
+      .from("task_comments")
+      .select("author_user_id,tasks!task_id(conversation_id,deleted_at)")
+      .eq("company_id", companyId)
+      .eq("id", commentId)
+      .is("deleted_at", null)
+      .limit(1),
+    "comment owner lookup",
+  );
+  const comment = rows[0];
+  if (!comment?.tasks || comment.tasks.deleted_at !== null) return null;
+  if (comment.author_user_id !== userId) return null;
+  return { conversationId: comment.tasks.conversation_id };
+}
+
 
 
 /**
@@ -421,20 +454,30 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
   assertAllowedType(declaredType);
 
   // Owner must exist in the caller's company (D19 §2.3). 404 hides cross-tenant.
-  const owner = await resolveNoteOwner(db, companyId, ownerId);
+  const owner =
+    ownerType === "task_comment"
+      ? await resolveCommentOwner(db, companyId, userId, ownerId)
+      : await resolveNoteOwner(db, companyId, ownerId);
   if (!owner) {
-    return errorResponse(c, "not_found", "No such note.");
+    return errorResponse(
+      c,
+      "not_found",
+      ownerType === "task_comment" ? "No such comment." : "No such note.",
+    );
   }
 
   // #106: uploading to a note is a note-level action — a member with no access
   // to the owning conversation's number gets the same 404 as a missing note.
-  await requireConversationAccess(db, {
-    companyId,
-    userId,
-    role: c.get("role"),
-    conversationId: owner.conversationId,
-    need: "note",
-  });
+  // A comment on a task with no conversation has no number to be denied by.
+  if (owner.conversationId !== null) {
+    await requireConversationAccess(db, {
+      companyId,
+      userId,
+      role: c.get("role"),
+      conversationId: owner.conversationId,
+      need: "note",
+    });
+  }
 
   // Soft per-owner cap of 10 (D19 §2.4) — count live rows first.
   const existing = unwrap<{ id: string }[]>(
@@ -715,14 +758,17 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
   // D22: attachment lifecycle audited on the owner's conversation. Upload is
   // notes-only (D28), so the added event is always the note flavor;
   // task_attachment_added survives only in old rows' history.
-  const event: ConversationEventRow = {
-    company_id: companyId,
-    conversation_id: owner.conversationId,
-    actor_user_id: userId,
-    type: "note_attachment_added",
-    payload: { attachment_id: row.id, file_name: fileName },
-  };
-  await insertConversationEvents(db, [event]);
+  // A comment's file is part of the comment, which the task's own activity shows.
+  if (ownerType === "note" && owner.conversationId !== null) {
+    const event: ConversationEventRow = {
+      company_id: companyId,
+      conversation_id: owner.conversationId,
+      actor_user_id: userId,
+      type: "note_attachment_added",
+      payload: { attachment_id: row.id, file_name: fileName },
+    };
+    await insertConversationEvents(db, [event]);
+  }
 
   return c.json(row, 201);
 });
@@ -751,7 +797,7 @@ attachmentsRoutes.delete("/attachments/:id", requireCapability("conversations.no
       id: string;
       owner_type: OwnerType;
       owner_id: string;
-      conversation_id: string;
+      conversation_id: string | null;
       file_name: string;
     }[]
   >(
@@ -770,13 +816,15 @@ attachmentsRoutes.delete("/attachments/:id", requireCapability("conversations.no
   // #106: deleting an attachment is a note-level action on its conversation —
   // a member with no access to the owning number gets the same not_found the
   // GET/POST siblings return, instead of being able to blind-delete by id.
-  await requireConversationAccess(db, {
-    companyId,
-    userId,
-    role: c.get("role"),
-    conversationId: row.conversation_id,
-    need: "note",
-  });
+  if (row.conversation_id !== null) {
+    await requireConversationAccess(db, {
+      companyId,
+      userId,
+      role: c.get("role"),
+      conversationId: row.conversation_id,
+      need: "note",
+    });
+  }
 
   // Soft-delete only if still live; RETURNING confirms we won the race (a
   // concurrent delete that already stamped it → not_found, idempotent).
@@ -791,6 +839,11 @@ attachmentsRoutes.delete("/attachments/:id", requireCapability("conversations.no
     "attachment soft-delete",
   );
   if (!deleted[0]) return errorResponse(c, "not_found", "No such attachment.");
+
+  // A comment's file is not part of any thread's timeline.
+  if (row.owner_type === "task_comment" || row.conversation_id === null) {
+    return c.body(null, 204);
+  }
 
   const removedType: ConversationEventType =
     row.owner_type === "note"

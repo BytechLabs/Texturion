@@ -187,6 +187,8 @@ const SUITES = [
   "contact_tags",
   // #689 / D64 amended: a task with no source, and who can see it.
   "standalone_tasks",
+  // #689 E: a task's own history and its comments.
+  "task_history_and_comments",
 ];
 
 const args = process.argv.slice(2);

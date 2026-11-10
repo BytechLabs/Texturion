@@ -19,10 +19,10 @@ describe("owner types (D19 carry vs D28 ingress)", () => {
   it("the table still carries note AND task rows, but upload is notes-only", () => {
     // Read paths (list / signed URL / delete / gallery) accept both — legacy
     // task-owned rows keep working forever (D28: no data migration).
-    expect([...OWNER_TYPES]).toEqual(["note", "task"]);
+    expect([...OWNER_TYPES]).toEqual(["note", "task", "task_comment"]);
     // Files enter through messages and notes ONLY (D28) — the standalone
     // task-attachment ingress is removed.
-    expect([...UPLOAD_OWNER_TYPES]).toEqual(["note"]);
+    expect([...UPLOAD_OWNER_TYPES]).toEqual(["note", "task_comment"]);
   });
 });
 

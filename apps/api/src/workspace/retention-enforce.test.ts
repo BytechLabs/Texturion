@@ -68,6 +68,7 @@ function world(
     return options.attachments?.[owner] ?? [];
   });
   sb.on("GET", "/rest/v1/tasks", () => options.tasks ?? []);
+  sb.on("GET", "/rest/v1/task_comments", () => []);
   sb.on("POST", "/rest/v1/rpc/api_voicemail_audio_overdue", () => []);
   sb.on("POST", "/rest/v1/rpc/api_retention_overdue_calls", () => []);
   sb.on("DELETE", "/rest/v1/attachments", (call) => {

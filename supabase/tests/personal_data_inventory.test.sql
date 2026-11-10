@@ -48,6 +48,9 @@ declare
     -- #245: exact task/calendar scheduling snapshots. Titles can name a
     -- person or address; descriptions participate by hash only.
     'task_calendar_links', 'calendar_outbox', 'calendar_reminder_replans',
+    -- #689 E: what changed on a task (titles, notes, addresses) and what the
+    -- crew said about it. Free text a member typed, so personal data.
+    'task_events', 'task_comments',
     'number_port_outs',
     -- #291: a customer's addresses, plural. Squarely contact data — it is
     -- where somebody lives, which is the most sensitive thing in the

@@ -2307,17 +2307,17 @@ tasksRoutes.put(
 
     const { off } = await parseJsonBody(c, z.object({ off: z.boolean() }));
 
-    const updated = unwrap<Record<string, unknown>[]>(
-      await db
-        .from("tasks")
-        .update({ reminders_off: off, updated_at: new Date().toISOString() })
-        .eq("id", id)
-        .eq("company_id", companyId)
-        .is("deleted_at", null)
-        .select(TASK_COLUMNS),
-      "set task reminders",
-    );
-    if (updated.length === 0) {
+    // An RPC rather than a column write so the task history can say who
+    // flipped it (#689 E).
+    const { data, error } = await db.rpc("set_task_reminders_off", {
+      p_company_id: companyId,
+      p_task_id: id,
+      p_off: off,
+      p_actor_user_id: userId,
+    });
+    if (error) throw new Error(`set_task_reminders_off failed: ${error.message}`);
+    const result = parseTaskOutcome(data);
+    if (result.outcome === "not_found" || !result.task) {
       return errorResponse(c, "not_found", "No such task.");
     }
 
@@ -2327,7 +2327,7 @@ tasksRoutes.put(
       },
     );
 
-    return c.json(withSource(updated[0]));
+    return c.json(withSource(result.task));
   },
 );
 
