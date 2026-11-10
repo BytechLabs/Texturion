@@ -374,6 +374,12 @@ private fun BoardCard(
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
+                // #689 C: up to three avatars, then "+N". Names come off the
+                // task itself; the board holds no member list.
+                AssigneeStack(
+                    taskAssigneeNames(task.assigneeIdList, task.assignees) { null },
+                    size = 24.dp,
+                )
                 IconButton(onClick = onMove) {
                     Icon(
                         moveIcon,

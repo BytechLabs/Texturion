@@ -154,6 +154,24 @@ fun taskHistorySentence(
                 ?: say("contactsTasks.histReassigned")
         }
 
+        // #689 C: one line per person added or removed. The old "assignee" kind
+        // above stays readable for history written before several assignees.
+        "assignee_added" -> say(
+            "contactsTasks.histAssigneeAdded",
+            "name" to (
+                item.to_user?.display_name?.ifBlank { null }
+                    ?: AppStrings.translate(locale, "contactsTasks.teammate")
+                ),
+        )
+
+        "assignee_removed" -> say(
+            "contactsTasks.histAssigneeRemoved",
+            "name" to (
+                item.from_user?.display_name?.ifBlank { null }
+                    ?: AppStrings.translate(locale, "contactsTasks.teammate")
+                ),
+        )
+
         "due" -> text(item.to)
             ?.let { due ->
                 val zoned = parseInstant(due)?.atZone(clock.zone)

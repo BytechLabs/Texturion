@@ -90,6 +90,14 @@ data class Task(
     val series_id: String? = null,
     val occurrence_no: Int? = null,
     val repeat: TaskRepeat? = null,
+    /**
+     * #689 C: everyone on the job, first assignee first, and their names.
+     * [assigned_user_id] stays and equals the first. Defaulted LAST so an older
+     * server's payload still decodes; read through [taskAssigneeIds], which
+     * falls back to the single id for a payload that lacks the field.
+     */
+    val assignee_ids: List<String> = emptyList(),
+    val assignees: List<TaskProfile> = emptyList(),
 )
 
 /** #693: a workspace tag as it appears on a task. */
@@ -347,6 +355,14 @@ data class TaskDetail(
     val series_id: String? = null,
     val occurrence_no: Int? = null,
     val repeat: TaskRepeat? = null,
+    /**
+     * #689 C: everyone on the job, first assignee first, and their names.
+     * [assigned_user_id] stays and equals the first. Defaulted LAST so an older
+     * server's payload still decodes; read through [taskAssigneeIds], which
+     * falls back to the single id for a payload that lacks the field.
+     */
+    val assignee_ids: List<String> = emptyList(),
+    val assignees: List<TaskProfile> = emptyList(),
 )
 
 // ---------------------------------------------------------------------------

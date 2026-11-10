@@ -56,6 +56,29 @@ class TaskFeedTest {
     }
 
     @Test
+    fun `says who was added to and who was removed from the crew`() {
+        val added = TaskFeedItem(
+            kind = "event", id = "e2", created_at = "2026-11-10T12:00:00Z",
+            event = "assignee_added", to = JsonPrimitive("u3"),
+            to_user = TaskProfile("u3", "Ines"),
+        )
+        val removed = TaskFeedItem(
+            kind = "event", id = "e3", created_at = "2026-11-10T12:00:00Z",
+            event = "assignee_removed", from = JsonPrimitive("u3"),
+            from_user = TaskProfile("u3", "Ines"),
+        )
+        assertEquals("Rehman added Ines to this task", taskHistorySentence(added, "Rehman", clock))
+        assertEquals(
+            "Rehman removed Ines from this task",
+            taskHistorySentence(removed, "Rehman", clock),
+        )
+        assertEquals(
+            "Rehman a ajouté Ines à cette tâche",
+            taskHistorySentence(added, "Rehman", clock, locale = "fr-CA"),
+        )
+    }
+
+    @Test
     fun `a due time reads as a weekday and time and a cleared one as cleared`() {
         assertEquals(
             "Rehman changed the due time to Tue 2:00 PM",

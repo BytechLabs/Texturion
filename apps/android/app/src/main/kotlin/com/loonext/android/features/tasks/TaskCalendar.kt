@@ -480,7 +480,7 @@ internal fun TaskCalendarView(
                             ) {
                                 TaskListRow(
                                     task = task,
-                                    assigneeName = memberName(task.assigned_user_id),
+                                    assigneeNames = taskAssigneeNames(task.assigneeIdList, task.assignees, memberName),
                                     onClick = { onOpenTask(task.id) },
                                     onToggleDone = { done -> onToggleDone(task, done) },
                                 )

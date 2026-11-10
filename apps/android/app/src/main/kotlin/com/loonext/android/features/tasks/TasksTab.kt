@@ -633,6 +633,7 @@ private fun TaskListScreen(
                             filtersActive = filtersActive,
                             memberName = ::memberName,
                             members = members,
+                            meUserId = me.user_id,
                             canDelete = canDeleteRecords(
                                 me.memberships.firstOrNull { it.company_id == companyId }?.role,
                             ),
@@ -828,6 +829,7 @@ private fun TaskList(
     memberName: (String?) -> String?,
     /** #478: the assign targets the bulk bar offers. */
     members: List<Member>,
+    meUserId: String,
     /** #691: the bulk delete needs records.delete. */
     canDelete: Boolean,
     /** #478: what to say after a bulk action — the screen owns the snackbar. */
@@ -902,7 +904,7 @@ private fun TaskList(
                     action: String,
                     verbOneKey: String,
                     verbManyKey: String,
-                    targetUserId: String? = null,
+                    assigneeIds: List<String>? = null,
                     unassign: Boolean = false,
                     priority: String? = null,
                     tagId: String? = null,
@@ -927,7 +929,7 @@ private fun TaskList(
                                 } else {
                                     null
                                 },
-                                targetUserId = targetUserId,
+                                assigneeIds = assigneeIds,
                                 unassign = unassign,
                                 priority = priority,
                                 tagId = tagId,
@@ -971,6 +973,7 @@ private fun TaskList(
                         hasMore = current.value.hasMore,
                         running = bulkRunning,
                         members = members,
+                        meUserId = meUserId,
                         onSelectLoaded = { selection = selectLoaded(loadedIds) },
                         onSelectAllMatching = { selection = BulkSelection.Filter },
                         onClear = { selection = BulkSelection.EMPTY },
@@ -988,12 +991,13 @@ private fun TaskList(
                                 "contactsTasks.bulkMarkedNotDoneMany",
                             )
                         },
-                        onAssign = { userId ->
+                        onAssign = { userIds ->
+                            // #689 C: ADDS these people to every selected task.
                             runBulk(
                                 "assign",
                                 "contactsTasks.bulkAssignedOne",
                                 "contactsTasks.bulkAssignedMany",
-                                targetUserId = userId,
+                                assigneeIds = userIds,
                             )
                         },
                         onUnassign = {
@@ -1203,7 +1207,7 @@ private fun LazyListScope.taskSection(
             ) {
                 TaskListRow(
                     task = task,
-                    assigneeName = memberName(task.assigned_user_id),
+                    assigneeNames = taskAssigneeNames(task.assigneeIdList, task.assignees, memberName),
                     onClick = {
                         // #478: while a selection is live, a tap TOGGLES rather
                         // than opens. Opening a task mid-selection would lose
@@ -1228,12 +1232,13 @@ private fun LazyListScope.taskSection(
 /**
  * One task row (spec 24): done ring, 13.5sp SemiBold title (struck when
  * done), the muted due/context ladder with overdue emphasis, and the 28dp
- * assignee avatar. Done rows fade to ~62%.
+ * stacked assignee avatars (#689 C). Done rows fade to ~62%.
  */
 @Composable
 internal fun TaskListRow(
     task: Task,
-    assigneeName: String?,
+    /** #689 C: one entry per person on the task; empty draws no avatar. */
+    assigneeNames: List<String?>,
     onClick: () -> Unit,
     onToggleDone: (Boolean) -> Unit,
     /** #478: true when this row is in the current bulk selection. */
@@ -1345,9 +1350,9 @@ internal fun TaskListRow(
             // #693: high/urgent flag, repeat glyph and label chips; nothing for a plain task.
             TaskBadges(task, Modifier.padding(top = 3.dp))
         }
-        if (task.assigned_user_id != null) {
+        if (assigneeNames.isNotEmpty()) {
             Spacer(Modifier.width(12.dp))
-            TaskAvatar(assigneeName, size = 28.dp)
+            AssigneeStack(assigneeNames, size = 28.dp)
         }
     }
 }
@@ -1422,12 +1427,13 @@ private fun TaskBulkBar(
     hasMore: Boolean,
     running: Boolean,
     members: List<Member>,
+    meUserId: String,
     onSelectLoaded: () -> Unit,
     onSelectAllMatching: () -> Unit,
     onClear: () -> Unit,
     onMarkDone: () -> Unit,
     onMarkUndone: () -> Unit,
-    onAssign: (String) -> Unit,
+    onAssign: (List<String>) -> Unit,
     onUnassign: () -> Unit,
     canDelete: Boolean,
     onDelete: () -> Unit,
@@ -1437,6 +1443,7 @@ private fun TaskBulkBar(
     loadTags: suspend () -> List<com.loonext.android.core.model.Tag>,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var assignOpen by remember { mutableStateOf(false) }
     // 0 none, 1 priority, 2 add label, 3 remove label
     var bulkSheet by remember { mutableIntStateOf(0) }
     val showSelectLoaded = selection is BulkSelection.Ids &&
@@ -1469,24 +1476,10 @@ private fun TaskBulkBar(
                         )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        for (member in members) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        t(
-                                            "contactsTasks.assignTo",
-                                            "who" to member.display_name.ifBlank {
-                                                t("contactsTasks.teammate")
-                                            },
-                                        ),
-                                    )
-                                },
-                                onClick = {
-                                    menuOpen = false
-                                    onAssign(member.user_id)
-                                },
-                            )
-                        }
+                        DropdownMenuItem(
+                            text = { Text(t("contactsTasks.assignPeople")) },
+                            onClick = { menuOpen = false; assignOpen = true },
+                        )
                         DropdownMenuItem(
                             text = { Text(t("contactsTasks.unassign")) },
                             onClick = { menuOpen = false; onUnassign() },
@@ -1532,6 +1525,21 @@ private fun TaskBulkBar(
                 }
             }
         }
+    }
+
+    // #689 C: pick people, then Apply; they are ADDED to every selected task.
+    if (assignOpen) {
+        MultiMemberPickerSheet(
+            members = members,
+            meUserId = meUserId,
+            selected = emptyList(),
+            allowEmpty = false,
+            onApply = { ids ->
+                assignOpen = false
+                onAssign(ids)
+            },
+            onDismiss = { assignOpen = false },
+        )
     }
 
     // #693: the three bulk edits that need a choice.

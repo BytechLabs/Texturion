@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -82,6 +83,7 @@ import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.TaskLabel
 import com.loonext.android.core.model.TaskRepeat
 import com.loonext.android.features.tasks.LabelPickerSheet
+import com.loonext.android.features.tasks.MAX_TASK_ASSIGNEES
 import com.loonext.android.features.tasks.PlanChip
 import com.loonext.android.features.tasks.PriorityChips
 import com.loonext.android.features.tasks.RepeatDraft
@@ -89,6 +91,7 @@ import com.loonext.android.features.tasks.RepeatLine
 import com.loonext.android.features.tasks.RepeatSheet
 import com.loonext.android.features.tasks.TaskPriority
 import com.loonext.android.features.tasks.parseInstant
+import com.loonext.android.features.tasks.toggleAssignee
 import com.loonext.android.core.model.addressProvenanceLabel
 import com.loonext.android.features.compose.AiOutcome
 import com.loonext.android.ui.common.AiOrb
@@ -352,7 +355,19 @@ fun MakeTaskSheet(
     // view is "open, assigned to me", so a task made on a phone and left
     // unassigned landed in a list nobody was looking at. Nobody stays
     // selectable.
-    var assigneeId by remember { mutableStateOf(meUserId) }
+    // #689 C: the standalone form (the one with extras) takes up to ten people;
+    // a task made from a message or a call keeps the single-person chips.
+    val multiAssign = onCreateWithExtras != null
+    var assigneeIds by remember { mutableStateOf(listOfNotNull(meUserId)) }
+    var assigneesTouched by remember { mutableStateOf(false) }
+    var assigneeCapHit by remember { mutableStateOf(false) }
+    val assigneeId = assigneeIds.firstOrNull()
+    // meUserId can arrive after the sheet opens; default to it until the user chooses.
+    LaunchedEffect(meUserId) {
+        if (!assigneesTouched && meUserId != null && assigneeIds.isEmpty()) {
+            assigneeIds = listOf(meUserId)
+        }
+    }
     var moreOpen by remember { mutableStateOf(!standalone) }
     var due by remember { mutableStateOf<DueChoice?>(null) }
     var priority by remember { mutableStateOf(TaskPriority.NORMAL) }
@@ -555,20 +570,47 @@ fun MakeTaskSheet(
                     members.filter { it.deactivated_at == null }.forEach { member ->
                         AssigneeChip(
                             name = member.display_name.ifBlank { t("thread.teammate") },
-                            selected = assigneeId == member.user_id,
+                            selected = member.user_id in assigneeIds,
                             onClick = {
                                 haptics.tap()
-                                assigneeId =
-                                    if (assigneeId == member.user_id) null else member.user_id
+                                assigneesTouched = true
+                                if (multiAssign) {
+                                    val next = toggleAssignee(assigneeIds, member.user_id)
+                                    assigneeCapHit = next == null
+                                    if (next != null) assigneeIds = next
+                                } else {
+                                    assigneeIds =
+                                        if (assigneeId == member.user_id) emptyList()
+                                        else listOf(member.user_id)
+                                }
                             },
                         )
                     }
                     NobodyChip(
-                        selected = assigneeId == null,
+                        selected = assigneeIds.isEmpty(),
                         onClick = {
                             haptics.tap()
-                            assigneeId = null
+                            assigneesTouched = true
+                            assigneeCapHit = false
+                            assigneeIds = emptyList()
                         },
+                    )
+                }
+                if (multiAssign && (assigneeCapHit || assigneeIds.size > 1)) {
+                    Text(
+                        if (assigneeCapHit) {
+                            t("contactsTasks.assigneesMax", "max" to "$MAX_TASK_ASSIGNEES")
+                        } else {
+                            t(
+                                "contactsTasks.assigneesCount",
+                                "count" to "${assigneeIds.size}",
+                                "max" to "$MAX_TASK_ASSIGNEES",
+                            )
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (assigneeCapHit) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, top = 6.dp),
                     )
                 }
             }
@@ -800,6 +842,7 @@ fun MakeTaskSheet(
                                     priority = priority.takeIf { it != TaskPriority.NORMAL },
                                     labels = labels,
                                     repeat = repeatDraft?.toRepeat(repeatDue),
+                                    assigneeIds = assigneeIds,
                                 ),
                             )
                         } else {
@@ -905,6 +948,8 @@ data class TaskCreateExtras(
     /** An empty id marks a label to create by name once the task exists. */
     val labels: List<TaskLabel> = emptyList(),
     val repeat: TaskRepeat? = null,
+    /** #689 C: the whole crew, first first. Empty means nobody. */
+    val assigneeIds: List<String>? = null,
 )
 
 /** The lime-barred quote of the source message ("from this message"). */
@@ -994,6 +1039,7 @@ private fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
                 else it
             }
             .clickable(onClick = onClick)
+            .heightIn(min = 44.dp)
             .padding(start = 6.dp, top = 6.dp, bottom = 6.dp, end = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -1038,6 +1084,8 @@ private fun NobodyChip(selected: Boolean, onClick: () -> Unit) {
                 else it
             }
             .clickable(onClick = onClick)
+            .heightIn(min = 44.dp)
+            .wrapContentHeight(Alignment.CenterVertically)
             .padding(horizontal = 13.dp, vertical = 10.dp),
     )
 }

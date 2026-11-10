@@ -67,6 +67,11 @@ class TaskMutations(private val api: ApiClient) {
         priority: String? = null,
         /** #693: for `add_label` / `remove_label`. */
         tagId: String? = null,
+        /**
+         * #689 C: for `assign`, these people are ADDED to every selected task
+         * and nobody is removed. Wins over [targetUserId].
+         */
+        assigneeIds: List<String>? = null,
     ): BulkTasksResult = api.post(
         "/v1/tasks/bulk",
         buildJsonObject {
@@ -87,7 +92,9 @@ class TaskMutations(private val api: ApiClient) {
             }
             // Explicit null is meaningful (unassign), so it is only written when
             // the caller says so rather than whenever the id is absent.
-            if (targetUserId != null) put("target_user_id", targetUserId)
+            if (assigneeIds != null) {
+                putJsonArray("assignee_ids") { assigneeIds.forEach { add(it) } }
+            } else if (targetUserId != null) put("target_user_id", targetUserId)
             else if (unassign) put("target_user_id", JsonNull)
             if (priority != null) put("priority", priority)
             if (tagId != null) put("tag_id", tagId)
@@ -157,6 +164,23 @@ class TaskMutations(private val api: ApiClient) {
                 if (userId == null) put("assigned_user_id", JsonNull)
                 else put("assigned_user_id", userId)
             },
+            scope,
+        )
+
+    /**
+     * #689 C: replace the whole crew. An empty list unassigns everyone; the
+     * server answers 422 for more than ten or for a non-member.
+     */
+    suspend fun setAssignees(
+        companyId: String,
+        taskId: String,
+        userIds: List<String>,
+        scope: TaskScope? = null,
+    ): Task =
+        patch(
+            companyId,
+            taskId,
+            buildJsonObject { putJsonArray("assignee_ids") { userIds.forEach { add(it) } } },
             scope,
         )
 
@@ -443,6 +467,12 @@ class TaskMutations(private val api: ApiClient) {
         assignedUserId: String?,
         dueAt: String?,
         address: TaskAddressInput? = null,
+        /**
+         * #689 C: the whole crew (up to ten). Wins over [assignedUserId] on the
+         * server, and an empty list means nobody — so it is written whenever it
+         * is non-null.
+         */
+        assigneeIds: List<String>? = null,
         /** D64: an answered call to promote instead. At most one of the two. */
         sourceCallId: String? = null,
         /** #689: with neither source, a standalone task may link to these. */
@@ -458,7 +488,9 @@ class TaskMutations(private val api: ApiClient) {
             if (messageId != null) put("message_id", messageId)
             if (sourceCallId != null) put("source_call_id", sourceCallId)
             if (title != null) put("title", title)
-            if (assignedUserId != null) put("assigned_user_id", assignedUserId)
+            if (assigneeIds != null) {
+                putJsonArray("assignee_ids") { assigneeIds.forEach { add(it) } }
+            } else if (assignedUserId != null) put("assigned_user_id", assignedUserId)
             if (dueAt != null) put("due_at", dueAt)
             if (address != null) put("address", taskAddressJson(address))
             if (contactId != null) put("contact_id", contactId)

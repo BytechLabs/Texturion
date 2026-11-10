@@ -267,11 +267,11 @@ class AccessibilityAuditTest(private val fontScale: Float) {
         Column(Modifier.fillMaxWidth()) {
             TaskListRow(
                 task("t1", "Measure the back fence before the quote", due = "2026-07-16T15:00:00Z"),
-                assigneeName = "Dana Whitcomb",
+                assigneeNames = listOf("Dana Whitcomb", "Sam Ortiz"),
                 onClick = {},
                 onToggleDone = {},
             )
-            TaskListRow(task("t2", "Send the invoice", done = true), assigneeName = null, onClick = {}, onToggleDone = {})
+            TaskListRow(task("t2", "Send the invoice", done = true), assigneeNames = emptyList(), onClick = {}, onToggleDone = {})
         }
     }
 

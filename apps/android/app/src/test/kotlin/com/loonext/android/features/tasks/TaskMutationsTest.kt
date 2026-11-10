@@ -108,6 +108,48 @@ class TaskMutationsTest {
     }
 
     @Test
+    fun `replacing the crew sends assignee_ids and an empty list unassigns everyone`() = runTest {
+        server.enqueue(MockResponse(body = taskBody))
+        mutations.setAssignees("c1", "t1", listOf("u1", "u2"))
+        assertEquals("""{"assignee_ids":["u1","u2"]}""", server.takeRequest().body?.utf8())
+        server.enqueue(MockResponse(body = taskBody))
+        mutations.setAssignees("c1", "t1", emptyList())
+        assertEquals("""{"assignee_ids":[]}""", server.takeRequest().body?.utf8())
+    }
+
+    @Test
+    fun `create sends the whole crew and assignee_ids wins over the single id`() = runTest {
+        server.enqueue(MockResponse(code = 201, body = taskBody))
+        mutations.create(
+            companyId = "c1",
+            title = "Pour the slab",
+            assignedUserId = "u1",
+            assigneeIds = listOf("u1", "u2"),
+            dueAt = null,
+        )
+        assertEquals(
+            """{"title":"Pour the slab","assignee_ids":["u1","u2"]}""",
+            server.takeRequest().body?.utf8(),
+        )
+        server.enqueue(MockResponse(code = 201, body = taskBody))
+        mutations.create(
+            companyId = "c1", title = "Nobody", assignedUserId = null,
+            assigneeIds = emptyList(), dueAt = null,
+        )
+        assertEquals("""{"title":"Nobody","assignee_ids":[]}""", server.takeRequest().body?.utf8())
+    }
+
+    @Test
+    fun `bulk assign adds people by assignee_ids`() = runTest {
+        server.enqueue(MockResponse(body = """{"action":"assign","matched":1}"""))
+        mutations.bulk("c1", "assign", ids = listOf("t1"), assigneeIds = listOf("u2", "u3"))
+        assertEquals(
+            """{"action":"assign","ids":["t1"],"assignee_ids":["u2","u3"]}""",
+            server.takeRequest().body?.utf8(),
+        )
+    }
+
+    @Test
     fun `create threads the confirmed address as a nested block with provenance`() = runTest {
         server.enqueue(MockResponse(code = 201, body = taskBody))
         mutations.create(

@@ -438,6 +438,9 @@ private fun TaskDetailBody(
                 title = task.title,
                 description = task.description,
                 assigned_user_id = task.assigned_user_id,
+                // #689 C: the whole crew rides every mutation response.
+                assignee_ids = task.assignee_ids,
+                assignees = task.assignees,
                 due_at = task.due_at,
                 updated_at = task.updated_at,
                 // #214: reflect the saved (or cleared) structured address.
@@ -761,28 +764,37 @@ private fun TaskDetailBody(
                             }
                         },
                     ) {
-                        val assigneeLabel = detail.assignee?.display_name?.ifBlank { null }
-                            ?: memberName(detail.assigned_user_id)
-                            ?: if (detail.assigned_user_id == null) {
-                                t("contactsTasks.unassigned")
-                            } else {
-                                teammateLabel
-                            }
-                        if (detail.assigned_user_id != null) {
-                            TaskAvatar(assigneeLabel, size = 24.dp)
+                        val crewIds = detail.assigneeIdList
+                        val crewNames = taskAssigneeNames(
+                            crewIds,
+                            detail.assignees.ifEmpty { listOfNotNull(detail.assignee) },
+                            ::memberName,
+                        )
+                        // First person's label: "You" for me, else their name.
+                        val youText = t("contactsTasks.you")
+                        val crewLabels = crewIds.mapIndexed { index, id ->
+                            if (id == me.user_id) youText else crewNames[index] ?: teammateLabel
+                        }
+                        val joiner = t("contactsTasks.andJoiner")
+                        if (crewIds.isNotEmpty()) {
+                            AssigneeStack(crewNames, size = 24.dp)
                             Spacer(Modifier.width(7.dp))
                         }
                         Text(
-                            if (detail.assigned_user_id != null &&
-                                detail.assigned_user_id == me.user_id
-                            ) {
-                                t("contactsTasks.you")
-                            } else {
-                                assigneeLabel
+                            when (crewIds.size) {
+                                0 -> t("contactsTasks.unassigned")
+                                1 -> crewLabels[0]
+                                2 -> crewLabels[0] + joiner + crewLabels[1]
+                                3 -> crewLabels[0] + ", " + crewLabels[1] + joiner + crewLabels[2]
+                                else -> t(
+                                    "contactsTasks.assigneesAndMoreMany",
+                                    "name" to crewLabels[0],
+                                    "count" to "${crewIds.size - 1}",
+                                )
                             },
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (detail.assigned_user_id == null) {
+                            color = if (crewIds.isEmpty()) {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             } else {
                                 MaterialTheme.colorScheme.onSurface
@@ -1415,12 +1427,12 @@ private fun TaskDetailBody(
     }
 
     if (pickerOpen) {
-        MemberPickerSheet(
+        MultiMemberPickerSheet(
             members = members,
             meUserId = me.user_id,
-            selectedUserId = detail.assigned_user_id,
-            showUnassigned = true,
-            onPick = { userId ->
+            selected = detail.assigneeIdList,
+            allowEmpty = true,
+            onApply = { userIds ->
                 // Assignment is a commit, not a filter tweak.
                 haptics.confirm()
                 pickerOpen = false
@@ -1429,7 +1441,7 @@ private fun TaskDetailBody(
                     try {
                         val (go, picked) = chooseScope()
                         if (!go) return@launch
-                        applyTask(mutations.assign(companyId, detail.id, userId, picked))
+                        applyTask(mutations.setAssignees(companyId, detail.id, userIds, picked))
                     } catch (cause: Exception) {
                         onActionError(cause.userMessage(locale))
                     }

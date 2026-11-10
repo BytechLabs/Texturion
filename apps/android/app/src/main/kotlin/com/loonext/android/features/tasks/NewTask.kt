@@ -79,6 +79,7 @@ fun NewTaskSheetHost(
                         companyId = companyId,
                         title = title,
                         assignedUserId = assignedUserId,
+                        assigneeIds = extras.assigneeIds,
                         dueAt = dueAtIso,
                         address = address,
                         conversationId = conversationId,
