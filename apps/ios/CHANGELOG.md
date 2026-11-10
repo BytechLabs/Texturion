@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.20.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.19.0...ios-v0.20.0) (2026-11-10)
+
+
+### Features
+
+* **ios:** delete records from threads and the call log, with undo ([c096114](https://github.com/BytechLabs/Texturion/commit/c0961147272bfeaa57d68c0cb084304b3bec5848))
+* **ios:** follow a task from its screen and choose how loud task changes are ([35096ee](https://github.com/BytechLabs/Texturion/commit/35096ee1ef6d5d84201cb789175ba70479b284a3))
+* **ios:** resync when a topic sequence has a hole ([cfb9eb3](https://github.com/BytechLabs/Texturion/commit/cfb9eb35b009eebfdea1e3dff33ba0ea92fb2d98))
+* **ios:** task delete is hidden without the delete permission ([e844bab](https://github.com/BytechLabs/Texturion/commit/e844babd73edebad53e95c9abc6b2442de0e72a0))
+* **ios:** tasks get priority, labels and repeating jobs ([e6e2ecc](https://github.com/BytechLabs/Texturion/commit/e6e2ecc5d31658efd031ac280562b943574fceef))
+
+
+### Bug Fixes
+
+* **ios:** delete contact shows only for those who may delete ([4d14874](https://github.com/BytechLabs/Texturion/commit/4d14874f2a9429e874e7cbc214edad251db7a55a))
+
 ## [0.19.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.18.0...ios-v0.19.0) (2026-11-10)
 
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.20.0](https://github.com/BytechLabs/Texturion/compare/android-v0.19.0...android-v0.20.0) (2026-11-10)
+
+
+### Features
+
+* **android:** delete records from threads and the call log, with undo ([5c9446d](https://github.com/BytechLabs/Texturion/commit/5c9446d57c581eed0e99b82573499f961064d2ed))
+* **android:** follow a task from its screen and choose how loud task changes are ([1792a05](https://github.com/BytechLabs/Texturion/commit/1792a05d67edd5fe37e1b44c10d77f15073526f9))
+* **android:** resync when a topic sequence has a hole ([2318788](https://github.com/BytechLabs/Texturion/commit/2318788d1ea4b4563d67bed69584c7d22ce2a0ba))
+* **android:** task delete is hidden without the delete permission ([38e0ef5](https://github.com/BytechLabs/Texturion/commit/38e0ef501de44ff0404f4a0aa926b0828c7e2514))
+* **android:** tasks get priority, labels and repeating jobs ([dc3407a](https://github.com/BytechLabs/Texturion/commit/dc3407aa45b3ff518b5dcd4049abb358c5c67ea0))
+
+
+### Bug Fixes
+
+* **android:** delete contact shows only for those who may delete ([eab41a1](https://github.com/BytechLabs/Texturion/commit/eab41a17ade5f5903db7e8a48654a0609a41ea97))
+
 ## [0.19.0](https://github.com/BytechLabs/Texturion/compare/android-v0.18.0...android-v0.19.0) (2026-11-10)
 
 
