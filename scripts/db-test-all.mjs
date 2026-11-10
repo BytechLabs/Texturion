@@ -196,6 +196,8 @@ const SUITES = [
   "realtime_sequence",
   // #689 D: who follows a task, the 60-second push collapse, and the overdue re-arm.
   "task_notifications",
+  // #698: the stored per-conversation unread state equals the computed answer.
+  "for_you_unread",
 ];
 
 const args = process.argv.slice(2);

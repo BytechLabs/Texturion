@@ -38,7 +38,7 @@ declare
     'conversation_snoozes',
     -- #247: the cached thread catch-up, which paraphrases a customer's own
     -- messages.
-    'conversation_summaries',
+    'conversation_summaries', 'conversation_unread_basis',
     'conversations', 'data_exports', 'egress_events', 'email_ledger',
     'grace_notices', 'high_priority_push_budget', 'high_priority_push_days',
     'inbound_notification_days', 'invites', 'job_ratings',

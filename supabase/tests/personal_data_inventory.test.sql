@@ -42,7 +42,7 @@ declare
     -- by construction — s.183 treats "the substance, meaning or purport" of a
     -- communication as the communication, and an erasure that took the bodies
     -- and left this would leave the customer's words under another name.
-    'conversation_summaries',
+    'conversation_summaries', 'conversation_unread_basis',
     'attachments', 'message_attachments', 'calls', 'call_member_legs',
     'opt_outs', 'blocked_senders', 'contact_consent_events', 'tasks',
     -- #245: exact task/calendar scheduling snapshots. Titles can name a

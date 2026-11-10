@@ -69,7 +69,7 @@ const TENANT_TABLES = new Set([
   // #247: the cached thread catch-up. It holds a paraphrase of a customer's
   // own messages, which makes an unscoped read of it a cross-tenant leak of
   // exactly the content this product is most careful about.
-  "conversation_summaries",
+  "conversation_summaries", "conversation_unread_basis",
   "conversations", "data_exports", "egress_events", "email_ledger",
   "grace_notices", "high_priority_push_budget", "high_priority_push_days",
   "inbound_notification_days", "invites", "job_ratings",

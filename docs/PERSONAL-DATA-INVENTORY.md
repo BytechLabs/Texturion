@@ -67,6 +67,7 @@ The most sensitive category, because the person never chose us.
 | `attachments`, `message_attachments` | file names, and the objects in R2 | Same; soft-deleted objects reclaimed by sweep |
 | `calls` | **caller name (CNAM)**, voicemail audio path, **voicemail transcript** | Same |
 | `call_member_legs` | which member took which leg | Same |
+| `conversation_unread_basis` | two timestamps and one sender id per conversation: when the newest undeleted message arrived and who sent it, and the newest one by somebody else (#698). References and times only. No message text, no number, no name | Life of the conversation (FK cascade); purged with the workspace |
 | `opt_outs` | phone number | **Outlives the workspace.** A do-not-text record belongs to the person who sent the STOP, not the business that received it |
 | `blocked_senders` | phone number, plus a free-text reason a member typed (#250) | Life of the workspace; purged with it. Deliberately NOT like `opt_outs`: a block is one business refusing one number, which says nothing about what any other business may do, so it must not outlive the workspace that made it |
 | `contact_consent_events` | consent attestations, stripped | **3 years**, names and message contents removed — CASL requires the record, not the content |
