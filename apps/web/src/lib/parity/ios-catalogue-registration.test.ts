@@ -45,7 +45,14 @@ const I18N_DIR = join(REPO_ROOT, "apps/ios/Loonext/Core/I18n");
  * Named rather than pattern-matched, so a new one has to be a decision. Both
  * of these are machinery: the registry itself, and the locale vocabulary.
  */
-const NOT_SECTIONS = new Set(["AppStrings.swift", "UiLocale.swift"]);
+const NOT_SECTIONS = new Set([
+  "AppStrings.swift",
+  "UiLocale.swift",
+  // #719: the settings search table. It lives beside the catalogues because
+  // its labels are translated text, but it is looked up by setting, not by
+  // catalogue key, so AppStrings never resolves keys through it.
+  "SettingsSearchIndex.swift",
+]);
 
 describe("the iOS catalogue registry knows about every section", () => {
   const files = readdirSync(I18N_DIR).filter(
