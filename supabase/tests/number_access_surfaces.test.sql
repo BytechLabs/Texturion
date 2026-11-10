@@ -57,6 +57,9 @@ declare
     -- Not in #368's list. It takes the parameter and filters on it correctly;
     -- it was simply missing from the enumeration the issue was written from.
     'api_spam_review',
+    -- #689: a task's history and comments. A task on a denied number is not
+    -- found, so its comments and field changes never reach the member.
+    'api_task_activity',
     -- #275: the bulk WRITE surface, and the only one on this roster that is not
     -- a read. It belongs here for a stronger reason than the reads do: a missing
     -- filter on a read leaks rows, and a missing filter here MODIFIES them —
@@ -301,6 +304,26 @@ begin
     raise exception
       'NA-3 FAILED: denying a number changed nothing in notification_feed, so '
       'the fixture no longer exercises the filter';
+  end if;
+
+  -- api_task_activity: the hidden line's task is not found, the visible one is.
+  if public.api_task_activity(co,
+       (select id from public.tasks
+         where conversation_id = '36800000-0000-4000-8000-000000000031'),
+       hidden)->>'outcome' is distinct from 'not_found' then
+    raise exception 'NA-3 FAILED: api_task_activity read a task on a denied number';
+  end if;
+  if public.api_task_activity(co,
+       (select id from public.tasks
+         where conversation_id = '36800000-0000-4000-8000-000000000031'))
+       ->>'outcome' is distinct from 'ok' then
+    raise exception 'NA-3 FAILED: api_task_activity hid a task with no number denied';
+  end if;
+  if public.api_task_activity(co,
+       (select id from public.tasks
+         where conversation_id = '36800000-0000-4000-8000-000000000030'),
+       hidden)->>'outcome' is distinct from 'ok' then
+    raise exception 'NA-3 FAILED: api_task_activity hid a task on an allowed number';
   end if;
 
   -- api_for_you
