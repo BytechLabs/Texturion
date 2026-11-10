@@ -54,6 +54,14 @@ object PushKind {
     const val TASK_ASSIGNED = "task_assigned"
 
     /**
+     * A change to a task the reader follows (#689 D): taken off it, its time
+     * moved, finished, reopened, commented on. Rides the assignments channel,
+     * which is already "work is happening to my jobs", so a crew that mutes the
+     * inbox keeps it.
+     */
+    const val TASK_UPDATE = "task_update"
+
+    /**
      * #564: a customer replying URGENT. Sent on the NATIVE payload only
      * (inbound.ts) — the service worker has no channels to pick from, so the
      * discriminator would be a field nothing reads on web.
@@ -149,7 +157,7 @@ fun parsePush(
             PushKind.PAYMENT -> ChannelIds.PAYMENTS
             PushKind.MISSED_CALL -> ChannelIds.MISSED_CALLS
             PushKind.TASK_DUE -> ChannelIds.TASK_REMINDERS
-            PushKind.CONVERSATION_ASSIGNED, PushKind.TASK_ASSIGNED ->
+            PushKind.CONVERSATION_ASSIGNED, PushKind.TASK_ASSIGNED, PushKind.TASK_UPDATE ->
                 ChannelIds.ASSIGNMENTS
             // An unknown kind is a newer server than this build: render it on
             // the general channel rather than dropping it.

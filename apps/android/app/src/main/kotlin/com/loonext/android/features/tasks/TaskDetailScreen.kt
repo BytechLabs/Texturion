@@ -40,6 +40,8 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -478,6 +480,30 @@ private fun TaskDetailBody(
         }
     }
 
+    // #689 D: shown at once and put back if the server refuses. The server
+    // remembers an unfollow, so what the next fetch says is the truth.
+    var following by remember(detail.id, detail.subscribed) {
+        mutableStateOf(detail.subscribed)
+    }
+
+    fun toggleFollow() {
+        val next = !following
+        haptics.tap()
+        following = next
+        scope.launch {
+            onActionError(null)
+            try {
+                mutations.follow(companyId, detail.id, next)
+                onChanged()
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Exception) {
+                following = !next
+                onActionError(cause.userMessage(locale))
+            }
+        }
+    }
+
     fun deleteTask() {
         // Destructive commit — fires once whether it came straight from the
         // menu or through the confirm dialog (both funnel here).
@@ -504,51 +530,68 @@ private fun TaskDetailBody(
 
     Column(modifier.fillMaxSize()) {
         DetailTopBar(onBack = onBack) {
-            Box {
-                PaperCircleButton(
-                    icon = Icons.Outlined.MoreHoriz,
-                    contentDescription = t("contactsTasks.taskActions"),
-                    onClick = {
-                        haptics.tap()
-                        menuOpen = true
-                    },
-                )
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    if (!noAccess) {
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    t(
-                                        if (detail.done) {
-                                            "contactsTasks.markNotDone"
-                                        } else {
-                                            "contactsTasks.markDone"
-                                        },
-                                    ),
-                                )
-                            },
-                            onClick = {
-                                menuOpen = false
-                                toggleDone()
-                            },
-                        )
-                    }
-                    if (canDelete) {
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    t("contactsTasks.deleteTask"),
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            },
-                            enabled = !deleting,
-                            onClick = {
-                                menuOpen = false
-                                // #89: confirm only when the task carries
-                                // notes or files; a plain task deletes now.
-                                if (hasContent) confirmDelete = true else deleteTask()
-                            },
-                        )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Not offered without access: the server 404s a follow on a task the
+                // caller cannot see.
+                if (!noAccess) {
+                    PaperCircleButton(
+                        icon = if (following) {
+                            Icons.Outlined.Notifications
+                        } else {
+                            Icons.Outlined.NotificationsOff
+                        },
+                        contentDescription = t(
+                            if (following) "contactsTasks.unfollowTask" else "contactsTasks.followTask",
+                        ),
+                        onClick = ::toggleFollow,
+                    )
+                }
+                Box {
+                    PaperCircleButton(
+                        icon = Icons.Outlined.MoreHoriz,
+                        contentDescription = t("contactsTasks.taskActions"),
+                        onClick = {
+                            haptics.tap()
+                            menuOpen = true
+                        },
+                    )
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        if (!noAccess) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        t(
+                                            if (detail.done) {
+                                                "contactsTasks.markNotDone"
+                                            } else {
+                                                "contactsTasks.markDone"
+                                            },
+                                        ),
+                                    )
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    toggleDone()
+                                },
+                            )
+                        }
+                        if (canDelete) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        t("contactsTasks.deleteTask"),
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                },
+                                enabled = !deleting,
+                                onClick = {
+                                    menuOpen = false
+                                    // #89: confirm only when the task carries
+                                    // notes or files; a plain task deletes now.
+                                    if (hasContent) confirmDelete = true else deleteTask()
+                                },
+                            )
+                        }
                     }
                 }
             }

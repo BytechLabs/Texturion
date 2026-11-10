@@ -194,6 +194,20 @@ class TaskMutations(private val api: ApiClient) {
         )
     }
 
+    /**
+     * #689 D: follow or unfollow a task. Following asks for a push when it
+     * changes; an unfollow is remembered by the server, so a later comment does
+     * not bring it back.
+     */
+    suspend fun follow(companyId: String, taskId: String, follow: Boolean) {
+        val path = "/v1/tasks/$taskId/subscription"
+        if (follow) {
+            api.raw("POST", path, body = "{}", companyId = companyId)
+        } else {
+            api.delete(path, companyId = companyId)
+        }
+    }
+
     /** Soft-delete to the Trash; needs records.delete (403 otherwise). */
     suspend fun delete(companyId: String, taskId: String) {
         api.delete("/v1/tasks/$taskId", companyId = companyId)

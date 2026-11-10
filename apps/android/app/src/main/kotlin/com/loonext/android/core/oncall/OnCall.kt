@@ -177,6 +177,7 @@ object OnCall {
         "messages_all" to "domain.categoryMessagesAll",
         "mentions" to "domain.categoryMentions",
         "assignments" to "domain.categoryAssignments",
+        "tasks" to "domain.categoryTasks",
         "missed_calls" to "domain.categoryMissedCalls",
         "voicemails" to "domain.categoryVoicemails",
     )

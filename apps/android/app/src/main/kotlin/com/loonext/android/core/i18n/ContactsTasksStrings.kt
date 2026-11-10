@@ -211,6 +211,8 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.taskGone" to "This task doesn't exist or was removed.",
         "contactsTasks.backToTasks" to "Back to tasks",
         "contactsTasks.taskActions" to "Task actions",
+        "contactsTasks.followTask" to "Follow this task",
+        "contactsTasks.unfollowTask" to "Unfollow this task",
         "contactsTasks.deleteTask" to "Delete task",
         "contactsTasks.deleteForbidden" to
             "Only the task's creator or an admin can delete it.",
@@ -944,6 +946,8 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.taskGone" to "Cette tâche n'existe pas ou a été supprimée.",
         "contactsTasks.backToTasks" to "Retour aux tâches",
         "contactsTasks.taskActions" to "Actions de la tâche",
+        "contactsTasks.followTask" to "Suivre cette tâche",
+        "contactsTasks.unfollowTask" to "Ne plus suivre cette tâche",
         "contactsTasks.deleteTask" to "Supprimer la tâche",
         "contactsTasks.deleteForbidden" to
             "Seul le créateur de la tâche ou un administrateur peut la supprimer.",

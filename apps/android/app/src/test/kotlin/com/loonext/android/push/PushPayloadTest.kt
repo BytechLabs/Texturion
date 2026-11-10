@@ -138,6 +138,25 @@ class PushPayloadTest {
     }
 
     @Test
+    fun `a change to a followed task rides the assignments channel and opens the task`() {
+        // #689 D: the same channel as being handed work, so a crew that mutes the
+        // inbox keeps hearing that a job they follow was finished.
+        val update = parsePush(
+            mapOf(
+                "kind" to "task_update",
+                "title" to "Dana finished a task",
+                "body" to "Re-pipe the basement",
+                "url" to "/tasks/task-2",
+                "tag" to "task-update:task-2:completed",
+            ),
+        )
+
+        assertEquals(ChannelIds.ASSIGNMENTS, update.channelId)
+        assertEquals("$APP_ORIGIN/tasks/task-2", update.url)
+        assertEquals("task-update:task-2:completed", update.tag)
+    }
+
+    @Test
     fun `an urgent text routes to its own channel, not Messages`() {
         // #564: it used to land on Messages at ordinary importance — buzzing no
         // louder than "on my way?" and silenced by the same switch — while the

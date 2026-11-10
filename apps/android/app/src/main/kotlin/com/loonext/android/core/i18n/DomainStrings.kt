@@ -383,6 +383,7 @@ object DomainStrings : AppStrings.Section {
         "domain.categoryMessagesAll" to "Texts on anyone's jobs",
         "domain.categoryMentions" to "When somebody @s me",
         "domain.categoryAssignments" to "Work handed to me",
+        "domain.categoryTasks" to "Changes to tasks I follow",
         "domain.categoryMissedCalls" to "Missed calls",
         "domain.categoryVoicemails" to "Voicemails",
 
@@ -954,6 +955,7 @@ object DomainStrings : AppStrings.Section {
         "domain.categoryMessagesAll" to "Textos sur les tâches de tout le monde",
         "domain.categoryMentions" to "Quand quelqu'un me mentionne avec @",
         "domain.categoryAssignments" to "Travail qui m'est confié",
+        "domain.categoryTasks" to "Changements aux tâches que je suis",
         "domain.categoryMissedCalls" to "Appels manqués",
         "domain.categoryVoicemails" to "Messages vocaux",
 

@@ -277,6 +277,11 @@ data class TaskDetail(
     val attachments: List<TaskAttachmentItem> = emptyList(),
     val activity: List<TaskActivityItem> = emptyList(),
     val viewer_level: String = "text",
+    /**
+     * #689 D: whether the caller follows this task. Defaulted because a
+     * mutation response omits it, like the derived fields above.
+     */
+    val subscribed: Boolean = false,
     /** #214 structured job address + provenance (see [Task]). */
     val addr_street: String? = null,
     val addr_unit: String? = null,
