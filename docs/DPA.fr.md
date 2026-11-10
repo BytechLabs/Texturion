@@ -1,5 +1,7 @@
 # Entente de traitement des données (#285, #228)
 
+**Status: RECORD (#323).** The French twin of `docs/DPA.md`; `docs/DPA.md` is the source of the facts.
+
 **Statut : jumeau français de `docs/DPA.md`, publié à `/fr/entente-traitement-donnees`.**
 Les douze clauses numérotées ci-dessous sont la traduction fidèle de celles de
 `docs/DPA.md`; la version anglaise reste la source des faits, et chaque

@@ -63,15 +63,14 @@ const INVENTORY = read("docs", "DATA-INVENTORY.md");
  * customer reads, and the three are one statement made three times. A path that
  * appears in two of them and not the third is the finding.
  */
+// The English policy's words; the page itself only renders this copy (#228).
 const PRIVACY_POLICY = read(
   "apps",
   "web",
   "src",
-  "app",
-  "(marketing)",
-  "legal",
-  "privacy",
-  "page.tsx",
+  "i18n",
+  "marketing",
+  "legal-privacy.ts",
 )
   /*
    * COMMENTS STRIPPED, and this is not tidiness. The comments in that file
@@ -81,7 +80,8 @@ const PRIVACY_POLICY = read(
    * paragraph left this test passing on the comment that survived it.
    */
   .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
-  .replace(/\/\*[\s\S]*?\*\//g, "");
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/^\s*\/\/.*$/gm, "");
 
 /**
  * Permissions that are plumbing rather than a declaration: they gate no personal
