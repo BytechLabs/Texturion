@@ -40,6 +40,7 @@ import { keys } from "@/lib/api/keys";
 import type { ConversationEvent } from "@/lib/api/types";
 
 import { PAYMENT_EVENT_TYPES, REALTIME_EVENTS } from "./events";
+import { REORDER_WINDOW_MS } from "./sequence";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
 const USER = "22222222-2222-2222-2222-222222222222";
@@ -607,6 +608,78 @@ describe("a bootstrap number list that failed to read", () => {
   });
 });
 
+describe("a hole in the topic sequence", () => {
+  const sequenced = (
+    emit: (topic: string, event: string, payload: unknown) => void,
+    topic: string,
+    seq: number,
+  ) => emit(topic, "*", { seq });
+
+  it("resyncs like a connection gap once the reorder window has passed", async () => {
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { emit, report, loadedPages, meInvalidations } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      report(numberTopic("n1"), "SUBSCRIBED");
+      const topic = numberTopic("n1");
+
+      sequenced(emit, topic, 7);
+      sequenced(emit, topic, 8);
+      sequenced(emit, topic, 10);
+      expect(meInvalidations()).toBe(0);
+
+      await vi.advanceTimersByTimeAsync(REORDER_WINDOW_MS);
+      expect(meInvalidations()).toBe(1);
+      expect(loadedPages()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does nothing when the late event arrives inside the window", async () => {
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { emit, report, meInvalidations } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      report(numberTopic("n1"), "SUBSCRIBED");
+      const topic = numberTopic("n1");
+
+      sequenced(emit, topic, 1);
+      sequenced(emit, topic, 3);
+      await vi.advanceTimersByTimeAsync(REORDER_WINDOW_MS - 1);
+      sequenced(emit, topic, 2);
+      await vi.advanceTimersByTimeAsync(REORDER_WINDOW_MS * 2);
+      expect(meInvalidations()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("starts over after a rejoin, which the connection backfill already covers", async () => {
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { emit, report, meInvalidations } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      report(numberTopic("n1"), "SUBSCRIBED");
+      const topic = numberTopic("n1");
+
+      sequenced(emit, topic, 5);
+      report(topic, "SUBSCRIBED");
+      sequenced(emit, topic, 900);
+      await vi.advanceTimersByTimeAsync(REORDER_WINDOW_MS * 2);
+      expect(meInvalidations()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("the subscribed event set", () => {
   it("is exactly REALTIME_EVENTS, in both directions, on every topic", async () => {
     // REALTIME_EVENTS was documentation with no consumer and it had drifted:
@@ -624,7 +697,9 @@ describe("the subscribed event set", () => {
 
     expect(fake.live.size).toBe(3);
     for (const channel of fake.live.values()) {
-      expect(new Set(channel.bindings.keys())).toEqual(new Set(REALTIME_EVENTS));
+      // "*" is the sequence listener (D151), not an event.
+      const events = [...channel.bindings.keys()].filter((e) => e !== "*");
+      expect(new Set(events)).toEqual(new Set(REALTIME_EVENTS));
     }
   });
 });

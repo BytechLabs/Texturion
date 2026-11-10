@@ -42,6 +42,7 @@ import {
   type TaskChangedEvent,
 } from "./events";
 import { activeConversationFromPath } from "./path";
+import { createSequenceTracker } from "./sequence";
 
 function findListRow(
   queryClient: QueryClient,
@@ -787,6 +788,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: keys.me });
     }
 
+    const sequence = createSequenceTracker(() => refetchFirstPages());
+
     // #215 Part A — the resync-on-focus safety net. A broadcast frame can be
     // dropped/missed/late (a transient CHANNEL_ERROR, a token-reauth window, a
     // backpressure drop on a client transport), and the only self-heal today is a
@@ -921,6 +924,12 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     function openTopic(topic: string) {
       const channel = supabase.channel(topic, { config: { private: true } });
       channel
+        // D151: every broadcast carries a gapless per-topic `seq`. One wildcard
+        // listener sees all of them, so a new event type is covered without an
+        // edit here. A hole that stays open resyncs like a connection gap.
+        .on("broadcast", { event: "*" }, ({ payload }) =>
+          sequence.observe(topic, (payload as { seq?: unknown } | null)?.seq),
+        )
         .on("broadcast", { event: "message.created" }, ({ payload }) =>
           void handleMessageCreated(payload as MessageCreatedEvent),
         )
@@ -1039,6 +1048,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         // being taken away says nothing about the others.
         let refusals = 0;
         channel.subscribe((status) => {
+          // A (re)join or a failure starts the topic's sequence over: the first
+          // event after it only sets the baseline, and the gap backfill below
+          // already covers whatever was missed in between.
+          sequence.reset(topic);
           if (status === "SUBSCRIBED") {
             refusals = 0;
             // Backfill whenever there WAS a gap, whether or not this channel had
@@ -1107,6 +1120,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("online", onOnline);
       for (const timer of pendingUpdates.values()) clearTimeout(timer);
       pendingUpdates.clear();
+      sequence.dispose();
       // #483: a rebuild scheduled for a given-up topic must not outlive the run
       // that scheduled it — the `disposed` guard already refuses it, but leaving
       // the timer would keep a company switch alive for a minute for nothing.
