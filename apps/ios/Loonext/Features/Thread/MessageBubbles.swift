@@ -12,6 +12,9 @@ struct MessageBubbleActions {
     let onCopied: @MainActor () -> Void
     /// Open the detail of the task this message links to (#217).
     let onOpenTask: @MainActor (String) -> Void
+    /// #691: delete this message or note. Nil hides the menu item, which is how
+    /// a member without `records.delete` never sees it.
+    var onDelete: (@MainActor () -> Void)? = nil
 }
 
 /// One message bubble: inbound paper left, outbound ink right, internal note
@@ -265,6 +268,20 @@ struct MessageBubble: View {
                 Label(
                     AppStrings.translate(appLocale, "thread.makeTask"),
                     systemImage: "checklist"
+                )
+            }
+        }
+        if let onDelete = actions.onDelete {
+            Button(role: .destructive) {
+                Haptics.tap()
+                onDelete()
+            } label: {
+                Label(
+                    AppStrings.translate(
+                        appLocale,
+                        RecordDeletion.menuLabelKey(message)
+                    ),
+                    systemImage: "trash"
                 )
             }
         }

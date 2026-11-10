@@ -43,6 +43,8 @@ struct CallsView: View {
 
     private let manager: CallsManager
     private let service: CallsService
+    /// #691: delete and restore for calls and voicemails.
+    private let deletion: RecordDeletionRepository
 
     @State private var filter: CallsFilter = .all
     @State private var state: LoadState<[Call]> = .loading
@@ -60,6 +62,10 @@ struct CallsView: View {
     /// anchor is dropped on iOS 15/16 and flaky on 17.x — "Add contact" would
     /// do nothing / need a second tap).
     @State private var activeSheet: CallsSheet?
+    /// #691: the toast after a delete, carrying its Undo.
+    @State private var notice: ThreadNotice?
+    @State private var noticeSeq: Int64 = 0
+    @State private var noticeDismissTask: Task<Void, Never>?
 
     @Environment(\.appLocale) private var appLocale
 
@@ -77,6 +83,7 @@ struct CallsView: View {
         self.openConversation = openConversation
         self.manager = CallsManager.get(graph: graph)
         self.service = CallsService(api: graph.api)
+        self.deletion = RecordDeletionRepository(api: graph.api)
     }
 
     var body: some View {
@@ -105,6 +112,7 @@ struct CallsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(BrandColor.canvas)
+        .overlay(alignment: .bottom) { noticeToast }
         .task(id: companyId) {
             manager.start(companyId: companyId, callerIdName: me.display_name)
         }
@@ -303,6 +311,116 @@ struct CallsView: View {
         }
     }
 
+    // MARK: - Deleting (#691)
+
+    /// Deleting is its own capability; a member without it never sees the item.
+    private var canDeleteRecords: Bool {
+        let role = me.memberships
+            .first(where: { $0.company_id == companyId })?.role
+        return RecordDeletion.canDelete(role: role)
+    }
+
+    private func deleteCallAction(for call: Call) -> (@MainActor () -> Void)? {
+        guard canDeleteRecords else { return nil }
+        return { deleteRecord(call, kind: .call) }
+    }
+
+    /// Only a call that has a voicemail can have one deleted on its own.
+    private func deleteVoicemailAction(for call: Call) -> (@MainActor () -> Void)? {
+        guard canDeleteRecords else { return nil }
+        guard call.outcome == CallOutcome.voicemail,
+              (call.voicemail_seconds ?? 0) > 0
+        else { return nil }
+        return { deleteRecord(call, kind: .voicemail) }
+    }
+
+    /// Both go to the Trash, so the toast carries an Undo that restores it. No
+    /// confirmation: it is reversible and the Trash holds it for 30 days.
+    private func deleteRecord(_ call: Call, kind: TrashKind) {
+        Task {
+            do {
+                if kind == .voicemail {
+                    try await deletion.deleteVoicemail(companyId: companyId, callId: call.id)
+                } else {
+                    try await deletion.deleteCall(companyId: companyId, callId: call.id)
+                    if case .ready(let calls) = state {
+                        state = .ready(calls.filter { $0.id != call.id })
+                    }
+                }
+                refreshKey += 1
+                let key = kind == .voicemail ? "thread.voicemailDeleted" : "thread.callDeleted"
+                showNotice(t(key), actionLabel: t("thread.undo")) {
+                    restoreRecord(call, kind: kind)
+                }
+            } catch {
+                showNotice(error.userMessage)
+            }
+        }
+    }
+
+    private func restoreRecord(_ call: Call, kind: TrashKind) {
+        Task {
+            do {
+                try await deletion.restore(companyId: companyId, kind: kind, id: call.id)
+                refreshKey += 1
+                showNotice(t(RecordDeletion.restoredKey(kind)))
+            } catch {
+                let status = (error as? ApiError)?.httpStatus ?? 0
+                if let key = RecordDeletion.restoreFailureKey(httpStatus: status) {
+                    showNotice(t(key))
+                } else {
+                    showNotice(error.userMessage)
+                }
+            }
+        }
+    }
+
+    private func showNotice(
+        _ text: String,
+        actionLabel: String? = nil,
+        action: (@MainActor () -> Void)? = nil
+    ) {
+        noticeSeq += 1
+        notice = ThreadNotice(
+            id: noticeSeq,
+            text: text,
+            actionLabel: actionLabel,
+            action: action
+        )
+        noticeDismissTask?.cancel()
+        let shownSeq = noticeSeq
+        noticeDismissTask = Task {
+            // An undoable notice stays up longer (docs/UNDO-AUDIT.md).
+            try? await Task.sleep(for: .seconds(actionLabel == nil ? 3 : 10))
+            if !Task.isCancelled, noticeSeq == shownSeq { notice = nil }
+        }
+    }
+
+    @ViewBuilder
+    private var noticeToast: some View {
+        if let shown = notice {
+            HStack(spacing: 12) {
+                Text(shown.text)
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.ink)
+                    .lineLimit(2)
+                if let label = shown.actionLabel {
+                    Button(label) {
+                        shown.action?()
+                        notice = nil
+                    }
+                    .font(.golos(12.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.regularMaterial, in: Capsule())
+            .padding(.bottom, 12)
+            .onTapGesture { notice = nil }
+        }
+    }
+
     /// D64: "Make a task" on an answered call that landed in a conversation.
     private func makeTaskButton(for call: Call) -> AnyView? {
         guard call.outcome == CallOutcome.answered,
@@ -346,7 +464,9 @@ struct CallsView: View {
                                 service: service,
                                 companyId: companyId,
                                 onOpen: openAction(for: call),
-                                makeTask: makeTaskButton(for: call)
+                                makeTask: makeTaskButton(for: call),
+                                onDeleteCall: deleteCallAction(for: call),
+                                onDeleteVoicemail: deleteVoicemailAction(for: call)
                             )
                             if call.id != calls.last?.id {
                                 RowDivider().padding(.leading, 64)
@@ -603,6 +723,9 @@ private struct CallRow: View {
     /// After the required `let`s and defaulted, so the call sites and previews
     /// that omit it keep compiling.
     var makeTask: AnyView?
+    /// #691: nil hides the item (no `records.delete`, or no voicemail to delete).
+    var onDeleteCall: (@MainActor () -> Void)?
+    var onDeleteVoicemail: (@MainActor () -> Void)?
 
     /// #228: AFTER the required `let`s, so the memberwise init every call site
     /// above uses keeps the same argument order.
@@ -736,6 +859,30 @@ private struct CallRow: View {
         .contentShape(Rectangle())
         .onTapGesture {
             onOpen?()
+        }
+        .contextMenu {
+            if let onDeleteVoicemail {
+                Button(role: .destructive) {
+                    Haptics.tap()
+                    onDeleteVoicemail()
+                } label: {
+                    Label(
+                        AppStrings.translate(appLocale, "thread.deleteVoicemail"),
+                        systemImage: "trash"
+                    )
+                }
+            }
+            if let onDeleteCall {
+                Button(role: .destructive) {
+                    Haptics.tap()
+                    onDeleteCall()
+                } label: {
+                    Label(
+                        AppStrings.translate(appLocale, "thread.deleteCall"),
+                        systemImage: "trash"
+                    )
+                }
+            }
         }
     }
 }

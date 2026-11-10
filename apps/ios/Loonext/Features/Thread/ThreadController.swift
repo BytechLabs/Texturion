@@ -45,6 +45,10 @@ final class ThreadController {
     private(set) var events: [ConversationEvent] = []
     private(set) var pinnedMessages: [Message] = []
     private(set) var pendingSends: [PendingSend] = []
+    /// #691: this conversation was deleted from here. The thread swaps to a
+    /// "moved to the Trash" pane with an Undo instead of vanishing, because the
+    /// screen that could have held the toast is the one being left.
+    private(set) var conversationDeleted = false
 
     /// #247: the catch-up, and whether anybody has asked for one yet.
     ///
@@ -1288,6 +1292,93 @@ final class ThreadController {
         )
         applyConversationRow(next)
         return next
+    }
+
+    // MARK: - Deleting (#691)
+
+    private var deletion: RecordDeletionRepository {
+        RecordDeletionRepository(api: repo.api)
+    }
+
+    /// Both a note and a message. Goes to the Trash, so the toast carries an
+    /// Undo that restores it.
+    func deleteMessage(_ message: Message) {
+        Task {
+            do {
+                try await deletion.deleteMessage(
+                    companyId: companyId,
+                    messageId: message.id
+                )
+                messages = messages.filter { $0.id != message.id }
+                pinnedMessages = pinnedMessages.filter { $0.id != message.id }
+                try? await refreshEvents()
+                notify(
+                    t(RecordDeletion.messageDeletedKey(message)),
+                    actionLabel: t("thread.undo")
+                ) { [weak self] in
+                    self?.restoreMessage(message.id)
+                }
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
+    private func restoreMessage(_ messageId: String) {
+        Task {
+            do {
+                try await deletion.restore(
+                    companyId: companyId,
+                    kind: .message,
+                    id: messageId
+                )
+                try? await refetchLoadedWindow()
+                try? await refreshPinned()
+                try? await refreshEvents()
+                notify(t(RecordDeletion.restoredKey(.message)))
+            } catch {
+                notify(restoreFailureText(error))
+            }
+        }
+    }
+
+    func deleteConversation() {
+        Task {
+            do {
+                try await deletion.deleteConversation(
+                    companyId: companyId,
+                    conversationId: conversationId
+                )
+                conversationDeleted = true
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
+    func restoreConversation() {
+        Task {
+            do {
+                try await deletion.restore(
+                    companyId: companyId,
+                    kind: .conversation,
+                    id: conversationId
+                )
+                conversationDeleted = false
+                refreshAfterReconnect()
+                notify(t(RecordDeletion.restoredKey(.conversation)))
+            } catch {
+                notify(restoreFailureText(error))
+            }
+        }
+    }
+
+    private func restoreFailureText(_ error: Error) -> String {
+        let status = (error as? ApiError)?.httpStatus ?? 0
+        if let key = RecordDeletion.restoreFailureKey(httpStatus: status) {
+            return t(key)
+        }
+        return error.userMessage
     }
 
     func setSpam(_ spam: Bool) {

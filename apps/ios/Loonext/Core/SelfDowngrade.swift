@@ -45,6 +45,7 @@ enum SelfDowngrade {
         "numbers.manage": "domain.capNumbers",
         "history.read": "domain.capHistory",
         "contacts.bulk": "domain.capContactsBulk",
+        "records.delete": "domain.capRecordsDelete",
     ]
 
     /// The capability set for each role. Kept in step with the shared module by test.
@@ -69,6 +70,7 @@ enum SelfDowngrade {
             "numbers.manage",
             "history.read",
             "contacts.bulk",
+            "records.delete",
         ],
     ]
 

@@ -502,6 +502,7 @@ enum DomainStrings {
             "domain.capNumbers": "phone numbers",
             "domain.capHistory": "the history log",
             "domain.capContactsBulk": "importing and exporting customers",
+            "domain.capRecordsDelete": "deleting messages, conversations, calls and customers",
             "domain.selfDowngradeSomeOfWhat": "some of what you can do now",
             "domain.selfDowngradeListPair": "{first} and {last}",
             "domain.selfDowngradeMore": "{list}, and {count} more",
@@ -990,6 +991,7 @@ enum DomainStrings {
             "domain.capNumbers": "les numéros de téléphone",
             "domain.capHistory": "le journal d'historique",
             "domain.capContactsBulk": "l'importation et l'exportation des clients",
+            "domain.capRecordsDelete": "la suppression des messages, conversations, appels et clients",
             "domain.selfDowngradeSomeOfWhat":
                 "une partie de ce que vous pouvez faire actuellement",
             "domain.selfDowngradeListPair": "{first} et {last}",

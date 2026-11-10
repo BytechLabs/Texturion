@@ -135,6 +135,10 @@ private struct ThreadBody: View {
     @State private var confirmRevoke = false
     @State private var confirmBlock = false
     @State private var confirmDiscardQueued: PendingSend?
+    /// #691: a sent text being deleted, held while the confirmation says the
+    /// customer keeps their copy.
+    @State private var confirmDeleteSentText: Message?
+    @State private var confirmDeleteConversation = false
     @State private var showNewPill = false
     /// #302: who else is on this thread, and this viewer's typing window.
     @State private var presenceByTopic: [String: PresenceMap] = [:]
@@ -202,7 +206,71 @@ private struct ThreadBody: View {
                 CenteredError(message: message) { controller.retryInitialLoad() }
             }
         case .ready:
-            loaded
+            if controller.conversationDeleted {
+                deletedPane
+            } else {
+                loaded
+            }
+        }
+    }
+
+    /// #691: the thread after "Delete conversation". It sits in the Trash for
+    /// 30 days, so the way back is on screen rather than behind a toast that
+    /// would leave with this screen.
+    private var deletedPane: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "trash")
+                .font(.scaled(28, weight: .regular))
+                .foregroundStyle(BrandColor.muted500)
+                .accessibilityHidden(true)
+            Text(AppStrings.translate(appLocale, "thread.conversationDeleted"))
+                .font(.golos(16, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+            Text(AppStrings.translate(appLocale, "thread.conversationDeletedBody"))
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted500)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+            Button(AppStrings.translate(appLocale, "thread.undo")) {
+                controller.restoreConversation()
+            }
+            .buttonStyle(.bordered)
+            Button(
+                AppStrings.translate(appLocale, "thread.backToInbox"),
+                action: onBack
+            )
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// #691: this viewer may delete records in THIS workspace. Resolved from the
+    /// same membership the rest of the screen reads its role from.
+    private var canDeleteRecords: Bool {
+        let workspaceId = controller.conversation?.company_id
+        let role = me.memberships
+            .first(where: { $0.company_id == workspaceId })?.role
+        return RecordDeletion.canDelete(role: role)
+    }
+
+    /// A sent text is confirmed first (the customer keeps their copy); anything
+    /// else goes straight to the Trash and the toast offers the Undo.
+    private func deleteMessageAction(for message: Message) -> (@MainActor () -> Void)? {
+        guard canDeleteRecords else { return nil }
+        return {
+            if RecordDeletion.isSentText(message) {
+                confirmDeleteSentText = message
+            } else {
+                controller.deleteMessage(message)
+            }
+        }
+    }
+
+    private func deleteConversationAction() -> (@MainActor () -> Void)? {
+        guard canDeleteRecords else { return nil }
+        return {
+            detailSheet = nil
+            confirmDeleteConversation = true
         }
     }
 
@@ -462,7 +530,8 @@ private struct ThreadBody: View {
                         onRevokeOptOut: { detailSheet = nil; confirmRevoke = true },
                         onBlock: { detailSheet = nil; confirmBlock = true },
                         onRefresh: { detailSheet = nil; controller.refreshAfterReconnect() },
-                        onDismiss: { detailSheet = nil }
+                        onDismiss: { detailSheet = nil },
+                        onDeleteConversation: deleteConversationAction()
                     )
                 case .contactPanel:
                     ContactPanelSheet(
@@ -609,6 +678,51 @@ private struct ThreadBody: View {
                     AppStrings.translate(appLocale, "thread.deleteQueuedBody")
                         + "\n\n“\(pending.body)”"
                 )
+            }
+            // #691: no undo on the carrier's copy, so the pause says so.
+            // *Applying: Ethical Friction.*
+            .alert(
+                AppStrings.translate(appLocale, "thread.deleteSentTitle"),
+                isPresented: Binding(
+                    get: { confirmDeleteSentText != nil },
+                    set: { if !$0 { confirmDeleteSentText = nil } }
+                ),
+                presenting: confirmDeleteSentText
+            ) { sentText in
+                Button(
+                    AppStrings.translate(appLocale, "thread.keepIt"),
+                    role: .cancel
+                ) { confirmDeleteSentText = nil }
+                Button(
+                    AppStrings.translate(appLocale, "common.delete"),
+                    role: .destructive
+                ) {
+                    controller.deleteMessage(sentText)
+                    confirmDeleteSentText = nil
+                }
+            } message: { _ in
+                Text(AppStrings.translate(appLocale, "thread.deleteSentBody"))
+            }
+            .alert(
+                AppStrings.translate(
+                    appLocale,
+                    "thread.deleteConversationTitle",
+                    ["name": contactName]
+                ),
+                isPresented: $confirmDeleteConversation
+            ) {
+                Button(
+                    AppStrings.translate(appLocale, "thread.keepIt"),
+                    role: .cancel
+                ) {}
+                Button(
+                    AppStrings.translate(appLocale, "common.delete"),
+                    role: .destructive
+                ) {
+                    controller.deleteConversation()
+                }
+            } message: {
+                Text(AppStrings.translate(appLocale, "thread.deleteConversationBody"))
             }
             .sheet(
                 isPresented: Binding(
@@ -882,7 +996,8 @@ private struct ThreadBody: View {
                     // ABOVE this thread (the shell's existing openTaskId route,
                     // which passes onOpenConversation so the task can jump back
                     // to its source message).
-                    onOpenTask: { AppRouter.shared.openTaskId = $0 }
+                    onOpenTask: { AppRouter.shared.openTaskId = $0 },
+                    onDelete: deleteMessageAction(for: message)
                 )
             )
         case .pending(let pending):
@@ -1540,6 +1655,8 @@ private struct ConversationSheet: View {
     let onBlock: @MainActor () -> Void
     let onRefresh: @MainActor () -> Void
     let onDismiss: @MainActor () -> Void
+    /// #691: nil when this member may not delete, which hides the row.
+    let onDeleteConversation: (@MainActor () -> Void)?
 
     /// #293: the custom-date sheet, owned here rather than inside the row, so
     /// dismissing the actions sheet cannot take the picker with it. The value
@@ -1784,6 +1901,14 @@ private struct ConversationSheet: View {
                     AppStrings.translate(appLocale, "thread.optOutOfTexts"),
                     icon: "nosign",
                     action: onOptOut
+                )
+            }
+            if let onDeleteConversation {
+                RowDivider()
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.deleteConversation"),
+                    icon: "trash",
+                    action: onDeleteConversation
                 )
             }
         }

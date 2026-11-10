@@ -112,6 +112,9 @@ enum WebhooksStrings {
             "webhooks.event.taskCreated": "A job is added",
             "webhooks.event.taskCompleted": "A job is finished",
             "webhooks.event.contactCreated": "A new customer is added",
+            "webhooks.event.messageDeleted": "A message is deleted",
+            "webhooks.event.conversationDeleted": "A conversation is deleted",
+            "webhooks.event.callDeleted": "A call or voicemail is deleted",
             "webhooks.urlError.notAUrl": "That doesn't look like a web address.",
             "webhooks.urlError.notHttps":
                 "The address has to start with https:// — http isn't secure enough to send "
@@ -223,6 +226,9 @@ enum WebhooksStrings {
             "webhooks.event.taskCreated": "Une tâche est ajoutée",
             "webhooks.event.taskCompleted": "Une tâche est terminée",
             "webhooks.event.contactCreated": "Un nouveau client est ajouté",
+            "webhooks.event.messageDeleted": "Un message est supprimé",
+            "webhooks.event.conversationDeleted": "Une conversation est supprimée",
+            "webhooks.event.callDeleted": "Un appel ou un message vocal est supprimé",
             "webhooks.urlError.notAUrl": "Ça ne ressemble pas à une adresse web.",
             "webhooks.urlError.notHttps":
                 "L'adresse doit commencer par https:// — http n'est pas assez sécuritaire "

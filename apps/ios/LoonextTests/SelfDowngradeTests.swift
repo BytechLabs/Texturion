@@ -23,6 +23,14 @@ final class SelfDowngradeTests: XCTestCase {
         XCTAssertFalse(lost.contains("conversations.read"))
     }
 
+    func testNamesDeletingAmongWhatAnAdminGivesUp() {
+        // #691: records.delete is held by admins and owners, not members.
+        let lost = SelfDowngrade.capabilitiesLost(from: "admin", to: "member")
+        XCTAssertTrue(lost.contains("records.delete"))
+        XCTAssertTrue(MemberRole.has("admin", Capability.recordsDelete))
+        XCTAssertFalse(MemberRole.has("member", Capability.recordsDelete))
+    }
+
     func testTakesNothingAwayOnAPromotionOrSidewaysMove() {
         XCTAssertFalse(SelfDowngrade.isDowngrade(from: "member", to: "admin"))
         XCTAssertNil(SelfDowngrade.warning(from: "member", to: "admin"))

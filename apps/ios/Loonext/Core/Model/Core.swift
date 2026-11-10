@@ -75,6 +75,7 @@ enum MemberRole {
             Capability.teamManage,
             Capability.numbersManage,
             Capability.historyRead,
+            Capability.recordsDelete,
         ],
         owner: Capability.all,
     ]
@@ -120,6 +121,8 @@ enum Capability {
     static let teamManage = "team.manage"
     static let numbersManage = "numbers.manage"
     static let historyRead = "history.read"
+    /// Delete a message, conversation, call, voicemail or contact, and run the Trash (#691).
+    static let recordsDelete = "records.delete"
 
     /// Everything — the owner's set, and the list a test can iterate.
     static let all: Set<String> = [
@@ -132,6 +135,7 @@ enum Capability {
         teamManage,
         numbersManage,
         historyRead,
+        recordsDelete,
     ]
 }
 

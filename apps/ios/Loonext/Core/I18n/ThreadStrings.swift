@@ -447,6 +447,37 @@ enum ThreadStrings {
             //    the catch-up and the wrap-up ─────────────────────────────
             "thread.copied": "Copied.",
             "thread.undo": "Undo",
+            // #691 — deleting records. Everything here goes to the Trash and
+            // can be restored, so the toast carries an Undo; the confirmations
+            // are for the two cases a toast is not enough.
+            "thread.deleteMessage": "Delete message",
+            "thread.deleteNote": "Delete note",
+            "thread.deleteConversation": "Delete conversation",
+            "thread.deleteCall": "Delete call",
+            "thread.deleteVoicemail": "Delete voicemail",
+            "thread.deleteSentTitle": "Delete this text?",
+            "thread.deleteSentBody":
+                "This removes it from Loonext only. The customer still has the text, "
+                + "and it can't be unsent. You can restore it from the Trash for 30 days.",
+            "thread.deleteConversationTitle": "Delete the conversation with {name}?",
+            "thread.deleteConversationBody":
+                "Its messages, notes and calls leave your inbox. You can restore it from "
+                + "the Trash for 30 days. Opt-outs are kept, and texts the customer "
+                + "already received stay with them.",
+            "thread.messageDeleted": "Message deleted",
+            "thread.noteDeleted": "Note deleted",
+            "thread.sentMessageDeleted": "Removed from Loonext. The customer still has it.",
+            "thread.callDeleted": "Call deleted",
+            "thread.voicemailDeleted": "Voicemail deleted",
+            "thread.conversationDeleted": "Conversation deleted",
+            "thread.conversationDeletedBody":
+                "It stays in the Trash for 30 days. You can restore it now or later from the web app.",
+            "thread.messageRestored": "Message restored",
+            "thread.callRestored": "Call restored",
+            "thread.voicemailRestored": "Voicemail restored",
+            "thread.conversationRestored": "Conversation restored",
+            "thread.restoreBlocked":
+                "Restore the conversation first. It's still in the Trash.",
             "thread.thatFile": "That file",
             "thread.imageCantBeSent": "That image can't be sent. Try a different photo.",
             "thread.mmsUnsupportedFile":
@@ -1152,6 +1183,40 @@ enum ThreadStrings {
             //    the catch-up and the wrap-up ─────────────────────────────
             "thread.copied": "Copié.",
             "thread.undo": "Annuler",
+            // #691 — la suppression. Tout passe par la corbeille et se
+            // restaure, d'où l'Annuler dans le message; les confirmations
+            // couvrent les deux cas où ce n'est pas assez.
+            "thread.deleteMessage": "Supprimer le message",
+            "thread.deleteNote": "Supprimer la note",
+            "thread.deleteConversation": "Supprimer la conversation",
+            "thread.deleteCall": "Supprimer l'appel",
+            "thread.deleteVoicemail": "Supprimer le message vocal",
+            "thread.deleteSentTitle": "Supprimer ce texto?",
+            "thread.deleteSentBody":
+                "Il est retiré de Loonext seulement. Le client a toujours le texto, "
+                + "et il ne peut pas être rappelé. Vous pouvez le restaurer depuis la "
+                + "corbeille pendant 30 jours.",
+            "thread.deleteConversationTitle": "Supprimer la conversation avec {name}?",
+            "thread.deleteConversationBody":
+                "Ses messages, ses notes et ses appels quittent votre boîte de réception. "
+                + "Vous pouvez la restaurer depuis la corbeille pendant 30 jours. Les "
+                + "désabonnements sont conservés, et les textos déjà reçus par le client "
+                + "restent chez lui.",
+            "thread.messageDeleted": "Message supprimé",
+            "thread.noteDeleted": "Note supprimée",
+            "thread.sentMessageDeleted": "Retiré de Loonext. Le client l'a toujours.",
+            "thread.callDeleted": "Appel supprimé",
+            "thread.voicemailDeleted": "Message vocal supprimé",
+            "thread.conversationDeleted": "Conversation supprimée",
+            "thread.conversationDeletedBody":
+                "Elle reste dans la corbeille pendant 30 jours. Vous pouvez la restaurer "
+                + "maintenant ou plus tard depuis l'application web.",
+            "thread.messageRestored": "Message restauré",
+            "thread.callRestored": "Appel restauré",
+            "thread.voicemailRestored": "Message vocal restauré",
+            "thread.conversationRestored": "Conversation restaurée",
+            "thread.restoreBlocked":
+                "Restaurez d'abord la conversation. Elle est encore dans la corbeille.",
             "thread.thatFile": "Ce fichier",
             "thread.imageCantBeSent":
                 "Cette image ne peut pas être envoyée. Essayez une autre photo.",

@@ -182,7 +182,7 @@ enum WebhookHealth {
     }
 }
 
-/// The eight subscribable events, in the order the API promises them.
+/// The eleven subscribable events, in the order the API promises them.
 let webhookEventTypes = [
     "message.received",
     "message.sent",
@@ -192,6 +192,9 @@ let webhookEventTypes = [
     "task.created",
     "task.completed",
     "contact.created",
+    "message.deleted",
+    "conversation.deleted",
+    "call.deleted",
 ]
 
 /// The catalogue key for an event's human sentence. Mirrors the shared rule.
