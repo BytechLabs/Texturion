@@ -137,10 +137,11 @@ grant execute on function public.api_merge_tags(uuid, uuid, uuid) to service_rol
 -- ---------------------------------------------------------------------------
 create or replace function public.api_tag_usage(p_company_id uuid)
 returns table (
-  tag_id     uuid,
-  name       text,
-  uses       bigint,
-  last_used  timestamptz
+  tag_id      uuid,
+  name        text,
+  description text,
+  uses        bigint,
+  last_used   timestamptz
 )
 language sql
 stable
@@ -150,6 +151,7 @@ as $$
   select
     t.id,
     t.name,
+    t.description,
     (select count(*) from public.conversation_tags ct where ct.tag_id = t.id)
       + (select count(*) from public.contact_tags kt where kt.tag_id = t.id),
     greatest(
@@ -158,7 +160,7 @@ as $$
     )
   from public.tags t
   where t.company_id = p_company_id
-  order by 3 desc, t.name
+  order by 4 desc, t.name
 $$;
 
 revoke execute on function public.api_tag_usage(uuid) from public, anon, authenticated;
