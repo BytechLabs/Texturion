@@ -120,3 +120,7 @@ ef5f390943cf370c643a151a217393fd16a12a3c:supabase/migrations/20260819010000_eras
 # S32's fixture-number provisioning key in a test stub (rig-signup-s32- plus a test nonce). It is a
 # database key the rig makes from a run id, not a credential; later commits build it with signUpNumberKey.
 224b14c744e10581152bf5027cad0bbb83d25e24:tools/rig/rigd/src/app-probe.test.ts:generic-api-key:513
+
+# A capacity report field name, share_of_sockets_..., whose "re_" plus letters reads as a Resend key.
+# It is a JSON key in a measurement script that sends nothing to Resend.
+2a37af44be5178d24163484b9bc3a8ac27f28d92:apps/api/scripts/hosted-capacity-fanout.ts:resend-api-key:291
