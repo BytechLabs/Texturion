@@ -562,4 +562,55 @@ begin
   raise notice 'SM-11 PASSED: one thread cannot become a drip campaign';
 end $$;
 
+-- ===========================================================================
+-- SM-12. A row inserted without a watermark gets the thread's newest inbound.
+--
+-- The rating ask and reminders are inserted straight into the table. A NULL watermark reads as
+-- "the thread had no inbound", so any inbound ever received looked like a reply
+-- after the ask and held it.
+-- ===========================================================================
+do $$
+declare
+  v_row   public.scheduled_messages;
+  v_empty public.scheduled_messages;
+  v_newest timestamptz;
+begin
+  select max(m.created_at) into v_newest
+    from public.messages m
+   where m.conversation_id = '5d000000-0000-4000-8000-0000000000e1'::uuid
+     and m.direction = 'inbound';
+
+  insert into public.scheduled_messages
+    (company_id, conversation_id, body, send_at, clock_timezone, clock_source,
+     expires_at, created_by)
+  values ('5d000000-0000-4000-8000-0000000000c1'::uuid,
+          '5d000000-0000-4000-8000-0000000000e1'::uuid,
+          'How did it go?', now() + interval '1 hour',
+          'America/New_York', 'contact', now() + interval '25 hours',
+          '5d000000-0000-4000-8000-00000000000a'::uuid)
+  returning * into v_row;
+
+  if v_newest is null or v_row.inbound_watermark is distinct from v_newest then
+    raise exception 'SM-12 FAILED: an insert without a watermark got % instead of %',
+      v_row.inbound_watermark, v_newest;
+  end if;
+
+  -- A thread with no inbound keeps NULL: that is the one honest meaning left.
+  insert into public.scheduled_messages
+    (company_id, conversation_id, body, send_at, clock_timezone, clock_source,
+     expires_at, created_by)
+  values ('5d000000-0000-4000-8000-0000000000c2'::uuid,
+          '5d000000-0000-4000-8000-0000000000e2'::uuid,
+          'Quiet thread', now() + interval '1 hour',
+          'America/New_York', 'contact', now() + interval '25 hours',
+          '5d000000-0000-4000-8000-00000000000a'::uuid)
+  returning * into v_empty;
+
+  if v_empty.inbound_watermark is not null then
+    raise exception 'SM-12 FAILED: a thread with no inbound got a watermark';
+  end if;
+
+  raise notice 'SM-12 PASSED: a missing watermark is filled from the thread';
+end $$;
+
 rollback;

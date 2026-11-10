@@ -639,4 +639,35 @@ begin
   raise notice 'AR-N PASSED: the timeline can say the customer confirmed';
 end $$;
 
+-- ===========================================================================
+-- AR-12. A reminder records the newest inbound it was written against.
+--
+-- Without it every inbound the thread ever had looked newer than the reminder,
+-- so a customer who had texted once had every reminder held as "replied".
+-- ===========================================================================
+do $$
+declare
+  v_expected timestamptz;
+  v_missing  integer;
+begin
+  perform pg_temp.sync(pg_temp.two_reminders());
+
+  select max(m.created_at) into v_expected
+    from public.messages m
+   where m.conversation_id = '5e000000-0000-4000-8000-0000000000e1'::uuid
+     and m.direction = 'inbound';
+
+  select count(*) into v_missing
+    from public.scheduled_messages s
+   where s.task_id = '5e000000-0000-4000-8000-00000000ab02'::uuid
+     and s.origin = 'reminder'
+     and s.status = 'pending'
+     and s.inbound_watermark is distinct from v_expected;
+
+  if v_expected is null or v_missing > 0 then
+    raise exception 'AR-12 FAILED: % reminder(s) did not record the thread''s newest inbound', v_missing;
+  end if;
+  raise notice 'AR-12 PASSED: a reminder knows which inbound it was written against';
+end $$;
+
 rollback;
