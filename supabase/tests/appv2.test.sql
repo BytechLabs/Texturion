@@ -77,9 +77,9 @@ begin
 end $$;
 
 -- ===========================================================================
--- A2. tasks has the DERIVED model: message_id NOT NULL, conversation_id NOT
---     NULL, and NO status / done_at / done_by / task_status column or enum
---     (completion is a JOIN read of messages.done_at, D17).
+-- A2. tasks has the DERIVED model: conversation_id NOT NULL, no status column
+--     or task_status enum, and a task-owned done_at ONLY for a task with no
+--     message (D17 as amended by D64: the message owns done when there is one).
 -- ===========================================================================
 do $$
 declare mid_null boolean; cid_null boolean; bad text;
@@ -87,7 +87,7 @@ begin
   select is_nullable='YES' into mid_null from information_schema.columns
   where table_schema='public' and table_name='tasks' and column_name='message_id';
   if mid_null is null then raise exception 'A2 FAILED: tasks.message_id missing'; end if;
-  if mid_null is distinct from false then raise exception 'A2 FAILED: tasks.message_id must be NOT NULL (D17)'; end if;
+  if mid_null is distinct from true then raise exception 'A2 FAILED: tasks.message_id must be NULLable (D64: a call-anchored task has no message)'; end if;
 
   select is_nullable='YES' into cid_null from information_schema.columns
   where table_schema='public' and table_name='tasks' and column_name='conversation_id';
@@ -96,16 +96,21 @@ begin
 
   select string_agg(column_name, ', ') into bad from information_schema.columns
   where table_schema='public' and table_name='tasks'
-    and column_name in ('status','done_at','done_by_user_id','done');
+    and column_name in ('status','done');
   if bad is not null then
-    raise exception 'A2 FAILED: tasks must NOT have a completion column (D17), found: %', bad;
+    raise exception 'A2 FAILED: tasks must NOT have a status column (D17), found: %', bad;
+  end if;
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.tasks'::regclass
+                    and conname = 'tasks_one_done_owner') then
+    raise exception 'A2 FAILED: tasks_one_done_owner (D64) is missing: a message task could carry its own done_at';
   end if;
 
   if exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
              where n.nspname='public' and t.typname='task_status') then
     raise exception 'A2 FAILED: task_status enum must NOT exist (D17 derived model)';
   end if;
-  raise notice 'A2 PASSED: tasks is the derived model (message_id+conversation_id NOT NULL; no status/done column; no task_status enum)';
+  raise notice 'A2 PASSED: tasks is the derived model (conversation_id NOT NULL; no status column; done owned by the message or, without one, the task; no task_status enum)';
 end $$;
 
 -- ===========================================================================
@@ -116,7 +121,7 @@ do $$
 declare
   r record;
   want jsonb := jsonb_build_object(
-    'company_id','r','message_id','r','conversation_id','r',
+    'company_id','r','message_id','r','source_call_id','r','conversation_id','r',
     'created_by_user_id','r','assigned_user_id','n');
 begin
   for r in
