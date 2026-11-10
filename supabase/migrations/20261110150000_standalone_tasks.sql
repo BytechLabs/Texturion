@@ -242,13 +242,15 @@ begin
       (company_id, message_id, source_call_id, conversation_id, contact_id,
        title, description, assigned_user_id, due_at, created_by_user_id,
        addr_street, addr_unit, addr_city, addr_state, addr_postal_code,
-       addr_country, addr_provenance)
+       addr_country, addr_provenance, reminders_off)
     values
       (p_company_id, p_message_id, p_call_id, v_conversation_id, v_contact_id,
        v_title, coalesce(p_description, ''), p_assigned_user_id, p_due_at,
        p_actor_user_id,
        p_addr_street, p_addr_unit, p_addr_city, p_addr_state,
-       p_addr_postal_code, p_addr_country, v_provenance)
+       p_addr_postal_code, p_addr_country, v_provenance,
+       -- No thread to text the reminder into.
+       v_conversation_id is null)
     returning * into v_task;
   exception when unique_violation then
     -- A second live promotion of the same message or call.
