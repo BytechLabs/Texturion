@@ -468,6 +468,7 @@ private let settingsMoreIdentityFr: [String: String] = [
 private let settingsMoreHoursEn: [String: String] = [
     "settingsMore.chooseTimezone": "Choose a timezone",
     "settingsMore.inheritSame": "Same as your workspace",
+    "settingsMore.inheritSameNamed": "Same as your workspace ({value})",
     "settingsMore.inheritUse": "Use the workspace's",
     "settingsMore.numberHoursIntro":
         "The after-hours reply on this number follows this clock. Leave it "
@@ -480,6 +481,7 @@ private let settingsMoreHoursEn: [String: String] = [
 private let settingsMoreHoursFr: [String: String] = [
     "settingsMore.chooseTimezone": "Choisir un fuseau horaire",
     "settingsMore.inheritSame": "Comme votre espace de travail",
+    "settingsMore.inheritSameNamed": "Comme votre espace de travail ({value})",
     "settingsMore.inheritUse": "Utiliser celui de l'espace de travail",
     "settingsMore.numberHoursIntro":
         "La réponse hors des heures sur ce numéro suit cet horaire. "

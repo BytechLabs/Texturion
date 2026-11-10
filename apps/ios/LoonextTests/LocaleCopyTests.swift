@@ -65,11 +65,11 @@ final class LocaleCopyTests: XCTestCase {
     func testTheInheritOptionNamesTheLanguageItInherits() {
         XCTAssertEqual(
             inheritedLocaleLabel(companyLocale: MessageLocale.en),
-            "Same as workspace (English)"
+            "Workspace default (English)"
         )
         XCTAssertEqual(
             inheritedLocaleLabel(companyLocale: MessageLocale.frCA),
-            "Same as workspace (Francais (Canada))"
+            "Workspace default (Francais (Canada))"
         )
     }
 
@@ -84,16 +84,16 @@ final class LocaleCopyTests: XCTestCase {
         //
         // Vaguer beats misleading. The label degrades to the unqualified
         // sentence, which is still meaningful ("whatever the workspace uses")
-        // and never renders "Same as workspace ()".
+        // and never renders "Workspace default ()".
         XCTAssertEqual(
             inheritedLocaleLabel(companyLocale: nil),
-            "Same as workspace"
+            "Workspace default"
         )
         // The same is true of a value this build does not recognise, which is
         // the shape a later locale reaching an older app would take.
         XCTAssertEqual(
             inheritedLocaleLabel(companyLocale: "de"),
-            "Same as workspace"
+            "Workspace default"
         )
         XCTAssertFalse(inheritedLocaleLabel(companyLocale: nil).isEmpty)
     }
@@ -104,19 +104,19 @@ final class LocaleCopyTests: XCTestCase {
     /// beside a catalogue entry that said something slightly different and was
     /// never read. Both the plain and the named form are asserted: the named
     /// one carries a slot, and a translation that dropped the slot would render
-    /// "Comme l'espace de travail ({language})" at somebody, which reads as a
+    /// "Langue de l'espace de travail ({language})" at somebody, which reads as a
     /// bug rather than as a setting.
     func testTheInheritOptionReadsInFrenchToo() {
         let named = inheritedLocaleLabel(
             companyLocale: MessageLocale.en, locale: MessageLocale.frCA
         )
-        XCTAssertTrue(named.hasPrefix("Comme l'espace de travail"), named)
+        XCTAssertTrue(named.hasPrefix("Langue de l'espace de travail"), named)
         XCTAssertTrue(named.contains("English"), named)
         XCTAssertFalse(named.contains("{language}"), named)
 
         XCTAssertEqual(
             inheritedLocaleLabel(companyLocale: nil, locale: MessageLocale.frCA),
-            "Comme l'espace de travail"
+            "Langue de l'espace de travail"
         )
     }
 

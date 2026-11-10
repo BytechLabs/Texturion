@@ -565,7 +565,12 @@ private struct ThreadBody: View {
                             // push route the two rows above use.
                             detailSheet = nil
                             AppRouter.shared.openContactId = contactId
-                        }
+                        },
+                        onCall: {
+                            detailSheet = nil
+                            startCall(detail: detail, contactName: contactName)
+                        },
+                        calling: placingCall
                     )
                 case .assignee:
                     AssigneePickerSheet(

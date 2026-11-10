@@ -261,6 +261,10 @@ struct LinkedTasksSection: View {
     let companyId: String
     let target: LinkedTasksTarget
     let onOpenTask: @MainActor (String) -> Void
+    /// #717: tasks a list beside this one already shows, so none appears
+    /// twice. Passing it also means this list continues that one, so it says
+    /// nothing at all rather than "none" when nothing is left.
+    var shownElsewhere: Set<String>? = nil
 
     @State private var tasks: [LinkedTask] = []
     @State private var loaded = false
@@ -268,18 +272,23 @@ struct LinkedTasksSection: View {
 
     @Environment(\.appLocale) private var appLocale
 
+    private var visibleTasks: [LinkedTask] {
+        guard let shownElsewhere else { return tasks }
+        return tasks.filter { !shownElsewhere.contains($0.id) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if failed && tasks.isEmpty {
                 Text(AppStrings.translate(appLocale, "taskRefs.linkedLoadFailed"))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted500)
-            } else if loaded && tasks.isEmpty {
+            } else if loaded && tasks.isEmpty && shownElsewhere == nil {
                 Text(AppStrings.translate(appLocale, "taskRefs.linkedEmpty"))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted500)
             }
-            ForEach(tasks) { task in
+            ForEach(visibleTasks) { task in
                 Button {
                     onOpenTask(task.id)
                 } label: {

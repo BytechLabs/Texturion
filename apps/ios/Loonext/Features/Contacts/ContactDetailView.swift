@@ -862,7 +862,7 @@ struct ContactDetailView: View {
     /// to say so and no way back.
     ///
     /// So the first option is the inherit one, and it NAMES the language being
-    /// inherited. "Same as workspace" that does not say which language is a
+    /// inherited. "Workspace default" that does not say which language is a
     /// setting somebody has to leave this screen to understand.
     ///
     /// Folded like the clock above it, and for the same reason: the workspace
@@ -936,7 +936,19 @@ struct ContactDetailView: View {
                     ) {
                         saveLocale(nil)
                     }
-                    ForEach(MessageLocale.all, id: \.self) { candidate in
+                    // #717: the workspace's own language is the inherit
+                    // choice above, so it is offered a second time only when
+                    // this contact is already set to it.
+                    ForEach(
+                        choicesBesideDefault(
+                            MessageLocale.all,
+                            default: companyLocale.flatMap {
+                                MessageLocale.all.contains($0) ? $0 : nil
+                            },
+                            stored: contact.locale
+                        ),
+                        id: \.self
+                    ) { candidate in
                         Button(MessageLocale.label(candidate)) { saveLocale(candidate) }
                     }
                 } label: {

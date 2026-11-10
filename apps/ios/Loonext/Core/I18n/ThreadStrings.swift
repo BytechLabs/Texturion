@@ -276,7 +276,10 @@ enum ThreadStrings {
             "thread.taskLineNote": "The thread shows the task line",
 
             // --- Contact panel (#165 / #301) ---------------------------------------
-            "thread.openFullContact": "Open the full contact",
+            "thread.openContact": "Open contact",
+            "thread.sectionPreferences": "Preferences",
+            "thread.sectionLanguage": "Language for this customer",
+            "thread.numberCopied": "Number copied",
             "thread.sectionDetails": "Details",
             "thread.sectionConsent": "Consent",
             "thread.sectionLeadSource": "Where they came from",
@@ -1006,7 +1009,10 @@ enum ThreadStrings {
             "thread.taskLineNote": "La conversation affichera la ligne de tâche",
 
             // --- Contact panel (#165 / #301) ---------------------------------------
-            "thread.openFullContact": "Ouvrir la fiche complète",
+            "thread.openContact": "Ouvrir la fiche",
+            "thread.sectionPreferences": "Préférences",
+            "thread.sectionLanguage": "Langue de ce client",
+            "thread.numberCopied": "Numéro copié",
             "thread.sectionDetails": "Coordonnées",
             "thread.sectionConsent": "Consentement",
             "thread.sectionLeadSource": "D'où il vient",

@@ -334,13 +334,22 @@ struct NumberIdentitySheet: View {
                 // Inherit FIRST: it is what every line does until somebody says
                 // otherwise, and the option that is always correct is the one
                 // that needs no thought.
-                Text(AppStrings.translate(appLocale, "settingsMore.inheritSame")).tag(inheritTag)
-                Text(AppStrings.translate(appLocale, "settingsMore.afterHoursRingEveryone"))
-                    .tag("ring_everyone")
-                Text(AppStrings.translate(appLocale, "settingsMore.afterHoursOnCallOnly"))
-                    .tag("on_call_only")
-                Text(AppStrings.translate(appLocale, "settingsMore.afterHoursVoicemail"))
-                    .tag("voicemail")
+                //
+                // #717: it names what it inherits, and that value is not
+                // offered a second time beside it.
+                Text(inheritChoiceLabel(afterHoursKnown(identity).map(afterHoursLabel)))
+                    .tag(inheritTag)
+                ForEach(
+                    choicesBesideDefault(
+                        afterHoursChoices,
+                        default: afterHoursKnown(identity),
+                        stored: identity.after_hours_calls.inherited
+                            ? nil : identity.after_hours_calls.value
+                    ),
+                    id: \.self
+                ) { value in
+                    Text(afterHoursLabel(value)).tag(value)
+                }
             }
             .pickerStyle(.menu)
             .labelsHidden()
@@ -379,9 +388,19 @@ struct NumberIdentitySheet: View {
                     set: { setRingStrategy($0 == inheritTag ? nil : $0) }
                 )
             ) {
-                Text(AppStrings.translate(appLocale, "settingsMore.inheritSame")).tag(inheritTag)
-                Text(AppStrings.translate(appLocale, "settingsMore.ringAll")).tag("all")
-                Text(AppStrings.translate(appLocale, "settingsMore.ringInTurn")).tag("in_turn")
+                Text(inheritChoiceLabel(ringStrategyKnown(identity).map(ringStrategyLabel)))
+                    .tag(inheritTag)
+                ForEach(
+                    choicesBesideDefault(
+                        ringStrategyChoices,
+                        default: ringStrategyKnown(identity),
+                        stored: identity.ring_strategy.inherited
+                            ? nil : identity.ring_strategy.value
+                    ),
+                    id: \.self
+                ) { value in
+                    Text(ringStrategyLabel(value)).tag(value)
+                }
             }
             .pickerStyle(.menu)
             .labelsHidden()
@@ -415,15 +434,18 @@ struct NumberIdentitySheet: View {
                 // -1 is the inherit tag here rather than a string, because the
                 // value this picker holds is a number and a mixed-type tag is
                 // how a SwiftUI Picker silently stops matching its selection.
-                Text(AppStrings.translate(appLocale, "settingsMore.inheritSame")).tag(-1)
-                ForEach(ringSecondChoices, id: \.self) { value in
-                    Text(
-                        AppStrings.translate(
-                            appLocale,
-                            "settingsMore.ringSeconds",
-                            ["seconds": String(value)]
-                        )
-                    ).tag(value)
+                Text(inheritChoiceLabel(ringSecondsKnown(identity).map(ringSecondsLabel)))
+                    .tag(-1)
+                ForEach(
+                    choicesBesideDefault(
+                        ringSecondChoices,
+                        default: ringSecondsKnown(identity),
+                        stored: identity.ring_seconds.inherited
+                            ? nil : identity.ring_seconds.value
+                    ),
+                    id: \.self
+                ) { value in
+                    Text(ringSecondsLabel(value)).tag(value)
                 }
             }
             .pickerStyle(.menu)
@@ -431,6 +453,75 @@ struct NumberIdentitySheet: View {
             .disabled(pending)
         }
         .padding(.top, 14)
+    }
+
+    // MARK: #717 — the inherit choice names what it inherits
+
+    /// What the workspace sets, for the inherit choice to name. A field that
+    /// follows the workspace carries the workspace's value itself, which is the
+    /// freshest answer; otherwise the company's. Nil is "unknown", and an
+    /// unknown default names nothing and hides nothing.
+    private func knownWorkspaceValue<T>(inherited: Bool, value: T?, workspace: T?) -> T? {
+        if inherited, let value { return value }
+        return workspace
+    }
+
+    private func afterHoursKnown(_ identity: NumberIdentity) -> String? {
+        knownWorkspaceValue(
+            inherited: identity.after_hours_calls.inherited,
+            value: identity.after_hours_calls.value,
+            workspace: scope.me.company?.after_hours_calls
+        )
+    }
+
+    private func ringStrategyKnown(_ identity: NumberIdentity) -> String? {
+        knownWorkspaceValue(
+            inherited: identity.ring_strategy.inherited,
+            value: identity.ring_strategy.value,
+            workspace: scope.me.company?.ring_strategy
+        )
+    }
+
+    private func ringSecondsKnown(_ identity: NumberIdentity) -> Int? {
+        knownWorkspaceValue(
+            inherited: identity.ring_seconds.inherited,
+            value: identity.ring_seconds.value,
+            workspace: scope.me.company?.ring_seconds
+        )
+    }
+
+    /// "Same as your workspace", naming the value when it is known.
+    private func inheritChoiceLabel(_ valueLabel: String?) -> String {
+        guard let valueLabel else {
+            return AppStrings.translate(appLocale, "settingsMore.inheritSame")
+        }
+        return AppStrings.translate(
+            appLocale, "settingsMore.inheritSameNamed", ["value": valueLabel]
+        )
+    }
+
+    private func afterHoursLabel(_ value: String) -> String {
+        switch value {
+        case "on_call_only":
+            return AppStrings.translate(appLocale, "settingsMore.afterHoursOnCallOnly")
+        case "voicemail":
+            return AppStrings.translate(appLocale, "settingsMore.afterHoursVoicemail")
+        default:
+            return AppStrings.translate(appLocale, "settingsMore.afterHoursRingEveryone")
+        }
+    }
+
+    private func ringStrategyLabel(_ value: String) -> String {
+        AppStrings.translate(
+            appLocale,
+            value == "in_turn" ? "settingsMore.ringInTurn" : "settingsMore.ringAll"
+        )
+    }
+
+    private func ringSecondsLabel(_ value: Int) -> String {
+        AppStrings.translate(
+            appLocale, "settingsMore.ringSeconds", ["seconds": String(value)]
+        )
     }
 
     private func setRingStrategy(_ value: String?) {
@@ -613,3 +704,7 @@ private let inheritTag = "__inherit__"
 /// The same four the workspace card offers, so the two never disagree about
 /// what a reasonable ring length is.
 private let ringSecondChoices = [15, 20, 30, 45]
+
+private let afterHoursChoices = ["ring_everyone", "on_call_only", "voicemail"]
+
+private let ringStrategyChoices = ["all", "in_turn"]

@@ -291,6 +291,7 @@ private let settingsClosedDatesEn: [String: String] = [
     "settings.widgetLineLabel": "Which number website messages land on",
     "settings.widgetLineHelp": "Replies from your crew come from this number, so pick the line you watch.",
     "settings.widgetLineDefault": "Your first number",
+    "settings.widgetLineDefaultNamed": "Your first number ({number})",
     "settings.widgetLineSaved": "Website messages will land on that number.",
     "settings.closedDatesIntro":
         "Holidays, a week off, a day for a funeral. On these dates your away reply "
@@ -329,6 +330,7 @@ private let settingsClosedDatesFr: [String: String] = [
     "settings.widgetLineLabel": "Le numéro qui reçoit les messages du site web",
     "settings.widgetLineHelp": "Les réponses de votre équipe partent de ce numéro : choisissez la ligne que vous surveillez.",
     "settings.widgetLineDefault": "Votre premier numéro",
+    "settings.widgetLineDefaultNamed": "Votre premier numéro ({number})",
     "settings.widgetLineSaved": "Les messages du site web arriveront sur ce numéro.",
     "settings.closedDatesIntro":
         "Les jours fériés, une semaine de congé, une journée pour des funérailles. "

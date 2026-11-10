@@ -1,11 +1,14 @@
 import SwiftUI
 
 /// The thread's contact panel — the web sidebar as a sheet, opened by tapping
-/// the header identity (the Android ContactPanelSheet.kt twin): inline
-/// name/address/notes with the G6 800ms auto-save, the consent line, the
-/// conversation's open-tasks checklist (T5.2 — done toggles through the
-/// source message, never a task route), and prior conversations with this
-/// contact (rows route through the caller into the inbox's open command).
+/// the header identity (the Android ContactPanelSheet.kt twin): a header
+/// (inline name, number, how long they have been a customer) over an action row
+/// (call, copy, open the contact), then one section style for the auto-saving
+/// address/notes (G6 800ms), the consent line, the conversation's open-tasks
+/// checklist (T5.2 — done toggles through the source message, never a task
+/// route) and prior conversations with this contact (rows route through the
+/// caller into the inbox's open command), with the rarely-changed settings
+/// folded into Preferences (#717).
 @MainActor
 struct ContactPanelSheet: View {
     let controller: ThreadController
@@ -19,9 +22,17 @@ struct ContactPanelSheet: View {
     /// #465: open the FULL contact screen — its history, call log and every
     /// conversation. This panel holds a copy of the fields and nothing else, so
     /// without it the panel is a dead end, which is exactly what was reported.
-    /// Web has had the jump since #82. The caller dismisses this sheet first,
-    /// the same way onOpenTask and onOpenConversation do.
+    /// The caller dismisses this sheet first, the same way onOpenTask and
+    /// onOpenConversation do. #717: it is the header's labelled "Open contact"
+    /// link, never an icon in a corner.
     let onOpenContact: @MainActor (String) -> Void
+    /// Places a call to this contact. Nil hides the Call action.
+    let onCall: (@MainActor () -> Void)?
+    /// A call is being placed, so Call waits.
+    let calling: Bool
+
+    @State private var copied = false
+    @State private var leadSources: [LeadSource] = []
 
     @Environment(\.appLocale) private var appLocale
 
@@ -41,49 +52,32 @@ struct ContactPanelSheet: View {
         return (name?.isBlank ?? true) ? nil : name
     }
 
+    /// Tasks the checklist already shows, so the linked list does not repeat
+    /// them (#717).
+    private var shownTaskIds: Set<String> {
+        if case .ready(let tasks)? = controller.conversationTasks {
+            return Set(tasks.map(\.id))
+        }
+        return []
+    }
+
     private func panelBody(_ detail: ConversationDetail) -> some View {
         let contact = controller.contact
         let displayName = detail.contact.name ?? formatPhone(detail.contact.phone_e164)
+        let phone = formatPhone(detail.contact.phone_e164)
+        let optedOut = AppStrings.translate(appLocale, "thread.optedOut")
+        // #301: an unanswered source stays out in the open as the one-tap ask;
+        // once answered it is a setting, and joins Preferences.
+        let asksForSource =
+            leadSources.contains { $0.archived_at == nil } && detail.lead_source_id == nil
         return ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 18) {
+                // #717: the header says who, their number and how long they
+                // have been a customer; the action row calls, copies and opens
+                // the contact as a labelled link, never a corner icon.
+                RecordHeader {
                     InitialsAvatar(name: displayName, size: 44)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(displayName)
-                            .font(.golos(16, weight: .semibold))
-                            .foregroundStyle(BrandColor.ink)
-                            .lineLimit(1)
-                        let phone = formatPhone(detail.contact.phone_e164)
-                        let optedOut = AppStrings.translate(
-                            appLocale, "thread.optedOut"
-                        )
-                        Text(
-                            contact?.opted_out == true
-                                ? "\(phone) · \(optedOut)"
-                                : phone
-                        )
-                        .font(.golos(11))
-                        .foregroundStyle(BrandColor.muted500)
-                    }
-                    Spacer(minLength: 8)
-                    Button {
-                        onOpenContact(detail.contact_id)
-                    } label: {
-                        Image(systemName: "arrow.up.forward.square")
-                            .font(.scaled(17, weight: .regular))
-                            .foregroundStyle(BrandColor.muted500)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(
-                        AppStrings.translate(appLocale, "thread.openFullContact")
-                    )
-                }
-                .padding(.top, 18)
-
-                // Details — the same auto-saving fields as the contact screen.
-                sheetSection(
-                    AppStrings.translate(appLocale, "thread.sectionDetails")
-                ) {
+                } content: {
                     PanelAutosaveField(
                         label: AppStrings.translate(appLocale, "thread.fieldName"),
                         initial: contact?.name ?? detail.contact.name ?? "",
@@ -91,11 +85,68 @@ struct ContactPanelSheet: View {
                         placeholder: AppStrings.translate(
                             appLocale, "thread.addName"
                         ),
-                        multiline: false
+                        multiline: false,
+                        quiet: true,
+                        large: true
                     ) { value in
                         try await controller.saveContactField("name", value)
                     }
                     .id("\(detail.contact_id)|name")
+                    Text(contact?.opted_out == true ? "\(phone) · \(optedOut)" : phone)
+                        .font(.golos(13))
+                        .monospacedDigit()
+                        .foregroundStyle(BrandColor.muted500)
+                    // #410: how long they have been a customer, and how often.
+                    if let line = contactRelationshipLine(
+                        contact?.conversation_count,
+                        contact?.first_conversation_at,
+                        locale: appLocale
+                    ) {
+                        Text(line)
+                            .font(.golos(12))
+                            .foregroundStyle(BrandColor.muted500)
+                    }
+                } trailing: {
+                    EmptyView()
+                } actions: {
+                    if let onCall {
+                        Button {
+                            onCall()
+                        } label: {
+                            Label(
+                                AppStrings.translate(appLocale, "contactsTasks.call"),
+                                systemImage: "phone"
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(calling)
+                    }
+                    Button {
+                        UIPasteboard.general.string = detail.contact.phone_e164
+                        copied = true
+                    } label: {
+                        Label(
+                            AppStrings.translate(
+                                appLocale,
+                                copied ? "thread.numberCopied" : "contactsTasks.copyNumber"
+                            ),
+                            systemImage: copied ? "checkmark" : "doc.on.doc"
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    RecordOpenLink(
+                        label: AppStrings.translate(appLocale, "thread.openContact")
+                    ) {
+                        onOpenContact(detail.contact_id)
+                    }
+                }
+
+                // Details — the same auto-saving fields as the contact screen.
+                RecordSection(
+                    label: AppStrings.translate(appLocale, "thread.sectionDetails")
+                ) {
                     PanelAutosaveField(
                         label: AppStrings.translate(
                             appLocale, "thread.fieldAddress"
@@ -105,7 +156,8 @@ struct ContactPanelSheet: View {
                         placeholder: AppStrings.translate(
                             appLocale, "thread.addAddress"
                         ),
-                        multiline: false
+                        multiline: false,
+                        quiet: true
                     ) { value in
                         try await controller.saveContactField("address", value)
                     }
@@ -117,15 +169,16 @@ struct ContactPanelSheet: View {
                         placeholder: AppStrings.translate(
                             appLocale, "thread.notesPlaceholder"
                         ),
-                        multiline: true
+                        multiline: true,
+                        quiet: true
                     ) { value in
                         try await controller.saveContactField("notes", value)
                     }
                     .id("\(detail.contact_id)|notes")
                 }
 
-                sheetSection(
-                    AppStrings.translate(appLocale, "thread.sectionConsent")
+                RecordSection(
+                    label: AppStrings.translate(appLocale, "thread.sectionConsent")
                 ) {
                     Text(
                         consentLine(
@@ -141,40 +194,40 @@ struct ContactPanelSheet: View {
                     .foregroundStyle(.secondary)
                 }
 
-                // #301: where this customer came from. Above the tasks
-                // because it is a question somebody ASKS in the first minute
-                // of a call, while a task is what they write down afterwards —
-                // and because the ask disappears the moment it is answered.
-                sheetSection(
-                    AppStrings.translate(appLocale, "thread.sectionLeadSource")
-                ) {
-                    LeadSourcePicker(controller: controller, detail: detail)
-                }
-
-                sheetSection(
-                    AppStrings.translate(appLocale, "thread.sectionTasks")
+                RecordSection(
+                    label: AppStrings.translate(appLocale, "thread.sectionTasks")
                 ) {
                     TasksChecklistSection(
                         state: controller.conversationTasks,
                         onToggle: { controller.toggleTaskDone($0) },
                         onOpenTask: onOpenTask
                     )
-                }
-
-                // #690: tasks that point at this conversation or are anchored to it.
-                sheetSection(
-                    AppStrings.translate(appLocale, "taskRefs.linkedTitle")
-                ) {
+                    // #690: tasks that point at this conversation or are
+                    // anchored to it, continuing the checklist above; one the
+                    // checklist already shows is not repeated.
                     LinkedTasksSection(
                         references: TaskReferencesApi(api: controller.repo.api),
                         companyId: detail.company_id,
                         target: .conversation(detail.id),
-                        onOpenTask: onOpenTask
+                        onOpenTask: onOpenTask,
+                        shownElsewhere: shownTaskIds
                     )
                 }
 
-                sheetSection(
-                    AppStrings.translate(
+                // #301: where this customer came from, only while it is a
+                // question somebody ASKS in the first minute of a call.
+                if asksForSource {
+                    RecordSection(
+                        label: AppStrings.translate(
+                            appLocale, "thread.sectionLeadSource"
+                        )
+                    ) {
+                        LeadSourcePicker(controller: controller, detail: detail)
+                    }
+                }
+
+                RecordSection(
+                    label: AppStrings.translate(
                         appLocale, "thread.sectionOtherConversations"
                     )
                 ) {
@@ -183,25 +236,155 @@ struct ContactPanelSheet: View {
                         onOpen: onOpenConversation
                     )
                 }
+
+                PreferencesSection(
+                    controller: controller,
+                    detail: detail,
+                    withSource: !asksForSource,
+                    leadSources: leadSources
+                )
             }
             .padding(.horizontal, 20)
+            .padding(.top, 18)
             .padding(.bottom, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(BrandColor.canvas.ignoresSafeArea())
+        .task(id: detail.id) {
+            leadSources = (try? await controller.leadSources()) ?? []
+        }
+    }
+}
+
+// MARK: - Preferences
+
+/// #717: the settings a crew sets once per customer, if ever, folded into one
+/// row that says what they are set to and opens on demand.
+@MainActor
+private struct PreferencesSection: View {
+    let controller: ThreadController
+    let detail: ConversationDetail
+    /// The source is answered, so it is a setting rather than an ask.
+    let withSource: Bool
+    let leadSources: [LeadSource]
+
+    @State private var open = false
+    @State private var saving = false
+
+    @Environment(\.appLocale) private var appLocale
+
+    private var contactLocale: String? { controller.contact?.locale }
+    private var companyLocale: String? { controller.company?.locale }
+
+    private var inheritLabel: String {
+        inheritedLocaleLabel(companyLocale: companyLocale, locale: appLocale)
     }
 
-    private func sheetSection(
-        _ title: String,
-        @ViewBuilder content: () -> some View
-    ) -> some View {
+    private var summary: String {
+        let language = contactLocale.map { MessageLocale.label($0) } ?? inheritLabel
+        let source = withSource
+            ? leadSources.first { $0.id == detail.lead_source_id }?.name
+            : nil
+        return [language, source].compactMap { $0 }.joined(separator: " \u{00B7} ")
+    }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionHeader(label: title)
-            content()
+            Button {
+                open.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Text(
+                        AppStrings.translate(appLocale, "thread.sectionPreferences")
+                            .uppercased()
+                    )
+                    .font(.golos(10.5, weight: .bold))
+                    .kerning(1.2)
+                    .foregroundStyle(BrandColor.muted500)
+                    Text(summary)
+                        .font(.golos(12))
+                        .foregroundStyle(BrandColor.muted500)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    Image(systemName: open ? "chevron.up" : "chevron.down")
+                        .font(.scaled(11, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted500)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if open {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(AppStrings.translate(appLocale, "thread.sectionLanguage"))
+                            .font(.subheadline.weight(.medium))
+                        // #717: the workspace's own language is the inherit
+                        // choice's answer, so it is a second row only when this
+                        // contact is already set to it.
+                        Picker(
+                            AppStrings.translate(appLocale, "thread.sectionLanguage"),
+                            selection: Binding(
+                                get: { contactLocale ?? languageInheritTag },
+                                set: { chooseLanguage($0 == languageInheritTag ? nil : $0) }
+                            )
+                        ) {
+                            Text(inheritLabel).tag(languageInheritTag)
+                            ForEach(
+                                choicesBesideDefault(
+                                    MessageLocale.all,
+                                    default: companyLocale.flatMap {
+                                        MessageLocale.all.contains($0) ? $0 : nil
+                                    },
+                                    stored: contactLocale
+                                ),
+                                id: \.self
+                            ) { candidate in
+                                Text(MessageLocale.label(candidate)).tag(candidate)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .disabled(saving)
+                        Text(
+                            AppStrings.translate(
+                                appLocale, "contactsTasks.localeContactScopeNote"
+                            )
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                    if withSource && leadSources.contains(where: { $0.archived_at == nil }) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(
+                                AppStrings.translate(
+                                    appLocale, "thread.sectionLeadSource"
+                                )
+                            )
+                            .font(.subheadline.weight(.medium))
+                            LeadSourcePicker(controller: controller, detail: detail)
+                        }
+                    }
+                }
+                .padding(.horizontal, 6)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+
+    private func chooseLanguage(_ next: String?) {
+        saving = true
+        Task { @MainActor in
+            defer { saving = false }
+            try? await controller.saveContactField("locale", next)
+        }
+    }
 }
+
+/// SwiftUI cannot select nil, so "follow the workspace" needs a tag.
+private let languageInheritTag = "__inherit__"
 
 // MARK: - Sections
 
@@ -377,6 +560,11 @@ private struct PanelAutosaveField: View {
     let maxLength: Int
     let placeholder: String
     let multiline: Bool
+    /// #717: no caption above the field; the label still names it to
+    /// VoiceOver. For a field that sits in a record header or section.
+    let quiet: Bool
+    /// The field is a title, so it reads at title size.
+    let large: Bool
     let save: (String?) async throws -> Void
 
     @State private var value: String
@@ -391,6 +579,8 @@ private struct PanelAutosaveField: View {
         maxLength: Int,
         placeholder: String,
         multiline: Bool,
+        quiet: Bool = false,
+        large: Bool = false,
         save: @escaping (String?) async throws -> Void
     ) {
         self.label = label
@@ -398,6 +588,8 @@ private struct PanelAutosaveField: View {
         self.maxLength = maxLength
         self.placeholder = placeholder
         self.multiline = multiline
+        self.quiet = quiet
+        self.large = large
         self.save = save
         _value = State(initialValue: initial)
         _lastSaved = State(initialValue: initial)
@@ -405,11 +597,14 @@ private struct PanelAutosaveField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if !quiet {
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             TextField(placeholder, text: $value, axis: multiline ? .vertical : .horizontal)
-                .font(.subheadline)
+                .font(fieldFont)
+                .accessibilityLabel(label)
                 .lineLimit(multiline ? 3 ... 6 : 1 ... 1)
                 .onChange(of: value) { _, next in
                     if next.count > maxLength {
@@ -441,6 +636,10 @@ private struct PanelAutosaveField: View {
                 saveState = .failed
             }
         }
+    }
+
+    private var fieldFont: Font {
+        large ? Font.golos(17, weight: .semibold) : Font.subheadline
     }
 
     private var statusLine: String {

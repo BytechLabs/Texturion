@@ -585,6 +585,9 @@ struct TaskDetailView: View {
                         metaExtras(detail)
                     }
                     createdLine(detail)
+                    if !noAccess {
+                        onwardLinks(detail)
+                    }
                     if noAccess {
                         noAccessCard
                         // #214: the address is a task column (not conversation-
@@ -1044,6 +1047,36 @@ struct TaskDetailView: View {
         Image(systemName: "chevron.down")
             .font(.scaled(12, weight: .medium))
             .foregroundStyle(BrandColor.muted250)
+    }
+
+    /// #717: the header's action row. The ways onward are labelled links
+    /// here, not icons in a corner.
+    @ViewBuilder
+    private func onwardLinks(_ detail: TaskDetail) -> some View {
+        let conversationId = onOpenConversation == nil ? nil : detail.conversation_id
+        let contactId = detail.contact?.id
+        if conversationId != nil || contactId != nil {
+            HStack(spacing: 4) {
+                if let conversationId {
+                    RecordOpenLink(
+                        label: AppStrings.translate(
+                            appLocale, "contactsTasks.openConversation"
+                        )
+                    ) {
+                        onOpenConversation?(conversationId, detail.message_id)
+                    }
+                }
+                if let contactId {
+                    RecordOpenLink(
+                        label: AppStrings.translate(appLocale, "contactsTasks.openContact")
+                    ) {
+                        AppRouter.shared.openContactId = contactId
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, -6)
+        }
     }
 
     private func createdLine(_ detail: TaskDetail) -> some View {

@@ -61,6 +61,33 @@ struct WebsiteWidgetCard: View {
         routable.first { $0.id == company.widget_number_id }
     }
 
+    /// #717: the server's default is the oldest active line, and the list
+    /// arrives oldest first.
+    private var firstLine: PhoneNumberSummary? { routable.first }
+
+    /// The default choice names the line it resolves to.
+    private var defaultLineLabel: String {
+        guard let firstLine, !(firstLine.number_e164 ?? "").isEmpty else {
+            return t("settings.widgetLineDefault")
+        }
+        return AppStrings.translate(
+            appLocale,
+            "settings.widgetLineDefaultNamed",
+            ["number": formatPhone(firstLine.number_e164)]
+        )
+    }
+
+    /// The first line is the default choice's answer, so it is a second row
+    /// only when the website is already set to it.
+    private var explicitLines: [PhoneNumberSummary] {
+        let offered = choicesBesideDefault(
+            routable.map(\.id),
+            default: firstLine?.id,
+            stored: company.widget_number_id
+        )
+        return routable.filter { offered.contains($0.id) }
+    }
+
     var body: some View {
         SettingsCard(
             title: t("settings.widgetTitle"),
@@ -165,14 +192,14 @@ struct WebsiteWidgetCard: View {
                 // actually does with an unset choice, and a default that does
                 // not say what it resolves to is a setting somebody has to test
                 // to understand. *Applying: Smart Defaults.*
-                Button(t("settings.widgetLineDefault")) { saveLine(nil) }
-                ForEach(routable, id: \.id) { number in
+                Button(defaultLineLabel) { saveLine(nil) }
+                ForEach(explicitLines, id: \.id) { number in
                     Button(formatPhone(number.number_e164)) { saveLine(number.id) }
                 }
             } label: {
                 Text(
                     chosen.map { formatPhone($0.number_e164) }
-                        ?? t("settings.widgetLineDefault")
+                        ?? defaultLineLabel
                 )
             }
             .disabled(busy)
