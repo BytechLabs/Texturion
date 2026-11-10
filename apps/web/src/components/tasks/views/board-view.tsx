@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
 import { TaskAssignee, TaskDue } from "../task-atoms";
+import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
 import { taskThreadHref, taskThreadId } from "../task-format";
 import { EmptyTasks } from "../task-empty";
 import { useTaskDone } from "../use-task-mutations";
@@ -212,6 +213,11 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
         >
           <ArrowUpRight className="size-3.5" strokeWidth={1.75} aria-hidden />
         </Link>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 empty:hidden">
+        <PriorityMark priority={task.priority} />
+        <RepeatMark repeat={task.repeat} />
+        <LabelChips labels={task.labels} />
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <TaskAssignee task={task} showName={false} />

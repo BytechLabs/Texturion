@@ -21,6 +21,7 @@ import { keys, taskMetadataInvalidationKeys } from "./keys";
 import { nextCursorParam } from "./pagination";
 import type { TaskListFilters } from "./task-filters";
 import { taskSearchParams } from "./task-params";
+import type { RepeatRequest, TaskScope } from "@/components/tasks/task-planning";
 import type {
   AddressProvenance,
   ChecklistTask,
@@ -31,6 +32,8 @@ import type {
   Task,
   TaskAddress,
   TaskDetail,
+  TaskLabel,
+  TaskPriority,
   TaskStatus,
 } from "./types";
 
@@ -117,7 +120,14 @@ export function fetchTask(
  * gate after the route's zod enum and the SQL one.
  */
 export interface BulkTasksBody {
-  action: "mark_done" | "mark_undone" | "assign" | "delete";
+  action:
+    | "mark_done"
+    | "mark_undone"
+    | "assign"
+    | "delete"
+    | "set_priority"
+    | "add_label"
+    | "remove_label";
   /** Omit to act on everything matching `filter`. */
   ids?: string[];
   filter?: Pick<
@@ -129,8 +139,14 @@ export interface BulkTasksBody {
     | "due_before"
     | "due_after"
     | "overdue"
+    | "priority"
+    | "tag_id"
   >;
   target_user_id?: string | null;
+  /** #693: for `set_priority`. */
+  priority?: TaskPriority;
+  /** #693: for `add_label` and `remove_label`. */
+  tag_id?: string;
 }
 
 /** Identical in shape to the conversations result, so one renderer reads both. */
@@ -324,6 +340,10 @@ export interface CreateTaskInput {
   /** A standalone task (#689) may link to a contact and/or a conversation. */
   contact_id?: string;
   conversation_id?: string;
+  /** #693. Absent means normal. */
+  priority?: TaskPriority;
+  label_ids?: string[];
+  repeat?: RepeatRequest;
 }
 
 /**
@@ -367,6 +387,11 @@ export function useCreateTaskFromMessage(conversationId: string) {
           ...(input.conversation_id !== undefined
             ? { conversation_id: input.conversation_id }
             : {}),
+          ...(input.priority !== undefined ? { priority: input.priority } : {}),
+          ...(input.label_ids !== undefined && input.label_ids.length > 0
+            ? { label_ids: input.label_ids }
+            : {}),
+          ...(input.repeat !== undefined ? { repeat: input.repeat } : {}),
         },
       }),
     onSuccess: (task) => {
@@ -396,6 +421,12 @@ export interface UpdateTaskInput {
   due_at?: string | null;
   /** #214 replace the whole address block (null clears it). */
   address?: TaskAddressInput | null;
+  /** #693. */
+  priority?: TaskPriority;
+  /** #693: an object sets or changes the rule, null clears it. Always this and future. */
+  repeat?: RepeatRequest | null;
+  /** #693: on a repeating task, whether the edit reaches later occurrences. */
+  scope?: TaskScope;
 }
 
 /**
@@ -421,7 +452,11 @@ export function useUpdateTask(conversationId: string) {
       });
     },
     onMutate: async (input) => {
-      const { taskId, ...patch } = input;
+      // `scope` is a request flag, and `repeat` goes in as a request rule but
+      // is stored as a row; neither belongs in the cached row.
+      const { taskId, scope, repeat, ...patch } = input;
+      void scope;
+      void repeat;
       const detailKey = keys.tasks.detail(companyId, taskId);
       await queryClient.cancelQueries({ queryKey: detailKey });
       const previousDetail = queryClient.getQueryData<TaskDetail>(detailKey);
@@ -448,6 +483,75 @@ export function useUpdateTask(conversationId: string) {
     onSettled: (_data, _error, input) => {
       // Pull the fresh task_assigned / task_due_set line into the drawer's
       // activity timeline (the detail carries `activity`).
+      void queryClient.invalidateQueries({
+        queryKey: keys.tasks.detail(companyId, input.taskId),
+      });
+    },
+  });
+}
+
+/**
+ * #693: add a workspace tag to a task, by id or by name (a new name creates
+ * the tag). Returns the task's labels after the change.
+ */
+export function useAddTaskLabel(conversationId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      taskId: string;
+      tag_id?: string;
+      name?: string;
+      scope?: TaskScope;
+    }) => {
+      const { taskId, ...body } = input;
+      return apiFetch<{ tag: TaskLabel; labels: TaskLabel[] }>(
+        `/v1/tasks/${taskId}/tags`,
+        { method: "POST", companyId, body },
+      );
+    },
+    onSuccess: (result, input) => {
+      queryClient.setQueryData<TaskDetail>(
+        keys.tasks.detail(companyId, input.taskId),
+        (detail) => (detail ? { ...detail, labels: result.labels } : detail),
+      );
+      // A name that did not exist yet made a new tag.
+      void queryClient.invalidateQueries({ queryKey: keys.tags(companyId) });
+      invalidateTasks(queryClient, companyId, conversationId);
+    },
+    onSettled: (_data, _error, input) => {
+      void queryClient.invalidateQueries({
+        queryKey: keys.tasks.detail(companyId, input.taskId),
+      });
+    },
+  });
+}
+
+/** #693: take a tag off a task. */
+export function useRemoveTaskLabel(conversationId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { taskId: string; tagId: string; scope?: TaskScope }) =>
+      apiFetch<void>(`/v1/tasks/${input.taskId}/tags/${input.tagId}`, {
+        method: "DELETE",
+        companyId,
+        searchParams: { scope: input.scope },
+      }),
+    onSuccess: (_result, input) => {
+      queryClient.setQueryData<TaskDetail>(
+        keys.tasks.detail(companyId, input.taskId),
+        (detail) =>
+          detail
+            ? {
+                ...detail,
+                labels: (detail.labels ?? []).filter((l) => l.id !== input.tagId),
+              }
+            : detail,
+      );
+      invalidateTasks(queryClient, companyId, conversationId);
+    },
+    onSettled: (_data, _error, input) => {
       void queryClient.invalidateQueries({
         queryKey: keys.tasks.detail(companyId, input.taskId),
       });
@@ -527,12 +631,17 @@ export function useDeleteTask(conversationId: string) {
   const queryClient = useQueryClient();
   const checklistKey = keys.tasks.checklist(companyId, conversationId);
   return useMutation({
-    mutationFn: (taskId: string) =>
-      apiFetch<void>(`/v1/tasks/${taskId}`, {
+    mutationFn: (input: string | { taskId: string; scope?: TaskScope }) => {
+      const { taskId, scope } =
+        typeof input === "string" ? { taskId: input, scope: undefined } : input;
+      return apiFetch<void>(`/v1/tasks/${taskId}`, {
         method: "DELETE",
         companyId,
-      }),
-    onMutate: async (taskId) => {
+        searchParams: { scope },
+      });
+    },
+    onMutate: async (input) => {
+      const taskId = typeof input === "string" ? input : input.taskId;
       await queryClient.cancelQueries({ queryKey: checklistKey });
       const previous =
         queryClient.getQueryData<{ data: ChecklistTask[] }>(checklistKey);

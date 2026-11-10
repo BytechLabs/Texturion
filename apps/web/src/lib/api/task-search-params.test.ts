@@ -107,3 +107,25 @@ describe("taskSearchParams — the All-tab default opt-out sentinel", () => {
     expect(done.get("overdue")).toBeNull();
   });
 });
+
+describe("#693 priority, label and sort query params", () => {
+  it("sends the priority list, the tag and a non-default sort", () => {
+    const q = query({
+      view: "list",
+      tab: "open",
+      priority: ["urgent", "high"],
+      tag: "tag-1",
+      sort: "priority",
+    });
+    expect(q.get("priority")).toBe("urgent,high");
+    expect(q.get("tag_id")).toBe("tag-1");
+    expect(q.get("sort")).toBe("priority");
+  });
+
+  it("sends none of them when unset", () => {
+    const q = query({ view: "list", tab: "open" });
+    expect(q.has("priority")).toBe(false);
+    expect(q.has("tag_id")).toBe(false);
+    expect(q.has("sort")).toBe(false);
+  });
+});

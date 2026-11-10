@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { Button } from "@/components/ui/button";
+import { RepeatMark } from "@/components/tasks/task-planning-ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type Translate } from "@/i18n/provider";
 import {
@@ -215,8 +216,11 @@ function TimelineRow({
         <RowIcon entry={entry} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm text-app-ink">
-          {rowTitle(entry, memberName, t)}
+        <p className="flex items-center gap-1.5 text-sm text-app-ink">
+          <span className="truncate">{rowTitle(entry, memberName, t)}</span>
+          {entry.kind === "task" && (
+            <RepeatMark repeat={entry.repeat} className="shrink-0" />
+          )}
         </p>
         <p className="truncate text-xs text-app-muted-2">
           {rowDetail(entry, t)}

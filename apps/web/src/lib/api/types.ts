@@ -1014,6 +1014,40 @@ export interface ReplySuggestions {
     | "spam";
 }
 
+/** #693: how pressing a task is. Absent or unknown reads as `normal`. */
+export type TaskPriority = "none" | "low" | "normal" | "high" | "urgent";
+
+/** #693: a workspace tag as it sits on a task. */
+export interface TaskLabel {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+/** #693: when a repeating task stops producing new ones. */
+export interface TaskRepeatEnds {
+  kind: "never" | "on" | "after";
+  on: string | null;
+  after: number | null;
+}
+
+/** #693: the repeat rule on a task row. */
+export interface TaskRepeat {
+  id: string;
+  kind: "schedule" | "after_done";
+  unit: "day" | "week" | "month" | "year";
+  every: number;
+  /** ISO weekdays, 1 = Monday. */
+  weekdays: number[] | null;
+  month_day: number | null;
+  /** 1..4, or -1 for the last. */
+  nth: number | null;
+  nth_weekday: number | null;
+  ends: TaskRepeatEnds;
+  paused: boolean;
+  stopped: boolean;
+}
+
 export interface Task {
   id: string;
   company_id: string;
@@ -1088,6 +1122,16 @@ export interface Task {
    */
   lat?: number | null;
   lng?: number | null;
+  /**
+   * #693: priority, labels and the repeat rule. All optional so a payload from
+   * a server that predates them still decodes; readers fall back to normal /
+   * none / not repeating.
+   */
+  priority?: TaskPriority;
+  labels?: TaskLabel[];
+  series_id?: string | null;
+  occurrence_no?: number | null;
+  repeat?: TaskRepeat | null;
 }
 
 /** `source` on every task row (D64). */
@@ -1193,7 +1237,11 @@ export type TaskHistoryKind =
   | "confirmation"
   | "done"
   | "reopened"
-  | "deleted";
+  | "deleted"
+  | "priority"
+  | "label_added"
+  | "label_removed"
+  | "repeat";
 
 /**
  * One entry of GET /v1/tasks/:id/activity (#689 E), oldest first within a page:

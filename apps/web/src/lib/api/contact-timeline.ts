@@ -38,6 +38,15 @@ export interface TimelineEntry {
    * carrying a name-shaped hole.
    */
   answered_by_user_id?: string | null;
+  /** #693: a task that repeats carries its series and a short rule summary. */
+  series_id?: string | null;
+  repeat?: {
+    kind: "schedule" | "after_done";
+    unit: "day" | "week" | "month" | "year";
+    every: number;
+    paused: boolean;
+    stopped: boolean;
+  } | null;
 }
 
 interface TimelinePage {

@@ -17,17 +17,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useT } from "@/i18n/provider";
+import { useT, type MessageKey } from "@/i18n/provider";
+import { useTags } from "@/lib/api/tags";
 import { useMembers } from "@/lib/api/team";
+import type { TaskPriority } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
+import { PRIORITY_PICKER, priorityLabelKey } from "./task-planning";
 import {
   DUE_LABEL_KEYS,
   TASK_TABS,
   tabsForView,
   type DueFilter,
   type TaskPageState,
+  type TaskSort,
 } from "./task-view-url";
 
 /**
@@ -207,6 +211,11 @@ function ChipRow({
 }) {
   const t = useT();
   const members = useMembers();
+  const tags = useTags();
+  const tagName = state.tag
+    ? (tags.data?.data.find((tag) => tag.id === state.tag)?.name ??
+      t("tasks.label"))
+    : null;
   const assigneeName = state.assignee
     ? members.data?.data.find((m) => m.user_id === state.assignee)
         ?.display_name || t("tasks.assigneeChipFallback")
@@ -244,10 +253,50 @@ function ChipRow({
           }}
         />
       )}
+      {state.priority && state.priority.length > 0 && (
+        <Chip
+          label={
+            state.priority.length === 1
+              ? t(priorityLabelKey(state.priority[0]))
+              : t("tasks.priorityMany", { count: state.priority.length })
+          }
+          onRemove={() => {
+            const next = { ...state };
+            delete next.priority;
+            onChange(next);
+          }}
+        />
+      )}
+      {tagName && (
+        <Chip
+          label={tagName}
+          onRemove={() => {
+            const next = { ...state };
+            delete next.tag;
+            onChange(next);
+          }}
+        />
+      )}
+      {state.sort && state.sort !== "created" && (
+        <Chip
+          label={t("tasks.sortedBy", { sort: t(SORT_LABEL_KEYS[state.sort]) })}
+          onRemove={() => {
+            const next = { ...state };
+            delete next.sort;
+            onChange(next);
+          }}
+        />
+      )}
       <FilterPopover state={state} onChange={onChange} />
     </div>
   );
 }
+
+const SORT_LABEL_KEYS: Record<TaskSort, MessageKey> = {
+  created: "tasks.sortCreated",
+  due: "tasks.sortDue",
+  priority: "tasks.sortPriority",
+};
 
 function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   const t = useT();
@@ -277,6 +326,7 @@ function FilterPopover({
   const t = useT();
   const [open, setOpen] = useState(false);
   const members = useMembers();
+  const tags = useTags();
   const { userId } = useActiveCompany();
 
   const assignableMembers = useMemo(
@@ -308,6 +358,32 @@ function FilterPopover({
     const next = { ...state };
     if (due === undefined) delete next.due;
     else next.due = due;
+    onChange(next);
+    setOpen(false);
+  };
+
+  // Priority is a set, so a pick toggles one and the popover stays open for the next.
+  const togglePriority = (priority: TaskPriority) => {
+    const current = state.priority ?? [];
+    const picked = current.includes(priority)
+      ? current.filter((p) => p !== priority)
+      : PRIORITY_PICKER.filter((p) => p === priority || current.includes(p));
+    const next = { ...state };
+    if (picked.length === 0) delete next.priority;
+    else next.priority = picked;
+    onChange(next);
+  };
+  const setTag = (id: string | undefined) => {
+    const next = { ...state };
+    if (id === undefined) delete next.tag;
+    else next.tag = id;
+    onChange(next);
+    setOpen(false);
+  };
+  const setSort = (sort: TaskSort) => {
+    const next = { ...state };
+    if (sort === "created") delete next.sort;
+    else next.sort = sort;
     onChange(next);
     setOpen(false);
   };
@@ -376,6 +452,62 @@ function FilterPopover({
                     onSelect={() => setDue(active ? undefined : due)}
                   >
                     <span>{t(DUE_LABEL_KEYS[due])}</span>
+                    {active && (
+                      <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+                    )}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            <CommandGroup heading={t("tasks.priority")}>
+              {PRIORITY_PICKER.map((priority) => {
+                const active = state.priority?.includes(priority) ?? false;
+                return (
+                  <CommandItem
+                    key={priority}
+                    value={`priority-${priority}`}
+                    keywords={[t(priorityLabelKey(priority)), t("tasks.priority")]}
+                    onSelect={() => togglePriority(priority)}
+                  >
+                    <span>{t(priorityLabelKey(priority))}</span>
+                    {active && (
+                      <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+                    )}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            {(tags.data?.data.length ?? 0) > 0 && (
+              <CommandGroup heading={t("tasks.label")}>
+                {(tags.data?.data ?? []).map((tag) => {
+                  const active = state.tag === tag.id;
+                  return (
+                    <CommandItem
+                      key={tag.id}
+                      value={`tag-${tag.id}`}
+                      keywords={[tag.name, t("tasks.label")]}
+                      onSelect={() => setTag(active ? undefined : tag.id)}
+                    >
+                      <span className="truncate">{tag.name}</span>
+                      {active && (
+                        <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
+                      )}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
+            <CommandGroup heading={t("tasks.sortHeading")}>
+              {(["created", "due", "priority"] as const).map((sort) => {
+                const active = (state.sort ?? "created") === sort;
+                return (
+                  <CommandItem
+                    key={sort}
+                    value={`sort-${sort}`}
+                    keywords={[t(SORT_LABEL_KEYS[sort]), t("tasks.sortHeading")]}
+                    onSelect={() => setSort(sort)}
+                  >
+                    <span>{t(SORT_LABEL_KEYS[sort])}</span>
                     {active && (
                       <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
                     )}

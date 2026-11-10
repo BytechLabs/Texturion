@@ -25,6 +25,7 @@ import {
 import { createTileHealth, reportTileFailure } from "@/lib/maps/tile-health";
 
 import { taskThreadHref } from "../task-format";
+import { PriorityMark } from "../task-planning-ui";
 import { mapsDirectionsHref, type LocatedTask } from "./map-types";
 
 /**
@@ -296,6 +297,7 @@ function TaskPeek({ task }: { task: LocatedTask }) {
   return (
     <div className="min-w-[180px] space-y-1">
       <p className="text-[13px] font-medium text-foreground">{task.title}</p>
+      <PriorityMark priority={task.priority} />
       {task.contactName && (
         <p className="text-[12px] text-muted-foreground">{task.contactName}</p>
       )}
@@ -345,6 +347,7 @@ function ClusterPeek({
             >
               {task.title}
             </Link>
+            <PriorityMark priority={task.priority} />
           </li>
         ))}
         {tasks.length > 6 && (

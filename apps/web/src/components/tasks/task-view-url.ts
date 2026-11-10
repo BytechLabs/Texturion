@@ -1,5 +1,6 @@
 import type { MessageKey } from "@/i18n/provider";
 import type { TaskListFilters } from "@/lib/api/task-filters";
+import type { TaskPriority } from "@/lib/api/types";
 
 /**
  * URL is the state for the /tasks page (D25): the view switcher and every
@@ -115,6 +116,31 @@ export interface TaskPageState {
   due?: DueFilter;
   /** Title search. */
   q?: string;
+  /** #693: only these priorities. */
+  priority?: TaskPriority[];
+  /** #693: only tasks carrying this workspace tag (its id). */
+  tag?: string;
+  /** #693: list order; absent is newest first. */
+  sort?: TaskSort;
+}
+
+export type TaskSort = "created" | "due" | "priority";
+
+const PRIORITY_VALUES: readonly TaskPriority[] = [
+  "urgent",
+  "high",
+  "normal",
+  "low",
+  "none",
+];
+
+const SORT_VALUES = new Set<TaskSort>(["created", "due", "priority"]);
+
+/** `high,urgent` -> the known priorities, most pressing first, no repeats. */
+export function parsePriorities(raw: string | null): TaskPriority[] {
+  if (!raw) return [];
+  const asked = new Set(raw.split(","));
+  return PRIORITY_VALUES.filter((p) => asked.has(p));
 }
 
 /** Parse the /tasks search params; unknown values fall back to defaults. */
@@ -134,6 +160,14 @@ export function parseTaskSearchParams(
   if (due) state.due = due;
   const q = params.get("q");
   if (q !== null && q.trim() !== "") state.q = q;
+  const priority = parsePriorities(params.get("priority"));
+  if (priority.length > 0) state.priority = priority;
+  const tag = params.get("tag");
+  if (tag) state.tag = tag;
+  const sort = params.get("sort");
+  if (sort !== null && SORT_VALUES.has(sort as TaskSort) && sort !== "created") {
+    state.sort = sort as TaskSort;
+  }
   return state;
 }
 
@@ -148,6 +182,11 @@ export function serializeTaskState(state: TaskPageState): string {
   if (state.unassigned) params.set("unassigned", "1");
   if (state.due) params.set("due", state.due);
   if (state.q !== undefined && state.q.trim() !== "") params.set("q", state.q);
+  if (state.priority && state.priority.length > 0) {
+    params.set("priority", state.priority.join(","));
+  }
+  if (state.tag) params.set("tag", state.tag);
+  if (state.sort && state.sort !== "created") params.set("sort", state.sort);
   const s = params.toString();
   return s === "" ? "" : `?${s}`;
 }
@@ -212,11 +251,23 @@ export function toTaskFilters(
 
   if (state.due) Object.assign(filters, dueRange(state.due, now));
   if (state.q && state.q.trim() !== "") filters.q = state.q.trim();
+  if (state.priority && state.priority.length > 0) {
+    filters.priority = state.priority;
+  }
+  if (state.tag) filters.tag_id = state.tag;
+  if (state.sort && state.sort !== "created") filters.sort = state.sort;
 
   return filters;
 }
 
 /** True when any refining chip is active (drives the "clear filters" affordance). */
 export function hasActiveChips(state: TaskPageState): boolean {
-  return Boolean(state.assignee || state.unassigned || state.due || state.q);
+  return Boolean(
+    state.assignee ||
+      state.unassigned ||
+      state.due ||
+      state.q ||
+      (state.priority && state.priority.length > 0) ||
+      state.tag,
+  );
 }

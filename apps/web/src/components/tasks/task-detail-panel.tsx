@@ -68,8 +68,10 @@ import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
 import {
   type TaskAddressInput,
+  useAddTaskLabel,
   useCreateTaskNote,
   useDeleteTask,
+  useRemoveTaskLabel,
   useTask,
   useUpdateTask,
 } from "@/lib/api/tasks";
@@ -78,6 +80,7 @@ import type {
   AddressProvenance,
   TaskActivityItem,
   TaskDetail,
+  TaskPriority,
 } from "@/lib/api/types";
 import { isFilePaste } from "@/lib/attachments/clipboard";
 import {
@@ -90,6 +93,21 @@ import { cn } from "@/lib/utils";
 import { TaskDoneCheckbox } from "./task-atoms";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
+import {
+  draftFromRepeat,
+  draftToRequest,
+  needsScopeChoice,
+  normalizePriority,
+  type RepeatDraft,
+  type TaskScope,
+} from "./task-planning";
+import {
+  EditableLabelChips,
+  LabelPicker,
+  PrioritySelect,
+  RepeatField,
+  ScopeDialog,
+} from "./task-planning-ui";
 import {
   useSetTaskReminders,
   useTaskDone,
@@ -190,6 +208,24 @@ function TaskDetailLoaded({
   const del = useDeleteTask(conversationId);
   const done = useTaskDone();
   const follow = useTaskFollow(task.id);
+  const addLabel = useAddTaskLabel(conversationId);
+  const removeLabel = useRemoveTaskLabel(conversationId);
+
+  // #693: an edit to a repeating task asks which occurrences it reaches before
+  // anything is sent. cancel puts the field back as it was.
+  const [scopeAsk, setScopeAsk] = useState<{
+    run: (scope: TaskScope) => void;
+    cancel: () => void;
+  } | null>(null);
+  const [dueKey, setDueKey] = useState(0);
+  const repeats = needsScopeChoice(task.repeat);
+  const scoped = (
+    run: (scope: TaskScope | undefined) => void,
+    cancel: () => void = () => {},
+  ) => {
+    if (repeats) setScopeAsk({ run, cancel });
+    else run(undefined);
+  };
 
   // Local field state, seeded from the task and kept in sync when the server
   // row changes (a realtime refetch, or another surface's edit).
@@ -226,28 +262,78 @@ function TaskDetailLoaded({
       setTitle(task.title); // empty is invalid; snap back
       return;
     }
-    update.mutate(
-      { taskId: task.id, title: trimmed },
-      { onError: () => toast.error(t("tasks.renameFailed")) },
+    scoped(
+      (scope) =>
+        update.mutate(
+          { taskId: task.id, title: trimmed, ...(scope ? { scope } : {}) },
+          { onError: () => toast.error(t("tasks.renameFailed")) },
+        ),
+      () => setTitle(task.title),
     );
   };
 
   const saveDescription = () => {
     if (description === task.description) return;
-    update.mutate(
-      { taskId: task.id, description },
-      { onError: () => toast.error(t("tasks.descriptionSaveFailed")) },
+    scoped(
+      (scope) =>
+        update.mutate(
+          { taskId: task.id, description, ...(scope ? { scope } : {}) },
+          { onError: () => toast.error(t("tasks.descriptionSaveFailed")) },
+        ),
+      () => setDescription(task.description),
     );
   };
 
   const setReminders = useSetTaskReminders();
 
   const saveAssignee = (value: string) => {
-    update.mutate(
-      { taskId: task.id, assigned_user_id: value === UNASSIGNED ? null : value },
-      { onError: () => toast.error(t("tasks.reassignFailed")) },
+    scoped((scope) =>
+      update.mutate(
+        {
+          taskId: task.id,
+          assigned_user_id: value === UNASSIGNED ? null : value,
+          ...(scope ? { scope } : {}),
+        },
+        { onError: () => toast.error(t("tasks.reassignFailed")) },
+      ),
     );
   };
+
+  const savePriority = (priority: TaskPriority) => {
+    if (priority === normalizePriority(task.priority)) return;
+    scoped((scope) =>
+      update.mutate(
+        { taskId: task.id, priority, ...(scope ? { scope } : {}) },
+        { onError: () => toast.error(t("tasks.updateFailed")) },
+      ),
+    );
+  };
+
+  const attachLabel = (input: { tag_id: string } | { name: string }) =>
+    scoped((scope) =>
+      addLabel.mutate(
+        { taskId: task.id, ...input, ...(scope ? { scope } : {}) },
+        { onError: () => toast.error(t("tasks.labelAddFailed")) },
+      ),
+    );
+
+  const detachLabel = (tagId: string) =>
+    scoped((scope) =>
+      removeLabel.mutate(
+        { taskId: task.id, tagId, ...(scope ? { scope } : {}) },
+        { onError: () => toast.error(t("tasks.labelRemoveFailed")) },
+      ),
+    );
+
+  // The rule always applies to this task and the ones after it, so no scope.
+  const saveRepeat = (draft: RepeatDraft | null) =>
+    update.mutate(
+      {
+        taskId: task.id,
+        repeat: draft ? draftToRequest(draft, task.due_at) : null,
+      },
+      { onError: () => toast.error(t("tasks.repeatSaveFailed")) },
+    );
 
   const saveDue = (value: string) => {
     // A datetime-local reports "" whenever ANY segment is blank, and fires on
@@ -257,21 +343,28 @@ function TaskDetailLoaded({
     // the assignee's reminder was discarded, with no undo. Removing a due date
     // is a deliberate act with its own control below.
     if (value === "") return;
-    update.mutate(
-      {
-        taskId: task.id,
-        // <input type="datetime-local"> yields a local wall-clock string; store
-        // an ISO instant.
-        due_at: new Date(value).toISOString(),
-      },
-      { onError: () => toast.error(t("tasks.dueChangeFailed")) },
+    scoped(
+      (scope) =>
+        update.mutate(
+          {
+            taskId: task.id,
+            // <input type="datetime-local"> yields a local wall-clock string; store
+            // an ISO instant.
+            due_at: new Date(value).toISOString(),
+            ...(scope ? { scope } : {}),
+          },
+          { onError: () => toast.error(t("tasks.dueChangeFailed")) },
+        ),
+      () => setDueKey((k) => k + 1),
     );
   };
 
   const clearDue = () => {
-    update.mutate(
-      { taskId: task.id, due_at: null },
-      { onError: () => toast.error(t("tasks.dueClearFailed")) },
+    scoped((scope) =>
+      update.mutate(
+        { taskId: task.id, due_at: null, ...(scope ? { scope } : {}) },
+        { onError: () => toast.error(t("tasks.dueClearFailed")) },
+      ),
     );
   };
 
@@ -284,8 +377,11 @@ function TaskDetailLoaded({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteContent = taskDeleteContent(task);
 
-  const runDelete = () => {
-    del.mutate(task.id, {
+  const [deleteScope, setDeleteScope] = useState<TaskScope | undefined>();
+  const [askDeleteScope, setAskDeleteScope] = useState(false);
+
+  const runDelete = (scope?: TaskScope) => {
+    del.mutate({ taskId: task.id, scope }, {
       onSuccess: () => {
         toast.success(t("tasks.deleted"));
         onClose?.();
@@ -297,9 +393,15 @@ function TaskDetailLoaded({
     });
   };
 
-  const requestDelete = () => {
+  const confirmThenDelete = (scope?: TaskScope) => {
+    setDeleteScope(scope);
     if (deleteContent.hasContent) setConfirmDelete(true);
-    else runDelete();
+    else runDelete(scope);
+  };
+
+  const requestDelete = () => {
+    if (repeats) setAskDeleteScope(true);
+    else confirmThenDelete();
   };
 
   // Same derived-done write as the check-circle (PATCH the source message).
@@ -576,8 +678,21 @@ function TaskDetailLoaded({
               // Keyed on the task, not on the value. Keying on due_at remounted
               // the field the moment an edit was accepted, which took focus and
               // the caret away mid-entry.
-              key={task.id}
-              onChange={(e) => saveDue(e.target.value)}
+              key={`${task.id}:${dueKey}`}
+              // A repeating task asks "this one or future" before saving, so it
+              // waits for the field to be left rather than asking per keystroke.
+              onChange={(e) => {
+                if (!repeats) saveDue(e.target.value);
+              }}
+              onBlur={(e) => {
+                if (
+                  repeats &&
+                  e.target.value !== "" &&
+                  e.target.value !== toLocalInput(task.due_at)
+                ) {
+                  saveDue(e.target.value);
+                }
+              }}
             />
           </div>
         </section>
@@ -615,6 +730,45 @@ function TaskDetailLoaded({
           </section>
         )}
 
+        {/* #693: priority, labels and the repeat rule. */}
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="task-priority">{t("tasks.priority")}</Label>
+            <PrioritySelect
+              id="task-priority"
+              value={task.priority}
+              onChange={savePriority}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="task-repeat">{t("tasks.repeat")}</Label>
+            <RepeatField
+              id="task-repeat"
+              draft={task.repeat ? draftFromRepeat(task.repeat) : null}
+              due={task.due_at}
+              linked={task.conversation_id !== null || task.contact_id != null}
+              existing={task.repeat != null && !task.repeat.stopped}
+              onChange={saveRepeat}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label>{t("tasks.labels")}</Label>
+            <EditableLabelChips
+              labels={(task.labels ?? []).map((l) => ({ key: l.id, name: l.name }))}
+              onRemove={detachLabel}
+              disabled={removeLabel.isPending}
+            />
+            <div>
+              <LabelPicker
+                excludeIds={new Set((task.labels ?? []).map((l) => l.id))}
+                onPick={(tag) => attachLabel({ tag_id: tag.id })}
+                onCreate={(name) => attachLabel({ name })}
+                disabled={addLabel.isPending}
+              />
+            </div>
+          </div>
+        </section>
+
         {/* Description. */}
         <section className="flex flex-col gap-1.5">
           <Label htmlFor="task-description">{t("tasks.description")}</Label>
@@ -633,9 +787,11 @@ function TaskDetailLoaded({
         <TaskAddressSection
           task={task}
           onSave={(address) =>
-            update.mutate(
-              { taskId: task.id, address },
-              { onError: () => toast.error(t("tasks.addressSaveFailed")) },
+            scoped((scope) =>
+              update.mutate(
+                { taskId: task.id, address, ...(scope ? { scope } : {}) },
+                { onError: () => toast.error(t("tasks.addressSaveFailed")) },
+              ),
             )
           }
         />
@@ -686,6 +842,28 @@ function TaskDetailLoaded({
           <TaskCommentComposer taskId={task.id} />
         ))}
 
+      <ScopeDialog
+        open={scopeAsk !== null}
+        mode="edit"
+        onChoose={(scope) => {
+          scopeAsk?.run(scope);
+          setScopeAsk(null);
+        }}
+        onCancel={() => {
+          scopeAsk?.cancel();
+          setScopeAsk(null);
+        }}
+      />
+      <ScopeDialog
+        open={askDeleteScope}
+        mode="delete"
+        onChoose={(scope) => {
+          setAskDeleteScope(false);
+          confirmThenDelete(scope);
+        }}
+        onCancel={() => setAskDeleteScope(false)}
+      />
+
       {/* #89: destructive-delete confirm — opened only for a task that carries
           notes or files (an empty task deletes straight from the menu). */}
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -712,7 +890,7 @@ function TaskDetailLoaded({
             </Button>
             <Button
               variant="destructive"
-              onClick={runDelete}
+              onClick={() => runDelete(deleteScope)}
               disabled={del.isPending}
             >
               {del.isPending ? (

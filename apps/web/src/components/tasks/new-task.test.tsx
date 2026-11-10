@@ -14,8 +14,16 @@ const { mutateAsync, toastSuccess, toastError } = vi.hoisted(() => ({
   toastError: vi.fn(),
 }));
 
+const { addLabel } = vi.hoisted(() => ({ addLabel: vi.fn() }));
+
 vi.mock("@/lib/api/tasks", () => ({
   useCreateTaskFromMessage: () => ({ isPending: false, mutateAsync }),
+  useAddTaskLabel: () => ({ isPending: false, mutateAsync: addLabel }),
+}));
+vi.mock("@/lib/api/tags", () => ({
+  useTags: () => ({
+    data: { data: [{ id: "tag-1", name: "Warranty", color: null }] },
+  }),
 }));
 vi.mock("@/lib/api/me", () => ({
   useMe: () => ({ data: { user_id: "me-1" } }),
@@ -40,6 +48,8 @@ import { NewTaskDialog, openNewTask } from "./new-task";
 afterEach(cleanup);
 
 beforeEach(() => {
+  addLabel.mockReset();
+  addLabel.mockResolvedValue({ labels: [] });
   mutateAsync.mockReset();
   mutateAsync.mockResolvedValue({ id: "t1" });
   toastSuccess.mockReset();
@@ -115,5 +125,30 @@ describe("#689 New task", () => {
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith("Couldn't create the task. Try again."),
     );
+  });
+
+  it("sends a non-default priority and a picked label (#693)", async () => {
+    openWith();
+    typeTitle("Fix the boiler");
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add label" }));
+    fireEvent.click(await screen.findByText("Warranty"));
+    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync.mock.calls[0][0]).toMatchObject({
+      label_ids: ["tag-1"],
+    });
+    expect(mutateAsync.mock.calls[0][0]).not.toHaveProperty("priority");
+  });
+
+  it("will not save a schedule without a due date (#693)", async () => {
+    openWith();
+    typeTitle("Monthly filter");
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByLabelText("Repeat"));
+    expect(await screen.findByText(/needs a due date/)).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 });

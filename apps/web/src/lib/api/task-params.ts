@@ -52,6 +52,12 @@ export function taskSearchParams(
     overdue: filters.overdue ? true : undefined,
     has_location: filters.has_location ? true : undefined,
     q: filters.q,
+    priority:
+      filters.priority && filters.priority.length > 0
+        ? filters.priority.join(",")
+        : undefined,
+    tag_id: filters.tag_id,
+    sort: filters.sort && filters.sort !== "created" ? filters.sort : undefined,
     cursor,
   };
 }

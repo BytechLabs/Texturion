@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
 import { TaskDoneCheckbox, TaskStatusPill } from "../task-atoms";
+import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
 import { EmptyTasks } from "../task-empty";
 import { InlineAssignee, InlineDue } from "../task-inline-edit";
 import { useTaskDrawer } from "../use-task-drawer";
@@ -97,6 +98,9 @@ export function ListView({ state }: { state: TaskPageState }) {
     mark_undone: t("tasks.bulkVerbMarkedNotDone"),
     assign: t("tasks.bulkVerbAssigned"),
     delete: t("tasks.bulkVerbDeleted"),
+    set_priority: t("tasks.bulkVerbUpdated"),
+    add_label: t("tasks.bulkVerbUpdated"),
+    remove_label: t("tasks.bulkVerbUpdated"),
   };
 
   function runBulk(body: Omit<BulkTasksBody, "ids" | "filter">) {
@@ -160,6 +164,13 @@ export function ListView({ state }: { state: TaskPageState }) {
           onMarkUndone={() => runBulk({ action: "mark_undone" })}
           onAssign={(userId) => runBulk({ action: "assign", target_user_id: userId })}
           onDelete={() => runBulk({ action: "delete" })}
+          onSetPriority={(priority) =>
+            runBulk({ action: "set_priority", priority })
+          }
+          onAddLabel={(tagId) => runBulk({ action: "add_label", tag_id: tagId })}
+          onRemoveLabel={(tagId) =>
+            runBulk({ action: "remove_label", tag_id: tagId })
+          }
         />
       )}
       {/* Column header — quiet stone labels, hidden on mobile (the row carries
@@ -248,6 +259,11 @@ function TaskRow({
             >
               {task.title}
             </button>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 empty:hidden">
+              <PriorityMark priority={task.priority} />
+              <RepeatMark repeat={task.repeat} />
+              <LabelChips labels={task.labels} />
+            </div>
             <Link
               href={taskThreadHref(task)}
               className="mt-0.5 inline-flex items-center gap-1 truncate text-[12px] text-muted-foreground hover:text-foreground"

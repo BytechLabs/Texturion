@@ -18,13 +18,26 @@ vi.mock("@/components/inbox/member-avatar", () => ({
   useMemberNames: () => ({}),
 }));
 
+vi.mock("@/lib/api/tags", () => ({
+  useTags: () => ({
+    data: { data: [{ id: "tag-1", name: "Warranty", color: null }] },
+  }),
+}));
+
 import { TaskBulkBar } from "./task-bulk-bar";
 
 beforeEach(() => {
   state.canDelete = true;
 });
 
-function openMore(onDelete = vi.fn()) {
+function openMore(
+  onDelete = vi.fn(),
+  extra: {
+    onSetPriority?: (value: string) => void;
+    onAddLabel?: (value: string) => void;
+    onRemoveLabel?: (value: string) => void;
+  } = {},
+) {
   render(
     <TaskBulkBar
       selection={{ mode: "ids", ids: new Set(["a"]) }}
@@ -38,6 +51,9 @@ function openMore(onDelete = vi.fn()) {
       onMarkUndone={vi.fn()}
       onAssign={vi.fn()}
       onDelete={onDelete}
+      onSetPriority={extra.onSetPriority ?? vi.fn()}
+      onAddLabel={extra.onAddLabel ?? vi.fn()}
+      onRemoveLabel={extra.onRemoveLabel ?? vi.fn()}
     />,
   );
   fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key: "Enter" });
@@ -56,5 +72,22 @@ describe("TaskBulkBar delete (#691)", () => {
     const onDelete = openMore();
     fireEvent.click(screen.getByText("Delete"));
     expect(onDelete).toHaveBeenCalledOnce();
+  });
+});
+
+describe("TaskBulkBar priority and labels (#693)", () => {
+  it("sets a priority and adds or removes a label for the selection", () => {
+    const onSetPriority = vi.fn();
+    const onAddLabel = vi.fn();
+    const onRemoveLabel = vi.fn();
+    openMore(vi.fn(), { onSetPriority, onAddLabel, onRemoveLabel });
+    fireEvent.click(screen.getByText("Urgent"));
+    expect(onSetPriority).toHaveBeenCalledWith("urgent");
+    expect(onAddLabel).not.toHaveBeenCalled();
+  });
+
+  it("offers the workspace tags under add and remove", () => {
+    openMore();
+    expect(screen.getAllByText("Warranty")).toHaveLength(2);
   });
 });

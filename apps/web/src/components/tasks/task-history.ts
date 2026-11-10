@@ -3,6 +3,8 @@ import { format } from "date-fns";
 import type { Translate } from "@/i18n/provider";
 import type { TaskFeedItem } from "@/lib/api/types";
 
+import { priorityLabelKey, repeatSummary } from "./task-planning";
+
 type EventItem = Extract<TaskFeedItem, { kind: "event" }>;
 
 /** "Tue 9:00 AM": the day name is enough for a job due this week. */
@@ -12,6 +14,45 @@ function formatDueTime(iso: string): string {
 
 const asString = (value: unknown): string | null =>
   typeof value === "string" && value !== "" ? value : null;
+
+/** A label event carries {tag_id, name}; the name is what a person reads. */
+function tagName(value: unknown): string | null {
+  if (value === null || typeof value !== "object") return null;
+  return asString((value as { name?: unknown }).name);
+}
+
+type RuleSummary = Parameters<typeof repeatSummary>[0];
+
+/** The rule summary a repeat event carries, or null when it was cleared. */
+function repeatRule(value: unknown): RuleSummary | null {
+  if (value === null || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  const kind = v.kind === "after_done" ? "after_done" : "schedule";
+  const unit =
+    v.unit === "week" || v.unit === "month" || v.unit === "year" ? v.unit : "day";
+  const num = (x: unknown): number | null =>
+    typeof x === "number" && Number.isFinite(x) ? x : null;
+  const endsKind =
+    v.ends_kind === "on" || v.ends_kind === "after" ? v.ends_kind : "never";
+  return {
+    kind,
+    unit,
+    every: num(v.every) ?? 1,
+    weekdays: Array.isArray(v.weekdays)
+      ? v.weekdays.filter((d): d is number => typeof d === "number")
+      : null,
+    month_day: num(v.month_day),
+    nth: num(v.nth),
+    nth_weekday: num(v.nth_weekday),
+    ends: {
+      kind: endsKind,
+      on: asString(v.ends_on),
+      after: num(v.ends_after),
+    },
+    paused: v.paused === true,
+    stopped: false,
+  };
+}
 
 /**
  * One quiet line for a change to a task, with the person who made it. `by` is
@@ -65,6 +106,30 @@ export function taskHistorySentence(
       return t("tasks.histReopened", { by });
     case "deleted":
       return t("tasks.histDeleted", { by });
+    case "priority": {
+      const to = asString(item.to);
+      return to
+        ? t("tasks.histPriority", { by, priority: t(priorityLabelKey(to)) })
+        : t("tasks.histUpdated", { by });
+    }
+    case "label_added": {
+      const name = tagName(item.to);
+      return name
+        ? t("tasks.histLabelAdded", { by, name })
+        : t("tasks.histUpdated", { by });
+    }
+    case "label_removed": {
+      const name = tagName(item.from);
+      return name
+        ? t("tasks.histLabelRemoved", { by, name })
+        : t("tasks.histUpdated", { by });
+    }
+    case "repeat": {
+      const rule = repeatRule(item.to);
+      return rule
+        ? t("tasks.histRepeat", { by, rule: repeatSummary(rule, t) })
+        : t("tasks.histRepeatCleared", { by });
+    }
     default:
       return t("tasks.histUpdated", { by });
   }

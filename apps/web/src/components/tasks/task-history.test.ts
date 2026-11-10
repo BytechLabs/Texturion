@@ -80,4 +80,37 @@ describe("taskHistorySentence", () => {
       "Sam reopened this task",
     );
   });
+
+  it("describes priority, label and repeat changes (#693)", () => {
+    expect(
+      taskHistorySentence(event({ event: "priority", to: "urgent" }), "Sam", t),
+    ).toBe("Sam set the priority to Urgent");
+    expect(
+      taskHistorySentence(
+        event({ event: "label_added", to: { tag_id: "t1", name: "Warranty" } }),
+        "Sam",
+        t,
+      ),
+    ).toBe("Sam added the label Warranty");
+    expect(
+      taskHistorySentence(
+        event({ event: "label_removed", from: { tag_id: "t1", name: "Warranty" } }),
+        "Sam",
+        t,
+      ),
+    ).toBe("Sam removed the label Warranty");
+    expect(
+      taskHistorySentence(
+        event({
+          event: "repeat",
+          to: { kind: "schedule", unit: "week", every: 1, weekdays: [1], ends_kind: "never", paused: false },
+        }),
+        "Sam",
+        t,
+      ),
+    ).toBe("Sam set this to repeat: Repeats every Monday");
+    expect(taskHistorySentence(event({ event: "repeat", to: null }), "Sam", t)).toBe(
+      "Sam stopped this repeating",
+    );
+  });
 });

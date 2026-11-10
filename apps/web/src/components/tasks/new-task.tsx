@@ -25,12 +25,24 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
-import { useCreateTaskFromMessage, type TaskAddressInput } from "@/lib/api/tasks";
+import {
+  useAddTaskLabel,
+  useCreateTaskFromMessage,
+  type TaskAddressInput,
+} from "@/lib/api/tasks";
+import type { Tag, TaskPriority } from "@/lib/api/types";
 import { useMembers } from "@/lib/api/team";
 import { useCompanyId } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
 import { NO_CONVERSATION } from "./task-format";
+import { draftProblem, draftToRequest, type RepeatDraft } from "./task-planning";
+import {
+  EditableLabelChips,
+  LabelPicker,
+  PrioritySelect,
+  RepeatField,
+} from "./task-planning-ui";
 
 const NEW_TASK_EVENT = "loonext:new-task";
 
@@ -146,6 +158,15 @@ function NewTaskForm({
   const [due, setDue] = useState("");
   const [notes, setNotes] = useState("");
   const [addr, setAddr] = useState(EMPTY_ADDRESS);
+  const [priority, setPriority] = useState<TaskPriority>("normal");
+  const [pickedTags, setPickedTags] = useState<Tag[]>([]);
+  // A name typed for a tag that does not exist yet. The tag is made when it is
+  // attached, so these are attached right after the task is created.
+  const [newNames, setNewNames] = useState<string[]>([]);
+  const [repeat, setRepeat] = useState<RepeatDraft | null>(null);
+  const addLabel = useAddTaskLabel(context.conversationId ?? NO_CONVERSATION);
+  const linked =
+    context.conversationId !== undefined || context.contactId !== undefined;
 
   const link =
     context.conversationId !== undefined
@@ -160,6 +181,13 @@ function NewTaskForm({
       toast.error(t("tasks.newTaskTitleRequired"));
       return;
     }
+    if (repeat) {
+      const problem = draftProblem(repeat, due === "" ? null : due);
+      if (problem) {
+        toast.error(t(problem));
+        return;
+      }
+    }
     const hasAddress = Object.values(addr).some((v) => v.trim() !== "");
     const address: TaskAddressInput | null = hasAddress
       ? {
@@ -173,7 +201,7 @@ function NewTaskForm({
         }
       : null;
     try {
-      await create.mutateAsync({
+      const created = await create.mutateAsync({
         title: trimmed,
         // Until `me` loads, leave it out so the API assigns the creator.
         ...(assigneeOverride === null && !me.data
@@ -188,7 +216,22 @@ function NewTaskForm({
           : context.contactId !== undefined
             ? { contact_id: context.contactId }
             : {}),
+        ...(priority === "normal" ? {} : { priority }),
+        ...(pickedTags.length > 0
+          ? { label_ids: pickedTags.map((tag) => tag.id) }
+          : {}),
+        ...(repeat ? { repeat: draftToRequest(repeat, due === "" ? null : due) } : {}),
       });
+      // The task exists now; a label that fails to attach must not undo it.
+      let labelFailed = false;
+      for (const name of newNames) {
+        try {
+          await addLabel.mutateAsync({ taskId: created.id, name });
+        } catch {
+          labelFailed = true;
+        }
+      }
+      if (labelFailed) toast.error(t("tasks.labelAddFailed"));
       if (context.contactId !== undefined) {
         void queryClient.invalidateQueries({
           queryKey: [companyId, "contact-timeline", context.contactId],
@@ -267,6 +310,49 @@ function NewTaskForm({
                 type="datetime-local"
                 value={due}
                 onChange={(event) => setDue(event.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-task-priority">{t("tasks.priority")}</Label>
+              <PrioritySelect
+                id="new-task-priority"
+                value={priority}
+                onChange={setPriority}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>{t("tasks.labels")}</Label>
+              <EditableLabelChips
+                labels={[
+                  ...pickedTags.map((tag) => ({ key: `id:${tag.id}`, name: tag.name })),
+                  ...newNames.map((name) => ({ key: `name:${name}`, name })),
+                ]}
+                onRemove={(key) => {
+                  if (key.startsWith("id:")) {
+                    setPickedTags((tags) => tags.filter((tag) => `id:${tag.id}` !== key));
+                  } else {
+                    setNewNames((names) => names.filter((n) => `name:${n}` !== key));
+                  }
+                }}
+              />
+              <div>
+                <LabelPicker
+                  excludeIds={new Set(pickedTags.map((tag) => tag.id))}
+                  excludeNames={newNames}
+                  onPick={(tag) => setPickedTags((tags) => [...tags, tag])}
+                  onCreate={(name) => setNewNames((names) => [...names, name])}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-task-repeat">{t("tasks.repeat")}</Label>
+              <RepeatField
+                id="new-task-repeat"
+                draft={repeat}
+                due={due === "" ? null : due}
+                linked={linked}
+                existing={false}
+                onChange={setRepeat}
               />
             </div>
             <div className="flex flex-col gap-1.5">

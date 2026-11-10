@@ -177,3 +177,47 @@ describe("hasActiveChips", () => {
     expect(hasActiveChips({ view: "list", tab: "all", q: "x" })).toBe(true);
   });
 });
+
+describe("#693 priority, label and sort filters", () => {
+  it("round-trips through the URL", () => {
+    const state = parseTaskSearchParams(
+      new URLSearchParams("priority=urgent,high&tag=t1&sort=priority"),
+    );
+    expect(state.priority).toEqual(["urgent", "high"]);
+    expect(state.tag).toBe("t1");
+    expect(state.sort).toBe("priority");
+    expect(serializeTaskState(state)).toBe(
+      "?priority=urgent%2Chigh&tag=t1&sort=priority",
+    );
+  });
+
+  it("drops unknown priorities and an unknown or default sort", () => {
+    const state = parseTaskSearchParams(
+      new URLSearchParams("priority=bogus,low&sort=created"),
+    );
+    expect(state.priority).toEqual(["low"]);
+    expect(state.sort).toBeUndefined();
+    expect(
+      parseTaskSearchParams(new URLSearchParams("sort=nonsense")).sort,
+    ).toBeUndefined();
+  });
+
+  it("maps to the list filters and counts as an active chip", () => {
+    const state: TaskPageState = {
+      view: "list",
+      tab: "open",
+      priority: ["high"],
+      tag: "t1",
+      sort: "due",
+    };
+    expect(toTaskFilters(state)).toMatchObject({
+      priority: ["high"],
+      tag_id: "t1",
+      sort: "due",
+    });
+    expect(hasActiveChips({ view: "list", tab: "open", tag: "t1" })).toBe(true);
+    expect(hasActiveChips({ view: "list", tab: "open", priority: ["low"] })).toBe(true);
+    // A sort alone is an order, not a filter.
+    expect(hasActiveChips({ view: "list", tab: "open", sort: "due" })).toBe(false);
+  });
+});

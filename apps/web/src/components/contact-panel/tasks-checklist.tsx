@@ -8,6 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { NewTaskButton } from "@/components/tasks/new-task";
+import {
+  LabelChips,
+  PriorityMark,
+  RepeatMark,
+} from "@/components/tasks/task-planning-ui";
 import { InlineAssignee, InlineDue } from "@/components/tasks/task-inline-edit";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { useT } from "@/i18n/provider";
@@ -201,6 +206,9 @@ function TaskRow({
         >
           <InlineAssignee task={task} />
           <InlineDue task={task} />
+          <PriorityMark priority={task.priority} />
+          <RepeatMark repeat={task.repeat} />
+          <LabelChips labels={task.labels} />
           {task.attachment_count > 0 && (
             <span
               className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums text-muted-foreground"

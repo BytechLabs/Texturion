@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Trash2, Undo2, UserPlus } from "lucide-react";
+import { Check, Flag, Tag, Trash2, Undo2, UserPlus } from "lucide-react";
 
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,15 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useT } from "@/i18n/provider";
+import { useTags } from "@/lib/api/tags";
+import type { TaskPriority } from "@/lib/api/types";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
+import { PRIORITY_PICKER, priorityLabelKey } from "./task-planning";
 import {
   canEscalate,
   selectionLabel,
@@ -49,6 +54,9 @@ export function TaskBulkBar({
   onMarkUndone,
   onAssign,
   onDelete,
+  onSetPriority,
+  onAddLabel,
+  onRemoveLabel,
 }: {
   selection: BulkSelection;
   loadedIds: readonly string[];
@@ -61,10 +69,14 @@ export function TaskBulkBar({
   onMarkUndone: () => void;
   onAssign: (userId: string | null) => void;
   onDelete: () => void;
+  onSetPriority: (priority: TaskPriority) => void;
+  onAddLabel: (tagId: string) => void;
+  onRemoveLabel: (tagId: string) => void;
 }) {
   const t = useT();
   const canDelete = useCanDeleteRecords();
   const memberNames = useMemberNames();
+  const tags = useTags().data?.data ?? [];
   const showEscalate = canEscalate(selection, loadedIds, hasMore);
 
   return (
@@ -122,6 +134,43 @@ export function TaskBulkBar({
               <Undo2 className="size-3.5" aria-hidden />
               {t("tasks.markNotDone")}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="flex items-center gap-1.5">
+              <Flag className="size-3.5" aria-hidden />
+              {t("tasks.bulkSetPriority")}
+            </DropdownMenuLabel>
+            {PRIORITY_PICKER.map((priority) => (
+              <DropdownMenuItem key={priority} onSelect={() => onSetPriority(priority)}>
+                {t(priorityLabelKey(priority))}
+              </DropdownMenuItem>
+            ))}
+            {tags.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="flex items-center gap-1.5">
+                  <Tag className="size-3.5" aria-hidden />
+                  {t("tasks.bulkAddLabel")}
+                </DropdownMenuLabel>
+                {tags.map((tag) => (
+                  <DropdownMenuItem key={`add-${tag.id}`} onSelect={() => onAddLabel(tag.id)}>
+                    {tag.name}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="flex items-center gap-1.5">
+                  <Tag className="size-3.5" aria-hidden />
+                  {t("tasks.bulkRemoveLabel")}
+                </DropdownMenuLabel>
+                {tags.map((tag) => (
+                  <DropdownMenuItem
+                    key={`remove-${tag.id}`}
+                    onSelect={() => onRemoveLabel(tag.id)}
+                  >
+                    {tag.name}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
             {canDelete && (
               <DropdownMenuItem variant="destructive" onSelect={onDelete}>
                 <Trash2 className="size-3.5" aria-hidden />

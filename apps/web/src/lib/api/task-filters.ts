@@ -1,4 +1,4 @@
-import type { TaskStatus } from "./types";
+import type { TaskPriority, TaskStatus } from "./types";
 
 /**
  * The GET /v1/tasks filter params (routes/tasks.ts). Every field is optional;
@@ -41,4 +41,10 @@ export interface TaskListFilters {
   has_location?: boolean;
   /** Title trigram search. */
   q?: string;
+  /** #693: any of these priorities. */
+  priority?: TaskPriority[];
+  /** #693: tasks carrying this workspace tag. */
+  tag_id?: string;
+  /** #693: list order. Absent is newest first. */
+  sort?: "created" | "due" | "priority";
 }
