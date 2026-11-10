@@ -197,7 +197,7 @@ function JumpToDate() {
             block: "start",
           });
         }}
-        className="rounded-md border border-app-line bg-app-paper px-1.5 py-0.5 text-[11px] outline-none focus-within:border-ring focus-within:ring-2 focus-within:ring-ring"
+        className="rounded-md border border-app-line bg-app-paper px-1.5 py-0.5 text-base outline-none md:text-[11px] focus-within:border-ring focus-within:ring-2 focus-within:ring-ring"
       />
     </label>
   );
