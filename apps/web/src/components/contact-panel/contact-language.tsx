@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { LOCALES, LOCALE_LABELS, isLocale, type Locale } from "@loonext/shared";
 
-import { Button } from "@/components/ui/button";
+import { ChoiceChip } from "@/components/ui/choice-chip";
 import { useT, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useUpdateContact } from "@/lib/api/contacts";
@@ -156,30 +156,19 @@ export function ContactLanguage({ contact }: { contact: ContactDetail }) {
         {choices.map((choice, i) => {
           const selected = choice.value === current;
           return (
-            <Button
+            <ChoiceChip
               key={choice.value ?? "inherit"}
               ref={(el) => {
                 radioRefs.current[i] = el;
               }}
-              variant="ghost"
-              size="sm"
+              chosen={selected}
               role="radio"
               aria-checked={selected}
               tabIndex={selected ? 0 : -1}
               onClick={() => choose(choice.value)}
-              // Wraps rather than overflows: the thread panel is resizable
-              // down to 260px, and "Same as workspace (Francais (Canada))" is
-              // wider than that on one line. The shared button is nowrap by
-              // default, which would push the whole panel sideways.
-              className={
-                "h-auto max-w-full whitespace-normal rounded-full border px-2.5 py-1 text-left text-[12px] leading-snug " +
-                (selected
-                  ? "border-primary/50 bg-accent/50"
-                  : "border-border-subtle")
-              }
             >
               {choice.label}
-            </Button>
+            </ChoiceChip>
           );
         })}
       </div>

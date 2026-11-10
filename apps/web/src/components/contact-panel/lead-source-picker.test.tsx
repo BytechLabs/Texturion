@@ -12,9 +12,10 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { updateMutate, sourceRows } = vi.hoisted(() => ({
+const { updateMutate, sourceRows, companyRole } = vi.hoisted(() => ({
   updateMutate: vi.fn(),
   sourceRows: { current: [] as Record<string, unknown>[] },
+  companyRole: { current: "member" },
 }));
 
 vi.mock("@/lib/api/conversations", () => ({
@@ -31,6 +32,9 @@ vi.mock("@/lib/api/lead-sources", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/company/provider", () => ({
+  useActiveCompany: () => ({ role: companyRole.current }),
+}));
 
 import { LeadSourcePicker } from "./lead-source-picker";
 
@@ -60,7 +64,7 @@ describe("#301 how did you hear about us", () => {
     // Chips and not a dropdown: if it is not one tap it will not happen, and
     // a source field empty 80% of the time is a misleading report.
     render(<LeadSourcePicker conversation={conversation()} />);
-    expect(screen.getByText(/how did you hear about us/i)).toBeTruthy();
+    expect(screen.getByText(/ask them how they heard about you/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Truck" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Neighbour" })).toBeTruthy();
   });
@@ -167,5 +171,28 @@ describe("#301 how did you hear about us", () => {
     expect(screen.getByText(/Yard sign/)).toBeTruthy();
     // But it is not offered as a chip — the list has to be able to shrink.
     expect(screen.queryByRole("button", { name: "Yard sign" })).toBeNull();
+  });
+
+  it("LP-8 (#726): an unanswered source says so, and no chip reads as chosen", () => {
+    sourceRows.current = [{ id: TRUCK, name: "Truck", archived_at: null }];
+    render(<LeadSourcePicker conversation={conversation()} />);
+    expect(screen.getByText(/not asked yet/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Truck" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("LP-9 (#726): switching threads never carries a choice across", () => {
+    const { rerender } = render(
+      <LeadSourcePicker conversation={conversation({ id: "c1", lead_source_id: TRUCK })} />,
+    );
+    expect(screen.getByRole("button", { name: "Truck" }).getAttribute("aria-pressed")).toBe("true");
+    rerender(<LeadSourcePicker conversation={conversation({ id: "c2", lead_source_id: null })} />);
+    expect(screen.getByRole("button", { name: "Truck" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("LP-10 (#726): whoever can add a source is offered the way to", () => {
+    companyRole.current = "owner";
+    render(<LeadSourcePicker conversation={conversation()} />);
+    expect(screen.getByRole("link", { name: "Add a source" })).toBeTruthy();
+    companyRole.current = "member";
   });
 });

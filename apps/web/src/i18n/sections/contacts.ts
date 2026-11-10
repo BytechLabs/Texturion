@@ -108,7 +108,9 @@ export const contactsEn = {
   leadSourceGroup: "Where they came from",
   sourceFromLine: "· the line they called",
   sourceSaidSo: "· somebody said so",
-  askHowTheyHeard: "Ask them: how did you hear about us?",
+  /** #726: the source's own value while nobody has asked. */
+  sourceNotAsked: "Not asked yet. Ask them how they heard about you.",
+  addLeadSource: "Add a source",
   dontKnow: "Don't know",
   leadSourceSaveFailed: "That could not be saved.",
 
@@ -578,7 +580,8 @@ export const contactsFr: Translated<typeof contactsEn> = {
   leadSourceGroup: "D'où il vient",
   sourceFromLine: "· la ligne composée",
   sourceSaidSo: "· quelqu'un l'a indiqué",
-  askHowTheyHeard: "Demandez-lui : comment avez-vous entendu parler de nous ?",
+  sourceNotAsked: "Pas encore demandé. Demandez-lui comment il vous a connu.",
+  addLeadSource: "Ajouter une source",
   dontKnow: "Je ne sais pas",
   leadSourceSaveFailed: "Impossible d'enregistrer.",
 

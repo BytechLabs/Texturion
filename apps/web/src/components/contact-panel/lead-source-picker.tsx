@@ -2,12 +2,16 @@
 
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { roleHasCapability } from "@loonext/shared";
+
+import { ChoiceChip } from "@/components/ui/choice-chip";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useUpdateConversation } from "@/lib/api/conversations";
 import { activeSources, useLeadSources } from "@/lib/api/lead-sources";
 import type { ConversationDetail } from "@/lib/api/types";
+import { useActiveCompany } from "@/lib/company/provider";
 
 /**
  * #301 — "how did you hear about us?", as one tap.
@@ -108,9 +112,9 @@ export function LeadSourcePicker({
           </span>
         </p>
       ) : (
-        <p className="text-[12px] text-app-muted-2">
-          {t("contacts.askHowTheyHeard")}
-        </p>
+        // #726: the empty state is a value of its own, said in words, so the
+        // chips below read as choices rather than as the answer.
+        <p className="text-sm text-app-muted">{t("contacts.sourceNotAsked")}</p>
       )}
       <Chips
         options={options}
@@ -134,41 +138,38 @@ function Chips({
   onChoose: (id: string | null) => void;
 }) {
   const t = useT();
+  const { role } = useActiveCompany();
+  const mayAdd = roleHasCapability(role, "settings.manage");
   return (
     <div className="flex flex-wrap gap-1.5">
       {options.map((source) => {
         const selected = source.id === current;
         return (
-          <Button
+          <ChoiceChip
             key={source.id}
-            variant="ghost"
-            size="sm"
+            chosen={selected}
             aria-pressed={selected}
             disabled={disabled}
-            // Tapping the chosen one again clears it: the fastest way back
-            // from a mistap is the control you just used.
             onClick={() => onChoose(selected ? null : source.id)}
-            className={
-              "h-auto rounded-full border px-2.5 py-1 text-[12px] " +
-              (selected
-                ? "border-primary/50 bg-accent/50"
-                : "border-border-subtle")
-            }
           >
             {source.name}
-          </Button>
+          </ChoiceChip>
         );
       })}
       {current !== null && (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          onClick={() => onChoose(null)}
-          className="h-auto rounded-full px-2.5 py-1 text-[12px] text-muted-foreground"
-        >
+        <ChoiceChip chosen={false} disabled={disabled} onClick={() => onChoose(null)}>
           {t("contacts.dontKnow")}
-        </Button>
+        </ChoiceChip>
+      )}
+      {/* #726: one source is still a question, so whoever can add another is
+          offered the way to. */}
+      {mayAdd && (
+        <Link
+          href="/settings/numbers#lead-sources"
+          className="self-center px-1 text-[12px] text-app-muted underline decoration-app-line underline-offset-2 hover:text-app-ink"
+        >
+          {t("contacts.addLeadSource")}
+        </Link>
       )}
     </div>
   );

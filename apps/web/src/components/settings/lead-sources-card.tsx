@@ -88,6 +88,7 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
 
   return (
     <SettingsCard
+      id="lead-sources"
       title={t("settings.leadSourcesTitle")}
       description={t("settings.leadSourcesDescription")}
     >
