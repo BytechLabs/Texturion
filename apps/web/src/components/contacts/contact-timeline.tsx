@@ -114,7 +114,7 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
                 <input type="date"> produces; the heading itself is localised. */}
             <h3
               data-timeline-day={isoDay}
-              className="bg-app-tint px-[11px] py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2"
+              className="bg-app-tint px-[11px] py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted"
             >
               {label}
             </h3>
@@ -196,7 +196,7 @@ function JumpToDate() {
             block: "start",
           });
         }}
-        className="rounded-md border border-app-line bg-app-paper px-1.5 py-0.5 text-[11px]"
+        className="rounded-md border border-app-line bg-app-paper px-1.5 py-0.5 text-[11px] outline-none focus-within:border-ring focus-within:ring-2 focus-within:ring-ring"
       />
     </label>
   );
