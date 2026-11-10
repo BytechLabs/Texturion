@@ -14,13 +14,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.loonext.android.BuildConfig
 import com.loonext.android.features.settings.openExternal
 
 /**
  * #710: where "View Trash" goes. The phones hold no Trash screen (managing it
  * is web-only), so the second action opens the web Trash in the browser.
  */
-const val TRASH_URL = "https://app.loonext.com/settings/history/trash"
+val TRASH_URL = "${BuildConfig.APP_ORIGIN}/settings/history/trash"
 
 /**
  * A delete notice: the Undo, plus a second "View Trash" action. Material's

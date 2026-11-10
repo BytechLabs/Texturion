@@ -67,7 +67,7 @@ enum RecordDeletion {
 
     /// #710: the web Trash. The phones hold no Trash screen, so "View Trash"
     /// opens this in the browser.
-    static let trashURL = URL(string: "https://app.loonext.com/settings/history/trash")!
+    static let trashURL = AppConfig.appOrigin.appendingPathComponent("settings/history/trash")
 
     static func isNote(_ message: Message) -> Bool {
         message.direction == MessageDirection.note
