@@ -3820,6 +3820,50 @@ begin
   raise notice 'CS-20 PASSED: finishing mid-create queues the removal of the new event';
 end $$;
 
-\echo 'calendar_sync.test.sql: CS-1..CS-20 PASSED'
+-- CS-21 (#693). Each occurrence of a repeating job is its own single event:
+-- setting a weekly repeat creates the next occurrence, and both queue a create
+-- of their own with no recurrence, which the provider would refuse.
+do $$
+declare
+  r jsonb;
+  v_task uuid;
+  v_next uuid;
+  n integer;
+begin
+  delete from public.calendar_outbox where state in ('queued', 'leased');
+  r := public.create_task(
+    pg_temp.q_company(), null, 'Weekly filter check', '', pg_temp.q_user(),
+    now() + interval '1 day', pg_temp.q_user()
+  );
+  v_task := (r->'task'->>'id')::uuid;
+  r := public.api_set_task_repeat(
+    pg_temp.q_company(), v_task, pg_temp.q_user(), '{"kind":"schedule","unit":"week"}'
+  );
+  if r->>'outcome' is distinct from 'set' then
+    raise exception 'CS-21 FAILED: setting the repeat gave %', r;
+  end if;
+  select id into v_next from public.tasks
+   where series_id = (r->'task'->>'series_id')::uuid and occurrence_no = 2;
+  if v_next is null then
+    raise exception 'CS-21 FAILED: no next occurrence was created';
+  end if;
+
+  select count(*) into n from public.calendar_outbox
+   where connection_id = pg_temp.q_conn() and task_id in (v_task, v_next)
+     and state = 'queued' and action = 'create';
+  if n is distinct from 2 then
+    raise exception 'CS-21 FAILED: % queued creates for two occurrences', n;
+  end if;
+  if exists (
+    select 1 from public.calendar_outbox
+     where task_id in (v_task, v_next) and state = 'queued'
+       and (requested_snapshot ? 'recurrence' or requested_snapshot ? 'rrule')
+  ) then
+    raise exception 'CS-21 FAILED: an occurrence asked the provider to repeat it';
+  end if;
+  raise notice 'CS-21 PASSED: each occurrence of a repeating job is one event';
+end $$;
+
+\echo 'calendar_sync.test.sql: CS-1..CS-21 PASSED'
 
 rollback;
