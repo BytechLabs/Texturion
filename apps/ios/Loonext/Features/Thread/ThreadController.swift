@@ -7,6 +7,8 @@ struct ThreadNotice: Identifiable, Sendable {
     let text: String
     var actionLabel: String?
     var action: (@MainActor () -> Void)?
+    /// #710: a delete notice's second action, "View Trash". Nil on every other notice.
+    var trashLabel: String?
 }
 
 /// A failed send-intent: the SAME Idempotency-Key rides the user's retry.
@@ -181,10 +183,17 @@ final class ThreadController {
     private func notify(
         _ text: String,
         actionLabel: String? = nil,
+        trashLabel: String? = nil,
         action: (@MainActor () -> Void)? = nil
     ) {
         noticeSeq += 1
-        notice = ThreadNotice(id: noticeSeq, text: text, actionLabel: actionLabel, action: action)
+        notice = ThreadNotice(
+            id: noticeSeq,
+            text: text,
+            actionLabel: actionLabel,
+            action: action,
+            trashLabel: trashLabel
+        )
     }
 
     /// UI-originated notices (copy confirmations, picker rejections) ride the
@@ -1318,7 +1327,8 @@ final class ThreadController {
                 try? await refreshEvents()
                 notify(
                     t(RecordDeletion.messageDeletedKey(message)),
-                    actionLabel: t("thread.undo")
+                    actionLabel: t("thread.undo"),
+                    trashLabel: t("trash.viewTrash")
                 ) { [weak self] in
                     self?.restoreMessage(message.id)
                 }

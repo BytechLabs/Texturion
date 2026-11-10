@@ -240,6 +240,11 @@ private struct ThreadBody: View {
                 controller.restoreConversation()
             }
             .buttonStyle(.bordered)
+            // #710: the Trash is otherwise only under Settings > History on the web.
+            Button(AppStrings.translate(appLocale, "trash.viewTrash")) {
+                openURL(RecordDeletion.trashURL)
+            }
+            .buttonStyle(.bordered)
             Button(
                 AppStrings.translate(appLocale, "thread.backToInbox"),
                 action: onBack
@@ -1740,6 +1745,9 @@ private struct ConversationSheet: View {
                 statusSection
                 actionsCard
                 snoozeCard
+                alertsCard
+                attachmentsCard
+                destructiveCard
                 timelineCard
             }
             .padding(.horizontal, 18)
@@ -1810,6 +1818,9 @@ private struct ConversationSheet: View {
         }
     }
 
+    /// #710: the sheet's cards follow the web menu's order. Everyday actions,
+    /// then deferral (`snoozeCard`), then alerts, then the gallery, with the
+    /// destructive ones last in a card of their own, Delete before Opt out.
     private var actionsCard: some View {
         VStack(spacing: 0) {
             sheetRow(assigneeLabel, icon: "person.badge.plus", action: onAssign)
@@ -1829,12 +1840,6 @@ private struct ConversationSheet: View {
             }
             RowDivider()
             sheetRow(
-                AppStrings.translate(appLocale, "thread.photosAndFiles"),
-                icon: "photo.on.rectangle",
-                action: onOpenGallery
-            )
-            RowDivider()
-            sheetRow(
                 AppStrings.translate(appLocale, "thread.newTask"),
                 icon: "text.badge.plus",
                 action: onNewTask
@@ -1844,7 +1849,69 @@ private struct ConversationSheet: View {
                 AppStrings.translate(appLocale, "thread.refresh"),
                 icon: "arrow.clockwise"
             ) { onRefresh() }
+        }
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// #694: mute and follow are this member's own. Mute opens the durations
+    /// in place rather than a second sheet. #710: Mute reads like Snooze, so
+    /// its row says what it keeps and what it drops.
+    private var alertsCard: some View {
+        VStack(spacing: 0) {
+            if detail.muted == true {
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.unmute"),
+                    icon: "bell"
+                ) {
+                    controller.unmute()
+                    onDismiss()
+                }
+            } else {
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.muteMenu"),
+                    icon: "bell.slash",
+                    supporting: AppStrings.translate(appLocale, "thread.muteHint")
+                ) {
+                    choosingMute.toggle()
+                }
+                if choosingMute {
+                    ForEach(Self.muteChoices) { choice in
+                        sheetRow(
+                            AppStrings.translate(appLocale, choice.key),
+                            icon: "clock"
+                        ) {
+                            controller.mute(choice.id)
+                            onDismiss()
+                        }
+                    }
+                }
+            }
             RowDivider()
+            toggleRow(
+                AppStrings.translate(appLocale, "thread.follow"),
+                icon: "bell.badge",
+                on: detail.followed == true
+            ) {
+                controller.setFollowed(detail.followed != true)
+                onDismiss()
+            }
+        }
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var attachmentsCard: some View {
+        VStack(spacing: 0) {
+            sheetRow(
+                AppStrings.translate(appLocale, "thread.photosAndFiles"),
+                icon: "photo.on.rectangle",
+                action: onOpenGallery
+            )
+        }
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var destructiveCard: some View {
+        VStack(spacing: 0) {
             toggleRow(
                 AppStrings.translate(appLocale, "thread.spam"),
                 icon: "exclamationmark.octagon",
@@ -1873,45 +1940,14 @@ private struct ConversationSheet: View {
                 )
             }
             RowDivider()
-            // #694: mute and follow are this member's own. Mute opens the
-            // durations in place rather than a second sheet.
-            if detail.muted == true {
+            if let onDeleteConversation {
                 sheetRow(
-                    AppStrings.translate(appLocale, "thread.unmute"),
-                    icon: "bell"
-                ) {
-                    controller.unmute()
-                    onDismiss()
-                }
-            } else {
-                sheetRow(
-                    AppStrings.translate(appLocale, "thread.muteMenu"),
-                    icon: "bell.slash"
-                ) {
-                    choosingMute.toggle()
-                }
-                if choosingMute {
-                    ForEach(Self.muteChoices) { choice in
-                        sheetRow(
-                            AppStrings.translate(appLocale, choice.key),
-                            icon: "clock"
-                        ) {
-                            controller.mute(choice.id)
-                            onDismiss()
-                        }
-                    }
-                }
+                    AppStrings.translate(appLocale, "thread.deleteConversation"),
+                    icon: "trash",
+                    action: onDeleteConversation
+                )
+                RowDivider()
             }
-            RowDivider()
-            toggleRow(
-                AppStrings.translate(appLocale, "thread.follow"),
-                icon: "bell.badge",
-                on: detail.followed == true
-            ) {
-                controller.setFollowed(detail.followed != true)
-                onDismiss()
-            }
-            RowDivider()
             if controller.contact?.opted_out == true {
                 // #407: a STOP the customer sent is a CARRIER block, and only
                 // they can lift it. Offering to undo it here promised something
@@ -1935,14 +1971,6 @@ private struct ConversationSheet: View {
                     AppStrings.translate(appLocale, "thread.optOutOfTexts"),
                     icon: "nosign",
                     action: onOptOut
-                )
-            }
-            if let onDeleteConversation {
-                RowDivider()
-                sheetRow(
-                    AppStrings.translate(appLocale, "thread.deleteConversation"),
-                    icon: "trash",
-                    action: onDeleteConversation
                 )
             }
         }
@@ -1985,7 +2013,10 @@ private struct ConversationSheet: View {
                     onDismiss()
                 }
             } else {
-                sheetNote(AppStrings.translate(appLocale, "thread.snoozeUntil"))
+                sheetNote(
+                    AppStrings.translate(appLocale, "thread.snoozeUntil"),
+                    hint: AppStrings.translate(appLocale, "thread.snoozeHint")
+                )
                 ForEach(snoozePresets(locale: appLocale)) { preset in
                     RowDivider()
                     sheetRow(preset.label, trailing: presetClock(preset.at)) {
@@ -2078,14 +2109,23 @@ private struct ConversationSheet: View {
     /// is not ours to take at all. Same metrics as its tappable sibling so the
     /// sheet keeps its rhythm; muted, smaller and wrapping so it never reads as
     /// pressable.
-    private func sheetNote(_ text: String) -> some View {
-        Text(text)
-            .font(.golos(11.5))
-            .foregroundStyle(BrandColor.muted500)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 15)
-            .padding(.vertical, 13)
+    ///
+    /// #710: `hint` is a second, quieter line saying what the section does.
+    private func sheetNote(_ text: String, hint: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(text)
+                .font(.golos(11.5))
+                .foregroundStyle(BrandColor.muted500)
+            if let hint {
+                Text(hint)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted500)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 15)
+        .padding(.vertical, 13)
     }
 
     /// #465: these rows were text-only, so assign, pin and spam all read as one
@@ -2096,6 +2136,7 @@ private struct ConversationSheet: View {
         _ label: String,
         icon: String? = nil,
         trailing: String? = nil,
+        supporting: String? = nil,
         action: @escaping @MainActor () -> Void
     ) -> some View {
         Button(action: action) {
@@ -2106,10 +2147,17 @@ private struct ConversationSheet: View {
                         .foregroundStyle(BrandColor.muted500)
                         .frame(width: 20, alignment: .leading)
                 }
-                Text(label)
-                    .font(.golos(13.5, weight: .medium))
-                    .foregroundStyle(BrandColor.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.golos(13.5, weight: .medium))
+                        .foregroundStyle(BrandColor.ink)
+                    if let supporting {
+                        Text(supporting)
+                            .font(.golos(11))
+                            .foregroundStyle(BrandColor.muted500)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 if let trailing {
                     Text(trailing)
                         .font(.golos(11.5))
@@ -2387,6 +2435,7 @@ private struct PinnedBanner: View {
 private struct ToastView: View {
     let notice: ThreadNotice
     let onDismiss: @MainActor () -> Void
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         HStack(spacing: 12) {
@@ -2397,6 +2446,15 @@ private struct ToastView: View {
             if let label = notice.actionLabel {
                 Button(label) {
                     notice.action?()
+                    onDismiss()
+                }
+                .font(.golos(12.5, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
+            }
+            // #710: a delete notice also leads to the Trash.
+            if let trashLabel = notice.trashLabel {
+                Button(trashLabel) {
+                    openURL(RecordDeletion.trashURL)
                     onDismiss()
                 }
                 .font(.golos(12.5, weight: .semibold))

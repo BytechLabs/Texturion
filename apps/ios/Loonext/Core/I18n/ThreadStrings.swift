@@ -163,6 +163,7 @@ enum ThreadStrings {
             "thread.numberUnblocked": "Number unblocked",
             "thread.blockedBadge": "Blocked",
             "thread.muteMenu": "Mute notifications",
+            "thread.muteHint": "Keeps it in your inbox, without alerts",
             "thread.mute1h": "For 1 hour",
             "thread.mute8h": "For 8 hours",
             "thread.mute1w": "For 1 week",
@@ -206,6 +207,7 @@ enum ThreadStrings {
                 "Brings this conversation back to your inbox now",
             "thread.cancelReminder": "Cancel the reminder",
             "thread.snoozeUntil": "Snooze until",
+            "thread.snoozeHint": "Hides it from your inbox until then",
             "thread.remindMeToChase": "Remind me to chase",
             "thread.pickADate": "Pick a date…",
             "thread.remindMe": "Remind me",
@@ -447,6 +449,7 @@ enum ThreadStrings {
             //    the catch-up and the wrap-up ─────────────────────────────
             "thread.copied": "Copied.",
             "thread.undo": "Undo",
+            "trash.viewTrash": "View Trash",
             // #691 — deleting records. Everything here goes to the Trash and
             // can be restored, so the toast carries an Undo; the confirmations
             // are for the two cases a toast is not enough.
@@ -889,6 +892,7 @@ enum ThreadStrings {
             "thread.numberUnblocked": "Numéro débloqué",
             "thread.blockedBadge": "Bloqué",
             "thread.muteMenu": "Mettre les notifications en sourdine",
+            "thread.muteHint": "Le garde dans votre boîte, sans alertes",
             "thread.mute1h": "Pendant 1 heure",
             "thread.mute8h": "Pendant 8 heures",
             "thread.mute1w": "Pendant 1 semaine",
@@ -932,6 +936,7 @@ enum ThreadStrings {
                 "Ramène cette conversation dans votre boîte de réception maintenant",
             "thread.cancelReminder": "Annuler le rappel",
             "thread.snoozeUntil": "Reporter jusqu'à",
+            "thread.snoozeHint": "Le retire de votre boîte jusque-là",
             "thread.remindMeToChase": "Me rappeler de relancer",
             "thread.pickADate": "Choisir une date…",
             "thread.remindMe": "Me rappeler",
@@ -1183,6 +1188,7 @@ enum ThreadStrings {
             //    the catch-up and the wrap-up ─────────────────────────────
             "thread.copied": "Copié.",
             "thread.undo": "Annuler",
+            "trash.viewTrash": "Voir la corbeille",
             // #691 — la suppression. Tout passe par la corbeille et se
             // restaure, d'où l'Annuler dans le message; les confirmations
             // couvrent les deux cas où ce n'est pas assez.

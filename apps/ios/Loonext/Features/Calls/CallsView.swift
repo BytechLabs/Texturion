@@ -68,6 +68,7 @@ struct CallsView: View {
     @State private var noticeDismissTask: Task<Void, Never>?
 
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.openURL) private var openURL
 
     private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
@@ -353,7 +354,11 @@ struct CallsView: View {
                 }
                 refreshKey += 1
                 let key = kind == .voicemail ? "thread.voicemailDeleted" : "thread.callDeleted"
-                showNotice(t(key), actionLabel: t("thread.undo")) {
+                showNotice(
+                    t(key),
+                    actionLabel: t("thread.undo"),
+                    trashLabel: t("trash.viewTrash")
+                ) {
                     restoreRecord(call, kind: kind)
                 }
             } catch {
@@ -382,6 +387,7 @@ struct CallsView: View {
     private func showNotice(
         _ text: String,
         actionLabel: String? = nil,
+        trashLabel: String? = nil,
         action: (@MainActor () -> Void)? = nil
     ) {
         noticeSeq += 1
@@ -389,7 +395,8 @@ struct CallsView: View {
             id: noticeSeq,
             text: text,
             actionLabel: actionLabel,
-            action: action
+            action: action,
+            trashLabel: trashLabel
         )
         noticeDismissTask?.cancel()
         let shownSeq = noticeSeq
@@ -411,6 +418,15 @@ struct CallsView: View {
                 if let label = shown.actionLabel {
                     Button(label) {
                         shown.action?()
+                        notice = nil
+                    }
+                    .font(.golos(12.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                }
+                // #710: a delete notice also leads to the Trash.
+                if let trashLabel = shown.trashLabel {
+                    Button(trashLabel) {
+                        openURL(RecordDeletion.trashURL)
                         notice = nil
                     }
                     .font(.golos(12.5, weight: .semibold))
