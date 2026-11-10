@@ -58,7 +58,7 @@ import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 
 /** Everything the team screen shows, loaded together. */
 private data class TeamData(
@@ -69,11 +69,8 @@ private data class TeamData(
     val ownership: Ownership,
 )
 
-private val EXPIRY_FORMAT = DateTimeFormatter.ofPattern("MMM d, yyyy")
-
 private fun expiryDate(iso: String): String =
-    runCatching { Instant.parse(iso) }.getOrNull()
-        ?.atZone(ZoneId.systemDefault())?.format(EXPIRY_FORMAT) ?: iso
+    TimestampFormat.label(iso, TimestampFormat.Style.LONG).ifEmpty { iso }
 
 private fun isExpired(invite: Invite, now: Instant = Instant.now()): Boolean =
     runCatching { Instant.parse(invite.expires_at) }.getOrNull()?.isBefore(now) != false

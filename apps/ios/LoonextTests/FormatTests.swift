@@ -20,12 +20,13 @@ final class FormatTests: XCTestCase {
         let now = try date("2026-07-15T12:00:00Z")
         XCTAssertEqual(relativeTime("2026-07-15T11:59:40Z", now: now, calendar: utc), "now")
         XCTAssertEqual(relativeTime("2026-07-15T11:55:00Z", now: now, calendar: utc), "5m")
-        XCTAssertEqual(relativeTime("2026-07-15T09:00:00Z", now: now, calendar: utc), "3h")
-        XCTAssertEqual(relativeTime("2026-07-13T12:00:00Z", now: now, calendar: utc), "2d")
+        XCTAssertEqual(relativeTime("2026-07-15T09:00:00Z", now: now, calendar: utc), "9:00 AM")
+        XCTAssertEqual(relativeTime("2026-07-14T12:00:00Z", now: now, calendar: utc), "Yesterday")
+        XCTAssertEqual(relativeTime("2026-07-13T12:00:00Z", now: now, calendar: utc), "Mon")
         // Same year past a week → month-day.
         XCTAssertEqual(relativeTime("2026-06-25T12:00:00Z", now: now, calendar: utc), "Jun 25")
         // Older year carries the year.
-        XCTAssertEqual(relativeTime("2025-07-08T12:00:00Z", now: now, calendar: utc), "Jul 8 2025")
+        XCTAssertEqual(relativeTime("2025-07-08T12:00:00Z", now: now, calendar: utc), "Jul 8, 2025")
     }
 
     func testRelativeTimeAcceptsWireTimestampShapes() throws {
@@ -108,10 +109,11 @@ final class FormatTests: XCTestCase {
 
     func testFormatDue() throws {
         let now = try date("2026-07-15T12:00:00Z")
-        XCTAssertEqual(formatDue("2026-07-15T20:00:00Z", now: now, calendar: utc), "Today")
+        XCTAssertEqual(formatDue("2026-07-15T20:00:00Z", now: now, calendar: utc), "8:00 PM")
         XCTAssertEqual(formatDue("2026-07-16T01:00:00Z", now: now, calendar: utc), "Tomorrow")
-        XCTAssertEqual(formatDue("2026-07-20T12:00:00Z", now: now, calendar: utc), "Jul 20")
-        XCTAssertEqual(formatDue("2027-01-05T12:00:00Z", now: now, calendar: utc), "Jan 5 2027")
+        XCTAssertEqual(formatDue("2026-07-20T12:00:00Z", now: now, calendar: utc), "Mon")
+        XCTAssertEqual(formatDue("2026-07-30T12:00:00Z", now: now, calendar: utc), "Jul 30")
+        XCTAssertEqual(formatDue("2027-01-05T12:00:00Z", now: now, calendar: utc), "Jan 5, 2027")
         XCTAssertEqual(formatDue(nil, now: now, calendar: utc), "")
         XCTAssertEqual(formatDue("garbage", now: now, calendar: utc), "")
     }

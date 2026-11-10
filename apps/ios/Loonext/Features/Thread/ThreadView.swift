@@ -2114,7 +2114,7 @@ private struct ConversationSheet: View {
     }
 
     private func presetClock(_ date: Date) -> String {
-        date.formatted(date: .omitted, time: .shortened)
+        TimestampFormat.clock(date)
     }
 
     private var timelineCard: some View {

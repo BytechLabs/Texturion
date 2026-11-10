@@ -5,6 +5,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 import kotlinx.serialization.Serializable
 
 /**
@@ -167,13 +168,14 @@ internal fun timelineTitle(
 internal fun timelineDetail(
     entry: TimelineEntry,
     locale: String? = null,
+    now: Instant = Instant.now(),
 ): String = when (entry.kind) {
     "task" -> when {
         entry.done == true -> AppStrings.translate(locale, "contactsTasks.timelineDone")
         entry.due_at != null -> AppStrings.translate(
             locale,
             "contactsTasks.timelineDue",
-            mapOf("date" to dueLabel(entry.due_at)),
+            mapOf("date" to dueLabel(entry.due_at, now)),
         )
         else -> AppStrings.translate(locale, "contactsTasks.timelineOpen")
     }
@@ -203,7 +205,5 @@ private fun talkTime(seconds: Int): String {
     return if (minutes > 0) "${minutes}m ${rest}s" else "${rest}s"
 }
 
-private val DUE_LABEL: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM")
-
-private fun dueLabel(iso: String, zone: ZoneId = ZoneId.systemDefault()): String =
-    DUE_LABEL.format(Instant.parse(iso).atZone(zone).toLocalDate())
+private fun dueLabel(iso: String, now: Instant): String =
+    TimestampFormat.label(iso, now = now)

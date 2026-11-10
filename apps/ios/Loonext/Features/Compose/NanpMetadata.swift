@@ -191,11 +191,7 @@ extension Nanp {
         guard let zoneId = metadata(for: e164)?.timezone,
               let zone = TimeZone(identifier: zoneId)
         else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = zone
-        formatter.dateFormat = "h:mm a"
-        return formatter.string(from: date)
+        return TimestampFormat.clock(date, timeZone: zone)
     }
 
     /// The conservative quiet window, mirroring `QUIET_HOURS_START`/`_END` in

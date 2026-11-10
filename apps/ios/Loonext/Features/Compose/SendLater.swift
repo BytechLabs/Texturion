@@ -252,19 +252,12 @@ struct SendLaterPicker: View {
 
 /// "8:00 AM" in a given zone, in the device's locale.
 func clockOf(_ at: Date, in zone: TimeZone) -> String {
-    let formatter = DateFormatter()
-    formatter.timeZone = zone
-    formatter.timeStyle = .short
-    formatter.dateStyle = .none
-    return formatter.string(from: at)
+    TimestampFormat.clock(at, timeZone: zone)
 }
 
-/// "Tue, 8:00 AM" — enough to recognise what you picked, and no more.
-func sendAtLabel(_ at: Date, in zone: TimeZone) -> String {
-    let formatter = DateFormatter()
-    formatter.timeZone = zone
-    formatter.setLocalizedDateFormatFromTemplate("EEE j:mm")
-    return formatter.string(from: at)
+/// "Tue 8:00 AM" — enough to recognise what you picked, and no more.
+func sendAtLabel(_ at: Date, in zone: TimeZone, now: Date = Date()) -> String {
+    TimestampFormat.label(at, style: .long, now: now, timeZone: zone)
 }
 
 /// The destination's zone, falling back to this device's when unresolved.

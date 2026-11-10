@@ -273,11 +273,7 @@ private struct IdentityRows: View {
 
 private func localTimeString(zoneId: String, at date: Date) -> String? {
     guard let zone = TimeZone(identifier: zoneId) else { return nil }
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.timeZone = zone
-    formatter.dateFormat = "h:mm a"
-    return formatter.string(from: date)
+    return TimestampFormat.clock(date, timeZone: zone)
 }
 
 private struct TimezoneCard: View {

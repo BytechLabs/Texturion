@@ -39,7 +39,7 @@ import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 import java.time.format.FormatStyle
 
 /**
@@ -215,9 +215,7 @@ fun SnoozeSection(
 
 /** The wall-clock time a rung lands on, in the device's locale. */
 private fun clockOf(atMillis: Long, zone: ZoneId): String =
-    Instant.ofEpochMilli(atMillis)
-        .atZone(zone)
-        .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+    TimestampFormat.clock(Instant.ofEpochMilli(atMillis), zone)
 
 /** A section heading inside the sheet — says something, does nothing. */
 @Composable

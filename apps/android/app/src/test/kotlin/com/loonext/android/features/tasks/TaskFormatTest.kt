@@ -123,18 +123,19 @@ class TaskFormatTest {
     // ---- formatDue ---------------------------------------------------------
 
     @Test
-    fun `due labels humanize as Today, Tomorrow, month-day, and year-qualified`() {
-        assertEquals("Today", formatDue("2026-07-15T18:00:00-04:00", clock))
+    fun `due labels follow the shared timestamp rule`() {
+        assertEquals("6:00 PM", formatDue("2026-07-15T18:00:00-04:00", clock))
         assertEquals("Tomorrow", formatDue("2026-07-16T09:00:00-04:00", clock))
-        assertEquals("Jul 20", formatDue("2026-07-20T09:00:00-04:00", clock))
-        assertEquals("Jan 5 2027", formatDue("2027-01-05T09:00:00-05:00", clock))
+        assertEquals("Mon", formatDue("2026-07-20T09:00:00-04:00", clock))
+        assertEquals("Jul 30", formatDue("2026-07-30T09:00:00-04:00", clock))
+        assertEquals("Jan 5, 2027", formatDue("2027-01-05T09:00:00-05:00", clock))
         assertEquals("", formatDue(null, clock))
         assertEquals("", formatDue("garbage", clock))
     }
 
     @Test
     fun `due day is judged in the viewer's zone, not UTC`() {
-        // 03:00Z on Jul 16 is still 23:00 on Jul 15 in Toronto — Today.
-        assertEquals("Today", formatDue("2026-07-16T03:00:00Z", clock))
+        // 03:00Z on Jul 16 is still 23:00 on Jul 15 in Toronto: today, so its clock time.
+        assertEquals("11:00 PM", formatDue("2026-07-16T03:00:00Z", clock))
     }
 }

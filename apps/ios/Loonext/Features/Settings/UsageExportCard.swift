@@ -593,6 +593,7 @@ private struct UsageExportRow: View {
                     .foregroundStyle(BrandColor.ink)
                 Spacer(minLength: 8)
                 Text(relativeTime(export.completed_at ?? export.requested_at))
+                    .exactTime(export.completed_at ?? export.requested_at)
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
             }

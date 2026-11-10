@@ -133,7 +133,8 @@ class SendLaterTest {
         // this send must see the customer's 8, because that is the time the
         // sender chose — the whole point of storing the zone on the row.
         val at = Instant.parse("2026-01-15T16:00:00Z")
-        assertEquals("Thu, 8:00 AM", sendAtLabel(at, vancouver))
-        assertEquals("Thu, 11:00 AM", sendAtLabel(at, toronto))
+        val now = Instant.parse("2026-01-13T16:00:00Z")
+        assertEquals("Thu 8:00 AM", sendAtLabel(at, vancouver, now))
+        assertEquals("Thu 11:00 AM", sendAtLabel(at, toronto, now))
     }
 }

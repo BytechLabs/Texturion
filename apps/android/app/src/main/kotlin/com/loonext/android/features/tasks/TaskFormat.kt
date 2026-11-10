@@ -11,6 +11,7 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 
 /**
  * Pure task display/encoding helpers — the Kotlin siblings of the web's
@@ -47,8 +48,8 @@ fun isOverdue(task: Task, clock: Clock = Clock.systemDefaultZone()): Boolean {
 }
 
 /**
- * A short human due label for a chip/cell: "Today", "Tomorrow", "Jul 8",
- * "Jul 8 2027". Null/unparseable due → "" (the caller renders nothing).
+ * A short human due label for a chip/cell, from the shared timestamp rule:
+ * "3:00 PM" today, "Tomorrow", "Sat", "Jul 8", "Jul 8, 2027". Null/unparseable due → "" (the caller renders nothing).
  */
 fun formatDue(
     dueAt: String?,
@@ -58,15 +59,7 @@ fun formatDue(
     // know the reader's language can pass it.
     locale: String? = null,
 ): String {
-    val instant = parseInstant(dueAt) ?: return ""
-    val date = instant.atZone(clock.zone).toLocalDate()
-    val today = LocalDate.now(clock)
-    return when {
-        date == today -> AppStrings.translate(locale, "contactsTasks.today")
-        date == today.plusDays(1) -> AppStrings.translate(locale, "contactsTasks.tomorrow")
-        date.year == today.year -> date.format(DateTimeFormatter.ofPattern("MMM d"))
-        else -> date.format(DateTimeFormatter.ofPattern("MMM d yyyy"))
-    }
+    return TimestampFormat.label(dueAt, TimestampFormat.Style.SHORT, locale, clock.instant(), clock.zone)
 }
 
 /** "today 3:00 PM" / "Jul 8 9:00 AM" for a due-set activity line. */
@@ -75,14 +68,7 @@ fun dueSentenceTime(
     clock: Clock = Clock.systemDefaultZone(),
     locale: String? = null,
 ): String {
-    val instant = parseInstant(iso) ?: return ""
-    val zoned = instant.atZone(clock.zone)
-    val time = zoned.format(DateTimeFormatter.ofPattern("h:mm a"))
-    return if (zoned.toLocalDate() == LocalDate.now(clock)) {
-        AppStrings.translate(locale, "contactsTasks.todayAtTime", mapOf("time" to time))
-    } else {
-        "${zoned.format(DateTimeFormatter.ofPattern("MMM d"))} $time"
-    }
+    return TimestampFormat.label(iso, TimestampFormat.Style.LONG, locale, clock.instant(), clock.zone)
 }
 
 /**
@@ -174,10 +160,13 @@ fun taskHistorySentence(
 
         "due" -> text(item.to)
             ?.let { due ->
-                val zoned = parseInstant(due)?.atZone(clock.zone)
-                val label = zoned?.format(
-                    DateTimeFormatter.ofPattern("EEE h:mm a", java.util.Locale.ENGLISH),
-                ).orEmpty()
+                val label = TimestampFormat.label(
+                    due,
+                    TimestampFormat.Style.LONG,
+                    locale,
+                    clock.instant(),
+                    clock.zone,
+                )
                 say("contactsTasks.histDue", "due" to label)
             }
             ?: say("contactsTasks.histDueCleared")

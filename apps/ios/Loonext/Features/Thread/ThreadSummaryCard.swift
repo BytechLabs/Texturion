@@ -309,6 +309,7 @@ struct ThreadSummaryCard: View {
                 // by this so the later word reads last; printing it is what lets
                 // a reader see that for themselves.
                 Text(relativeTime(line.at))
+                    .exactTime(line.at)
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted400)
             }

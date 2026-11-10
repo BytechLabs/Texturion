@@ -79,14 +79,14 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
-import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 import java.util.UUID
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
-private val localTimeFormat = DateTimeFormatter.ofPattern("h:mm a")
+private fun java.time.LocalTime.clockLabel(): String = TimestampFormat.clock(this)
 
 private data class ComposeIntentKey(
     val recipient: String,
@@ -635,14 +635,14 @@ private fun NewConversationLoaded(
                         QuietHoursNotice(
                             text = t(
                                 "thread.theirTimeAskFirst",
-                                "time" to localTime.format(localTimeFormat),
+                                "time" to localTime.clockLabel(),
                             ),
                         )
                     } else {
                         Text(
                             t(
                                 "thread.theirTime",
-                                "time" to localTime.format(localTimeFormat),
+                                "time" to localTime.clockLabel(),
                             ),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 10.5.sp,
@@ -701,7 +701,7 @@ private fun NewConversationLoaded(
                     t(
                         "thread.lateThereBody",
                         "time" to (
-                            localTime?.format(localTimeFormat)
+                            localTime?.clockLabel()
                                 ?: t("thread.lateThereUnknown")
                             ),
                     ),

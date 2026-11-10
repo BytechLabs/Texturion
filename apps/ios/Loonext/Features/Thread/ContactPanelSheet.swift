@@ -513,6 +513,7 @@ private struct OtherConversationsSection: View {
                             }
                             Spacer()
                             Text(relativeTime(row.last_message_at))
+                                .exactTime(row.last_message_at)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

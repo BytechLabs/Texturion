@@ -244,12 +244,7 @@ func dayLabel(
 /// "3:04 PM" for the quiet line under a bubble.
 func bubbleTime(_ iso: String, calendar: Calendar = .current) -> String {
     guard let date = parseWireTimestamp(iso) else { return "" }
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.dateFormat = "h:mm a"
-    return formatter.string(from: date)
+    return TimestampFormat.clock(date, timeZone: calendar.timeZone)
 }
 
 /// Human delivery-state line for an outbound bubble.

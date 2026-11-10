@@ -10,11 +10,8 @@ private struct TeamData {
 }
 
 private func expiryDate(_ iso: String) -> String {
-    guard let date = parseWireTimestamp(iso) else { return iso }
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "MMM d, yyyy"
-    return formatter.string(from: date)
+    let label = TimestampFormat.label(iso, style: .long)
+    return label.isEmpty ? iso : label
 }
 
 private func isExpired(_ invite: Invite, now: Date = Date()) -> Bool {

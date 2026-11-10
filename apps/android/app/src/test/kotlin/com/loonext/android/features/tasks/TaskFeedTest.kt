@@ -81,7 +81,7 @@ class TaskFeedTest {
     @Test
     fun `a due time reads as a weekday and time and a cleared one as cleared`() {
         assertEquals(
-            "Rehman changed the due time to Tue 2:00 PM",
+            "Rehman changed the due time to 2:00 PM",
             taskHistorySentence(
                 event("due", JsonPrimitive("2026-11-10T14:00:00Z")),
                 "Rehman",

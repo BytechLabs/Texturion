@@ -1087,6 +1087,7 @@ private struct OutstandingQuoteRow: View {
             Spacer(minLength: 4)
             if let sent = quote.sent_at {
                 Text(relativeTime(sent))
+                    .exactTime(sent)
                     .font(.golos(11))
                     .monospacedDigit()
                     .foregroundStyle(BrandColor.muted300)
@@ -1157,6 +1158,7 @@ private struct RecentCallRow: View {
             }
             Spacer(minLength: 8)
             Text(relativeTime(call.started_at))
+                .exactTime(call.started_at)
                 .font(.golos(11))
                 .monospacedDigit()
                 .foregroundStyle(BrandColor.muted300)

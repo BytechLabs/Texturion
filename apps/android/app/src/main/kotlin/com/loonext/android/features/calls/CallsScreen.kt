@@ -119,7 +119,7 @@ import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.SwipeAction
 import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.pressScale
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -1163,8 +1163,8 @@ private fun CallRow(
                         )
                     }
                 }
-                Text(
-                    relativeTime(call.started_at),
+                Timestamp(
+                    call.started_at,
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     // #566: a non-weighted sibling is measured BEFORE the

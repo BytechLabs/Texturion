@@ -831,10 +831,7 @@ struct ContactDetailView: View {
     }
 
     private func localReading(_ zone: String) -> String {
-        let formatter = DateFormatter()
-        formatter.timeZone = TimeZone(identifier: zone)
-        formatter.dateFormat = "h:mm a"
-        return formatter.string(from: Date())
+        TimestampFormat.clock(Date(), timeZone: TimeZone(identifier: zone) ?? .current)
     }
 
     private func zoneLabel(_ zone: String) -> String {
@@ -1692,6 +1689,7 @@ private struct ContactCallRow: View {
                     .lineLimit(1)
                 Spacer(minLength: 8)
                 Text(relativeTime(call.started_at))
+                    .exactTime(call.started_at)
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted300)
                     .monospacedDigit()

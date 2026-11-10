@@ -120,8 +120,11 @@ class ContactTimelineLogicTest {
     @Test
     fun `a due date in the offset shape renders rather than throwing`() {
         assertEquals(
-            "Due 25 Jul",
-            timelineDetail(entry(kind = "task", due = "2026-07-25T12:00:00+00:00", done = false)),
+            "Due Jul 25",
+            timelineDetail(
+                entry(kind = "task", due = "2026-07-25T12:00:00+00:00", done = false),
+                now = java.time.Instant.parse("2026-07-01T12:00:00Z"),
+            ),
         )
     }
 

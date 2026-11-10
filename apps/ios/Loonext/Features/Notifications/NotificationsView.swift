@@ -221,6 +221,7 @@ private struct NotificationRow: View {
                     .padding(.top, 3)
                 Spacer(minLength: 8)
                 Text(relativeTime(row.created_at))
+                    .exactTime(row.created_at)
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted300)
                     .padding(.top, 5)

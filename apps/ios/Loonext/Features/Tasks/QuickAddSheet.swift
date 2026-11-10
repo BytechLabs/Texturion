@@ -177,12 +177,8 @@ struct QuickAddSheet: View {
 
     private func dueText(_ result: QuickAddResult) -> String? {
         guard let date = parseWireTimestamp(result.dueAt) else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: appLocale)
-        formatter.timeZone = TimeZone.current
-        formatter.dateStyle = .medium
-        formatter.timeStyle = result.dueHasTime ? .short : .none
-        return formatter.string(from: date)
+        return TimestampFormat.label(
+            date, style: result.dueHasTime ? .long : .short, locale: appLocale)
     }
 
     // MARK: Add

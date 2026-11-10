@@ -211,6 +211,8 @@ struct MessageBubble: View {
 
     @ViewBuilder
     private var menuItems: some View {
+        // #720: the exact time with its zone; the quiet line under a bubble shows only the clock.
+        Label(TimestampFormat.exact(message.created_at, locale: appLocale), systemImage: "clock")
         if !message.body.isBlank {
             Button {
                 Haptics.tap()

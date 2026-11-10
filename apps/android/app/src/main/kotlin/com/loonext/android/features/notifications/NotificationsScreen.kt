@@ -72,6 +72,7 @@ import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
@@ -570,9 +571,9 @@ private fun NotificationRow(row: NotificationItem, onTap: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(8.dp))
-        Text(
-            relativeTime(row.created_at),
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+        Timestamp(
+            row.created_at,
+            textStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

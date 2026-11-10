@@ -89,7 +89,7 @@ import com.loonext.android.ui.common.VoicemailTranscript
 import com.loonext.android.ui.theme.BrandColor
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 
 // Paper & Olive bubble grammar (spec 21/30): radius 20 with a 6dp tail-side
 // corner — inbound tails bottom-start, outbound bottom-end.
@@ -97,12 +97,8 @@ private val INBOUND_SHAPE = RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp)
 private val OUTBOUND_SHAPE = RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
 private val NOTE_SHAPE = RoundedCornerShape(18.dp)
 
-private val bubbleTimeFormat = DateTimeFormatter.ofPattern("h:mm a")
-
 fun bubbleTime(iso: String): String =
-    runCatching {
-        Instant.parse(iso).atZone(ZoneId.systemDefault()).format(bubbleTimeFormat)
-    }.getOrDefault("")
+    runCatching { TimestampFormat.clock(Instant.parse(iso), ZoneId.systemDefault()) }.getOrDefault("")
 
 /**
  * Human delivery-state line for an outbound bubble.

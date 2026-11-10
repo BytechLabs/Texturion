@@ -101,6 +101,7 @@ import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
+import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -1069,9 +1070,9 @@ private fun OutstandingQuoteRow(
             modifier = Modifier.weight(1f),
         )
         quote.sent_at?.let { sent ->
-            Text(
-                relativeTime(sent),
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+            Timestamp(
+                sent,
+                textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -1311,9 +1312,9 @@ private fun RecentCallRow(call: Call, onClick: (() -> Unit)?) {
                 modifier = Modifier.padding(top = 1.dp),
             )
         }
-        Text(
-            relativeTime(call.started_at),
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+        Timestamp(
+            call.started_at,
+            textStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
         )
     }

@@ -40,6 +40,7 @@ import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -68,6 +69,7 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.MessageLocale
+import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.core.model.canDeleteRecords
 import com.loonext.android.core.update.UpdatePrompt
 import com.loonext.android.core.update.UpdateState
@@ -329,6 +331,8 @@ class MainActivity : FragmentActivity() {
             val workspaceLocale by graph.prefs.workspaceLocale
                 .collectAsStateWithLifecycle(initialValue = null)
             val appLocale = UiLocale.resolve(userLocale, deviceTag, workspaceLocale)
+            // #720: dates drawn outside a composition read the same language.
+            SideEffect { TimestampFormat.readerLocale = appLocale }
             /*
              * #228 — the notification channels, in the language actually chosen.
              *

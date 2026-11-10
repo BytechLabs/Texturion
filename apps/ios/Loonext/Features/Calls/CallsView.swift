@@ -827,6 +827,7 @@ private struct CallRow: View {
                 }
                 Spacer(minLength: 8)
                 Text(relativeTime(call.started_at))
+                    .exactTime(call.started_at)
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted300)
                     .monospacedDigit()

@@ -44,7 +44,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 import java.time.format.FormatStyle
 import kotlin.math.abs
 
@@ -326,13 +326,11 @@ fun QuietHoursScheduleDialog(
 
 /** "8:00 AM" in a given zone, in the device's locale. */
 internal fun clockOf(at: Instant, zone: ZoneId): String =
-    at.atZone(zone).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+    TimestampFormat.clock(at, zone)
 
-/** "Tue, 8:00 AM" — enough to recognise what you picked, and no more. */
-internal fun sendAtLabel(at: Instant, zone: ZoneId): String =
-    at.atZone(zone).format(
-        DateTimeFormatter.ofPattern("EEE, h:mm a"),
-    )
+/** "Tue 8:00 AM" — enough to recognise what you picked, and no more. */
+internal fun sendAtLabel(at: Instant, zone: ZoneId, now: Instant = Instant.now()): String =
+    TimestampFormat.label(at.toString(), TimestampFormat.Style.LONG, now = now, zone = zone)
 
 private fun formatHour(hour: Int): String {
     val suffix = if (hour < 12) "am" else "pm"

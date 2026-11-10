@@ -225,7 +225,5 @@ private func parseIso(_ value: String) -> TimeInterval {
 
 /// "Sat 8:00 AM" — the crew's own clock, because that is when they wake up.
 private func until(_ iso: String) -> String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "EEE h:mm a"
-    return formatter.string(from: Date(timeIntervalSince1970: parseIso(iso)))
+    TimestampFormat.label(iso, style: .long)
 }

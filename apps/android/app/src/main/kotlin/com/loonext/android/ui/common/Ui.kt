@@ -29,12 +29,8 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.net.ApiDecodeException
 import com.loonext.android.core.net.ApiException
-import java.time.Duration
+import com.loonext.android.core.time.TimestampFormat
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
 import androidx.compose.ui.semantics.contentDescription
 import com.loonext.android.core.i18n.LocalAppLocale
 
@@ -327,53 +323,27 @@ fun formatPhone(e164: String?): String {
     return "($npa) $nxx-$line"
 }
 
-private val absoluteFormat = DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")
+/** The short label for a moment ("now", "12m", "3:42 PM", "Sat", "Sep 9", "Sep 9, 2025"). #720. */
+fun relativeTime(
+    iso: String,
+    now: Instant = Instant.now(),
+    style: TimestampFormat.Style = TimestampFormat.Style.SHORT,
+): String = TimestampFormat.label(iso, style, now = now)
 
-/** Relative timestamp mirroring the web ('now', '5m', '3h', 'Jul 8', 'Jul 8 2025'). */
-fun relativeTime(iso: String, now: Instant = Instant.now()): String {
-    val instant = runCatching { Instant.parse(iso) }.getOrNull() ?: return ""
-    val duration = Duration.between(instant, now)
-    val zoned = instant.atZone(ZoneId.systemDefault())
-    return when {
-        duration.toMinutes() < 1 -> "now"
-        duration.toMinutes() < 60 -> "${duration.toMinutes()}m"
-        duration.toHours() < 24 -> "${duration.toHours()}h"
-        duration.toDays() < 7 -> "${duration.toDays()}d"
-        zoned.year == now.atZone(ZoneId.systemDefault()).year ->
-            zoned.format(DateTimeFormatter.ofPattern("MMM d"))
+/** What a screen reader says: the visible label, then the exact time with its zone. */
+fun spokenTime(iso: String, locale: String, now: Instant = Instant.now()): String =
+    TimestampFormat.spoken(iso, locale, now)
 
-        else -> zoned.format(DateTimeFormatter.ofPattern("MMM d yyyy"))
-    }
-}
-
-/**
- * What a screen reader says for a time the screen draws as "22h": the time itself, in the
- * reader's locale and clock ("10:42 PM", or "22 h 42" in fr-CA), with the date when it
- * is not today.
- */
-fun spokenTime(iso: String, locale: String, now: Instant = Instant.now()): String {
-    val instant = runCatching { Instant.parse(iso) }.getOrNull() ?: return ""
-    val zone = ZoneId.systemDefault()
-    val tag = Locale.forLanguageTag(locale)
-    val zoned = instant.atZone(zone)
-    return if (zoned.toLocalDate() == now.atZone(zone).toLocalDate()) {
-        zoned.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(tag))
-    } else {
-        zoned.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).withLocale(tag))
-    }
-}
-
-/** Draws a compact time but speaks [spokenTime]. */
+/** Speaks [spokenTime] for a time drawn as a compact label. */
 @Composable
 fun Modifier.spokenTimeOf(iso: String): Modifier {
     val spoken = spokenTime(iso, LocalAppLocale.current)
     return clearAndSetSemantics { contentDescription = spoken }
 }
 
-fun absoluteTime(iso: String): String {
-    val instant = runCatching { Instant.parse(iso) }.getOrNull() ?: return iso
-    return instant.atZone(ZoneId.systemDefault()).format(absoluteFormat)
-}
+/** The exact moment with its zone, or the raw text when it is not a timestamp. */
+fun absoluteTime(iso: String): String =
+    TimestampFormat.exact(iso).ifEmpty { iso }
 
 /**
  * A CSV export as the bytes to write to a file. #587.

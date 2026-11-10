@@ -1186,7 +1186,8 @@ private fun DestinationClockRow(
     val reading = remember(zone, contact.updated_at) {
         runCatching {
             java.time.ZonedDateTime.now(java.time.ZoneId.of(zone))
-                .format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
+                
+                .let { com.loonext.android.core.time.TimestampFormat.clock(it) }
         }.getOrDefault("")
     }
 

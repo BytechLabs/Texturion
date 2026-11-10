@@ -49,7 +49,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 
 /**
  * Workspace: company name (O/A, 1-200, dirty save), the business
@@ -285,8 +285,6 @@ private fun IdentityRows(brand: RegistrationDetail, country: String) {
     }
 }
 
-private val TIME_FORMAT = DateTimeFormatter.ofPattern("h:mm a")
-
 @Composable
 private fun TimezoneCard(
     scope: SettingsScope,
@@ -309,7 +307,7 @@ private fun TimezoneCard(
         }
     }
     val zone = runCatching { ZoneId.of(company.timezone) }.getOrNull()
-    val localTime = zone?.let { now.withZoneSameInstant(it).format(TIME_FORMAT) }
+    val localTime = zone?.let { TimestampFormat.clock(now.withZoneSameInstant(it), locale) }
 
     SettingsCard(
         title = t("settingsMore.timezone"),
@@ -421,7 +419,7 @@ internal fun TimezonePickerDialog(
                     LazyColumn(Modifier.heightIn(max = 340.dp)) {
                         items(filtered, key = { it }) { zoneId ->
                             val zoneTime = runCatching {
-                                now.withZoneSameInstant(ZoneId.of(zoneId)).format(TIME_FORMAT)
+                                TimestampFormat.clock(now.withZoneSameInstant(ZoneId.of(zoneId)))
                             }.getOrNull()
                             Column(Modifier.animateItem()) {
                                 Row(

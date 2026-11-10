@@ -32,6 +32,7 @@ import com.loonext.android.core.model.OnCallShiftBody
 import com.loonext.android.core.oncall.OnCall
 import com.loonext.android.ui.common.userMessage
 import java.text.SimpleDateFormat
+import com.loonext.android.core.time.TimestampFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -278,5 +279,4 @@ private fun parseIso(value: String): Long =
 
 /** "Sat 8:00 AM" — the crew's own clock, because that is when they wake up. */
 private fun until(iso: String): String =
-    SimpleDateFormat("EEE h:mm a", Locale.getDefault())
-        .format(Date(parseIso(iso)))
+    TimestampFormat.label(iso, TimestampFormat.Style.LONG)

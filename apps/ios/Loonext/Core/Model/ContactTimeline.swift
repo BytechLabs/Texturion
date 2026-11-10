@@ -152,11 +152,11 @@ private func timelineDueLabel(
     guard let date = parseWireTimestamp(iso) else {
         return AppStrings.translate(locale, "contactsTasks.timelineSoon")
     }
-    return timelineShortDate(date, calendar: calendar, template: "MMMd", locale: locale)
+    return TimestampFormat.label(date, locale: locale, timeZone: calendar.timeZone)
 }
 
 /// The app's established date formatting: a LOCAL DateFormatter with the posix
-/// locale and an explicit pattern (Format.swift's monthDayString/absoluteTime).
+/// locale and an explicit pattern (the helpers beside it).
 ///
 /// Not `.formatted(.dateTime...)`: that API appears nowhere else in this app, so
 /// it is unproven here, and Swift only compiles in CI. Not a cached formatter

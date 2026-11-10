@@ -15,8 +15,6 @@ let noteBodyMax = 4096
 let noteFileMaxBytes = 25 * 1024 * 1024
 let noteFilesMax = 10
 
-private let posixLocale = Locale(identifier: "en_US_POSIX")
-
 /// Encode a picked due date as ISO 8601 WITH the zone's UTC offset at that
 /// instant (the API requires an offset-bearing string; "Z" only when the zone
 /// genuinely is UTC). Example: 2026-07-15 15:00 in America/Toronto →
@@ -26,18 +24,9 @@ func encodeDueAt(_ date: Date, timeZone: TimeZone = .current) -> String {
     isoOffsetString(date, timeZone: timeZone)
 }
 
-/// "today 3:00 PM" / "Jul 8 9:00 AM" for a due-set activity line.
+/// "3:00 PM" / "Jul 8, 9:00 AM" for a due-set activity line, from the shared timestamp rule.
 func dueSentenceTime(_ iso: String, now: Date = Date(), calendar: Calendar = .current) -> String {
-    guard let date = parseWireTimestamp(iso) else { return "" }
-    let formatter = DateFormatter()
-    formatter.locale = posixLocale
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.dateFormat = "h:mm a"
-    let time = formatter.string(from: date)
-    if calendar.isDate(date, inSameDayAs: now) { return "today \(time)" }
-    formatter.dateFormat = "MMM d"
-    return "\(formatter.string(from: date)) \(time)"
+    TimestampFormat.label(iso, style: .long, now: now, timeZone: calendar.timeZone)
 }
 
 /// One quiet line for a change to a task (#689), the same words as the web.
@@ -47,7 +36,8 @@ func taskHistorySentence(
     _ item: TaskFeedItem,
     by: String,
     locale: String? = nil,
-    timeZone: TimeZone = .current
+    timeZone: TimeZone = .current,
+    now: Date = Date()
 ) -> String {
     func say(_ key: String, _ vars: [String: String] = [:]) -> String {
         AppStrings.translate(locale, key, vars.merging(["by": by]) { mine, _ in mine })
@@ -91,14 +81,12 @@ func taskHistorySentence(
         }
         return say("contactsTasks.histAssigneeRemoved", ["name": name])
     case "due":
-        guard let due = text(item.to), let date = parseWireTimestamp(due) else {
+        guard let due = text(item.to), parseWireTimestamp(due) != nil else {
             return say("contactsTasks.histDueCleared")
         }
-        let formatter = DateFormatter()
-        formatter.locale = posixLocale
-        formatter.timeZone = timeZone
-        formatter.dateFormat = "EEE h:mm a"
-        return say("contactsTasks.histDue", ["due": formatter.string(from: date)])
+        let label = TimestampFormat.label(
+            due, style: .long, locale: locale, now: now, timeZone: timeZone)
+        return say("contactsTasks.histDue", ["due": label])
     case "reminders":
         return say(
             item.to?.boolValue == true

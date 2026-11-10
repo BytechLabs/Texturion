@@ -46,6 +46,7 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 import java.util.Locale
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.delay
@@ -235,8 +236,6 @@ internal suspend fun pollExports(
         delay(pollMillis)
     }
 }
-
-private val REQUESTED_FORMAT = DateTimeFormatter.ofPattern("MMM d, h:mm a", Locale.getDefault())
 
 // ---------------------------------------------------------------------------
 // The card.
@@ -475,10 +474,7 @@ internal fun statusLine(row: DataExport, locale: String? = null): String {
 }
 
 private fun requestedLabel(row: DataExport): String? {
-    val requested = row.requested_at ?: return null
-    return runCatching {
-        Instant.parse(requested).atZone(ZoneId.systemDefault()).format(REQUESTED_FORMAT)
-    }.getOrNull()
+    return TimestampFormat.label(row.requested_at, TimestampFormat.Style.LONG).ifEmpty { null }
 }
 
 /**

@@ -82,11 +82,11 @@ final class TasksFormatTests: XCTestCase {
         let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-15T16:00:00Z"))
         XCTAssertEqual(
             dueSentenceTime("2026-07-15T15:00:00Z", now: now, calendar: utc),
-            "today 3:00 PM"
+            "3:00 PM"
         )
         XCTAssertEqual(
             dueSentenceTime("2026-07-08T09:00:00Z", now: now, calendar: utc),
-            "Jul 8 9:00 AM"
+            "Jul 8, 9:00 AM"
         )
         XCTAssertEqual(dueSentenceTime("garbage", now: now, calendar: utc), "")
     }
@@ -94,13 +94,13 @@ final class TasksFormatTests: XCTestCase {
     // MARK: formatDue zone behavior
 
     func testDueDayIsJudgedInTheViewersZoneNotUtc() throws {
-        // 03:00Z on Jul 16 is still 23:00 on Jul 15 in Toronto — Today.
+        // 03:00Z on Jul 16 is still 23:00 on Jul 15 in Toronto: today, so its clock time.
         var torontoCalendar = Calendar(identifier: .gregorian)
         torontoCalendar.timeZone = toronto
         let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-15T16:00:00Z"))
         XCTAssertEqual(
             formatDue("2026-07-16T03:00:00Z", now: now, calendar: torontoCalendar),
-            "Today"
+            "11:00 PM"
         )
     }
 
@@ -165,7 +165,7 @@ final class TasksFormatTests: XCTestCase {
                 now: now,
                 calendar: utc
             ),
-            "Dana set the due date to today 3:00 PM"
+            "Dana set the due date to 3:00 PM"
         )
         XCTAssertEqual(
             taskEventSentence(
@@ -236,15 +236,17 @@ final class TasksFormatTests: XCTestCase {
         )
     }
 
-    func testHistoryReadsADueTimeAsAWeekdayAndTime() {
+    func testHistoryReadsADueTimeFromTheSharedTimestampRule() throws {
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-10T16:00:00Z"))
         XCTAssertEqual(
             taskHistorySentence(
                 historyEvent("due", to: .string("2026-11-10T14:00:00Z")),
                 by: "Rehman",
                 locale: "en",
-                timeZone: TimeZone(identifier: "UTC")!
+                timeZone: TimeZone(identifier: "UTC")!,
+                now: now
             ),
-            "Rehman changed the due time to Tue 2:00 PM"
+            "Rehman changed the due time to 2:00 PM"
         )
         XCTAssertEqual(
             taskHistorySentence(historyEvent("due", to: .null), by: "Rehman", locale: "en"),

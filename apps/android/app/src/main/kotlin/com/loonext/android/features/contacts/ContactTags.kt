@@ -37,7 +37,7 @@ import com.loonext.android.core.model.MergedFrom
 import com.loonext.android.core.model.Tag
 import com.loonext.android.ui.common.rememberHaptics
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 import java.time.format.FormatStyle
 import java.util.Locale
 
@@ -214,37 +214,5 @@ fun MergedFromRow(
 
 /** "Nov 2" in the reader's language, from the server's instant. */
 internal fun mergedDateLabel(mergedAt: String, locale: String?): String {
-    val instant = com.loonext.android.features.tasks.parseInstant(mergedAt) ?: return ""
-    val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-        .withLocale(if (locale == null) Locale.getDefault() else Locale.forLanguageTag(locale))
-    return instant.atZone(ZoneId.systemDefault()).format(formatter)
-}
-
-/**
- * #695 - narrow the customer list to one tag.
- *
- * Absent until the workspace has a tag. The active tag is a selected chip you
- * can see and clear: a list that is quietly filtered looks like one with
- * customers missing. *Applying: the Safety principle, and Zen of Clarity.*
- */
-@Composable
-fun ContactTagFilter(
-    tags: List<Tag>,
-    active: String?,
-    onChange: (String?) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (tags.isEmpty()) return
-    LazyRow(
-        modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        items(tags, key = { it.id }) { tag ->
-            FilterChip(
-                selected = active == tag.id,
-                onClick = { onChange(if (active == tag.id) null else tag.id) },
-                label = { Text(tag.name) },
-            )
-        }
-    }
+    return TimestampFormat.label(mergedAt, locale = locale)
 }

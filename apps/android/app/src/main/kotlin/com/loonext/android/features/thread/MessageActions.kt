@@ -107,7 +107,7 @@ import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 import kotlinx.coroutines.launch
 
 /**
@@ -132,6 +132,13 @@ fun MessageActionsSheet(
         // #180 contract: sheet roots scroll so rows are reachable at ANY
         // viewport height (inert on tall screens).
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            // #720: the exact time with its zone; a bubble's own line shows only the clock.
+            Text(
+                TimestampFormat.exact(message.created_at, LocalAppLocale.current),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
             if (message.body.isNotBlank()) {
                 ActionRow(Icons.Outlined.ContentCopy, t("thread.copyText")) {
                     haptics.tap()
@@ -274,8 +281,6 @@ private fun ActionRow(
 /** One picked due-time option; null iso = no due date. */
 private data class DueChoice(val label: String, val iso: String?)
 
-private val pickedDueFormat = DateTimeFormatter.ofPattern("MMM d, h a")
-
 /** The 6 structured address fields as editable strings ("" = absent). */
 private data class AddressFields(
     val street: String = "",
@@ -295,7 +300,7 @@ private fun suggestedDueLabel(iso: String, zone: ZoneId): String =
     runCatching { OffsetDateTime.parse(iso).toInstant() }
         .recoverCatching { Instant.parse(iso) }
         .getOrNull()
-        ?.atZone(zone)?.format(pickedDueFormat)
+        ?.let { TimestampFormat.label(it.toString(), TimestampFormat.Style.LONG, zone = zone) }
         ?: "Suggested time"
 
 /**
@@ -926,7 +931,7 @@ fun MakeTaskSheet(
                         val instant = date.atTime(LocalTime.of(9, 0))
                             .atZone(zone).toInstant()
                         due = DueChoice(
-                            label = instant.atZone(zone).format(pickedDueFormat),
+                            label = TimestampFormat.label(instant.toString(), TimestampFormat.Style.LONG, zone = zone),
                             iso = instant.toString(),
                         )
                         dueSuggested = false

@@ -131,11 +131,7 @@ struct MergedFromRow: View {
     private var name: String { describeContact(mergedFrom.name, mergedFrom.phone_e164) }
 
     private var dateLabel: String {
-        guard let date = parseSnoozeInstant(mergedFrom.merged_at) else { return "" }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: appLocale)
-        formatter.setLocalizedDateFormatFromTemplate("dMMM")
-        return formatter.string(from: date)
+        TimestampFormat.label(mergedFrom.merged_at, locale: appLocale)
     }
 
     var body: some View {
@@ -171,47 +167,6 @@ struct MergedFromRow: View {
             Button(AppStrings.translate(appLocale, "common.cancel"), role: .cancel) {}
         } message: {
             Text(AppStrings.translate(appLocale, "contactsTasks.unmergeBody", ["name": name]))
-        }
-    }
-}
-
-/// #695 — narrow the customer list to one tag.
-///
-/// Absent until the workspace has a tag. The active tag is a selected chip you
-/// can see and clear: a list that is quietly filtered looks like one with
-/// customers missing. *Applying: the Safety principle, and Zen of Clarity.*
-struct ContactTagFilter: View {
-    let tags: [Tag]
-    let active: String?
-    let onChange: (String?) -> Void
-
-    var body: some View {
-        if tags.isEmpty {
-            EmptyView()
-        } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(tags, id: \.id) { tag in
-                        Button {
-                            onChange(active == tag.id ? nil : tag.id)
-                        } label: {
-                            Text(tag.name)
-                                .font(.golos(13))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(
-                                    active == tag.id ? BrandColor.limeChip : BrandColor.inset,
-                                    in: Capsule()
-                                )
-                                .foregroundStyle(
-                                    active == tag.id ? BrandColor.ink : BrandColor.muted600
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(active == tag.id ? [.isSelected] : [])
-                    }
-                }
-            }
         }
     }
 }

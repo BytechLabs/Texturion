@@ -151,6 +151,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.core.jobs.groupJobPhotos
 
 private const val NOTE_FILE_MAX_BYTES = 25L * 1024 * 1024
@@ -1618,13 +1619,9 @@ private fun TaskDetailBody(
     }
 }
 
-/** "Tomorrow · 9:00 AM" — the due row value (spec 23). */
+/** "Tomorrow 9:00 AM" — the due row value (spec 23). */
 private fun dueRowLabel(dueAt: String, locale: String?): String {
-    val day = formatDue(dueAt, locale = locale)
-    val time = parseInstant(dueAt)
-        ?.atZone(ZoneId.systemDefault())
-        ?.format(DateTimeFormatter.ofPattern("h:mm a"))
-    return if (day.isEmpty() || time == null) day else "$day · $time"
+    return TimestampFormat.label(dueAt, TimestampFormat.Style.LONG, locale)
 }
 
 /**

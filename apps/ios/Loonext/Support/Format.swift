@@ -39,31 +39,17 @@ func formatPhone(_ e164: String?) -> String {
     return "(\(npa)) \(nxx)-\(line)"
 }
 
-/// Relative timestamp mirroring the web ('now', '5m', '3h', '2d', 'Jul 8',
-/// 'Jul 8 2025'). Unparseable input renders as an empty string.
+/// #720: the short label for a moment ('now', '12m', '3:42 PM', 'Sat', 'Sep 9',
+/// 'Sep 9, 2025'), from the shared rule. Unparseable input renders as an empty string.
 func relativeTime(_ iso: String, now: Date = Date(), calendar: Calendar = .current) -> String {
-    guard let date = parseWireTimestamp(iso) else { return "" }
-    let seconds = now.timeIntervalSince(date)
-    let minutes = Int(seconds / 60)
-    let hours = Int(seconds / 3600)
-    let days = Int(seconds / 86_400)
-    if minutes < 1 { return "now" }
-    if minutes < 60 { return "\(minutes)m" }
-    if hours < 24 { return "\(hours)h" }
-    if days < 7 { return "\(days)d" }
-    let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
-    return monthDayString(date, calendar: calendar, withYear: !sameYear)
+    TimestampFormat.label(iso, now: now, timeZone: calendar.timeZone)
 }
 
-/// 'Jul 8, 2026 3:04 PM' for detail surfaces.
+/// #720: the exact moment with its zone ('Tue, Nov 10, 2026, 3:42 PM EST'), or the raw
+/// text when it is not a timestamp.
 func absoluteTime(_ iso: String, calendar: Calendar = .current) -> String {
-    guard let date = parseWireTimestamp(iso) else { return iso }
-    let formatter = DateFormatter()
-    formatter.locale = posixLocale
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.dateFormat = "MMM d, yyyy h:mm a"
-    return formatter.string(from: date)
+    let exact = TimestampFormat.exact(iso, timeZone: calendar.timeZone)
+    return exact.isEmpty ? iso : exact
 }
 
 /// #582 — the two letters in an avatar. The hand-port of
@@ -126,32 +112,17 @@ func isOverdue(_ task: TaskItem, now: Date = Date()) -> Bool {
     return due < now
 }
 
-/// A short human due label for a chip/cell: "Today", "Tomorrow", "Jul 8",
-/// "Jul 8 2027". Nil/unparseable due → "" (the caller renders nothing).
+/// A short human due label for a chip/cell, from the shared timestamp rule: "3:00 PM"
+/// today, "Tomorrow", "Sat", "Jul 8", "Jul 8, 2027". Nil/unparseable due → "" (the
+/// caller renders nothing).
 func formatDue(_ dueAt: String?, now: Date = Date(), calendar: Calendar = .current) -> String {
-    guard let due = parseWireTimestamp(dueAt) else { return "" }
-    if calendar.isDate(due, inSameDayAs: now) { return "Today" }
-    if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
-       calendar.isDate(due, inSameDayAs: tomorrow) {
-        return "Tomorrow"
-    }
-    let sameYear = calendar.component(.year, from: due) == calendar.component(.year, from: now)
-    return monthDayString(due, calendar: calendar, withYear: !sameYear)
+    TimestampFormat.label(dueAt, now: now, timeZone: calendar.timeZone)
 }
 
 extension String {
     var isBlank: Bool {
         trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-}
-
-private func monthDayString(_ date: Date, calendar: Calendar, withYear: Bool) -> String {
-    let formatter = DateFormatter()
-    formatter.locale = posixLocale
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.dateFormat = withYear ? "MMM d yyyy" : "MMM d"
-    return formatter.string(from: date)
 }
 
 /// A CSV export as the bytes to write to a file. #587.
