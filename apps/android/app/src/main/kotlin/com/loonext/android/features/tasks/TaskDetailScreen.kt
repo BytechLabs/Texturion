@@ -603,7 +603,8 @@ private fun TaskDetailBody(
                         onClick = ::toggleFollow,
                     )
                 }
-                Box {
+                // Both entries are gated; with neither, the menu would open empty.
+                if (!noAccess || canDelete) Box {
                     PaperCircleButton(
                         icon = Icons.Outlined.MoreHoriz,
                         contentDescription = t("contactsTasks.taskActions"),

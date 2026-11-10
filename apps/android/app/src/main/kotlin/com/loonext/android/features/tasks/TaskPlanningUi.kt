@@ -32,6 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -827,5 +829,73 @@ internal fun RepeatLine(repeat: TaskRepeat, modifier: Modifier = Modifier) {
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/** #713: one checklist for adding and removing a label across a selection. */
+@Composable
+internal fun BulkLabelSheet(
+    title: String,
+    loadTags: suspend () -> List<Tag>,
+    selectedLabelIds: List<List<String>>?,
+    onAdd: (Tag) -> Unit,
+    onRemove: (Tag) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var tags by remember { mutableStateOf<List<Tag>?>(null) }
+    LaunchedEffect(Unit) { tags = runCatching { loadTags() }.getOrDefault(emptyList()) }
+    val haptics = rememberHaptics()
+    AppSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+            val list = tags
+            if (list.isNullOrEmpty()) {
+                Text(
+                    if (list == null) t("contactsTasks.loading") else t("contactsTasks.noLabelsYet"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                )
+            }
+            list.orEmpty().forEach { tag ->
+                val state = tagSelectionState(selectedLabelIds, tag.id)
+                val fill = tagFill(tag.color)
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .clickable(role = Role.Checkbox) {
+                            haptics.tap()
+                            if (tagToggleAction(state) == "remove") onRemove(tag) else onAdd(tag)
+                        }
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    // The row is the click target; the box only shows state.
+                    TriStateCheckbox(
+                        state = when (state) {
+                            TagSelectionState.All -> ToggleableState.On
+                            TagSelectionState.None -> ToggleableState.Off
+                            else -> ToggleableState.Indeterminate
+                        },
+                        onClick = null,
+                    )
+                    if (fill != null) {
+                        Box(Modifier.size(10.dp).background(fill, CircleShape))
+                    }
+                    Text(
+                        tag.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            Spacer(Modifier.size(20.dp))
+        }
     }
 }

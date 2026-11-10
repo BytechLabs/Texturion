@@ -1034,6 +1034,10 @@ private fun TaskList(
                         selection = selection,
                         canDelete = canDelete,
                         loadedIds = loadedIds,
+                        // Null for a filter selection, whose rows are not loaded.
+                        selectedLabelIds = (selection as? BulkSelection.Ids)?.let { picked ->
+                            rows.filter { it.id in picked.ids }.map { task -> task.labels.map { it.id } }
+                        },
                         hasMore = current.value.hasMore,
                         running = bulkRunning,
                         members = members,
@@ -1476,6 +1480,7 @@ private fun TaskListSkeleton() {
 private fun TaskBulkBar(
     selection: BulkSelection,
     loadedIds: List<String>,
+    selectedLabelIds: List<List<String>>?,
     hasMore: Boolean,
     running: Boolean,
     members: List<Member>,
@@ -1496,7 +1501,7 @@ private fun TaskBulkBar(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var assignOpen by remember { mutableStateOf(false) }
-    // 0 none, 1 priority, 2 add label, 3 remove label
+    // 0 none, 1 priority, 2 labels
     var bulkSheet by remember { mutableIntStateOf(0) }
     val showSelectLoaded = selection is BulkSelection.Ids &&
         loadedIds.isNotEmpty() &&
@@ -1545,12 +1550,8 @@ private fun TaskBulkBar(
                             onClick = { menuOpen = false; bulkSheet = 1 },
                         )
                         DropdownMenuItem(
-                            text = { Text(t("contactsTasks.bulkAddLabel")) },
+                            text = { Text(t("contactsTasks.bulkLabels")) },
                             onClick = { menuOpen = false; bulkSheet = 2 },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(t("contactsTasks.bulkRemoveLabel")) },
-                            onClick = { menuOpen = false; bulkSheet = 3 },
                         )
                         // Destructive, and last: a delete adjacent to the
                         // assign items is a delete somebody hits by momentum.
@@ -1606,14 +1607,17 @@ private fun TaskBulkBar(
             onDismiss = { bulkSheet = 0 },
         )
 
-        2, 3 -> TagChoiceSheet(
-            title = t(if (bulkSheet == 2) "contactsTasks.bulkAddLabel" else "contactsTasks.bulkRemoveLabel"),
+        2 -> BulkLabelSheet(
+            title = t("contactsTasks.bulkLabels"),
             loadTags = loadTags,
-            selectedId = null,
-            onPick = { tag ->
-                val adding = bulkSheet == 2
+            selectedLabelIds = selectedLabelIds,
+            onAdd = { tag ->
                 bulkSheet = 0
-                if (adding) onAddLabel(tag.id) else onRemoveLabel(tag.id)
+                onAddLabel(tag.id)
+            },
+            onRemove = { tag ->
+                bulkSheet = 0
+                onRemoveLabel(tag.id)
             },
             onDismiss = { bulkSheet = 0 },
         )
