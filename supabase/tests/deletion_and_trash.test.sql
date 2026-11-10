@@ -95,6 +95,27 @@ values ('d1000000-0000-4000-8000-000000000050', 'd1000000-0000-4000-8000-0000000
         'mms-media/d1000000-0000-4000-8000-000000000002/d1000000-0000-4000-8000-000000000040/0',
         'image/jpeg', 1000);
 
+-- A job made from the note, with a comment and a file on the comment.
+insert into public.tasks
+  (id, company_id, message_id, conversation_id, title, description, created_by_user_id)
+values ('d1000000-0000-4000-8000-0000000000a0', 'd1000000-0000-4000-8000-000000000002',
+        'd1000000-0000-4000-8000-000000000042', 'd1000000-0000-4000-8000-000000000030',
+        'Replace the boiler valve', 'zebra99 gate, ring twice',
+        'd1000000-0000-4000-8000-000000000001');
+update public.tasks set title = 'Replace boiler valve today'
+ where id = 'd1000000-0000-4000-8000-0000000000a0';
+insert into public.task_comments (id, company_id, task_id, author_user_id, body)
+values ('d1000000-0000-4000-8000-0000000000a1', 'd1000000-0000-4000-8000-000000000002',
+        'd1000000-0000-4000-8000-0000000000a0', 'd1000000-0000-4000-8000-000000000001',
+        'customer is awkward about parking');
+insert into public.attachments
+  (id, company_id, owner_type, owner_id, conversation_id, storage_path, file_name, content_type)
+values ('d1000000-0000-4000-8000-0000000000a2', 'd1000000-0000-4000-8000-000000000002',
+        'task_comment', 'd1000000-0000-4000-8000-0000000000a1',
+        'd1000000-0000-4000-8000-000000000030',
+        'd1000000-0000-4000-8000-000000000002/task_comment/dt-parking.jpg',
+        'parking.jpg', 'image/jpeg');
+
 -- The meter: one usage row on the outbound message.
 insert into public.usage_events (id, company_id, message_id, type, quantity, meter_identifier)
 values ('d1000000-0000-4000-8000-000000000060', 'd1000000-0000-4000-8000-000000000002',
@@ -315,6 +336,52 @@ begin
 end $$;
 
 -- ===========================================================================
+-- DT-3b. A trashed conversation's jobs leave every task view with it, and come
+--        back with it; a job the crew deleted on its own does not.
+-- ===========================================================================
+do $$
+declare
+  co   uuid := 'd1000000-0000-4000-8000-000000000002';
+  us   uuid := 'd1000000-0000-4000-8000-000000000001';
+  conv uuid := 'd1000000-0000-4000-8000-000000000030';
+  task uuid := 'd1000000-0000-4000-8000-0000000000a0';
+begin
+  perform public.api_trash_conversations(co, us, array[conv]);
+  if (select deleted_at from public.tasks where id = task) is null then
+    raise exception 'DT-3b FAILED: the trashed conversation''s task is still live';
+  end if;
+  if (public.api_search_v2(co, 'boiler valve', 10, 10, 10, 10, 10) -> 'tasks') is distinct from '[]'::jsonb then
+    raise exception 'DT-3b FAILED: search finds a task from a trashed conversation';
+  end if;
+  if exists (select 1 from public.api_contact_timeline(co, 'd1000000-0000-4000-8000-000000000020') t
+              where t ->> 'kind' = 'task') then
+    raise exception 'DT-3b FAILED: the contact timeline shows a task from a trashed conversation';
+  end if;
+
+  perform public.api_restore_trash(co, us, 'conversation', conv);
+  if (select deleted_at from public.tasks where id = task) is not null then
+    raise exception 'DT-3b FAILED: restore did not bring the task back';
+  end if;
+  if exists (select 1 from public.task_events where task_id = task and kind = 'deleted') then
+    raise exception 'DT-3b FAILED: a restored task keeps a "deleted" history line';
+  end if;
+  if (public.api_search_v2(co, 'boiler valve', 10, 10, 10, 10, 10) -> 'tasks') = '[]'::jsonb then
+    raise exception 'DT-3b FAILED: a restored task is not searchable';
+  end if;
+
+  -- A job deleted by the crew before the thread went to the Trash stays deleted.
+  update public.tasks set deleted_at = now() - interval '1 day' where id = task;
+  perform public.api_trash_conversations(co, us, array[conv]);
+  perform public.api_restore_trash(co, us, 'conversation', conv);
+  if (select deleted_at from public.tasks where id = task) is null then
+    raise exception 'DT-3b FAILED: restoring a thread revived a job the crew had deleted';
+  end if;
+  update public.tasks set deleted_at = null where id = task;
+  delete from public.task_events where task_id = task and kind = 'deleted';
+  raise notice 'DT-3b PASSED: the thread''s jobs follow it into the Trash and back';
+end $$;
+
+-- ===========================================================================
 -- DT-4. Tenant isolation and the #106 deny list.
 -- ===========================================================================
 do $$
@@ -391,6 +458,7 @@ begin
   select array_agg(bucket || ':' || path order by bucket, path) into paths
     from public.api_trash_object_paths('conversation', conv);
   if paths is distinct from array[
+       'attachments:d1000000-0000-4000-8000-000000000002/task_comment/dt-parking.jpg',
        'mms-media:d1000000-0000-4000-8000-000000000002/d1000000-0000-4000-8000-000000000040/0',
        'voicemails:d1000000-0000-4000-8000-000000000002/dt-sess-vm.mp3'] then
     raise exception 'DT-5 FAILED: object paths wrong: %', paths;
@@ -441,6 +509,38 @@ begin
   if public.api_purge_trash_item('message', 'd1000000-0000-4000-8000-000000000043', us) ->> 'outcome'
        is distinct from 'not_found' then
     raise exception 'DT-5 FAILED: a live message was purged';
+  end if;
+
+  -- Task-derived content: the comment, its file, and the words in the history.
+  if exists (select 1 from public.task_comments
+              where task_id = 'd1000000-0000-4000-8000-0000000000a0') then
+    raise exception 'DT-5 FAILED: a task comment body survived purge';
+  end if;
+  if exists (select 1 from public.attachments
+              where id = 'd1000000-0000-4000-8000-0000000000a2'
+                 or owner_type = 'task_comment' and conversation_id = conv) then
+    raise exception 'DT-5 FAILED: a comment file row survived purge';
+  end if;
+  if exists (select 1 from public.tasks
+              where id = 'd1000000-0000-4000-8000-0000000000a0'
+                and (title <> 'Removed' or description <> '')) then
+    raise exception 'DT-5 FAILED: task title or description text survived purge';
+  end if;
+  if exists (select 1 from public.task_events
+              where task_id = 'd1000000-0000-4000-8000-0000000000a0'
+                and (from_value is not null or to_value is not null)
+                and kind in ('created', 'title', 'description', 'address')) then
+    raise exception 'DT-5 FAILED: title or description text survived in the task history';
+  end if;
+  if not exists (select 1 from public.task_events
+                  where task_id = 'd1000000-0000-4000-8000-0000000000a0' and kind = 'created') then
+    raise exception 'DT-5 FAILED: the task history rows themselves were erased';
+  end if;
+  if exists (select 1 from public.task_events
+              where task_id = 'd1000000-0000-4000-8000-0000000000a0'
+                and (coalesce(from_value::text, '') || coalesce(to_value::text, ''))
+                    ~* '(boiler|zebra|valve)') then
+    raise exception 'DT-5 FAILED: a task event still carries text';
   end if;
 
   -- DT-6: the meter is byte-for-byte what it was.
