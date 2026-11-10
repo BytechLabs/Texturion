@@ -305,6 +305,31 @@ private final class InboxController {
         reload(showLoading: true)
     }
 
+    /// #711: how many filters BEYOND the status tabs are on, for the Filter button's badge.
+    /// The tabs sit beside it, so counting them would say two things about one control.
+    var activeFilterCount: Int {
+        var count = 0
+        if assigneeUserId != nil && tab != .mine { count += 1 }
+        if tagId != nil { count += 1 }
+        if unreadOnly { count += 1 }
+        if spamOnly { count += 1 }
+        if snoozedOnly { count += 1 }
+        if awaitingOnly { count += 1 }
+        return count
+    }
+
+    /// #711: "Clear all" on the applied-filters line: everything but the tab, in one reload.
+    func clearSecondaryFilters() {
+        if activeFilterCount == 0 { return }
+        assigneeUserId = nil
+        tagId = nil
+        unreadOnly = false
+        spamOnly = false
+        snoozedOnly = false
+        awaitingOnly = false
+        reload(showLoading: true)
+    }
+
     func selectTab(_ next: InboxStatusTab) {
         if tab == next { return }
         tab = next
@@ -474,6 +499,13 @@ private final class InboxController {
                 id: id,
                 name: trimmed
             )
+            self.loadSavedViews()
+        }
+    }
+
+    func shareView(id: String, shared: Bool) {
+        Task {
+            _ = try? await self.savedViewsApi.share(companyId: self.companyId, id: id, shared: shared)
             self.loadSavedViews()
         }
     }
@@ -1017,8 +1049,7 @@ private struct InboxList: View {
     @Environment(\.appLocale) private var appLocale
 
     @State private var controller: InboxController?
-    @State private var assigneeSheetOpen = false
-    @State private var tagSheetOpen = false
+    @State private var filterSheetOpen = false
     /// #233: the workspace's queued texts.
     @State private var scheduledSheetOpen = false
     @State private var assignFor: ConversationListItem?
@@ -1028,8 +1059,6 @@ private struct InboxList: View {
     @State private var noticeDismissTask: Task<Void, Never>?
     /// #280 saved views.
     @State private var savedViewSheetOpen = false
-    @State private var renamingView: SavedView?
-    @State private var deletingSharedView: SavedView?
     /// #508: the last destination token this list has landed on, so a command
     /// republished to a fresh subscriber cannot re-apply a filter the reader has
     /// since changed by hand.
@@ -1222,13 +1251,18 @@ private struct InboxList: View {
                     onTextContact: onTextContact
                 )
             } else {
-                statusPillRow(controller)
-                savedViewsRow(controller)
-
-                FilterChipRow(
-                    controller: controller,
-                    onPickAssignee: { assigneeSheetOpen = true },
-                    onPickTag: { tagSheetOpen = true }
+                // #711: ONE row for the tabs, Filter and Views, and the applied filters
+                // under it only while any is on.
+                ListFilterRow(
+                    filterCount: controller.activeFilterCount,
+                    onFilter: { filterSheetOpen = true },
+                    views: viewsModel(controller)
+                ) {
+                    statusTabs(controller)
+                }
+                ActiveFilterChips(
+                    chips: activeFilterChips(controller),
+                    onClearAll: { controller.clearSecondaryFilters() }
                 )
 
                 // #476: first-run guidance, above the list and OUTSIDE the
@@ -1282,63 +1316,8 @@ private struct InboxList: View {
                 onClose: { savedViewSheetOpen = false }
             )
         }
-        .sheet(item: $renamingView) { view in
-            RenameViewSheet(
-                controller: controller,
-                view: view,
-                onClose: { renamingView = nil }
-            )
-        }
-        // Ethical Friction, only where it is earned: a crew view is a screen
-        // other people open every morning, and the person deleting it cannot
-        // see who that affects.
-        .confirmationDialog(
-            AppStrings.translate(appLocale, "inbox.viewDeleteTitle"),
-            isPresented: Binding(
-                get: { deletingSharedView != nil },
-                set: { if !$0 { deletingSharedView = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button(
-                AppStrings.translate(appLocale, "inbox.viewDeleteConfirm"),
-                role: .destructive
-            ) {
-                if let view = deletingSharedView { controller.deleteView(id: view.id) }
-                deletingSharedView = nil
-            }
-            Button(
-                AppStrings.translate(appLocale, "inbox.viewDeleteKeep"),
-                role: .cancel
-            ) { deletingSharedView = nil }
-        } message: {
-            // The whole sentence web and Android say, name included — this
-            // screen used to print only its second half, so the one fact that
-            // makes the warning land ("the whole crew uses THIS one") was the
-            // part iOS left out.
-            Text(
-                AppStrings.translate(
-                    appLocale,
-                    "inbox.viewDeleteBody",
-                    ["name": deletingSharedView?.name ?? ""]
-                )
-            )
-        }
-        .sheet(isPresented: $assigneeSheetOpen) {
-            AssigneeFilterSheet(
-                members: controller.members,
-                meUserId: me.user_id,
-                selected: controller.assignee
-            ) { member in
-                assigneeSheetOpen = false
-                controller.setAssigneeFilter(member)
-            }
-        }
-        .sheet(isPresented: $tagSheetOpen) {
-            TagFilterSheet(tags: controller.allTags, selected: controller.tag) { tag in
-                tagSheetOpen = false
-                controller.setTagFilter(tag)
-            }
+        .sheet(isPresented: $filterSheetOpen) {
+            InboxFilterSheet(controller: controller, meUserId: me.user_id)
         }
         // #233: what the workspace has queued to go out.
         .sheet(isPresented: $scheduledSheetOpen) {
@@ -1413,17 +1392,12 @@ private struct InboxList: View {
     /// Spec 20's segmented pills: selected = ink pill with paper text, idle =
     /// paper pill with muted text. Same `selectTab` mutation as the old
     /// segmented Picker.
-    private func statusPillRow(_ controller: InboxController) -> some View {
-        HStack(spacing: 7) {
-            ForEach(InboxStatusTab.allCases) { item in
-                statusPill(item, selected: controller.tab == item) {
-                    controller.selectTab(item)
-                }
+    private func statusTabs(_ controller: InboxController) -> some View {
+        ForEach(InboxStatusTab.allCases) { item in
+            statusPill(item, selected: controller.tab == item) {
+                controller.selectTab(item)
             }
-            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 4)
     }
 
     private func statusPill(
@@ -1442,172 +1416,6 @@ private struct InboxList: View {
         .buttonStyle(.plain)
         // Expose selected state so VoiceOver announces the active status tab.
         .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-}
-
-@MainActor
-private struct FilterChipRow: View {
-    let controller: InboxController
-    let onPickAssignee: @MainActor () -> Void
-    let onPickTag: @MainActor () -> Void
-
-    @Environment(\.appLocale) private var appLocale
-
-    // Chip labels/clear-actions extracted with explicit types — the inline
-    // map/ternary optional-closure expressions made swiftc's type checker
-    // give up (CI run 7).
-    private var assigneeLabel: String {
-        guard let assignee = controller.assignee else {
-            return AppStrings.translate(appLocale, "inbox.chipAssignee")
-        }
-        let name = assignee.display_name.isBlank
-            ? AppStrings.translate(appLocale, "inbox.teammateFallback")
-            : assignee.display_name
-        return AppStrings.translate(appLocale, "inbox.chipAssigneeNamed", ["name": name])
-    }
-
-    private var assigneeClear: (@MainActor () -> Void)? {
-        guard controller.assigneeUserId != nil else { return nil }
-        return { controller.setAssigneeFilter(nil) }
-    }
-
-    private var tagLabel: String {
-        guard let tag = controller.tag else {
-            return AppStrings.translate(appLocale, "inbox.chipTag")
-        }
-        return AppStrings.translate(appLocale, "inbox.chipTagNamed", ["name": tag.name])
-    }
-
-    private var tagClear: (@MainActor () -> Void)? {
-        guard controller.tagId != nil else { return nil }
-        return { controller.setTagFilter(nil) }
-    }
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                if controller.tab != .mine {
-                    FilterChip(
-                        label: assigneeLabel,
-                        selected: controller.assigneeUserId != nil,
-                        onTap: onPickAssignee,
-                        onClear: assigneeClear
-                    )
-                }
-                FilterChip(
-                    label: tagLabel,
-                    selected: controller.tagId != nil,
-                    onTap: onPickTag,
-                    onClear: tagClear
-                )
-                // #508: ahead of the others, because it is the only chip here
-                // that names money leaving. Reachable as a control in its own
-                // right and not only by arriving from the response-time card —
-                // a filter you can reach from exactly one card is one most of
-                // the crew never learns exists.
-                FilterChip(
-                    label: AppStrings.translate(appLocale, "inbox.chipUnanswered"),
-                    selected: controller.awaitingOnly,
-                    onTap: { controller.toggleAwaiting() },
-                    onClear: nil
-                )
-                FilterChip(
-                    label: AppStrings.translate(appLocale, "inbox.chipUnread"),
-                    selected: controller.unreadOnly,
-                    onTap: { controller.toggleUnread() },
-                    onClear: nil
-                )
-                FilterChip(
-                    label: AppStrings.translate(appLocale, "inbox.chipSpam"),
-                    selected: controller.spamOnly,
-                    onTap: { controller.toggleSpam() },
-                    onClear: nil
-                )
-                // #293: the way back to what you deferred. A snooze that hid a
-                // thread with no way to find it would be worse than the
-                // clutter it solved.
-                FilterChip(
-                    label: AppStrings.translate(appLocale, "inbox.chipSnoozed"),
-                    selected: controller.snoozedOnly,
-                    onTap: { controller.toggleSnoozed() },
-                    onClear: nil
-                )
-                // #548: the way back, which this client did not have at all.
-                //
-                // The founder's ask was to do his filtering in one place and be
-                // able to start again. Clearing by hand meant up to seven taps
-                // across two bands, each firing its own reload — and the status
-                // segment could not be put back to "everything" at all, because
-                // Open is itself a filter.
-                //
-                // LAST in the row, and only when something IS filtered: a control
-                // that is always present but usually does nothing is furniture,
-                // and one that appears where a chip used to be would move the row
-                // under a thumb. It ends the row rather than leading it because it
-                // is the exit, not the first thing to reach for.
-                if controller.isFiltered {
-                    FilterChip(
-                        label: AppStrings.translate(appLocale, "inbox.chipClearFilters"),
-                        selected: false,
-                        onTap: { controller.clearFilters() },
-                        onClear: nil
-                    )
-                }
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 2)
-        }
-    }
-}
-
-private struct FilterChip: View {
-    let label: String
-    let selected: Bool
-    let onTap: @MainActor () -> Void
-    let onClear: (@MainActor () -> Void)?
-
-    @Environment(\.appLocale) private var appLocale
-
-    // #548: the pill's padding belongs to the BUTTONS, not to the HStack around
-    // them. Outside, it made the bare text glyph the only place a tap counted —
-    // pressing the visible capsule an eighth of an inch off the letters did
-    // nothing, on the row that is the whole filter UI. Explicit types because
-    // swiftc's checker gives up on inline ternaries in this file (CI run 7).
-    private var labelTrailing: CGFloat { onClear == nil ? 13 : 3 }
-    private var chipVertical: CGFloat { 10 }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            Button(action: onTap) {
-                Text(label)
-                    .font(.golos(12, weight: selected ? .semibold : .medium))
-                    .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
-                    .padding(.leading, 13)
-                    .padding(.trailing, labelTrailing)
-                    .padding(.vertical, chipVertical)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            if let onClear {
-                Button(action: onClear) {
-                    Image(systemName: "xmark")
-                        .font(.scaled(10, weight: .semibold))
-                        .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted500)
-                        // A 10pt glyph is not a target. This gives the X its own
-                        // slice of the pill, wide enough to hit without aiming and
-                        // without stealing the taps meant for the label.
-                        .padding(.leading, 3)
-                        .padding(.trailing, 11)
-                        .padding(.vertical, chipVertical)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(
-                    AppStrings.translate(appLocale, "inbox.clearFilterAria")
-                )
-            }
-        }
-        .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
     }
 }
 
@@ -1956,6 +1764,7 @@ private struct ConversationRow: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 6) {
                     Text(relativeTime(row.last_message_at))
+                        .exactTime(row.last_message_at)
                         .font(.golos(11))
                         .monospacedDigit()
                         .foregroundStyle(BrandColor.muted300)
@@ -2011,129 +1820,101 @@ private func parseHexColor(_ hex: String) -> Color? {
     return Color(hex: parsed)
 }
 
-// MARK: - Filter picker sheets
+// MARK: - Filter sheet
 
+/// #711: everything that narrows the inbox beyond the status tabs, behind the Filter button.
 @MainActor
-private struct AssigneeFilterSheet: View {
-    let members: [Member]
+private struct InboxFilterSheet: View {
+    let controller: InboxController
     let meUserId: String
-    let selected: Member?
-    let onPick: @MainActor (Member?) -> Void
 
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.dismiss) private var dismiss
+
+    private var assigneeSelection: Binding<String> {
+        Binding(
+            get: { controller.assigneeUserId ?? "" },
+            set: { id in
+                controller.setAssigneeFilter(controller.members.first { $0.user_id == id })
+            }
+        )
+    }
+
+    private var tagSelection: Binding<String> {
+        Binding(
+            get: { controller.tagId ?? "" },
+            set: { id in controller.setTagFilter(controller.allTags.first { $0.id == id }) }
+        )
+    }
+
+    private func memberName(_ member: Member) -> String {
+        if member.user_id == meUserId { return AppStrings.translate(appLocale, "inbox.filterMe") }
+        return member.display_name.isBlank
+            ? AppStrings.translate(appLocale, "inbox.teammateFallback")
+            : member.display_name
+    }
 
     var body: some View {
         NavigationStack {
-            List {
-                pickerRow(
-                    label: AppStrings.translate(appLocale, "inbox.filterAnyone"),
-                    avatarName: nil,
-                    isSelected: selected == nil
-                ) {
-                    onPick(nil)
-                }
-                ForEach(members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
-                    pickerRow(
-                        label: (
-                            member.display_name.isBlank
-                                ? AppStrings.translate(appLocale, "inbox.teammateFallback")
-                                : member.display_name
-                        )
-                            + (
-                                member.user_id == meUserId
-                                    ? AppStrings.translate(appLocale, "inbox.youSuffix")
-                                    : ""
-                            ),
-                        avatarName: member.display_name.isBlank ? nil : member.display_name,
-                        isSelected: selected?.user_id == member.user_id
+            Form {
+                if controller.tab != .mine {
+                    Picker(
+                        AppStrings.translate(appLocale, "inbox.filterByAssigneeTitle"),
+                        selection: assigneeSelection
                     ) {
-                        onPick(member)
-                    }
-                }
-            }
-            .listStyle(.plain)
-            .navigationTitle(
-                AppStrings.translate(appLocale, "inbox.filterByAssigneeTitle")
-            )
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func pickerRow(
-        label: String,
-        avatarName: String?,
-        isSelected: Bool,
-        onTap: @escaping @MainActor () -> Void
-    ) -> some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
-                if let avatarName {
-                    InitialsAvatar(name: avatarName, size: 30)
-                }
-                Text(label)
-                    .font(.golos(13.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.ink)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(BrandColor.olive)
-                }
-            }
-        }
-    }
-}
-
-@MainActor
-private struct TagFilterSheet: View {
-    let tags: [Tag]
-    let selected: Tag?
-    let onPick: @MainActor (Tag?) -> Void
-
-    @Environment(\.appLocale) private var appLocale
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Button {
-                    onPick(nil)
-                } label: {
-                    HStack {
-                        Text(AppStrings.translate(appLocale, "inbox.filterAnyTag"))
-                            .font(.golos(13.5, weight: .semibold))
-                            .foregroundStyle(BrandColor.ink)
-                        Spacer()
-                        if selected == nil {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(BrandColor.olive)
+                        Text(AppStrings.translate(appLocale, "inbox.filterAnyone")).tag("")
+                        ForEach(controller.members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
+                            Text(memberName(member)).tag(member.user_id)
                         }
                     }
                 }
-                if tags.isEmpty {
-                    Text(AppStrings.translate(appLocale, "inbox.filterNoTags"))
-                        .font(.golos(12.5))
-                        .foregroundStyle(BrandColor.muted500)
-                }
-                ForEach(tags, id: \.id) { tag in
-                    Button {
-                        onPick(tag)
-                    } label: {
-                        HStack {
-                            Text(tag.name)
-                                .font(.golos(13.5, weight: .semibold))
-                                .foregroundStyle(BrandColor.ink)
-                            Spacer()
-                            if selected?.id == tag.id {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(BrandColor.olive)
-                            }
-                        }
+                Picker(
+                    AppStrings.translate(appLocale, "inbox.filterByTagTitle"),
+                    selection: tagSelection
+                ) {
+                    Text(AppStrings.translate(appLocale, "inbox.filterAnyTag")).tag("")
+                    ForEach(controller.allTags, id: \.id) { tag in
+                        Text(tag.name).tag(tag.id)
                     }
                 }
+                Section {
+                    Toggle(
+                        AppStrings.translate(appLocale, "inbox.chipUnanswered"),
+                        isOn: Binding(
+                            get: { controller.awaitingOnly },
+                            set: { _ in controller.toggleAwaiting() }
+                        )
+                    )
+                    Toggle(
+                        AppStrings.translate(appLocale, "inbox.chipUnread"),
+                        isOn: Binding(
+                            get: { controller.unreadOnly },
+                            set: { _ in controller.toggleUnread() }
+                        )
+                    )
+                    Toggle(
+                        AppStrings.translate(appLocale, "inbox.chipSpam"),
+                        isOn: Binding(
+                            get: { controller.spamOnly },
+                            set: { _ in controller.toggleSpam() }
+                        )
+                    )
+                    Toggle(
+                        AppStrings.translate(appLocale, "inbox.chipSnoozed"),
+                        isOn: Binding(
+                            get: { controller.snoozedOnly },
+                            set: { _ in controller.toggleSnoozed() }
+                        )
+                    )
+                }
             }
-            .listStyle(.plain)
-            .navigationTitle(AppStrings.translate(appLocale, "inbox.filterByTagTitle"))
+            .navigationTitle(AppStrings.translate(appLocale, "inbox.filterAction"))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(AppStrings.translate(appLocale, "common.close")) { dismiss() }
+                }
+            }
         }
         .presentationDetents([.medium, .large])
     }
@@ -2400,6 +2181,7 @@ private struct SearchResultsPane: View {
                 }
                 Spacer()
                 Text(relativeTime(hit.matched_at))
+                    .exactTime(hit.matched_at)
                     .font(.golos(11))
                     .monospacedDigit()
                     .foregroundStyle(BrandColor.muted300)
@@ -2438,6 +2220,7 @@ private struct SearchResultsPane: View {
                 .foregroundStyle(BrandColor.ink)
                 .lineLimit(1)
             Text(relativeTime(hit.created_at))
+                .exactTime(hit.created_at)
                 .font(.golos(11))
                 .foregroundStyle(BrandColor.muted400)
         }
@@ -2719,8 +2502,7 @@ private struct BulkSelectionBar: View {
 }
 
 /// One pill in the bulk bar. Extracted because three inline button styles in a
-/// stack is where swiftc's type checker starts giving up on this file (see
-/// FilterChipRow's note).
+/// stack is where swiftc's type checker starts giving up on this file.
 @MainActor
 private struct BulkActionButton: View {
     let title: String
@@ -2743,81 +2525,80 @@ private struct BulkActionButton: View {
 
 // MARK: - #280 saved views
 
-/// The row of saved views, and the one affordance for keeping the arrangement
-/// on screen.
-///
-/// Applying: the Safety Principle (a horizontal strip of named queries directly
-/// under the status pills is where saved views live in every product that has
-/// them), Zen of Clarity (per-view actions are a long-press context menu rather
-/// than three controls crowded onto a pill), Chunking (its own band, spaced away
-/// from the pills above and the list below), and Smart Defaults (the save sheet
-/// opens with a name already derived from the filters, because typing one is
-/// the whole friction between arranging a useful screen and keeping it).
+/// #711: the Views menu's model and the applied-filter chips. The menu itself, and
+/// renaming, sharing, defaulting and deleting, live in the shared `ListViewsMenu`.
 extension InboxList {
-    @ViewBuilder
-    fileprivate func savedViewsRow(_ controller: InboxController) -> some View {
+    fileprivate func viewsModel(_ controller: InboxController) -> ListViewsModel {
         let selection = controller.currentSelection
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 7) {
-                ForEach(controller.savedViews) { view in
-                    let active = viewMatchesSelection(view.filters, selection)
-                    let count = controller.viewCounts[view.id] ?? 0
-                    Button {
-                        controller.applyView(view)
-                    } label: {
-                        Text(count > 0 ? "\(view.name)  \(formatViewCount(count))" : view.name)
-                            .font(.golos(12.5, weight: .medium))
-                            .foregroundStyle(active ? BrandColor.paper : BrandColor.muted700)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(active ? BrandColor.ink : BrandColor.paper, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu { savedViewMenu(controller, view: view) }
-                }
-                Button(AppStrings.translate(appLocale, "inbox.viewsSave")) {
-                    savedViewSheetOpen = true
-                }
-                    .font(.golos(12.5, weight: .medium))
-                    .foregroundStyle(BrandColor.muted700)
-                    .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 4)
+        let views = controller.savedViews
+        let matching = views.first { viewMatchesSelection($0.filters, selection) }
+        let entries = views.map { view in
+            ViewsMenuEntry(
+                id: view.id,
+                name: view.name,
+                count: controller.viewCounts[view.id],
+                shared: view.shared,
+                isDefault: view.id == controller.defaultViewId
+            )
         }
+        return ListViewsModel(
+            entries: entries,
+            activeId: matching?.id,
+            canSaveCurrent: controller.isFiltered && matching == nil,
+            canShare: canShareSavedViews,
+            onApply: { id in
+                if let view = views.first(where: { $0.id == id }) { controller.applyView(view) }
+            },
+            onSaveCurrent: { savedViewSheetOpen = true },
+            onDefault: { controller.setDefaultView($0) },
+            onRename: { controller.renameView(id: $0, name: $1) },
+            onShare: { controller.shareView(id: $0, shared: $1) },
+            onDelete: { controller.deleteView(id: $0) }
+        )
     }
 
-    /// Per-view actions.
-    ///
-    /// Ethical Friction applied only where it is earned: deleting your own view
-    /// goes immediately, because it is yours and rebuilding it is two taps.
-    /// Deleting a shared one removes a screen the rest of the crew opens every
-    /// morning, and the person doing it cannot see who that affects.
-    @ViewBuilder
-    fileprivate func savedViewMenu(
-        _ controller: InboxController,
-        view: SavedView
-    ) -> some View {
-        let isDefault = view.id == controller.defaultViewId
-        Button(
-            isDefault
-                ? AppStrings.translate(appLocale, "inbox.viewStopOpeningHere")
-                : AppStrings.translate(appLocale, "inbox.viewOpenHereByDefault")
-        ) {
-            controller.setDefaultView(isDefault ? nil : view.id)
+    fileprivate func activeFilterChips(_ controller: InboxController) -> [ActiveFilterChip] {
+        var chips: [ActiveFilterChip] = []
+        if controller.assigneeUserId != nil && controller.tab != .mine {
+            let name = controller.assignee?.display_name ?? ""
+            chips.append(ActiveFilterChip(
+                id: "assignee",
+                label: name.isBlank
+                    ? AppStrings.translate(appLocale, "inbox.teammateFallback")
+                    : name
+            ) { controller.setAssigneeFilter(nil) })
         }
-        if !view.shared || canShareSavedViews {
-            Button(AppStrings.translate(appLocale, "inbox.viewRename")) {
-                renamingView = view
-            }
-            Button(AppStrings.translate(appLocale, "common.delete"), role: .destructive) {
-                if view.shared {
-                    deletingSharedView = view
-                } else {
-                    controller.deleteView(id: view.id)
-                }
-            }
+        if controller.tagId != nil {
+            chips.append(ActiveFilterChip(
+                id: "tag",
+                label: controller.tag?.name ?? AppStrings.translate(appLocale, "inbox.chipTag")
+            ) { controller.setTagFilter(nil) })
         }
+        if controller.awaitingOnly {
+            chips.append(ActiveFilterChip(
+                id: "awaiting",
+                label: AppStrings.translate(appLocale, "inbox.chipUnanswered")
+            ) { controller.toggleAwaiting() })
+        }
+        if controller.unreadOnly {
+            chips.append(ActiveFilterChip(
+                id: "unread",
+                label: AppStrings.translate(appLocale, "inbox.chipUnread")
+            ) { controller.toggleUnread() })
+        }
+        if controller.spamOnly {
+            chips.append(ActiveFilterChip(
+                id: "spam",
+                label: AppStrings.translate(appLocale, "inbox.chipSpam")
+            ) { controller.toggleSpam() })
+        }
+        if controller.snoozedOnly {
+            chips.append(ActiveFilterChip(
+                id: "snoozed",
+                label: AppStrings.translate(appLocale, "inbox.chipSnoozed")
+            ) { controller.toggleSnoozed() })
+        }
+        return chips
     }
 
     /// Sharing a view is workspace configuration, so it rides the same
@@ -2904,52 +2685,6 @@ private struct SaveViewSheet: View {
                         }
                     }
                     .disabled(saving || name.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-        }
-    }
-}
-
-private struct RenameViewSheet: View {
-    let controller: InboxController
-    let view: SavedView
-    let onClose: @MainActor () -> Void
-
-    @Environment(\.appLocale) private var appLocale
-
-    @State private var draft: String
-
-    init(
-        controller: InboxController,
-        view: SavedView,
-        onClose: @escaping @MainActor () -> Void
-    ) {
-        self.controller = controller
-        self.view = view
-        self.onClose = onClose
-        _draft = State(initialValue: view.name)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField(
-                    AppStrings.translate(appLocale, "inbox.viewNameLabel"),
-                    text: $draft
-                )
-            }
-            .navigationTitle(AppStrings.translate(appLocale, "inbox.viewRenameTitle"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(AppStrings.translate(appLocale, "common.cancel")) { onClose() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(AppStrings.translate(appLocale, "common.save")) {
-                        controller.renameView(id: view.id, name: draft)
-                        onClose()
-                    }
-                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }

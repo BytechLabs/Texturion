@@ -1,6 +1,9 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.ActiveFilterChip
+import com.loonext.android.ui.common.ActiveFilterChips
 import com.loonext.android.ui.common.InitialsAvatar
+import com.loonext.android.ui.common.ListFilterButton
 import com.loonext.android.ui.common.csvExportBytes
 import com.loonext.android.ui.common.RefreshBox
 import android.Manifest
@@ -316,6 +319,7 @@ private fun ContactListScreen(
     // empty list is the honest state both for a workspace that defined none
     // and for a read that failed: the chips simply do not appear.
     var fieldFilter by remember(companyId) { mutableStateOf<Pair<String, String>?>(null) }
+    var filterSheetOpen by remember { mutableStateOf(false) }
     // #695: narrow to one workspace tag. Live like the field filter: the cached
     // list is everybody, and serving it under a tag would show people who do
     // not carry it.
@@ -655,6 +659,18 @@ private fun ContactListScreen(
         )
     }
 
+    if (filterSheetOpen) {
+        ContactFilterSheet(
+            defs = fieldDefs,
+            tags = workspaceTags,
+            active = fieldFilter,
+            onChange = { fieldFilter = it },
+            activeTag = tagFilter,
+            onTagChange = { tagFilter = it },
+            onDismiss = { filterSheetOpen = false },
+        )
+    }
+
     Box(modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -714,28 +730,37 @@ private fun ContactListScreen(
             }
 
             Spacer(Modifier.height(14.dp))
-            SearchPill(query, onValueChange = { query = it.take(200) })
-            // #291: under the search box, because both answer "show me less".
-            // Absent entirely unless the workspace defined a field with a
-            // closed set of answers, so most lists look exactly as they did.
-            if (fieldDefs.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                ContactFilter(
-                    defs = fieldDefs,
-                    active = fieldFilter,
-                    onChange = { fieldFilter = it },
+            // #711: search, and beside it the shared Filter button. Tags (#695)
+            // and the workspace's own fields (#291) sit behind it, and it is
+            // absent until there is something to filter on.
+            val filterCount = (if (fieldFilter != null) 1 else 0) + (if (tagFilter != null) 1 else 0)
+            val canFilter = workspaceTags.isNotEmpty() || filterableFields(fieldDefs).isNotEmpty()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SearchPill(
+                    query,
+                    onValueChange = { query = it.take(200) },
+                    modifier = Modifier.weight(1f),
                 )
+                if (canFilter) {
+                    Spacer(Modifier.width(6.dp))
+                    ListFilterButton(count = filterCount, onClick = { filterSheetOpen = true })
+                }
             }
-            // #695: the workspace's tags, as one more row of chips. Absent
-            // until there is a tag at all.
-            if (workspaceTags.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                ContactTagFilter(
-                    tags = workspaceTags,
-                    active = tagFilter,
-                    onChange = { tagFilter = it },
-                )
+            val fieldChipLabel = fieldFilter?.let { fieldFilterChipLabel(fieldDefs, it) }
+            val tagChipLabel = tagFilter?.let { id ->
+                workspaceTags.firstOrNull { it.id == id }?.name ?: t("settingsMore.tagsTitle")
             }
+            ActiveFilterChips(
+                chips = listOfNotNull(
+                    tagChipLabel?.let { ActiveFilterChip(it) { tagFilter = null } },
+                    fieldChipLabel?.let { ActiveFilterChip(it) { fieldFilter = null } },
+                ),
+                onClearAll = {
+                    fieldFilter = null
+                    tagFilter = null
+                },
+                modifier = Modifier.padding(top = 8.dp),
+            )
             Spacer(Modifier.height(14.dp))
 
             when (val current = state) {
@@ -1237,14 +1262,18 @@ private fun DeviceContactRowItem(
 
 /** The paper search pill: 16dp muted glass icon + 13.5sp field. */
 @Composable
-private fun SearchPill(value: String, onValueChange: (String) -> Unit) {
+private fun SearchPill(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+) {
     val hint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
     // Read outside the semantics lambda, which is not composition.
     val searchLabel = t("contactsTasks.searchNameOrNumber")
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
     ) {
         Row(
             Modifier.padding(horizontal = 16.dp, vertical = 11.dp),

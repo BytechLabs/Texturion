@@ -44,8 +44,6 @@ struct TasksTab: View {
     @State private var fullFormAfterQuickAdd = false
     @State private var viewsController: TaskViewsController?
     @State private var saveViewOpen = false
-    @State private var manageViewsOpen = false
-    @State private var renamingView: SavedView?
     @State private var appliedDefaultView = false
 
     @State private var state: LoadState<Void> = .loading
@@ -158,7 +156,6 @@ struct TasksTab: View {
         // shell with no pill (it used to push inside this tab, under the pill).
         VStack(spacing: 0) {
             headerRow
-            tabPills
             searchField
             controlsRow
             switch view {
@@ -395,29 +392,24 @@ struct TasksTab: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
-    /// The segmented pill track — ink-filled selected pill, paper idle pills
-    /// (spec 24/31). Board mode keeps the existing Mine/All reduction.
+    /// The status tabs: ink-filled selected pill, paper idle pills (spec 24/31). Board
+    /// mode keeps the existing Mine/All reduction. They sit in the shared filter row.
     private var tabPills: some View {
-        HStack(spacing: 6) {
-            ForEach(visibleTabs) { item in
-                let selected = tab == item
-                Button {
-                    tab = item
-                    statusOnlyFilter = nil
-                } label: {
-                    Text(AppStrings.translate(appLocale, item.labelKey))
-                        .font(.golos(12, weight: selected ? .semibold : .medium))
-                        .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
-                        .padding(.horizontal, 15)
-                        .padding(.vertical, 10)
-                        .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
-                }
-                .buttonStyle(.plain)
+        ForEach(visibleTabs) { item in
+            let selected = tab == item
+            Button {
+                tab = item
+                statusOnlyFilter = nil
+            } label: {
+                Text(AppStrings.translate(appLocale, item.labelKey))
+                    .font(.golos(12, weight: selected ? .semibold : .medium))
+                    .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 10)
+                    .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
             }
-            Spacer(minLength: 0)
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 14)
     }
 
     private var searchField: some View {
@@ -482,34 +474,53 @@ struct TasksTab: View {
             .contentShape(Rectangle())
     }
 
-    private var filtersLabel: String {
-        let count = taskFilterCount(currentState)
-        let word = AppStrings.translate(appLocale, "taskRefs.filtersTitle")
-        return count == 0 ? word : "\(word) \u{00B7} \(count)"
+    private var viewsModel: ListViewsModel? {
+        guard let controller = viewsController else { return nil }
+        let views = controller.views
+        let active = views.first(where: { view in
+            taskViewMatches(view.filters, currentState, meUserId: me.user_id)
+        })
+        let entries = views.map { view in
+            ViewsMenuEntry(
+                id: view.id,
+                name: view.name,
+                count: nil,
+                shared: view.shared,
+                isDefault: view.id == controller.defaultViewId
+            )
+        }
+        let filtered = taskFilterCount(currentState) > 0 || tab != .open
+        return ListViewsModel(
+            entries: entries,
+            activeId: active?.id,
+            canSaveCurrent: filtered && active == nil,
+            canShare: canShareViews,
+            onApply: { id in
+                if let view = views.first(where: { $0.id == id }) { applyView(view) }
+            },
+            onSaveCurrent: { saveViewOpen = true },
+            onDefault: { id in Task { await controller.setDefault(id) } },
+            onRename: { id, name in Task { _ = await controller.rename(id: id, name: name) } },
+            onShare: { id, shared in Task { await controller.share(id: id, shared: shared) } },
+            onDelete: { id in Task { await controller.remove(id: id) } }
+        )
     }
 
-    /// One quiet row: Filters, Sort, Views. Every filter is behind Filters.
+    /// #711: the shared header. One row of status tabs, Filter and Views, and the applied
+    /// filters under it only while any is on. Every filter is behind Filter.
     private var controlsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                Button {
-                    filtersOpen = true
-                } label: {
-                    menuChipLabel(filtersLabel, selected: taskFilterCount(currentState) > 0)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(
-                    AppStrings.translate(
-                        appLocale,
-                        "taskRefs.filtersSpoken",
-                        ["count": String(taskFilterCount(currentState))]
-                    )
-                )
+        VStack(spacing: 6) {
+            ListFilterRow(
+                filterCount: taskFilterCount(currentState),
+                onFilter: { filtersOpen = true },
+                views: viewsModel
+            ) {
+                tabPills
                 sortMenuChip
-                viewsMenuChip
             }
-            .padding(.horizontal, 18)
+            ActiveFilterChips(chips: activeFilterChips, onClearAll: clearActiveFilters)
         }
+        .padding(.top, 8)
         .padding(.bottom, 6)
         .sheet(isPresented: $filtersOpen) {
             TaskFiltersSheet(
@@ -526,8 +537,97 @@ struct TasksTab: View {
             )
         }
         .sheet(isPresented: $saveViewOpen) { saveViewSheet }
-        .sheet(isPresented: $manageViewsOpen) { manageViewsSheet }
-        .sheet(item: $renamingView) { view in renameViewSheet(view) }
+    }
+
+    private func memberLabel(_ userId: String) -> String {
+        if userId == me.user_id { return AppStrings.translate(appLocale, "contactsTasks.you") }
+        let name = members.first(where: { $0.user_id == userId })?.display_name ?? ""
+        return name.isBlank ? AppStrings.translate(appLocale, "contactsTasks.teammate") : name
+    }
+
+    /// The applied filters, one removable chip each. The tab and the sort are not filters.
+    private var activeFilterChips: [ActiveFilterChip] {
+        var chips: [ActiveFilterChip] = []
+        if let id = assigneeChip {
+            chips.append(ActiveFilterChip(id: "assignee", label: memberLabel(id)) {
+                assigneeChip = nil
+            })
+        }
+        if unassignedChip {
+            chips.append(ActiveFilterChip(
+                id: "unassigned",
+                label: AppStrings.translate(appLocale, "contactsTasks.unassigned")
+            ) { unassignedChip = false })
+        }
+        if let chip = dueChip {
+            chips.append(ActiveFilterChip(
+                id: "due",
+                label: AppStrings.translate(appLocale, chip.labelKey)
+            ) { dueChip = nil })
+        }
+        for priority in priorityFilter {
+            chips.append(ActiveFilterChip(
+                id: "priority-" + priority,
+                label: AppStrings.translate(appLocale, TaskPriority.from(priority).labelKey)
+            ) { priorityFilter.removeAll { $0 == priority } })
+        }
+        if let id = tagFilter {
+            let name = workspaceTags.first(where: { $0.id == id })?.name ?? ""
+            chips.append(ActiveFilterChip(
+                id: "tag",
+                label: name.isBlank ? AppStrings.translate(appLocale, "inbox.chipTag") : name
+            ) { tagFilter = nil })
+        }
+        if contactFilter != nil {
+            chips.append(ActiveFilterChip(
+                id: "contact",
+                label: contactFilterName ?? AppStrings.translate(appLocale, "inbox.chipTag")
+            ) {
+                contactFilter = nil
+                contactFilterName = nil
+            })
+        }
+        if let id = createdByFilter {
+            chips.append(ActiveFilterChip(id: "createdBy", label: memberLabel(id)) {
+                createdByFilter = nil
+            })
+        }
+        if let source = sourceFilter {
+            chips.append(ActiveFilterChip(
+                id: "source",
+                label: AppStrings.translate(appLocale, TaskSourceChoice.labelKey(source))
+            ) { sourceFilter = nil })
+        }
+        if hasAttachmentsFilter {
+            chips.append(ActiveFilterChip(
+                id: "files",
+                label: AppStrings.translate(appLocale, "taskRefs.filterHasAttachments")
+            ) { hasAttachmentsFilter = false })
+        }
+        if hasReferencesFilter {
+            chips.append(ActiveFilterChip(
+                id: "links",
+                label: AppStrings.translate(appLocale, "taskRefs.filterHasReferences")
+            ) { hasReferencesFilter = false })
+        }
+        if dueAfterFilter != nil || dueBeforeFilter != nil {
+            chips.append(ActiveFilterChip(
+                id: "dueRange",
+                label: AppStrings.translate(appLocale, "taskRefs.dueRange")
+            ) {
+                dueAfterFilter = nil
+                dueBeforeFilter = nil
+            })
+        }
+        return chips
+    }
+
+    private func clearActiveFilters() {
+        var cleared = TaskViewState()
+        cleared.tab = tab
+        cleared.meta.sort = sortChoice
+        cleared.group = groupChoice
+        applyState(cleared)
     }
 
     private func contactSearchClosure() -> @MainActor (String) async -> [ReferencePick] {
@@ -587,40 +687,6 @@ struct TasksTab: View {
         }
     }
 
-    /// The saved views as one compact switcher rather than a second row of pills.
-    private var viewsMenuChip: some View {
-        let views = viewsController?.views ?? []
-        let active = views.first(where: { view in
-            taskViewMatches(view.filters, currentState, meUserId: me.user_id)
-        })
-        return Menu {
-            ForEach(views, id: \.id) { view in
-                Button {
-                    applyView(view)
-                } label: {
-                    if view.id == active?.id {
-                        Label(view.name, systemImage: "checkmark")
-                    } else {
-                        Text(view.name)
-                    }
-                }
-            }
-            Button(AppStrings.translate(appLocale, "inbox.viewsSave")) {
-                saveViewOpen = true
-            }
-            if !views.isEmpty {
-                Button(AppStrings.translate(appLocale, "taskRefs.viewsManage")) {
-                    manageViewsOpen = true
-                }
-            }
-        } label: {
-            menuChipLabel(
-                active?.name ?? AppStrings.translate(appLocale, "taskRefs.viewsTitle"),
-                selected: active != nil
-            )
-        }
-    }
-
     @ViewBuilder
     private var saveViewSheet: some View {
         if let controller = viewsController {
@@ -644,39 +710,6 @@ struct TasksTab: View {
                     )
                 },
                 onClose: { saveViewOpen = false }
-            )
-        }
-    }
-
-    @ViewBuilder
-    private var manageViewsSheet: some View {
-        if let controller = viewsController {
-            TaskViewsManageSheet(
-                controller: controller,
-                canManageShared: canShareViews,
-                onOpen: { view in
-                    manageViewsOpen = false
-                    applyView(view)
-                },
-                onRename: { view in
-                    manageViewsOpen = false
-                    renamingView = view
-                },
-                onClose: { manageViewsOpen = false }
-            )
-        }
-    }
-
-    @ViewBuilder
-    private func renameViewSheet(_ view: SavedView) -> some View {
-        if let controller = viewsController {
-            TaskViewNameSheet(
-                titleKey: "inbox.viewRenameTitle",
-                initialName: view.name,
-                note: nil,
-                canShare: false,
-                onSubmit: { name, _ in await controller.rename(id: view.id, name: name) },
-                onClose: { renamingView = nil }
             )
         }
     }

@@ -405,173 +405,60 @@ internal fun ContactPickerSheet(
 }
 
 /**
- * The compact views switcher (#689 G): one pill that names the view on screen,
- * and a menu holding the saved views, saving the current arrangement, and what
- * can be done to the one that is open.
+ * #711: the dialog behind "Save these filters as a view…" in the shared Views
+ * menu. The menu itself, and renaming, sharing, defaulting and deleting, live in
+ * the shared `ListViewsMenu`.
  */
 @Composable
-internal fun TaskViewsControl(
-    views: List<SavedView>,
-    activeId: String?,
-    defaultId: String?,
+internal fun TaskSaveViewDialog(
     canShare: Boolean,
-    onApply: (SavedView) -> Unit,
     onSave: (name: String, shared: Boolean, done: (String?) -> Unit) -> Unit,
-    onRename: (id: String, name: String) -> Unit,
-    onDelete: (id: String) -> Unit,
-    onDefault: (id: String?) -> Unit,
+    onDismiss: () -> Unit,
     suggestedName: String,
 ) {
-    var menuOpen by remember { mutableStateOf(false) }
-    var saveOpen by remember { mutableStateOf(false) }
-    var renameOpen by remember { mutableStateOf(false) }
-    var deleteOpen by remember { mutableStateOf(false) }
-    val active = views.firstOrNull { it.id == activeId }
-
-    Column {
-        FilterPill(
-            text = active?.name ?: t("taskViews.views"),
-            selected = active != null,
-            onClick = { menuOpen = true },
-        )
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            if (views.isEmpty()) {
-                DropdownMenuItem(text = { Text(t("taskViews.viewsNone")) }, enabled = false, onClick = {})
-            }
-            views.forEach { view ->
-                DropdownMenuItem(
-                    text = { Text(view.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    onClick = {
-                        menuOpen = false
-                        onApply(view)
-                    },
-                )
-            }
-            DropdownMenuItem(
-                text = { Text(t("taskViews.viewsSave")) },
-                onClick = {
-                    menuOpen = false
-                    saveOpen = true
-                },
-            )
-            if (active != null) {
-                val manage = !active.shared || canShare
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            if (active.id == defaultId) {
-                                t("inbox.viewStopOpeningHere")
-                            } else {
-                                t("inbox.viewOpenHereByDefault")
-                            },
-                        )
-                    },
-                    onClick = {
-                        menuOpen = false
-                        onDefault(if (active.id == defaultId) null else active.id)
-                    },
-                )
-                if (manage) {
-                    DropdownMenuItem(
-                        text = { Text(t("inbox.viewRename")) },
-                        onClick = {
-                            menuOpen = false
-                            renameOpen = true
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(t("taskViews.viewDelete")) },
-                        onClick = {
-                            menuOpen = false
-                            if (active.shared) deleteOpen = true else onDelete(active.id)
-                        },
-                    )
-                }
-            }
-        }
-    }
-
-    if (saveOpen) {
-        var name by remember { mutableStateOf(suggestedName) }
-        var shared by remember { mutableStateOf(false) }
-        var error by remember { mutableStateOf<String?>(null) }
-        var saving by remember { mutableStateOf(false) }
-        AlertDialog(
-            onDismissRequest = { saveOpen = false },
-            title = { Text(t("taskViews.viewsSave")) },
-            text = {
-                Column {
-                    Text(t("inbox.viewSaveDescription"), style = MaterialTheme.typography.bodyMedium)
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { if (it.length <= SAVED_VIEW_NAME_MAX) name = it },
-                        label = { Text(t("inbox.viewNameLabel")) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                    )
-                    if (canShare) {
-                        SwitchRow(t("inbox.viewShareToggle"), shared) { shared = it }
-                        Text(t("inbox.viewShareNote"), style = MaterialTheme.typography.bodySmall)
-                    }
-                    error?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = name.isNotBlank() && !saving,
-                    onClick = {
-                        saving = true
-                        onSave(name, shared) { failure ->
-                            saving = false
-                            if (failure == null) saveOpen = false else error = failure
-                        }
-                    },
-                ) { Text(if (saving) t("inbox.viewSaving") else t("common.save")) }
-            },
-            dismissButton = { TextButton(onClick = { saveOpen = false }) { Text(t("common.cancel")) } },
-        )
-    }
-    if (renameOpen && active != null) {
-        var draft by remember { mutableStateOf(active.name) }
-        AlertDialog(
-            onDismissRequest = { renameOpen = false },
-            title = { Text(t("inbox.viewRenameTitle")) },
-            text = {
+    var name by remember { mutableStateOf(suggestedName) }
+    var shared by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = { onDismiss() },
+        title = { Text(t("taskViews.viewsSave")) },
+        text = {
+            Column {
+                Text(t("inbox.viewSaveDescription"), style = MaterialTheme.typography.bodyMedium)
                 OutlinedTextField(
-                    value = draft,
-                    onValueChange = { if (it.length <= SAVED_VIEW_NAME_MAX) draft = it },
+                    value = name,
+                    onValueChange = { if (it.length <= SAVED_VIEW_NAME_MAX) name = it },
                     label = { Text(t("inbox.viewNameLabel")) },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 )
-            },
-            confirmButton = {
-                TextButton(enabled = draft.isNotBlank(), onClick = {
-                    renameOpen = false
-                    onRename(active.id, draft)
-                }) { Text(t("common.save")) }
-            },
-            dismissButton = { TextButton(onClick = { renameOpen = false }) { Text(t("common.cancel")) } },
-        )
-    }
-    if (deleteOpen && active != null) {
-        AlertDialog(
-            onDismissRequest = { deleteOpen = false },
-            title = { Text(t("inbox.viewDeleteTitle")) },
-            text = { Text(t("taskViews.viewDeleteBody", "name" to active.name)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    deleteOpen = false
-                    onDelete(active.id)
-                }) { Text(t("inbox.viewDeleteConfirm")) }
-            },
-            dismissButton = { TextButton(onClick = { deleteOpen = false }) { Text(t("inbox.viewDeleteKeep")) } },
-        )
-    }
+                if (canShare) {
+                    SwitchRow(t("inbox.viewShareToggle"), shared) { shared = it }
+                    Text(t("inbox.viewShareNote"), style = MaterialTheme.typography.bodySmall)
+                }
+                error?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank() && !saving,
+                onClick = {
+                    saving = true
+                    onSave(name, shared) { failure ->
+                        saving = false
+                        if (failure == null) onDismiss() else error = failure
+                    }
+                },
+            ) { Text(if (saving) t("inbox.viewSaving") else t("common.save")) }
+        },
+        dismissButton = { TextButton(onClick = { onDismiss() }) { Text(t("common.cancel")) } },
+    )
 }

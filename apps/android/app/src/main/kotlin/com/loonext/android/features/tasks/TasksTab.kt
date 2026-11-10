@@ -88,6 +88,11 @@ import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.features.inbox.SavedView
+import com.loonext.android.ui.common.ActiveFilterChip
+import com.loonext.android.ui.common.ActiveFilterChips
+import com.loonext.android.ui.common.ListFilterRow
+import com.loonext.android.ui.common.ListViews
+import com.loonext.android.ui.common.ViewsMenuEntry
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.core.model.canDeleteRecords
 import com.loonext.android.features.inbox.BulkSelection
@@ -189,6 +194,7 @@ private fun TaskListScreen(
     var dueBeforeFilter by rememberSaveable(companyId) { mutableStateOf<String?>(null) }
     var groupName by rememberSaveable(companyId) { mutableStateOf(TaskGroup.Status.name) }
     var filtersSheetOpen by remember { mutableStateOf(false) }
+    var saveViewOpen by remember { mutableStateOf(false) }
     var quickAddOpen by remember { mutableStateOf(false) }
     var sortSheetOpen by remember { mutableStateOf(false) }
     val extra = TaskExtraFilters(
@@ -532,16 +538,68 @@ private fun TaskListScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // The rail: status tabs, ONE Filters control, the sort and the saved
-            // views. Everything else that narrows the list lives in the Filters
-            // sheet (#689 G), so the rail never grows a pill per filter.
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 18.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            // #711: the shared header. One row of status tabs, Filter and Views, and
+            // the applied filters under it only while any is on. Everything else
+            // that narrows the list lives behind Filter (#689 G).
+            val filterCount = listOf(
+                assigneeChip != null || unassignedChip,
+                dueChip != null,
+            ).count { it } + extra.activeCount
+            val matchingView = savedViews.firstOrNull {
+                taskViewMatches(it.filters, currentState, me.user_id)
+            }
+            val canShareViews = MemberRole.has(
+                me.memberships.firstOrNull { it.company_id == companyId }?.role,
+                Capability.SETTINGS_MANAGE,
+            )
+            ListFilterRow(
+                filterCount = filterCount,
+                onFilter = { filtersSheetOpen = true },
+                modifier = Modifier.padding(horizontal = 18.dp),
+                views = if (view == TaskViewKind.List || view == TaskViewKind.Board) {
+                    ListViews(
+                        entries = savedViews.map {
+                            ViewsMenuEntry(
+                                id = it.id,
+                                name = it.name,
+                                shared = it.shared,
+                                isDefault = it.id == defaultViewId,
+                            )
+                        },
+                        activeId = matchingView?.id,
+                        canSaveCurrent = (filterCount > 0 || tab != TasksTabKind.Open) &&
+                            matchingView == null,
+                        canShare = canShareViews,
+                        onApply = { id -> savedViews.firstOrNull { it.id == id }?.let { applyView(it) } },
+                        onSaveCurrent = { saveViewOpen = true },
+                        onDefault = { id ->
+                            scope.launch {
+                                runCatching { viewsRepo.setDefaultSavedView(companyId, id, TASKS_SURFACE) }
+                                    .onSuccess { defaultViewId = id }
+                            }
+                        },
+                        onRename = { id, name ->
+                            scope.launch {
+                                runCatching { viewsRepo.renameSavedView(companyId, id, name.trim()) }
+                                    .onSuccess { loadViews() }
+                            }
+                        },
+                        onShare = { id, shared ->
+                            scope.launch {
+                                runCatching { viewsRepo.shareSavedView(companyId, id, shared) }
+                                    .onSuccess { loadViews() }
+                            }
+                        },
+                        onDelete = { id ->
+                            scope.launch {
+                                runCatching { viewsRepo.deleteSavedView(companyId, id) }
+                                    .onSuccess { loadViews() }
+                            }
+                        },
+                    )
+                } else {
+                    null
+                },
             ) {
                 // Which tabs actually DO something per view (#113, the web's
                 // tabsForView): Board's columns ARE the status dimension, so
@@ -563,22 +621,6 @@ private fun TaskListScreen(
                         },
                     )
                 }
-                val filterCount = listOf(
-                    assigneeChip != null || unassignedChip,
-                    dueChip != null,
-                ).count { it } + extra.activeCount
-                FilterPill(
-                    text = if (filterCount > 0) {
-                        t("taskViews.filtersCount", "count" to "$filterCount")
-                    } else {
-                        t("taskViews.filters")
-                    },
-                    selected = filterCount > 0,
-                    onClick = {
-                        haptics.tap()
-                        filtersSheetOpen = true
-                    },
-                )
                 if (view == TaskViewKind.List) {
                     FilterPill(
                         text = t("contactsTasks.sortedBy", "sort" to t(extra.sort.labelKey)),
@@ -589,40 +631,85 @@ private fun TaskListScreen(
                         },
                     )
                 }
-                if (view == TaskViewKind.List || view == TaskViewKind.Board) {
-                    TaskViewsControl(
-                        views = savedViews,
-                        activeId = savedViews.firstOrNull {
-                            taskViewMatches(it.filters, currentState, me.user_id)
-                        }?.id,
-                        defaultId = defaultViewId,
-                        canShare = MemberRole.has(
-                            me.memberships.firstOrNull { it.company_id == companyId }?.role,
-                            Capability.SETTINGS_MANAGE,
-                        ),
-                        onApply = { applyView(it) },
-                        onSave = { name, shared, done -> saveView(name, shared, done) },
-                        onRename = { id, name ->
-                            scope.launch {
-                                runCatching { viewsRepo.renameSavedView(companyId, id, name.trim()) }
-                                    .onSuccess { loadViews() }
-                            }
+            }
+            val noneLabel = t("taskViews.noAssignee")
+            val sourceLabels = mapOf(
+                "text" to t("taskViews.sourceText"),
+                "call" to t("taskViews.sourceCall"),
+                "none" to t("taskViews.sourceNone"),
+            )
+            val dueRangeLabel = t("taskViews.dueCustom")
+            val filesLabel = t("taskViews.hasFiles")
+            val linksLabel = t("taskViews.hasLinks")
+            val activeChips = buildList {
+                if (assigneeChip != null) {
+                    add(ActiveFilterChip(memberName(assigneeChip) ?: teammateLabel) { assigneeChip = null })
+                }
+                if (unassignedChip) add(ActiveFilterChip(noneLabel) { unassignedChip = false })
+                dueChip?.let { chip ->
+                    add(ActiveFilterChip(t(chip.labelKey)) { dueChipName = null })
+                }
+                extra.priorities.forEach { priority ->
+                    add(
+                        ActiveFilterChip(t(TaskPriority.labelKey(priority))) {
+                            priorityCsv = extra.priorities.minus(priority).joinToString(",")
                         },
-                        onDelete = { id ->
-                            scope.launch {
-                                runCatching { viewsRepo.deleteSavedView(companyId, id) }
-                                    .onSuccess { loadViews() }
-                            }
-                        },
-                        onDefault = { id ->
-                            scope.launch {
-                                runCatching { viewsRepo.setDefaultSavedView(companyId, id, TASKS_SURFACE) }
-                                    .onSuccess { defaultViewId = id }
-                            }
-                        },
-                        suggestedName = suggestedViewName,
                     )
                 }
+                if (tagFilterId != null) {
+                    add(ActiveFilterChip(tagFilterName ?: teammateLabel) {
+                        tagFilterId = null
+                        tagFilterName = null
+                    })
+                }
+                if (contactFilterId != null) {
+                    add(ActiveFilterChip(contactName ?: teammateLabel) {
+                        contactFilterId = null
+                        contactName = null
+                    })
+                }
+                if (createdByFilter != null) {
+                    add(ActiveFilterChip(memberName(createdByFilter) ?: teammateLabel) { createdByFilter = null })
+                }
+                sourceFilter?.let { source ->
+                    add(ActiveFilterChip(sourceLabels[source] ?: source) { sourceFilter = null })
+                }
+                if (hasFilesFilter) add(ActiveFilterChip(filesLabel) { hasFilesFilter = false })
+                if (hasLinksFilter) add(ActiveFilterChip(linksLabel) { hasLinksFilter = false })
+                if (dueAfterFilter != null || dueBeforeFilter != null) {
+                    add(ActiveFilterChip(dueRangeLabel) {
+                        dueAfterFilter = null
+                        dueBeforeFilter = null
+                    })
+                }
+            }
+            if (activeChips.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                ActiveFilterChips(
+                    chips = activeChips,
+                    onClearAll = {
+                        applyState(
+                            TaskViewState(
+                                tab,
+                                null,
+                                false,
+                                null,
+                                TaskExtraFilters(sort = extra.sort, group = extra.group),
+                            ),
+                            null,
+                            null,
+                        )
+                    },
+                    modifier = Modifier.padding(horizontal = 18.dp),
+                )
+            }
+            if (saveViewOpen) {
+                TaskSaveViewDialog(
+                    canShare = canShareViews,
+                    onSave = { name, shared, done -> saveView(name, shared, done) },
+                    onDismiss = { saveViewOpen = false },
+                    suggestedName = suggestedViewName,
+                )
             }
 
             Spacer(Modifier.height(10.dp))

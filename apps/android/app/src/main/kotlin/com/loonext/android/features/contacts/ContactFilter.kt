@@ -1,28 +1,36 @@
 package com.loonext.android.features.contacts
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactFieldDef
+import com.loonext.android.core.model.Tag
+import com.loonext.android.ui.common.AppSheet
 
 /**
- * #291 — narrow the contacts list to one answer in one of the workspace's own
- * fields.
+ * #291 / #711 — narrow the contacts list to a tag, or to one answer in one of
+ * the workspace's own fields, from the same Filter button the inbox and Tasks
+ * use.
  *
  * Design notes, and the principles behind them:
  *
+ * - **Behind the Filter button, not in rows of chips.** The inbox, Tasks and
+ *   Contacts lists all answer "which ones am I looking at?" the same way: one
+ *   Filter button, and the applied filters as removable chips only while any is
+ *   on. *Applying: Zen of Clarity, and the Safety principle.*
  * - **Absent unless there is something worth filtering on.** Only a dropdown or
  *   a yes/no field has a closed set of answers; a serial number does not, and
  *   offering to filter by one would be a text box that returns nothing until it
@@ -36,69 +44,83 @@ import com.loonext.android.core.model.ContactFieldDef
  *   of the view is always legible.*
  * - **"Not set" is a choice**, and the most useful one: exactly the customers
  *   somebody still has to ask.
- *
- * Chips rather than the web's two dropdowns: a phone has room for one row of
- * taps and not for two selects side by side, and the answer set is short.
- * `contact-filter-parity.test.ts` keeps the words the same.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ContactFilter(
+fun ContactFilterSheet(
     defs: List<ContactFieldDef>,
+    tags: List<Tag>,
     active: Pair<String, String>?,
     onChange: (Pair<String, String>?) -> Unit,
-    modifier: Modifier = Modifier,
+    activeTag: String?,
+    onTagChange: (String?) -> Unit,
+    onDismiss: () -> Unit,
 ) {
     // Only the kinds with a closed set of answers.
-    val filterable = defs.filter { it.kind == "select" || it.kind == "checkbox" }
-    if (filterable.isEmpty()) return
-
-    LazyRow(
-        modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        item {
-            FilterChip(
-                selected = active == null,
-                onClick = { onChange(null) },
-                label = { Text(CONTACT_FILTER_ALL) },
+    val filterable = filterableFields(defs)
+    AppSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                t("inbox.filterAction"),
+                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 21.sp),
+                color = MaterialTheme.colorScheme.onBackground,
             )
-        }
-        items(filterable.size) { index ->
-            val field = filterable[index]
-            var open by remember(field.key) { mutableStateOf(false) }
-            val selected = active?.first == field.key
-            Row {
-                FilterChip(
-                    selected = selected,
-                    onClick = { open = true },
-                    label = {
-                        Text(
-                            if (selected) {
-                                "${field.label}: ${answerLabel(active.second)}"
-                            } else {
-                                field.label
-                            },
-                        )
-                    },
-                )
-                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                    // Empty is an ANSWER on a custom field, and the most useful
-                    // filter of the lot: the customers still to ask.
-                    DropdownMenuItem(
-                        text = { Text(CONTACT_FILTER_UNSET) },
-                        onClick = {
-                            open = false
-                            onChange(field.key to "")
-                        },
+            if (tags.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        t("settingsMore.tagsTitle"),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    for (choice in answersFor(field)) {
-                        DropdownMenuItem(
-                            text = { Text(answerLabel(choice)) },
-                            onClick = {
-                                open = false
-                                onChange(field.key to choice)
-                            },
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        tags.forEach { tag ->
+                            FilterChip(
+                                selected = activeTag == tag.id,
+                                onClick = {
+                                    onTagChange(if (activeTag == tag.id) null else tag.id)
+                                },
+                                label = { Text(tag.name) },
+                            )
+                        }
+                    }
+                }
+            }
+            filterable.forEach { field ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        field.label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        // Empty is an ANSWER on a custom field, and the most useful
+                        // filter of the lot: the customers still to ask.
+                        FilterChip(
+                            selected = active?.first != field.key,
+                            onClick = { onChange(null) },
+                            label = { Text(CONTACT_FILTER_ALL) },
                         )
+                        val choices = listOf("") + answersFor(field)
+                        choices.forEach { choice ->
+                            val chosen = active?.first == field.key && active.second == choice
+                            FilterChip(
+                                selected = chosen,
+                                onClick = { onChange(if (chosen) null else field.key to choice) },
+                                label = { Text(answerLabel(choice)) },
+                            )
+                        }
                     }
                 }
             }
@@ -106,17 +128,25 @@ fun ContactFilter(
     }
 }
 
+/** The fields a customer list can be narrowed by: a dropdown or a yes/no. */
+internal fun filterableFields(defs: List<ContactFieldDef>): List<ContactFieldDef> =
+    defs.filter { it.kind == "select" || it.kind == "checkbox" }
+
 /** What a field can be filtered to. A yes/no field has two, not its options. */
 private fun answersFor(field: ContactFieldDef): List<String> =
     if (field.kind == "checkbox") listOf("yes", "no") else field.options.orEmpty()
 
 /** "yes" and "no" are stored values; these are the words on screen. */
-private fun answerLabel(value: String): String = when (value) {
+internal fun answerLabel(value: String): String = when (value) {
     "" -> CONTACT_FILTER_UNSET
     "yes" -> "Yes"
     "no" -> "No"
     else -> value
 }
+
+/** The applied field filter as a chip label: "Field: answer". */
+internal fun fieldFilterChipLabel(defs: List<ContactFieldDef>, active: Pair<String, String>): String =
+    "${defs.firstOrNull { it.key == active.first }?.label ?: active.first}: ${answerLabel(active.second)}"
 
 /**
  * The words this surface owns, kept where the parity test can read them.

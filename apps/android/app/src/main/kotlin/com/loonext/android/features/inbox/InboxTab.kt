@@ -126,7 +126,12 @@ import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.DsChip
+import com.loonext.android.ui.common.ActiveFilterChip
+import com.loonext.android.ui.common.ActiveFilterChips
+import com.loonext.android.ui.common.ListFilterRow
+import com.loonext.android.ui.common.ListViews
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.ViewsMenuEntry
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
@@ -138,7 +143,7 @@ import com.loonext.android.ui.common.SwipeAction
 import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.touchTarget
 import com.loonext.android.ui.common.userMessage
@@ -159,7 +164,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import com.loonext.android.ui.common.asToggleButton
 import com.loonext.android.ui.common.asButton
-import com.loonext.android.ui.common.spokenTimeOf
 
 // #280: internal rather than file-private so SavedViews.kt can translate a
 // stored view into a tab selection. Same module, same package.
@@ -589,7 +593,42 @@ private class InboxController(
         showPane()
     }
 
+    /**
+     * #711: how many filters BEYOND the status tabs are on, for the Filter
+     * button's badge. The tabs sit beside it, so counting them would say two
+     * things about one control.
+     */
+    val activeFilterCount: Int
+        get() = listOf(
+            assigneeUserId != null && tab != InboxStatusTab.Mine,
+            tagId != null,
+            unreadOnly,
+            spamOnly,
+            snoozedOnly,
+            awaitingOnly,
+        ).count { it }
+
+    /** #711: "Clear all" on the applied-filters line: everything but the tab. */
+    fun clearSecondaryFilters() {
+        if (activeFilterCount == 0) return
+        assigneeUserId = null
+        tagId = null
+        unreadOnly = false
+        spamOnly = false
+        snoozedOnly = false
+        awaitingOnly = false
+        showPane()
+    }
+
     // --- #280 saved views -------------------------------------------------
+
+    fun shareView(id: String, shared: Boolean) {
+        scope.launch {
+            runCatching { repo.shareSavedView(companyId, id, shared) }
+                .onSuccess { loadSavedViews() }
+        }
+    }
+
 
     /** The arrangement currently on screen, in the shape a view stores. */
     internal val currentSelection: ViewSelection
@@ -1303,31 +1342,14 @@ private fun InboxList(
                 InboxHeader(
                     unreadCount = controller.pinnedRows.count { it.unread } +
                         controller.rows.count { it.unread },
-                    // #548: Status counts. An inbox showing only closed threads
-                    // used to look unfiltered, so nothing on screen said why the
-                    // list was short or hinted at the way back.
-                    filtersActive = controller.isFiltered,
                     scheduledCount = controller.scheduled.size,
                     onSearch = { searchOpen = true },
-                    onFilters = { filterSheetOpen = true },
                     onScheduled = { scheduledSheetOpen = true },
                 )
                 Spacer(Modifier.height(14.dp))
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    InboxStatusTab.entries.forEach { item ->
-                        FilterPill(
-                            text = t(item.labelKey),
-                            selected = controller.tab == item,
-                            onClick = { controller.selectTab(item) },
-                        )
-                    }
-                }
-                SavedViewsRow(
+                // #711: ONE row for the tabs, Filter and Views, and the applied
+                // filters under it only while any is on.
+                InboxFilterRow(
                     controller = controller,
                     // Sharing a view is workspace configuration, so it rides
                     // the same capability the server gates it on.
@@ -1335,7 +1357,9 @@ private fun InboxList(
                         me.memberships.firstOrNull { it.company_id == companyId }?.role,
                         Capability.SETTINGS_MANAGE,
                     ),
+                    onFilter = { filterSheetOpen = true },
                 )
+                InboxActiveFilters(controller)
                 Spacer(Modifier.height(14.dp))
                 // #476: first-run guidance, above the list and OUTSIDE the
                 // state switch below. Inside it (or inside the LazyColumn) the
@@ -1428,7 +1452,6 @@ private const val UNREAD_BADGE_TRANSITION = "unreadBadge"
 @Composable
 private fun InboxHeader(
     unreadCount: Int,
-    filtersActive: Boolean,
     /**
      * #233: how many texts the workspace has queued. Zero withholds the
      * control entirely — an icon that opens an empty list on most days is
@@ -1436,7 +1459,6 @@ private fun InboxHeader(
      */
     scheduledCount: Int,
     onSearch: () -> Unit,
-    onFilters: () -> Unit,
     onScheduled: () -> Unit,
 ) {
     Row(
@@ -1479,13 +1501,6 @@ private fun InboxHeader(
             icon = Icons.Outlined.Search,
             contentDescription = t("inbox.searchAria"),
             onClick = onSearch,
-        )
-        Spacer(Modifier.width(8.dp))
-        PaperIconButton(
-            icon = Icons.Outlined.Tune,
-            contentDescription = t("inbox.filtersAria"),
-            onClick = onFilters,
-            badge = filtersActive,
         )
     }
 }
@@ -1932,11 +1947,10 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                     UrgentBadge()
                 }
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    relativeTime(row.last_message_at),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                Timestamp(
+                    row.last_message_at,
+                    textStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.spokenTimeOf(row.last_message_at),
                 )
             }
             val snippet = row.last_message?.let { last ->
@@ -2161,22 +2175,6 @@ private fun FiltersSheet(
                     active = controller.isFiltered,
                     onReset = { controller.resetFilters() },
                 )
-            }
-
-            Column {
-                SectionHeader(t("inbox.filterGroupStatus"))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    verticalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    InboxStatusTab.entries.forEach { item ->
-                        FilterPill(
-                            text = t(item.labelKey),
-                            selected = controller.tab == item,
-                            onClick = { controller.selectTab(item) },
-                        )
-                    }
-                }
             }
 
             if (controller.tab != InboxStatusTab.Mine) {
@@ -2623,9 +2621,9 @@ private fun SearchResultsPane(
                                     modifier = Modifier.weight(1f),
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text(
-                                    relativeTime(hit.matched_at),
-                                    style = MaterialTheme.typography.labelSmall.copy(
+                                Timestamp(
+                                    hit.matched_at,
+                                    textStyle = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 11.sp,
                                     ),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2751,9 +2749,9 @@ private fun SearchResultsPane(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            Text(
-                                relativeTime(hit.created_at),
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            Timestamp(
+                                hit.created_at,
+                                textStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 1.dp),
                             )
@@ -3083,53 +3081,47 @@ private fun BulkSelectionBar(controller: InboxController) {
 // ---------------------------------------------------------------------------
 
 /**
- * The row of saved views, and the one affordance for keeping the arrangement on
- * screen.
- *
- * Applying: the Safety Principle (a horizontal strip of named queries directly
- * under the status pills is where saved views live in every product that has
- * them), Zen of Clarity (per-view actions are a long-press menu rather than
- * three controls crowded onto a pill), Chunking (its own band, spaced away from
- * the pills above and the list below), and Smart Defaults (the save sheet opens
- * with a name already derived from the filters, because typing one is the whole
- * friction between arranging a useful screen and keeping it).
- *
- * The row is absent until a view exists. A permanent empty rail on the busiest
- * screen in the product would be an advertisement, and the save affordance sits
- * where the arrangement being kept actually is.
+ * #711: the inbox's one control row. The status tabs, then the shared Filter
+ * button and Views menu; saving the arrangement on screen sits in the Views menu
+ * and shows only when it matches no saved view.
  */
 @Composable
-private fun SavedViewsRow(controller: InboxController, canShare: Boolean) {
+private fun InboxFilterRow(controller: InboxController, canShare: Boolean, onFilter: () -> Unit) {
     var saveOpen by remember { mutableStateOf(false) }
-    var menuFor by remember { mutableStateOf<SavedView?>(null) }
     val selection = controller.currentSelection
-
-    Spacer(Modifier.height(10.dp))
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    val matching = controller.savedViews.firstOrNull { viewMatchesSelection(it.filters, selection) }
+    ListFilterRow(
+        filterCount = controller.activeFilterCount,
+        onFilter = onFilter,
+        views = ListViews(
+            entries = controller.savedViews.map { view ->
+                ViewsMenuEntry(
+                    id = view.id,
+                    name = view.name,
+                    count = controller.viewCounts[view.id],
+                    shared = view.shared,
+                    isDefault = view.id == controller.defaultViewId,
+                )
+            },
+            activeId = matching?.id,
+            canSaveCurrent = controller.isFiltered && matching == null,
+            canShare = canShare,
+            onApply = { id -> controller.savedViews.firstOrNull { it.id == id }?.let(controller::applyView) },
+            onSaveCurrent = { saveOpen = true },
+            onDefault = controller::setDefaultView,
+            onRename = controller::renameView,
+            onShare = controller::shareView,
+            onDelete = controller::deleteView,
+        ),
     ) {
-        controller.savedViews.forEach { view ->
-            val count = controller.viewCounts[view.id] ?: 0
-            val label = if (count > 0) view.name + "  " + formatViewCount(count) else view.name
+        InboxStatusTab.entries.forEach { item ->
             FilterPill(
-                text = label,
-                selected = viewMatchesSelection(view.filters, selection),
-                onClick = { controller.applyView(view) },
-                onLongClick = { menuFor = view },
-            )
-        }
-        TextButton(onClick = { saveOpen = true }) {
-            Text(
-                if (controller.savedViews.isEmpty()) t("inbox.viewsSave") else t("common.save"),
-                style = MaterialTheme.typography.labelLarge,
+                text = t(item.labelKey),
+                selected = controller.tab == item,
+                onClick = { controller.selectTab(item) },
             )
         }
     }
-
     if (saveOpen) {
         SaveViewSheet(
             controller = controller,
@@ -3137,15 +3129,40 @@ private fun SavedViewsRow(controller: InboxController, canShare: Boolean) {
             onDismiss = { saveOpen = false },
         )
     }
-    menuFor?.let { view ->
-        SavedViewMenu(
-            view = view,
-            isDefault = view.id == controller.defaultViewId,
-            canManage = !view.shared || canShare,
-            controller = controller,
-            onDismiss = { menuFor = null },
-        )
+}
+
+/** #711: the applied filters as removable chips, only while any is on. */
+@Composable
+private fun InboxActiveFilters(controller: InboxController) {
+    val chips = buildList {
+        if (controller.assigneeUserId != null && controller.tab != InboxStatusTab.Mine) {
+            val name = controller.assignee?.display_name?.ifBlank { null }
+                ?: t("inbox.teammateFallback")
+            add(ActiveFilterChip(name) { controller.setAssigneeFilter(null) })
+        }
+        if (controller.tagId != null) {
+            add(
+                ActiveFilterChip(controller.tag?.name ?: t("inbox.filterGroupTags")) {
+                    controller.setTagFilter(null)
+                },
+            )
+        }
+        if (controller.unreadOnly) {
+            add(ActiveFilterChip(t("inbox.filterUnreadOnly")) { controller.toggleUnread() })
+        }
+        if (controller.spamOnly) {
+            add(ActiveFilterChip(t("inbox.filterSpamOnly")) { controller.toggleSpam() })
+        }
+        if (controller.snoozedOnly) {
+            add(ActiveFilterChip(t("inbox.filterSnoozedOnly")) { controller.toggleSnoozed() })
+        }
+        if (controller.awaitingOnly) {
+            add(ActiveFilterChip(t("inbox.filterUnansweredOnly")) { controller.toggleAwaiting() })
+        }
     }
+    if (chips.isEmpty()) return
+    Spacer(Modifier.height(8.dp))
+    ActiveFilterChips(chips = chips, onClearAll = controller::clearSecondaryFilters)
 }
 
 @Composable
@@ -3226,99 +3243,6 @@ private fun SaveViewSheet(
 }
 
 /**
- * Per-view actions.
- *
- * Ethical Friction applied only where it is earned: deleting your own view goes
- * immediately, because it is yours and rebuilding it is two taps. Deleting a
- * shared one removes a screen the rest of the crew opens every morning, and the
- * person doing it cannot see who that affects.
- */
-@Composable
-private fun SavedViewMenu(
-    view: SavedView,
-    isDefault: Boolean,
-    canManage: Boolean,
-    controller: InboxController,
-    onDismiss: () -> Unit,
-) {
-    var confirmingDelete by remember { mutableStateOf(false) }
-    var renaming by remember { mutableStateOf(false) }
-    var draft by remember { mutableStateOf(view.name) }
-
-    if (confirmingDelete) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text(t("inbox.viewDeleteTitle")) },
-            text = { Text(t("inbox.viewDeleteBody", "name" to view.name)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    controller.deleteView(view.id)
-                    onDismiss()
-                }) { Text(t("inbox.viewDeleteConfirm")) }
-            },
-            dismissButton = { TextButton(onClick = onDismiss) { Text(t("inbox.viewDeleteKeep")) } },
-        )
-        return
-    }
-
-    if (renaming) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text(t("inbox.viewRenameTitle")) },
-            text = {
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = { if (it.length <= SAVED_VIEW_NAME_MAX) draft = it },
-                    label = { Text(t("inbox.viewNameLabel")) },
-                    singleLine = true,
-                )
-            },
-            confirmButton = {
-                TextButton(enabled = draft.isNotBlank(), onClick = {
-                    controller.renameView(view.id, draft)
-                    onDismiss()
-                }) { Text(t("common.save")) }
-            },
-            dismissButton = { TextButton(onClick = onDismiss) { Text(t("common.cancel")) } },
-        )
-        return
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(view.name) },
-        text = {
-            Column {
-                TextButton(onClick = {
-                    controller.setDefaultView(if (isDefault) null else view.id)
-                    onDismiss()
-                }) {
-                    Text(
-                        if (isDefault) {
-                            t("inbox.viewStopOpeningHere")
-                        } else {
-                            t("inbox.viewOpenHereByDefault")
-                        },
-                    )
-                }
-                if (canManage) {
-                    TextButton(onClick = { renaming = true }) { Text(t("inbox.viewRename")) }
-                    TextButton(onClick = {
-                        if (view.shared) {
-                            confirmingDelete = true
-                        } else {
-                            controller.deleteView(view.id)
-                            onDismiss()
-                        }
-                    }) { Text(t("common.delete")) }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(t("common.close")) } },
-    )
-}
-
-/**
  * The inbox's header, status pills and rows with no controller behind them, in
  * the arrangement [InboxList] gives them. `internal` so the #238 accessibility
  * audit inspects the real atoms rather than a second drawing of them.
@@ -3329,17 +3253,12 @@ internal fun InboxAuditBody(rows: List<ConversationListItem>) {
         Spacer(Modifier.height(8.dp))
         InboxHeader(
             unreadCount = rows.count { it.unread },
-            filtersActive = true,
             scheduledCount = 2,
             onSearch = {},
-            onFilters = {},
             onScheduled = {},
         )
         Spacer(Modifier.height(14.dp))
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
+        ListFilterRow(filterCount = 1, onFilter = {}) {
             InboxStatusTab.entries.forEachIndexed { index, item ->
                 FilterPill(text = t(item.labelKey), selected = index == 0, onClick = {})
             }

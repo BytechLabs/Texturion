@@ -94,6 +94,11 @@ final class TaskViewsController {
         try? await api.setDefault(companyId: companyId, viewId: id, surface: "tasks")
         defaultViewId = id
     }
+
+    func share(id: String, shared: Bool) async {
+        _ = try? await api.share(companyId: companyId, id: id, shared: shared)
+        await load()
+    }
 }
 
 /// Name a view (save) or change its name (rename). The name is already
@@ -172,128 +177,6 @@ struct TaskViewNameSheet: View {
             }
         }
         .presentationDetents([.medium])
-    }
-}
-
-/// The views list: open one, make it the one the screen opens on, rename, delete.
-@MainActor
-struct TaskViewsManageSheet: View {
-    let controller: TaskViewsController
-    let canManageShared: Bool
-    let onOpen: @MainActor (SavedView) -> Void
-    let onRename: @MainActor (SavedView) -> Void
-    let onClose: @MainActor () -> Void
-
-    @Environment(\.appLocale) private var appLocale
-    @State private var deleting: SavedView?
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if controller.views.isEmpty {
-                    Text(AppStrings.translate(appLocale, "taskRefs.viewsEmpty"))
-                        .font(.golos(13))
-                        .foregroundStyle(BrandColor.muted500)
-                }
-                ForEach(controller.views, id: \.id) { view in
-                    row(view)
-                }
-            }
-            .navigationTitle(AppStrings.translate(appLocale, "taskRefs.viewsManage"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(AppStrings.translate(appLocale, "common.close")) { onClose() }
-                }
-            }
-            .alert(
-                AppStrings.translate(appLocale, "inbox.viewDeleteTitle"),
-                isPresented: Binding(
-                    get: { deleting != nil },
-                    set: { if !$0 { deleting = nil } }
-                )
-            ) {
-                Button(
-                    AppStrings.translate(appLocale, "inbox.viewDeleteConfirm"),
-                    role: .destructive
-                ) {
-                    if let view = deleting {
-                        Task { await controller.remove(id: view.id) }
-                    }
-                    deleting = nil
-                }
-                Button(AppStrings.translate(appLocale, "inbox.viewDeleteKeep"), role: .cancel) {
-                    deleting = nil
-                }
-            } message: {
-                Text(
-                    AppStrings.translate(
-                        appLocale,
-                        "taskRefs.viewDeleteBody",
-                        ["name": deleting?.name ?? ""]
-                    )
-                )
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func row(_ view: SavedView) -> some View {
-        let isDefault = view.id == controller.defaultViewId
-        let mayChange = !view.shared || canManageShared
-        return HStack(spacing: 10) {
-            Button {
-                onOpen(view)
-            } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(view.name)
-                        .font(.golos(14, weight: .semibold))
-                        .foregroundStyle(BrandColor.ink)
-                    if view.shared || isDefault {
-                        Text(
-                            AppStrings.translate(
-                                appLocale,
-                                isDefault ? "taskRefs.viewDefaultTag" : "taskRefs.viewSharedTag"
-                            )
-                        )
-                        .font(.golos(11.5))
-                        .foregroundStyle(BrandColor.muted500)
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            Menu {
-                Button(
-                    AppStrings.translate(
-                        appLocale,
-                        isDefault ? "inbox.viewStopOpeningHere" : "inbox.viewOpenHereByDefault"
-                    )
-                ) {
-                    Task { await controller.setDefault(isDefault ? nil : view.id) }
-                }
-                if mayChange {
-                    Button(AppStrings.translate(appLocale, "inbox.viewRename")) {
-                        onRename(view)
-                    }
-                    Button(AppStrings.translate(appLocale, "common.delete"), role: .destructive) {
-                        if view.shared {
-                            deleting = view
-                        } else {
-                            Task { await controller.remove(id: view.id) }
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .foregroundStyle(BrandColor.muted500)
-                    .frame(width: 44, height: 44)
-            }
-            .accessibilityLabel(
-                AppStrings.translate(appLocale, "taskRefs.viewActions", ["name": view.name])
-            )
-        }
     }
 }
 

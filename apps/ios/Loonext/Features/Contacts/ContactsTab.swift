@@ -103,6 +103,7 @@ struct ContactsTab: View {
     /// An empty list is the honest state both for a workspace that defined none
     /// and for a read that failed: the chips simply do not appear.
     @State private var fieldFilter: ContactFieldFilter?
+    @State private var filterSheetOpen = false
     @State private var fieldDefs: [ContactFieldDef] = []
     /// #695: narrow to one workspace tag, and the tags the chips come from.
     @State private var tagFilter: String?
@@ -173,20 +174,34 @@ struct ContactsTab: View {
         // tab shell with no pill (it used to push inside this tab).
         VStack(spacing: 0) {
             headerBar
-            searchField
-            // #291: under the search box, because both answer "show me less".
-            // Absent entirely unless the workspace defined a field with a
-            // closed set of answers.
-            ContactFilter(
-                defs: fieldDefs,
-                active: fieldFilter,
-                onChange: { fieldFilter = $0 }
-            )
+            // #711: search, and beside it the shared Filter button. Tags (#695) and the
+            // workspace's own fields (#291) sit behind it, and it is absent until there
+            // is something to filter on.
+            HStack(spacing: 6) {
+                searchField
+                if !workspaceTags.isEmpty || !contactFilterableFields(fieldDefs).isEmpty {
+                    ListFilterButton(count: contactFilterCount, onTap: { filterSheetOpen = true })
+                }
+            }
             .padding(.horizontal, 18)
-            // #695: one more row of chips, absent until the workspace has a tag.
-            ContactTagFilter(tags: workspaceTags, active: tagFilter) { tagFilter = $0 }
-                .padding(.horizontal, 18)
-                .padding(.top, workspaceTags.isEmpty ? 0 : 6)
+            .padding(.vertical, 8)
+            .sheet(isPresented: $filterSheetOpen) {
+                ContactFilterSheet(
+                    defs: fieldDefs,
+                    tags: workspaceTags,
+                    active: fieldFilter,
+                    onChange: { fieldFilter = $0 },
+                    activeTag: tagFilter,
+                    onTagChange: { tagFilter = $0 }
+                )
+            }
+            ActiveFilterChips(
+                chips: contactFilterChips,
+                onClearAll: {
+                    fieldFilter = nil
+                    tagFilter = nil
+                }
+            )
             if let notice {
                 HStack(spacing: 10) {
                     Text(notice)
@@ -385,8 +400,28 @@ struct ContactsTab: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
         .background(BrandColor.paper, in: Capsule())
-        .padding(.horizontal, 18)
-        .padding(.vertical, 8)
+    }
+
+    private var contactFilterCount: Int {
+        (fieldFilter == nil ? 0 : 1) + (tagFilter == nil ? 0 : 1)
+    }
+
+    private var contactFilterChips: [ActiveFilterChip] {
+        var chips: [ActiveFilterChip] = []
+        if let id = tagFilter {
+            let name = workspaceTags.first(where: { $0.id == id })?.name ?? ""
+            chips.append(ActiveFilterChip(
+                id: "tag",
+                label: name.isBlank ? t("settingsMore.tagsTitle") : name
+            ) { tagFilter = nil })
+        }
+        if let field = fieldFilter {
+            chips.append(ActiveFilterChip(
+                id: "field",
+                label: contactFieldFilterChipLabel(fieldDefs, field)
+            ) { fieldFilter = nil })
+        }
+        return chips
     }
 
     /// Export/import live at the foot of the screen as quiet inset pills —
