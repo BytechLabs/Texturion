@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.14.0...shared-v0.15.0) (2026-11-10)
+
+
+### Features
+
+* **web:** a crew can block a number from the thread, the contact and settings ([d5f88b7](https://github.com/BytechLabs/Texturion/commit/d5f88b76a290d66e1ede671aa5caf8acd9982b36))
+
 ## [0.14.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.13.2...shared-v0.14.0) (2026-10-30)
 
 

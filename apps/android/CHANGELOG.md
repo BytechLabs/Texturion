@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.18.0](https://github.com/BytechLabs/Texturion/compare/android-v0.17.4...android-v0.18.0) (2026-11-10)
+
+
+### Features
+
+* **android:** a crew can block a number from the thread and the contact ([cd1651f](https://github.com/BytechLabs/Texturion/commit/cd1651fad48a2d9e61b69d8231e12980fa5460aa))
+* **android:** an answered call can become a task ([95a538c](https://github.com/BytechLabs/Texturion/commit/95a538c2eb2a9ae7a00b25e7fb21371f4842cda9))
+* **android:** mute and follow a conversation from its sheet ([e7e3652](https://github.com/BytechLabs/Texturion/commit/e7e3652dfef76afad812c67aa5e71ac2c917d49d))
+
 ## [0.17.4](https://github.com/BytechLabs/Texturion/compare/android-v0.17.3...android-v0.17.4) (2026-11-10)
 
 

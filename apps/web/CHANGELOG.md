@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.21.0](https://github.com/BytechLabs/Texturion/compare/web-v0.20.2...web-v0.21.0) (2026-11-10)
+
+
+### Features
+
+* **web:** a crew can block a number from the thread, the contact and settings ([d5f88b7](https://github.com/BytechLabs/Texturion/commit/d5f88b76a290d66e1ede671aa5caf8acd9982b36))
+* **web:** make a task from an answered call and show a call as a task's source ([bcabc9a](https://github.com/BytechLabs/Texturion/commit/bcabc9a94e3735bdc4fac0a4e8aeffcbc8e027b5))
+* **web:** mute, follow and keyboard shortcuts in the inbox ([4b9be4e](https://github.com/BytechLabs/Texturion/commit/4b9be4e0c11c4ee632a1475a36280d0caad1c3e0))
+
 ## [0.20.2](https://github.com/BytechLabs/Texturion/compare/web-v0.20.1...web-v0.20.2) (2026-11-07)
 
 
