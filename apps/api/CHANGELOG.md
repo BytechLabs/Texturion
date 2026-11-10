@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.1](https://github.com/BytechLabs/Texturion/compare/api-v0.25.0...api-v0.25.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **api:** a held scheduled text notifies once, not every minute ([acbf488](https://github.com/BytechLabs/Texturion/commit/acbf4889bbebba02c1e988411086e183cefa74f4))
+
 ## [0.25.0](https://github.com/BytechLabs/Texturion/compare/api-v0.24.0...api-v0.25.0) (2026-11-10)
 
 
