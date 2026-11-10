@@ -142,6 +142,14 @@ export function supabaseStub(env: Env): SupabaseStub {
     },
     { method: "GET", matcher: "/rest/v1/email_suppressions", respond: () => [] },
     {
+      // #694: every thread sender asks who muted or follows the thread. The
+      // ambient answer is "nobody", the state every earlier test was written
+      // against. A suite about mute and follow registers this path and wins.
+      method: "GET",
+      matcher: "/rest/v1/conversation_member_prefs",
+      respond: () => [],
+    },
+    {
       // #228: every push fan-out now asks what language its readers are in.
       // The ambient default is "nobody has chosen one", which is the state
       // every test written before #228 was against — resolveUiLocale then

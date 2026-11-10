@@ -28,6 +28,14 @@
  *          `?awaiting=only` narrows to threads nobody has replied to (#508), and
  *          an inbound message clears every member's deferral in the database.
  *   DELETE /v1/conversations/:id/snooze      bring it back now, idempotent.
+ *   PUT    /v1/conversations/:id/mute        { until: ISO | null } or
+ *          { duration: '1h'|'8h'|'1w'|'forever' }: silence push and email for
+ *          THIS member on this thread (#694). A ring, an @mention and an
+ *          assignment still get through. Returns the member's state.
+ *   DELETE /v1/conversations/:id/mute        unmute, idempotent.
+ *   PUT    /v1/conversations/:id/follow      hear about every message here
+ *          even when it is assigned to someone else.
+ *   DELETE /v1/conversations/:id/follow      stop following, idempotent.
  *   GET    /v1/conversations/:id/events      audit timeline, cursor list.
  *   POST   /v1/conversations/:id/tags        { tag_id } | { name }
  *          (create-on-attach).
@@ -56,8 +64,12 @@ import {
 } from "../calls/voicemail-transcript";
 import { answerersByCall } from "../calls/answerers";
 import { notifyAssigned } from "../notifications/assignment";
+import {
+  isMuted,
+  type ConversationMemberPref,
+} from "../notifications/conversation-prefs";
 import { notifyNoteMention } from "../notifications/mention";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import {
@@ -364,13 +376,15 @@ conversationsRoutes.get("/conversations", requireCapability("conversations.read"
     }),
     "conversations list",
   );
-  return c.json(
-    buildPage(
-      rows as { id: string; last_message_at: string }[],
-      limit,
-      "last_message_at",
-    ),
+  // #694: a light flag on each row so the list can show the muted icon. One
+  // read for the page, scoped to the caller; the RPC is left alone.
+  const flagged = await withMemberFlags(
+    db,
+    c.get("companyId"),
+    c.get("userId"),
+    rows as { id: string; last_message_at: string }[],
   );
+  return c.json(buildPage(flagged, limit, "last_message_at"));
 });
 
 /**
@@ -655,7 +669,7 @@ conversationsRoutes.get(
     // "bring it back" rather than the thread quietly re-hiding itself the next
     // time the list loads. Reading it here rather than from the list row means
     // a thread opened from search or a deep link knows too.
-    const [promoted, taskLinks, snoozeRows] = await Promise.all([
+    const [promoted, taskLinks, snoozeRows, memberPrefRows] = await Promise.all([
       loadMessageTaskFlags(
         db,
         companyId,
@@ -676,7 +690,18 @@ conversationsRoutes.get(
         .eq("user_id", c.get("userId"))
         .gt("until", new Date().toISOString())
         .limit(1),
+      db
+        .from("conversation_member_prefs")
+        .select("user_id,muted,muted_until,followed")
+        .eq("company_id", companyId)
+        .eq("conversation_id", id)
+        .eq("user_id", c.get("userId"))
+        .limit(1),
     ]);
+    const memberPref = unwrap<ConversationMemberPref[]>(
+      memberPrefRows,
+      "conversation member prefs lookup",
+    )[0];
     const snooze = unwrap<
       { until: string; note: string | null; kind: string }[]
     >(snoozeRows, "conversation snooze lookup")[0];
@@ -759,6 +784,9 @@ conversationsRoutes.get(
       snoozed_until: snooze?.until ?? null,
       snooze_note: snooze?.note ?? null,
       snooze_kind: snooze?.kind ?? null,
+      // #694: the caller's own mute and follow. `muted` is false once the
+      // deadline has passed, so a client never shows a mute that has ended.
+      ...memberState(memberPref),
       contact: contacts,
       // Null only for a conversation with no contact row, which the schema
       // does not allow — but a thread that fails to open because the clock
@@ -2297,6 +2325,206 @@ conversationsRoutes.delete(
       "conversation snooze delete",
     );
     return c.body(null, 204);
+  },
+);
+
+/**
+ * #694: mute and follow. Both are rows of the caller; nothing here is visible
+ * to, or changes anything for, any other member.
+ */
+const MUTE_DURATION_MS = {
+  "1h": 3_600_000,
+  "8h": 8 * 3_600_000,
+  "1w": 7 * 86_400_000,
+} as const;
+const MUTE_MAX_DAYS = 365;
+
+const muteSchema = z.union([
+  z.object({ until: z.iso.datetime({ offset: true }).nullable() }),
+  z.object({ duration: z.enum(["1h", "8h", "1w", "forever"]) }),
+]);
+
+interface MemberPrefScope {
+  db: ReturnType<typeof getDb>;
+  companyId: string;
+  userId: string;
+}
+
+/** The caller's mute and follow as the clients read them. */
+function memberState(pref: ConversationMemberPref | undefined) {
+  const muted = isMuted(pref);
+  return {
+    muted,
+    muted_until: muted ? (pref?.muted_until ?? null) : null,
+    followed: pref?.followed ?? false,
+  };
+}
+
+async function withMemberFlags<T extends { id: string }>(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  userId: string,
+  rows: T[],
+): Promise<(T & { muted: boolean; followed: boolean })[]> {
+  if (rows.length === 0) return [];
+  const prefs = unwrap<ConversationMemberPref[] & { conversation_id: string }[]>(
+    await db
+      .from("conversation_member_prefs")
+      .select("conversation_id,user_id,muted,muted_until,followed")
+      .eq("company_id", companyId)
+      .eq("user_id", userId)
+      .in(
+        "conversation_id",
+        rows.map((row) => row.id),
+      ),
+    "conversation member prefs lookup",
+  );
+  const byConversation = new Map(
+    (prefs as unknown as (ConversationMemberPref & { conversation_id: string })[]).map(
+      (pref) => [pref.conversation_id, pref],
+    ),
+  );
+  return rows.map((row) => {
+    const state = memberState(byConversation.get(row.id));
+    return { ...row, muted: state.muted, followed: state.followed };
+  });
+}
+
+async function loadOwnConversation(
+  c: Context<AppEnv>,
+  id: string,
+): Promise<MemberPrefScope | Response> {
+  const companyId = c.get("companyId");
+  const db = getDb(getEnv(c.env));
+  const conversation = await findConversation(db, companyId, id);
+  if (!conversation) {
+    return errorResponse(c, "not_found", "No such conversation.");
+  }
+  await assertNumberLevel(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+    phoneNumberId: conversation.phone_number_id as string | null,
+    need: "read",
+  });
+  return { db, companyId, userId: c.get("userId") };
+}
+
+async function writeMemberPref(
+  scope: MemberPrefScope,
+  conversationId: string,
+  change: Partial<Pick<ConversationMemberPref, "muted" | "muted_until" | "followed">>,
+) {
+  const { db, companyId, userId } = scope;
+  // Upsert on the key with only the changed columns, so muting leaves follow
+  // alone and the reverse.
+  expectOk(
+    await db.from("conversation_member_prefs").upsert(
+      {
+        company_id: companyId,
+        conversation_id: conversationId,
+        user_id: userId,
+        updated_at: new Date().toISOString(),
+        ...change,
+      },
+      { onConflict: "conversation_id,user_id" },
+    ),
+    "conversation member prefs upsert",
+  );
+  // A row that says nothing is deleted rather than kept.
+  expectOk(
+    await db
+      .from("conversation_member_prefs")
+      .delete()
+      .eq("company_id", companyId)
+      .eq("conversation_id", conversationId)
+      .eq("user_id", userId)
+      .eq("muted", false)
+      .eq("followed", false),
+    "conversation member prefs tidy",
+  );
+  const rows = unwrap<ConversationMemberPref[]>(
+    await db
+      .from("conversation_member_prefs")
+      .select("user_id,muted,muted_until,followed")
+      .eq("company_id", companyId)
+      .eq("conversation_id", conversationId)
+      .eq("user_id", userId)
+      .limit(1),
+    "conversation member prefs lookup",
+  );
+  return memberState(rows[0]);
+}
+
+conversationsRoutes.put(
+  "/conversations/:id/mute",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const body = await parseJsonBody(c, muteSchema);
+
+    let until: string | null;
+    if ("duration" in body) {
+      until =
+        body.duration === "forever"
+          ? null
+          : new Date(Date.now() + MUTE_DURATION_MS[body.duration]).toISOString();
+    } else if (body.until === null) {
+      until = null;
+    } else {
+      const at = Date.parse(body.until);
+      if (at <= Date.now()) {
+        throw new ApiError("validation_failed", "Pick a time in the future to mute until.");
+      }
+      if (at - Date.now() > MUTE_MAX_DAYS * 86_400_000) {
+        throw new ApiError(
+          "validation_failed",
+          `Muting is limited to ${MUTE_MAX_DAYS} days out. Choose until I unmute instead.`,
+        );
+      }
+      until = new Date(at).toISOString();
+    }
+
+    const scope = await loadOwnConversation(c, id);
+    if (scope instanceof Response) return scope;
+    return c.json(
+      await writeMemberPref(scope, id, { muted: true, muted_until: until }),
+    );
+  },
+);
+
+conversationsRoutes.delete(
+  "/conversations/:id/mute",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const scope = await loadOwnConversation(c, id);
+    if (scope instanceof Response) return scope;
+    return c.json(
+      await writeMemberPref(scope, id, { muted: false, muted_until: null }),
+    );
+  },
+);
+
+conversationsRoutes.put(
+  "/conversations/:id/follow",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const scope = await loadOwnConversation(c, id);
+    if (scope instanceof Response) return scope;
+    return c.json(await writeMemberPref(scope, id, { followed: true }));
+  },
+);
+
+conversationsRoutes.delete(
+  "/conversations/:id/follow",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const scope = await loadOwnConversation(c, id);
+    if (scope instanceof Response) return scope;
+    return c.json(await writeMemberPref(scope, id, { followed: false }));
   },
 );
 

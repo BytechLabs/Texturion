@@ -34,6 +34,13 @@ function buildWorld(
     accessRules?: Record<string, unknown>[];
     members?: { user_id: string; role: string }[];
     assignedUserId?: string | null;
+    /** #694: per-conversation mute and follow rows. */
+    memberPrefs?: {
+      user_id: string;
+      muted: boolean;
+      muted_until: string | null;
+      followed: boolean;
+    }[];
   } = {},
 ): World {
   const sb = supabaseStub(env);
@@ -67,6 +74,7 @@ function buildWorld(
     })),
   );
   sb.on("GET", "/rest/v1/notification_prefs", () => []);
+  sb.on("GET", "/rest/v1/conversation_member_prefs", () => options.memberPrefs ?? []);
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, (call) => {
     const userId = call.path.split("/").pop();
@@ -479,5 +487,75 @@ describe("notifyMissedCall — after-hours routing (#244)", () => {
     ).toBe(false);
 
     vi.useRealTimers();
+  });
+});
+
+describe("notifyMissedCall, #694 mute and follow", () => {
+  const MEMBER = "20000000-aaaa-4000-8000-000000000002";
+  const crew = [
+    { user_id: OWNER, role: "owner" },
+    { user_id: MEMBER, role: "member" },
+  ];
+  const pushedTo = (world: World) =>
+    world.sb
+      .find("GET", "/rest/v1/push_subscriptions")[0]
+      ?.url.searchParams.get("user_id");
+
+  it("a member who muted the thread is not alerted to a miss on it", async () => {
+    const world = buildWorld({
+      members: crew,
+      memberPrefs: [{ user_id: MEMBER, muted: true, muted_until: null, followed: false }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyMissedCall(env, INPUT);
+
+    expect(pushedTo(world)).toBe(`in.(${OWNER})`);
+  });
+
+  it("an expired mute no longer applies", async () => {
+    const world = buildWorld({
+      members: crew,
+      memberPrefs: [
+        {
+          user_id: MEMBER,
+          muted: true,
+          muted_until: new Date(Date.now() - 1000).toISOString(),
+          followed: false,
+        },
+      ],
+    });
+    stubFetch(...world.routes);
+
+    await notifyMissedCall(env, INPUT);
+
+    expect(pushedTo(world)).toContain(MEMBER);
+  });
+
+  it("a follower of an assigned thread is alerted as well as the assignee", async () => {
+    const world = buildWorld({
+      members: crew,
+      assignedUserId: MEMBER,
+      memberPrefs: [{ user_id: OWNER, muted: false, muted_until: null, followed: true }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyMissedCall(env, INPUT);
+
+    expect(pushedTo(world)).toContain(OWNER);
+    expect(pushedTo(world)).toContain(MEMBER);
+  });
+
+  it("mute wins over follow", async () => {
+    const world = buildWorld({
+      members: crew,
+      assignedUserId: MEMBER,
+      memberPrefs: [{ user_id: OWNER, muted: true, muted_until: null, followed: true }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyMissedCall(env, INPUT);
+
+    expect(pushedTo(world)).toBe(`in.(${MEMBER})`);
   });
 });

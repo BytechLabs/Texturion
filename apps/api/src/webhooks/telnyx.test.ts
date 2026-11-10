@@ -658,6 +658,7 @@ describe("inbound pipeline — notification pipeline (§8)", () => {
         conversationLookup,
         membersLookup,
         prefsLookup,
+        stubRoute(restMatch(env, "GET", "conversation_member_prefs"), () => []),
         adminUser,
         resend,
       ],

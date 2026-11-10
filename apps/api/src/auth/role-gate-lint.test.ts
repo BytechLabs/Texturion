@@ -75,6 +75,12 @@ const SELF_SCOPED_WRITES = new Set([
   "POST /company/ownership/claim",
   "POST /company/ownership/accept",
   "POST /company/ownership/cancel",
+  // #694: your own mute and follow on a thread. A row keyed to the caller's id
+  // that only the senders read; it changes nobody else's notifications.
+  "PUT /conversations/:id/mute",
+  "DELETE /conversations/:id/mute",
+  "PUT /conversations/:id/follow",
+  "DELETE /conversations/:id/follow",
   // #280: a saved view is a stored query over conversations you can already
   // read, owned by the member who saved it.
   "POST /saved-views",

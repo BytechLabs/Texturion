@@ -20,6 +20,7 @@ import type { Locale } from "@loonext/shared";
 import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { loadConversationPrefs, withoutMuted } from "./conversation-prefs";
 import { deliverPush } from "./deliver";
 import { ESCALATION_COPY } from "./escalation-copy";
 
@@ -122,9 +123,14 @@ export async function runEscalationSweep(
       // Everyone EXCEPT the person who was already paged. They have the first
       // notification on their phone already; a second one telling them nobody
       // has picked it up is the product arguing with itself.
-      const widenTo = viewers
-        .map((viewer) => viewer.user_id)
-        .filter((userId) => userId !== alert.on_call_user_id);
+      //
+      // #694: and minus anyone who muted this thread.
+      const widenTo = withoutMuted(
+        viewers
+          .map((viewer) => viewer.user_id)
+          .filter((userId) => userId !== alert.on_call_user_id),
+        await loadConversationPrefs(db, alert.company_id, alert.conversation_id),
+      );
       if (widenTo.length === 0) continue;
 
       // #228: the sentence is composed per reader, so only the link — the same

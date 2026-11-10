@@ -9,9 +9,10 @@
  * when the claim was won, and concurrent deliveries can never double-send.
  *
  * AUDIENCE: the assignee; if unassigned (or the assignee is no longer an
- * active member), all active members. Filtered per notification_prefs — a
- * missing row reads as the §6 defaults (true/true). Spam threads never reach
- * here (the RPC reports notify=false for them).
+ * active member), all active members; plus anyone who follows the thread (#694).
+ * Members who muted the thread are dropped, except for an emergency. Filtered
+ * per notification_prefs: a missing row reads as the §6 defaults (true/true).
+ * Spam threads never reach here (the RPC reports notify=false for them).
  *
  * CHANNELS: one Resend email to every email-enabled recipient, and one Web
  * Push per stored subscription of every push-enabled recipient (payload:
@@ -32,6 +33,11 @@ import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { contactDisplayName } from "./contact-name";
+import {
+  loadConversationPrefs,
+  withFollowers,
+  withoutMuted,
+} from "./conversation-prefs";
 import { deliverPush } from "./deliver";
 import { THREAD_PUSH_COPY } from "./thread-copy";
 
@@ -168,12 +174,25 @@ export async function notifyInboundMessage(
   // stops a crew of ten all answering the same customer — and wrong for the
   // one message where the cost of that person being asleep is a family in a
   // cold house.
-  const audience =
+  const addressed =
     !input.emergency &&
     conversation.assigned_user_id !== null &&
     members.includes(conversation.assigned_user_id)
       ? [conversation.assigned_user_id]
       : members;
+  // #694: followers join an assigned thread's audience, and a mute removes a
+  // member from it. An emergency ignores mute for the same reason it ignores
+  // the assignee: the cost of one person having silenced the thread is a
+  // customer nobody answered.
+  const threadPrefs = await loadConversationPrefs(
+    db,
+    input.companyId,
+    input.conversationId,
+  );
+  const withFollowing = withFollowers(addressed, threadPrefs, members);
+  const audience = input.emergency
+    ? withFollowing
+    : withoutMuted(withFollowing, threadPrefs);
   if (audience.length === 0) return;
 
   // Per-user prefs; a missing row carries the §6 defaults (true/true).

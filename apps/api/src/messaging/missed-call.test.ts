@@ -467,6 +467,10 @@ describe("sendMissedCallText — text-back + alert", () => {
         },
       ],
     );
+    const memberPrefs = stubRoute(
+      restMatch(env, "GET", "conversation_member_prefs"),
+      () => [],
+    );
     const webSubs = stubRoute(
       restMatch(env, "GET", "push_subscriptions"),
       () => [],
@@ -496,7 +500,7 @@ describe("sendMissedCallText — text-back + alert", () => {
     const account = await makeServiceAccount();
     const service = fcmService();
     stubFetch(
-      ...[company, numberStub(), ...gates, claim, telnyx, persist, conv, members, prefs, webSubs, deviceTokens]
+      ...[company, numberStub(), ...gates, claim, telnyx, persist, conv, members, prefs, memberPrefs, webSubs, deviceTokens]
         .map((s) => s.route as FetchRoute),
       ...service.routes,
     );

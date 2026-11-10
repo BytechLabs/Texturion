@@ -179,6 +179,8 @@ const SUITES = [
   // D146: posthog_reader, PostHog's Postgres source login, reads ops_metrics
   // and nothing else.
   "posthog_reader",
+  // #694: per-member mute and follow on one conversation.
+  "conversation_member_prefs",
 ];
 
 const args = process.argv.slice(2);

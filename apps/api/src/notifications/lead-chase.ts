@@ -32,6 +32,7 @@ import {
 import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { loadConversationPrefs, withoutMuted } from "./conversation-prefs";
 import { deliverPush } from "./deliver";
 
 /** One run's ceiling. Far above any plausible minute's worth of unanswered leads. */
@@ -154,7 +155,12 @@ async function sendChase(
   // ASSIGNED conversation (the RPC enforces it) and widening is its entire
   // purpose — an unassigned lead was already announced to the whole crew when
   // it arrived (D52), so there is nobody new to reach.
-  const audience = members;
+  //
+  // #694: minus anyone who muted the thread. Followers are already in "everyone".
+  const audience = withoutMuted(
+    members,
+    await loadConversationPrefs(db, row.company_id, row.conversation_id),
+  );
   if (audience.length === 0) return;
 
   const prefRows = unwrap<{ user_id: string; push_enabled: boolean }[]>(

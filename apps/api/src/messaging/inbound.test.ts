@@ -163,6 +163,11 @@ function membersStub(): Stub {
   ]);
 }
 
+/** #694: nobody has muted or followed the thread. */
+function memberPrefsStub(): Stub {
+  return stubRoute(restMatch(env, "GET", "conversation_member_prefs"), () => []);
+}
+
 function adminUserStub(): Stub {
   return stubRoute(
     (url, request) =>
@@ -668,6 +673,7 @@ describe("handleInboundMessage — notify runs before media download", () => {
       membersStub(),
       conversations,
       prefs,
+      memberPrefsStub(),
       attachmentLookup,
       mediaDownload,
     );
@@ -753,6 +759,7 @@ describe("handleInboundMessage — #39 notification budget", () => {
       resend,
       conversations,
       prefs,
+      memberPrefsStub(),
     );
 
     await handleInboundMessage(env, inboundEvent({ text: "busy day" }));

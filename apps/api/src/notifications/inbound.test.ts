@@ -49,6 +49,15 @@ function buildWorld(options: {
    */
   numberLevels?: { user_id: string; role: string; level: string }[];
   prefs?: { user_id: string; email_enabled: boolean; push_enabled: boolean }[];
+  /** #694: the mute lookup itself fails. */
+  memberPrefsFail?: boolean;
+  /** #694: per-conversation mute and follow rows. */
+  memberPrefs?: {
+    user_id: string;
+    muted: boolean;
+    muted_until: string | null;
+    followed: boolean;
+  }[];
   subscriptions?: {
     id: string;
     user_id: string;
@@ -84,6 +93,11 @@ function buildWorld(options: {
     }));
   });
   sb.on("GET", "/rest/v1/notification_prefs", () => options.prefs ?? []);
+  sb.on("GET", "/rest/v1/conversation_member_prefs", () =>
+    options.memberPrefsFail
+      ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+      : (options.memberPrefs ?? []),
+  );
   sb.on("GET", "/rest/v1/push_subscriptions", () => options.subscriptions ?? []);
   sb.on("DELETE", "/rest/v1/push_subscriptions", () => []);
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, (call) => {
@@ -650,5 +664,132 @@ describe("#391 — a lead has to wake a sleeping phone", () => {
       lead: false,
     });
     expect(android).toBe("HIGH");
+  });
+});
+
+describe("#694 mute and follow on the inbound audience", () => {
+  const HOUR = 3_600_000;
+  const future = () => new Date(Date.now() + HOUR).toISOString();
+  const past = () => new Date(Date.now() - HOUR).toISOString();
+  const pushedTo = (world: World) =>
+    world.sb.find("GET", "/rest/v1/push_subscriptions")[0]?.url.searchParams.get("user_id");
+
+  it("a muted member gets no email and no push", async () => {
+    const world = buildWorld({
+      memberPrefs: [{ user_id: MEMBER, muted: true, muted_until: future(), followed: false }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    const email = world.resend.calls[0] as { to: string[] };
+    expect(email.to).toEqual([`${OWNER}@team.example`]);
+    expect(pushedTo(world)).toBe(`in.(${OWNER})`);
+  });
+
+  it("an indefinite mute (no deadline) still silences", async () => {
+    const world = buildWorld({
+      memberPrefs: [{ user_id: MEMBER, muted: true, muted_until: null, followed: false }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    expect((world.resend.calls[0] as { to: string[] }).to).toEqual([
+      `${OWNER}@team.example`,
+    ]);
+  });
+
+  it("an expired mute stops applying", async () => {
+    const world = buildWorld({
+      memberPrefs: [{ user_id: MEMBER, muted: true, muted_until: past(), followed: false }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    expect((world.resend.calls[0] as { to: string[] }).to.sort()).toEqual(
+      [`${OWNER}@team.example`, `${MEMBER}@team.example`].sort(),
+    );
+  });
+
+  it("muting the only assignee notifies nobody, and does not fall back to the crew", async () => {
+    const world = buildWorld({
+      assignedUserId: MEMBER,
+      memberPrefs: [{ user_id: MEMBER, muted: true, muted_until: null, followed: false }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    expect(world.resend.calls).toHaveLength(0);
+  });
+
+  it("a follower of an assigned thread is told as well as the assignee", async () => {
+    const world = buildWorld({
+      assignedUserId: MEMBER,
+      memberPrefs: [{ user_id: OWNER, muted: false, muted_until: null, followed: true }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    expect((world.resend.calls[0] as { to: string[] }).to.sort()).toEqual(
+      [`${OWNER}@team.example`, `${MEMBER}@team.example`].sort(),
+    );
+    expect(pushedTo(world)).toContain(OWNER);
+  });
+
+  it("mute wins over follow", async () => {
+    const world = buildWorld({
+      assignedUserId: MEMBER,
+      memberPrefs: [{ user_id: OWNER, muted: true, muted_until: null, followed: true }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    expect((world.resend.calls[0] as { to: string[] }).to).toEqual([
+      `${MEMBER}@team.example`,
+    ]);
+  });
+
+  it("a follower who cannot see the number is not added back (#106)", async () => {
+    const world = buildWorld({
+      assignedUserId: OWNER,
+      numberLevels: [
+        { user_id: OWNER, role: "owner", level: "text" },
+        { user_id: MEMBER, role: "member", level: "none" },
+      ],
+      memberPrefs: [{ user_id: MEMBER, muted: false, muted_until: null, followed: true }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    expect((world.resend.calls[0] as { to: string[] }).to).toEqual([
+      `${OWNER}@team.example`,
+    ]);
+  });
+
+  it("an emergency reaches a member who muted the thread", async () => {
+    const world = buildWorld({
+      memberPrefs: [{ user_id: MEMBER, muted: true, muted_until: null, followed: false }],
+    });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, { ...INPUT, body: "URGENT no heat", emergency: true });
+
+    expect((world.resend.calls[0] as { to: string[] }).to.sort()).toEqual(
+      [`${OWNER}@team.example`, `${MEMBER}@team.example`].sort(),
+    );
+  });
+
+  it("a failed mute lookup throws instead of notifying a muted member", async () => {
+    const world = buildWorld({ memberPrefsFail: true });
+    stubFetch(...world.routes);
+
+    await expect(notifyInboundMessage(env, INPUT)).rejects.toThrow();
+    expect(world.resend.calls).toHaveLength(0);
   });
 });

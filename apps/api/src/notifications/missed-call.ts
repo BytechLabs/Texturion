@@ -26,6 +26,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import {
+  loadConversationPrefs,
+  withFollowers,
+  withoutMuted,
+} from "./conversation-prefs";
 import { deliverPush } from "./deliver";
 import { MISSED_CALL_COPY } from "./missed-call-copy";
 import { routeAfterHoursAlert } from "./on-call";
@@ -118,7 +123,20 @@ export async function notifyMissedCall(
     kind: "missed_call",
     audience: assigned,
   });
-  const audience = routing.userIds;
+  // #694: followers are told about a miss on a thread somebody else holds, and
+  // anyone who muted the thread is not. Applied after the on-call narrowing so
+  // a follower is added back to a narrowed audience, and a muted member is
+  // dropped from it.
+  const threadPrefs = await loadConversationPrefs(
+    db,
+    input.companyId,
+    input.conversationId,
+  );
+  const audience = withoutMuted(
+    withFollowers(routing.userIds, threadPrefs, members),
+    threadPrefs,
+  );
+  if (audience.length === 0) return;
 
   const prefRows = unwrapRows<PrefsRow>(
     await db

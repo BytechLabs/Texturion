@@ -86,6 +86,8 @@ declare
     'mfa_recovery_codes', 'mfa_recovery_attempts', 'audit_log',
     -- #293: a member's own deferral of a thread, and their own note about it.
     'conversation_snoozes',
+    -- #694: which member muted or followed which thread.
+    'conversation_member_prefs',
     -- #280: a member's own saved list filters, under a name they wrote. The
     -- name is free text on a member's row, so it is classified here rather
     -- than waved through as configuration.
