@@ -782,7 +782,7 @@ const TIMESTAMP_INPUTS = [
   ["2026-01-01T03:00:00Z", NOW, "America/Toronto"],
   ["2026-01-01T03:00:00Z", NOW, "UTC"],
   ["2027-03-01T15:00:00Z", NOW, "America/Toronto"],
-  ["2026-11-10T07:00:00Z", "2026-11-10T20:00:00Z", "America/Vancouver"],
+  ["2026-11-10T07:00:00Z", "2026-11-10T20:00:00Z", "America/Los_Angeles"],
   ["2026-11-10T07:00:00Z", "2026-11-10T20:00:00Z", "UTC"],
   ["2026-03-08T06:00:00Z", "2026-03-09T15:00:00Z", "America/Toronto"],
   ["2026-12-31T23:00:00Z", "2027-01-01T05:00:00Z", "America/Toronto"],

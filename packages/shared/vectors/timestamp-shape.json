@@ -149,7 +149,7 @@
   {
     "at": "2026-11-10T07:00:00Z",
     "now": "2026-11-10T20:00:00Z",
-    "zone": "America/Vancouver",
+    "zone": "America/Los_Angeles",
     "bucket": "yesterday",
     "minutes": 0
   },
