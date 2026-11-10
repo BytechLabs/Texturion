@@ -4,6 +4,7 @@ import {
   Bell,
   Ban,
   Building2,
+  MessageSquareDashed,
   ChevronRight,
   Clock,
   CreditCard,
@@ -106,6 +107,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // findable only by opening a row called "Business hours" is not findable.
     description: "settingsMore.navHoursDesc",
     icon: Clock,
+  },
+  {
+    // #689 — how the texts we send for the workspace behave. Beside Away reply
+    // because both answer "what do we text on the crew's behalf". It reuses the
+    // "hours" section id, so it is gated exactly as Away reply is (settings.manage).
+    id: "hours",
+    slug: "automatic-texts",
+    label: "settingsMore.navAutoTexts",
+    description: "settingsMore.navAutoTextsDesc",
+    icon: MessageSquareDashed,
   },
   {
     // D43 Calls v2 — the whole calling surface (text-back, voicemail,

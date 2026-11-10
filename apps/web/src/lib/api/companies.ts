@@ -7,6 +7,7 @@ import {
 import { useCompanyId } from "@/lib/company/provider";
 
 import type {
+  AutomaticTextSettings,
   CrewSizeBucket,
   HoursException,
   Locale,
@@ -82,7 +83,7 @@ export function useCreateCompany() {
   });
 }
 
-export interface CompanyPatch {
+export interface CompanyPatch extends Partial<AutomaticTextSettings> {
   name?: string;
   /** D15: workspace IANA timezone (O/A, validated server-side). */
   timezone?: string;

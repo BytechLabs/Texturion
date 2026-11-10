@@ -41,6 +41,9 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     "team",
     "numbers",
     "hours",
+    // #689: Automatic texts reuses the "hours" id, so it opens for exactly the
+    // roles Away reply does.
+    "hours",
     "calling",
     "templates",
     "ai",
@@ -70,6 +73,9 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     "workspace",
     "team",
     "numbers",
+    "hours",
+    // #689: Automatic texts reuses the "hours" id, so it opens for exactly the
+    // roles Away reply does.
     "hours",
     "calling",
     "templates",
@@ -287,6 +293,7 @@ describe("path resolution", () => {
     // how a rename silently un-gates a page.
     expect(settingsSectionForPath("/settings/missed-calls")?.id).toBe("calling");
     expect(settingsSectionForPath("/settings/away-reply")?.id).toBe("hours");
+    expect(settingsSectionForPath("/settings/automatic-texts")?.id).toBe("hours");
     expect(settingsSectionForPath("/settings/whats-new")?.id).toBe("whatsNew");
     expect(settingsSectionForPath("/settings/calling")).toBeNull();
   });
@@ -341,8 +348,10 @@ describe("the gate cannot silently fall behind the app", () => {
         settingsSectionCapability(id as SettingsSectionId),
       ).not.toThrow();
     }
+    // Counted by id: Automatic texts (#689) shares the "hours" id, so there
+    // are more rows than ids.
     expect(Object.keys(WEB_SECTION_ROUTES).length).toBeGreaterThanOrEqual(
-      SETTINGS_SECTIONS.length,
+      new Set(SETTINGS_SECTIONS.map((s) => s.id)).size,
     );
   });
 

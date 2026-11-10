@@ -2,6 +2,7 @@ import { DEFAULT_LOCALE } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/provider";
 import type { AuditEntry } from "@/lib/api/types";
+import { AUTOMATIC_TEXT_LABEL_KEYS } from "@/lib/settings/automatic-texts";
 
 /**
  * #231 — turn one audit row into the sentence an owner actually reads.
@@ -114,6 +115,12 @@ function changedSettings(after: Record<string, unknown>, t: Translate): string {
     voicemail_intake: t("appShell.auditSettingVoicemailIntake"),
     call_wrapup: t("appShell.auditSettingCallWrapup"),
     summarize_threads: t("appShell.auditSettingSummarizeThreads"),
+    ...Object.fromEntries(
+      Object.entries(AUTOMATIC_TEXT_LABEL_KEYS).map(([field, key]) => [
+        field,
+        t(key),
+      ]),
+    ),
   };
   const named = Object.keys(after)
     // A key this build has no name for reads as itself with the underscores

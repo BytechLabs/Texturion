@@ -439,6 +439,22 @@ export interface CompanyView {
   away_effective_message: string;
   /** True when the owner's own away text is in effect. */
   away_message_is_custom: boolean;
+  /**
+   * The workspace's automatic-text policy. Optional: a server that predates it
+   * sends none of these, and a missing key means the product default, never
+   * off. Read through `readAutomaticTextSettings`.
+   */
+  hold_scheduled_on_reply?: boolean;
+  hold_reminders_on_reply?: boolean;
+  hold_rating_ask_on_reply?: boolean;
+  hold_reminders_unverified_calendar?: boolean;
+  rating_ask_enabled?: boolean;
+  rating_ask_delay_hours?: number;
+  rating_ask_expiry_hours?: number;
+  rating_ask_cooldown_days?: number;
+  scheduled_text_expiry_hours?: number;
+  reminder_expiry_hours?: number;
+  auto_reply_cooldown_minutes?: number;
   /** #414: whether a customer replying URGENT/EMERGENCY/911/SOS wakes the
    *  whole crew at high priority, exempt from the daily notification limit.
    *  On by default, because the away-message copy that asks for it is. */

@@ -165,6 +165,7 @@ export const domainEn = {
    */
   categoryAssignments: "Work handed to me",
   categoryTasks: "Changes to tasks I follow",
+  categoryScheduledTexts: "Scheduled texts that are held or not sent",
   categoryMentions: "When somebody @s me",
   categoryMessagesAll: "Texts on anyone's jobs",
   categoryMessagesMine: "Texts on my jobs",
@@ -478,6 +479,7 @@ export const domainFr: Translated<typeof domainEn> = {
 
   categoryAssignments: "Travail qui m'est confié",
   categoryTasks: "Changements aux tâches que je suis",
+  categoryScheduledTexts: "Textos planifiés retenus ou non envoyés",
   categoryMentions: "Quand quelqu'un me mentionne avec @",
   categoryMessagesAll: "Textos sur les tâches de tout le monde",
   categoryMessagesMine: "Textos sur mes tâches",
