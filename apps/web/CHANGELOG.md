@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.24.0](https://github.com/BytechLabs/Texturion/compare/web-v0.23.0...web-v0.24.0) (2026-11-10)
+
+
+### Features
+
+* **web:** add a task from one line and link it to other work ([d2b162f](https://github.com/BytechLabs/Texturion/commit/d2b162f17a05b965c7667b27d42b35877068682d))
+* **web:** assign a task to more than one person ([6a70a81](https://github.com/BytechLabs/Texturion/commit/6a70a818f05e39b3c12bf09dec2a14ed1d117141))
+
 ## [0.23.0](https://github.com/BytechLabs/Texturion/compare/web-v0.22.0...web-v0.23.0) (2026-11-10)
 
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.17.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.16.0...shared-v0.17.0) (2026-11-10)
+
+
+### Features
+
+* **shared:** read a quick-add line and the references in a note ([30efd07](https://github.com/BytechLabs/Texturion/commit/30efd07cb2e47f7b9f0b3bc3d06a19f13f401b0e))
+
+
+### Bug Fixes
+
+* **shared:** quick-add vectors stop depending on British Columbia's clock ([c27abe1](https://github.com/BytechLabs/Texturion/commit/c27abe1eb6f579e69a168ac8ace89645ed5de978))
+
 ## [0.16.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.15.0...shared-v0.16.0) (2026-11-10)
 
 

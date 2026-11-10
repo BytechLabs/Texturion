@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.0](https://github.com/BytechLabs/Texturion/compare/android-v0.20.0...android-v0.21.0) (2026-11-10)
+
+
+### Features
+
+* **android:** add a task from one line and link it to other work ([89625ae](https://github.com/BytechLabs/Texturion/commit/89625aed5b5e25e552daeef0e5ed967b52163b95))
+* **android:** assign a task to more than one person ([2e6beed](https://github.com/BytechLabs/Texturion/commit/2e6beed871593177d62850c557aa330cb070688d))
+
 ## [0.20.0](https://github.com/BytechLabs/Texturion/compare/android-v0.19.0...android-v0.20.0) (2026-11-10)
 
 
