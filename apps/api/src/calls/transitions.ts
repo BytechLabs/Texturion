@@ -20,7 +20,7 @@
  *     re-rings a member who explicitly declined this session (#171).
  */
 
-import { RING_STEP_SECS, type CallRouting } from "@loonext/shared";
+import { RING_STEP_SECS, type CallEndReason, type CallRouting } from "@loonext/shared";
 
 /** §5: the ring window's CEILING, and the default. The DO alarm at the
  *  resolved deadline is the ONLY clock-based voicemail trigger.
@@ -199,6 +199,12 @@ export interface AnswerIntent {
 }
 
 /** The `machine` record (§2.2) plus the leg map the shell loads beside it. */
+/** #725: the reasons the machine itself sends a call to voicemail. */
+export type VoicemailCause = Extract<
+  CallEndReason,
+  "no_answer_in_time" | "declined_by_everyone" | "nobody_reachable"
+>;
+
 export interface SessionMachine {
   state: CallState;
   callSessionId: string;
@@ -245,6 +251,18 @@ export interface SessionMachine {
   /** #721: where this inbound call went when it arrived, and why. Null for
    *  outbound calls and for a machine persisted before the field existed. */
   routing?: CallRouting | null;
+  /** #725: why the call ended, set by the transition that ended it. Null while
+   *  it is live and for a machine persisted before the field existed. */
+  endedReason?: CallEndReason | null;
+  /** #725: why this call went to voicemail, when the machine itself decided it
+   *  (the ring window ran out, everyone declined, nobody could be reached).
+   *  Null when the arrival routing already says (line busy, screened, after
+   *  hours), so a caller who hangs up in the greeting reads as that, not as the
+   *  cause. */
+  voicemailCause?: VoicemailCause | null;
+  /** #725: why the machine began tearing down a live call, read by the hangup
+   *  that then ends it (a transfer expired, the placer hung up). */
+  endHint?: CallEndReason | null;
   /** #490: this session answered a suspended line to speak the unavailable
    *  notice. Distinct from `unattended`, which is true for every call that
    *  reached one — including the ones past the daily cap that rang out. */
@@ -559,6 +577,8 @@ export interface MirrorSet {
   notice_spoken?: boolean;
   /** #721: the route chosen at arrival; written once, by the first mirror. */
   routing?: CallRouting;
+  /** #725: why the call ended; every terminal mirror carries it. */
+  ended_reason?: CallEndReason;
 }
 
 export type Effect =
@@ -708,12 +728,18 @@ function cancelAllLiveLegs(
  * (persisted with the mirror as an effect) BEFORE any Telnyx command runs.
  * The answer's 4xx discrimination re-enters as `vm-answer-outcome`.
  */
-function vmEntry(machine: SessionMachine, effects: Effect[], routing?: CallRouting): void {
+function vmEntry(
+  machine: SessionMachine,
+  effects: Effect[],
+  routing?: CallRouting,
+  cause: VoicemailCause | null = null,
+): void {
   machine.state = "voicemail_greeting";
   machine.ringDeadlineMs = null;
   // #278: nothing else joins a ring that is over.
   machine.queuedTargets = [];
   if (routing) machine.routing = routing;
+  machine.voicemailCause = cause;
   effects.push({
     kind: "mirror",
     set: routing ? { state: "voicemail_greeting", routing } : { state: "voicemail_greeting" },
@@ -778,7 +804,25 @@ function runAvenueLadder(machine: SessionMachine, effects: Effect[]): void {
   // through the ladder instead of through the hunt group.
   if ((machine.queuedTargets ?? []).length > 0) return;
   if (machine.pushCapableUserIds.length > 0) return; // (2) hold ringback
-  vmEntry(machine, effects); // (3) explicit exhaustion
+  // (3) explicit exhaustion: somebody said no, or nobody could be reached.
+  vmEntry(
+    machine,
+    effects,
+    undefined,
+    machine.declinedUserIds.length > 0 ? "declined_by_everyone" : "nobody_reachable",
+  );
+}
+
+/** #725: why a refused call was refused. A blocked caller carries routing
+ *  "blocked"; the other refusal is the calling limit. */
+function rejectionReason(machine: SessionMachine): CallEndReason {
+  return machine.routing === "blocked" ? "rejected_blocked" : "rejected_over_limit";
+}
+
+/** #725: how a call ends when the caller hangs up in voicemail without a
+ *  message: the cause that sent it there, else the caller hanging up. */
+function voicemailEndReason(machine: SessionMachine): CallEndReason {
+  return machine.voicemailCause ?? "caller_hung_up";
 }
 
 /** Terminal resolution shared by T5/T8/T12/T16/T17 and the dead-inbound
@@ -791,6 +835,7 @@ function terminalize(
   target: CallState,
   merge: Extract<Effect, { kind: "terminal-merge" }> | null,
   callEndReason: "answered" | "voicemail" | "missed" | null,
+  endedReason: CallEndReason,
   extraMirror: {
     answered_by_user_id?: string | null;
     answered_at?: string | null;
@@ -799,6 +844,7 @@ function terminalize(
   const wasRinging = machine.state === "ringing";
   const upgrade = isTerminal(machine.state);
   machine.state = target;
+  machine.endedReason = endedReason;
   machine.ringDeadlineMs = null;
   cancelAllLiveLegs(machine, effects, true);
   // #213 (adversarial-review H1): for OUTBOUND, also hang up any ANSWERED leg —
@@ -819,7 +865,7 @@ function terminalize(
   }
   effects.push({
     kind: "mirror",
-    set: { state: target, ...extraMirror },
+    set: { state: target, ended_reason: endedReason, ...extraMirror },
     terminal: true,
   });
   if (merge) effects.push(merge);
@@ -835,7 +881,12 @@ function terminalize(
 }
 
 /** §4 T7's teardown: hang up the customer leg; the bri hangup runs T8. */
-function ownerDeathTeardown(machine: SessionMachine, effects: Effect[]): void {
+function ownerDeathTeardown(
+  machine: SessionMachine,
+  effects: Effect[],
+  endHint: CallEndReason | null,
+): void {
+  if (endHint) machine.endHint = endHint;
   if (machine.customerCcid) {
     effects.push({ kind: "telnyx-hangup", ccid: machine.customerCcid, terminal: true });
   }
@@ -968,8 +1019,13 @@ export function reduce(
       const fromLive = next.state === "voicemail_recording";
       next.state = "ended_voicemail";
       next.ringDeadlineMs = null;
+      next.endedReason = next.voicemailCause ?? "left_voicemail";
       effects.push({ kind: "voicemail-pipeline", payload: event.payload });
-      effects.push({ kind: "mirror", set: { state: "ended_voicemail" }, terminal: true });
+      effects.push({
+        kind: "mirror",
+        set: { state: "ended_voicemail", ended_reason: next.endedReason },
+        terminal: true,
+      });
       if (fromLive) {
         effects.push({ kind: "arm-alarm", alarm: "purge", atMs: nowMs + PURGE_DELAY_MS });
       }
@@ -1012,7 +1068,11 @@ export function reduce(
         next.ownerLegDeadDuringIntent !== null &&
         next.ownerLegDeadDuringIntent === next.answeredByUserId
       ) {
-        ownerDeathTeardown(next, effects);
+        ownerDeathTeardown(
+          next,
+          effects,
+          event.type === "alarm-intent-expiry" ? "intent_expired" : null,
+        );
       } else {
         next.ownerLegDeadDuringIntent = null;
       }
@@ -1069,7 +1129,7 @@ export function reduce(
     // ---- T10: the ONLY clock-based voicemail trigger ----------------------
     case "alarm-ring": {
       if (next.state !== "ringing") return { machine: next, effects };
-      vmEntry(next, effects);
+      vmEntry(next, effects, undefined, "no_answer_in_time");
       return { machine: next, effects };
     }
 
@@ -1084,6 +1144,7 @@ export function reduce(
           next.rejectedForCap ? "ended_rejected" : "ended_missed",
           { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
           "missed",
+          "stuck_call_cleaned_up",
         );
       } else if (next.state === "answered") {
         // Serves inbound AND outbound 'answered' — terminalMergeSynthetic is
@@ -1102,6 +1163,7 @@ export function reduce(
             briAnsweredAtIso: next.answeredAtIso,
           },
           null,
+          "stuck_call_cleaned_up",
         );
       } else if (next.state === "dialing") {
         // #211 T-O3 backstop: an outbound customer leg that never answered and
@@ -1114,6 +1176,7 @@ export function reduce(
           "ended_missed",
           { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
           null,
+          "stuck_call_cleaned_up",
         );
       } else {
         // voicemail_greeting / voicemail_recording → T12 semantics
@@ -1125,6 +1188,7 @@ export function reduce(
           "ended_missed",
           { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
           null,
+          "stuck_call_cleaned_up",
         );
       }
       return { machine: next, effects };
@@ -1182,6 +1246,7 @@ export function reduce(
         next.rejectedForCap ? "ended_rejected" : "ended_missed",
         { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
         null,
+        next.rejectedForCap ? rejectionReason(next) : "voicemail_failed",
       );
       return { machine: next, effects };
     }
@@ -1229,6 +1294,7 @@ export function reduce(
             "ended_missed",
             { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
             null,
+            "carrier_refused",
           );
           if (next.customerCcid) {
             effects.push({ kind: "telnyx-hangup", ccid: next.customerCcid, terminal: true });
@@ -1263,6 +1329,7 @@ export function reduce(
           briAnsweredAtIso: next.answeredAtIso,
         },
         null,
+        next.endHint ?? "answered",
       );
       return { machine: next, effects };
     }
@@ -1424,7 +1491,7 @@ function reduceInitiated(
 
   // T1d: immediate-exhaustion check — BOTH empty → voicemail NOW (§5.3).
   if (context.dialTargets.length === 0 && context.pushAudience.length === 0) {
-    vmEntry(base, effects, "nobody_reachable");
+    vmEntry(base, effects, "nobody_reachable", "nobody_reachable");
     return { machine: base, effects };
   }
 
@@ -1752,7 +1819,7 @@ function reduceOutboundPlacerHangup(
       next.ownerLegDeadDuringIntent = event.userId;
       return { machine: next, effects };
     }
-    ownerDeathTeardown(next, effects);
+    ownerDeathTeardown(next, effects, "placer_hung_up");
     return { machine: next, effects };
   }
 
@@ -1766,6 +1833,7 @@ function reduceOutboundPlacerHangup(
     "ended_missed",
     { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
     null,
+    "placer_hung_up",
   );
   if (next.customerCcid) {
     effects.push({ kind: "telnyx-hangup", ccid: next.customerCcid, terminal: true });
@@ -1806,6 +1874,7 @@ function reduceOutboundHangup(
       briAnsweredAtIso: next.answeredAtIso,
     },
     null, // no ring audience to revoke
+    answered ? (next.endHint ?? "customer_hung_up") : (next.endHint ?? "no_answer"),
   );
   return { machine: next, effects };
 }
@@ -1911,6 +1980,7 @@ function reduceAnswerOutcome(
       next.rejectedForCap ? "ended_rejected" : "ended_missed",
       { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
       "missed",
+      next.rejectedForCap ? rejectionReason(next) : "caller_hung_up",
     );
     return { machine: next, effects };
   }
@@ -1993,7 +2063,7 @@ function reduceMemberHangup(
       next.ownerLegDeadDuringIntent = event.userId;
       return { machine: next, effects };
     }
-    ownerDeathTeardown(next, effects);
+    ownerDeathTeardown(next, effects, null);
     return { machine: next, effects };
   }
 
@@ -2031,10 +2101,12 @@ function reduceInboundHangup(
         });
       }
       next.state = "ended_answered";
+      next.endedReason = next.endHint ?? "answered";
       effects.push({
         kind: "mirror",
         set: {
           state: "ended_answered",
+          ended_reason: next.endedReason,
           ...(next.answeredByUserId
             ? {
                 answered_by_user_id: next.answeredByUserId,
@@ -2086,6 +2158,7 @@ function reduceInboundHangup(
           event.briAnsweredAtIso ?? next.answerIntent?.answeredAtIso ?? null,
       },
       "answered",
+      next.endHint ?? "answered",
       next.answeredByUserId
         ? {
             answered_by_user_id: next.answeredByUserId,
@@ -2105,7 +2178,7 @@ function reduceInboundHangup(
       outcome: "missed",
       payload: event.payload,
       briAnsweredAtIso: null,
-    }, "missed");
+    }, "missed", voicemailEndReason(next));
     return { machine: next, effects };
   }
 
@@ -2125,7 +2198,7 @@ function reduceInboundHangup(
       outcome: "answered",
       payload: event.payload,
       briAnsweredAtIso: next.answeredAtIso,
-    }, null);
+    }, null, next.endHint ?? "answered");
     return { machine: next, effects };
   }
   if (next.state === "voicemail_greeting" || next.state === "voicemail_recording") {
@@ -2136,7 +2209,7 @@ function reduceInboundHangup(
       outcome: "missed",
       payload: event.payload,
       briAnsweredAtIso: null,
-    }, null);
+    }, null, voicemailEndReason(next));
     return { machine: next, effects };
   }
   // T5: ringing (plain caller-gave-up, the unattended ring-out, the cap
@@ -2154,6 +2227,11 @@ function reduceInboundHangup(
       briAnsweredAtIso: null,
     },
     "missed",
+    next.rejectedForCap
+      ? rejectionReason(next)
+      : next.unattended
+        ? "line_paused"
+        : "caller_hung_up",
   );
   return { machine: next, effects };
 }

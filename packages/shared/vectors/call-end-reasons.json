@@ -1,0 +1,50 @@
+[
+  {
+    "reason": "answered"
+  },
+  {
+    "reason": "caller_hung_up"
+  },
+  {
+    "reason": "no_answer_in_time"
+  },
+  {
+    "reason": "declined_by_everyone"
+  },
+  {
+    "reason": "nobody_reachable"
+  },
+  {
+    "reason": "left_voicemail"
+  },
+  {
+    "reason": "rejected_blocked"
+  },
+  {
+    "reason": "rejected_over_limit"
+  },
+  {
+    "reason": "line_paused"
+  },
+  {
+    "reason": "stuck_call_cleaned_up"
+  },
+  {
+    "reason": "intent_expired"
+  },
+  {
+    "reason": "voicemail_failed"
+  },
+  {
+    "reason": "carrier_refused"
+  },
+  {
+    "reason": "placer_hung_up"
+  },
+  {
+    "reason": "customer_hung_up"
+  },
+  {
+    "reason": "no_answer"
+  }
+]

@@ -18,7 +18,7 @@
  * and the #106 deny list still applies inside the SQL: a restricted member
  * cannot see a hidden number's calls by asking for the contact directly.
  */
-import type { CallRouting } from "@loonext/shared";
+import type { CallEndReason, CallRouting } from "@loonext/shared";
 import { Hono, type Context } from "hono";
 import { assertEgressWithinAllowance } from "../attachments/egress";
 import type { Env } from "../env";
@@ -100,6 +100,9 @@ export interface CallRow {
   /** #721: where the call went when it arrived and why; null for outbound and
    *  for calls older than the column. */
   routing: CallRouting | null;
+  /** #725: why the call ended, set by the call machine; null while it is live
+   *  and for calls older than the column. */
+  ended_reason: CallEndReason | null;
   voicemail_seconds: number | null;
   /** Speech-to-text of the recording; null = not transcribed, never a reason
    *  to hide the audio. */
@@ -203,7 +206,7 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
       .from("calls")
       .select(
         "id,call_session_id,caller_e164,contact_id,caller_name,phone_number_id," +
-          "conversation_id,outcome,forward_seconds,screening_result,routing," +
+          "conversation_id,outcome,forward_seconds,screening_result,routing,ended_reason," +
           "stir_attestation,voicemail_seconds,voicemail_transcript," +
           "voicemail_transcript_attempted_at,voicemail_path,voicemail_deleted_at," +
           "answered_by_user_id,state,answered_at,started_at,ended_at,direction," +

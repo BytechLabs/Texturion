@@ -13,7 +13,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { CALL_ROUTINGS, type CallRouting } from "@loonext/shared";
+import {
+  CALL_END_REASONS,
+  CALL_ROUTINGS,
+  type CallEndReason,
+  type CallRouting,
+} from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -1818,5 +1823,398 @@ describe("#278 ringing in turn", () => {
     expect(
       short.effects.some((e) => e.kind === "arm-alarm" && e.alarm === "ring-step"),
     ).toBe(false);
+  });
+});
+
+// ---- #725 why a call ended ---------------------------------------------------
+
+describe("#725 — every terminal transition records why the call ended", () => {
+  const seen = new Set<CallEndReason>();
+
+  /** The `ended_reason` on the terminal mirror an event produced. */
+  function endedReason(effects: Effect[]): CallEndReason | undefined {
+    const mirror = effects.find((e) => e.kind === "mirror" && e.terminal) as
+      | Extract<Effect, { kind: "mirror" }>
+      | undefined;
+    const reason = mirror?.set.ended_reason;
+    if (reason) seen.add(reason);
+    return reason;
+  }
+
+  const callerHangsUp = (
+    machine: SessionMachine,
+    tag: "untagged" | "bri" | "vmi" = "untagged",
+  ) =>
+    reduce(
+      machine,
+      { type: "inbound-hangup", tag, briAnsweredAtIso: null, payload: {} },
+      50_000,
+      keyGen(),
+    );
+
+  function voicemailMachine(
+    ctx: Partial<InitiatedContext> = {},
+    via: "ring-out" | "arrival" = "ring-out",
+  ): SessionMachine {
+    if (via === "arrival") {
+      return reduce(null, { type: "initiated", context: initCtx(ctx) }, 1_000, keyGen())
+        .machine as SessionMachine;
+    }
+    return reduce(ringingMachine(ctx), { type: "alarm-ring" }, 46_000, keyGen())
+      .machine as SessionMachine;
+  }
+
+  /** The caller is past the greeting and recording. */
+  const recording = (vm: SessionMachine) =>
+    reduce(vm, { type: "speak-ended" }, 47_000, keyGen()).machine as SessionMachine;
+
+  function answeredInbound(): SessionMachine {
+    const machine = ringingMachine();
+    const a = reduce(
+      machine,
+      { type: "member-leg-answered", ccid: "leg-u1", userId: "u1", destination: null },
+      2_000,
+      keyGen(),
+    ).machine as SessionMachine;
+    const intent = a.answerIntent as NonNullable<SessionMachine["answerIntent"]>;
+    return reduce(
+      a,
+      {
+        type: "answer-outcome",
+        ok: true,
+        memberCcid: "leg-u1",
+        userId: "u1",
+        answeredAtIso: intent.answeredAtIso,
+      },
+      2_100,
+      keyGen(),
+    ).machine as SessionMachine;
+  }
+
+  /** An outbound machine whose placer (op) leg is up as `op-ccid`. */
+  function outboundWithPlacer(): SessionMachine {
+    const m = dialingMachine();
+    return reduce(
+      m,
+      { type: "dial-outcome", pendingKey: m.legs[0].key, ccid: "op-ccid", failure: null },
+      1_500,
+      keyGen(),
+    ).machine as SessionMachine;
+  }
+
+  it("the caller hangs up while it rings: caller_hung_up", () => {
+    const r = callerHangsUp(ringingMachine());
+    expect(endedReason(r.effects)).toBe("caller_hung_up");
+    expect(r.machine?.endedReason).toBe("caller_hung_up");
+  });
+
+  it("a member's call that ends normally: answered", () => {
+    expect(endedReason(callerHangsUp(answeredInbound(), "bri").effects)).toBe("answered");
+    const gone = reduce(answeredInbound(), { type: "inbound-leg-gone" }, 60_000, keyGen());
+    expect(endedReason(gone.effects)).toBe("answered");
+  });
+
+  it("the ring window ran out: no_answer_in_time, whether the caller hangs up or leaves a message", () => {
+    const vm = voicemailMachine();
+    expect(vm.voicemailCause).toBe("no_answer_in_time");
+    expect(endedReason(callerHangsUp(vm, "vmi").effects)).toBe("no_answer_in_time");
+    expect(endedReason(callerHangsUp(vm, "untagged").effects)).toBe("no_answer_in_time");
+    const rec = reduce(recording(vm), { type: "recording-saved", payload: {} }, 60_000, keyGen());
+    expect(endedReason(rec.effects)).toBe("no_answer_in_time");
+  });
+
+  it("every phone declined: declined_by_everyone", () => {
+    const r = reduce(ringingMachine(), { type: "decline", userId: "u1" }, 5_000, keyGen());
+    expect(r.machine?.state).toBe("voicemail_greeting");
+    expect(endedReason(callerHangsUp(r.machine as SessionMachine, "vmi").effects)).toBe(
+      "declined_by_everyone",
+    );
+  });
+
+  it("no push or leg could reach anyone: nobody_reachable", () => {
+    const ringing = reduce(
+      null,
+      { type: "initiated", context: initCtx({ dialTargets: [], pushAudience: ["u1"] }) },
+      1_000,
+      keyGen(),
+    ).machine as SessionMachine;
+    const settled = reduce(
+      ringing,
+      { type: "push-fanout-settled", unreachableUserIds: ["u1"] },
+      9_000,
+      keyGen(),
+    );
+    expect(settled.machine?.state).toBe("voicemail_greeting");
+    expect(endedReason(callerHangsUp(settled.machine as SessionMachine, "vmi").effects)).toBe(
+      "nobody_reachable",
+    );
+    const none = voicemailMachine({ dialTargets: [], pushAudience: [] }, "arrival");
+    expect(endedReason(callerHangsUp(none, "vmi").effects)).toBe("nobody_reachable");
+  });
+
+  it("an arrival route that explains itself (after hours, busy, screened) leaves the cause to the routing", () => {
+    for (const ctx of [
+      { afterHoursVoicemail: true },
+      { lineBusy: true },
+      { screeningDivert: true },
+    ]) {
+      const vm = voicemailMachine(ctx, "arrival");
+      expect(endedReason(callerHangsUp(vm, "vmi").effects), JSON.stringify(ctx)).toBe(
+        "caller_hung_up",
+      );
+      const rec = reduce(recording(vm), { type: "recording-saved", payload: {} }, 60_000, keyGen());
+      expect(endedReason(rec.effects), JSON.stringify(ctx)).toBe("left_voicemail");
+    }
+  });
+
+  it("a blocked caller: rejected_blocked; over the calling limit: rejected_over_limit", () => {
+    const blocked = reduce(null, { type: "initiated", context: initCtx({ blocked: true }) }, 1_000, keyGen());
+    expect(endedReason(callerHangsUp(blocked.machine as SessionMachine).effects)).toBe(
+      "rejected_blocked",
+    );
+    const capped = reduce(null, { type: "initiated", context: initCtx({ overCap: true }) }, 1_000, keyGen());
+    expect(endedReason(callerHangsUp(capped.machine as SessionMachine).effects)).toBe(
+      "rejected_over_limit",
+    );
+  });
+
+  it("the paused-line notice, spoken or rung out: line_paused", () => {
+    for (const noticeAllowed of [true, false]) {
+      let machine = reduce(
+        null,
+        { type: "initiated", context: initCtx({ suspendedOrInactive: true, noticeAllowed }) },
+        1_000,
+        keyGen(),
+      ).machine as SessionMachine;
+      if (noticeAllowed) {
+        machine = reduce(machine, { type: "speak-ended" }, 8_000, keyGen()).machine as SessionMachine;
+      }
+      expect(endedReason(callerHangsUp(machine).effects), String(noticeAllowed)).toBe("line_paused");
+    }
+  });
+
+  it("the cleanup timer ends a stuck call in every state: stuck_call_cleaned_up", () => {
+    const states: CallState[] = ["ringing", "answered", "voicemail_greeting", "voicemail_recording"];
+    for (const state of states) {
+      const machine = ringingMachine();
+      machine.state = state;
+      if (state === "answered") machine.answeredAtIso = new Date(2_000).toISOString();
+      const r = reduce(machine, { type: "alarm-janitor" }, 4 * 60 * 60_000, keyGen());
+      expect(endedReason(r.effects), state).toBe("stuck_call_cleaned_up");
+    }
+    for (const outbound of [dialingMachine(), answeredOutbound()]) {
+      const r = reduce(outbound, { type: "alarm-janitor" }, 4 * 60 * 60_000, keyGen());
+      expect(endedReason(r.effects), outbound.state).toBe("stuck_call_cleaned_up");
+    }
+  });
+
+  it("a transfer that expired and tore the call down: intent_expired", () => {
+    let machine = answeredInbound();
+    machine.intent = { kind: "consult", targetUserId: "u2" };
+    machine = reduce(
+      machine,
+      { type: "member-leg-hangup", ccid: "leg-u1", userId: "u1", destination: null },
+      3_000,
+      keyGen(),
+    ).machine as SessionMachine;
+    machine = reduce(machine, { type: "alarm-intent-expiry" }, 3_500, keyGen()).machine as SessionMachine;
+    expect(endedReason(callerHangsUp(machine, "bri").effects)).toBe("intent_expired");
+    expect(endedReason(reduce(machine, { type: "inbound-leg-gone" }, 4_000, keyGen()).effects)).toBe(
+      "intent_expired",
+    );
+  });
+
+  it("a cleared intent tears down as an ordinary answered call", () => {
+    let machine = answeredInbound();
+    machine.intent = { kind: "transfer", targetUserId: "u2" };
+    machine = reduce(
+      machine,
+      { type: "member-leg-hangup", ccid: "leg-u1", userId: "u1", destination: null },
+      3_000,
+      keyGen(),
+    ).machine as SessionMachine;
+    machine = reduce(machine, { type: "clear-intent" }, 3_500, keyGen()).machine as SessionMachine;
+    expect(endedReason(callerHangsUp(machine, "bri").effects)).toBe("answered");
+  });
+
+  it("the voicemail could not be answered: voicemail_failed", () => {
+    const r = reduce(voicemailMachine(), { type: "vm-answer-outcome", ok: false }, 47_000, keyGen());
+    expect(endedReason(r.effects)).toBe("voicemail_failed");
+  });
+
+  it("the caller's leg was dead when a member answered: caller_hung_up", () => {
+    const r = reduce(
+      ringingMachine(),
+      {
+        type: "answer-outcome",
+        ok: false,
+        memberCcid: "leg-u1",
+        userId: "u1",
+        answeredAtIso: new Date(2_000).toISOString(),
+      },
+      2_100,
+      keyGen(),
+    );
+    expect(endedReason(r.effects)).toBe("caller_hung_up");
+  });
+
+  it("upgrade ended_missed to ended_voicemail on a late recording keeps the voicemail cause", () => {
+    const missed = callerHangsUp(voicemailMachine(), "vmi").machine as SessionMachine;
+    expect(missed.state).toBe("ended_missed");
+    const up = reduce(missed, { type: "recording-saved", payload: {} }, 60_000, keyGen());
+    expect(up.machine?.state).toBe("ended_voicemail");
+    expect(endedReason(up.effects)).toBe("no_answer_in_time");
+    expect(up.machine?.endedReason).toBe("no_answer_in_time");
+  });
+
+  it("upgrade ended_missed to ended_answered on a late bri hangup: answered", () => {
+    const machine = ringingMachine();
+    machine.state = "ended_missed";
+    machine.answerIntent = {
+      memberCcid: "leg-u1",
+      userId: "u1",
+      answeredAtIso: new Date(2_000).toISOString(),
+    };
+    const r = callerHangsUp(machine, "bri");
+    expect(r.machine?.state).toBe("ended_answered");
+    expect(endedReason(r.effects)).toBe("answered");
+  });
+
+  it("outbound: the customer hangs up after answering: customer_hung_up", () => {
+    const r = reduce(answeredOutbound(), { type: "outbound-hangup", payload: null }, 9_000, keyGen());
+    expect(endedReason(r.effects)).toBe("customer_hung_up");
+  });
+
+  it("outbound: the customer never answered: no_answer", () => {
+    const r = reduce(dialingMachine(), { type: "outbound-hangup", payload: null }, 9_000, keyGen());
+    expect(endedReason(r.effects)).toBe("no_answer");
+  });
+
+  it("outbound: the placer hangs up before the customer answers: placer_hung_up", () => {
+    const r = reduce(
+      outboundWithPlacer(),
+      { type: "outbound-placer-hangup", ccid: "op-ccid", userId: "placer" },
+      3_000,
+      keyGen(),
+    );
+    expect(endedReason(r.effects)).toBe("placer_hung_up");
+  });
+
+  it("outbound: the placer hangs up mid-call, then the customer leg ends: placer_hung_up", () => {
+    const answered = reduce(outboundWithPlacer(), { type: "outbound-answered" }, 2_000, keyGen())
+      .machine as SessionMachine;
+    const placerGone = reduce(
+      answered,
+      { type: "outbound-placer-hangup", ccid: "op-ccid", userId: "placer" },
+      3_000,
+      keyGen(),
+    ).machine as SessionMachine;
+    const r = reduce(placerGone, { type: "outbound-hangup", payload: null }, 3_500, keyGen());
+    expect(endedReason(r.effects)).toBe("placer_hung_up");
+  });
+
+  it("outbound: the carrier refused the placer's leg: carrier_refused", () => {
+    const m = dialingMachine();
+    const r = reduce(
+      m,
+      { type: "dial-outcome", pendingKey: m.legs[0].key, ccid: null, failure: "known-dead" },
+      1_500,
+      keyGen(),
+    );
+    expect(endedReason(r.effects)).toBe("carrier_refused");
+  });
+
+  it("GUARD: no terminal mirror across the fixtures lacks an ended_reason", () => {
+    const initial = (ctx: Partial<InitiatedContext>) => () =>
+      reduce(null, { type: "initiated", context: initCtx(ctx) }, 1_000, keyGen())
+        .machine as SessionMachine;
+    const factories: [string, () => SessionMachine][] = [
+      ["ringing", () => ringingMachine()],
+      ["answered", () => answeredInbound()],
+      ["voicemail_greeting", () => voicemailMachine()],
+      [
+        "voicemail_recording",
+        () => {
+          const machine = voicemailMachine();
+          machine.state = "voicemail_recording";
+          return machine;
+        },
+      ],
+      [
+        "ended_missed",
+        () => {
+          const machine = ringingMachine();
+          machine.state = "ended_missed";
+          machine.answerIntent = {
+            memberCcid: "leg-u1",
+            userId: "u1",
+            answeredAtIso: new Date(2_000).toISOString(),
+          };
+          return machine;
+        },
+      ],
+      ["blocked", initial({ blocked: true })],
+      ["notice", initial({ suspendedOrInactive: true, noticeAllowed: true })],
+      ["dialing", () => dialingMachine()],
+      ["outbound answered", () => answeredOutbound()],
+    ];
+    const events: SessionEvent[] = [
+      { type: "inbound-hangup", tag: "untagged", briAnsweredAtIso: null, payload: {} },
+      { type: "inbound-hangup", tag: "bri", briAnsweredAtIso: null, payload: {} },
+      { type: "inbound-hangup", tag: "vmi", briAnsweredAtIso: null, payload: {} },
+      { type: "outbound-hangup", payload: null },
+      { type: "alarm-janitor" },
+      { type: "alarm-ring" },
+      { type: "recording-saved", payload: {} },
+      { type: "vm-answer-outcome", ok: false },
+      { type: "inbound-leg-gone" },
+      { type: "decline", userId: "u1" },
+      { type: "alarm-intent-expiry" },
+      { type: "outbound-placer-hangup", ccid: "leg-u1", userId: "placer" },
+      {
+        type: "answer-outcome",
+        ok: false,
+        memberCcid: "leg-u1",
+        userId: "u1",
+        answeredAtIso: new Date(2_000).toISOString(),
+      },
+    ];
+    let terminalMirrors = 0;
+    for (const [name, make] of factories) {
+      for (const event of events) {
+        const r = reduce(make(), event, 50_000, keyGen());
+        for (const effect of r.effects) {
+          if (effect.kind !== "mirror" || !effect.terminal) continue;
+          terminalMirrors += 1;
+          expect(CALL_END_REASONS as readonly string[], `${name} x ${event.type}`).toContain(
+            effect.set.ended_reason,
+          );
+          expect(r.machine?.endedReason, `${name} x ${event.type}`).toBe(effect.set.ended_reason);
+        }
+      }
+    }
+    // A sweep that finds nothing proves nothing.
+    expect(terminalMirrors).toBeGreaterThan(30);
+  });
+
+  it("every reason in the shared list is produced by some path above", () => {
+    expect([...seen].sort()).toEqual([...CALL_END_REASONS].sort());
+  });
+
+  it("the database check allows exactly the shared reasons", () => {
+    const migration = fileURLToPath(
+      new URL(
+        "../../../../supabase/migrations/20261111190000_calls_record_why_they_ended.sql",
+        import.meta.url,
+      ),
+    );
+    const sql = readFileSync(migration, "utf8");
+    const check = sql.slice(
+      sql.indexOf("calls_ended_reason_check check"),
+      sql.indexOf("comment on column"),
+    );
+    const allowed = [...check.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]);
+    expect(new Set(allowed)).toEqual(new Set(CALL_END_REASONS));
+    expect(allowed).toHaveLength(CALL_END_REASONS.length);
   });
 });

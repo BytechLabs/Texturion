@@ -1234,6 +1234,12 @@ export { callLooksSpam } from "./call-screening";
 
 // #721 — where an inbound call went and why, stored on calls.routing.
 export { CALL_ROUTINGS, isCallRouting, type CallRouting } from "./call-routing";
+// #725 — why a call ended, stored on calls.ended_reason.
+export {
+  CALL_END_REASONS,
+  isCallEndReason,
+  type CallEndReason,
+} from "./call-end-reasons";
 
 // #713: one tag control across a selection: every item, some, or none.
 export {

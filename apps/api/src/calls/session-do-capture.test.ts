@@ -225,6 +225,7 @@ describe("a call's lifecycle", () => {
           outcome: "missed",
           duration_seconds: 30,
           ended_by: "inbound-hangup",
+          ended_reason: "caller_hung_up",
         },
       },
     ]);
@@ -255,12 +256,14 @@ describe("a call's lifecycle", () => {
       ["call_outcome_revised", "voicemail"],
     ]);
     expect(lifecycle()[1].properties.duration_seconds).toBe(80);
+    expect(lifecycle()[1].properties.ended_reason).toBe("no_answer_in_time");
     expect(lifecycle()[2].properties).toEqual({
       direction: "inbound",
       call_session_id: SESSION,
       routing: "rang",
       outcome: "voicemail",
       previous_outcome: "missed",
+      ended_reason: "no_answer_in_time",
     });
   });
 
@@ -300,6 +303,7 @@ describe("a call's lifecycle", () => {
           outcome: "answered",
           duration_seconds: 300,
           ended_by: "outbound-hangup",
+          ended_reason: "customer_hung_up",
         },
       },
     ]);

@@ -107,6 +107,7 @@ import { parseQuickAdd } from "../packages/shared/src/quick-add.ts";
 import { parseReferenceTokens, referenceQueryAt } from "../packages/shared/src/task-references.ts";
 import { callLooksSpam } from "../packages/shared/src/call-screening.ts";
 import { CALL_ROUTINGS } from "../packages/shared/src/call-routing.ts";
+import { CALL_END_REASONS } from "../packages/shared/src/call-end-reasons.ts";
 import { tagSelectionState, tagToggleAction } from "../packages/shared/src/tag-selection.ts";
 import {
   paymentAmountProblem,
@@ -702,6 +703,13 @@ function routingVectors() {
   }));
 }
 
+// TODO(#725): add the English wording for each reason here, read from the web
+// catalogue the way routingVectors reads it, once those strings exist. Until
+// then the vector pins the reason list and its order on every client.
+function callEndReasonVectors() {
+  return CALL_END_REASONS.map((reason) => ({ reason }));
+}
+
 function screeningVectors() {
   return SCREENING_INPUTS.map(([result, callerName]) => ({
     result,
@@ -740,6 +748,7 @@ const FILES = {
   "task-references.json": referenceVectors,
   "call-screening.json": screeningVectors,
   "call-routing.json": routingVectors,
+  "call-end-reasons.json": callEndReasonVectors,
   "tag-selection.json": tagSelectionVectors,
 };
 

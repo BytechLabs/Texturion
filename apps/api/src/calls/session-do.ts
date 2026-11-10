@@ -693,6 +693,7 @@ export class CallSessionDO extends DurableObject<Env> {
         outcome,
         duration_seconds: Math.max(0, Math.round((nowMs - after.startedAtMs) / 1000)),
         ended_by: cause.type,
+        ended_reason: after.endedReason ?? null,
       });
       return;
     }
@@ -704,6 +705,7 @@ export class CallSessionDO extends DurableObject<Env> {
         ...call,
         outcome,
         previous_outcome: previous,
+        ended_reason: after.endedReason ?? null,
       });
     }
   }
@@ -1159,6 +1161,11 @@ export class CallSessionDO extends DurableObject<Env> {
       }
       if ("answered_at" in pending.set) {
         pending.set.answered_at = machine.answeredAtIso;
+      }
+      // #725: the reason is the machine's too; an upgrade can change it while
+      // a retry waits.
+      if ("ended_reason" in pending.set && machine.endedReason) {
+        pending.set.ended_reason = machine.endedReason;
       }
       await this.rt.mirror(machine.callSessionId, pending.set);
       await this.clearPendingMirror();
