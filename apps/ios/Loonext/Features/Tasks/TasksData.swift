@@ -73,8 +73,11 @@ func taskCreateBody(
     assignedUserId: String?,
     dueAt: String?,
     address: JSONValue? = nil,
-    /// D64: an answered call to promote instead. Exactly one of the two.
-    sourceCallId: String? = nil
+    /// D64: an answered call to promote instead. At most one of the two.
+    sourceCallId: String? = nil,
+    /// #689: with neither source, a standalone task may link to these.
+    contactId: String? = nil,
+    conversationId: String? = nil
 ) -> JSONValue {
     var object: [String: JSONValue] = [:]
     if let messageId { object["message_id"] = .string(messageId) }
@@ -83,6 +86,8 @@ func taskCreateBody(
     if let assignedUserId { object["assigned_user_id"] = .string(assignedUserId) }
     if let dueAt { object["due_at"] = .string(dueAt) }
     if let address { object["address"] = address }
+    if let contactId { object["contact_id"] = .string(contactId) }
+    if let conversationId { object["conversation_id"] = .string(conversationId) }
     return .object(object)
 }
 
@@ -271,6 +276,32 @@ struct TaskMutations: Sendable {
                 dueAt: dueAt,
                 address: address,
                 sourceCallId: callId
+            ),
+            companyId: companyId
+        )
+    }
+
+    /// #689: a task with no text or call behind it. A conversation fixes the
+    /// contact, so only one of the two links is sent.
+    func createStandalone(
+        companyId: String,
+        title: String,
+        assignedUserId: String?,
+        dueAt: String?,
+        address: JSONValue? = nil,
+        conversationId: String?,
+        contactId: String?
+    ) async throws -> TaskRowPatch {
+        try await api.post(
+            "/v1/tasks",
+            body: taskCreateBody(
+                messageId: nil,
+                title: title,
+                assignedUserId: assignedUserId,
+                dueAt: dueAt,
+                address: address,
+                contactId: conversationId == nil ? contactId : nil,
+                conversationId: conversationId
             ),
             companyId: companyId
         )

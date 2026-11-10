@@ -47,6 +47,7 @@ struct ContactDetailView: View {
     /// appear, rather than the screen refusing to open over them.
     @State private var customFieldDefs: [ContactFieldDef] = []
     @State private var confirmOptOut = false
+    @State private var newTaskOpen = false
     @State private var confirmBlock = false
     @State private var confirmDelete = false
     /// #696: this number's row on the block list, or nil when it is not.
@@ -454,6 +455,30 @@ struct ContactDetailView: View {
                 placingCall
                     ? t("contactsTasks.callingAria")
                     : t("contactsTasks.call")
+            )
+            // #689: a task for this customer that no text or call prompted.
+            Button {
+                Haptics.tap()
+                newTaskOpen = true
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "text.badge.plus")
+                        .font(.scaled(13, weight: .medium))
+                    Text(t("thread.newTask"))
+                        .font(.golos(12, weight: .semibold))
+                }
+                .foregroundStyle(BrandColor.ink)
+                .padding(.horizontal, 17)
+                .padding(.vertical, 10)
+                .background(BrandColor.paper, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .newTaskSheet(
+                isPresented: $newTaskOpen,
+                graph: graph,
+                companyId: companyId,
+                contactId: contact.id,
+                contactName: name
             )
         }
         .frame(maxWidth: .infinity)

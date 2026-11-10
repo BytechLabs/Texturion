@@ -90,6 +90,33 @@ final class CallTaskTests: XCTestCase {
         )
     }
 
+    /// #689: a task with no source, optionally linked to a contact or a conversation.
+    func testStandaloneCreateBodyCarriesTheTitleAndItsLinks() throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let body = taskCreateBody(
+            messageId: nil, title: "Order a filter", assignedUserId: "u1", dueAt: nil,
+            contactId: "k1"
+        )
+        XCTAssertEqual(
+            String(decoding: try encoder.encode(body), as: UTF8.self),
+            "{\"assigned_user_id\":\"u1\",\"contact_id\":\"k1\",\"title\":\"Order a filter\"}"
+        )
+    }
+
+    func testStandaloneTaskDecodesWithNoConversation() throws {
+        let task: TaskItem = try decode(#"""
+        {"id":"t3","company_id":"c1","message_id":null,"conversation_id":null,
+         "source":null,"call":null,"title":"Order a filter",
+         "created_by_user_id":"u1",
+         "created_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-01T00:00:00Z",
+         "done":false,"status":"open"}
+        """#)
+        XCTAssertNil(task.source)
+        XCTAssertNil(task.conversation_id)
+        XCTAssertTrue(task.isCallTask)
+    }
+
     private func event(_ payload: [String: JSONValue]) -> ConversationEvent {
         ConversationEvent(
             id: "e1", conversation_id: "cv1", actor_user_id: nil,

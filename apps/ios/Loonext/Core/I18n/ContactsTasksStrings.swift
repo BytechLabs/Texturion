@@ -180,6 +180,8 @@ enum ContactsTasksStrings {
             // D64: a task promoted from an answered call.
             "contactsTasks.fromThisCall": "From this call",
             "contactsTasks.callFrom": "Call from {name}",
+            "contactsTasks.noSource": "No source",
+            "contactsTasks.noSourceHint": "Created on its own, not from a text or a call.",
             "contactsTasks.callTalkTime": "Talked for {duration}",
             "contactsTasks.callVoicemailLeft": "Voicemail left",
             "contactsTasks.callUnknownCaller": "Unknown caller",
@@ -782,6 +784,8 @@ enum ContactsTasksStrings {
             "contactsTasks.aPhoto": "Une photo",
             "contactsTasks.fromThisCall": "À partir de cet appel",
             "contactsTasks.callFrom": "Appel de {name}",
+            "contactsTasks.noSource": "Aucune origine",
+            "contactsTasks.noSourceHint": "Créée seule, sans texto ni appel.",
             "contactsTasks.callTalkTime": "Appel de {duration}",
             "contactsTasks.callVoicemailLeft": "Message vocal laissé",
             "contactsTasks.callUnknownCaller": "Appelant inconnu",

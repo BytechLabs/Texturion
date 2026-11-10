@@ -22,6 +22,7 @@ struct TasksTab: View {
     @State private var refreshKey = 0
     @State private var members: [Member] = []
     @State private var pickerOpen = false
+    @State private var newTaskOpen = false
 
     @State private var state: LoadState<Void> = .loading
     @State private var rows: [TaskItem] = []
@@ -175,6 +176,12 @@ struct TasksTab: View {
                 if userId != nil { unassignedChip = false }
             }
         }
+        .newTaskSheet(
+            isPresented: $newTaskOpen,
+            graph: graph,
+            companyId: companyId,
+            onCreated: { refreshKey += 1 }
+        )
         .alert(
             AppStrings.translate(appLocale, "contactsTasks.taskUpdateFailed"),
             isPresented: Binding(
@@ -195,6 +202,18 @@ struct TasksTab: View {
         HStack(alignment: .center, spacing: 8) {
             ScreenTitle(text: AppStrings.translate(appLocale, "contactsTasks.tasksTitle"))
             Spacer(minLength: 8)
+            Button {
+                Haptics.tap()
+                newTaskOpen = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.scaled(15, weight: .medium))
+                    .foregroundStyle(BrandColor.paper)
+                    .frame(width: 38, height: 38)
+                    .background(BrandColor.ink, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(AppStrings.translate(appLocale, "thread.newTask"))
             HStack(spacing: 6) {
                 viewToggle(kind: .list, icon: "list.bullet", labelKey: "contactsTasks.viewList")
                 viewToggle(

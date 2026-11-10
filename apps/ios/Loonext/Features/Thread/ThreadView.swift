@@ -127,6 +127,7 @@ private struct ThreadBody: View {
     /// not offering it at all.
     @State private var hasJobToday = false
     @State private var makeTaskFor: Message?
+    @State private var newTaskOpen = false
     @State private var detailSheet: ThreadDetailSheet?
     @State private var confirmOptOut = false
     @State private var confirmRevoke = false
@@ -454,6 +455,7 @@ private struct ThreadBody: View {
                         onOpenContactPanel: { detailSheet = .contactPanel },
                         onAssign: { detailSheet = .assignee },
                         onOpenGallery: { detailSheet = nil; galleryOpen = true },
+                        onNewTask: { detailSheet = nil; newTaskOpen = true },
                         onOptOut: { detailSheet = nil; confirmOptOut = true },
                         onRevokeOptOut: { detailSheet = nil; confirmRevoke = true },
                         onBlock: { detailSheet = nil; confirmBlock = true },
@@ -622,6 +624,13 @@ private struct ThreadBody: View {
                     )
                 }
             }
+            .newTaskSheet(
+                isPresented: $newTaskOpen,
+                graph: graph,
+                companyId: companyId,
+                conversationId: conversationId,
+                contactName: contactName
+            )
         }
     }
 
@@ -1523,6 +1532,7 @@ private struct ConversationSheet: View {
     let onOpenContactPanel: @MainActor () -> Void
     let onAssign: @MainActor () -> Void
     let onOpenGallery: @MainActor () -> Void
+    let onNewTask: @MainActor () -> Void
     let onOptOut: @MainActor () -> Void
     let onRevokeOptOut: @MainActor () -> Void
     let onBlock: @MainActor () -> Void
@@ -1669,6 +1679,12 @@ private struct ConversationSheet: View {
                 AppStrings.translate(appLocale, "thread.photosAndFiles"),
                 icon: "photo.on.rectangle",
                 action: onOpenGallery
+            )
+            RowDivider()
+            sheetRow(
+                AppStrings.translate(appLocale, "thread.newTask"),
+                icon: "text.badge.plus",
+                action: onNewTask
             )
             RowDivider()
             sheetRow(
@@ -2263,6 +2279,8 @@ struct MakeTaskSheet: View {
     @State private var addr = AddressFieldValues()
     @State private var addrProvenance: String?
     @State private var addrOpen = false
+    /// #689: a standalone task asks only for a title; the rest sits under More.
+    @State private var moreOpen: Bool
     @State private var enriching = false
     @State private var enrichStarted = false
     /// #431: what enrichment actually filled in, so the outcome can be judged
@@ -2300,7 +2318,10 @@ struct MakeTaskSheet: View {
                     locale, "thread.callTaskTitle", ["name": callerName]
                 )
             )
+        case .standalone:
+            _title = State(initialValue: "")
         }
+        _moreOpen = State(initialValue: !source.isStandalone)
         _assigneeId = State(initialValue: controller.meUserId)
     }
 
@@ -2344,14 +2365,20 @@ struct MakeTaskSheet: View {
                 header
                 if let message, !message.body.isBlank { sourceQuote(message) }
                 titleField
-                assigneeRow
-                dueRow
-                addressBlock
+                if moreOpen {
+                    assigneeRow
+                    dueRow
+                    addressBlock
+                } else {
+                    moreButton
+                }
                 createButton
-                Text(AppStrings.translate(locale, "thread.taskLineNote"))
-                    .font(.golos(11))
-                    .foregroundStyle(BrandColor.muted300)
-                    .frame(maxWidth: .infinity)
+                if !source.isStandalone {
+                    Text(AppStrings.translate(locale, "thread.taskLineNote"))
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted300)
+                        .frame(maxWidth: .infinity)
+                }
             }
             .padding(20)
         }
@@ -2376,15 +2403,13 @@ struct MakeTaskSheet: View {
                 Text(AppStrings.translate(locale, "thread.newTask"))
                     .font(.golos(21, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
-                Text(
-                    AppStrings.translate(
-                        locale,
-                        source.message == nil ? "thread.newTaskFromCall" : "thread.newTaskFrom",
-                        ["name": contactName]
+                if !(source.isStandalone && contactName.isBlank) {
+                    Text(
+                        AppStrings.translate(locale, subtitleKey, ["name": contactName])
                     )
-                )
-                .font(.golos(12))
+                    .font(.golos(12))
                     .foregroundStyle(BrandColor.muted500)
+                }
             }
             Spacer()
             Button(action: onDismiss) {
@@ -2397,6 +2422,27 @@ struct MakeTaskSheet: View {
             .buttonStyle(.plain)
             .accessibilityLabel(AppStrings.translate(locale, "common.cancel"))
         }
+    }
+
+    private var subtitleKey: String {
+        switch source {
+        case .message: return "thread.newTaskFrom"
+        case .call: return "thread.newTaskFromCall"
+        case .standalone: return "thread.newTaskFor"
+        }
+    }
+
+    private var moreButton: some View {
+        Button {
+            Haptics.tap()
+            moreOpen = true
+        } label: {
+            Text(AppStrings.translate(locale, "thread.newTaskMore"))
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.muted500)
+                .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
     }
 
     private func sourceQuote(_ message: Message) -> some View {

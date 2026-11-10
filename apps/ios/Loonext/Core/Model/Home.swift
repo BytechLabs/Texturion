@@ -21,8 +21,9 @@ struct ForYouWaiting: Codable, Sendable {
 struct ForYouTask: Codable, Sendable {
     let task_id: String
     let title: String
-    let conversation_id: String
-    /// Nil for a task promoted from a call (D64).
+    /// Nil for a standalone task with no conversation (#689).
+    let conversation_id: String?
+    /// Nil for a task promoted from a call (D64), or a standalone one.
     let message_id: String?
     let assigned_user_id: String?
     let due_at: String?
@@ -48,8 +49,8 @@ struct ForYouTriageConversation: Codable, Sendable {
 struct ForYouTriageTask: Codable, Sendable {
     let task_id: String
     let title: String
-    let conversation_id: String
-    /// Nil for a task promoted from a call (D64).
+    let conversation_id: String?
+    /// Nil for a task promoted from a call (D64), or a standalone one.
     let message_id: String?
     let due_at: String?
     @Default<DefaultFalse> var overdue: Bool

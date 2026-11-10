@@ -89,6 +89,7 @@ struct TaskDetailView: View {
                 case "task.changed":
                     let conversation = event.payload["conversation_id"]?.stringValue
                     if detail == nil || conversation == nil
+                        || detail?.conversation_id == nil
                         || conversation == detail?.conversation_id {
                         refreshKey += 1
                     }
@@ -274,7 +275,8 @@ struct TaskDetailView: View {
             confirmed_at: row.confirmed_at,
             confirmed_by: row.confirmed_by,
             source: detail.source,
-            source_call: detail.source_call
+            source_call: detail.source_call,
+            contact: detail.contact
         )
     }
 
@@ -391,12 +393,13 @@ struct TaskDetailView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 16)
             }
-            if !noAccess {
+            // A task with no conversation (#689) has no thread to post a note in.
+            if !noAccess, let noteConversationId = detail.conversation_id {
                 NoteComposer(
                     mutations: mutations,
                     multipart: MultipartClient(api: graph.api, sessionStore: graph.sessionStore),
                     companyId: companyId,
-                    conversationId: detail.conversation_id,
+                    conversationId: noteConversationId,
                     taskId: detail.id,
                     onPosted: { refreshKey += 1 }
                 )
@@ -680,13 +683,13 @@ struct TaskDetailView: View {
                         )
                             .font(.golos(12.5))
                             .foregroundStyle(BrandColor.muted700)
-                        if onOpenConversation != nil {
+                        if onOpenConversation != nil, let conversationId = detail.conversation_id {
                             Button(
                                 AppStrings.translate(
                                     appLocale, "contactsTasks.viewInConversation"
                                 )
                             ) {
-                                onOpenConversation?(detail.conversation_id, detail.message_id)
+                                onOpenConversation?(conversationId, detail.message_id)
                             }
                             .font(.golos(11, weight: .bold))
                             .foregroundStyle(BrandColor.olive)
@@ -705,8 +708,31 @@ struct TaskDetailView: View {
         } else if let call = detail.source_call {
             // D64: the call this task was promoted from, where a message would be.
             TaskSourceCallCard(call: call) {
-                onOpenConversation?(detail.conversation_id, nil)
+                if let conversationId = detail.conversation_id {
+                    onOpenConversation?(conversationId, nil)
+                }
             }
+        } else if detail.message_id == nil {
+            // #689: a standalone task has no text or call behind it.
+            VStack(alignment: .leading, spacing: 4) {
+                Text(AppStrings.translate(appLocale, "contactsTasks.noSource"))
+                    .font(.golos(13, weight: .semibold))
+                Text(AppStrings.translate(appLocale, "contactsTasks.noSourceHint"))
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted700)
+                if let name = detail.contact?.name, !name.isBlank {
+                    Text(name)
+                        .font(.golos(12))
+                        .foregroundStyle(BrandColor.muted700)
+                }
+            }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                BrandColor.paper,
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+            )
         }
     }
 

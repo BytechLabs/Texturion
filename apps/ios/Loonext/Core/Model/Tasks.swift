@@ -12,7 +12,8 @@ struct TaskItem: Codable, Sendable {
     let id: String
     let company_id: String
     let message_id: String?
-    let conversation_id: String
+    /// Nil only for a standalone task that was not linked to a conversation (#689).
+    let conversation_id: String?
     let title: String
     @Default<DefaultEmptyString> var description: String
     let assigned_user_id: String?
@@ -155,7 +156,8 @@ struct TaskDetail: Codable, Sendable {
     let id: String
     let company_id: String
     let message_id: String?
-    let conversation_id: String
+    /// Nil only for a standalone task that was not linked to a conversation (#689).
+    let conversation_id: String?
     let title: String
     @Default<DefaultEmptyString> var description: String
     let assigned_user_id: String?
@@ -196,6 +198,8 @@ struct TaskDetail: Codable, Sendable {
     /// for a message task or when the conversation is withheld, #107).
     var source: TaskSource? = nil
     var source_call: TaskSourceCall? = nil
+    /// #689: the contact a standalone task was linked to.
+    var contact: TaskContactLocation? = nil
 
     /// A task with no message owns its done state (D64).
     var isCallTask: Bool { message_id == nil }

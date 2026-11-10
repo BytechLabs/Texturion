@@ -5,10 +5,17 @@ import SwiftUI
 
 // MARK: - Pure helpers
 
-/// What a task promotes: a message or an answered call. Exactly one.
+/// What a task promotes: a message, an answered call, or nothing (#689, a
+/// standalone task that may link to a conversation or a contact).
 enum TaskDraftSource {
     case message(Message)
     case call(id: String, callerName: String)
+    case standalone(conversationId: String?, contactId: String?)
+
+    var isStandalone: Bool {
+        if case .standalone = self { return true }
+        return false
+    }
 
     var message: Message? {
         if case .message(let message) = self { return message }
