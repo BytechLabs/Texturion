@@ -73,6 +73,8 @@ class Unfollowable extends Error {}
 const REQUESTERS = new Set(["telnyxRequest", "telnyxUpload"]);
 /** Called by name only: one reached through another name is a call this check cannot count. */
 const CALLED_BY_NAME = new Set([...REQUESTERS, "telnyxUrl"]);
+/** Sends `(url, init)` like fetch; `fetchWithDeadline` also clears its timer (apps/api/src/http/deadline.ts). */
+const FETCHES = new Set(["fetch", "fetchWithDeadline"]);
 const UNKNOWN = "unknown";
 
 /**
@@ -494,7 +496,7 @@ export function scanFile(ts, file, text) {
       }
       if (ts.isCallExpression(p)) {
         const index = p.arguments.indexOf(cur);
-        if (calleeName(p) === "fetch") {
+        if (FETCHES.has(calleeName(p))) {
           if (index === 0) return fetchSink(p);
           break;
         }
@@ -582,7 +584,7 @@ export function scanFile(ts, file, text) {
   for (const call of calls) {
     const name = calleeName(call);
     const isRawFetch =
-      !isClient && name === "fetch" && call.arguments[0] && telnyxBase(call.arguments[0]) === true;
+      !isClient && FETCHES.has(name) && call.arguments[0] && telnyxBase(call.arguments[0]) === true;
     if ((REQUESTERS.has(name) || isRawFetch) && !fed.has(call)) {
       problems.push(
         `${where(call)}: a Telnyx request whose path this check cannot read. ` +
