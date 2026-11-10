@@ -190,6 +190,7 @@ export function ConversationList({
           return;
         }
         undoableToast({
+          undoLabel: t("thread.undo"),
           message,
           onUndo: () => {
             for (const call of undoCalls) bulk.mutate(call);

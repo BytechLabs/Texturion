@@ -210,6 +210,7 @@ export function MergeDialog({
                     // the record that was folded in; the threads stay where the
                     // merge put them, which the unmerge confirmation says.
                     undoableToast({
+                      undoLabel: t("thread.undo"),
                       message: t(
                         result.opted_out
                           ? "contacts.mergedOptedOut"

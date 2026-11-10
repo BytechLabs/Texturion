@@ -209,6 +209,7 @@ function TaskRow({ task }: { task: ForYouTask }) {
             ),
           onSuccess: () =>
             undoableToast({
+              undoLabel: t("thread.undo"),
               message: t("inbox.forYouTaskCompleted"),
               onUndo: () =>
                 complete.mutate(

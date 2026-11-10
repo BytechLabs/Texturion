@@ -100,6 +100,7 @@ export function ContactsBulkBar({
       }
       const inverse = action === "add_tag" ? "remove_tag" : "add_tag";
       undoableToast({
+        undoLabel: t("thread.undo"),
         message: t(
           action === "add_tag" ? "contacts.bulkTagged" : "contacts.bulkUntagged",
           { count: applied.length, tag: tagName },

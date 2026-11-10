@@ -211,6 +211,7 @@ export function ThreadHeader({
         onSuccess: closing
           ? () =>
               undoableToast({
+                undoLabel: t("thread.undo"),
                 message: t("thread.conversationClosed"),
                 onUndo: () =>
                   update.mutate(
@@ -231,6 +232,7 @@ export function ThreadHeader({
         onError: (e) => onApiError(e, t("thread.spamUpdateFailed")),
         onSuccess: () =>
           undoableToast({
+            undoLabel: t("thread.undo"),
             message: wasSpam
               ? t("thread.markedAsNotSpam")
               : t("thread.markedAsSpam"),
@@ -341,6 +343,7 @@ export function ThreadHeader({
         onError: (e) => onApiError(e, t("thread.assignFailed")),
         onSuccess: () =>
           undoableToast({
+            undoLabel: t("thread.undo"),
             message: label,
             onUndo: () =>
               update.mutate(

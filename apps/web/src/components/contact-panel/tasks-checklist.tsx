@@ -135,6 +135,7 @@ function TaskRow({
           // toggle actually failed.
           if (next) {
             undoableToast({
+              undoLabel: t("thread.undo"),
               message: t("contacts.taskMarkedDone"),
               onUndo: () => runToggle(false),
             });

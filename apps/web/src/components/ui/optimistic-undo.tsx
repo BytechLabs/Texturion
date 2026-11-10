@@ -31,6 +31,8 @@ const UNDO_DURATION_MS = 5000;
 export interface UndoableToastOptions {
   /** Past-tense, one clause: "Conversation closed", "Marked as spam". */
   message: string;
+  /** The action's label in the reader's language, from `t("thread.undo")`. */
+  undoLabel: string;
   /** Runs the inverse. Errors should surface their own toast/banner. */
   onUndo: () => void;
   /**
@@ -47,6 +49,7 @@ export interface UndoableToastOptions {
  */
 export function undoableToast({
   message,
+  undoLabel,
   onUndo,
   onCommit,
 }: UndoableToastOptions): string | number {
@@ -54,7 +57,7 @@ export function undoableToast({
   return toast(message, {
     duration: UNDO_DURATION_MS,
     action: {
-      label: "Undo",
+      label: undoLabel,
       onClick: () => {
         undone = true;
         onUndo();
@@ -75,6 +78,8 @@ export interface UndoableActionConfig {
   undo: () => void;
   /** Past-tense toast message. */
   message: string;
+  /** The action's label in the reader's language. */
+  undoLabel: string;
   /**
    * Optional commit hook when the window closes without an undo. Use to flush a
    * write you deferred to make undo instant; omit when `apply` already persisted.
@@ -104,6 +109,7 @@ export function useUndoableAction() {
     config.apply();
     undoableToast({
       message: config.message,
+      undoLabel: config.undoLabel,
       onUndo: () => {
         // Ignore an Undo from a superseded action on this hook instance.
         if (token !== tokenRef.current) return;
