@@ -41,6 +41,8 @@ export interface UndoableToastOptions {
    * Not called if the user hits Undo.
    */
   onCommit?: () => void;
+  /** #710: a second action beside Undo, such as "View Trash". */
+  secondary?: { label: string; onClick: () => void };
 }
 
 /**
@@ -52,6 +54,7 @@ export function undoableToast({
   undoLabel,
   onUndo,
   onCommit,
+  secondary,
 }: UndoableToastOptions): string | number {
   let undone = false;
   return toast(message, {
@@ -63,6 +66,7 @@ export function undoableToast({
         onUndo();
       },
     },
+    ...(secondary ? { cancel: secondary } : {}),
     // sonner fires onAutoClose on timeout and onDismiss on manual close; commit
     // when the window closes and Undo was not taken.
     onAutoClose: () => {

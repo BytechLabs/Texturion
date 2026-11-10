@@ -49,6 +49,8 @@ export const trashEn = {
   // Trash page
   navLink: "Trash",
   title: "Trash",
+  /** #710: on a delete toast, beside Undo. */
+  viewTrash: "View Trash",
   description:
     "Deleted conversations, messages, calls and voicemails wait here for 30 days, then they're erased for good.",
   noAccess: "Only people who can delete records can open the Trash.",
@@ -150,6 +152,7 @@ export const trashFr: Translated<typeof trashEn> = {
 
   navLink: "Corbeille",
   title: "Corbeille",
+  viewTrash: "Voir la corbeille",
   description:
     "Les conversations, messages, appels et messages vocaux supprimés attendent ici pendant 30 jours, puis ils sont effacés définitivement.",
   noAccess:

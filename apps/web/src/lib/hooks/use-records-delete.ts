@@ -1,6 +1,7 @@
 "use client";
 
 import { roleHasCapability } from "@loonext/shared";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { undoableToast } from "@/components/ui/optimistic-undo";
@@ -26,12 +27,18 @@ export function useCanDeleteRecords(): boolean {
  */
 export function useDeletedToast() {
   const t = useT();
+  const router = useRouter();
   const restore = useRestoreFromTrash();
   return (message: string, targets: readonly TrashTarget[]) => {
     if (targets.length === 0) return;
     undoableToast({
       message,
       undoLabel: t("thread.undo"),
+      // #710: the Trash is otherwise only under Settings > History.
+      secondary: {
+        label: t("trash.viewTrash"),
+        onClick: () => router.push("/settings/history/trash"),
+      },
       onUndo: () =>
         restore.mutate(targets, {
           onSuccess: () => toast.success(t("trash.restored")),
