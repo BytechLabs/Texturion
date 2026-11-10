@@ -6,11 +6,29 @@ import { toast } from "sonner";
 import { LOCALES, LOCALE_LABELS, isLocale, type Locale } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
-import { useT } from "@/i18n/provider";
+import { useT, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useUpdateContact } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
 import type { ContactDetail } from "@/lib/api/types";
+import { offeredBesideDefault } from "@/lib/default-choice";
+
+function workspaceDefaultLabel(companyLocale: Locale | null, t: Translate) {
+  return companyLocale
+    ? t("contacts.sameAsWorkspaceNamed", { language: LOCALE_LABELS[companyLocale] })
+    : t("contacts.sameAsWorkspace");
+}
+
+/** The language a contact hears from us in, as the picker names it. */
+export function useContactLanguageLabel(locale: string | null | undefined): string {
+  const t = useT();
+  const company = useCompany();
+  if (isLocale(locale)) return LOCALE_LABELS[locale];
+  return workspaceDefaultLabel(
+    isLocale(company.data?.locale) ? company.data.locale : null,
+    t,
+  );
+}
 
 /**
  * #228 - the language THIS customer hears from us in.
@@ -64,15 +82,10 @@ export function ContactLanguage({ contact }: { contact: ContactDetail }) {
   }, [stored, pending]);
 
   const choices: { value: Locale | null; label: string }[] = [
-    {
-      value: null,
-      label: companyLocale
-        ? t("contacts.sameAsWorkspaceNamed", {
-            language: LOCALE_LABELS[companyLocale],
-          })
-        : t("contacts.sameAsWorkspace"),
-    },
-    ...LOCALES.map((locale) => ({ value: locale, label: LOCALE_LABELS[locale] })),
+    { value: null, label: workspaceDefaultLabel(companyLocale, t) },
+    ...LOCALES.filter((locale) =>
+      offeredBesideDefault(locale, companyLocale, stored),
+    ).map((locale) => ({ value: locale, label: LOCALE_LABELS[locale] })),
   ];
 
   function choose(value: Locale | null) {
@@ -106,8 +119,8 @@ export function ContactLanguage({ contact }: { contact: ContactDetail }) {
   // The same roving-tabindex radiogroup contract the settings screens teach:
   // one Tab stop for the group, arrows move focus and selection together.
   // Always found, and that is why there is no "nothing selected" branch here:
-  // `current` is normalised above to null or a known language, and all three
-  // are chips. Following the workspace is a state, not the absence of one.
+  // `current` is normalised above to null or a known language, and each has
+  // a chip: the workspace's own language only when it is the stored one. Following the workspace is a state, not the absence of one.
   const currentIndex = choices.findIndex((choice) => choice.value === current);
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const from = currentIndex;

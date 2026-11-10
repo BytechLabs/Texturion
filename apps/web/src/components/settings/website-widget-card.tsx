@@ -20,6 +20,7 @@ import {
   useWidgetKey,
 } from "@/lib/api/companies";
 import { useNumbers } from "@/lib/api/numbers";
+import { offeredBesideDefault } from "@/lib/default-choice";
 import { formatPhone } from "@/lib/format/phone";
 import { widgetSnippet } from "@/lib/marketing/widget-snippet";
 
@@ -88,6 +89,12 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
     (n) => n.status === "active" && n.number_e164,
   );
   const chosen = company.data?.widget_number_id ?? DEFAULT_LINE;
+  // The server's default is the oldest active line, and the list arrives
+  // oldest first.
+  const firstLine = routable[0];
+  const explicitLines = routable.filter((number) =>
+    offeredBesideDefault(number.id, firstLine?.id, company.data?.widget_number_id),
+  );
 
   const snippet =
     key.data === undefined ? "" : widgetSnippet(appOrigin, key.data.widget_key, company.data?.locale ?? undefined);
@@ -242,9 +249,13 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
                       does not say what it resolves to is a setting somebody
                       has to test to understand. *Applying: Smart Defaults.* */}
                   <SelectItem value={DEFAULT_LINE}>
-                    {t("settings.widgetLineDefault")}
+                    {firstLine
+                      ? t("settings.widgetLineDefaultNamed", {
+                          number: formatPhone(firstLine.number_e164 ?? ""),
+                        })
+                      : t("settings.widgetLineDefault")}
                   </SelectItem>
-                  {routable.map((number) => (
+                  {explicitLines.map((number) => (
                     <SelectItem key={number.id} value={number.id}>
                       {formatPhone(number.number_e164 ?? "")}
                     </SelectItem>

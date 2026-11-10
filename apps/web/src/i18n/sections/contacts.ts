@@ -42,7 +42,10 @@ export const contactsEn = {
   addAddress: "Add an address",
   copyNumber: "Copy number",
   numberCopied: "Number copied",
-  openContactPage: "Open full contact page",
+  openContact: "Open contact",
+  /** #717: the panel's sections. */
+  detailsGroup: "Details",
+  preferencesGroup: "Preferences",
   /** An inline field's accessible name: what it is, then what it says. */
   fieldValueAria: "{label}: {value}",
   notesPlaceholder: "Notes about this customer…",
@@ -82,8 +85,8 @@ export const contactsEn = {
   languageGroupLabel: "Language for this customer",
   languageNote:
     "Automatic texts only. What you type is sent exactly as you type it.",
-  sameAsWorkspace: "Same as workspace",
-  sameAsWorkspaceNamed: "Same as workspace ({language})",
+  sameAsWorkspace: "Workspace default",
+  sameAsWorkspaceNamed: "Workspace default ({language})",
   languageSaved: "Language saved.",
   languageBackToWorkspace: "Back to the workspace language.",
   languageSaveFailed: "Couldn't save the language. Try again.",
@@ -509,7 +512,9 @@ export const contactsFr: Translated<typeof contactsEn> = {
   addAddress: "Ajouter une adresse",
   copyNumber: "Copier le numéro",
   numberCopied: "Numéro copié",
-  openContactPage: "Ouvrir la fiche complète",
+  openContact: "Ouvrir la fiche",
+  detailsGroup: "Détails",
+  preferencesGroup: "Préférences",
   fieldValueAria: "{label} : {value}",
   notesPlaceholder: "Notes sur ce client…",
   notesLabel: "Notes sur le client",
@@ -549,8 +554,8 @@ export const contactsFr: Translated<typeof contactsEn> = {
   languageNote:
     "Textos automatiques seulement. Ce que vous écrivez est envoyé exactement " +
     "tel quel.",
-  sameAsWorkspace: "Comme l'espace de travail",
-  sameAsWorkspaceNamed: "Comme l'espace de travail ({language})",
+  sameAsWorkspace: "Langue de l'espace de travail",
+  sameAsWorkspaceNamed: "Langue de l'espace de travail ({language})",
   languageSaved: "Langue enregistrée.",
   languageBackToWorkspace: "Retour à la langue de l'espace de travail.",
   languageSaveFailed: "Impossible d'enregistrer la langue. Réessayez.",

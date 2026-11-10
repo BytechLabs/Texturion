@@ -64,6 +64,13 @@ vi.mock("@/lib/api/lead-sources", () => ({
   activeSources: () => [],
 }));
 
+// #717: the workspace's own answers, which the inherit choices name.
+vi.mock("@/lib/api/companies", () => ({
+  useCompany: () => ({
+    data: { after_hours_calls: "ring_everyone", ring_strategy: "all", ring_seconds: 45 },
+  }),
+}));
+
 vi.mock("@/lib/api/numbers", () => ({
   useNumberIdentity: () => ({ isPending: false, data: identity.current }),
   useSetNumberIdentity: () => ({ isPending: false, mutateAsync: save }),
@@ -304,6 +311,23 @@ describe("#307 how this line answers", () => {
     // The written words are always an option, because they are the one thing
     // guaranteed to exist and the fallback the runtime uses anyway.
     expect(screen.getByText("The written greeting, read aloud")).toBeTruthy();
+  });
+
+  it("NI-14: following the workspace names its answer, and that answer is not offered twice", () => {
+    open();
+    fireEvent.keyDown(document.getElementById("identity-ring")!, { key: "ArrowDown" });
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Same as your workspace (All at once)",
+      "One at a time",
+    ]);
+  });
+
+  it("NI-15: a line set to the workspace's own answer still shows it", () => {
+    // Hiding it would hide the state in force.
+    identity.current.ring_strategy = { value: "all", inherited: false };
+    open();
+    fireEvent.keyDown(document.getElementById("identity-ring")!, { key: "ArrowDown" });
+    expect(screen.getAllByRole("option")).toHaveLength(3);
   });
 
   it("NI-8: shows the server's reason when it refuses", async () => {

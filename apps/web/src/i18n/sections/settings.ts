@@ -814,6 +814,7 @@ export const settingsEn = {
   widgetLineHelp:
     "Replies from your crew come from this number, so pick the line you watch.",
   widgetLineDefault: "Your first number",
+  widgetLineDefaultNamed: "Your first number ({number})",
   widgetLineSaved: "Website messages will land on that number.",
   widgetLineFailed: "That did not save. Try again.",
   widgetRotateFailed: "Couldn't replace the key. Try again.",
@@ -1604,6 +1605,7 @@ export const settingsFr: Translated<typeof settingsEn> = {
   widgetLineHelp:
     "Les réponses de votre équipe partent de ce numéro : choisissez la ligne que vous surveillez.",
   widgetLineDefault: "Votre premier numéro",
+  widgetLineDefaultNamed: "Votre premier numéro ({number})",
   widgetLineSaved: "Les messages du site web arriveront sur ce numéro.",
   widgetLineFailed: "L'enregistrement a échoué. Réessayez.",
   widgetRotateFailed: "Impossible de remplacer la clé. Réessayez.",

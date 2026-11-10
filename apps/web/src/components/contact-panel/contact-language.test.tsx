@@ -37,12 +37,15 @@ function contact(over: Record<string, unknown> = {}) {
 }
 
 describe("#228 a customer's language", () => {
-  it("CL-1: three states, not two", () => {
+  it("CL-1: following the workspace is a chip, and its language is not offered twice", () => {
     // "Follow the workspace" is a choice somebody makes, so it is a chip.
-    // Two chips would be a control that cannot express the default it starts
-    // in, which is most contacts.
+    // #717: "English" beside "Workspace default (English)" would be two chips
+    // for one choice, so an English workspace offers only French besides.
     render(<ContactLanguage contact={contact()} />);
-    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(screen.getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
+      "Workspace default (English)",
+      "Francais (Canada)",
+    ]);
   });
 
   it("CL-2: the inherit chip names the language it inherits", () => {
@@ -51,14 +54,14 @@ describe("#228 a customer's language", () => {
     companyData.current = { locale: "fr-CA" };
     render(<ContactLanguage contact={contact()} />);
     expect(
-      screen.getByRole("radio", { name: "Same as workspace (Francais (Canada))" }),
+      screen.getByRole("radio", { name: "Workspace default (Francais (Canada))" }),
     ).toBeTruthy();
   });
 
   it("CL-2b: a contact with no language of their own is on the inherit chip", () => {
     render(<ContactLanguage contact={contact()} />);
     expect(screen.getByRole("radio", { checked: true }).textContent).toMatch(
-      /same as workspace/i,
+      /workspace default/i,
     );
   });
 
@@ -66,7 +69,7 @@ describe("#228 a customer's language", () => {
     // THE ONE THAT MATTERS. Sending "en" here would freeze this customer in
     // English and silently stop tracking a later switch to French.
     render(<ContactLanguage contact={contact({ locale: "fr-CA" })} />);
-    fireEvent.click(screen.getByRole("radio", { name: /same as workspace/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /workspace default/i }));
     expect(updateMutate).toHaveBeenCalledWith(
       { locale: null },
       expect.anything(),
@@ -87,9 +90,11 @@ describe("#228 a customer's language", () => {
     render(<ContactLanguage contact={contact({ locale: "en" })} />);
     // Both say English. They are different states, and the one in force has to
     // be the one selected, or nobody can tell whether this customer is pinned.
+    // It is the one case the workspace's own language is offered.
     expect(screen.getByRole("radio", { checked: true }).textContent).toBe(
       "English",
     );
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
   });
 
   it("CL-5: an unknown workspace language is never guessed at", () => {
@@ -97,7 +102,9 @@ describe("#228 a customer's language", () => {
     // English here would be the exact guess this feature exists to stop.
     companyData.current = undefined;
     render(<ContactLanguage contact={contact()} />);
-    expect(screen.getByRole("radio", { name: "Same as workspace" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Workspace default" })).toBeTruthy();
+    // Nothing is known to duplicate, so every language is offered.
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
   });
 
   it("CL-5b: arrows move the choice, and take focus with them", () => {
@@ -108,7 +115,7 @@ describe("#228 a customer's language", () => {
     const radios = screen.getAllByRole("radio");
     fireEvent.keyDown(radios[0], { key: "ArrowRight" });
     expect(updateMutate).toHaveBeenCalledWith(
-      { locale: "en" },
+      { locale: "fr-CA" },
       expect.anything(),
     );
     expect(document.activeElement).toBe(radios[1]);

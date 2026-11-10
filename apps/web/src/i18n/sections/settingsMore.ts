@@ -167,6 +167,8 @@ export const settingsMoreEn = {
   /* Said by both per-number dialogs (#307) */
   loading: "Loading…",
   sameAsWorkspace: "Same as your workspace",
+  /** #717: the inherit choice, naming what it inherits. */
+  sameAsWorkspaceNamed: "Same as your workspace ({value})",
   useWorkspaces: "Use the workspace's",
   backToWorkspace: "Back to your workspace's.",
   numberNotLoaded: "That number could not be loaded.",
@@ -1405,6 +1407,7 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
 
   loading: "Chargement…",
   sameAsWorkspace: "Comme votre espace de travail",
+  sameAsWorkspaceNamed: "Comme votre espace de travail ({value})",
   useWorkspaces: "Revenir à l'espace de travail",
   backToWorkspace: "Retour aux réglages de votre espace de travail.",
   numberNotLoaded: "Ce numéro n'a pas pu être chargé.",
