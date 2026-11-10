@@ -25,6 +25,7 @@ struct ThreadView: View {
             if let controller, let composer {
                 ThreadBody(
                     graph: graph,
+                    companyId: companyId,
                     controller: controller,
                     composer: composer,
                     me: me,
@@ -110,6 +111,7 @@ private enum ThreadDetailSheet: Identifiable {
 @MainActor
 private struct ThreadBody: View {
     let graph: AppGraph
+    let companyId: String
     @Bindable var controller: ThreadController
     let composer: ComposerState
     let me: Me
@@ -628,7 +630,7 @@ private struct ThreadBody: View {
                 isPresented: $newTaskOpen,
                 graph: graph,
                 companyId: companyId,
-                conversationId: conversationId,
+                conversationId: controller.conversationId,
                 contactName: contactName
             )
         }
