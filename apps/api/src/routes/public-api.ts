@@ -161,14 +161,27 @@ publicApiRoutes.get(
     const rows = unwrap<unknown[]>(
       await db
         .from("contacts")
-        .select(PUBLIC_CONTACT_COLUMNS)
+        .select(`${PUBLIC_CONTACT_COLUMNS},contact_tags(tags(name))`)
         .eq("company_id", c.get("companyId"))
         .is("deleted_at", null)
+        .is("merged_into", null)
         .order("created_at", { ascending: false })
         .limit(limit),
       "public contacts list",
     );
-    return c.json({ data: rows, limit });
+    // #695: the tags a contact carries, as plain names. The join row is not a
+    // shape worth publishing.
+    const data = rows.map((row) => {
+      const { contact_tags: links, ...rest } = row as {
+        contact_tags?: { tags: { name: string } | null }[];
+      } & Record<string, unknown>;
+      const tags = (links ?? [])
+        .map((link) => link.tags?.name)
+        .filter((name): name is string => typeof name === "string")
+        .sort((a, b) => a.localeCompare(b));
+      return { ...rest, tags };
+    });
+    return c.json({ data, limit });
   },
 );
 

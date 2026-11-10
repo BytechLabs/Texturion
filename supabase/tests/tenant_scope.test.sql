@@ -34,7 +34,7 @@ declare
     'call_records', 'calls', 'cancellation_reasons',
     'company_ai_settings', 'company_ai_usage',
     'company_members', 'company_modules', 'contact_consent_events',
-    'contacts', 'conversation_events', 'conversation_member_prefs',
+    'contacts', 'contact_tags', 'conversation_events', 'conversation_member_prefs',
     'conversation_snoozes',
     -- #247: the cached thread catch-up, which paraphrases a customer's own
     -- messages.

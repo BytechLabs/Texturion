@@ -57,6 +57,10 @@ declare
     -- as the primary on `contacts`, and reached by the same erasure and
     -- export because it cascades from the contact.
     'contact_phones',
+    -- #695: which workspace tags a customer carries ("warranty", "property
+    -- manager"). A label on a person, so contact data; it cascades from the
+    -- contact, which is how the erasure and the export reach it.
+    'contact_tags',
     -- #291: the DEFINITIONS carry no customer data — they are a
     -- workspace's field names. Classified as business configuration
     -- rather than left out, because "no personal data" is a real

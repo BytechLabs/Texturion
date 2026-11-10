@@ -243,6 +243,25 @@ describe("scopes are the second gate", () => {
     expect(call.url.searchParams.get("select")).not.toContain("custom_fields");
   });
 
+  it("#695: publishes a contact's tags as plain names, and not the join row", async () => {
+    const sb = stubWithKey(["contacts:read"]);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      {
+        id: "ct-1",
+        phone_e164: "+14165550100",
+        contact_tags: [{ tags: { name: "Warranty" } }, { tags: { name: "Commercial" } }],
+      },
+      { id: "ct-2", phone_e164: "+14165550101", contact_tags: [] },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/contacts");
+    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    expect(body.data[0].tags).toEqual(["Commercial", "Warranty"]);
+    expect(body.data[0]).not.toHaveProperty("contact_tags");
+    expect(body.data[1].tags).toEqual([]);
+  });
+
   it("refuses a read to a key that can only write", async () => {
     // Write does not imply read. A key that may create a contact has no
     // business enumerating the customer list.

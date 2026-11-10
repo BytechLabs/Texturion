@@ -183,6 +183,8 @@ const SUITES = [
   "conversation_member_prefs",
   // #356 / D64: a task promotes a message or an answered call.
   "call_anchored_tasks",
+  // #695: tags on a contact.
+  "contact_tags",
 ];
 
 const args = process.argv.slice(2);

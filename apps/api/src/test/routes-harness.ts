@@ -150,6 +150,14 @@ export function supabaseStub(env: Env): SupabaseStub {
       respond: () => [],
     },
     {
+      // #695: the contact list and detail decorate each row with its tags. The
+      // ambient answer is "no contact carries any", the state every earlier
+      // contacts test was written against.
+      method: "GET",
+      matcher: "/rest/v1/contact_tags",
+      respond: () => [],
+    },
+    {
       // #228: every push fan-out now asks what language its readers are in.
       // The ambient default is "nobody has chosen one", which is the state
       // every test written before #228 was against — resolveUiLocale then

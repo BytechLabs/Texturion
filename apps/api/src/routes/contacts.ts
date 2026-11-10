@@ -119,6 +119,8 @@ import {
   parseContactImportColumn,
   parseVCardProperty,
   readContactFlag,
+  roleHasCapability,
+  TAGS_PER_WORKSPACE,
   unreadableFlagValues,
   VCARD_IMPORT_MAX_BYTES,
   VCARD_IMPORT_MAX_CARDS,
@@ -1020,6 +1022,71 @@ async function findContact(
   return rows[0] ?? null;
 }
 
+/** A workspace tag as a contact carries it. */
+interface ContactTagRef {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+/**
+ * #695 - the tags each of these contacts carries, name order.
+ *
+ * Chunked like the export: a long `.in()` of UUIDs builds a URL PostgREST
+ * rejects, and the export hands this up to 50k ids.
+ */
+async function tagsByContactIds(
+  db: Db,
+  companyId: string,
+  contactIds: string[],
+): Promise<Map<string, ContactTagRef[]>> {
+  const byContact = new Map<string, ContactTagRef[]>();
+  for (let i = 0; i < contactIds.length; i += IMPORT_CHUNK) {
+    const chunk = contactIds.slice(i, i + IMPORT_CHUNK);
+    const links = unwrap<{ contact_id: string; tags: ContactTagRef | null }[]>(
+      await db
+        .from("contact_tags")
+        .select("contact_id,tags(id,name,color)")
+        .eq("company_id", companyId)
+        .in("contact_id", chunk),
+      "contact tags",
+    );
+    for (const link of links) {
+      if (!link.tags) continue;
+      const list = byContact.get(link.contact_id) ?? [];
+      list.push(link.tags);
+      byContact.set(link.contact_id, list);
+    }
+  }
+  for (const list of byContact.values()) {
+    list.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return byContact;
+}
+
+/** The ids that are live contacts of this workspace (not deleted, not merged away). */
+async function liveContactIds(
+  db: Db,
+  companyId: string,
+  ids: string[],
+): Promise<Set<string>> {
+  const live = new Set<string>();
+  for (let i = 0; i < ids.length; i += IMPORT_CHUNK) {
+    const rows = unwrap<{ id: string }[]>(
+      await db
+        .from("contacts")
+        .select("id")
+        .eq("company_id", companyId)
+        .is("deleted_at", null)
+        .is("merged_into", null)
+        .in("id", ids.slice(i, i + IMPORT_CHUNK)),
+      "live contacts",
+    );
+    for (const row of rows) live.add(row.id);
+  }
+  return live;
+}
+
 /**
  * #248 round 2 (B4) — what the THIRD attestation door says when it refuses.
  *
@@ -1186,11 +1253,25 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     }
   }
 
+  // #695: narrow to one tag. An inner join on the link table, so only contacts
+  // carrying the tag come back; the join itself is stripped before the response.
+  const tagFilter = c.req.query("tag_id")?.trim();
+  if (tagFilter !== undefined && tagFilter !== "" && !z.uuid().safeParse(tagFilter).success) {
+    throw new ApiError("validation_failed", "tag_id: not a valid id.");
+  }
+  const byTag = tagFilter !== undefined && tagFilter !== "";
+
   let query = db
     .from("contacts")
-    .select(CONTACT_LIST_COLUMNS)
+    .select(
+      byTag
+        ? `${CONTACT_LIST_COLUMNS},contact_tags!inner(tag_id)`
+        : CONTACT_LIST_COLUMNS,
+    )
     .eq("company_id", c.get("companyId"))
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .is("merged_into", null);
+  if (byTag) query = query.eq("contact_tags.tag_id", tagFilter);
   if (filterField !== undefined && filterField !== "" && filterValue !== undefined) {
     // `->>` so the comparison is against the TEXT of the value. Comparing the
     // jsonb would make "Combi" and "Combi" different answers, and only one of
@@ -1214,6 +1295,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     phone_e164: string;
     created_by_user_id: string | null;
     updated_by_user_id: string | null;
+    contact_tags?: unknown;
   };
   const rows = unwrap<ContactListRow[]>(
     await query
@@ -1221,7 +1303,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
       .order("id", { ascending: false })
       .limit(limit + 1),
     "contacts list",
-  );
+  ).map(({ contact_tags: _join, ...row }) => row as ContactListRow);
 
   /**
    * #291 — and the same search, run through a customer's OTHER numbers.
@@ -1245,10 +1327,16 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
   if (rawQ && searchDigits.length >= 3) {
     let byOtherNumber = db
       .from("contacts")
-      .select(`${CONTACT_LIST_COLUMNS},contact_phones!inner(id)`)
+      .select(
+        byTag
+          ? `${CONTACT_LIST_COLUMNS},contact_phones!inner(id),contact_tags!inner(tag_id)`
+          : `${CONTACT_LIST_COLUMNS},contact_phones!inner(id)`,
+      )
       .eq("company_id", c.get("companyId"))
       .is("deleted_at", null)
+      .is("merged_into", null)
       .ilike("contact_phones.phone_e164", `*${searchDigits}*`);
+    if (byTag) byOtherNumber = byOtherNumber.eq("contact_tags.tag_id", tagFilter);
     // The SAME field filter. Without it, filtering to "Combi" and then
     // searching a number would quietly return non-Combi customers through
     // this arm — a filter that holds on one query and not the other is worse
@@ -1273,7 +1361,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     const seen = new Set(rows.map((row) => row.id));
     const extra = alsoRows
       .filter((row) => !seen.has(row.id))
-      .map(({ contact_phones: _join, ...row }) => row);
+      .map(({ contact_phones: _join, contact_tags: _tagJoin, ...row }) => row);
     if (extra.length > 0) {
       merged = [...rows, ...extra].sort((a, b) =>
         a.created_at === b.created_at
@@ -1297,8 +1385,9 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
   const optedOutPhones = new Set<string>();
   const lastActivityByContact = new Map<string, string>();
   let actorNames = new Map<string, string>();
+  let tagsByContact = new Map<string, ContactTagRef[]>();
   if (page.data.length > 0) {
-    const [optOut, activity, resolvedActorNames] = await Promise.all([
+    const [optOut, activity, resolvedActorNames, resolvedTags] = await Promise.all([
       // Opted-out badge: same app-side state as GET /v1/contacts/:id.
       db
         .from("opt_outs")
@@ -1327,7 +1416,14 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
           row.updated_by_user_id,
         ]),
       ),
+      // #695: the tags each row carries.
+      tagsByContactIds(
+        db,
+        listCompanyId,
+        page.data.map((row) => row.id),
+      ),
     ]);
+    tagsByContact = resolvedTags;
     for (const row of unwrap<{ phone_e164: string }[]>(
       optOut,
       "opt-out lookup",
@@ -1349,6 +1445,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     data: page.data.map((row) => ({
       ...row,
       opted_out: optedOutPhones.has(row.phone_e164),
+      tags: tagsByContact.get(row.id) ?? [],
       last_activity_at: lastActivityByContact.get(row.id) ?? null,
       created_by_name: row.created_by_user_id
         ? actorNames.get(row.created_by_user_id) ?? null
@@ -1362,6 +1459,9 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
 
 /** Max contacts a single export streams (bounds Worker memory/CPU). */
 const EXPORT_MAX_ROWS = 50_000;
+
+/** Max contacts one bulk action or one explicit export selection names. */
+const BULK_CONTACTS_MAX = 200;
 
 /**
  * Export column order — round-trips with the CSV importer (D20 §3.1).
@@ -1393,11 +1493,40 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
   const rawQ = c.req.query("q")?.trim();
   const db = getDb(getEnv(c.env));
 
+  // #695: the export honours the list's tag filter, and an explicit selection
+  // ("export these 12") as comma-separated ids.
+  const tagFilter = c.req.query("tag_id")?.trim();
+  if (tagFilter !== undefined && tagFilter !== "" && !z.uuid().safeParse(tagFilter).success) {
+    throw new ApiError("validation_failed", "tag_id: not a valid id.");
+  }
+  const byTag = tagFilter !== undefined && tagFilter !== "";
+  const rawIds = c.req.query("ids")?.trim();
+  let selectedIds: string[] | null = null;
+  if (rawIds !== undefined && rawIds !== "") {
+    selectedIds = rawIds.split(",").map((part) => part.trim());
+    if (
+      selectedIds.length > BULK_CONTACTS_MAX ||
+      !selectedIds.every((part) => z.uuid().safeParse(part).success)
+    ) {
+      throw new ApiError(
+        "validation_failed",
+        `ids: up to ${BULK_CONTACTS_MAX} contact ids.`,
+      );
+    }
+  }
+
   let query = db
     .from("contacts")
-    .select("id,name,phone_e164,consent_source,consent_at,created_at")
+    .select(
+      byTag
+        ? "id,name,phone_e164,consent_source,consent_at,created_at,contact_tags!inner(tag_id)"
+        : "id,name,phone_e164,consent_source,consent_at,created_at",
+    )
     .eq("company_id", companyId)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .is("merged_into", null);
+  if (byTag) query = query.eq("contact_tags.tag_id", tagFilter);
+  if (selectedIds) query = query.in("id", selectedIds);
   if (rawQ !== undefined && rawQ !== "") {
     if (rawQ.length > 200) {
       throw new ApiError("validation_failed", "q: too long (max 200).");
@@ -1411,6 +1540,7 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
     consent_source: string | null;
     consent_at: string | null;
     created_at: string;
+    contact_tags?: unknown;
   }
   const rows = unwrap<ExportRow[]>(
     await query
@@ -1418,10 +1548,11 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
       .order("id", { ascending: false })
       .limit(EXPORT_MAX_ROWS),
     "contacts export",
-  );
+  ).map(({ contact_tags: _join, ...row }) => row as ExportRow);
 
-  // Tags live per-CONVERSATION (there is no contact_tags table); a contact's
-  // tags = the union of tags across its conversations. Chunk the lookup: a
+  // A contact's tags = the tags on the contact itself (#695) plus the union of
+  // tags across its conversations, so the column keeps meaning what it meant.
+  // Chunk the lookup: a
   // single .in() over up to EXPORT_MAX_ROWS (50k) contact UUIDs would build a
   // multi-megabyte URL that PostgREST / the Worker rejects, breaking the export
   // outright for exactly the largest customers. IMPORT_CHUNK (200) keeps each
@@ -1449,6 +1580,13 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
       }
       tagsByContact.set(join.contact_id, set);
     }
+  }
+
+  const ownTags = await tagsByContactIds(db, companyId, exportContactIds);
+  for (const [contactId, list] of ownTags) {
+    const set = tagsByContact.get(contactId) ?? new Set<string>();
+    for (const tag of list) set.add(tag.name);
+    tagsByContact.set(contactId, set);
   }
 
   const table: (string | null)[][] = [
@@ -1490,7 +1628,10 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
     companyId,
     action: "contacts.exported",
     targetType: "contact",
-    after: { count: exportedCount, filtered: Boolean(rawQ) },
+    after: {
+      count: exportedCount,
+      filtered: Boolean(rawQ) || byTag || selectedIds !== null,
+    },
   });
   alarmOnBulkContactAccess(c, getEnv(c.env), db, {
     companyId,
@@ -1846,6 +1987,24 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
       .limit(1),
     "opt-out lookup",
   );
+  // #695: the tags this contact carries, and the most recent record merged
+  // into it. The merged record is what an Unmerge acts on: `unmerge` takes the
+  // id of the record that was folded in, which the survivor's page would
+  // otherwise have no way to name.
+  const [tagMap, mergedRows] = await Promise.all([
+    tagsByContactIds(db, companyId, [id]),
+    db
+      .from("contacts")
+      .select("id,name,phone_e164,merged_at")
+      .eq("company_id", companyId)
+      .eq("merged_into", id)
+      .order("merged_at", { ascending: false })
+      .limit(1),
+  ]);
+  const mergedFrom =
+    unwrap<
+      { id: string; name: string | null; phone_e164: string; merged_at: string }[]
+    >(mergedRows, "contact merged from")[0] ?? null;
   // #191 attribution: resolve the created/updated actor names (null for older,
   // actor-less rows — the UI shows the attribution line only when it resolves).
   const createdBy = contact.created_by_user_id as string | null;
@@ -1899,6 +2058,8 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
     // #291: the OTHER numbers. Empty for nearly every contact, and that is the
     // honest answer rather than a gap: most customers have one line.
     phones,
+    tags: tagMap.get(id) ?? [],
+    merged_from: mergedFrom,
   });
 });
 
@@ -3098,6 +3259,30 @@ contactsRoutes.post(
       );
     }
 
+    // #695: the survivor carries the union of both records' tags. Copied, not
+    // moved, so an unmerge puts the second record back with its own tags.
+    const loserTags = unwrap<{ tag_id: string }[]>(
+      await db
+        .from("contact_tags")
+        .select("tag_id")
+        .eq("company_id", companyId)
+        .eq("contact_id", from),
+      "merge tag lookup",
+    );
+    if (loserTags.length > 0) {
+      unwrap(
+        await db.from("contact_tags").upsert(
+          loserTags.map((link) => ({
+            company_id: companyId,
+            contact_id: body.into_contact_id,
+            tag_id: link.tag_id,
+          })),
+          { onConflict: "contact_id,tag_id", ignoreDuplicates: true },
+        ),
+        "merge tag copy",
+      );
+    }
+
     // #246 asks for undo OR a full record. Both: the tombstone is the undo and
     // this is the record. It carries both numbers because after the merge one
     // of them is the only way to say which record was folded in.
@@ -3167,6 +3352,243 @@ contactsRoutes.post(
     });
 
     return c.json({ unmerged: true });
+  },
+);
+
+const attachContactTagSchema = z
+  .object({
+    tag_id: z.uuid().optional(),
+    name: z.string().trim().min(1).max(80).optional(),
+  })
+  .refine((body) => (body.tag_id === undefined) !== (body.name === undefined), {
+    message: "Provide exactly one of tag_id or name.",
+  });
+
+/**
+ * #695 - POST /v1/contacts/:id/tags { tag_id } | { name }: tag a customer.
+ *
+ * The same vocabulary as a conversation's tags, so the same rules: a name
+ * reuses the workspace's tag of that spelling, and creating a new one needs
+ * `settings.manage` when the workspace has locked its tag list.
+ */
+contactsRoutes.post(
+  "/contacts/:id/tags",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const body = await parseJsonBody(c, attachContactTagSchema);
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    if (!(await findContact(db, companyId, id))) {
+      return errorResponse(c, "not_found", "No such contact.");
+    }
+
+    let tag: ContactTagRef;
+    if (body.tag_id !== undefined) {
+      const rows = unwrap<ContactTagRef[]>(
+        await db
+          .from("tags")
+          .select("id,name,color")
+          .eq("company_id", companyId)
+          .eq("id", body.tag_id)
+          .limit(1),
+        "tag lookup",
+      );
+      if (!rows[0]) return errorResponse(c, "not_found", "No such tag.");
+      tag = rows[0];
+    } else {
+      const rows = unwrap<
+        (ContactTagRef & { refused: boolean; reason: string | null })[]
+      >(
+        await db.rpc("api_find_or_create_tag", {
+          p_company_id: companyId,
+          p_name: body.name as string,
+          p_may_create: roleHasCapability(c.get("role"), "settings.manage"),
+        }),
+        "tag find-or-create",
+      );
+      if (rows[0]?.refused === true) {
+        if (rows[0].reason === "at_ceiling") {
+          return errorResponse(
+            c,
+            "conflict",
+            `This workspace has hit its ${TAGS_PER_WORKSPACE}-tag limit. Merge ` +
+              "the duplicates in Settings, under Templates & tags.",
+          );
+        }
+        return errorResponse(
+          c,
+          "forbidden",
+          "Your workspace keeps a set list of tags. Pick an existing one, or " +
+            "ask an owner or admin to add this.",
+        );
+      }
+      if (!rows[0]) throw new Error("tag find-or-create: no row returned");
+      tag = rows[0];
+    }
+
+    const attached = unwrap<unknown[]>(
+      await db
+        .from("contact_tags")
+        .upsert(
+          { company_id: companyId, contact_id: id, tag_id: tag.id },
+          { onConflict: "contact_id,tag_id", ignoreDuplicates: true },
+        )
+        .select("contact_id"),
+      "contact tag attach",
+    );
+    return c.json(tag, attached.length > 0 ? 201 : 200);
+  },
+);
+
+contactsRoutes.delete(
+  "/contacts/:id/tags/:tag_id",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const tagId = pathUuid(c, "tag_id");
+    const db = getDb(getEnv(c.env));
+    const deleted = unwrap<unknown[]>(
+      await db
+        .from("contact_tags")
+        .delete()
+        .eq("company_id", c.get("companyId"))
+        .eq("contact_id", id)
+        .eq("tag_id", tagId)
+        .select("tag_id"),
+      "contact tag detach",
+    );
+    if (deleted.length === 0) {
+      return errorResponse(c, "not_found", "Tag is not attached.");
+    }
+    return c.body(null, 204);
+  },
+);
+
+const bulkContactsSchema = z
+  .object({
+    action: z.enum(["add_tag", "remove_tag", "delete"]),
+    ids: z.array(z.uuid()).min(1).max(BULK_CONTACTS_MAX),
+    tag_id: z.uuid().optional(),
+  })
+  .refine((body) => body.action === "delete" || body.tag_id !== undefined, {
+    message: "tag_id: needed to tag or untag.",
+  });
+
+/**
+ * #695 - POST /v1/contacts/bulk: tag, untag or delete a selection.
+ *
+ * An explicit list of ids and nothing else. Unlike conversations there is no
+ * select-everything-matching mode: a contact delete cannot be undone, and an
+ * action over a filter the person has not seen is how the wrong two thousand
+ * customers go.
+ *
+ * There is no bulk send, for the reason `POST /conversations/bulk` states.
+ *
+ * `applied` carries only the rows that CHANGED, each with the prior state, so a
+ * client builds the undo from the response: untag what was tagged, tag what was
+ * untagged. A delete has no undo (UNDO-AUDIT: confirmation, not undo).
+ *
+ * TODO(#691): delete is gated by the same capability as a single-contact
+ * delete (`conversations.note`) because `records.delete` does not exist yet.
+ * When #691 lands, gate the `delete` action here and the single delete on it.
+ */
+contactsRoutes.post(
+  "/contacts/bulk",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const body = await parseJsonBody(c, bulkContactsSchema);
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+    const ids = [...new Set(body.ids)];
+
+    const live = await liveContactIds(db, companyId, ids);
+    const failed = ids
+      .filter((id) => !live.has(id))
+      .map((id) => ({ id, reason: "not_found" }));
+    const liveIds = ids.filter((id) => live.has(id));
+
+    const applied: { id: string; previous: Record<string, unknown> }[] = [];
+
+    if (body.action === "delete") {
+      for (let i = 0; i < liveIds.length; i += IMPORT_CHUNK) {
+        const rows = unwrap<{ id: string }[]>(
+          await db
+            .from("contacts")
+            .update({
+              deleted_at: new Date().toISOString(),
+              deleted_by_user_id: c.get("userId"),
+            })
+            .eq("company_id", companyId)
+            .is("deleted_at", null)
+            .in("id", liveIds.slice(i, i + IMPORT_CHUNK))
+            .select("id"),
+          "contact bulk delete",
+        );
+        for (const row of rows) applied.push({ id: row.id, previous: {} });
+      }
+      return c.json({ action: body.action, matched: ids.length, applied, failed });
+    }
+
+    const tagId = body.tag_id as string;
+    const tagRows = unwrap<{ id: string }[]>(
+      await db
+        .from("tags")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("id", tagId)
+        .limit(1),
+      "tag lookup",
+    );
+    if (!tagRows[0]) return errorResponse(c, "not_found", "No such tag.");
+
+    const hasTag = new Set<string>();
+    for (let i = 0; i < liveIds.length; i += IMPORT_CHUNK) {
+      const links = unwrap<{ contact_id: string }[]>(
+        await db
+          .from("contact_tags")
+          .select("contact_id")
+          .eq("company_id", companyId)
+          .eq("tag_id", tagId)
+          .in("contact_id", liveIds.slice(i, i + IMPORT_CHUNK)),
+        "contact tag lookup",
+      );
+      for (const link of links) hasTag.add(link.contact_id);
+    }
+
+    if (body.action === "add_tag") {
+      const toAdd = liveIds.filter((id) => !hasTag.has(id));
+      for (let i = 0; i < toAdd.length; i += IMPORT_CHUNK) {
+        unwrap(
+          await db.from("contact_tags").upsert(
+            toAdd.slice(i, i + IMPORT_CHUNK).map((contactId) => ({
+              company_id: companyId,
+              contact_id: contactId,
+              tag_id: tagId,
+            })),
+            { onConflict: "contact_id,tag_id", ignoreDuplicates: true },
+          ),
+          "contact bulk tag",
+        );
+      }
+      for (const id of toAdd) applied.push({ id, previous: { tagged: false } });
+    } else {
+      const toRemove = liveIds.filter((id) => hasTag.has(id));
+      for (let i = 0; i < toRemove.length; i += IMPORT_CHUNK) {
+        unwrap(
+          await db
+            .from("contact_tags")
+            .delete()
+            .eq("company_id", companyId)
+            .eq("tag_id", tagId)
+            .in("contact_id", toRemove.slice(i, i + IMPORT_CHUNK)),
+          "contact bulk untag",
+        );
+      }
+      for (const id of toRemove) applied.push({ id, previous: { tagged: true } });
+    }
+    return c.json({ action: body.action, matched: ids.length, applied, failed });
   },
 );
 
