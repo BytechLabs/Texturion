@@ -13,6 +13,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -128,6 +130,7 @@ import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.RecordOpenLink
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
@@ -332,6 +335,21 @@ private fun DetailTopBar(
             modifier = Modifier.weight(1f),
         )
         menu()
+    }
+}
+
+/** The task header's action row: labelled links onward, absent when neither exists. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TaskOnwardLinks(
+    openConversation: (() -> Unit)?,
+    openContact: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    if (openConversation == null && openContact == null) return
+    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        openConversation?.let { RecordOpenLink(t("contactsTasks.openConversation"), it) }
+        openContact?.let { RecordOpenLink(t("contactsTasks.openContact"), it) }
     }
 }
 
@@ -781,6 +799,24 @@ private fun TaskDetailBody(
                         ).joinToString(" "),
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    )
+                }
+            }
+
+            // #717: the header's action row. The ways onward are labelled links
+            // here, not icons in a corner.
+            item(key = "onward") {
+                val openConversation = detail.conversation_id?.let { conversation ->
+                    onOpenConversation?.let { open -> { open(conversation, detail.message_id) } }
+                }
+                val openContact = detail.contact_id?.let { contact ->
+                    onOpenContact?.let { open -> { open(contact) } }
+                }
+                if (!noAccess) {
+                    TaskOnwardLinks(
+                        openConversation = openConversation,
+                        openContact = openContact,
+                        modifier = Modifier.padding(start = 10.dp, end = 18.dp),
                     )
                 }
             }

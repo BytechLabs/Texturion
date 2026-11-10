@@ -78,8 +78,8 @@ object DomainStrings : AppStrings.Section {
         // ── Following the workspace's language (#228) ────────────────────────
         // Names the language when it is known, because "same as workspace" on
         // its own gives the rule and not the answer.
-        "domain.localeSameAsWorkspace" to "Same as workspace",
-        "domain.localeSameAsWorkspaceNamed" to "Same as workspace ({language})",
+        "domain.localeSameAsWorkspace" to "Workspace default",
+        "domain.localeSameAsWorkspaceNamed" to "Workspace default ({language})",
 
         // ── Numbers this member cannot see (#286) ────────────────────────────
         // A COUNT and nothing else: naming the number would undo the rule the
@@ -675,8 +675,8 @@ object DomainStrings : AppStrings.Section {
             "Son indicatif régional ne le dit pas — nous utilisons votre fuseau",
 
         // ── Following the workspace's language (#228) ────────────────────────
-        "domain.localeSameAsWorkspace" to "Comme l'espace de travail",
-        "domain.localeSameAsWorkspaceNamed" to "Comme l'espace de travail ({language})",
+        "domain.localeSameAsWorkspace" to "Langue de l'espace de travail",
+        "domain.localeSameAsWorkspaceNamed" to "Langue de l'espace de travail ({language})",
 
         // ── Numbers this member cannot see (#286) ────────────────────────────
         "domain.hiddenNumbersOne" to

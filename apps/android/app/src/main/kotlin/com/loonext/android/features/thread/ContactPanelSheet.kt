@@ -13,6 +13,12 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.LeadSource
+import com.loonext.android.core.model.MessageLocale
+import com.loonext.android.features.contacts.contactRelationshipLine
+import com.loonext.android.ui.common.RecordHeader
+import com.loonext.android.ui.common.RecordOpenLink
+import com.loonext.android.ui.common.RecordSection
+import com.loonext.android.ui.common.choicesBesideDefault
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,11 +33,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,6 +49,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,11 +74,13 @@ import com.loonext.android.ui.common.relativeTime
 
 /**
  * The thread's contact panel (#165) — the web sidebar as a bottom sheet,
- * opened by tapping the header identity: inline name/address/notes with the
- * G6 800ms auto-save (the exact field the contact detail screen uses), the
- * consent attest line, prior conversations with this contact, and the
+ * opened by tapping the header identity: a header (inline name, number, how
+ * long they have been a customer) over an action row (call, copy, open the
+ * contact), then one section style for the auto-saving address/notes (the exact
+ * field the contact detail screen uses), the consent attest line, the
  * conversation's open-tasks checklist (T5.2 — done toggles through the
- * source message, never a task route).
+ * source message, never a task route) and prior conversations, with the
+ * rarely-changed settings folded into Preferences (#717).
  *
  * [onOpenConversation] is the caller's navigation into ANOTHER thread; rows
  * stay un-tappable until it's wired (a row that goes nowhere would be a lie).
@@ -78,13 +94,17 @@ internal fun ContactPanelSheet(
     /**
      * #465: open the FULL contact screen — its history, call log and every
      * conversation. This panel holds a copy of the fields and nothing else, so
-     * without this it is a dead end, which is exactly what was reported. Web
-     * has had the jump since #82.
+     * without this it is a dead end. #717: it is the header's labelled
+     * "Open contact" link, never an icon in a corner.
      */
     onOpenContact: ((contactId: String) -> Unit)?,
     onDismiss: () -> Unit,
     /** #690: the tasks that point at this conversation. Null hides the section. */
     references: ReferenceSource? = null,
+    /** Places a call to this contact. Null hides the Call action. */
+    onCall: (() -> Unit)? = null,
+    /** A call is being placed, so Call waits. */
+    calling: Boolean = false,
 ) {
     val detail = controller.conversation ?: return
     val contact = controller.contact
@@ -95,24 +115,49 @@ internal fun ContactPanelSheet(
     fun memberName(userId: String?): String? =
         members.firstOrNull { it.user_id == userId }?.display_name?.ifBlank { null }
 
+    val locale = LocalAppLocale.current
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    var leadSources by remember { mutableStateOf<List<LeadSource>>(emptyList()) }
+    LaunchedEffect(detail.id) {
+        leadSources = runCatching { controller.leadSources() }.getOrDefault(emptyList())
+    }
+    // #301: an unanswered source stays out in the open as the one-tap ask;
+    // once answered it is a setting, and joins Preferences.
+    val asksForSource =
+        leadSources.any { it.archived_at == null } && detail.lead_source_id == null
+    val shownTasks = (controller.conversationTasks as? LoadState.Ready)
+        ?.value?.map { it.id }?.toSet().orEmpty()
+
     AppSheet(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                InitialsAvatar(displayName, size = 44.dp)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+            // #717: the header says who, their number and how long they have
+            // been a customer; the action row calls, copies and opens the
+            // contact as a labelled link, never a corner icon.
+            RecordHeader(
+                leading = { InitialsAvatar(displayName, size = 44.dp) },
+                title = {
+                    AutosaveField(
+                        fieldKey = "${detail.contact_id}:name",
+                        label = t("thread.fieldName"),
+                        initial = (contact?.name ?: detail.contact.name).orEmpty(),
+                        maxLength = CONTACT_NAME_MAX,
+                        placeholder = t("thread.addName"),
+                        singleLine = true,
+                        save = { value -> controller.saveContactField("name", value) },
+                        quiet = true,
+                        textStyle = MaterialTheme.typography.titleMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
                     )
+                },
+                meta = {
                     Text(
                         if (contact?.opted_out == true) {
                             "${formatPhone(detail.contact.phone_e164)} · " +
@@ -120,38 +165,71 @@ internal fun ContactPanelSheet(
                         } else {
                             formatPhone(detail.contact.phone_e164)
                         },
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
                     )
-                }
-                if (onOpenContact != null) {
-                    IconButton(
+                    // #410: how long they have been a customer, and how often.
+                    contactRelationshipLine(
+                        contact?.conversation_count,
+                        contact?.first_conversation_at,
+                        locale,
+                    )?.let { line ->
+                        Text(
+                            line,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
+                },
+                actions = {
+                    if (onCall != null) {
+                        OutlinedButton(onClick = onCall, enabled = !calling) {
+                            Icon(
+                                Icons.Outlined.Phone,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(t("contactsTasks.call"))
+                        }
+                    }
+                    OutlinedButton(
                         onClick = {
-                            onDismiss()
-                            onOpenContact(detail.contact_id)
+                            clipboard.setText(AnnotatedString(detail.contact.phone_e164))
+                            copied = true
                         },
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Outlined.OpenInNew,
-                            contentDescription = t("thread.openFullContact"),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(19.dp),
+                            if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (copied) {
+                                t("thread.numberCopied")
+                            } else {
+                                t("contactsTasks.copyNumber")
+                            },
                         )
                     }
-                }
-            }
+                    if (onOpenContact != null) {
+                        Spacer(Modifier.weight(1f))
+                        RecordOpenLink(
+                            label = t("thread.openContact"),
+                            onClick = {
+                                onDismiss()
+                                onOpenContact(detail.contact_id)
+                            },
+                        )
+                    }
+                },
+            )
 
-            // Details — the same auto-saving fields as the contact screen.
-            SheetSection(t("thread.sectionDetails")) {
-                AutosaveField(
-                    fieldKey = "${detail.contact_id}:name",
-                    label = t("thread.fieldName"),
-                    initial = (contact?.name ?: detail.contact.name).orEmpty(),
-                    maxLength = CONTACT_NAME_MAX,
-                    placeholder = t("thread.addName"),
-                    singleLine = true,
-                    save = { value -> controller.saveContactField("name", value) },
-                )
+            RecordSection(t("thread.sectionDetails")) {
+                // The same auto-saving fields as the contact screen.
                 AutosaveField(
                     fieldKey = "${detail.contact_id}:address",
                     label = t("thread.fieldAddress"),
@@ -160,6 +238,7 @@ internal fun ContactPanelSheet(
                     placeholder = t("thread.addAddress"),
                     singleLine = true,
                     save = { value -> controller.saveContactField("address", value) },
+                    quiet = true,
                 )
                 AutosaveField(
                     fieldKey = "${detail.contact_id}:notes",
@@ -169,10 +248,11 @@ internal fun ContactPanelSheet(
                     placeholder = t("thread.notesPlaceholder"),
                     singleLine = false,
                     save = { value -> controller.saveContactField("notes", value) },
+                    quiet = true,
                 )
             }
 
-            SheetSection(t("thread.sectionConsent")) {
+            RecordSection(t("thread.sectionConsent")) {
                 Text(
                     consentLine(
                         consentSource = contact?.consent_source
@@ -186,41 +266,176 @@ internal fun ContactPanelSheet(
                 )
             }
 
-            // #301: where this customer came from. Above the tasks because it
-            // is a question somebody ASKS in the first minute of a call, while
-            // a task is what they write down afterwards — and because the ask
-            // disappears the moment it is answered.
-            SheetSection(t("thread.sectionLeadSource")) {
-                LeadSourcePicker(controller = controller, detail = detail)
-            }
-
-            SheetSection(t("thread.sectionTasks")) {
+            RecordSection(t("thread.sectionTasks")) {
                 TasksChecklist(
                     state = controller.conversationTasks,
                     onToggle = { controller.toggleTaskDone(it) },
                     onOpenTask = onOpenTask,
                 )
-            }
-
-            if (references != null) {
-                SheetSection(t("taskLinks.linkedTasks")) {
+                // Linked tasks continue the checklist; one the checklist
+                // already shows is not repeated.
+                if (references != null) {
                     LinkedTasksList(
                         repo = references.repo,
                         companyId = references.companyId,
                         owner = LinkedOwner.Conversation(detail.id),
                         onOpenTask = onOpenTask,
+                        shownElsewhere = shownTasks,
                     )
                 }
             }
 
-            SheetSection(t("thread.sectionOtherConversations")) {
+            // #301: where this customer came from, only while it is a question
+            // somebody ASKS in the first minute of a call.
+            if (asksForSource) {
+                RecordSection(t("thread.sectionLeadSource")) {
+                    LeadSourcePicker(controller = controller, detail = detail)
+                }
+            }
+
+            RecordSection(t("thread.sectionOtherConversations")) {
                 OtherConversations(
                     state = controller.otherConversations,
                     onOpen = onOpenConversation,
                 )
             }
 
+            PreferencesSection(
+                controller = controller,
+                detail = detail,
+                withSource = !asksForSource,
+                leadSources = leadSources,
+            )
+
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * #717: the settings a crew sets once per customer, if ever, folded into one
+ * row that says what they are set to and opens on demand.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PreferencesSection(
+    controller: ThreadController,
+    detail: ConversationDetail,
+    /** The source is answered, so it is a setting rather than an ask. */
+    withSource: Boolean,
+    leadSources: List<LeadSource>,
+) {
+    val locale = LocalAppLocale.current
+    val scope = rememberCoroutineScope()
+    var open by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    val contactLocale = controller.contact?.locale
+    val companyLocale = controller.company?.locale
+    val inheritLabel = MessageLocale.inheritLabel(companyLocale, locale)
+    val languageLabel = if (contactLocale != null) {
+        MessageLocale.label(contactLocale)
+    } else {
+        inheritLabel
+    }
+    val sourceName = if (withSource) {
+        leadSources.firstOrNull { it.id == detail.lead_source_id }?.name
+    } else {
+        null
+    }
+    val summary = listOfNotNull(languageLabel, sourceName).joinToString(" · ")
+
+    fun chooseLanguage(next: String?) {
+        saving = true
+        scope.launch {
+            runCatching { controller.saveContactField("locale", next) }
+            saving = false
+        }
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button) { open = !open }
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                t("thread.sectionPreferences").uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (open) {
+            Column(
+                Modifier.padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Column {
+                    Text(
+                        t("thread.sectionLanguage"),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    // #717: the workspace's own language is the inherit chip's
+                    // answer, so it is a second chip only when this contact is
+                    // already set to it.
+                    FlowRow(
+                        Modifier.fillMaxWidth().padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        FilterChip(
+                            selected = contactLocale == null,
+                            enabled = !saving,
+                            onClick = { chooseLanguage(null) },
+                            label = { Text(inheritLabel) },
+                        )
+                        choicesBesideDefault(
+                            MessageLocale.ALL,
+                            companyLocale?.takeIf { it in MessageLocale.ALL },
+                            contactLocale,
+                        ).forEach { candidate ->
+                            FilterChip(
+                                selected = contactLocale == candidate,
+                                enabled = !saving,
+                                onClick = { chooseLanguage(candidate) },
+                                label = { Text(MessageLocale.label(candidate)) },
+                            )
+                        }
+                    }
+                    Text(
+                        t("contactsTasks.localeCaveat"),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                if (withSource && leadSources.any { it.archived_at == null }) {
+                    Column {
+                        Text(
+                            t("thread.sectionLeadSource"),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        LeadSourcePicker(controller = controller, detail = detail)
+                    }
+                }
+            }
         }
     }
 }
@@ -314,19 +529,6 @@ private fun LeadSourcePicker(controller: ThreadController, detail: ConversationD
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SheetSection(title: String, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Text(
-            title,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        content()
     }
 }
 

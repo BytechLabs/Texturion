@@ -75,6 +75,7 @@ object SettingsMoreStrings : AppStrings.Section {
         // empty is the one thing it cannot mean — the line goes back to the
         // workspace's greeting rather than falling silent.
         "settingsMore.inheritSame" to "Same as your workspace",
+        "settingsMore.inheritSameNamed" to "Same as your workspace ({value})",
         "settingsMore.inheritUse" to "Use the workspace's",
         "settingsMore.numberHoursTitle" to "When this line is open",
         "settingsMore.numberHoursIntro" to
@@ -1350,6 +1351,7 @@ object SettingsMoreStrings : AppStrings.Section {
         // -- One number's own clock and identity ------------------------------
         "settingsMore.loading" to "Chargement…",
         "settingsMore.inheritSame" to "Comme votre espace de travail",
+        "settingsMore.inheritSameNamed" to "Comme votre espace de travail ({value})",
         "settingsMore.inheritUse" to "Utiliser celui de l'espace de travail",
         "settingsMore.numberHoursTitle" to "Heures d'ouverture de cette ligne",
         "settingsMore.numberHoursIntro" to

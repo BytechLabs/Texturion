@@ -267,7 +267,10 @@ object ThreadStrings : AppStrings.Section {
         "thread.addrPostal" to "Postal code",
 
         // --- Contact panel (#165 / #301) -----------------------------------------
-        "thread.openFullContact" to "Open the full contact",
+        "thread.openContact" to "Open contact",
+        "thread.sectionPreferences" to "Preferences",
+        "thread.numberCopied" to "Number copied",
+        "thread.sectionLanguage" to "Language for this customer",
         "thread.sectionDetails" to "Details",
         "thread.sectionConsent" to "Consent",
         "thread.sectionLeadSource" to "Where they came from",
@@ -1005,7 +1008,10 @@ object ThreadStrings : AppStrings.Section {
         "thread.addrPostal" to "Code postal",
 
         // --- Contact panel (#165 / #301) -----------------------------------------
-        "thread.openFullContact" to "Ouvrir la fiche complète",
+        "thread.openContact" to "Ouvrir la fiche",
+        "thread.sectionPreferences" to "Préférences",
+        "thread.numberCopied" to "Numéro copié",
+        "thread.sectionLanguage" to "Langue de ce client",
         "thread.sectionDetails" to "Coordonnées",
         "thread.sectionConsent" to "Consentement",
         "thread.sectionLeadSource" to "D'où il vient",

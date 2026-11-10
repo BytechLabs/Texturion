@@ -32,6 +32,7 @@ import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.push.APP_ORIGIN
+import com.loonext.android.ui.common.choicesBesideDefault
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -119,6 +120,18 @@ fun WebsiteWidgetCard(
     // showing a choice that silently does not hold.
     val routable = numbers.filter { it.status == "active" && !it.number_e164.isNullOrBlank() }
     val chosen = routable.firstOrNull { it.id == company.widget_number_id }
+    // #717: the server's default is the oldest active line, and the list
+    // arrives oldest first. It is named on the default choice and not offered
+    // again beside it.
+    val firstLine = routable.firstOrNull()
+    val defaultLineLabel = firstLine?.number_e164?.let {
+        t("settings.widgetLineDefaultNamed", "number" to formatPhone(it))
+    } ?: t("settings.widgetLineDefault")
+    val explicitLines = choicesBesideDefault(
+        routable.map { it.id },
+        firstLine?.id,
+        company.widget_number_id,
+    ).mapNotNull { id -> routable.firstOrNull { it.id == id } }
 
     SettingsCard(
         title = t("settings.widgetTitle"),
@@ -241,7 +254,7 @@ fun WebsiteWidgetCard(
                     // test to understand. *Applying: Smart Defaults.*
                     Text(
                         chosen?.number_e164?.let { formatPhone(it) }
-                            ?: t("settings.widgetLineDefault"),
+                            ?: defaultLineLabel,
                     )
                 }
                 DropdownMenu(
@@ -249,7 +262,7 @@ fun WebsiteWidgetCard(
                     onDismissRequest = { lineMenuOpen = false },
                 ) {
                     DropdownMenuItem(
-                        text = { Text(t("settings.widgetLineDefault")) },
+                        text = { Text(defaultLineLabel) },
                         onClick = {
                             lineMenuOpen = false
                             saveLine(
@@ -258,7 +271,7 @@ fun WebsiteWidgetCard(
                             )
                         },
                     )
-                    routable.forEach { number ->
+                    explicitLines.forEach { number ->
                         DropdownMenuItem(
                             text = { Text(formatPhone(number.number_e164)) },
                             onClick = {

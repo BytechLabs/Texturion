@@ -87,6 +87,12 @@ fun LinkedTasksList(
     companyId: String,
     owner: LinkedOwner,
     onOpenTask: ((taskId: String) -> Unit)?,
+    /**
+     * #717: tasks a list beside this one already shows, so none appears twice.
+     * Passing it also means this list is a continuation of that one, so it
+     * says nothing at all rather than "none" when nothing is left.
+     */
+    shownElsewhere: Set<String>? = null,
 ) {
     val locale = LocalAppLocale.current
     var tasks by remember(owner) { mutableStateOf<List<LinkedTask>?>(null) }
@@ -104,11 +110,11 @@ fun LinkedTasksList(
             failed = true
         }
     }
-    val loaded = tasks
+    val loaded = tasks?.filter { shownElsewhere == null || it.id !in shownElsewhere }
     when {
         failed -> MutedLine(t("taskLinks.linkedFailed"))
         loaded == null -> Unit
-        loaded.isEmpty() -> MutedLine(t("taskLinks.linkedNone"))
+        loaded.isEmpty() -> if (shownElsewhere == null) MutedLine(t("taskLinks.linkedNone"))
         else -> Column {
             loaded.forEach { task ->
                 TaskLinkRow(

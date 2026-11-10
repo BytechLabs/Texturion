@@ -203,6 +203,7 @@ private val CLOSED_DATES_EN = mapOf(
     "settings.widgetLineLabel" to "Which number website messages land on",
     "settings.widgetLineHelp" to "Replies from your crew come from this number, so pick the line you watch.",
     "settings.widgetLineDefault" to "Your first number",
+    "settings.widgetLineDefaultNamed" to "Your first number ({number})",
     "settings.widgetLineSaved" to "Website messages will land on that number.",
     "settings.closedDatesIntro" to
         "Holidays, a week off, a day for a funeral. On these dates your away reply " +
@@ -242,6 +243,7 @@ private val CLOSED_DATES_FR = mapOf(
     "settings.widgetLineLabel" to "Le numéro qui reçoit les messages du site web",
     "settings.widgetLineHelp" to "Les réponses de votre équipe partent de ce numéro : choisissez la ligne que vous surveillez.",
     "settings.widgetLineDefault" to "Votre premier numéro",
+    "settings.widgetLineDefaultNamed" to "Votre premier numéro ({number})",
     "settings.widgetLineSaved" to "Les messages du site web arriveront sur ce numéro.",
     "settings.closedDatesIntro" to
         "Les jours fériés, une semaine de congé, une journée pour des funérailles. " +

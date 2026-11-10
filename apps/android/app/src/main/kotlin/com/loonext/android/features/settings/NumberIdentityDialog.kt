@@ -30,6 +30,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.choicesBesideDefault
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
@@ -347,9 +348,18 @@ internal fun NumberIdentityDialog(
                         // 3am is rarely the one taking invoice questions.
                         val afterHoursInherited =
                             state.value.after_hours_calls.inherited
+                        // #717: the inherit choice names what it inherits, and
+                        // that value is not offered a second time beside it.
+                        val afterHoursKnown = knownWorkspaceValue(
+                            state.value.after_hours_calls.inherited,
+                            state.value.after_hours_calls.value,
+                            scope.me.company?.after_hours_calls,
+                        )
+                        val afterHoursInherit =
+                            inheritChoiceLabel(afterHoursKnown?.let { afterHoursLabel(it) })
                         val afterHoursText =
                             if (afterHoursInherited) {
-                                t("settingsMore.inheritSame")
+                                afterHoursInherit
                             } else {
                                 afterHoursLabel(state.value.after_hours_calls.value)
                             }
@@ -392,13 +402,17 @@ internal fun NumberIdentityDialog(
                             // somebody says otherwise, and the option that is
                             // always correct is the one that needs no thought.
                             DropdownMenuItem(
-                                text = { Text(t("settingsMore.inheritSame")) },
+                                text = { Text(afterHoursInherit) },
                                 onClick = {
                                     afterHoursMenuOpen = false
                                     selectAfterHours(null)
                                 },
                             )
-                            AFTER_HOURS_CHOICES.forEach { value ->
+                            choicesBesideDefault(
+                                AFTER_HOURS_CHOICES,
+                                afterHoursKnown,
+                                if (afterHoursInherited) null else state.value.after_hours_calls.value,
+                            ).forEach { value ->
                                 DropdownMenuItem(
                                     text = { Text(afterHoursLabel(value)) },
                                     onClick = {
@@ -416,6 +430,13 @@ internal fun NumberIdentityDialog(
                         )
                         // #278: how THIS line rings.
                         val ringInherited = state.value.ring_strategy.inherited
+                        val ringKnown = knownWorkspaceValue(
+                            ringInherited,
+                            state.value.ring_strategy.value,
+                            scope.me.company?.ring_strategy,
+                        )
+                        val ringInherit =
+                            inheritChoiceLabel(ringKnown?.let { ringLabel(it) })
                         Row(
                             Modifier.fillMaxWidth().padding(top = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -449,7 +470,7 @@ internal fun NumberIdentityDialog(
                         ) {
                             Text(
                                 if (ringInherited) {
-                                    t("settingsMore.inheritSame")
+                                    ringInherit
                                 } else {
                                     ringLabel(state.value.ring_strategy.value)
                                 },
@@ -460,13 +481,17 @@ internal fun NumberIdentityDialog(
                             onDismissRequest = { ringMenuOpen = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text(t("settingsMore.inheritSame")) },
+                                text = { Text(ringInherit) },
                                 onClick = {
                                     ringMenuOpen = false
                                     selectRing("ring_strategy", JsonNull)
                                 },
                             )
-                            RING_CHOICES.forEach { value ->
+                            choicesBesideDefault(
+                                RING_CHOICES,
+                                ringKnown,
+                                if (ringInherited) null else state.value.ring_strategy.value,
+                            ).forEach { value ->
                                 DropdownMenuItem(
                                     text = { Text(ringLabel(value)) },
                                     onClick = {
@@ -478,6 +503,16 @@ internal fun NumberIdentityDialog(
                         }
 
                         val secondsInherited = state.value.ring_seconds.inherited
+                        val secondsKnown = knownWorkspaceValue(
+                            secondsInherited,
+                            state.value.ring_seconds.value,
+                            scope.me.company?.ring_seconds,
+                        )
+                        val secondsInherit = inheritChoiceLabel(
+                            secondsKnown?.let {
+                                t("settingsMore.ringSeconds", "seconds" to "$it")
+                            },
+                        )
                         Row(
                             Modifier.fillMaxWidth().padding(top = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -512,7 +547,7 @@ internal fun NumberIdentityDialog(
                             val seconds = state.value.ring_seconds.value
                             Text(
                                 if (secondsInherited || seconds == null) {
-                                    t("settingsMore.inheritSame")
+                                    secondsInherit
                                 } else {
                                     t("settingsMore.ringSeconds", "seconds" to "$seconds")
                                 },
@@ -523,13 +558,17 @@ internal fun NumberIdentityDialog(
                             onDismissRequest = { ringSecondsMenuOpen = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text(t("settingsMore.inheritSame")) },
+                                text = { Text(secondsInherit) },
                                 onClick = {
                                     ringSecondsMenuOpen = false
                                     selectRing("ring_seconds", JsonNull)
                                 },
                             )
-                            RING_SECOND_CHOICES.forEach { value ->
+                            choicesBesideDefault(
+                                RING_SECOND_CHOICES,
+                                secondsKnown,
+                                if (secondsInherited) null else state.value.ring_seconds.value,
+                            ).forEach { value ->
                                 DropdownMenuItem(
                                     text = {
                                         Text(
@@ -745,6 +784,24 @@ private fun IdentityToggle(
  * property of the protocol.
  */
 private val RING_CHOICES = listOf("all", "in_turn")
+
+/**
+ * #717: what the workspace sets for a field, for the inherit choice to name.
+ * A field that follows the workspace carries the workspace's value itself,
+ * which is the freshest answer; otherwise the company's. Null is "unknown",
+ * and an unknown default names nothing and hides nothing.
+ */
+private fun <T> knownWorkspaceValue(inherited: Boolean, value: T?, workspace: T?): T? =
+    if (inherited && value != null) value else workspace
+
+/** "Same as your workspace", naming the value when it is known. */
+@Composable
+private fun inheritChoiceLabel(valueLabel: String?): String =
+    if (valueLabel == null) {
+        t("settingsMore.inheritSame")
+    } else {
+        t("settingsMore.inheritSameNamed", "value" to valueLabel)
+    }
 
 private val RING_SECOND_CHOICES = listOf(15, 20, 30, 45)
 

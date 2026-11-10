@@ -47,6 +47,10 @@ import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.northAmericanTimeZoneIds
 import com.loonext.android.core.model.timezoneProvenanceLabel
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -89,6 +93,7 @@ import com.loonext.android.core.net.ApiException
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.DsChip
+import com.loonext.android.ui.common.choicesBesideDefault
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
@@ -1363,7 +1368,14 @@ private fun ContactLanguageRow(
                         text = { Text(inheritLabel) },
                         onClick = { expanded = false; apply(null) },
                     )
-                    MessageLocale.ALL.forEach { candidate ->
+                    // #717: the workspace's own language is the inherit choice
+                    // above, so it is offered a second time only when this
+                    // contact is already set to it.
+                    choicesBesideDefault(
+                        MessageLocale.ALL,
+                        companyLocale.takeIf { it in MessageLocale.ALL },
+                        contact.locale,
+                    ).forEach { candidate ->
                         DropdownMenuItem(
                             text = { Text(MessageLocale.label(candidate)) },
                             onClick = { expanded = false; apply(candidate) },
@@ -1680,6 +1692,13 @@ internal fun AutosaveField(
     placeholder: String,
     singleLine: Boolean,
     save: suspend (String?) -> Unit,
+    /**
+     * #717: no visible border until focus and no floating label, for a field
+     * that sits in a record panel's header or sections. The label still names
+     * the field to a screen reader.
+     */
+    quiet: Boolean = false,
+    textStyle: androidx.compose.ui.text.TextStyle? = null,
 ) {
     var value by remember(fieldKey) { mutableStateOf(initial) }
     var lastSaved by remember(fieldKey) { mutableStateOf(initial) }
@@ -1703,11 +1722,21 @@ internal fun AutosaveField(
         OutlinedTextField(
             value = value,
             onValueChange = { value = it.take(maxLength) },
-            label = { Text(label) },
+            label = if (quiet) null else ({ Text(label) }),
             placeholder = { Text(placeholder) },
             singleLine = singleLine,
-            minLines = if (singleLine) 1 else 3,
-            modifier = Modifier.fillMaxWidth(),
+            minLines = if (singleLine || quiet) 1 else 3,
+            textStyle = textStyle ?: LocalTextStyle.current,
+            colors = if (quiet) {
+                OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                )
+            } else {
+                OutlinedTextFieldDefaults.colors()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { if (quiet) contentDescription = label },
         )
         Text(
             when (state) {

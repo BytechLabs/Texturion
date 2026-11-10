@@ -84,11 +84,11 @@ class MessageLocaleTest {
         // somebody back to following the workspace, and one that said "Default"
         // would not say what the default currently is.
         assertEquals(
-            "Same as workspace (English)",
+            "Workspace default (English)",
             MessageLocale.inheritLabel(MessageLocale.EN),
         )
         assertEquals(
-            "Same as workspace (Francais (Canada))",
+            "Workspace default (Francais (Canada))",
             MessageLocale.inheritLabel(MessageLocale.FR_CA),
         )
     }
@@ -109,7 +109,7 @@ class MessageLocaleTest {
         // Web and iOS degrade identically, which is the point: three clients
         // showing three different answers to the same unknown is the drift this
         // control was added to remove.
-        assertEquals("Same as workspace", MessageLocale.inheritLabel("de"))
-        assertEquals("Same as workspace", MessageLocale.inheritLabel(null))
+        assertEquals("Workspace default", MessageLocale.inheritLabel("de"))
+        assertEquals("Workspace default", MessageLocale.inheritLabel(null))
     }
 }

@@ -723,6 +723,14 @@ private fun ThreadLoaded(
         }.onSuccess { hasJobToday = it.data.isNotEmpty() }
     }
 
+    val callOrAskForMic: () -> Unit = {
+        if (softphone.hasMicPermission()) {
+            placeCall()
+        } else {
+            micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
     Column(Modifier.fillMaxSize()) {
         ThreadHeader(
             graph = graph,
@@ -735,13 +743,7 @@ private fun ThreadLoaded(
             canDelete = canDelete,
             onBack = onBack,
             calling = placingCall,
-            onCall = {
-                if (softphone.hasMicPermission()) {
-                    placeCall()
-                } else {
-                    micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                }
-            },
+            onCall = callOrAskForMic,
             onOpenContactPanel = { contactPanelOpen = true },
             onOpenGallery = onOpenGallery,
         )
@@ -1479,6 +1481,11 @@ private fun ThreadLoaded(
                 }
             },
             onDismiss = { contactPanelOpen = false },
+            onCall = {
+                contactPanelOpen = false
+                callOrAskForMic()
+            },
+            calling = placingCall,
         )
     }
 

@@ -431,8 +431,8 @@ object ContactsTasksStrings : AppStrings.Section {
         // named variant is what the option is FOR: an inherit option that does
         // not say what it inherits is a setting somebody leaves the screen to
         // understand.
-        "contactsTasks.sameAsWorkspace" to "Same as workspace",
-        "contactsTasks.sameAsWorkspaceNamed" to "Same as workspace ({language})",
+        "contactsTasks.sameAsWorkspace" to "Workspace default",
+        "contactsTasks.sameAsWorkspaceNamed" to "Workspace default ({language})",
         "contactsTasks.setByCrew" to "Set by your crew",
         "contactsTasks.useAreaCode" to "Use their area code",
         "contactsTasks.localeCaveat" to
@@ -1266,9 +1266,9 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.keepContact" to "Conserver le client",
         "contactsTasks.theirTime" to "Son heure",
         "contactsTasks.theirLanguage" to "Sa langue",
-        "contactsTasks.sameAsWorkspace" to "Comme l'espace de travail",
+        "contactsTasks.sameAsWorkspace" to "Langue de l'espace de travail",
         "contactsTasks.sameAsWorkspaceNamed" to
-            "Comme l'espace de travail ({language})",
+            "Langue de l'espace de travail ({language})",
         "contactsTasks.setByCrew" to "Défini par votre équipe",
         "contactsTasks.useAreaCode" to "Utiliser son indicatif régional",
         "contactsTasks.localeCaveat" to
