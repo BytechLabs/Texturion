@@ -4,6 +4,7 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.core.model.AcknowledgeResult
 import com.loonext.android.core.model.Attachment
+import com.loonext.android.core.model.BlockedSender
 import com.loonext.android.features.inbox.SAVED_VIEW_COUNT_MAX_VIEWS
 import com.loonext.android.features.inbox.SavedView
 import com.loonext.android.features.inbox.SavedViewCounts
@@ -124,6 +125,9 @@ internal data class CreateSavedViewBody(
     val filters: JsonObject,
     val shared: Boolean,
 )
+
+@Serializable
+internal data class BlockSenderBody(val phone_e164: String)
 
 @Serializable
 internal data class RenameSavedViewBody(val name: String)
@@ -427,6 +431,17 @@ class MessagingRepository(private val api: ApiClient) {
             else put("assigned_user_id", userId)
         },
     )
+
+    /** #696: the numbers this workspace sends straight to spam. */
+    suspend fun blockedSenders(companyId: String): List<BlockedSender> =
+        api.get<Page<BlockedSender>>("/v1/blocked-senders", companyId = companyId).data
+
+    /** #696: idempotent, so a double tap blocks once. */
+    suspend fun blockSender(companyId: String, phoneE164: String): BlockedSender =
+        api.post("/v1/blocked-senders", body = BlockSenderBody(phoneE164), companyId = companyId)
+
+    suspend fun unblockSender(companyId: String, id: String) =
+        api.delete("/v1/blocked-senders/$id", companyId = companyId)
 
     suspend fun setSpam(companyId: String, conversationId: String, spam: Boolean): Conversation =
         patchConversation(companyId, conversationId, buildJsonObject { put("is_spam", spam) })

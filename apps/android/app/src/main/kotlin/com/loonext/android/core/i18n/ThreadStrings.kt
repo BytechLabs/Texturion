@@ -133,6 +133,20 @@ object ThreadStrings : AppStrings.Section {
             "This is recorded in the conversation timeline.",
         "thread.optOut" to "Opt out",
         "thread.optOutOfTexts" to "Opt out of texts",
+
+        // --- Block a number (#696) -------------------------------------------
+        "thread.blockNumber" to "Block number",
+        "thread.unblockNumber" to "Unblock number",
+        "thread.blockTitle" to "Block this number?",
+        "thread.blockBody" to
+            "Future texts and calls from this number go straight to spam. " +
+            "You can still text them.",
+        "thread.blockConfirm" to "Block",
+        "thread.numberBlocked" to "Number blocked",
+        "thread.numberUnblocked" to "Number unblocked",
+        "thread.blockedBadge" to "Blocked",
+        "thread.blockCaption" to "Sends its future texts and calls to spam",
+        "thread.unblockCaption" to "Its texts and calls go straight to spam",
         "thread.revokeTitle" to "Remove the opt-out?",
         "thread.revokeBody" to
             "You'll be able to text this customer again. Only do this if they " +
@@ -810,6 +824,20 @@ object ThreadStrings : AppStrings.Section {
             "retiré. C'est inscrit dans l'historique de la conversation.",
         "thread.optOut" to "Désabonner",
         "thread.optOutOfTexts" to "Désabonner des textos",
+
+        // --- Bloquer un numéro (#696) ----------------------------------------
+        "thread.blockNumber" to "Bloquer ce numéro",
+        "thread.unblockNumber" to "Débloquer ce numéro",
+        "thread.blockTitle" to "Bloquer ce numéro ?",
+        "thread.blockBody" to
+            "Les prochains textos et appels de ce numéro iront directement aux " +
+            "pourriels. Vous pouvez quand même lui écrire.",
+        "thread.blockConfirm" to "Bloquer",
+        "thread.numberBlocked" to "Numéro bloqué",
+        "thread.numberUnblocked" to "Numéro débloqué",
+        "thread.blockedBadge" to "Bloqué",
+        "thread.blockCaption" to "Envoie ses prochains textos et appels aux pourriels",
+        "thread.unblockCaption" to "Ses textos et appels vont directement aux pourriels",
         "thread.revokeTitle" to "Retirer le désabonnement ?",
         "thread.revokeBody" to
             "Vous pourrez de nouveau texter ce client. Ne faites ceci que s'il " +

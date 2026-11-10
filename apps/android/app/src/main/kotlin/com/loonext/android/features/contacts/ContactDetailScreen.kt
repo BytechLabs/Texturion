@@ -74,6 +74,8 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
+import com.loonext.android.core.model.BlockedSender
+import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ContactAddressBody
 import com.loonext.android.core.model.ContactFieldDef
@@ -307,6 +309,16 @@ private fun ContactDetailBody(
     }
 
     var confirmOptOut by remember(contact.id) { mutableStateOf(false) }
+    var confirmBlock by remember(contact.id) { mutableStateOf(false) }
+
+    // #696: is this number on the block list? Quiet on failure: the action
+    // then reads as "Block number", and blocking twice is harmless.
+    val messaging = remember(graph) { MessagingRepository(graph.api) }
+    var blockedSender by remember(contact.id) { mutableStateOf<BlockedSender?>(null) }
+    LaunchedEffect(companyId, contact.phone_e164) {
+        runCatching { messaging.blockedSenders(companyId) }
+            .onSuccess { rows -> blockedSender = rows.firstOrNull { it.phone_e164 == contact.phone_e164 } }
+    }
     var confirmDelete by remember(contact.id) { mutableStateOf(false) }
     var working by remember(contact.id) { mutableStateOf(false) }
 
@@ -915,6 +927,24 @@ private fun ContactDetailBody(
                 )
                 Spacer(Modifier.height(10.dp))
             }
+            val blocked = blockedSender
+            FooterAction(
+                label = if (blocked != null) t("thread.unblockNumber") else t("thread.blockNumber"),
+                caption = if (blocked != null) t("thread.unblockCaption") else t("thread.blockCaption"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                enabled = !working,
+                onClick = {
+                    if (blocked != null) {
+                        runAction {
+                            messaging.unblockSender(companyId, blocked.id)
+                            blockedSender = null
+                        }
+                    } else {
+                        confirmBlock = true
+                    }
+                },
+            )
+            Spacer(Modifier.height(10.dp))
             FooterAction(
                 label = t("contactsTasks.deleteContact"),
                 caption = t("contactsTasks.deleteContactCaption"),
@@ -956,6 +986,31 @@ private fun ContactDetailBody(
             },
             dismissButton = {
                 TextButton(onClick = { confirmOptOut = false }) { Text(t("common.cancel")) }
+            },
+        )
+    }
+
+    if (confirmBlock) {
+        AlertDialog(
+            onDismissRequest = { confirmBlock = false },
+            title = { Text(t("thread.blockTitle")) },
+            text = { Text(t("thread.blockBody")) },
+            confirmButton = {
+                TextButton(
+                    enabled = !working,
+                    onClick = {
+                        haptics.reject()
+                        confirmBlock = false
+                        runAction {
+                            blockedSender = messaging.blockSender(companyId, contact.phone_e164)
+                        }
+                    },
+                ) {
+                    Text(t("thread.blockConfirm"), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmBlock = false }) { Text(t("common.cancel")) }
             },
         )
     }

@@ -104,6 +104,14 @@ class ThreadControllerTest {
     /** #607: how many times the audit timeline has been read from the server. */
     private val eventFetches = AtomicInteger(0)
 
+    /** #696: what GET /v1/blocked-senders answers with, as the raw `data` array. */
+    @Volatile
+    private var blockedRows = "[]"
+
+    /** #696: the body of the last POST /v1/blocked-senders, and the last DELETE path. */
+    private val blockPosted = AtomicReference<String?>(null)
+    private val unblockedPath = AtomicReference<String?>(null)
+
     @Before
     fun setUp() {
         server = MockWebServer()
@@ -137,6 +145,22 @@ class ThreadControllerTest {
                     request.method == "GET" && path == "/v1/conversations/c1/events" -> {
                         eventFetches.incrementAndGet()
                         MockResponse(code = 200, body = """{"data":[]}""")
+                    }
+
+                    request.method == "GET" && path == "/v1/blocked-senders" ->
+                        MockResponse(code = 200, body = """{"data":$blockedRows}""")
+
+                    request.method == "POST" && path == "/v1/blocked-senders" -> {
+                        blockPosted.set(request.body?.utf8())
+                        MockResponse(
+                            code = 201,
+                            body = """{"id":"b1","phone_e164":"+15555550100","created_at":"2026-07-15T10:00:00Z"}""",
+                        )
+                    }
+
+                    request.method == "DELETE" && path.startsWith("/v1/blocked-senders/") -> {
+                        unblockedPath.set(path)
+                        MockResponse(code = 204)
                     }
 
                     // Every other secondary read is refetched inside runCatching,
@@ -331,6 +355,36 @@ class ThreadControllerTest {
         )
 
         awaitUntil { eventFetches.get() > before }
+    }
+
+    /**
+     * #696 — block and unblock from the thread.
+     *
+     * The wire is what can be wrong here: the block carries the thread's own
+     * E.164 number, and the unblock names the list row's id, not the number.
+     */
+    @Test
+    fun `blocking posts the thread's number and unblocking deletes the row`() {
+        val controller = controller()
+        controller.start()
+        awaitUntil { controller.load is LoadState.Ready }
+        assertEquals(null, controller.blockedSender)
+
+        controller.blockNumber()
+        awaitUntil { controller.blockedSender != null }
+        assertEquals("""{"phone_e164":"+15555550100"}""", blockPosted.get())
+
+        controller.unblockNumber()
+        awaitUntil { controller.blockedSender == null }
+        assertEquals("/v1/blocked-senders/b1", unblockedPath.get())
+    }
+
+    @Test
+    fun `a thread whose number is already blocked opens as blocked`() {
+        blockedRows = """[{"id":"b9","phone_e164":"+15555550100","created_at":"2026-07-15T10:00:00Z"}]"""
+        val controller = controller()
+        controller.start()
+        awaitUntil { controller.blockedSender?.id == "b9" }
     }
 
     // --- Harness --------------------------------------------------------------

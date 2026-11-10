@@ -24,6 +24,19 @@ object MessageStatus {
     const val FAILED = "failed"
 }
 
+/**
+ * #696: a number this workspace sends straight to spam. A block is the
+ * business's choice about its inbox, not an opt-out: the crew can still text it.
+ */
+@Serializable
+data class BlockedSender(
+    val id: String,
+    val phone_e164: String,
+    val reason: String? = null,
+    val blocked_by: String? = null,
+    val created_at: String = "",
+)
+
 @Serializable
 data class ContactSummary(
     val id: String,

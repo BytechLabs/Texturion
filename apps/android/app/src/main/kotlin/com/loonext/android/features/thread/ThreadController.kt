@@ -12,6 +12,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.MeRepository
 import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Attachment
+import com.loonext.android.core.model.BlockedSender
 import com.loonext.android.core.snooze.DeferralKind
 import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.core.model.CompanyView
@@ -181,6 +182,10 @@ class ThreadController(
         private set
     var company by mutableStateOf<CompanyView?>(null)
         private set
+
+    /** #696: this thread's number on the block list, or null when it is not. */
+    var blockedSender by mutableStateOf<BlockedSender?>(null)
+        private set
     var usage by mutableStateOf<Usage?>(null)
         private set
     var filter by mutableStateOf(ThreadFilter())
@@ -317,6 +322,41 @@ class ThreadController(
             persistSnapshot()
         }
         scope.launch { runCatching { refreshScheduled() } }
+        scope.launch { runCatching { refreshBlocked() } }
+    }
+
+    private fun threadPhone(): String? =
+        contact?.phone_e164 ?: conversation?.contact?.phone_e164
+
+    private suspend fun refreshBlocked() {
+        val phone = threadPhone() ?: return
+        blockedSender = repo.blockedSenders(companyId).firstOrNull { it.phone_e164 == phone }
+    }
+
+    /** #696: future texts and calls from this number go straight to spam. */
+    fun blockNumber() {
+        val phone = threadPhone() ?: return
+        scope.launch {
+            try {
+                blockedSender = repo.blockSender(companyId, phone)
+                notify(say("thread.numberBlocked"))
+            } catch (cause: Exception) {
+                notify(cause.userMessageForReader())
+            }
+        }
+    }
+
+    fun unblockNumber() {
+        val blocked = blockedSender ?: return
+        scope.launch {
+            try {
+                repo.unblockSender(companyId, blocked.id)
+                blockedSender = null
+                notify(say("thread.numberUnblocked"))
+            } catch (cause: Exception) {
+                notify(cause.userMessageForReader())
+            }
+        }
     }
 
     /**

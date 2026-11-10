@@ -1490,9 +1490,11 @@ private fun ThreadHeader(
     val haptics = rememberHaptics()
     val locale = LocalAppLocale.current
     val optedOutWord = t("thread.optedOut")
+    val blockedWord = t("thread.blockedBadge")
     var menuOpen by remember { mutableStateOf(false) }
     var assigneeSheetOpen by remember { mutableStateOf(false) }
     var confirmOptOut by remember { mutableStateOf(false) }
+    var confirmBlock by remember { mutableStateOf(false) }
     var confirmRevoke by remember { mutableStateOf(false) }
 
     // Paper pill header (spec 21/30): back · avatar · name + status line ·
@@ -1587,6 +1589,10 @@ private fun ThreadHeader(
                         if (controller.contact?.opted_out == true) {
                             append(" · ")
                             append(optedOutWord)
+                        }
+                        if (controller.blockedSender != null) {
+                            append(" · ")
+                            append(blockedWord)
                         }
                     }
                     Row(
@@ -1721,6 +1727,10 @@ private fun ThreadHeader(
                 menuOpen = false
                 confirmRevoke = true
             },
+            onBlock = {
+                menuOpen = false
+                confirmBlock = true
+            },
             onDismiss = { menuOpen = false },
         )
     }
@@ -1755,6 +1765,23 @@ private fun ThreadHeader(
             },
             dismissButton = {
                 TextButton(onClick = { confirmOptOut = false }) { Text(t("common.cancel")) }
+            },
+        )
+    }
+    if (confirmBlock) {
+        AlertDialog(
+            onDismissRequest = { confirmBlock = false },
+            title = { Text(t("thread.blockTitle")) },
+            text = { Text(t("thread.blockBody")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    haptics.reject()
+                    confirmBlock = false
+                    controller.blockNumber()
+                }) { Text(t("thread.blockConfirm")) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmBlock = false }) { Text(t("common.cancel")) }
             },
         )
     }
@@ -2059,6 +2086,7 @@ private fun ConversationSheet(
     onOpenGallery: () -> Unit,
     onOptOut: () -> Unit,
     onRevokeOptOut: () -> Unit,
+    onBlock: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val contactName = controller.contact?.name
@@ -2216,6 +2244,26 @@ private fun ConversationSheet(
                             onDismiss()
                         },
                     )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    // #696: a block sends this number's future texts and calls
+                    // straight to spam. Unblocking needs no confirmation: it
+                    // only lets the next one through.
+                    if (controller.blockedSender != null) {
+                        SheetActionRow(
+                            icon = Icons.Outlined.Undo,
+                            label = t("thread.unblockNumber"),
+                            onClick = {
+                                onDismiss()
+                                controller.unblockNumber()
+                            },
+                        )
+                    } else {
+                        SheetActionRow(
+                            icon = Icons.Outlined.Block,
+                            label = t("thread.blockNumber"),
+                            onClick = onBlock,
+                        )
+                    }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     if (controller.contact?.opted_out == true) {
                         // #407: a STOP the customer sent is a CARRIER block,
