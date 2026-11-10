@@ -104,13 +104,22 @@ struct ContactsTab: View {
     /// and for a read that failed: the chips simply do not appear.
     @State private var fieldFilter: ContactFieldFilter?
     @State private var fieldDefs: [ContactFieldDef] = []
+    /// #695: narrow to one workspace tag, and the tags the chips come from.
+    @State private var tagFilter: String?
+    @State private var workspaceTags: [Tag] = []
+    /// #695: the record the last merge folded in, while its Undo is on offer.
+    @State private var undoableMerge: String?
+    /// The notice the Undo belongs to, so a later, unrelated notice never wears
+    /// a button that would unmerge something else.
+    @State private var mergeNotice: String?
 
     /// The filter, flattened for the `.task(id:)` key. Two nils and two empty
     /// strings all have to be distinguishable, or changing an answer would not
     /// re-run the load.
     private var filterKey: String {
-        guard let filter = fieldFilter else { return "-" }
-        return "\(filter.key)=\(filter.value)"
+        let tag = tagFilter ?? "-"
+        guard let filter = fieldFilter else { return "-|\(tag)" }
+        return "\(filter.key)=\(filter.value)|\(tag)"
     }
 
     @State private var createOpen = false
@@ -174,13 +183,28 @@ struct ContactsTab: View {
                 onChange: { fieldFilter = $0 }
             )
             .padding(.horizontal, 18)
+            // #695: one more row of chips, absent until the workspace has a tag.
+            ContactTagFilter(tags: workspaceTags, active: tagFilter) { tagFilter = $0 }
+                .padding(.horizontal, 18)
+                .padding(.top, workspaceTags.isEmpty ? 0 : 6)
             if let notice {
-                Text(notice)
-                    .font(.golos(11.5))
-                    .foregroundStyle(BrandColor.muted600)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 18)
-                    .padding(.top, 2)
+                HStack(spacing: 10) {
+                    Text(notice)
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted600)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // #695: a merge removes a record from view, so it offers
+                    // Undo (docs/UNDO-AUDIT.md). Undo is the unmerge of the
+                    // record that was folded in.
+                    if let folded = undoableMerge, notice == mergeNotice {
+                        Button(t("inbox.undo")) { undoMerge(folded) }
+                            .buttonStyle(.plain)
+                            .font(.golos(11.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.muted700)
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 2)
             }
             content
             actionsRow
@@ -210,6 +234,13 @@ struct ContactsTab: View {
                 fieldDefs = response.data
             }
         }
+        // #695: the workspace's tags, for the filter chips. Re-read after a
+        // merge or an edit so a tag created on a customer's page shows up.
+        .task(id: "tags|\(companyId)|\(refreshKey)") {
+            if let page = try? await mutations.tags(companyId: companyId) {
+                workspaceTags = page.data
+            }
+        }
         .task(id: companyId) {
             if me == nil {
                 resolvedMe = try? await graph.meApi.me()
@@ -225,7 +256,8 @@ struct ContactsTab: View {
             // The notice line is a transient snackbar equivalent — it clears
             // itself; a new notice restarts the clock.
             guard notice != nil else { return }
-            try? await Task.sleep(for: .seconds(5))
+            // #295: an undoable notice stays up twice as long (UNDO-AUDIT §3).
+            try? await Task.sleep(for: .seconds(notice == mergeNotice ? 10 : 5))
             if Task.isCancelled { return }
             notice = nil
         }
@@ -414,7 +446,7 @@ struct ContactsTab: View {
         if !debouncedQ.isEmpty {
             return t("contactsTasks.noMatchesFor", ["query": debouncedQ])
         }
-        if fieldFilter != nil {
+        if fieldFilter != nil || tagFilter != nil {
             // The two constants are catalogue KEYS now, not sentences — see the
             // note at the foot of ContactFilter.swift for why the parity test
             // wants the identifier to appear on THIS screen. Same shape as
@@ -457,8 +489,9 @@ struct ContactsTab: View {
                         mutations: mutations,
                         companyId: companyId,
                         canMerge: canImport,
-                        onMerged: { result in
+                        onMerged: { result, foldedId in
                             refreshKey += 1
+                            undoableMerge = foldedId
                             // The opt-out union is said out loud: a merge can
                             // leave the survivor opted out when the record the
                             // user kept was not, and nothing else on screen
@@ -466,6 +499,7 @@ struct ContactsTab: View {
                             notice = result.opted_out
                                 ? t("contactsTasks.mergedOptedOut")
                                 : t("contactsTasks.merged")
+                            mergeNotice = notice
                         }
                     )
 
@@ -640,7 +674,8 @@ struct ContactsTab: View {
                 q: debouncedQ.isEmpty ? nil : debouncedQ,
                 limit: 50,
                 field: fieldFilter?.key,
-                value: fieldFilter?.value
+                value: fieldFilter?.value,
+                tagId: tagFilter
             )
             rows = page.data
             nextCursor = page.next_cursor
@@ -654,11 +689,26 @@ struct ContactsTab: View {
             // #291: a FILTERED list never keeps the rows already on screen
             // either — under a new filter those rows are precisely what was
             // excluded, which is the same failure as a fallen-through search.
-            if rows.isEmpty || !debouncedQ.isEmpty || fieldFilter != nil {
+            if rows.isEmpty || !debouncedQ.isEmpty || fieldFilter != nil || tagFilter != nil {
                 rows = []
                 nextCursor = nil
                 state = .failed(error.userMessage)
             } else {
+                notice = error.userMessage
+            }
+        }
+    }
+
+    /// #695: take back the last merge. The notice and the Undo go either way:
+    /// a success is shown by the record coming back, a failure by its message.
+    private func undoMerge(_ foldedId: String) {
+        undoableMerge = nil
+        Task {
+            do {
+                try await mutations.unmerge(companyId: companyId, mergedContactId: foldedId)
+                refreshKey += 1
+                notice = t("contactsTasks.mergedUndone")
+            } catch {
                 notice = error.userMessage
             }
         }
@@ -673,7 +723,10 @@ struct ContactsTab: View {
                     companyId: companyId,
                     q: debouncedQ.isEmpty ? nil : debouncedQ,
                     cursor: cursor,
-                    limit: 50
+                    limit: 50,
+                    field: fieldFilter?.key,
+                    value: fieldFilter?.value,
+                    tagId: tagFilter
                 )
                 rows += page.data
                 nextCursor = page.next_cursor

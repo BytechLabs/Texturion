@@ -22,7 +22,9 @@ struct DuplicateContactsCard: View {
     /// Handed the result rather than a bare signal, because the opt-out union
     /// is the one outcome the crew has to be told about — a merged contact can
     /// come out opted out when neither record they were looking at said so.
-    let onMerged: @MainActor (ContactMergeResult) -> Void
+    /// #695: and WHICH record was folded in, because that id is what the Undo
+    /// (an unmerge) acts on.
+    let onMerged: @MainActor (ContactMergeResult, String) -> Void
 
     @State private var pairs: [DuplicatePair] = []
     @State private var refreshKey = 0
@@ -67,7 +69,7 @@ struct DuplicateContactsCard: View {
                 mutations: mutations,
                 companyId: companyId,
                 pair: pair,
-                onMerged: { result in
+                onMerged: { result, foldedId in
                     // #556: confirm(), matching Android. Two records becoming
                     // one is the kind of change somebody wants told about in
                     // the hand as well as on the screen — it is not undoable
@@ -75,7 +77,7 @@ struct DuplicateContactsCard: View {
                     Haptics.confirm()
                     merging = nil
                     refreshKey += 1
-                    onMerged(result)
+                    onMerged(result, foldedId)
                 }
             )
         }
@@ -186,7 +188,7 @@ private struct MergeContactsSheet: View {
     let mutations: ContactMutations
     let companyId: String
     let pair: DuplicatePair
-    let onMerged: @MainActor (ContactMergeResult) -> Void
+    let onMerged: @MainActor (ContactMergeResult, String) -> Void
 
     @State private var keepFirst = true
     @State private var saving = false
@@ -310,7 +312,7 @@ private struct MergeContactsSheet: View {
                     fromContactId: foldedId,
                     intoContactId: survivorId
                 )
-                onMerged(result)
+                onMerged(result, foldedId)
             } catch {
                 self.error = error.userMessage
             }
@@ -331,7 +333,7 @@ private struct MergeContactsSheet: View {
             ),
             companyId: "preview-co",
             canMerge: true,
-            onMerged: { _ in }
+            onMerged: { _, _ in }
         )
     }
     .background(BrandColor.canvas)

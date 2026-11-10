@@ -25,6 +25,9 @@ struct ContactDetailView: View {
     /// Caller-ID name for softphone registration — the list tab passes the
     /// resolved member display name (the Android twin's callerIdName).
     var callerIdName: String = ""
+    /// #695: Unmerge is gated like merge (settings.manage); the line is for
+    /// everyone. Defaulted so the previews keep compiling.
+    var canUnmerge: Bool = false
 
     private enum DetailState {
         case loading
@@ -59,6 +62,9 @@ struct ContactDetailView: View {
     /// customer's OVERRIDE, and a nil override means "follow the workspace",
     /// so without this the screen cannot say which language it is following.
     @State private var companyLocale: String?
+    /// #695: the workspace's tag list, for the picker. Empty when the read
+    /// fails: the picker then offers only "new", and the server decides.
+    @State private var workspaceTags: [Tag] = []
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLocale) private var appLocale
@@ -125,6 +131,12 @@ struct ContactDetailView: View {
         .task(id: "language|\(companyId)") {
             if let me = try? await graph.meApi.me(companyId: companyId) {
                 companyLocale = me.company?.locale
+            }
+        }
+        // #695: the workspace's tags, once per workspace.
+        .task(id: "tags|\(companyId)") {
+            if let page = try? await mutations.tags(companyId: companyId) {
+                workspaceTags = page.data
             }
         }
         // #82: the primary button is contextual — find this contact's
@@ -283,8 +295,25 @@ struct ContactDetailView: View {
                 if contact.opted_out {
                     optedOutCard(contact)
                 }
+                // #695: only when a record was folded into this one.
+                if let mergedFrom = contact.merged_from {
+                    MergedFromRow(
+                        mergedFrom: mergedFrom,
+                        canUnmerge: canUnmerge,
+                        onUnmerge: {
+                            runAction {
+                                try await mutations.unmerge(
+                                    companyId: companyId,
+                                    mergedContactId: mergedFrom.id
+                                )
+                                refreshKey += 1
+                            }
+                        }
+                    )
+                }
                 consentCard(contact)
                 detailsCard(contact)
+                tagsCard(contact)
                 attributionCaption(contact)
                 conversationSection
                 // #324: ONE chronology of texts, calls and jobs. D7 threads by
@@ -1004,6 +1033,42 @@ struct ContactDetailView: View {
     /// §3.3: routine, reversible actions stay quiet — the confirm dialogs
     /// carry the weight. Opt out wears the spec's warm-brick label; delete
     /// stays muted.
+    /// #695: the tags this customer carries, from the workspace's one list.
+    private func tagsCard(_ contact: Contact) -> some View {
+        PaperCard {
+            ContactTagsRow(
+                tags: contact.tags ?? [],
+                available: workspaceTags,
+                onAdd: { tagId, name in
+                    runAction {
+                        _ = try await mutations.addTag(
+                            companyId: companyId,
+                            contactId: contact.id,
+                            tagId: tagId,
+                            name: name
+                        )
+                        // A new tag changes the list the picker offers.
+                        if tagId == nil,
+                           let page = try? await mutations.tags(companyId: companyId) {
+                            workspaceTags = page.data
+                        }
+                        refreshKey += 1
+                    }
+                },
+                onRemove: { tagId in
+                    runAction {
+                        try await mutations.removeTag(
+                            companyId: companyId,
+                            contactId: contact.id,
+                            tagId: tagId
+                        )
+                        refreshKey += 1
+                    }
+                }
+            )
+        }
+    }
+
     private func manageCard(_ contact: Contact) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(label: t("contactsTasks.manageThisContact"))

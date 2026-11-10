@@ -158,6 +158,38 @@ final class ContactsDataTests: XCTestCase {
         )
     }
 
+    // MARK: tags and merged_from (#695)
+
+    func testAContactCarriesItsTagsAndWhatWasMergedIn() throws {
+        let json = """
+        {"id":"c1","phone_e164":"+14165550123","name":"Dana","address":null,"notes":null,
+         "consent_source":null,"consent_at":null,"consent_attested_by":null,
+         "first_identification_sent_at":null,"deleted_at":null,
+         "created_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-01T00:00:00Z",
+         "last_activity_at":null,
+         "tags":[{"id":"t1","name":"Warranty","color":null}],
+         "merged_from":{"id":"c2","name":"Jane Smith","phone_e164":"+14165550100",
+                        "merged_at":"2026-11-02T15:00:00Z"}}
+        """
+        let contact = try JSONDecoder().decode(Contact.self, from: Data(json.utf8))
+        XCTAssertEqual(contact.tags?.map(\.name), ["Warranty"])
+        XCTAssertEqual(contact.merged_from?.id, "c2")
+        XCTAssertEqual(contact.merged_from?.name, "Jane Smith")
+    }
+
+    func testAContactWithoutTagsOrAMergeDecodesAsNone() throws {
+        let json = """
+        {"id":"c1","phone_e164":"+14165550123","name":null,"address":null,"notes":null,
+         "consent_source":null,"consent_at":null,"consent_attested_by":null,
+         "first_identification_sent_at":null,"deleted_at":null,
+         "created_at":"2026-07-01T00:00:00Z","updated_at":"2026-07-01T00:00:00Z",
+         "last_activity_at":null}
+        """
+        let contact = try JSONDecoder().decode(Contact.self, from: Data(json.utf8))
+        XCTAssertNil(contact.tags)
+        XCTAssertNil(contact.merged_from)
+    }
+
     // MARK: multipart form encoding
 
     func testMultipartFormBodyIsRfc2388Shaped() {

@@ -402,7 +402,9 @@ struct ContactsApi: Sendable {
         /// guessing either would filter somebody's list by a rule they did not
         /// choose.
         field: String? = nil,
-        value: String? = nil
+        value: String? = nil,
+        /// #695: only contacts carrying this workspace tag.
+        tagId: String? = nil
     ) async throws -> Page<Contact> {
         try await api.get(
             "/v1/contacts",
@@ -415,7 +417,8 @@ struct ContactsApi: Sendable {
                 // Sent even when empty: "" is a real answer on a custom field,
                 // and dropping it would silently widen the list back to
                 // everybody.
-                "value": field != nil ? (value ?? "") : nil
+                "value": field != nil ? (value ?? "") : nil,
+                "tag_id": tagId
             ],
             companyId: companyId
         )

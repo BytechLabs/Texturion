@@ -192,6 +192,33 @@ struct Contact: Codable, Sendable {
     var created_by_name: String? = nil
     var updated_by_user_id: String? = nil
     var updated_by_name: String? = nil
+    /// #695: the workspace tags this customer carries. Declared LAST with a
+    /// default so the memberwise initialiser every preview and test already
+    /// calls keeps compiling, and `var` for the reason `updated_by_name` states.
+    var tags: [ContactTag]? = nil
+    /// #695: the most recent record merged into this one, or nil. The Unmerge
+    /// action acts on THIS record's id.
+    var merged_from: MergedFrom? = nil
+}
+
+/// #695: a workspace tag as a contact carries it.
+struct ContactTag: Codable, Sendable, Identifiable {
+    let id: String
+    let name: String
+    var color: String? = nil
+}
+
+/// #695: the record a contact was merged from, and when. Unmerge takes `id`.
+struct MergedFrom: Codable, Sendable {
+    let id: String
+    let name: String?
+    let phone_e164: String
+    let merged_at: String
+}
+
+/// #695: `POST /v1/contacts/:id/unmerge`.
+struct ContactUnmergeResult: Codable, Sendable {
+    @Default<DefaultFalse> var unmerged: Bool
 }
 
 struct OptOut: Codable, Sendable {

@@ -476,7 +476,10 @@ struct ShellView: View {
                 onComposeNew: {
                     activeSheet = .compose(prefillContactId: $0, prefillPhone: nil)
                 },
-                callerIdName: hydratedMe.display_name
+                callerIdName: hydratedMe.display_name,
+                // #695: Unmerge is gated like merge, which the server holds to
+                // settings.manage (owner and admin).
+                canUnmerge: MemberRole.atLeast(role, required: MemberRole.admin)
             )
             // Edits/opt-outs/deletes made in the detail show on return to the
             // contacts list (no realtime for contact mutations on iOS).
