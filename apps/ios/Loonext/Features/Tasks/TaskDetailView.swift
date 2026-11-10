@@ -27,6 +27,11 @@ struct TaskDetailView: View {
     @State private var members: [Member] = []
     @State private var refreshKey = 0
     @State private var actionError: String?
+    // #689: the task's own history and comments, oldest first.
+    @State private var feed: [TaskFeedItem] = []
+    @State private var feedCursor: String?
+    @State private var feedLoaded = false
+    @State private var feedFailed = false
 
     @State private var pickerOpen = false
     @State private var duePickerOpen = false
@@ -75,7 +80,10 @@ struct TaskDetailView: View {
                 }
             }
         }
-        .task(id: "\(taskId)|\(refreshKey)") { await load() }
+        .task(id: "\(taskId)|\(refreshKey)") {
+            await load()
+            await loadFeed()
+        }
         .task(id: companyId) {
             if let page = try? await mutations.members(companyId: companyId) {
                 members = page.data
@@ -176,6 +184,36 @@ struct TaskDetailView: View {
                 // Keep data on a quiet refresh failure.
             } else {
                 state = .failed(message: error.userMessage, notFound: false)
+            }
+        }
+    }
+
+    private func loadFeed() async {
+        guard detail?.viewer_level != "none" else { return }
+        do {
+            let page = try await mutations.activity(companyId: companyId, taskId: taskId)
+            feed = page.data
+            feedCursor = page.next_cursor
+            feedFailed = false
+        } catch {
+            if !(error is CancellationError) { feedFailed = true }
+        }
+        feedLoaded = true
+    }
+
+    private func loadEarlier() {
+        guard let cursor = feedCursor else { return }
+        Task {
+            do {
+                let page = try await mutations.activity(
+                    companyId: companyId,
+                    taskId: taskId,
+                    cursor: cursor
+                )
+                feed = page.data + feed
+                feedCursor = page.next_cursor
+            } catch {
+                actionError = error.userMessage
             }
         }
     }
@@ -393,13 +431,14 @@ struct TaskDetailView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 16)
             }
-            // A task with no conversation (#689) has no thread to post a note in.
-            if !noAccess, let noteConversationId = detail.conversation_id {
+            // A message task posts notes in its thread; any other task takes
+            // comments on the task itself (#689).
+            if !noAccess, detail.message_id == nil || detail.conversation_id != nil {
                 NoteComposer(
                     mutations: mutations,
                     multipart: MultipartClient(api: graph.api, sessionStore: graph.sessionStore),
                     companyId: companyId,
-                    conversationId: noteConversationId,
+                    conversationId: detail.message_id == nil ? nil : detail.conversation_id,
                     taskId: detail.id,
                     onPosted: { refreshKey += 1 }
                 )
@@ -845,23 +884,57 @@ struct TaskDetailView: View {
     private func activitySection(_ detail: TaskDetail) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel(AppStrings.translate(appLocale, "contactsTasks.activity"))
-            if detail.activity.isEmpty {
-                Text(AppStrings.translate(appLocale, "contactsTasks.activityEmpty"))
+            if feedFailed && feed.isEmpty {
+                Text(AppStrings.translate(appLocale, "contactsTasks.activityLoadFailed"))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted500)
+            } else if feedLoaded && feed.isEmpty {
+                Text(
+                    AppStrings.translate(
+                        appLocale,
+                        detail.message_id == nil
+                            ? "contactsTasks.activityEmptyComment"
+                            : "contactsTasks.activityEmpty"
+                    )
+                )
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted500)
             }
-            ForEach(detail.activity, id: \.id) { item in
+            if feedCursor != nil {
+                Button(AppStrings.translate(appLocale, "contactsTasks.activityEarlier")) {
+                    loadEarlier()
+                }
+                .font(.golos(13))
+            }
+            ForEach(feed, id: \.id) { item in
                 if item.kind == "note" {
                     NoteCard(
-                        author: authorName(item),
+                        author: feedName(item.author),
                         body: item.body ?? "",
                         createdAt: item.created_at
                     )
-                } else if let sentence = taskEventSentence(
-                    item,
-                    by: actorName(item),
-                    memberName: memberName
-                ) {
+                } else if item.kind == "comment" {
+                    CommentCard(
+                        item: item,
+                        author: feedName(item.author),
+                        canEdit: item.author?.user_id == me.user_id,
+                        canDelete: item.author?.user_id == me.user_id
+                            || MemberRole.atLeast(
+                                me.memberships.first { $0.company_id == companyId }?.role,
+                                required: MemberRole.admin
+                            ),
+                        mutations: mutations,
+                        companyId: companyId,
+                        taskId: detail.id,
+                        onChanged: { refreshKey += 1 },
+                        onError: { actionError = $0 }
+                    )
+                } else {
+                    let sentence = taskHistorySentence(
+                        item,
+                        by: item.actor == nil ? "Loonext" : feedName(item.actor),
+                        locale: appLocale
+                    )
                     // Spec 23: a muted dot bullet + quiet sentence per event.
                     HStack(alignment: .firstTextBaseline, spacing: 9) {
                         Circle()
@@ -886,15 +959,10 @@ struct TaskDetailView: View {
         }
     }
 
-    private func authorName(_ item: TaskActivityItem) -> String {
-        if let name = item.author?.display_name, !name.isBlank { return name }
-        return memberName(item.author_user_id)
+    private func feedName(_ person: TaskProfile?) -> String {
+        if let name = person?.display_name, !name.isBlank { return name }
+        return memberName(person?.user_id)
             ?? AppStrings.translate(appLocale, "contactsTasks.teammate")
-    }
-
-    private func actorName(_ item: TaskActivityItem) -> String {
-        if let name = item.actor?.display_name, !name.isBlank { return name }
-        return memberName(item.actor_user_id) ?? "Loonext"
     }
 
     private func sectionLabel(_ text: String) -> some View {
@@ -1366,6 +1434,153 @@ private struct NoteCard: View {
     }
 }
 
+// MARK: - Comment
+
+/// A comment on the task (#689): author and time, text, files, and edit/delete
+/// for whoever may.
+private struct CommentCard: View {
+    let item: TaskFeedItem
+    let author: String
+    let canEdit: Bool
+    let canDelete: Bool
+    let mutations: TaskMutations
+    let companyId: String
+    let taskId: String
+    let onChanged: @MainActor () -> Void
+    let onError: @MainActor (String?) -> Void
+
+    @State private var editing = false
+    @State private var draft = ""
+    @State private var saving = false
+
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(author)
+                    .font(.golos(12.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                Text(timeLine)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted600)
+                Spacer()
+                if (canEdit || canDelete) && !editing {
+                    Menu {
+                        if canEdit {
+                            Button(AppStrings.translate(appLocale, "contactsTasks.commentEdit")) {
+                                draft = item.body ?? ""
+                                editing = true
+                            }
+                        }
+                        if canDelete {
+                            Button(
+                                AppStrings.translate(appLocale, "contactsTasks.commentDelete"),
+                                role: .destructive
+                            ) {
+                                delete()
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .foregroundStyle(BrandColor.muted500)
+                            .frame(width: 32, height: 32)
+                    }
+                    .accessibilityLabel(
+                        AppStrings.translate(appLocale, "contactsTasks.commentActions")
+                    )
+                }
+            }
+            if editing {
+                TextField("", text: $draft, axis: .vertical)
+                    .font(.golos(13))
+                    .lineLimit(1 ... 6)
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    Button(AppStrings.translate(appLocale, "contactsTasks.commentSave")) {
+                        save()
+                    }
+                    .disabled(saving || draft.isBlank)
+                    Button(AppStrings.translate(appLocale, "common.cancel")) {
+                        editing = false
+                    }
+                }
+                .font(.golos(13))
+            } else {
+                Text(item.body ?? "")
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.ink)
+            }
+            if let files = item.attachments, !files.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(files, id: \.id) { file in
+                            AttachmentCell(
+                                item: TaskAttachmentItem(
+                                    id: file.id,
+                                    source: "task_comment",
+                                    kind: (file.content_type ?? "").hasPrefix("image/")
+                                        ? "image" : "file",
+                                    file_name: file.file_name,
+                                    content_type: file.content_type,
+                                    size_bytes: file.size_bytes,
+                                    created_at: file.created_at
+                                ),
+                                mutations: mutations,
+                                companyId: companyId,
+                                onError: onError
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var timeLine: String {
+        let when = relativeTime(item.created_at)
+        guard item.edited_at != nil else { return when }
+        return "\(when) · \(AppStrings.translate(appLocale, "contactsTasks.commentEdited"))"
+    }
+
+    private func save() {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        saving = true
+        Task {
+            do {
+                _ = try await mutations.editComment(
+                    companyId: companyId,
+                    taskId: taskId,
+                    commentId: item.id,
+                    body: text
+                )
+                editing = false
+                onChanged()
+            } catch {
+                onError(error.userMessage)
+            }
+            saving = false
+        }
+    }
+
+    private func delete() {
+        Task {
+            do {
+                try await mutations.deleteComment(
+                    companyId: companyId,
+                    taskId: taskId,
+                    commentId: item.id
+                )
+                onChanged()
+            } catch {
+                onError(error.userMessage)
+            }
+        }
+    }
+}
+
 // MARK: - Composer
 
 /// One staged composer file (bytes read at post time, not at pick time).
@@ -1386,7 +1601,8 @@ private struct NoteComposer: View {
     let mutations: TaskMutations
     let multipart: MultipartClient
     let companyId: String
-    let conversationId: String
+    /// Nil posts a comment on the task instead of a note in its thread.
+    let conversationId: String?
     let taskId: String
     let onPosted: @MainActor () -> Void
 
@@ -1449,7 +1665,12 @@ private struct NoteComposer: View {
                     AppStrings.translate(appLocale, "contactsTasks.attachFiles")
                 )
                 TextField(
-                    AppStrings.translate(appLocale, "contactsTasks.noteComposerTeam"),
+                    AppStrings.translate(
+                        appLocale,
+                        conversationId == nil
+                            ? "contactsTasks.commentPlaceholder"
+                            : "contactsTasks.noteComposerTeam"
+                    ),
                     text: $body_,
                     axis: .vertical
                 )
@@ -1471,9 +1692,14 @@ private struct NoteComposer: View {
                         .background(BrandColor.ink, in: Circle())
                 }
                 .buttonStyle(.borderless)
-                .disabled(posting || (body_.isBlank && staged.isEmpty))
+                .disabled(
+                    posting || (body_.isBlank && (conversationId == nil || staged.isEmpty))
+                )
                 .accessibilityLabel(
-                    AppStrings.translate(appLocale, "contactsTasks.postNote")
+                    AppStrings.translate(
+                        appLocale,
+                        conversationId == nil ? "contactsTasks.postComment" : "contactsTasks.postNote"
+                    )
                 )
             }
             .padding(.leading, 14)
@@ -1541,12 +1767,21 @@ private struct NoteComposer: View {
         let files = staged
         Task {
             do {
-                let note = try await mutations.postNote(
-                    companyId: companyId,
-                    conversationId: conversationId,
-                    body: text,
-                    taskId: taskId
-                )
+                let ownerId: String
+                if let conversationId {
+                    ownerId = try await mutations.postNote(
+                        companyId: companyId,
+                        conversationId: conversationId,
+                        body: text,
+                        taskId: taskId
+                    ).id
+                } else {
+                    ownerId = try await mutations.addComment(
+                        companyId: companyId,
+                        taskId: taskId,
+                        body: text
+                    ).id
+                }
                 var failures = 0
                 for file in files {
                     let accessing = file.url.startAccessingSecurityScopedResource()
@@ -1559,10 +1794,11 @@ private struct NoteComposer: View {
                     do {
                         try await multipart.uploadNoteFile(
                             companyId: companyId,
-                            noteId: note.id,
+                            noteId: ownerId,
                             fileName: file.name,
                             contentType: file.contentType,
-                            bytes: bytes
+                            bytes: bytes,
+                            ownerType: conversationId == nil ? "task_comment" : "note"
                         )
                     } catch {
                         failures += 1

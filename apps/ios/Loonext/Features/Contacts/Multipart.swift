@@ -149,12 +149,14 @@ extension MultipartClient {
         noteId: String,
         fileName: String,
         contentType: String,
-        bytes: Data
+        bytes: Data,
+        // #689: a file on a task comment goes to owner_type 'task_comment'.
+        ownerType: String = "note"
     ) async throws {
         _ = try await postFile(
             path: "/v1/attachments",
             companyId: companyId,
-            fields: [("owner_type", "note"), ("owner_id", noteId)],
+            fields: [("owner_type", ownerType), ("owner_id", noteId)],
             fileField: "file",
             fileName: fileName,
             contentType: contentType,

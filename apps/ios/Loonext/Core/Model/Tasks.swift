@@ -111,6 +111,36 @@ struct TaskActivityItem: Codable, Sendable {
     let author: TaskProfile?
 }
 
+/// A file on a task comment (#689).
+struct TaskFeedFile: Codable, Sendable {
+    let id: String
+    let file_name: String?
+    let content_type: String?
+    let size_bytes: Int?
+    let created_at: String
+}
+
+/// One entry of GET /v1/tasks/:id/activity (#689): kind 'event' (a change to
+/// the task), 'comment' (written on the task) or 'note' (the thread note a
+/// message task came from). Flat: the other kinds' fields stay nil.
+struct TaskFeedItem: Codable, Sendable {
+    let kind: String
+    let id: String
+    let created_at: String
+    // kind = event: a task_events.kind and the stored before/after values.
+    let event: String?
+    let from: JSONValue?
+    let to: JSONValue?
+    let from_user: TaskProfile?
+    let to_user: TaskProfile?
+    let actor: TaskProfile?
+    // kind = comment or note
+    let body: String?
+    let author: TaskProfile?
+    let edited_at: String?
+    let attachments: [TaskFeedFile]?
+}
+
 /// One item of the D28 derived attachments union (no URL — mint per item).
 /// #294 — POST /v1/tasks/:id/photos/share.
 ///

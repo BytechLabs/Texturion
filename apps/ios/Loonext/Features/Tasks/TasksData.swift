@@ -11,6 +11,11 @@ import Foundation
 
 // MARK: - Wire bodies (pure, tested)
 
+/// `{"body": "…"}` — a comment on a task (#689).
+func taskCommentBody(_ body: String) -> JSONValue {
+    .object(["body": .string(body)])
+}
+
 /// `{"title": "…"}`
 func taskRenameBody(_ title: String) -> JSONValue {
     .object(["title": .string(title)])
@@ -310,6 +315,44 @@ struct TaskMutations: Sendable {
     /// Soft-delete; creator or owner/admin only (403 otherwise).
     func delete(companyId: String, taskId: String) async throws {
         try await api.delete("/v1/tasks/\(taskId)", companyId: companyId)
+    }
+
+    /// One page of a task's history and comments, newest page first (#689).
+    func activity(
+        companyId: String,
+        taskId: String,
+        cursor: String? = nil
+    ) async throws -> Page<TaskFeedItem> {
+        try await api.get(
+            "/v1/tasks/\(taskId)/activity",
+            query: ["cursor": cursor],
+            companyId: companyId
+        )
+    }
+
+    func addComment(companyId: String, taskId: String, body: String) async throws -> TaskFeedItem {
+        try await api.post(
+            "/v1/tasks/\(taskId)/comments",
+            body: taskCommentBody(body),
+            companyId: companyId
+        )
+    }
+
+    func editComment(
+        companyId: String,
+        taskId: String,
+        commentId: String,
+        body: String
+    ) async throws -> TaskFeedItem {
+        try await api.patch(
+            "/v1/tasks/\(taskId)/comments/\(commentId)",
+            body: taskCommentBody(body),
+            companyId: companyId
+        )
+    }
+
+    func deleteComment(companyId: String, taskId: String, commentId: String) async throws {
+        try await api.delete("/v1/tasks/\(taskId)/comments/\(commentId)", companyId: companyId)
     }
 
     /// Task discussion: an internal note linked to a live task (D-D).

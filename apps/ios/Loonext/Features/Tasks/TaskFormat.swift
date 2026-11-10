@@ -40,6 +40,74 @@ func dueSentenceTime(_ iso: String, now: Date = Date(), calendar: Calendar = .cu
     return "\(formatter.string(from: date)) \(time)"
 }
 
+/// One quiet line for a change to a task (#689), the same words as the web.
+/// `by` is the resolved actor name. A kind this build does not know says the
+/// task was updated.
+func taskHistorySentence(
+    _ item: TaskFeedItem,
+    by: String,
+    locale: String? = nil,
+    timeZone: TimeZone = .current
+) -> String {
+    func say(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(locale, key, vars.merging(["by": by]) { mine, _ in mine })
+    }
+    func text(_ value: JSONValue?) -> String? {
+        guard let string = value?.stringValue, !string.isEmpty else { return nil }
+        return string
+    }
+    let nothing: Bool = {
+        guard let to = item.to else { return true }
+        if case .null = to { return true }
+        return false
+    }()
+
+    switch item.event {
+    case "created":
+        return say("contactsTasks.histCreated")
+    case "title":
+        guard let title = text(item.to) else { return say("contactsTasks.histUpdated") }
+        return say("contactsTasks.histTitle", ["title": title])
+    case "description":
+        return say("contactsTasks.histDescription")
+    case "address":
+        return say(nothing ? "contactsTasks.histAddressCleared" : "contactsTasks.histAddress")
+    case "assignee":
+        guard text(item.to) != nil else { return say("contactsTasks.histUnassigned") }
+        if let name = item.to_user?.display_name, !name.isEmpty {
+            return say("contactsTasks.histAssigned", ["name": name])
+        }
+        return say("contactsTasks.histReassigned")
+    case "due":
+        guard let due = text(item.to), let date = parseWireTimestamp(due) else {
+            return say("contactsTasks.histDueCleared")
+        }
+        let formatter = DateFormatter()
+        formatter.locale = posixLocale
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "EEE h:mm a"
+        return say("contactsTasks.histDue", ["due": formatter.string(from: date)])
+    case "reminders":
+        return say(
+            item.to?.boolValue == true
+                ? "contactsTasks.histRemindersOff"
+                : "contactsTasks.histRemindersOn"
+        )
+    case "confirmation":
+        return say(
+            nothing ? "contactsTasks.histConfirmationCleared" : "contactsTasks.histConfirmed"
+        )
+    case "done":
+        return say("contactsTasks.histDone")
+    case "reopened":
+        return say("contactsTasks.histReopened")
+    case "deleted":
+        return say("contactsTasks.histDeleted")
+    default:
+        return say("contactsTasks.histUpdated")
+    }
+}
+
 /// A quiet human sentence for one task_* activity event, ported from the
 /// web's taskEventSentence so the clients read identically. `by` is the
 /// resolved actor name (fall back to "Loonext" for system); `memberName`

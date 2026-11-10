@@ -34,6 +34,7 @@ final class TasksMutationBodyTests: XCTestCase {
     }
 
     func testMetadataBodiesAreSingleField() throws {
+        XCTAssertEqual(try encoded(taskCommentBody("On my way")), "{\"body\":\"On my way\"}")
         XCTAssertEqual(try encoded(taskRenameBody("Send the quote")), "{\"title\":\"Send the quote\"}")
         XCTAssertEqual(try encoded(taskDescribeBody("")), "{\"description\":\"\"}")
     }

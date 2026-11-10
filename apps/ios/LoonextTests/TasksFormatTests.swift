@@ -193,6 +193,80 @@ final class TasksFormatTests: XCTestCase {
         )
     }
 
+    // MARK: taskHistorySentence
+
+    private func historyEvent(
+        _ kind: String,
+        to: JSONValue? = nil,
+        toUser: TaskProfile? = nil
+    ) -> TaskFeedItem {
+        TaskFeedItem(
+            kind: "event",
+            id: "e1",
+            created_at: "2026-11-10T12:00:00Z",
+            event: kind,
+            from: nil,
+            to: to,
+            from_user: nil,
+            to_user: toUser,
+            actor: nil,
+            body: nil,
+            author: nil,
+            edited_at: nil,
+            attachments: nil
+        )
+    }
+
+    func testHistoryNamesThePersonAndTheChange() {
+        XCTAssertEqual(
+            taskHistorySentence(historyEvent("created"), by: "Rehman", locale: "en"),
+            "Rehman created this task"
+        )
+        XCTAssertEqual(
+            taskHistorySentence(
+                historyEvent("assignee", to: .string("u2"), toUser: TaskProfile(user_id: "u2", display_name: "Sam")),
+                by: "Rehman",
+                locale: "en"
+            ),
+            "Rehman assigned this to Sam"
+        )
+        XCTAssertEqual(
+            taskHistorySentence(historyEvent("assignee", to: .null), by: "Rehman", locale: "en"),
+            "Rehman unassigned this task"
+        )
+    }
+
+    func testHistoryReadsADueTimeAsAWeekdayAndTime() {
+        XCTAssertEqual(
+            taskHistorySentence(
+                historyEvent("due", to: .string("2026-11-10T14:00:00Z")),
+                by: "Rehman",
+                locale: "en",
+                timeZone: TimeZone(identifier: "UTC")!
+            ),
+            "Rehman changed the due time to Tue 2:00 PM"
+        )
+        XCTAssertEqual(
+            taskHistorySentence(historyEvent("due", to: .null), by: "Rehman", locale: "en"),
+            "Rehman cleared the due time"
+        )
+    }
+
+    func testHistoryRemindersDoneReopenedAndUnknown() {
+        XCTAssertEqual(
+            taskHistorySentence(historyEvent("reminders", to: .bool(true)), by: "Sam", locale: "en"),
+            "Sam turned reminders off"
+        )
+        XCTAssertEqual(
+            taskHistorySentence(historyEvent("done"), by: "Sam", locale: "en"),
+            "Sam marked this done"
+        )
+        XCTAssertEqual(
+            taskHistorySentence(historyEvent("something_new"), by: "Sam", locale: "en"),
+            "Sam updated this task"
+        )
+    }
+
     // MARK: formatBytes
 
     func testFormatBytes() {
