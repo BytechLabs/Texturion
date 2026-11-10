@@ -94,6 +94,9 @@ interface ScheduledRow {
   /** #237: the job this reminds about, or null for a text a person wrote. */
   task_id: string | null;
   origin: string;
+  /** 'pending' or 'held' as claimed; a held row is retried every minute. */
+  status?: string;
+  held_reason_key?: string | null;
 }
 
 interface Destination {
@@ -478,7 +481,12 @@ async function hold(
     }),
     "hold scheduled message",
   );
-  await disclose(env, db, row, reason);
+  // A held row is claimed again every minute until it can go. Telling people
+  // again each time is a push a minute for one held text, so only a new hold,
+  // or a hold for a different reason, is news.
+  const alreadyHeldForThis =
+    row.status === "held" && row.held_reason_key === SCHEDULED_HOLD_REASON_KEYS[reason];
+  if (!alreadyHeldForThis) await disclose(env, db, row, reason);
 }
 
 /** Fail it permanently, and say why. */

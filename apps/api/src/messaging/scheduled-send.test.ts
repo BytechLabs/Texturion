@@ -250,6 +250,30 @@ describe("#233 the customer answered in the meantime", () => {
     expect(String(holds[0].p_reason)).toMatch(/replied/i);
   });
 
+  it("tells people once, not every minute it stays held", async () => {
+    // A held row is claimed again every minute. The first hold pushes; the
+    // same hold on the next pass must not, or one held text is a push a minute.
+    const first = harness({ newestInbound: "2026-08-03T11:00:00Z" });
+    stubFetch(first.sb.route);
+    await runScheduledSendJob(env, NOW);
+    expect(first.sb.find("GET", "/rest/v1/push_subscriptions").length).toBeGreaterThan(0);
+
+    const again = harness({
+      newestInbound: "2026-08-03T11:00:00Z",
+      due: [
+        scheduledRow({
+          status: "held",
+          held_reason_key: "domain.scheduledHoldCustomerReplied",
+        }),
+      ],
+    });
+    stubFetch(again.sb.route);
+    const summary = await runScheduledSendJob(env, NOW);
+    expect(summary.held).toBe(1);
+    expect(again.holds).toHaveLength(1);
+    expect(again.sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(0);
+  });
+
   it("sends when the newest inbound is the one it was written against", async () => {
     // The other half, so the check cannot pass by holding everything.
     const { sb, holds, fires } = harness({

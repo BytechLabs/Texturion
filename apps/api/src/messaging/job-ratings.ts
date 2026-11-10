@@ -135,12 +135,28 @@ export async function askForJobRating(
     timeZone: clock.timezone,
   });
 
+  // The newest inbound now, as `api_schedule_message` records it. Without it the
+  // send treats every inbound the thread ever had as a reply that came after
+  // this was written, and holds the ask on any thread the customer has texted.
+  const newestInbound = unwrap<{ created_at: string }[]>(
+    await db
+      .from("messages")
+      .select("created_at")
+      .eq("company_id", input.companyId)
+      .eq("conversation_id", task.conversation_id)
+      .eq("direction", "inbound")
+      .order("created_at", { ascending: false })
+      .limit(1),
+    "rating ask inbound watermark",
+  );
+
   unwrap(
     await db.from("scheduled_messages").insert({
       company_id: input.companyId,
       conversation_id: task.conversation_id,
       task_id: input.taskId,
       origin: "rating",
+      inbound_watermark: newestInbound[0]?.created_at ?? null,
       body: applySendMergeFields(ratingAsk, ctx),
       send_at: sendAt.toISOString(),
       clock_timezone: clock.timezone,
