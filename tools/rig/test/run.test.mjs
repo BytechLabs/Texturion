@@ -57,3 +57,9 @@ test("the rig has no run-on-a-schedule flag: rig run takes a scenario and a run 
   assert.match(usage, /The rig runs nothing on a timer/);
   assert.doesNotMatch(usage, /--scheduled|timer install|every \d+ ?min/i);
 });
+
+test("the rig CLI lists the rigd commands an agent triages with", async () => {
+  const { USAGE, parseArgs } = await import("../src/cli.mjs");
+  for (const word of ["verdicts [--unresolved]", "budget", "secrets", "calibrate"]) assert.ok(USAGE.includes(word), word);
+  assert.deepEqual(parseArgs(["verdicts", "--unresolved"]), { positional: ["verdicts"], flags: { unresolved: true } });
+});

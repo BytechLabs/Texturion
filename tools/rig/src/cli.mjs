@@ -34,6 +34,11 @@ The rig runs nothing on a timer. Every command below is something you ask for.
   seed                            the tenants, numbers from the guard, audiences at rest
   run <scenario>[-<variant>] [--run-id <id>]
                                   one scenario run: the guard lease, the judging, the verdict
+  verdicts [--unresolved]         the verdict store: the last 50 runs, or what still fails
+  budget                          the dials spent today and this hour against the caps
+  secrets                         fetch the edge's sealed bundle into the secret store now
+  calibrate --surface <s> --wav <file> [--own <s>]
+                                  measure one surface's tone margin from a recording
   cron <expr|job:name> [--time <ms>]
                                   fire one cron on the local API
   health [--only a,b] [--json]    R00's checks that boot no emulator
@@ -55,6 +60,7 @@ const BOOLEAN_FLAGS = new Set([
   "offline",
   "json",
   "debuggable",
+  "unresolved",
   "help",
 ]);
 
@@ -198,6 +204,20 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
       });
       const result = spawnSync(file, args, { stdio: "inherit", env: userManagerEnv({ ...process.env, ...extra }) });
       if (result.error) throw new Error(`rig run: ${file} did not start: ${result.error.code ?? result.error.message}`);
+      return result.status ?? 1;
+    }
+
+    case "verdicts":
+    case "budget":
+    case "secrets":
+    case "calibrate": {
+      const options = Object.entries(flags).flatMap(([name, value]) => (value === true ? [`--${name}`] : [`--${name}`, String(value)]));
+      const cli = join(TOOLING_ROOT, "tools", "rig", "rigd", "src", "cli.ts");
+      const result = spawnSync(process.execPath, [cli, command, ...options], {
+        stdio: "inherit",
+        env: { ...process.env, RIG_HOME: layout.home },
+      });
+      if (result.error) throw new Error(`rig ${command}: rigd's cli did not start: ${result.error.code ?? result.error.message}`);
       return result.status ?? 1;
     }
 

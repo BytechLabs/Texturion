@@ -241,7 +241,7 @@ It starts from the Startup folder when you log on. An elevated ONSTART task with
 **Name resolution.** This makes "cannot touch production" a property of the network:
 - `api.rig.internal`, `app.rig.internal` and `db.rig.internal` resolve to the rig. `.internal` is reserved for private use.
 - For the rig and the emulators, `loonext.com`, `supabase.co`, `pooler.supabase.com` and `api.supabase.com` resolve to nothing.
-- Inside the VM only, `api.telnyx.com`, `api.resend.com`, `oauth2.googleapis.com`, `fcm.googleapis.com` and `us.i.posthog.com` also resolve to nothing. Any code that skips the guard therefore fails closed, including old releases that predate the seams. The emulators keep their own route to Google's push service.
+- Inside the VM only, `api.telnyx.com`, `api.resend.com`, `oauth2.googleapis.com` and `fcm.googleapis.com` also resolve to nothing. PostHog stays reachable, because the rig sends its exceptions to it and reads them back (D146). Any code that skips the guard therefore fails closed, including old releases that predate the seams. The emulators keep their own route to Google's push service.
 
 **TLS.** Caddy serves the `.rig.internal` names on 192.168.70.10 with a certificate authority generated in the VM and never committed. The nonprod build trusts it for `*.rig.internal` only. Caddy restarts on failure.
 

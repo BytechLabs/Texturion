@@ -46,7 +46,8 @@ timedatectl set-timezone UTC
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   ca-certificates curl git gnupg openssl jq unzip xz-utils \
-  docker.io caddy dnsmasq nftables openssh-server unattended-upgrades libnss3-tools xvfb
+  docker.io caddy dnsmasq nftables openssh-server unattended-upgrades libnss3-tools xvfb \
+  postgresql-client
 
 step "firewall and sshd: only the workstation opens connections in"
 install -d -m 0755 /etc/loonext-rig
