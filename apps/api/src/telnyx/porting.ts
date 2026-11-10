@@ -236,6 +236,28 @@ async function updatePortRow(
   return row;
 }
 
+/**
+ * Update a port row only while it still holds the values this run read, and say
+ * whether this run was the one that changed it. A webhook and the daily poll can
+ * both read the same row; the loser gets null and must not send the emails and
+ * push that belong to the change it did not make.
+ */
+async function claimPortRow(
+  db: SupabaseClient,
+  rowId: string,
+  patch: Record<string, unknown>,
+  expected: { column: "status" | "messaging_port_status" | "ported_at"; value: string | null },
+): Promise<PortRequestRow | null> {
+  const base = db.from("port_requests").update(patch).eq("id", rowId);
+  const guarded =
+    expected.value === null
+      ? base.is(expected.column, null)
+      : base.eq(expected.column, expected.value);
+  const { data, error } = await guarded.select(PORT_COLUMNS);
+  if (error) throw new Error(`port_requests claim failed: ${error.message}`);
+  return ((data ?? [])[0] ?? null) as unknown as PortRequestRow | null;
+}
+
 async function fetchPortRow(
   db: SupabaseClient,
   rowId: string,
@@ -867,10 +889,16 @@ async function runP6Completion(
   }
 
   // P6c — stamp ported_at.
-  const updated = await updatePortRow(db, row.id, {
+  const stamp = {
     ported_at: row.ported_at ?? new Date().toISOString(),
     rejection_reason: null,
-  });
+  };
+  // The first run to stamp ported_at owns the completion email and push. A
+  // second run (webhook and poll overlapping) finds it stamped and stops.
+  const updated = row.ported_at
+    ? await updatePortRow(db, row.id, stamp)
+    : await claimPortRow(db, row.id, stamp, { column: "ported_at", value: null });
+  if (!updated) return row;
 
   // P6d — "your number is live" email.
   await sendPortEmail(
@@ -957,7 +985,11 @@ async function applyStatusTransition(
     patch.cancelled_at = row.cancelled_at ?? now;
   }
 
-  const updated = await updatePortRow(db, row.id, patch);
+  const updated = await claimPortRow(db, row.id, patch, {
+    column: "status",
+    value: row.status,
+  });
+  if (!updated) return row;
 
   if (next === "foc-date-confirmed") {
     await sendPortEmail(
@@ -1048,15 +1080,21 @@ async function applyMessagingTransition(
     return row;
   }
 
-  const updated = await updatePortRow(db, row.id, {
-    messaging_port_status: next,
-    ...(next === "exception"
-      ? {
-          rejection_reason:
-            "Texting routing not yet released by the losing carrier; Telnyx is escalating.",
-        }
-      : {}),
-  });
+  const updated = await claimPortRow(
+    db,
+    row.id,
+    {
+      messaging_port_status: next,
+      ...(next === "exception"
+        ? {
+            rejection_reason:
+              "Texting routing not yet released by the losing carrier; Telnyx is escalating.",
+          }
+        : {}),
+    },
+    { column: "messaging_port_status", value: row.messaging_port_status },
+  );
+  if (!updated) return row;
 
   if (next === "ported") {
     return runP6Completion(env, db, updated);
