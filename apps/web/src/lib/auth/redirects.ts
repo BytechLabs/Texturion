@@ -24,6 +24,8 @@ const PROTECTED_PREFIXES = [
   "/calls",
   "/tasks",
   "/contacts",
+  // #735: deleted work, restorable for 30 days.
+  "/trash",
   "/templates",
   // #233: the workspace's queued texts. Signed-out has no business here — the
   // bodies are unsent customer messages.

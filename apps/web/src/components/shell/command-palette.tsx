@@ -19,6 +19,7 @@ import {
   UserRoundPlus,
   Users,
   Voicemail,
+  Trash2,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -72,6 +73,13 @@ const NAV_ACTIONS = [
   // else. It takes no rail slot — a page opened a few times a month does not
   // earn permanent furniture. *Applying: Zen of Clarity.*
   { labelKey: "shell.navScheduled", href: "/inbox/scheduled", icon: CalendarClock },
+  // #735: found by what people call it, not only by its name.
+  {
+    labelKey: "shell.navTrash",
+    href: "/trash",
+    icon: Trash2,
+    keywordsKey: "shell.navTrashKeywords",
+  },
   { labelKey: "shell.navSettings", href: "/settings", icon: Settings },
 ] as const;
 
@@ -543,7 +551,7 @@ export function CommandPalette() {
           {NAV_ACTIONS.map((action) => (
             <CommandItem
               key={action.href}
-              value={`go to ${t(action.labelKey)}`}
+              value={`go to ${t(action.labelKey)}${"keywordsKey" in action ? ` ${t(action.keywordsKey)}` : ""}`}
               onSelect={() => go(action.href)}
             >
               <action.icon className="size-4" strokeWidth={1.75} />

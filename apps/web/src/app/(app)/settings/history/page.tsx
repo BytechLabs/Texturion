@@ -207,7 +207,7 @@ export default function HistorySettingsPage() {
           </p>
           {canDelete && (
             <Button asChild variant="ghost" size="sm">
-              <Link href="/settings/history/trash">
+              <Link href="/trash">
                 <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
                 {t("trash.navLink")}
               </Link>

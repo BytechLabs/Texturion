@@ -37,7 +37,7 @@ export function useDeletedToast() {
       // #710: the Trash is otherwise only under Settings > History.
       secondary: {
         label: t("trash.viewTrash"),
-        onClick: () => router.push("/settings/history/trash"),
+        onClick: () => router.push("/trash"),
       },
       onUndo: () =>
         restore.mutate(targets, {

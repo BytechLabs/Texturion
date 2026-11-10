@@ -25,7 +25,9 @@ describe("navRowsFor", () => {
 
   it("shows the crew every focus surface, in order", () => {
     for (const role of ["owner", "admin", "member"] as MemberRole[]) {
-      const hrefs = navRowsFor(role).map((row) => row.href);
+      const hrefs = navRowsFor(role)
+        .map((row) => row.href)
+        .filter((href) => href !== "/trash");
       expect(hrefs, role).toEqual([
         "/for-you",
         "/inbox",
@@ -34,6 +36,13 @@ describe("navRowsFor", () => {
         "/contacts",
       ]);
     }
+  });
+
+  it("#735: shows the Trash, last, to whoever can restore from it", () => {
+    for (const role of ["owner", "admin"] as MemberRole[]) {
+      expect(navRowsFor(role).map((row) => row.href).at(-1), role).toBe("/trash");
+    }
+    expect(navRowsFor("member").map((row) => row.href)).not.toContain("/trash");
   });
 
   it("shows a view-only observer the same surfaces — they can read them all", () => {

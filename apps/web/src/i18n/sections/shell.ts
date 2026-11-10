@@ -330,6 +330,9 @@ export const shellEn = {
   whyNoPhoneRang: "Why no phone rang",
   /** #734: what a call row offers, each its own control. */
   callActionMessage: "Message",
+  /** #735: the Trash in the main navigation, and the words that find it. */
+  navTrash: "Trash",
+  navTrashKeywords: "bin deleted restore recycle",
   callActionCallBack: "Call back",
   callActionContact: "Contact",
   callActionAddContact: "Add contact",
@@ -684,6 +687,8 @@ export const shellFr: Translated<typeof shellEn> = {
   callerVerifiedPartly: "Partiellement ({attestation})",
   whyNoPhoneRang: "Pourquoi aucun téléphone n'a sonné",
   callActionMessage: "Texto",
+  navTrash: "Corbeille",
+  navTrashKeywords: "poubelle supprimé restaurer",
   callActionCallBack: "Rappeler",
   callActionContact: "Contact",
   callActionAddContact: "Ajouter le contact",

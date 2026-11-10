@@ -11,6 +11,7 @@ import {
   Search,
   Users,
   Zap,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -82,6 +83,9 @@ const FOCUS: NavRow[] = [
   { labelKey: "shell.navCalls", href: "/calls", icon: PhoneIncoming, needs: "conversations.read" },
   { labelKey: "shell.navTasks", href: "/tasks", icon: CheckSquare, needs: "conversations.read" },
   { labelKey: "shell.navContacts", href: "/contacts", icon: Users, needs: "conversations.read" },
+  // #735: where deleted work waits for 30 days. Shown to whoever can restore
+  // it; a place you go on purpose, so last and quiet.
+  { labelKey: "shell.navTrash", href: "/trash", icon: Trash2, needs: "records.delete" },
 ];
 
 /**
