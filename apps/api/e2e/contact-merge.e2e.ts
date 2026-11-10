@@ -8,6 +8,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { deleteCompaniesSql } from "./company-cleanup";
 import { startHarness, type Harness } from "./harness";
 
 let h: Harness;
@@ -75,7 +76,7 @@ function cleanup(): void {
     delete from public.contacts where company_id = '${COMPANY_ID}';
     delete from public.phone_numbers where company_id = '${COMPANY_ID}';
     delete from public.company_members where company_id = '${COMPANY_ID}';
-    delete from public.companies where id = '${COMPANY_ID}';
+    ${deleteCompaniesSql([COMPANY_ID])}
     delete from public.profiles where user_id = '${OWNER_ID}';
     delete from auth.users where id = '${OWNER_ID}';
   `);

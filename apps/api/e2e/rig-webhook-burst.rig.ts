@@ -26,6 +26,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { deleteCompaniesSql } from "./company-cleanup";
 import { burst, capacityResult, emitCapacityResult, line } from "./load-report";
 import { startRigStack, type RigStack } from "./rig-stack";
 
@@ -89,7 +90,7 @@ async function cleanup(): Promise<void> {
     delete from public.company_members where company_id = '${COMPANY_ID}';
     delete from public.egress_events where company_id = '${COMPANY_ID}';
     delete from public.inbound_notification_days where company_id = '${COMPANY_ID}';
-    delete from public.companies where id = '${COMPANY_ID}';
+    ${deleteCompaniesSql([COMPANY_ID])}
     delete from public.profiles where user_id = '${OWNER_ID}';
     delete from auth.users where id = '${OWNER_ID}';
   `);

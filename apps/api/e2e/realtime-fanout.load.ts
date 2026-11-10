@@ -21,6 +21,7 @@ import {
 } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { deleteCompaniesSql } from "./company-cleanup";
 import { startHarness, type Harness } from "./harness";
 import { capacityResult, emitCapacityResult } from "./load-report";
 
@@ -213,7 +214,7 @@ afterAll(async () => {
     if (userId) {
       h.sql(`
         delete from public.company_members where company_id = '${companyId}';
-        delete from public.companies where id = '${companyId}';
+        ${deleteCompaniesSql([companyId])}
       `);
       await h.db.auth.admin.deleteUser(userId);
     }

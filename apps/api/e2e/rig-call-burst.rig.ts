@@ -37,6 +37,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DIAL_BATCH_SIZE, MAX_LEGS_PER_SESSION } from "../src/calls/transitions";
 import type { FakeLeg, TelnyxWebhookEvent } from "./fake-telnyx-voice";
+import { deleteCompaniesSql } from "./company-cleanup";
 import { capacityResult, emitCapacityResult } from "./load-report";
 import { startRigStack, type RigStack } from "./rig-stack";
 
@@ -152,7 +153,7 @@ async function cleanup(): Promise<void> {
     update public.phone_numbers set status = 'released' where company_id in (${companies});
     delete from public.company_members where company_id in (${companies});
     delete from public.phone_numbers where company_id in (${companies});
-    delete from public.companies where id in (${companies});
+    ${deleteCompaniesSql(lines.map((l) => l.companyId))}
     delete from public.profiles where user_id in (${users});
     delete from auth.users where id in (${users});
   `);
