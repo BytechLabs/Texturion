@@ -714,8 +714,17 @@ const FOCUS_WALK = (maxStops) => {
   // tabbing scrolls, so two different accordion headers land at the same x,y
   // and read as a loop — which is how the first version of this reported one on
   // a page that has none.
-  const already = el.hasAttribute("data-audit-stop");
+  //
+  // A date or time input is one stop that Tab walks through field by field
+  // (month, day, year) while focus stays on the same element, so pressing Tab
+  // inside it lands on the element just visited. That is not a loop.
+  const segmented =
+    el instanceof HTMLInputElement &&
+    ["date", "time", "datetime-local", "month", "week"].includes(el.type);
+  const already =
+    el.hasAttribute("data-audit-stop") && !(segmented && window.__auditLastStop === el);
   el.setAttribute("data-audit-stop", "1");
+  window.__auditLastStop = el;
 
   return {
     kind: "stop",
