@@ -44,6 +44,8 @@ vi.mock("@/lib/company/provider", () => ({
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("sonner", () => ({
   toast: { success: toastSuccess, error: toastError },
 }));
@@ -92,7 +94,13 @@ describe("#689 New task", () => {
       title: "Order a furnace filter",
       assignee_ids: ["me-1"],
     });
-    expect(toastSuccess).toHaveBeenCalled();
+    // #724: the toast goes to the task it announces.
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "Task created.",
+      expect.objectContaining({ action: expect.objectContaining({ label: "Open" }) }),
+    );
+    toastSuccess.mock.calls[0][1].action.onClick();
+    expect(push).toHaveBeenCalledWith("/tasks?task=t1");
   });
 
   it("takes more than one assignee under More, me first (#689 C)", async () => {

@@ -2,12 +2,14 @@
 
 import { ChevronDown, Plus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { parseQuickAdd } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
+import { createdToast } from "@/components/ui/created-toast";
 import {
   Dialog,
   DialogContent,
@@ -143,6 +145,7 @@ function NewTaskForm({
   const me = useMe();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const create = useCreateTaskFromMessage(
     context.conversationId ?? NO_CONVERSATION,
   );
@@ -253,7 +256,11 @@ function NewTaskForm({
           queryKey: [companyId, "contact-timeline", context.contactId],
         });
       }
-      toast.success(t("tasks.newTaskCreated"));
+      createdToast({
+        message: t("tasks.newTaskCreated"),
+        openLabel: t("common.open"),
+        onOpen: () => router.push(`/tasks?task=${created.id}`),
+      });
       onDone();
     } catch {
       toast.error(t("tasks.newTaskFailed"));

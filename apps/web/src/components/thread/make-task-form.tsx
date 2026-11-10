@@ -1,10 +1,12 @@
 "use client";
 
 import { ChevronDown, MapPin } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { createdToast } from "@/components/ui/created-toast";
 import { CountryDatalist } from "@/components/ui/country-datalist";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,6 +117,7 @@ export function MakeTaskForm({
   const companyId = useCompanyId();
   const aiSettings = useAiSettings();
   const createTask = useCreateTaskFromMessage(conversationId);
+  const router = useRouter();
 
   const [title, setTitle] = useState(() =>
     call ? call.title : messageTaskTitle(message?.body ?? ""),
@@ -251,7 +254,7 @@ export function MakeTaskForm({
         }
       : null;
     try {
-      await createTask.mutateAsync({
+      const created = await createTask.mutateAsync({
         ...(call ? { source_call_id: call.id } : { message_id: message?.id }),
         title: trimmed,
         assigned_user_id: assignee === UNASSIGNED ? null : assignee,
@@ -274,9 +277,11 @@ export function MakeTaskForm({
         dueCleared: due === "",
       });
       if (outcome) reportAiOutcome(companyId, "enrich", outcome);
-      toast.success(
-        call ? t("thread.taskCreatedFromCall") : t("thread.taskCreated"),
-      );
+      createdToast({
+        message: call ? t("thread.taskCreatedFromCall") : t("thread.taskCreated"),
+        openLabel: t("common.open"),
+        onOpen: () => router.push(`/tasks?task=${created.id}`),
+      });
       onDone();
     } catch (error) {
       toast.error(

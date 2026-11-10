@@ -9,6 +9,8 @@ import type { Translated } from "../translated";
  */
 export const commonEn = {
   cancel: "Cancel",
+  /** #724: the action on a creation toast that goes to what was made. */
+  open: "Open",
   save: "Save",
   saving: "Saving…",
   saved: "Saved",
@@ -22,6 +24,7 @@ export const commonEn = {
 
 export const commonFr: Translated<typeof commonEn> = {
   cancel: "Annuler",
+  open: "Ouvrir",
   save: "Enregistrer",
   saving: "Enregistrement…",
   saved: "Enregistré",

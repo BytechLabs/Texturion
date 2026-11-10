@@ -26,7 +26,7 @@ import { toast } from "sonner";
  * lengthen the window or add a second action.
  */
 
-const UNDO_DURATION_MS = 5000;
+export const UNDO_DURATION_MS = 5000;
 
 export interface UndoableToastOptions {
   /** Past-tense, one clause: "Conversation closed", "Marked as spam". */
