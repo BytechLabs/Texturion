@@ -14,9 +14,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.Request
@@ -185,6 +187,13 @@ class RealtimeClient(
     private var everJoined = false
 
     /**
+     * D151: a lost delivery on a live socket shows up as a hole in a topic's
+     * `seq`. The answer is the signal a reconnect gives, so every open screen
+     * refetches its first pages.
+     */
+    private val sequence = TopicSequenceTracker(scope) { signalReconnected() }
+
+    /**
      * Connect (or switch) to a company's topics. Safe to call repeatedly, and
      * also how a changed number list is applied: pass the new one.
      */
@@ -242,6 +251,7 @@ class RealtimeClient(
         companyId = null
         numberIds = emptyList()
         joinedTopics.clear()
+        sequence.resetAll()
         _state.value = RealtimeState.Disconnected
     }
 
@@ -288,6 +298,9 @@ class RealtimeClient(
         // that just died, so the set has to start empty or [syncTopics] would
         // skip the joins it believes it already sent.
         joinedTopics.clear()
+        // The company-topic re-JOIN signals [reconnected], which covers whatever
+        // the old socket missed, so each topic's first event is a new baseline.
+        sequence.resetAll()
         val wsBase = supabaseUrl
             .replaceFirst("https://", "wss://")
             .replaceFirst("http://", "ws://")
@@ -334,11 +347,17 @@ class RealtimeClient(
     private fun syncTopics(ws: WebSocket) {
         val company = companyId ?: return
         val companyTopic = companyTopic(company)
-        if (joinedTopics.add(companyTopic)) ws.send(joinMessage(companyTopic))
+        if (joinedTopics.add(companyTopic)) {
+            sequence.reset(companyTopic)
+            ws.send(joinMessage(companyTopic))
+        }
 
         val wanted = numberIds.mapTo(mutableSetOf()) { numberTopic(company, it) }
         for (topic in wanted) {
-            if (joinedTopics.add(topic)) ws.send(joinMessage(topic))
+            if (joinedTopics.add(topic)) {
+                sequence.reset(topic)
+                ws.send(joinMessage(topic))
+            }
         }
 
         if (leaveUnwanted(ws) > 0) retryLeaves(ws)
@@ -379,6 +398,7 @@ class RealtimeClient(
         for (topic in joinedTopics - keep) {
             if (ws.send(message(topic, "phx_leave", buildJsonObject {}))) {
                 joinedTopics.remove(topic)
+                sequence.reset(topic)
             } else {
                 refused++
             }
@@ -549,6 +569,9 @@ class RealtimeClient(
                 // means. Emitted IN ADDITION to the event itself, so a future
                 // consumer that wants the event can still have it.
                 if (name == "access.changed") signalReconnected()
+                if (topic != null) {
+                    sequence.observe(topic, (data["seq"] as? JsonPrimitive)?.sequenceNumber())
+                }
                 // trySend on an UNLIMITED channel never fails (never drops) and
                 // never blocks this WebSocket thread — the dispatch pump above
                 // does the (possibly suspending) hand-off to collectors.
@@ -583,6 +606,9 @@ class RealtimeClient(
      * lost, which is what [_reconnected]'s overflow policy now prevents; the
      * return value is unused because it can no longer be false.
      */
+    private fun JsonPrimitive.sequenceNumber(): Long? =
+        if (isString) null else longOrNull
+
     private fun signalReconnected() {
         _reconnected.tryEmit(Unit)
     }
@@ -590,6 +616,7 @@ class RealtimeClient(
     @Synchronized
     private fun forgetTopic(topic: String) {
         joinedTopics.remove(topic)
+        sequence.reset(topic)
     }
 
     private fun companyTopic(company: String) = "realtime:company:$company"
