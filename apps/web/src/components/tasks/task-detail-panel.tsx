@@ -3,6 +3,8 @@
 import { format } from "date-fns";
 import {
   ArrowUpRight,
+  Bell,
+  BellOff,
   Check,
   ChevronDown,
   Loader2,
@@ -88,7 +90,11 @@ import { cn } from "@/lib/utils";
 import { TaskDoneCheckbox } from "./task-atoms";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
-import { useSetTaskReminders, useTaskDone } from "./use-task-mutations";
+import {
+  useSetTaskReminders,
+  useTaskDone,
+  useTaskFollow,
+} from "./use-task-mutations";
 import { TaskCommentComposer, TaskFeed } from "./task-feed";
 import { ShareJobPhotos } from "@/components/tasks/share-job-photos";
 
@@ -183,6 +189,7 @@ function TaskDetailLoaded({
   const update = useUpdateTask(conversationId);
   const del = useDeleteTask(conversationId);
   const done = useTaskDone();
+  const follow = useTaskFollow(task.id);
 
   // Local field state, seeded from the task and kept in sync when the server
   // row changes (a realtime refetch, or another surface's edit).
@@ -348,6 +355,31 @@ function TaskDetailLoaded({
             )}
           />
         </div>
+        {/* #689 D: follow to hear when this changes. An icon toggle beside the
+            menu rather than a menu item: one tap, and the bell shows the state.
+            Not offered without access to the task, which the server 404s. */}
+        {!noAccess && (
+          <button
+            type="button"
+            aria-label={t(task.subscribed ? "tasks.unfollowAria" : "tasks.followAria")}
+            aria-pressed={task.subscribed}
+            title={t(task.subscribed ? "tasks.unfollowAria" : "tasks.followAria")}
+            disabled={follow.isPending}
+            onClick={() => follow.mutate(!task.subscribed)}
+            className={cn(
+              "tap-target mt-0.5 shrink-0 rounded-full p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              task.subscribed
+                ? "text-app-ink hover:text-app-muted"
+                : "text-app-muted-2 hover:text-app-ink",
+            )}
+          >
+            {task.subscribed ? (
+              <Bell className="size-4" strokeWidth={1.75} fill="currentColor" aria-hidden />
+            ) : (
+              <BellOff className="size-4" strokeWidth={1.75} aria-hidden />
+            )}
+          </button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button

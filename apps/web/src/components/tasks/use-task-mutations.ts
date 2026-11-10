@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api/error";
 import { apiFetch } from "@/lib/api/client";
 import { keys } from "@/lib/api/keys";
 import { useCompanyId } from "@/lib/company/provider";
-import type { Message, Page, Task } from "@/lib/api/types";
+import type { Message, Page, Task, TaskDetail } from "@/lib/api/types";
 
 /**
  * The /tasks page's done toggle. Unlike the checklist's `useToggleTaskDone`
@@ -232,6 +232,49 @@ export function useSetTaskReminders() {
     },
     onError: () => {
       toast.error(t("tasks.remindersChangeFailed"));
+    },
+  });
+}
+
+/**
+ * #689 D: follow or unfollow a task.
+ *
+ * `POST` / `DELETE /v1/tasks/:id/subscription`. Optimistic on the detail the
+ * bell reads, rolled back on failure: the control is a toggle, and a toggle that
+ * waits for the network to move feels broken. An unfollow is sticky on the
+ * server, so what the bell shows after the refetch is the truth.
+ */
+export function useTaskFollow(taskId: string) {
+  const t = useT();
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  const detailKey = keys.tasks.detail(companyId, taskId);
+
+  return useMutation({
+    mutationFn: (follow: boolean) =>
+      apiFetch<{ subscribed: boolean }>(`/v1/tasks/${taskId}/subscription`, {
+        method: follow ? "POST" : "DELETE",
+        companyId,
+      }),
+    onMutate: async (follow) => {
+      await queryClient.cancelQueries({ queryKey: detailKey });
+      const previous = queryClient.getQueryData<TaskDetail>(detailKey);
+      if (previous) {
+        queryClient.setQueryData(detailKey, { ...previous, subscribed: follow });
+      }
+      return { previous };
+    },
+    onSuccess: (_result, follow) => {
+      toast.success(t(follow ? "tasks.followedToast" : "tasks.unfollowedToast"));
+    },
+    onError: (_error, _follow, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(detailKey, context.previous);
+      }
+      toast.error(t("tasks.followFailed"));
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: detailKey });
     },
   });
 }

@@ -1278,6 +1278,8 @@ export interface TaskDetail extends Task {
    * text/reply affordance is hidden at 'note'.
    */
   viewer_level: "text" | "note" | "none";
+  /** #689 D: whether the caller follows this task (gets a push when it changes). */
+  subscribed: boolean;
 }
 
 // ---------------------------------------------------------------------------

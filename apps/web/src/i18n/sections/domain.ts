@@ -164,6 +164,7 @@ export const domainEn = {
    * #293 — how much the app tells you, and about what. Both phones have said these since #228 reached them; the web imported the shared tables and rendered whatever English came back. The digest and daily-summary lines above them stay English: the server composes those into a push body.
    */
   categoryAssignments: "Work handed to me",
+  categoryTasks: "Changes to tasks I follow",
   categoryMentions: "When somebody @s me",
   categoryMessagesAll: "Texts on anyone's jobs",
   categoryMessagesMine: "Texts on my jobs",
@@ -476,6 +477,7 @@ export const domainFr: Translated<typeof domainEn> = {
 
 
   categoryAssignments: "Travail qui m'est confié",
+  categoryTasks: "Changements aux tâches que je suis",
   categoryMentions: "Quand quelqu'un me mentionne avec @",
   categoryMessagesAll: "Textos sur les tâches de tout le monde",
   categoryMessagesMine: "Textos sur mes tâches",

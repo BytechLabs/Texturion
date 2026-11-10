@@ -215,6 +215,12 @@ export const tasksEn = {
   actionsAria: "Task actions",
   /** The menu item that marks the task done, as a verb. */
   markDoneAction: "Done",
+  /** #689 D: follow a task to hear when it changes. */
+  followAria: "Follow this task",
+  unfollowAria: "Unfollow this task",
+  followedToast: "You'll hear when this task changes.",
+  unfollowedToast: "You won't get updates on this task.",
+  followFailed: "Couldn't change that. Try again.",
   deleteTask: "Delete task",
   doneNeedsAccessTitle:
     "Marking this done needs access to the conversation it came from",
@@ -622,6 +628,11 @@ export const tasksFr: Translated<typeof tasksEn> = {
   titleAria: "Titre de la tâche",
   actionsAria: "Actions de la tâche",
   markDoneAction: "Terminer",
+  followAria: "Suivre cette tâche",
+  unfollowAria: "Ne plus suivre cette tâche",
+  followedToast: "Vous saurez quand cette tâche change.",
+  unfollowedToast: "Vous ne recevrez plus de mises à jour sur cette tâche.",
+  followFailed: "Impossible de modifier. Réessayez.",
   deleteTask: "Supprimer la tâche",
   doneNeedsAccessTitle:
     "Marquer cette tâche comme terminée exige l'accès à la conversation " +
