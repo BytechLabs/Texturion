@@ -10142,3 +10142,64 @@ newest `seq` seen, since the resync read everything.
 tracker. A loss at the very end of a burst, with nothing after it, shows no hole
 until the next event on the topic; the focus and connection resyncs still cover
 that.
+## D152 - people follow a task, and a followed task pushes its changes (#689 D)
+
+**Decision.** A task has followers, GitHub-style, and a change to it pushes the
+followers and never the person who made it.
+
+**Who follows.** `task_subscribers` holds one row per (task, member). The creator
+and the assignee follow from the moment the task exists, whoever writes it,
+because triggers on `tasks` do it. Anyone who comments follows (a trigger on
+`task_comments`), anyone named in a comment's `mention_user_ids` follows, and
+anyone can press Follow. `POST` and `DELETE /v1/tasks/:id/subscription` follow
+and unfollow for the caller, need only read access to the task, and answer
+`{ subscribed }`; the task detail carries `subscribed`.
+
+**An unfollow sticks.** It is a row with `unsubscribed_at` set, not a deleted row.
+A comment, or creating the task, never lifts it. A new assignment, a mention, or
+pressing Follow does, because each is somebody asking for that person. An unfollow
+on a task never followed is recorded too. A mention is a list of member ids the
+client sends (up to 10, each someone who can see the task), as a note's mentions
+are; there is no text parser.
+
+**What pushes.** Followers, minus the actor, are told when a task is: taken off
+them (the former assignee, if still following), moved to another time, completed,
+reopened, or commented on. A mentioned member gets the mention alert instead of
+the comment alert. Being assigned stays the #515 alert. Each push opens the task:
+over its thread when it has one (`/inbox/:id?task=`), else `/tasks/:id`.
+Completion by a message route is covered, because a message task is done when its
+message is (D17). Bulk edits push nothing; one alert per task in a selection of a
+thousand is the notification-shade wipeout `notifyAssigned` already refuses.
+
+**Overdue.** The assignee is told once, 15 minutes after the due time, by
+`job:notify-overdue-tasks` on the cron that already runs due-soon. The 15 minutes
+is the grace: a job finished a few minutes late never buzzes, and someone can
+still ring the customer. `tasks.overdue_notified_at` is claimed before sending
+and cleared when the due time or the assignee changes, like `due_notified_at`.
+A job more than two hours late is not scanned: that news is stale, and the first
+run would otherwise alert for all of history.
+
+**60 seconds, across isolates.** Rapid edits by one person to one task push once
+per recipient and kind per 60 seconds. `task_notify_claim` is one
+`INSERT ... ON CONFLICT DO UPDATE ... WHERE window_until <= clock_timestamp()` into
+`task_notify_windows`, keyed by (task, actor, recipient, kind). The row lock on the
+key makes the loser of a race re-read the winner's window, so two Workers cannot
+both push, and nothing is held in a Worker. The first edit pushes and the repeats
+are dropped, so no push states a new value that a later edit may have changed. A
+person who is filtered out (no access, push off, not a member) never spends a
+window, because the claim runs last.
+
+**Prefs and privacy.** A new category, `tasks` ("Changes to tasks I follow"), is in
+`notification_prefs.delivery` and on all three clients' notification settings,
+immediate by default, with quiet hours and batching applying as to any category.
+Mentions use `mentions`, assignment `assignments`, due-soon `assignments`
+unchanged. The push degrades under #430: the task title and the comment are
+withheld and our own headline, which names who acted, stays. A member denied the
+task's number (#106) is not told at all, as with assignment. Native kind
+`task_update` rides the assignments channel.
+
+**Daily summary.** It exists (#297) and now counts the member's overdue tasks plus
+those due by the end of their own day, instead of every open task they own.
+
+**Not built.** A per-task mute other than Unfollow; a mention picker in the
+clients' comment box (the API takes the ids); following from a list row.
