@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.26.0](https://github.com/BytechLabs/Texturion/compare/api-v0.25.1...api-v0.26.0) (2026-11-10)
+
+
+### Features
+
+* **api:** automatic texts follow the workspace's own settings ([4e0d32f](https://github.com/BytechLabs/Texturion/commit/4e0d32fec037bcadc3f35a97d4d73a357a24e39c))
+
+
+### Bug Fixes
+
+* **api:** a re-held scheduled text tells people once, not per run ([220cf21](https://github.com/BytechLabs/Texturion/commit/220cf2133df9fb681b0fd8d81937dc398e97c5c8))
+* **api:** background jobs notify once per state change ([27d2e62](https://github.com/BytechLabs/Texturion/commit/27d2e624dfb6324c1baadffa259e9264cefa1381))
+* **api:** calls ring when no business hours are set ([9e09c46](https://github.com/BytechLabs/Texturion/commit/9e09c46d701f7fc23fb3c6a47b7c58bc1b6f5b71))
+* **api:** overlapping port updates email the owner once ([36eaeed](https://github.com/BytechLabs/Texturion/commit/36eaeedc6bd367ce14a811fb5615a6ffd0a630f6))
+
 ## [0.25.1](https://github.com/BytechLabs/Texturion/compare/api-v0.25.0...api-v0.25.1) (2026-11-10)
 
 

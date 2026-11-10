@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.22.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.21.0...ios-v0.22.0) (2026-11-10)
+
+
+### Features
+
+* **ios:** an Automatic texts settings screen for how texts behave ([e7b12ec](https://github.com/BytechLabs/Texturion/commit/e7b12eca7da7997fc2607ae2749a8f696bb8494e))
+
+
+### Bug Fixes
+
+* **ios:** call rows say why no phone rang, and only spam is flagged ([9c95f1a](https://github.com/BytechLabs/Texturion/commit/9c95f1a067f47eb0083810797ccaa971df43ee8c))
+
 ## [0.21.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.20.0...ios-v0.21.0) (2026-11-10)
 
 
