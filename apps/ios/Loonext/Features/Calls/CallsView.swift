@@ -303,6 +303,22 @@ struct CallsView: View {
         }
     }
 
+    /// D64: "Make a task" on an answered call that landed in a conversation.
+    private func makeTaskButton(for call: Call) -> AnyView? {
+        guard call.outcome == CallOutcome.answered,
+              let conversationId = call.conversation_id
+        else { return nil }
+        return AnyView(
+            CallTaskButton(
+                graph: graph,
+                companyId: companyId,
+                conversationId: conversationId,
+                callerName: callerDisplayName(call),
+                callId: call.id
+            )
+        )
+    }
+
     /// The resolved log itself, split out so the `content` switch stays one
     /// expression per case (this file has already lost the type checker once).
     @ViewBuilder
@@ -329,7 +345,8 @@ struct CallsView: View {
                                 call: call,
                                 service: service,
                                 companyId: companyId,
-                                onOpen: openAction(for: call)
+                                onOpen: openAction(for: call),
+                                makeTask: makeTaskButton(for: call)
                             )
                             if call.id != calls.last?.id {
                                 RowDivider().padding(.leading, 64)
@@ -582,6 +599,10 @@ private struct CallRow: View {
     let service: CallsService
     let companyId: String
     let onOpen: (@MainActor () -> Void)?
+    /// D64: "Make a task", offered on an answered call that has a conversation.
+    /// After the required `let`s and defaulted, so the call sites and previews
+    /// that omit it keep compiling.
+    var makeTask: AnyView?
 
     /// #228: AFTER the required `let`s, so the memberwise init every call site
     /// above uses keeps the same argument order.
@@ -674,6 +695,7 @@ private struct CallRow: View {
                     // reads better broken in two.
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
+                if let makeTask { makeTask }
             }
             .padding(.horizontal, 15)
             .padding(.top, 11)

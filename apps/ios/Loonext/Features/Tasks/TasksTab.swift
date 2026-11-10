@@ -560,10 +560,12 @@ struct TasksTab: View {
         // haptic that waited for the server would arrive after the checkmark.
         if done { Haptics.confirm() } else { Haptics.tap() }
         Task {
-            // Derived-done invariant: the write path is the SOURCE MESSAGE.
+            // Derived-done invariant: a message task writes its SOURCE MESSAGE;
+            // a call task (D64) has none and writes the task.
             do {
-                _ = try await graph.tasksApi.setDone(
+                try await graph.tasksApi.setTaskDone(
                     companyId: companyId,
+                    taskId: task.id,
                     messageId: task.message_id,
                     done: done
                 )
@@ -632,6 +634,19 @@ private struct TaskListRow: View {
                             ? AnyShapeStyle(BrandColor.muted400)
                             : AnyShapeStyle(BrandColor.ink)
                     )
+                // D64: a call task names the call where a message task names nothing.
+                if let call = task.call {
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            "contactsTasks.callFrom",
+                            ["name": taskCallerName(call, locale: appLocale)]
+                        )
+                    )
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted500)
+                    .lineLimit(1)
+                }
                 if task.due_at != nil {
                     let overdue = isOverdue(task)
                     Text(

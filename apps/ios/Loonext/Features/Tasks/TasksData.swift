@@ -31,7 +31,30 @@ func taskDueBody(_ dueAt: String?) -> JSONValue {
     .object(["due_at": dueAt.map(JSONValue.string) ?? .null])
 }
 
-/// `{"done": true|false}` — the ONE completion body, sent to the message route.
+/// D64: the done write for ANY task, branched on its source. A message task
+/// writes its source message; a task promoted from a call has no message and
+/// owns its done state, so it is written on the task. The API answers 422 if a
+/// message task is patched on the task route.
+func taskDoneRoute(messageId: String?, taskId: String) -> String {
+    messageId.map { "/v1/messages/\($0)" } ?? "/v1/tasks/\(taskId)"
+}
+
+func writeTaskDone(
+    api: ApiClient,
+    companyId: String,
+    taskId: String,
+    messageId: String?,
+    done: Bool
+) async throws {
+    let _: JSONValue = try await api.patch(
+        taskDoneRoute(messageId: messageId, taskId: taskId),
+        body: messageDoneBody(done),
+        companyId: companyId
+    )
+}
+
+/// `{"done": true|false}` — the ONE completion body: the message route for a
+/// message task, the task route for a call task (D64).
 func messageDoneBody(_ done: Bool) -> JSONValue {
     .object(["done": .bool(done)])
 }
@@ -45,13 +68,17 @@ func taskNoteBody(body: String, taskId: String) -> JSONValue {
 /// optional structured `address` block (built by `taskAddressBody`) rides along
 /// when the make-task sheet confirmed one; omitted when there is none.
 func taskCreateBody(
-    messageId: String,
+    messageId: String?,
     title: String?,
     assignedUserId: String?,
     dueAt: String?,
-    address: JSONValue? = nil
+    address: JSONValue? = nil,
+    /// D64: an answered call to promote instead. Exactly one of the two.
+    sourceCallId: String? = nil
 ) -> JSONValue {
-    var object: [String: JSONValue] = ["message_id": .string(messageId)]
+    var object: [String: JSONValue] = [:]
+    if let messageId { object["message_id"] = .string(messageId) }
+    if let sourceCallId { object["source_call_id"] = .string(sourceCallId) }
     if let title { object["title"] = .string(title) }
     if let assignedUserId { object["assigned_user_id"] = .string(assignedUserId) }
     if let dueAt { object["due_at"] = .string(dueAt) }
@@ -215,6 +242,36 @@ struct TaskMutations: Sendable {
         try await api.patch(
             "/v1/messages/\(messageId)",
             body: messageDoneBody(done),
+            companyId: companyId
+        )
+    }
+
+    /// D64: done for a task of either source (see `taskDoneRoute`).
+    func setTaskDone(companyId: String, taskId: String, messageId: String?, done: Bool) async throws {
+        try await writeTaskDone(
+            api: api, companyId: companyId, taskId: taskId, messageId: messageId, done: done
+        )
+    }
+
+    /// D64: promote an answered call to a task ("Make a task" on a call).
+    func createFromCall(
+        companyId: String,
+        callId: String,
+        title: String,
+        assignedUserId: String?,
+        dueAt: String?,
+        address: JSONValue? = nil
+    ) async throws -> TaskRowPatch {
+        try await api.post(
+            "/v1/tasks",
+            body: taskCreateBody(
+                messageId: nil,
+                title: title,
+                assignedUserId: assignedUserId,
+                dueAt: dueAt,
+                address: address,
+                sourceCallId: callId
+            ),
             companyId: companyId
         )
     }

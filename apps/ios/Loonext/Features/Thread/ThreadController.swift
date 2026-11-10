@@ -1578,8 +1578,9 @@ final class ThreadController {
         conversationTasks = .ready(swap(rows, turningOn))
         Task {
             do {
-                _ = try await repo.setDone(
+                try await repo.setTaskDone(
                     companyId: companyId,
+                    taskId: task.id,
                     messageId: task.message_id,
                     done: turningOn
                 )
@@ -1773,7 +1774,11 @@ extension TaskItem {
             addr_state: addr_state,
             addr_postal_code: addr_postal_code,
             addr_country: addr_country,
-            addr_provenance: addr_provenance
+            addr_provenance: addr_provenance,
+            lat: lat,
+            lng: lng,
+            source: source,
+            call: call
         )
     }
 }

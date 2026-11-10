@@ -1423,6 +1423,22 @@ private struct ContactCallsSection: View {
         }
     }
 
+    /// D64: "Make a task" on an answered call that landed in a conversation.
+    private func makeTaskButton(for call: Call) -> AnyView? {
+        guard call.outcome == CallOutcome.answered,
+              let conversationId = call.conversation_id
+        else { return nil }
+        return AnyView(
+            CallTaskButton(
+                graph: graph,
+                companyId: companyId,
+                conversationId: conversationId,
+                callerName: callerDisplayName(call),
+                callId: call.id
+            )
+        )
+    }
+
     private func readyList(_ groups: [CallDayGroup]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(groups) { group in
@@ -1434,7 +1450,8 @@ private struct ContactCallsSection: View {
                             call: call,
                             service: service,
                             companyId: companyId,
-                            onOpen: openAction(for: call)
+                            onOpen: openAction(for: call),
+                            makeTask: makeTaskButton(for: call)
                         )
                         if call.id != group.calls.last?.id {
                             RowDivider().padding(.leading, 42)
@@ -1529,6 +1546,8 @@ private struct ContactCallRow: View {
     let service: CallsService
     let companyId: String
     let onOpen: (@MainActor () -> Void)?
+    /// D64: "Make a task", offered on an answered call that has a conversation.
+    var makeTask: AnyView?
 
     private var directionIcon: String {
         call.direction == "outbound" ? "phone.arrow.up.right" : "phone.arrow.down.left"
@@ -1558,6 +1577,7 @@ private struct ContactCallRow: View {
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted300)
                     .monospacedDigit()
+                if let makeTask { makeTask }
             }
             .padding(.horizontal, 15)
             .padding(.top, 11)

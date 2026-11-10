@@ -897,11 +897,29 @@ private struct ThreadBody: View {
                 timeIso: event.created_at,
                 transcript: voicemailTranscript(of: event),
                 onTap: eventTapAction(for: event),
-                tapLabel: eventTapLabel(for: event, sentence: sentence)
+                tapLabel: eventTapLabel(for: event, sentence: sentence),
+                // D64: an answered call can become a task right where it is narrated.
+                trailing: callTaskTrailing(for: event)
             )
         case .dayDivider(let label, _):
             DayDividerLine(label: label)
         }
+    }
+
+    /// D64: "Make a task" beside an answered call's line, or nil for any other.
+    private func callTaskTrailing(for event: ConversationEvent) -> AnyView? {
+        guard let session = answeredCallSessionId(of: event),
+              let companyId = controller.conversation?.company_id
+        else { return nil }
+        return AnyView(
+            CallTaskButton(
+                graph: graph,
+                companyId: companyId,
+                conversationId: event.conversation_id,
+                callerName: callLineCaller(of: event, locale: appLocale),
+                sessionId: session
+            )
+        )
     }
 
     private func openFile(_ attachment: Attachment, requested: Bool = false) {
@@ -2225,9 +2243,9 @@ private struct ToastView: View {
 /// edit marks the address "manual"). The ink Create bar posts the confirmed
 /// task. Mirrors the web MakeTaskForm.
 @MainActor
-private struct MakeTaskSheet: View {
-    let controller: ThreadController
-    let message: Message
+struct MakeTaskSheet: View {
+    let controller: any TaskDraftHost
+    let source: TaskDraftSource
     let contactName: String
     /// #228: the reader's language, handed in rather than read from the
     /// environment because `init` seeds the editable title from it.
@@ -2261,20 +2279,50 @@ private struct MakeTaskSheet: View {
     @FocusState private var addrFocus: AddrField?
 
     init(
-        controller: ThreadController,
-        message: Message,
+        controller: any TaskDraftHost,
+        source: TaskDraftSource,
         contactName: String,
         locale: String,
         onDismiss: @escaping @MainActor () -> Void
     ) {
         self.controller = controller
-        self.message = message
+        self.source = source
         self.contactName = contactName
         self.locale = locale
         self.onDismiss = onDismiss
-        _title = State(initialValue: Self.seededTitle(message.body, locale: locale))
+        switch source {
+        case .message(let message):
+            _title = State(initialValue: Self.seededTitle(message.body, locale: locale))
+        case .call(_, let callerName):
+            // D64: a call has no text to quote; the title says who rang.
+            _title = State(
+                initialValue: AppStrings.translate(
+                    locale, "thread.callTaskTitle", ["name": callerName]
+                )
+            )
+        }
         _assigneeId = State(initialValue: controller.meUserId)
     }
+
+    /// The thread's "Make a task" on a message.
+    init(
+        controller: any TaskDraftHost,
+        message: Message,
+        contactName: String,
+        locale: String,
+        onDismiss: @escaping @MainActor () -> Void
+    ) {
+        self.init(
+            controller: controller,
+            source: .message(message),
+            contactName: contactName,
+            locale: locale,
+            onDismiss: onDismiss
+        )
+    }
+
+    /// The source message, when the task promotes one (nil for a call).
+    private var message: Message? { source.message }
 
     /// The web's message-snippet default title, editable: the trimmed body
     /// (first 120 chars), or "Follow up" for a picture-only message.
@@ -2294,7 +2342,7 @@ private struct MakeTaskSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 15) {
                 header
-                if !message.body.isBlank { sourceQuote }
+                if let message, !message.body.isBlank { sourceQuote(message) }
                 titleField
                 assigneeRow
                 dueRow
@@ -2330,7 +2378,9 @@ private struct MakeTaskSheet: View {
                     .foregroundStyle(BrandColor.ink)
                 Text(
                     AppStrings.translate(
-                        locale, "thread.newTaskFrom", ["name": contactName]
+                        locale,
+                        source.message == nil ? "thread.newTaskFromCall" : "thread.newTaskFrom",
+                        ["name": contactName]
                     )
                 )
                 .font(.golos(12))
@@ -2349,7 +2399,7 @@ private struct MakeTaskSheet: View {
         }
     }
 
-    private var sourceQuote: some View {
+    private func sourceQuote(_ message: Message) -> some View {
         HStack(alignment: .top, spacing: 9) {
             RoundedRectangle(cornerRadius: 2)
                 .fill(BrandColor.lime)
@@ -2675,8 +2725,8 @@ private struct MakeTaskSheet: View {
     private func create() {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        controller.makeTask(
-            message,
+        controller.createTask(
+            from: source,
             title: String(trimmed.prefix(taskTitleMax)),
             assignedUserId: assigneeId,
             dueAt: due.map { encodeDueAt($0) },
@@ -2707,7 +2757,10 @@ private struct MakeTaskSheet: View {
         enrichStarted = true
         let settings = await controller.aiSettingsForTaskDraft()
         guard settings.anyEnabled else { return }
-        guard !message.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        // A call has no text to read, so there is nothing to enrich (D64).
+        guard let message,
+              !message.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return }
 
         enriching = true
         let result = await controller.enrichTaskDraft(for: message)

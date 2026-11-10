@@ -177,6 +177,12 @@ enum ContactsTasksStrings {
                 + "the task, but not its messages, files, or discussion. Ask an owner or "
                 + "admin for access.",
             "contactsTasks.aPhoto": "A photo",
+            // D64: a task promoted from an answered call.
+            "contactsTasks.fromThisCall": "From this call",
+            "contactsTasks.callFrom": "Call from {name}",
+            "contactsTasks.callTalkTime": "Talked for {duration}",
+            "contactsTasks.callVoicemailLeft": "Voicemail left",
+            "contactsTasks.callUnknownCaller": "Unknown caller",
             "contactsTasks.fromThisMessage": "From this message",
             "contactsTasks.viewInConversation": "View in conversation",
             "contactsTasks.description": "Description",
@@ -756,6 +762,11 @@ enum ContactsTasksStrings {
                 + "voyez la tâche, mais pas ses textos, ses fichiers ni sa discussion. "
                 + "Demandez l'accès à un propriétaire ou à un administrateur.",
             "contactsTasks.aPhoto": "Une photo",
+            "contactsTasks.fromThisCall": "À partir de cet appel",
+            "contactsTasks.callFrom": "Appel de {name}",
+            "contactsTasks.callTalkTime": "Appel de {duration}",
+            "contactsTasks.callVoicemailLeft": "Message vocal laissé",
+            "contactsTasks.callUnknownCaller": "Appelant inconnu",
             "contactsTasks.fromThisMessage": "À partir de ce texto",
             "contactsTasks.viewInConversation": "Voir dans la conversation",
             "contactsTasks.description": "Description",

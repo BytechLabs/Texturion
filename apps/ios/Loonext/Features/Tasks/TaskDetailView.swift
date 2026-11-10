@@ -15,7 +15,7 @@ struct TaskDetailView: View {
     let taskId: String
     /// Deep-link: open the source thread anchored to the promoted message.
     /// The shell wires it (#159); until wired the affordance stays hidden.
-    let onOpenConversation: ((_ conversationId: String, _ messageId: String) -> Void)?
+    let onOpenConversation: ((_ conversationId: String, _ messageId: String?) -> Void)?
 
     private enum DetailState {
         case loading
@@ -272,7 +272,9 @@ struct TaskDetailView: View {
             // due edit must not drop the reminder state the screen is showing.
             reminders_off: row.reminders_off,
             confirmed_at: row.confirmed_at,
-            confirmed_by: row.confirmed_by
+            confirmed_by: row.confirmed_by,
+            source: detail.source,
+            source_call: detail.source_call
         )
     }
 
@@ -283,9 +285,13 @@ struct TaskDetailView: View {
         Task {
             actionError = nil
             do {
-                // Derived-done invariant: the write path is the SOURCE MESSAGE.
-                _ = try await mutations.setDone(
-                    companyId: companyId, messageId: detail.message_id, done: next
+                // Derived-done invariant: a message task writes its SOURCE
+                // MESSAGE; a call task (D64) has none and writes the task.
+                try await mutations.setTaskDone(
+                    companyId: companyId,
+                    taskId: detail.id,
+                    messageId: detail.message_id,
+                    done: next
                 )
                 refreshKey += 1
             } catch {
@@ -695,6 +701,11 @@ struct TaskDetailView: View {
                     BrandColor.paper,
                     in: RoundedRectangle(cornerRadius: 20, style: .continuous)
                 )
+            }
+        } else if let call = detail.source_call {
+            // D64: the call this task was promoted from, where a message would be.
+            TaskSourceCallCard(call: call) {
+                onOpenConversation?(detail.conversation_id, nil)
             }
         }
     }

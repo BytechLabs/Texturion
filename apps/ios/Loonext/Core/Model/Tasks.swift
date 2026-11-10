@@ -2,14 +2,16 @@ import Foundation
 
 /// A task is metadata over a real message; `done`/`status` are DERIVED from
 /// the source message's done_at. Toggling done is
-/// `PATCH /v1/messages/{message_id}`, never a task route.
+/// `PATCH /v1/messages/{message_id}`. D64: a task promoted from an answered
+/// call has no message (`message_id` nil) and owns its done state, written with
+/// `PATCH /v1/tasks/{id}`; `source` says which.
 ///
 /// Named `TaskItem` (not `Task`) so the wire model never collides with Swift
 /// Concurrency's `Task`.
 struct TaskItem: Codable, Sendable {
     let id: String
     let company_id: String
-    let message_id: String
+    let message_id: String?
     let conversation_id: String
     let title: String
     @Default<DefaultEmptyString> var description: String
@@ -41,6 +43,33 @@ struct TaskItem: Codable, Sendable {
     /// lives — the founder-reported wrong-pin fix (web parity, map-types.ts).
     var lat: Double? = nil
     var lng: Double? = nil
+    /// D64: which kind of thing the task promotes. Nil on an older server.
+    var source: TaskSource? = nil
+    /// D64: the promoted call (list and checklist rows); nil for a message task.
+    var call: TaskSourceCall? = nil
+
+    /// A task with no message owns its done state (D64).
+    var isCallTask: Bool { message_id == nil }
+}
+
+/// D64: `source` on every task row: a message or an answered call.
+struct TaskSource: Codable, Sendable {
+    let kind: String
+    let id: String
+}
+
+/// D64: the call a task was promoted from. The recording path stays server-side.
+struct TaskSourceCall: Codable, Sendable {
+    let id: String
+    let call_session_id: String
+    let caller_e164: String?
+    let caller_name: String?
+    let outcome: String?
+    @Default<DefaultZero> var forward_seconds: Int
+    let started_at: String
+    let ended_at: String?
+    let contact_id: String?
+    @Default<DefaultFalse> var has_voicemail: Bool
 }
 
 struct TaskContactLocation: Codable, Sendable {
@@ -125,7 +154,7 @@ enum DefaultViewerLevelText: DefaultCodableProvider {
 struct TaskDetail: Codable, Sendable {
     let id: String
     let company_id: String
-    let message_id: String
+    let message_id: String?
     let conversation_id: String
     let title: String
     @Default<DefaultEmptyString> var description: String
@@ -163,6 +192,13 @@ struct TaskDetail: Codable, Sendable {
     var reminders_off: Bool? = nil
     var confirmed_at: String? = nil
     var confirmed_by: String? = nil
+    /// D64: which kind of thing the task promotes, and the promoted call (nil
+    /// for a message task or when the conversation is withheld, #107).
+    var source: TaskSource? = nil
+    var source_call: TaskSourceCall? = nil
+
+    /// A task with no message owns its done state (D64).
+    var isCallTask: Bool { message_id == nil }
 
     /// The 6 address columns as editable field values (nil columns → "").
     var addressFields: AddressFieldValues {

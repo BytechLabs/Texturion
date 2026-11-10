@@ -488,6 +488,8 @@ struct EventLine: View {
     var onTap: (@MainActor () -> Void)?
     /// Read out in place of the bare sentence, so the target is spoken too.
     var tapLabel: String?
+    /// An action beside the line, e.g. "Make a task" on an answered call (D64).
+    var trailing: AnyView?
 
     // `.underline` is a Text modifier and must be applied while this is still
     // a Text — after `.foregroundStyle` it no longer is.
@@ -500,17 +502,20 @@ struct EventLine: View {
 
     var body: some View {
         VStack(spacing: 3) {
-            if let onTap {
-                Button(action: onTap) {
+            HStack(spacing: 4) {
+                if let onTap {
+                    Button(action: onTap) {
+                        sentence
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
+                    }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(tapLabel ?? text)
+                        .accessibilityAddTraits(.isButton)
+                } else {
                     sentence
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
                 }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(tapLabel ?? text)
-                    .accessibilityAddTraits(.isButton)
-            } else {
-                sentence
+                if let trailing { trailing }
             }
             // The voicemail's words, right where the message is. Without them
             // this line only says a voicemail exists, which still leaves the

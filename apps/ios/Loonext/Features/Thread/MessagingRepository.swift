@@ -591,6 +591,13 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    /// D64: done for a task of either source (see `taskDoneRoute`).
+    func setTaskDone(companyId: String, taskId: String, messageId: String?, done: Bool) async throws {
+        try await writeTaskDone(
+            api: api, companyId: companyId, taskId: taskId, messageId: messageId, done: done
+        )
+    }
+
     func setMessagePinned(
         companyId: String,
         messageId: String,
