@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "@/lib/api/types";
 
 import {
-  MobilePinnedDisclosure,
+  PinnedStack,
   pinnedSnippet,
   sortPinned,
 } from "./pinned-banner";
@@ -75,38 +75,33 @@ describe("sortPinned", () => {
   });
 });
 
-describe("MobilePinnedDisclosure (#76 mobile collapse)", () => {
+describe("PinnedStack (#716)", () => {
   const pins = [
     m({ id: "a", pinned_at: "2026-07-04T12:00:00Z", body: "Gate code 4821", attachments: [] }),
     m({ id: "b", pinned_at: "2026-07-04T10:00:00Z", body: "Dog is friendly", attachments: [] }),
   ];
-
-  it("shows a compact 'Pinned · N' summary, collapsed by default", () => {
-    const html = renderToStaticMarkup(
-      createElement(MobilePinnedDisclosure, { messages: pins, onJump: () => {} }),
+  const stack = (messages: Message[]) =>
+    renderToStaticMarkup(
+      createElement(PinnedStack, { conversationId: "c1", messages, onJump: () => {} }),
     );
-    expect(html).toContain("Pinned · 2");
-    // Collapsed → the jump list and its rows/affordance are not rendered yet.
-    expect(html).not.toContain("Jump");
-    expect(html).not.toContain("Gate code 4821");
+
+  it("collapses several pins to the newest one and a count", () => {
+    const html = stack(pins);
+    expect(html).toContain("Gate code 4821");
+    expect(html).toContain("+1");
     expect(html).toContain('aria-expanded="false"');
+    // The older pin waits behind the stack until it is opened.
+    expect(html).not.toContain("Dog is friendly");
   });
 
-  it("drops the count for a single pin", () => {
-    const html = renderToStaticMarkup(
-      createElement(MobilePinnedDisclosure, {
-        messages: [pins[0]],
-        onJump: () => {},
-      }),
-    );
-    expect(html).toContain("Pinned");
-    expect(html).not.toContain("Pinned ·");
+  it("shows a single pin as itself, one tap from the message", () => {
+    const html = stack([pins[0]]);
+    expect(html).toContain("Gate code 4821");
+    expect(html).toContain("Jump");
+    expect(html).not.toContain("aria-expanded");
   });
 
   it("renders nothing when there are no pinned messages", () => {
-    const html = renderToStaticMarkup(
-      createElement(MobilePinnedDisclosure, { messages: [], onJump: () => {} }),
-    );
-    expect(html).toBe("");
+    expect(stack([])).toBe("");
   });
 });

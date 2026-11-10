@@ -29,8 +29,7 @@ import { cn } from "@/lib/utils";
 import { buildThreadItems, type ThreadItem } from "./clusters";
 import { MessageBubble } from "./message-bubble";
 import {
-  MobilePinnedDisclosure,
-  PinnedBanner,
+  PinnedStack,
   sortPinned,
 } from "./pinned-banner";
 import { DayDivider, SystemLine } from "./system-line";
@@ -447,16 +446,10 @@ export function MessageList({
       )}
       {pinnedMessages.length > 0 && (
         <>
-          {/* Desktop/tablet: the full always-open card (unchanged). */}
-          <div className="hidden shrink-0 px-4 pb-1 md:block md:px-6">
+          <div className="shrink-0 px-4 pb-1 pt-2 md:px-6 md:pt-0">
             <div className="mx-auto w-full max-w-[42rem]">
-              <PinnedBanner messages={pinnedMessages} onJump={scrollToMessage} />
-            </div>
-          </div>
-          {/* Phone: collapsed one-line disclosure (#76). */}
-          <div className="shrink-0 px-4 pb-1 pt-2 md:hidden">
-            <div className="mx-auto w-full max-w-[42rem]">
-              <MobilePinnedDisclosure
+              <PinnedStack
+                conversationId={conversationId}
                 messages={pinnedMessages}
                 onJump={scrollToMessage}
               />
