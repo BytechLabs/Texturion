@@ -82,6 +82,15 @@ describe("UpdatePrompt", () => {
     expect(markup()).toContain("Reload to pick up the latest fixes.");
   });
 
+  it("#710: offers a reload for a newer deploy even with no recommended version", () => {
+    requirement = "soft";
+    policy = { ...policy!, recommended_version: null };
+    deployed = "1.2.0";
+    expect(markup()).toContain("Reload now");
+    deployed = null;
+    policy = { ...policy, recommended_version: "1.1.0" };
+  });
+
   it("blocks below the floor, with the reason and no way past it", () => {
     requirement = "block";
     policy = { ...policy!, minimum_version: "2.0.0", message: "A security fix" };
