@@ -92,6 +92,18 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertEqual(task.category, PushCategory.assignments)
     }
 
+    func testAChangeToAFollowedTaskRoutesToTheAssignmentsCategory() {
+        // #689 D: the same category as being handed work, and the link opens the task.
+        let update = parsePush([
+            "kind": "task_update",
+            "title": "Dana finished a task",
+            "body": "Re-pipe the basement",
+            "url": "/tasks/task-2",
+        ])
+
+        XCTAssertEqual(update.category, PushCategory.assignments)
+    }
+
     func testAnUrgentTextGetsItsOwnCategoryNotMessages() {
         // #564: it used to be indistinguishable from "on my way?" — same
         // category, same presentation — while the reply we send that customer

@@ -149,6 +149,8 @@ enum ContactsTasksStrings {
             // Task detail
             "contactsTasks.taskGone": "This task doesn't exist or was removed.",
             "contactsTasks.taskActions": "Task actions",
+            "contactsTasks.followTask": "Follow this task",
+            "contactsTasks.unfollowTask": "Unfollow this task",
             "contactsTasks.deleteTask": "Delete task",
             "contactsTasks.deleteForbidden":
                 "Only an admin or the owner can delete tasks.",
@@ -781,6 +783,8 @@ enum ContactsTasksStrings {
             // Détail de la tâche
             "contactsTasks.taskGone": "Cette tâche n'existe pas ou a été supprimée.",
             "contactsTasks.taskActions": "Actions de la tâche",
+            "contactsTasks.followTask": "Suivre cette tâche",
+            "contactsTasks.unfollowTask": "Ne plus suivre cette tâche",
             "contactsTasks.deleteTask": "Supprimer la tâche",
             "contactsTasks.deleteForbidden":
                 "Seul un administrateur ou le propriétaire peut supprimer des tâches.",

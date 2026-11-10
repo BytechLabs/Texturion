@@ -75,6 +75,13 @@ struct TaskDetailView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             if let detail {
+                // #689 D: follow to hear when this changes. Not offered without
+                // access to the task, which the server 404s.
+                if !noAccess {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        followButton(detail)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     overflowMenu(detail)
                 }
@@ -312,7 +319,8 @@ struct TaskDetailView: View {
             confirmed_by: row.confirmed_by,
             source: detail.source,
             source_call: detail.source_call,
-            contact: detail.contact
+            contact: detail.contact,
+            subscribed: detail.subscribed
         )
     }
 
@@ -338,6 +346,33 @@ struct TaskDetailView: View {
         }
     }
 
+    private func toggleFollow() {
+        guard let detail else { return }
+        let next = !(detail.subscribed ?? false)
+        Haptics.tap()
+        // Shown at once and put back if the server refuses; the server
+        // remembers an unfollow, so the next fetch is the truth.
+        var shown = detail
+        shown.subscribed = next
+        state = .ready(shown)
+        Task {
+            actionError = nil
+            do {
+                try await mutations.follow(
+                    companyId: companyId,
+                    taskId: detail.id,
+                    follow: next
+                )
+                refreshKey += 1
+            } catch {
+                var back = detail
+                back.subscribed = !next
+                state = .ready(back)
+                actionError = error.userMessage
+            }
+        }
+    }
+
     private func deleteTask() {
         guard let detail else { return }
         deleting = true
@@ -358,6 +393,21 @@ struct TaskDetailView: View {
     }
 
     // MARK: - Body
+
+    private func followButton(_ detail: TaskDetail) -> some View {
+        let following = detail.subscribed ?? false
+        return Button {
+            toggleFollow()
+        } label: {
+            Image(systemName: following ? "bell.fill" : "bell.slash")
+        }
+        .accessibilityLabel(
+            AppStrings.translate(
+                appLocale,
+                following ? "contactsTasks.unfollowTask" : "contactsTasks.followTask"
+            )
+        )
+    }
 
     private func overflowMenu(_ detail: TaskDetail) -> some View {
         Menu {

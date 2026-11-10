@@ -312,6 +312,22 @@ struct TaskMutations: Sendable {
         )
     }
 
+    /// #689 D: follow or unfollow a task. Following asks for a push when it
+    /// changes; an unfollow is remembered by the server, so a later comment does
+    /// not bring it back.
+    func follow(companyId: String, taskId: String, follow: Bool) async throws {
+        let path = "/v1/tasks/\(taskId)/subscription"
+        if follow {
+            let _: TaskSubscription = try await api.post(
+                path,
+                body: JSONValue.object([:]),
+                companyId: companyId
+            )
+        } else {
+            try await api.delete(path, companyId: companyId)
+        }
+    }
+
     /// Soft-delete; creator or owner/admin only (403 otherwise).
     func delete(companyId: String, taskId: String) async throws {
         try await api.delete("/v1/tasks/\(taskId)", companyId: companyId)

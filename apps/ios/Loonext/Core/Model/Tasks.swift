@@ -182,6 +182,11 @@ enum DefaultViewerLevelText: DefaultCodableProvider {
 }
 
 /// GET /v1/tasks/:id. viewer_level 'none' withholds conversation content.
+/// The answer to following or unfollowing a task (#689 D).
+struct TaskSubscription: Decodable, Sendable {
+    let subscribed: Bool
+}
+
 struct TaskDetail: Codable, Sendable {
     let id: String
     let company_id: String
@@ -230,6 +235,9 @@ struct TaskDetail: Codable, Sendable {
     var source_call: TaskSourceCall? = nil
     /// #689: the contact a standalone task was linked to.
     var contact: TaskContactLocation? = nil
+    /// #689 D: whether the caller follows this task. Optional with a default so
+    /// the memberwise init stays source-compatible; nil reads as not following.
+    var subscribed: Bool? = nil
 
     /// A task with no message owns its done state (D64).
     var isCallTask: Bool { message_id == nil }

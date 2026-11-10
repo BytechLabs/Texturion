@@ -35,6 +35,9 @@ enum PushKind {
 
     /// A teammate put a job on the reader's name (#515).
     static let taskAssigned = "task_assigned"
+    /// A change to a task the reader follows (#689 D): taken off it, its time
+    /// moved, finished, reopened, commented on.
+    static let taskUpdate = "task_update"
 
     /// #564: a customer replying URGENT. Sent on the NATIVE payload only
     /// (inbound.ts) — the service worker has no channels to pick from.
@@ -162,7 +165,7 @@ func pushCategory(for kind: String?) -> String {
         return PushCategory.missedCalls
     case PushKind.taskDue:
         return PushCategory.taskReminders
-    case PushKind.conversationAssigned, PushKind.taskAssigned:
+    case PushKind.conversationAssigned, PushKind.taskAssigned, PushKind.taskUpdate:
         return PushCategory.assignments
     default:
         return PushCategory.messages

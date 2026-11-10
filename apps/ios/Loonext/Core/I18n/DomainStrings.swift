@@ -322,6 +322,7 @@ enum DomainStrings {
             "domain.categoryMessagesAll": "Texts on anyone's jobs",
             "domain.categoryMentions": "When somebody @s me",
             "domain.categoryAssignments": "Work handed to me",
+            "domain.categoryTasks": "Changes to tasks I follow",
             "domain.categoryMissedCalls": "Missed calls",
             "domain.categoryVoicemails": "Voicemails",
             // ── Silencing a channel while on call (#244) — OnCallSilence.swift ──────
@@ -790,6 +791,7 @@ enum DomainStrings {
             "domain.categoryMessagesAll": "Textos sur les tâches de tout le monde",
             "domain.categoryMentions": "Quand quelqu'un me mentionne avec @",
             "domain.categoryAssignments": "Travail qui m'est confié",
+            "domain.categoryTasks": "Changements aux tâches que je suis",
             "domain.categoryMissedCalls": "Appels manqués",
             "domain.categoryVoicemails": "Messages vocaux",
             // ── Silencing a channel while on call (#244) — OnCallSilence.swift ──────
