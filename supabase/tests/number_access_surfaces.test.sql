@@ -60,6 +60,10 @@ declare
     -- #689: a task's history and comments. A task on a denied number is not
     -- found, so its comments and field changes never reach the member.
     'api_task_activity',
+    -- #714: one timeline for a contact, task, conversation or call. A record on
+    -- a denied number is not found, and a contact's timeline drops the texts
+    -- and calls that happened on a denied number.
+    'api_record_activity',
     -- #690: a task's relations, what a thread or contact links to, and the two
     -- writes. A hidden task must not be linked to, listed or confirmed.
     'api_linked_tasks',
@@ -342,6 +346,36 @@ begin
          where conversation_id = '36800000-0000-4000-8000-000000000030'),
        hidden)->>'outcome' is distinct from 'ok' then
     raise exception 'NA-3 FAILED: api_task_activity hid a task on an allowed number';
+  end if;
+
+  -- #714: api_record_activity. The denied line's conversation is not found,
+  -- the allowed one is, and the hidden customer's timeline keeps the contact
+  -- but drops the text that came in on the denied line.
+  if public.api_record_activity(co, 'conversation',
+       '36800000-0000-4000-8000-000000000031', hidden)->>'outcome'
+       is distinct from 'not_found' then
+    raise exception 'NA-3 FAILED: api_record_activity read a conversation on a denied number';
+  end if;
+  if public.api_record_activity(co, 'conversation',
+       '36800000-0000-4000-8000-000000000030', hidden)->>'outcome'
+       is distinct from 'ok' then
+    raise exception 'NA-3 FAILED: api_record_activity hid a conversation on an allowed number';
+  end if;
+  select count(*) into open_n
+    from jsonb_array_elements(public.api_record_activity(co, 'contact',
+           '36800000-0000-4000-8000-000000000021')->'items') i
+   where i->>'conversation_id' = '36800000-0000-4000-8000-000000000031';
+  select count(*) into hidden_n
+    from jsonb_array_elements(public.api_record_activity(co, 'contact',
+           '36800000-0000-4000-8000-000000000021', hidden)->'items') i
+   where i->>'conversation_id' = '36800000-0000-4000-8000-000000000031';
+  if open_n < 1 then
+    raise exception 'NA-3 FAILED: baseline contact timeline has no text from the hidden line';
+  end if;
+  if hidden_n <> 0 then
+    raise exception
+      'NA-3 FAILED: api_record_activity showed % rows from a denied number on a contact timeline',
+      hidden_n;
   end if;
 
   -- #690: the relation, reference and linked-task surfaces. Called first with
