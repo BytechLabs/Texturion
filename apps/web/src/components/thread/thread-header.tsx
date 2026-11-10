@@ -42,6 +42,7 @@ import { avatarColorClass } from "@/components/shell/avatar-color";
 import { DeleteConversationsDialog } from "@/components/thread/delete-conversations-dialog";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
+import { AiOrb } from "@/components/ui/ai-orb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { undoableToast } from "@/components/ui/optimistic-undo";
@@ -154,6 +155,7 @@ export function ThreadHeader({
   onOpenGallery,
   filter,
   onFilterChange,
+  onCatchUp,
 }: {
   conversation: ConversationDetail;
   contact: ContactDetail | undefined;
@@ -165,6 +167,8 @@ export function ThreadHeader({
    *  filtering lives in the overflow "Show" menu; desktop keeps the visible bar. */
   filter: ThreadFilter;
   onFilterChange: (next: ThreadFilter) => void;
+  /** #716: ask Lou for a catch-up. Absent when the thread does not offer one. */
+  onCatchUp?: () => void;
 }) {
   const t = useT();
   const update = useUpdateConversation(conversation.id);
@@ -747,6 +751,14 @@ export function ThreadHeader({
               <MailOpen className="size-4" strokeWidth={1.75} />
               {t("thread.markUnread")}
             </DropdownMenuItem>
+            {/* #716: the composer's hint can be dismissed, so the catch-up
+                lives here too and is never more than this menu away. */}
+            {onCatchUp && (
+              <DropdownMenuItem onSelect={onCatchUp}>
+                <AiOrb size={16} />
+                {t("thread.catchMeUp")}
+              </DropdownMenuItem>
+            )}
             {/* #465: pinned and spam are STATES, not commands. They are drawn
                 as toggles and named as states, so they stop looking like
                 "Copy text" two rows down. */}

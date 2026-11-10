@@ -61,6 +61,7 @@ import {
   type ThreadFilter,
 } from "./thread-filter";
 import { ThreadHeader } from "./thread-header";
+import { useCatchUp } from "./use-catch-up";
 
 const PANEL_PREF_KEY = "loonext:contact-panel-open";
 
@@ -297,6 +298,10 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
     markReadMutate(conversationId);
   }, [conversationId, newestMessageId, markReadMutate]);
 
+  // #716: offered here, so the header menu and the composer's orb can ask and
+  // the card above the stream answers.
+  const catchUp = useCatchUp(conversationId, me.data?.user_id);
+
   const { role } = useActiveCompany();
   const banner =
     company.data && contact.data
@@ -338,6 +343,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           onOpenGallery={openGallery}
           filter={threadFilter}
           onFilterChange={setThreadFilter}
+          onCatchUp={catchUp.offered ? catchUp.ask : undefined}
         />
         {/* #250: above the list and above the filter bar, because a
             thread-level verdict outranks a view filter. shrink-0 or the
@@ -356,6 +362,12 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           contact={conversation.contact}
           filter={threadFilter}
           onFilterChange={setThreadFilter}
+          catchUp={{
+            offered: catchUp.offered,
+            askToken: catchUp.askToken,
+            newestMessageId: catchUp.newestMessageId,
+            onDismiss: catchUp.recapClosed,
+          }}
         />
         {banner ? (
           <>
@@ -426,6 +438,11 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
               noteOnly={conversation.viewer_level === "note"}
               onTyping={presence.onTyping}
               contactLocale={contact.data?.locale ?? null}
+              catchUp={{
+                shown: catchUp.hintShown,
+                onRecap: catchUp.ask,
+                onNotNow: catchUp.notNow,
+              }}
             />
           </>
         )}

@@ -123,6 +123,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useCompanyId } from "@/lib/company/provider";
 
+import { CatchUpHint } from "./catch-up-hint";
 import { formatBytes } from "./gallery-grouping";
 import { segmentMeter, segmentTooltip } from "./segment-meter";
 import { MentionPicker } from "./mention-picker";
@@ -520,6 +521,7 @@ export function Composer({
   noteOnly = false,
   onTyping,
   contactLocale,
+  catchUp,
 }: {
   conversationId: string;
   noteOnly?: boolean;
@@ -531,6 +533,8 @@ export function Composer({
    * the broadcast rate. Optional so every other mount site is unchanged.
    */
   onTyping?: () => void;
+  /** #716: Lou's catch-up offer, shown beside the orb (`useCatchUp`). */
+  catchUp?: { shown: boolean; onRecap: () => void; onNotNow: () => void };
 }) {
   const t = useT();
   const send = useSendMessage(conversationId);
@@ -1302,6 +1306,14 @@ export function Composer({
     [conversationId, schedule, text, t],
   );
 
+  // #716: one Lou offer at a time, and only beside the orb, so not on a note
+  // and not while drafts hold the same slot.
+  const catchUpHinted =
+    !isNote &&
+    catchUp?.shown === true &&
+    suggestions.length === 0 &&
+    !suggestReplies.isPending;
+
   return (
     <div
       className="relative px-3 pb-3 pt-2 md:px-4 md:pb-4"
@@ -1441,6 +1453,13 @@ export function Composer({
       {isNote && noteStage.files.length > 0 && (
         <WorkPhasePicker value={workPhase} onChange={setWorkPhase} />
       )}
+      {catchUpHinted && catchUp && (
+        <CatchUpHint
+          onRecap={catchUp.onRecap}
+          onNotNow={catchUp.onNotNow}
+          returnFocus={() => textareaRef.current?.focus()}
+        />
+      )}
       {/* #507: the same slot Lou's reply drafts use in text mode, so the
           composer swaps what is in one region rather than growing another.
           Renders nothing at rest. */}
@@ -1521,7 +1540,11 @@ export function Composer({
                     }
                     onClick={askForSuggestions}
                     disabled={suggestReplies.isPending}
-                    className="rounded-full text-muted-foreground"
+                    // #716: the soft highlight that ties the hint to the orb.
+                    className={cn(
+                      "rounded-full text-muted-foreground transition-colors duration-150 ease-out",
+                      catchUpHinted && "bg-app-tint",
+                    )}
                   >
                     <AiOrb
                       state={suggestReplies.isPending ? "thinking" : "idle"}

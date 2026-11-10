@@ -157,6 +157,11 @@ export const threadEn = {
     "Someone on this thread asked not to be contacted. That request is " +
     "binding however it is worded.",
 
+  // --- The catch-up offer beside the Lou orb (catch-up-hint.tsx) ------------
+  catchUpHint: "Catch up on this thread?",
+  catchUpRecap: "Recap",
+  notNow: "Not now",
+
   // --- "This looks like spam" (spam-suspected-banner.tsx) -------------------
   spamTitle: "This looks like spam",
   spamBody:
@@ -918,6 +923,11 @@ export const threadFr: Translated<typeof threadEn> = {
   optOutHintShort:
     "Quelqu'un dans cette conversation a demandé à ne plus être contacté. " +
     "Cette demande est contraignante, peu importe la formulation.",
+
+  // --- The catch-up offer beside the Lou orb ---------------------------------
+  catchUpHint: "Rattraper cette conversation ?",
+  catchUpRecap: "Résumé",
+  notNow: "Pas maintenant",
 
   // --- "This looks like spam" ------------------------------------------------
   spamTitle: "Ceci ressemble à du pourriel",

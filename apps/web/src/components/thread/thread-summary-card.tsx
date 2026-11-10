@@ -1,9 +1,9 @@
 "use client";
 
 import { THREAD_SUMMARY_ATTRIBUTION } from "@loonext/shared";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { AiOrb, AiStatus } from "@/components/ui/ai-orb";
+import { AiStatus } from "@/components/ui/ai-orb";
 import { useT } from "@/i18n/provider";
 import { reportAiOutcome } from "@/lib/api/conversations";
 import {
@@ -17,6 +17,7 @@ import {
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
+import { cn } from "@/lib/utils";
 
 /**
  * #247 — the catch-up card, above the thread stream.
@@ -27,11 +28,13 @@ import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
  *
  * WHAT THE SHAPE OF THIS COMPONENT IS DEFENDING, since none of it is decoration:
  *
- *   IT IS NOT ON BY DEFAULT. The resting state is one row, and the summary is
- *   what a press produces. A card that read the thread on mount would spend a
- *   metered AI call on every thread anybody opened — the most expensive call
- *   this product makes, fired by scrolling. It also would not be wanted: a
- *   catch-up is for coming back, and most opens are not that.
+ *   IT IS NOT ON BY DEFAULT. Until somebody asks, it renders nothing (#716):
+ *   the offer is a hint beside the composer's Lou orb and an item in the
+ *   header menu, and either one asks by bumping `askToken`. A card that read
+ *   the thread on mount would spend a metered AI call on every thread anybody
+ *   opened — the most expensive call this product makes, fired by scrolling.
+ *   It also would not be wanted: a catch-up is for coming back, and most opens
+ *   are not that.
  *
  *   NOTHING RENDERS WITHOUT A CITATION. Every line here is a <button> that jumps
  *   to `line.message_id`. There is no branch that draws a line as plain text, so
@@ -57,17 +60,17 @@ import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
  *   A REFUSAL IS SILENCE; A FAILED REQUEST IS NOT. Those are different events
  *   and they got the same treatment until they didn't: a refusal is the server
  *   answering "no lines, here is why", while a rejected request is no answer at
- *   all. This card used to fall back to its resting row on the second one, which
- *   is a button that appears to do nothing. `summary.isError` is read here and
+ *   all. This card used to fall back to its resting state on the second one,
+ *   which is a press that appears to do nothing. `summary.isError` is read here and
  *   {@link threadSummaryRequestFailure} supplies the sentence.
  *
  *   IT DECIDES NOTHING. No badge, no score, no reordering, nothing hidden. The
  *   inbox is still the inbox; this is a reading aid sitting on top of a thread
  *   that is completely readable without it.
  *
- * *Applying: Zen of Clarity (the resting state is one row, not a permanent card
- * eating the 42rem reading track) and Prioritize Intent (built around the one
- * action, with the sections as its result rather than as the frame).*
+ * *Applying: Zen of Clarity (nothing at rest, not a permanent card eating the
+ * 42rem reading track) and Prioritize Intent (built around the one action,
+ * with the sections as its result rather than as the frame).*
  */
 export function ThreadSummaryCard({
   conversationId,
@@ -78,21 +81,34 @@ export function ThreadSummaryCard({
    */
   offered,
   /**
+   * Each increase is one ask. Zero is "nobody has asked", and a value the card
+   * has already answered is never asked again, so a re-render cannot spend.
+   */
+  askToken,
+  /**
    * The newest loaded message id, watched for staleness. See {@link askedAt}.
    */
   newestMessageId,
   /** The thread's own jump — resolves through filters and unloaded pages. */
   onJump,
+  /** The card was dismissed, so the composer may offer a catch-up again. */
+  onDismiss,
+  className,
 }: {
   conversationId: string;
   offered: boolean;
+  askToken: number;
   newestMessageId: string | undefined;
   onJump: (messageId: string) => void;
+  onDismiss?: () => void;
+  className?: string;
 }) {
   const t = useT();
   const companyId = useCompanyId();
   const summary = useThreadSummary(conversationId);
   const [dismissed, setDismissed] = useState(false);
+  /** The last `askToken` this card asked for. */
+  const answeredToken = useRef(0);
   /**
    * The newest message when the catch-up was ASKED FOR, not when it landed.
    *
@@ -116,6 +132,23 @@ export function ThreadSummaryCard({
    * switch discards this exactly when it discards `summary.data`.
    */
   const heldStanding = useRef<CarrierStanding | null>(null);
+
+  function ask() {
+    if (summary.isPending) return;
+    askedAt.current = newestMessageId;
+    reportedUse.current = false;
+    setDismissed(false);
+    summary.mutate();
+  }
+
+  // Strictly greater, so the double effect of StrictMode and any re-render with
+  // the same token stay one ask.
+  useEffect(() => {
+    if (askToken <= answeredToken.current) return;
+    answeredToken.current = askToken;
+    if (offered) ask();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the token is the ask; `ask` and `offered` are read as they stand when it changes
+  }, [askToken]);
 
   if (!offered) return null;
 
@@ -151,14 +184,6 @@ export function ThreadSummaryCard({
       : null;
   const showCard =
     summary.isPending || ((result !== null || failure !== null) && !dismissed);
-
-  function ask() {
-    if (summary.isPending) return;
-    askedAt.current = newestMessageId;
-    reportedUse.current = false;
-    setDismissed(false);
-    summary.mutate();
-  }
 
   function openCited(messageId: string) {
     if (!reportedUse.current) {
@@ -196,36 +221,15 @@ export function ThreadSummaryCard({
   }
   const retryWord = retryLabel();
 
-  if (!showCard) {
-    return (
-      <section
-        aria-label={t("thread.catchUp")}
-        className="overflow-hidden rounded-app-card border border-app-line bg-app-paper"
-      >
-        <button
-          type="button"
-          onClick={ask}
-          className="tap-target flex w-full items-center gap-1.5 px-3 py-2 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        >
-          <AiOrb state="idle" size={14} />
-          <span className="text-[13px] font-medium text-app-ink">
-            {t("thread.catchMeUp")}
-          </span>
-          <span className="ml-auto text-[11px] text-app-muted-2">
-            {/* Says what it does before it is pressed, because pressing it is
-                the thing that costs. "Reads the last stretch" is also the
-                honest scope — it is never the whole thread (see `truncated`). */}
-            {t("thread.louReadsRecent")}
-          </span>
-        </button>
-      </section>
-    );
-  }
+  if (!showCard) return null;
 
   return (
     <section
       aria-label={t("thread.catchUp")}
-      className="overflow-hidden rounded-app-card border border-app-line bg-app-paper"
+      className={cn(
+        "overflow-hidden rounded-app-card border border-app-line bg-app-paper",
+        className,
+      )}
     >
       {/* CARRIER TRUTH FIRST — before the header, before anything Lou wrote.
           It appears on refusals and cache hits alike, and it is the one thing
@@ -260,7 +264,10 @@ export function ThreadSummaryCard({
             ) : null}
             <button
               type="button"
-              onClick={() => setDismissed(true)}
+              onClick={() => {
+                setDismissed(true);
+                onDismiss?.();
+              }}
               className="rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
             >
               {t("thread.dismiss")}

@@ -20,7 +20,6 @@ import {
   useMessages,
 } from "@/lib/api/messages";
 import { flattenPages } from "@/lib/api/pagination";
-import { offerThreadSummary } from "@/lib/api/thread-summary";
 import type { Message } from "@/lib/api/types";
 import { contactDisplayName } from "@/lib/format/phone";
 import { reducedMotionScrollBehavior } from "@/lib/motion";
@@ -66,12 +65,20 @@ export function MessageList({
   contact,
   filter,
   onFilterChange,
+  catchUp,
 }: {
   conversationId: string;
   contact: { name: string | null; phone_e164: string };
   /** §5.1 in-thread filter — All | Messages | Notes | Events (URL-state). */
   filter: ThreadFilter;
   onFilterChange: (next: ThreadFilter) => void;
+  /** #716: the thread view's catch-up (`useCatchUp`), answered here. */
+  catchUp: {
+    offered: boolean;
+    askToken: number;
+    newestMessageId: string | undefined;
+    onDismiss: () => void;
+  };
 }) {
   const t = useT();
   const messagesQuery = useMessages(conversationId);
@@ -94,22 +101,6 @@ export function MessageList({
     for (const m of messages) byId.set(m.id, m);
     return sortPinned([...byId.values()]);
   }, [pinnedQuery.data, messages]);
-
-  // #247: the customer-visible half of the thread — what Lou is allowed to read
-  // and therefore the only thing that decides whether a catch-up is offered or
-  // has gone stale. INTERNAL NOTES ARE EXCLUDED, matching the server's filter
-  // exactly: a note is not part of the conversation, so a crew leaving three of
-  // them must not make a five-message thread look worth summarising, and must
-  // not make an existing catch-up look out of date when nothing was said.
-  const visibleMessages = useMemo(
-    () =>
-      messages.filter(
-        (m) => m.direction === "inbound" || m.direction === "outbound",
-      ),
-    [messages],
-  );
-  const offersCatchUp = offerThreadSummary(visibleMessages);
-  const newestVisibleMessageId = visibleMessages[visibleMessages.length - 1]?.id;
 
   // §4.3: the done/undone timeline lines join the LIVE message body by id.
   // Built from the loaded message set — a cache-miss degrades to "a message"
@@ -462,25 +453,26 @@ export function MessageList({
           human record sits above the machine one. Same reading track, same
           chrome, so the two read as one family of strips rather than as an
           AI feature bolted on top.
+          #716: mounted from the first ask and kept for the thread, so a
+          dismissed card still holds its last standing for the next ask.
+          `empty:hidden` drops the padding while it renders nothing.
           Keyed by conversation so switching threads cannot leave one thread's
-          catch-up standing over another's messages.
-          The rule is asked twice on purpose: here so a thread that is not worth
-          a catch-up renders no empty wrapper and mounts no hooks, and again
-          inside the card so the component is correct wherever it is used. */}
-      {offersCatchUp && (
-        <div className="shrink-0 px-4 pb-1 pt-2 md:px-6 md:pt-1">
-          <div className="mx-auto w-full max-w-[42rem]">
-            <ThreadSummaryCard
-              key={conversationId}
-              conversationId={conversationId}
-              offered={offersCatchUp}
-              newestMessageId={newestVisibleMessageId}
-              // The SAME jump the pinned banner and the done lines use, so a
-              // cited message that is filtered out or on an older page still
-              // resolves instead of dead-ending.
-              onJump={scrollToMessage}
-            />
-          </div>
+          catch-up standing over another's messages. */}
+      {catchUp.askToken > 0 && (
+        <div className="shrink-0 px-4 pb-1 pt-2 empty:hidden md:px-6 md:pt-1">
+          <ThreadSummaryCard
+            key={conversationId}
+            className="mx-auto w-full max-w-[42rem]"
+            conversationId={conversationId}
+            offered={catchUp.offered}
+            askToken={catchUp.askToken}
+            newestMessageId={catchUp.newestMessageId}
+            // The SAME jump the pinned banner and the done lines use, so a
+            // cited message that is filtered out or on an older page still
+            // resolves instead of dead-ending.
+            onJump={scrollToMessage}
+            onDismiss={catchUp.onDismiss}
+          />
         </div>
       )}
       <div

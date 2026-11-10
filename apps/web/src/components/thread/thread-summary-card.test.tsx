@@ -3,6 +3,7 @@
  */
 import { THREAD_SUMMARY_ATTRIBUTION, THREAD_SUMMARY_SECTIONS } from "@loonext/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/error";
@@ -75,6 +76,7 @@ function line(
 }
 
 const onJump = vi.fn();
+const onDismiss = vi.fn();
 
 /** One line Lou wrote, so a test can watch it leave with the answer. */
 const A_LINE = "Asked about Tuesday";
@@ -93,28 +95,34 @@ beforeEach(() => {
   hook.mutate = () => {};
   reportAiOutcome.mockReset();
   onJump.mockReset();
+  onDismiss.mockReset();
 });
 
 /**
- * Press the control, let the answer land, re-render — the real sequence.
+ * Ask, let the answer land, re-render — the real sequence.
  *
  * Seeding `hook.data` before the first render would be a shortcut that skips
- * the press, and the press is what records which message the catch-up was asked
+ * the ask, and the ask is what records which message the catch-up was asked
  * against. A test that skipped it would be testing a state the product cannot
  * reach.
+ *
+ * #716: the card is mounted by the first ask (`message-list.tsx`), so it is
+ * born with a token of 1 — the composer hint's Recap or the header menu's
+ * Catch me up having been pressed.
  */
 function press(newestMessageId: string) {
   const card = (id: string) => (
     <ThreadSummaryCard
       conversationId="c-1"
       offered
+      askToken={1}
       newestMessageId={id}
       onJump={onJump}
+      onDismiss={onDismiss}
     />
   );
   let newest = newestMessageId;
   const view = render(card(newest));
-  fireEvent.click(screen.getByText("Catch me up"));
   /** Re-render with the hook's state as it now stands, nothing else moved. */
   const settle = () => view.rerender(card(newest));
   settle();
@@ -218,6 +226,20 @@ function reAsk(first: ThreadSummaryResult) {
   };
 }
 
+/** The card at a given token, so a test can move only the ask. */
+function cardAt(askToken: number, offered = true) {
+  return (
+    <ThreadSummaryCard
+      conversationId="c-1"
+      offered={offered}
+      askToken={askToken}
+      newestMessageId={NEWEST}
+      onJump={onJump}
+      onDismiss={onDismiss}
+    />
+  );
+}
+
 describe("the catch-up card — what it costs", () => {
   /**
    * The single most expensive mistake available here. This is the largest input
@@ -225,20 +247,37 @@ describe("the catch-up card — what it costs", () => {
    * would spend a metered call every time anybody opened a long thread — most
    * of which are not somebody coming back cold.
    */
-  it("asks for nothing until somebody presses the control", () => {
+  it("asks for nothing, and shows nothing, until the token says somebody asked", () => {
     const mutate = vi.fn();
     hook.mutate = mutate;
-    render(
-      <ThreadSummaryCard
-        conversationId="c-1"
-        offered
-        newestMessageId={NEWEST}
-        onJump={onJump}
-      />,
-    );
+    const view = render(cardAt(0));
     expect(mutate).not.toHaveBeenCalled();
+    // #716: no resting row. The offer lives beside the composer's Lou orb and
+    // in the header menu, so the top of the thread carries nothing at rest.
+    expect(view.container.innerHTML).toBe("");
 
-    fireEvent.click(screen.getByText("Catch me up"));
+    view.rerender(cardAt(1));
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  /** A re-render is not an ask: only a new token spends. */
+  it("asks once per token, however often it re-renders", () => {
+    const mutate = vi.fn();
+    hook.mutate = mutate;
+    const view = render(cardAt(1));
+    view.rerender(cardAt(1));
+    view.rerender(cardAt(1));
+    expect(mutate).toHaveBeenCalledTimes(1);
+
+    view.rerender(cardAt(2));
+    expect(mutate).toHaveBeenCalledTimes(2);
+  });
+
+  /** Development runs every effect twice; that must still be one metered call. */
+  it("asks once under StrictMode's double effect", () => {
+    const mutate = vi.fn();
+    hook.mutate = mutate;
+    render(<StrictMode>{cardAt(1)}</StrictMode>);
     expect(mutate).toHaveBeenCalledTimes(1);
   });
 
@@ -248,16 +287,35 @@ describe("the catch-up card — what it costs", () => {
    * something with nothing behind it is the "clever at the user's expense"
    * failure the shared offer rule exists to prevent.
    */
-  it("renders nothing at all on a thread the shared rule says is not worth it", () => {
-    const { container } = render(
-      <ThreadSummaryCard
-        conversationId="c-1"
-        offered={false}
-        newestMessageId={NEWEST}
-        onJump={onJump}
-      />,
-    );
+  it("renders nothing, and asks nothing, on a thread the shared rule says is not worth it", () => {
+    const mutate = vi.fn();
+    hook.mutate = mutate;
+    const { container } = render(cardAt(1, false));
     expect(container.innerHTML).toBe("");
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Dismissed is not gone for good: the next ask from the hint or the menu
+   * brings the card back, and the composer is told so it may offer again.
+   */
+  it("goes away on dismiss and comes back on the next ask", () => {
+    let calls = 0;
+    hook.mutate = () => {
+      calls += 1;
+      hook.data = result({ lines: [line(ASKED, A_LINE, "msg-a")] });
+    };
+    const view = render(cardAt(1));
+    view.rerender(cardAt(1));
+    expect(screen.getByText(A_LINE)).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Dismiss"));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(view.container.innerHTML).toBe("");
+
+    view.rerender(cardAt(2));
+    expect(calls).toBe(2);
+    expect(screen.getByText(A_LINE)).toBeTruthy();
   });
 });
 
@@ -516,9 +574,9 @@ describe("the catch-up card — a failed request is not a refusal", () => {
 
   it("says something when the request never landed, rather than resting", () => {
     askAndFail(offline);
-    // The resting row is what this used to fall back to. Its control going
-    // missing is the whole difference between a card and a dead button.
-    expect(screen.queryByText("Catch me up")).toBeNull();
+    // Falling back to rest is what this used to do, which after #716 is
+    // rendering nothing: an ask with no visible outcome at all.
+    expect(cardSection()).toBeTruthy();
     expect(bodyText()).toContain(threadSummaryRequestFailure(offline).message);
   });
 
