@@ -180,7 +180,10 @@ describe("#280 surfaces", () => {
         "due_before",
         "has_location",
         "overdue",
+        "priority",
+        "sort",
         "status",
+        "tag_id",
         "unassigned",
       ].sort(),
     );
