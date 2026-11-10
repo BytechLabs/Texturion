@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { CalendarClock, SquarePen } from "lucide-react";
 import Link from "next/link";
 import {
@@ -93,30 +94,28 @@ export function InboxPane() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-app-ground">
-      {/* #715: the page's one primary action, New, in the same header slot as
-          New task and New contact. Scheduled is a view of this inbox. */}
-      <header className="flex items-center gap-1 px-4 pb-1 pt-4">
-        <h1 className="mr-auto text-lg font-semibold text-app-ink">
-          {t("inbox.title")}
-        </h1>
-        <Button asChild size="sm" variant="ghost">
-          <Link href="/inbox/scheduled">
-            <CalendarClock className="size-4" strokeWidth={1.75} aria-hidden />
-            {t("shell.navScheduled")}
-          </Link>
-        </Button>
-        <Button
-          asChild
-          size="sm"
-          variant="ghost"
-          aria-label={t("inbox.newConversationAria")}
-        >
-          <Link href="/inbox/new">
-            <SquarePen className="size-4" strokeWidth={1.75} />
-            {t("inbox.newAction")}
-          </Link>
-        </Button>
-      </header>
+      {/* #715 / #732: the page's one main action, in the header every page
+          shares. Scheduled is a view of this inbox. */}
+      <PageHeader
+        className="px-4 pb-2 pt-4"
+        title={t("inbox.title")}
+        secondary={
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/inbox/scheduled">
+              <CalendarClock className="size-4" strokeWidth={1.75} aria-hidden />
+              {t("shell.navScheduled")}
+            </Link>
+          </Button>
+        }
+        primary={
+          <Button asChild size="sm">
+            <Link href="/inbox/new">
+              <SquarePen className="size-4" strokeWidth={1.75} aria-hidden />
+              {t("inbox.newTextAction")}
+            </Link>
+          </Button>
+        }
+      />
       <FilterBar filters={filters} onChange={setFilters} />
       {searching ? (
         <SearchResults q={q} />

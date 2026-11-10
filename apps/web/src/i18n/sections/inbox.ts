@@ -27,6 +27,8 @@ export const inboxEn = {
   title: "Inbox",
   newConversationAria: "New conversation",
   newAction: "New",
+  /** #732: the inbox's main action, named like New task and New contact. */
+  newTextAction: "New text",
 
   // --- Empty states (empty-states.tsx) --------------------------------------
   emptyEveryoneAnswered: "Everyone has been answered.",
@@ -514,6 +516,7 @@ export const inboxFr: Translated<typeof inboxEn> = {
   title: "Boîte de réception",
   newConversationAria: "Nouvelle conversation",
   newAction: "Nouveau",
+  newTextAction: "Nouveau texto",
 
   // --- Empty states ----------------------------------------------------------
   emptyEveryoneAnswered: "Tout le monde a reçu une réponse.",

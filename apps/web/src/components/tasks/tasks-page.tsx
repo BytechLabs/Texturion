@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { CalendarDays, LayoutGrid, List, MapPin } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useRef } from "react";
@@ -59,24 +60,24 @@ export function TasksPage() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {t("tasks.pageTitle")}
-          </h1>
-          <NewTaskButton variant="default" className="ml-auto" />
-          <ViewSwitcher
-            view={state.view}
-            onChange={(view) =>
-              // #113: keep the tab meaningful for the new view (Board/Map only
-              // support Mine | All, so Open/Done coerce to Mine).
-              setState({
-                ...state,
-                view,
-                tab: coerceTabForView(state.tab, view),
-              })
-            }
-          />
-        </div>
+        <PageHeader
+          title={t("tasks.pageTitle")}
+          secondary={
+            <ViewSwitcher
+              view={state.view}
+              onChange={(view) =>
+                // #113: keep the tab meaningful for the new view (Board/Map only
+                // support Mine | All, so Open/Done coerce to Mine).
+                setState({
+                  ...state,
+                  view,
+                  tab: coerceTabForView(state.tab, view),
+                })
+              }
+            />
+          }
+          primary={<NewTaskButton variant="default" size="sm" />}
+        />
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TaskFilterBar state={state} onChange={setState} />
           {/* #304: quiet, beside the filters that already say what it covers.

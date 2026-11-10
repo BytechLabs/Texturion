@@ -12,6 +12,7 @@
  * #134/D42: calling is included on every plan, so the old module-off banner
  * is gone — there is no module state to warn about.
  */
+import { PageHeader } from "@/components/ui/page-header";
 import { isCallEndReason, isCallRouting } from "@loonext/shared";
 import { Grid3x3, PhoneIncoming, X } from "lucide-react";
 import Link from "next/link";
@@ -114,25 +115,21 @@ export function CallsView() {
       {/* Wraps on a phone: the title, the phone status, Dial and the three
           filters do not fit on one 390px line, and without this the filter
           group ran off the right edge with "Voicemail" cut in half. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-[17px] font-semibold text-app-ink">
-            {t("shell.navCalls")}
-          </h1>
-          <SoftphoneStatus />
+      <PageHeader
+        title={t("shell.navCalls")}
+        status={<SoftphoneStatus />}
+        primary={
           <Dialer
             trigger={
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 px-2.5 text-[12.5px]"
-              >
-                <Grid3x3 className="size-3.5" strokeWidth={1.75} />
+              <Button size="sm">
+                <Grid3x3 className="size-4" strokeWidth={1.75} aria-hidden />
                 {t("shell.dial")}
               </Button>
             }
           />
-        </div>
+        }
+      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
         {/* The inbox filter-bar segmented control, verbatim shape: a stone
             track with the lifted active pill. */}
         <div

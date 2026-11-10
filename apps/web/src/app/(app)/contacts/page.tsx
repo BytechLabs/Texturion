@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Upload } from "lucide-react";
 import { useCallback, useState } from "react";
 
@@ -45,18 +46,18 @@ export default function ContactsPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-8 md:px-6">
-      <div className="flex items-start justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {t("appShell.contactsTitle")}
-        </h1>
-        <ContactsActions
-          canImport={canImport}
-          query={query}
-          tagId={tagId}
-          importSource={importSource}
-          onImportSourceChange={setImportSource}
-        />
-      </div>
+      <PageHeader
+        title={t("appShell.contactsTitle")}
+        secondary={
+          <ContactsActions
+            canImport={canImport}
+            query={query}
+            tagId={tagId}
+            importSource={importSource}
+            onImportSourceChange={setImportSource}
+          />
+        }
+      />
       {/* #246: above the table, and only when there is something to act on.
           Somebody who does not know they have duplicates will not navigate to
           a page about them — being shown is the whole mechanism. */}

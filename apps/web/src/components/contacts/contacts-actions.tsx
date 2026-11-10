@@ -94,16 +94,9 @@ export function ContactsActions({
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
-        {/* Writing down a number a customer gave you over the phone used to
-            mean building a CSV for it. Any member can add one, matching both
-            phone apps; import stays owner/admin. */}
-        <Button variant="outline" onClick={() => setCreating(true)}>
-          <UserPlus strokeWidth={1.75} aria-hidden />
-          {t("contacts.newContact")}
-        </Button>
-
         <Button
           variant="outline"
+          size="sm"
           onClick={runExport}
           disabled={exportContacts.isPending}
         >
@@ -116,7 +109,7 @@ export function ContactsActions({
         {canImport && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button>
+              <Button variant="outline" size="sm">
                 <Upload strokeWidth={1.75} aria-hidden />
                 {t("contacts.importAction")}
                 <ChevronDown strokeWidth={1.75} aria-hidden />
@@ -140,6 +133,14 @@ export function ContactsActions({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+
+        {/* #732: the page's one main action, last and filled, as on every
+            page. Any member can add one, matching both phone apps; import
+            stays owner/admin. */}
+        <Button size="sm" onClick={() => setCreating(true)}>
+          <UserPlus strokeWidth={1.75} aria-hidden />
+          {t("contacts.newContact")}
+        </Button>
       </div>
 
       {exportError && (
