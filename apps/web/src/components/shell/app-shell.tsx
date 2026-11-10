@@ -108,7 +108,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             id="main-content"
             tabIndex={-1}
             className={cn(
-              "flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0",
+              // #714: `relative` makes main the box absolute descendants
+              // (sr-only labels among them) are placed in. Without it they
+              // were placed in the document and made it scroll too.
+              "relative flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0",
               fixedFrame ? "overflow-hidden" : "overflow-y-auto",
             )}
           >

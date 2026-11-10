@@ -902,6 +902,26 @@ for (const theme of ["light", "dark"]) {
       await page.waitForTimeout(400);
       const faults = await page.evaluate(AUDIT);
       for (const fault of faults) problems.push({ theme, surface: surface.label, ...fault });
+      // #714: an app page scrolls inside <main>, never the document. A
+      // positioned element with no positioned ancestor once stretched the page
+      // and dragged the whole app, sidebar included, up with it.
+      if (surface.auth) {
+        const overflow = await page.evaluate(() => {
+          const main = document.getElementById("main-content");
+          main?.scrollTo(0, main.scrollHeight);
+          const doc = document.scrollingElement;
+          return doc ? doc.scrollHeight - doc.clientHeight : 0;
+        });
+        if (overflow > 1) {
+          problems.push({
+            theme,
+            surface: surface.label,
+            kind: "DOC-SCROLL",
+            what: surface.path,
+            detail: `the document scrolls by ${overflow}px; app pages must scroll inside <main>`,
+          });
+        }
+      }
       // #238: the same rendered page, asked a different question. Run once per
       // theme like the contrast pass — a control can lose its name in one
       // scheme only (a dark-mode-only icon swap), and a check that ran once

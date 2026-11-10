@@ -58,6 +58,12 @@ export const SURFACES = [
   // first time it was looked at, which is the argument for looking.
   { path: "/calls", label: "calls", auth: true },
   { path: "/contacts", label: "contacts", auth: true },
+  // #714: the page whose hidden date label stretched the document.
+  {
+    path: "/contacts/a0000000-0000-4000-8000-000000000001",
+    label: "contact (the seeded first contact)",
+    auth: true,
+  },
   {
     path: "/inbox/b0000000-0000-4000-8000-000000000001",
     label: "thread (the seeded showcase conversation)",
