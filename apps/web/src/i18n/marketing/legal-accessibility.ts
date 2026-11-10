@@ -218,6 +218,13 @@ export const accessibilityVerifiedFr: Record<
     sourceHolds:
       "Every signed-out screen shows the same help link in the same slot, because it is rendered by the auth layout and not by each page; the signed-in and marketing help routes are pinned where their screens expect them",
   },
+  "2.1.4 Character Key Shortcuts": {
+    criterion: "**2.1.4** Raccourcis clavier à touche unique",
+    holds:
+      "Les raccourcis à touche unique de la liste de la boîte de réception (j, k, e et les autres) peuvent être désactivés avec Raccourcis à touche unique dans Paramètres, Profil. Ils ne s'activent jamais lorsque le focus est dans un champ, le compositeur, un menu ou une boîte de dialogue, et ils ignorent toute touche pressée avec Ctrl, Alt ou Cmd",
+    sourceHolds:
+      "The inbox list's single-key shortcuts (j, k, e and the rest) can be turned off with Single-key shortcuts in Settings, Profile. They never fire while focus is in a field, the composer, a menu or a dialog, and they ignore any key pressed with Ctrl, Alt or Cmd",
+  },
   "1.4.10 Reflow": {
     criterion: "**1.4.10** Redimensionnement du contenu",
     holds:

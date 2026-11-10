@@ -1089,7 +1089,7 @@ POST /v1/messages/send
 
 - **Channels (both MVP):** email via Resend, and **Web Push** (VAPID key pair as Worker secrets; service worker in `apps/web`; payload: contact display name + 80-char snippet + deep link).
 - **Trigger (debounced — never one email per message):** a conversation is **new or reopened by inbound**, or a **first inbound after ≥15 minutes of thread inactivity** (`conversations.last_notified_at` gate: notify only if `last_notified_at IS NULL OR last_notified_at < now() - interval '15 minutes'`, then stamp it).
-- **Audience:** the assignee; if unassigned, all active members. Filtered per `notification_prefs` (per-user email/push toggles).
+- **Audience:** the assignee; if unassigned, all active members; plus anyone who follows the conversation (#694). Filtered per `notification_prefs` (per-user email/push toggles). A member who muted the conversation (1 hour, 8 hours, 1 week, or until unmuted) is dropped from it for new messages, missed calls and voicemails; mute wins over follow, and an emergency reply still reaches everyone. Mute never applies to a ringing call, an @mention or an assignment.
 - Spam-thread appends (threading step 3) never notify.
 - **Operational emails** — billing (dunning, SCA action-required, grace warnings), usage (80%/100% alerts, cap reached), and registration (approval, rejection, OTP nudge) — go to **the owner plus all active admins**, and **bypass `notification_prefs`**: prefs govern conversation notifications only.
 - **Responsive mobile-first UI is an explicit MVP requirement** (this ICP lives on phones); native apps are out of scope (D11).
