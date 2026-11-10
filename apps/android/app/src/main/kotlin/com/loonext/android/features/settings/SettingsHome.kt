@@ -94,6 +94,7 @@ import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.contentMaxWidth
 import com.loonext.android.ui.common.isCompactHeight
 import com.loonext.android.ui.common.previewCompany
@@ -558,23 +559,30 @@ internal fun SettingsIndex(
         // nothing when nothing is theirs.
         ownershipPrompt()
         usage?.let { UsageStatusCard(it, onOpen = { onOpen(SettingsSection.Usage) }) }
-        PaperCard(Modifier.fillMaxWidth()) {
-            // #461: a member saw every section and could act on almost none
-            // of them. The list is now what is theirs.
-            // #321: computed once for the list. Read from prefs rather than
-            // the server — a marker is a courtesy, and the failure mode of the
-            // local version is one extra dot on a second device.
-            val rowContext = LocalContext.current
-            val whatsNewMarker = remember(company.created_at) {
-                hasUnseenWhatsNew(readWhatsNewSeen(rowContext), company.created_at)
-            }
-            visibleSettingsSections(role).forEachIndexed { index, section ->
-                if (index > 0) RowDivider()
-                SettingsIndexRow(
-                    section,
-                    onOpen,
-                    showMarker = whatsNewMarker,
-                )
+        // #461: a member saw every section and could act on almost none of
+        // them. The list is now what is theirs.
+        // #727: under group headings, and a group with nothing they can open
+        // is left out.
+        // #321: computed once for the list. Read from prefs rather than the
+        // server — a marker is a courtesy, and the failure mode of the local
+        // version is one extra dot on a second device.
+        val rowContext = LocalContext.current
+        val whatsNewMarker = remember(company.created_at) {
+            hasUnseenWhatsNew(readWhatsNewSeen(rowContext), company.created_at)
+        }
+        groupedSettingsSections(role).forEach { (group, sections) ->
+            Column {
+                SectionHeader(t(group.titleKey))
+                PaperCard(Modifier.fillMaxWidth()) {
+                    sections.forEachIndexed { index, section ->
+                        if (index > 0) RowDivider()
+                        SettingsIndexRow(
+                            section,
+                            onOpen,
+                            showMarker = whatsNewMarker,
+                        )
+                    }
+                }
             }
         }
         VersionFooter()

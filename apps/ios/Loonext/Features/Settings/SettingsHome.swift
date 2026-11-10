@@ -325,20 +325,28 @@ struct SettingsHome: View {
                 // member with no Team row. Draws nothing when nothing is
                 // theirs.
                 OwnershipPrompt(scope: scope) { refreshKey += 1 }
-                PaperCard {
-                    ForEach(Array(visibleSections.enumerated()), id: \.element.id) { index, section in
-                        if index > 0 { RowDivider() }
-                        NavigationLink(value: section) {
-                            SettingsSectionRow(
-                                section: section,
-                                showMarker: section == .whatsNew
-                                    && hasUnseenWhatsNew(
-                                        lastSeen: readWhatsNewSeen(),
-                                        joinedAt: company.created_at
+                // #727: under group headings; a group with nothing this role
+                // can open is left out.
+                let showWhatsNewMarker = hasUnseenWhatsNew(
+                    lastSeen: readWhatsNewSeen(),
+                    joinedAt: company.created_at
+                )
+                ForEach(groupSettingsSections(visibleSections)) { entry in
+                    VStack(alignment: .leading, spacing: 0) {
+                        SectionHeader(label: t(entry.group.titleKey))
+                            .accessibilityAddTraits(.isHeader)
+                        PaperCard {
+                            ForEach(Array(entry.sections.enumerated()), id: \.element.id) { index, section in
+                                if index > 0 { RowDivider() }
+                                NavigationLink(value: section) {
+                                    SettingsSectionRow(
+                                        section: section,
+                                        showMarker: section == .whatsNew && showWhatsNewMarker
                                     )
-                            )
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 VersionFooter()
