@@ -83,6 +83,19 @@ class ThreadControllerTest {
     private var serverDetail: ConversationDetail =
         detailWith(listOf(msg("m2", T2)), nextCursor = OLDER_CURSOR)
 
+    /** #718: every message read that named an anchor or a direction, as its raw query. */
+    private val anchoredQueries = java.util.concurrent.CopyOnWriteArrayList<String>()
+
+    /** #718: what the anchored window, the newer page and the page older than the window answer. */
+    @Volatile
+    private var aroundBody = ""
+
+    @Volatile
+    private var newerBody = ""
+
+    @Volatile
+    private var windowOlderBody = ""
+
     /** The one older page reachable behind [OLDER_CURSOR]. */
     private val olderPage = Page(data = listOf(msg("m1", T1)), next_cursor = null)
 
@@ -124,6 +137,26 @@ class ThreadControllerTest {
                     // embedded first page of messages the controller renders.
                     request.method == "GET" && path == "/v1/conversations/c1" ->
                         MockResponse(code = 200, body = respJson.encodeToString(serverDetail))
+
+                    // #718: the window around a message, and its two cursors.
+                    request.method == "GET" &&
+                        path == "/v1/conversations/c1/messages" &&
+                        url.queryParameter("around") != null -> {
+                        anchoredQueries.add(url.query ?: "")
+                        MockResponse(code = 200, body = aroundBody)
+                    }
+
+                    request.method == "GET" &&
+                        path == "/v1/conversations/c1/messages" &&
+                        url.queryParameter("direction") == "newer" -> {
+                        anchoredQueries.add(url.query ?: "")
+                        MockResponse(code = 200, body = newerBody)
+                    }
+
+                    request.method == "GET" &&
+                        path == "/v1/conversations/c1/messages" &&
+                        url.queryParameter("cursor") == WINDOW_OLDER_CURSOR ->
+                        MockResponse(code = 200, body = windowOlderBody)
 
                     // The one older page, reached via the cursor.
                     request.method == "GET" &&
@@ -211,6 +244,62 @@ class ThreadControllerTest {
         awaitUntil { ids(controller).contains("m3") }
         assertEquals(listOf("m3", "m2", "m1"), ids(controller))
     }
+
+    /**
+     * #718: opening a thread at an old message asks the server for the window
+     * around it, then pages both ways. The newest page must not be merged into
+     * that window while it stops short of it, or the list would have a hole.
+     */
+    @Test
+    fun `opening at an old message loads only its window and pages both ways`() {
+        aroundBody = """{"data":[${wire("m6", T3)},${wire("m5", T2)},${wire("m4", T1)}],""" +
+            """"next_cursor":"$WINDOW_OLDER_CURSOR","newer_cursor":"$WINDOW_NEWER_CURSOR","anchor_id":"m5"}"""
+        newerBody = """{"data":[${wire("m9", T3)},${wire("m8", T3)},${wire("m7", T3)}],""" +
+            """"next_cursor":"x","newer_cursor":null}"""
+        windowOlderBody = """{"data":[${wire("m3", T1)}],"next_cursor":null}"""
+        val controller = controller()
+        controller.start()
+        awaitUntil { controller.load is LoadState.Ready }
+
+        assertEquals(true, runBlockingEnsure(controller, "m5"))
+        assertEquals(listOf("m6", "m5", "m4"), ids(controller))
+        assertEquals(true, controller.awayFromNewest)
+        assertEquals(1, anchoredQueries.size)
+        assertEquals(true, anchoredQueries.single().contains("around=m5"))
+
+        // The newest page landing while we sit in the window must not splice in.
+        controller.refreshAfterReconnect()
+        Thread.sleep(300)
+        assertEquals(listOf("m6", "m5", "m4"), ids(controller))
+
+        // Older continues from the window's own cursor.
+        controller.loadOlderMessages()
+        awaitUntil { ids(controller) == listOf("m6", "m5", "m4", "m3") }
+
+        // Newer pages toward the newest and closes the window.
+        controller.loadNewerMessages()
+        awaitUntil { !controller.awayFromNewest }
+        assertEquals(listOf("m9", "m8", "m7", "m6", "m5", "m4", "m3"), ids(controller))
+        assertEquals(true, anchoredQueries.last().contains("direction=newer"))
+        assertEquals(true, anchoredQueries.last().contains("cursor=$WINDOW_NEWER_CURSOR"))
+    }
+
+    @Test
+    fun `an anchor that is gone leaves the thread at the newest with a note`() {
+        aroundBody = """{"data":[${wire("m2", T2)}],"next_cursor":"$OLDER_CURSOR","newer_cursor":null,""" +
+            """"anchor_id":null,"anchor_missing":true}"""
+        val controller = controller()
+        controller.start()
+        awaitUntil { controller.load is LoadState.Ready }
+
+        assertEquals(false, runBlockingEnsure(controller, "gone"))
+        assertEquals(listOf("m2"), ids(controller))
+        assertEquals(false, controller.awayFromNewest)
+        assertEquals("That message is no longer here.", controller.notice?.text)
+    }
+
+    private fun runBlockingEnsure(c: ThreadController, id: String): Boolean =
+        kotlinx.coroutines.runBlocking { c.ensureMessageLoaded(id) }
 
     /**
      * #247 — the customer's STOP is still on the card while the re-ask is in
@@ -483,6 +572,12 @@ class ThreadControllerTest {
 
     private companion object {
         private const val OLDER_CURSOR = "older-1"
+        private const val WINDOW_OLDER_CURSOR = "window-older"
+        private const val WINDOW_NEWER_CURSOR = "window-newer"
+
+        private fun wire(id: String, at: String) =
+            """{"id":"$id","conversation_id":"c1","direction":"inbound","body":"body $id",""" +
+                """"status":"received","created_at":"$at"}"""
         private const val T1 = "2026-07-15T10:00:00Z"
         private const val T2 = "2026-07-15T10:05:00Z"
         private const val T3 = "2026-07-15T10:10:00Z"

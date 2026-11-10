@@ -1053,19 +1053,9 @@ struct TaskDetailView: View {
     /// here, not icons in a corner.
     @ViewBuilder
     private func onwardLinks(_ detail: TaskDetail) -> some View {
-        let conversationId = onOpenConversation == nil ? nil : detail.conversation_id
         let contactId = detail.contact?.id
-        if conversationId != nil || contactId != nil {
+        if contactId != nil {
             HStack(spacing: 4) {
-                if let conversationId {
-                    RecordOpenLink(
-                        label: AppStrings.translate(
-                            appLocale, "contactsTasks.openConversation"
-                        )
-                    ) {
-                        onOpenConversation?(conversationId, detail.message_id)
-                    }
-                }
                 if let contactId {
                     RecordOpenLink(
                         label: AppStrings.translate(appLocale, "contactsTasks.openContact")
@@ -1114,8 +1104,23 @@ struct TaskDetailView: View {
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
+    /// #718: the link that names the source, present only when there is one.
+    private func sourceLink(_ detail: TaskDetail) -> TaskSourceLink? {
+        guard onOpenConversation != nil else { return nil }
+        return taskSourceLink(
+            conversationId: detail.conversation_id,
+            messageId: detail.message_id,
+            source: detail.source,
+            call: detail.source_call,
+            sourceMessageDirection: detail.source_message?.direction,
+            contactName: detail.contact?.name,
+            locale: appLocale
+        )
+    }
+
     @ViewBuilder
     private func sourceCard(_ detail: TaskDetail) -> some View {
+        let link = sourceLink(detail)
         if let source = detail.source_message {
             VStack(alignment: .leading, spacing: 6) {
                 sectionLabel(
@@ -1134,13 +1139,9 @@ struct TaskDetailView: View {
                         )
                             .font(.golos(12.5))
                             .foregroundStyle(BrandColor.muted700)
-                        if onOpenConversation != nil, let conversationId = detail.conversation_id {
-                            Button(
-                                AppStrings.translate(
-                                    appLocale, "contactsTasks.viewInConversation"
-                                )
-                            ) {
-                                onOpenConversation?(conversationId, detail.message_id)
+                        if let link {
+                            Button(link.label) {
+                                onOpenConversation?(link.conversationId, link.messageId)
                             }
                             .font(.golos(11, weight: .bold))
                             .foregroundStyle(BrandColor.olive)
@@ -1158,9 +1159,9 @@ struct TaskDetailView: View {
             }
         } else if let call = detail.source_call {
             // D64: the call this task was promoted from, where a message would be.
-            TaskSourceCallCard(call: call) {
-                if let conversationId = detail.conversation_id {
-                    onOpenConversation?(conversationId, nil)
+            TaskSourceCallCard(call: call, linkLabel: link?.label) {
+                if let link {
+                    onOpenConversation?(link.conversationId, link.messageId)
                 }
             }
         } else if detail.message_id == nil {

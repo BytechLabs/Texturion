@@ -73,6 +73,7 @@ internal fun ContactTimelineSection(
     contactId: String,
     onOpenConversation: ((conversationId: String) -> Unit)?,
     modifier: Modifier = Modifier,
+    onOpenTask: ((taskId: String) -> Unit)? = null,
 ) {
     var refreshKey by remember(contactId) { mutableIntStateOf(0) }
     var loadingMore by remember(contactId) { mutableStateOf(false) }
@@ -171,9 +172,13 @@ internal fun ContactTimelineSection(
                                     TimelineRow(
                                         entry = entry,
                                         memberNames = memberNames,
-                                        onOpen = entry.conversation_id
-                                            ?.takeIf { onOpenConversation != null }
-                                            ?.let { id -> { onOpenConversation?.invoke(id) } },
+                                        onOpen = when (val open = timelineOpen(entry)) {
+                                            is TimelineOpen.Task ->
+                                                onOpenTask?.let { go -> { go(open.taskId) } }
+                                            is TimelineOpen.Thread ->
+                                                onOpenConversation?.let { go -> { go(open.conversationId) } }
+                                            null -> null
+                                        },
                                     )
                                     if (index < rows.lastIndex) RowDivider()
                                 }

@@ -348,6 +348,8 @@ struct CallTaskButton: View {
 /// message's quote would be: who rang, when, for how long, voicemail or not.
 struct TaskSourceCallCard: View {
     let call: TaskSourceCall
+    /// #718: names the source ("From a call with Sam"); no label, no link.
+    let linkLabel: String?
     let onOpenConversation: (@MainActor () -> Void)?
     @Environment(\.appLocale) private var appLocale
 
@@ -379,10 +381,8 @@ struct TaskSourceCallCard: View {
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted500)
                     }
-                    if let onOpenConversation {
-                        Button(
-                            AppStrings.translate(appLocale, "contactsTasks.viewInConversation")
-                        ) {
+                    if let onOpenConversation, let linkLabel {
+                        Button(linkLabel) {
                             onOpenConversation()
                         }
                         .font(.golos(11, weight: .bold))

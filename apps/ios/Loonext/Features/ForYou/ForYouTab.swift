@@ -495,14 +495,9 @@ struct ForYouList: View {
         )
     }
 
-    /// A task opens its thread; a standalone one with no conversation (#689)
-    /// opens its own detail.
-    private func openTask(_ taskId: String, conversationId: String?) {
-        if let conversationId {
-            onOpenConversation(conversationId)
-        } else {
-            AppRouter.shared.openTaskId = taskId
-        }
+    /// #718: a task row opens the task, not the thread it came from.
+    private func openTask(_ taskId: String) {
+        AppRouter.shared.openTaskId = taskId
     }
 
     private func callTap(_ call: Call) -> (@MainActor () -> Void)? {
@@ -803,7 +798,7 @@ struct ForYouList: View {
                             title: row.title,
                             overdue: row.overdue,
                             dueAt: row.due_at
-                        ) { openTask(row.task_id, conversationId: row.conversation_id) }
+                        ) { openTask(row.task_id) }
                     }
                 }
             }
@@ -892,7 +887,7 @@ struct ForYouList: View {
                             title: row.title,
                             overdue: row.overdue,
                             dueAt: row.due_at
-                        ) { openTask(row.task_id, conversationId: row.conversation_id) }
+                        ) { openTask(row.task_id) }
                     }
                 }
             }

@@ -83,6 +83,8 @@ struct TaskItem: Codable, Sendable {
 struct TaskSource: Codable, Sendable {
     let kind: String
     let id: String
+    /// #718: a message source's direction on list rows; "note" is a note.
+    var direction: String? = nil
 }
 
 /// D64: the call a task was promoted from. The recording path stays server-side.

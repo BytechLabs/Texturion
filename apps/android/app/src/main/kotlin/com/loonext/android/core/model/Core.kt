@@ -23,6 +23,21 @@ data class Page<T>(
     val hidden_count: Int = 0,
 )
 
+/**
+ * #718: one page of a thread. [newer_cursor] is null when the page reaches the
+ * newest message; [anchor_id] echoes the message a window was opened around;
+ * [anchor_missing] says it was asked for and is gone (the page is then the
+ * normal newest one).
+ */
+@Serializable
+data class MessagesPage(
+    val data: List<Message>,
+    val next_cursor: String? = null,
+    val newer_cursor: String? = null,
+    val anchor_id: String? = null,
+    val anchor_missing: Boolean = false,
+)
+
 object SubscriptionStatus {
     const val INCOMPLETE = "incomplete"
     const val INCOMPLETE_EXPIRED = "incomplete_expired"

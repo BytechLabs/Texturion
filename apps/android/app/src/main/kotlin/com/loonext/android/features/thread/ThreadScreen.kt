@@ -186,6 +186,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -219,6 +220,8 @@ fun ThreadScreen(
     onOpenAiSettings: (() -> Unit)? = null,
     /** #465: open the full contact screen from the conversation panel. */
     onOpenContact: ((contactId: String) -> Unit)? = null,
+    /** #726: where lead sources are managed; null for a role that cannot add one. */
+    onAddLeadSource: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     // #289: this phone's own answer about its own data plan. Device-scoped,
@@ -400,6 +403,7 @@ fun ThreadScreen(
                         highlightMessageId = highlightMessageId,
                         onOpenAiSettings = onOpenAiSettings,
                         onOpenContact = onOpenContact,
+                        onAddLeadSource = onAddLeadSource,
                         onBack = onBack,
                         onOpenFile = { attachment ->
                             scope.launch {
@@ -493,6 +497,7 @@ private fun ThreadLoaded(
     onOpenTask: ((taskId: String) -> Unit)?,
     onOpenAiSettings: (() -> Unit)?,
     onOpenContact: ((contactId: String) -> Unit)?,
+    onAddLeadSource: (() -> Unit)? = null,
     highlightMessageId: String? = null,
 ) {
     val context = LocalContext.current
@@ -572,6 +577,7 @@ private fun ThreadLoaded(
         controller.pendingSends,
         controller.filter,
         controller.allMessagesLoaded,
+        controller.awayFromNewest,
         locale,
     ) {
         buildTimeline(
@@ -583,6 +589,7 @@ private fun ThreadLoaded(
             zone = zone,
             today = LocalDate.now(zone),
             locale = locale,
+            awayFromNewest = controller.awayFromNewest,
         )
     }
 
@@ -595,6 +602,16 @@ private fun ThreadLoaded(
             .distinctUntilChanged()
             .collect { (lastVisible, total) ->
                 if (total > 0 && lastVisible >= total - 5) controller.loadOlderMessages()
+            }
+    }
+
+    // #718: an anchored window also pages the other way. The first index is the
+    // newest row, so nearing it means nearing the end of what is loaded.
+    LaunchedEffect(listState, controller) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collect { first ->
+                if (first <= 4 && controller.awayFromNewest) controller.loadNewerMessages()
             }
     }
 
@@ -621,7 +638,10 @@ private fun ThreadLoaded(
     // Your OWN sends always jump to the bottom — you want to see what you
     // just sent regardless of where you'd scrolled.
     LaunchedEffect(controller.pendingSends.size) {
-        if (controller.pendingSends.isNotEmpty()) listState.animateScrollToItem(0)
+        if (controller.pendingSends.isNotEmpty()) {
+            controller.jumpToLatest()
+            listState.animateScrollToItem(0)
+        }
     }
 
     // Any OTHER new row (teammate message, note, task line): stick to bottom
@@ -630,6 +650,8 @@ private fun ThreadLoaded(
     // scroll-to-bottom action when something arrives while scrolled up).
     LaunchedEffect(controller.newestMessageId) {
         if (controller.newestMessageId == null) return@LaunchedEffect
+        // Paging down an anchored window changes the first row too.
+        if (controller.awayFromNewest) return@LaunchedEffect
         if (listState.firstVisibleItemIndex <= 1) {
             listState.scrollToItem(0)
         } else {
@@ -640,6 +662,7 @@ private fun ThreadLoaded(
     // "New message ↓" pill when an inbound lands while scrolled up.
     LaunchedEffect(controller.newInboundTick) {
         if (controller.newInboundTick == 0) return@LaunchedEffect
+        if (controller.awayFromNewest) return@LaunchedEffect
         if (listState.firstVisibleItemIndex > 2) showNewPill = true
         else listState.animateScrollToItem(0)
     }
@@ -658,6 +681,8 @@ private fun ThreadLoaded(
     // walk mid-page. The flash+jump effect below fires once it's present.
     LaunchedEffect(highlightMessageId) {
         val target = highlightMessageId ?: return@LaunchedEffect
+        // The first load replaces the list; the window must land after it.
+        snapshotFlow { controller.load is LoadState.Ready }.first { it }
         if (controller.messages.none { it.id == target }) {
             controller.ensureMessageLoaded(target)
         }
@@ -1019,7 +1044,7 @@ private fun ThreadLoaded(
             // the outer ColumnScope's extension shadows the top-level overload
             // inside this BoxScope and the DslMarker forbids calling it.
             androidx.compose.animation.AnimatedVisibility(
-                visible = showNewPill,
+                visible = showNewPill || controller.awayFromNewest,
                 enter = scaleIn(
                     animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                     initialScale = 0.8f,
@@ -1041,7 +1066,10 @@ private fun ThreadLoaded(
                         ) {
                             haptics.tap()
                             showNewPill = false
-                            scope.launch { listState.animateScrollToItem(0) }
+                            scope.launch {
+                                controller.jumpToLatest()
+                                listState.animateScrollToItem(0)
+                            }
                         },
                 ) {
                     Row(
@@ -1049,7 +1077,10 @@ private fun ThreadLoaded(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            t("thread.newMessagePill"),
+                            t(
+                                if (controller.awayFromNewest) "thread.jumpToLatest"
+                                else "thread.newMessagePill",
+                            ),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
@@ -1525,6 +1556,12 @@ private fun ThreadLoaded(
                 callOrAskForMic()
             },
             calling = placingCall,
+            onAddLeadSource = onAddLeadSource?.let { open ->
+                {
+                    contactPanelOpen = false
+                    open()
+                }
+            },
         )
     }
 

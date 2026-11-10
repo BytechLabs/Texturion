@@ -15,7 +15,8 @@ struct NotificationsView: View {
     /// #358: whose read state this screen cares about. The read.* events ride
     /// the company topic, so a colleague's reading must be ignored.
     let meUserId: String
-    let onOpenConversation: @MainActor (String) -> Void
+    let onOpenConversation: @MainActor (_ conversationId: String, _ messageId: String?) -> Void
+    let onOpenTask: @MainActor (_ taskId: String) -> Void
 
     @State private var model: NotificationsFeedModel
     @State private var refreshKey = 0
@@ -26,12 +27,14 @@ struct NotificationsView: View {
         graph: AppGraph,
         companyId: String,
         meUserId: String,
-        onOpenConversation: @escaping @MainActor (String) -> Void
+        onOpenConversation: @escaping @MainActor (_ conversationId: String, _ messageId: String?) -> Void,
+        onOpenTask: @escaping @MainActor (_ taskId: String) -> Void
     ) {
         self.graph = graph
         self.companyId = companyId
         self.meUserId = meUserId
         self.onOpenConversation = onOpenConversation
+        self.onOpenTask = onOpenTask
         _model = State(initialValue: NotificationsFeedModel(
             api: NotificationsFeedApi(api: graph.api),
             companyId: companyId
@@ -136,8 +139,13 @@ struct NotificationsView: View {
                                 if index > 0 { RowDivider() }
                                 NotificationRow(row: row) {
                                     model.markItemRead(row)
-                                    if let conversationId = row.conversation_id {
-                                        onOpenConversation(conversationId)
+                                    switch notificationTarget(row) {
+                                    case .task(let taskId):
+                                        onOpenTask(taskId)
+                                    case .thread(let conversationId, let messageId):
+                                        onOpenConversation(conversationId, messageId)
+                                    case nil:
+                                        break
                                     }
                                 }
                             }

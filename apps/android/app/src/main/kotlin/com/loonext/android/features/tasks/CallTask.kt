@@ -213,6 +213,7 @@ private fun CallTaskSheetHost(
 @Composable
 internal fun SourceCallCard(
     call: TaskSourceCall,
+    linkLabel: String?,
     onOpenConversation: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -265,9 +266,9 @@ internal fun SourceCallCard(
                         )
                     }
                 }
-                if (onOpenConversation != null) {
+                if (onOpenConversation != null && linkLabel != null) {
                     Text(
-                        t("contactsTasks.openConversationArrow"),
+                        "$linkLabel →",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary,

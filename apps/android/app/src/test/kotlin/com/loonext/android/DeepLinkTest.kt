@@ -16,6 +16,15 @@ import java.io.File
 class DeepLinkTest {
 
     @Test
+    fun `a thread link can name the message to open at`() {
+        assertEquals(
+            DeepLink.Thread("conv-1", messageId = "m-7"),
+            deepLinkFor(listOf("inbox", "conv-1"), messageParam = "m-7"),
+        )
+        assertNull((deepLinkFor(listOf("inbox", "conv-1"), messageParam = " ") as DeepLink.Thread).messageId)
+    }
+
+    @Test
     fun `a thread link opens the thread`() {
         assertEquals(
             DeepLink.Thread("conv-1"),

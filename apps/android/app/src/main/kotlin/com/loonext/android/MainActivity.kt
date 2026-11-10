@@ -103,6 +103,7 @@ import com.loonext.android.features.tasks.CreatedTaskNoticeHost
 import com.loonext.android.features.tasks.TaskDetailScreen
 import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.features.thread.ThreadScreen
+import com.loonext.android.features.thread.canAddLeadSource
 import com.loonext.android.push.APP_ORIGIN
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
@@ -127,6 +128,8 @@ sealed interface DeepLink {
     data class Thread(
         val conversationId: String,
         val taskId: String? = null,
+        /** #718: the thread opens at this message, loaded and highlighted. */
+        val messageId: String? = null,
     ) : DeepLink
 
     /** A task with no thread behind it: its own page carries the same panel. */
@@ -172,13 +175,18 @@ fun deepLinkFor(
     segments: List<String>,
     taskParam: String? = null,
     callParam: String? = null,
+    messageParam: String? = null,
 ): DeepLink? = when {
     segments.size >= 2 && (segments[0] == "inbox" || segments[0] == "conversations") ->
         // A task reminder links to the JOB over its customer's thread, so the
         // query decides what opens on top. Reading only the path left the
         // reader in the thread with the address and checklist still a search
         // away, which is what the link exists to save them.
-        DeepLink.Thread(segments[1], taskParam?.takeIf { it.isNotBlank() })
+        DeepLink.Thread(
+            segments[1],
+            taskParam?.takeIf { it.isNotBlank() },
+            messageParam?.takeIf { it.isNotBlank() },
+        )
 
     segments.size >= 2 && segments[0] == "tasks" -> DeepLink.Task(segments[1])
 
@@ -270,6 +278,7 @@ private fun parseDeepLink(uri: Uri?): DeepLink? {
         uri.pathSegments,
         taskParam = uri.getQueryParameter("task"),
         callParam = uri.getQueryParameter("call"),
+        messageParam = uri.getQueryParameter("message"),
     )
 }
 
@@ -605,7 +614,7 @@ private fun ReadyShell(
         deepLinks.collect { link ->
             when (link) {
                 is DeepLink.Thread -> {
-                    push(Overlay.Thread(link.conversationId))
+                    push(Overlay.Thread(link.conversationId, link.messageId))
                     link.taskId?.let { push(Overlay.Task(it)) }
                 }
 
@@ -899,6 +908,17 @@ private fun ReadyShell(
                             push(Overlay.Settings(SettingsSection.Ai))
                         },
                         onOpenContact = { push(Overlay.Contact(it)) },
+                        // #726: owners manage lead sources where a number's
+                        // source is set; everyone else is not offered it.
+                        onAddLeadSource = if (
+                            canAddLeadSource(
+                                hydratedMe.memberships.firstOrNull { it.company_id == companyId }?.role,
+                            )
+                        ) {
+                            { push(Overlay.Settings(SettingsSection.Numbers)) }
+                        } else {
+                            null
+                        },
                     )
 
                     is Overlay.Task -> TaskDetailScreen(
@@ -963,9 +983,10 @@ private fun ReadyShell(
                             companyId = companyId,
                             meUserId = me.user_id,
                             modifier = it,
-                            onOpenConversation = { conversationId ->
-                                push(Overlay.Thread(conversationId))
+                            onOpenConversation = { conversationId, messageId ->
+                                push(Overlay.Thread(conversationId, messageId))
                             },
+                            onOpenTask = { push(Overlay.Task(it)) },
                         )
                     }
 
@@ -985,10 +1006,18 @@ private fun ReadyShell(
                         var section by rememberSaveable(companyId, active.section) {
                             mutableStateOf<SettingsSection?>(active.section)
                         }
+                        // #719: the setting a search result named, kept with the
+                        // section it opened; leaving the section drops it.
+                        var settingAnchor by rememberSaveable(companyId, active.section) {
+                            mutableStateOf<String?>(null)
+                        }
                         // Composed AFTER the host's pop BackHandler, so system
                         // back returns a section to the hub before popping the
                         // Settings route (the pre-hoist ordering, preserved).
-                        BackHandler(enabled = section != null) { section = null }
+                        BackHandler(enabled = section != null) {
+                            section = null
+                            settingAnchor = null
+                        }
                         OverlayScaffold(
                             // #228: `section.title` resolves with a null locale —
                             // it exists so the guards comparing this app against
@@ -996,7 +1025,14 @@ private fun ReadyShell(
                             // phone showed an English HEADER over a French
                             // section. The key is public for exactly this.
                             title = section?.let { t(it.titleKey) } ?: t("shell.settings"),
-                            onBack = { if (section != null) section = null else pop() },
+                            onBack = {
+                                if (section != null) {
+                                    section = null
+                                    settingAnchor = null
+                                } else {
+                                    pop()
+                                }
+                            },
                         ) { contentModifier ->
                             SettingsHome(
                                 graph = graph,
@@ -1004,7 +1040,15 @@ private fun ReadyShell(
                                 me = hydratedMe,
                                 modifier = contentModifier,
                                 section = section,
-                                onOpenSection = { section = it },
+                                onOpenSection = {
+                                    section = it
+                                    settingAnchor = null
+                                },
+                                anchor = settingAnchor,
+                                onOpenSetting = { target, anchor ->
+                                    section = target
+                                    settingAnchor = anchor
+                                },
                                 onSignOut = root::signOut,
                             )
                         }

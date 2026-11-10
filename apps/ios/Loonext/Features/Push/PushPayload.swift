@@ -248,7 +248,7 @@ func queryParam(url: String, name: String) -> String? {
 enum PushRoute: Equatable, Sendable {
     /// [taskId] rides along on a task reminder, whose link opens the job over
     /// the customer's thread.
-    case thread(conversationId: String, taskId: String? = nil)
+    case thread(conversationId: String, taskId: String? = nil, messageId: String? = nil)
     /// A task with no thread behind it: its own page carries the same panel.
     case task(taskId: String)
     case calls(sessionId: String?)
@@ -268,7 +268,8 @@ func parsePushRoute(url: String) -> PushRoute? {
         // away, which is what the link exists to save them.
         return .thread(
             conversationId: segments[1],
-            taskId: queryParam(url: normalized, name: "task")
+            taskId: queryParam(url: normalized, name: "task"),
+            messageId: queryParam(url: normalized, name: "message")
         )
     }
     if segments.count >= 2, segments[0] == "tasks" {

@@ -707,7 +707,11 @@ struct ShellView: View {
                 graph: graph,
                 companyId: companyId,
                 meUserId: hydratedMe.user_id,
-                onOpenConversation: { AppRouter.shared.openConversationId = $0 }
+                onOpenConversation: { conversationId, messageId in
+                    AppRouter.shared.pendingHighlightMessageId = messageId
+                    AppRouter.shared.openConversationId = conversationId
+                },
+                onOpenTask: { AppRouter.shared.openTaskId = $0 }
             )
         case .settings:
             SettingsHome(
@@ -738,7 +742,8 @@ struct ShellView: View {
         PushCoordinator.shared.activate(api: graph.api)
         PushHooks.router = { route in
             switch route {
-            case .thread(let conversationId, let taskId):
+            case .thread(let conversationId, let taskId, let messageId):
+                AppRouter.shared.pendingHighlightMessageId = messageId
                 AppRouter.shared.openConversationId = conversationId
                 if let taskId { AppRouter.shared.openTaskId = taskId }
             case .task(let taskId):

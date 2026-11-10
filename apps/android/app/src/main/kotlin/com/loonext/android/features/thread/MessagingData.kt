@@ -28,6 +28,7 @@ import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.GalleryItem
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
+import com.loonext.android.core.model.MessagesPage
 import com.loonext.android.core.model.OptOut
 import com.loonext.android.core.model.OutboundMedia
 import com.loonext.android.core.model.Page
@@ -407,6 +408,34 @@ class MessagingRepository(private val api: ApiClient) {
     ): Page<Message> = api.get(
         "/v1/conversations/$conversationId/messages",
         query = mapOf("cursor" to cursor, "limit" to limit.toString()),
+        companyId = companyId,
+    )
+
+    /**
+     * #718: the window around [messageId] (newest-first), with a cursor for
+     * older and one for newer. A missing anchor answers the newest page with
+     * `anchor_missing`.
+     */
+    suspend fun messagesAround(
+        companyId: String,
+        conversationId: String,
+        messageId: String,
+        limit: Int = 50,
+    ): MessagesPage = api.get(
+        "/v1/conversations/$conversationId/messages",
+        query = messagesQuery(around = messageId, limit = limit),
+        companyId = companyId,
+    )
+
+    /** #718: the page of messages newer than [cursor] (`newer_cursor` of the page before). */
+    suspend fun messagesNewer(
+        companyId: String,
+        conversationId: String,
+        cursor: String,
+        limit: Int = 50,
+    ): MessagesPage = api.get(
+        "/v1/conversations/$conversationId/messages",
+        query = messagesQuery(cursor = cursor, newer = true, limit = limit),
         companyId = companyId,
     )
 
@@ -1104,3 +1133,16 @@ fun clockProvenance(source: String, locale: String? = null): String = when (sour
     "area_code" -> AppStrings.translate(locale, "thread.clockFromAreaCode")
     else -> AppStrings.translate(locale, "thread.clockFromWorkspace")
 }
+
+/** The query of a thread read: older by default, around an anchor, or toward the newest (#718). */
+fun messagesQuery(
+    cursor: String? = null,
+    limit: Int = 50,
+    around: String? = null,
+    newer: Boolean = false,
+): Map<String, String?> = mapOf(
+    "cursor" to cursor,
+    "limit" to limit.toString(),
+    "around" to around,
+    "direction" to if (newer) "newer" else null,
+)

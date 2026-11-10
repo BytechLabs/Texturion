@@ -106,11 +106,22 @@ private func matchesFilter(_ message: Message, _ filter: ThreadFilter) -> Bool {
 func visibleEvents(
     _ events: [ConversationEvent],
     oldestLoadedMessageAt: String?,
-    allMessagesLoaded: Bool
+    allMessagesLoaded: Bool,
+    /// #718: set while the window stops short of the newest message. Events
+    /// newer than the newest loaded message are left out, so the window has no
+    /// stray lines floating above a gap.
+    newestLoadedMessageAt: String? = nil
 ) -> [ConversationEvent] {
-    if allMessagesLoaded { return events }
-    guard let oldestLoadedMessageAt else { return [] }
-    return events.filter { $0.created_at >= oldestLoadedMessageAt }
+    let inWindow: [ConversationEvent]
+    if allMessagesLoaded {
+        inWindow = events
+    } else if let oldestLoadedMessageAt {
+        inWindow = events.filter { $0.created_at >= oldestLoadedMessageAt }
+    } else {
+        return []
+    }
+    guard let newestLoadedMessageAt else { return inWindow }
+    return inWindow.filter { $0.created_at <= newestLoadedMessageAt }
 }
 
 /// Build the newest-first item list. `messages` and `events` arrive in server
@@ -127,11 +138,18 @@ func buildTimeline(
     /// to English so the pure callers — and the tests that pin the divider text
     /// — read exactly as they did; the screen passes `\.appLocale`. The Android
     /// twin takes it in the same place, for the same reason.
-    locale: String? = nil
+    locale: String? = nil,
+    /// #718: the window ends below the newest message (see `visibleEvents`).
+    awayFromNewest: Bool = false
 ) -> [TimelineItem] {
     let oldestMessageAt = messages.last?.created_at
     let shownEvents = filter.events
-        ? visibleEvents(events, oldestLoadedMessageAt: oldestMessageAt, allMessagesLoaded: allMessagesLoaded)
+        ? visibleEvents(
+            events,
+            oldestLoadedMessageAt: oldestMessageAt,
+            allMessagesLoaded: allMessagesLoaded,
+            newestLoadedMessageAt: awayFromNewest ? messages.first?.created_at : nil
+        )
         : []
     let shownMessages = messages.filter { matchesFilter($0, filter) }
 

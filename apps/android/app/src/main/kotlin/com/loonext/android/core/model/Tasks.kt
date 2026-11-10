@@ -144,6 +144,8 @@ data class TaskRepeat(
 data class TaskSource(
     val kind: String,
     val id: String,
+    /** #718: a message source's direction on list rows; "note" is a note. */
+    val direction: String? = null,
 )
 
 /** D64: the call a task was promoted from. The recording path stays server-side. */

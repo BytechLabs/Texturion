@@ -9,6 +9,19 @@ import Foundation
 /// no key strategy) — see CodableDefaults.swift for the rule.
 
 /// SPEC §7 list envelope — cursor-based only, opaque cursor.
+/// #718: one page of a thread. `newer_cursor` is nil when the page reaches the
+/// newest message; `anchor_id` echoes the message a window was opened around;
+/// `anchor_missing` says it was asked for and is gone (the page is then the
+/// normal newest one). Optionals are `var` with a default so a literal in a
+/// test need not name them.
+struct MessagesPage: Codable, Sendable {
+    let data: [Message]
+    let next_cursor: String?
+    var newer_cursor: String? = nil
+    var anchor_id: String? = nil
+    var anchor_missing: Bool? = nil
+}
+
 struct Page<T: Codable & Sendable>: Codable, Sendable {
     let data: [T]
     let next_cursor: String?

@@ -84,6 +84,36 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    /// #718: the window around `messageId` (newest-first), with a cursor for
+    /// older and one for newer. A missing anchor answers the newest page with
+    /// `anchor_missing`.
+    func messagesAround(
+        companyId: String,
+        conversationId: String,
+        messageId: String,
+        limit: Int = 50
+    ) async throws -> MessagesPage {
+        try await api.get(
+            "/v1/conversations/(conversationId)/messages",
+            query: messagesQuery(around: messageId, limit: limit),
+            companyId: companyId
+        )
+    }
+
+    /// #718: the page newer than `cursor` (the `newer_cursor` of the page before).
+    func messagesNewer(
+        companyId: String,
+        conversationId: String,
+        cursor: String,
+        limit: Int = 50
+    ) async throws -> MessagesPage {
+        try await api.get(
+            "/v1/conversations/(conversationId)/messages",
+            query: messagesQuery(cursor: cursor, newer: true, limit: limit),
+            companyId: companyId
+        )
+    }
+
     func events(
         companyId: String,
         conversationId: String,
@@ -1043,4 +1073,20 @@ func clockProvenance(_ source: String, locale: String? = nil) -> String {
     case "area_code": AppStrings.translate(locale, "thread.clockFromAreaCode")
     default: AppStrings.translate(locale, "thread.clockFromWorkspace")
     }
+}
+
+/// The query of a thread read: older by default, around an anchor, or toward
+/// the newest (#718). Nil values are dropped by the client.
+func messagesQuery(
+    cursor: String? = nil,
+    around: String? = nil,
+    newer: Bool = false,
+    limit: Int = 50
+) -> [String: String?] {
+    [
+        "cursor": cursor,
+        "limit": String(limit),
+        "around": around,
+        "direction": newer ? "newer" : nil,
+    ]
 }

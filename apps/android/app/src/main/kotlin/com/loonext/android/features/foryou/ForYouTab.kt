@@ -801,10 +801,8 @@ private fun ForYouList(
                                     title = row.title,
                                     overdue = row.overdue,
                                     dueAt = row.due_at,
-                                    onClick = {
-                                        row.conversation_id?.let(onOpenConversation)
-                                            ?: onOpenTask(row.task_id)
-                                    },
+                                    // #718: a task row opens the task.
+                                    onClick = { onOpenTask(row.task_id) },
                                 )
                             }
                         }
@@ -847,10 +845,8 @@ private fun ForYouList(
                                 title = row.title,
                                 overdue = row.overdue,
                                 dueAt = row.due_at,
-                                onClick = {
-                                    row.conversation_id?.let(onOpenConversation)
-                                        ?: onOpenTask(row.task_id)
-                                },
+                                // #718: a task row opens the task.
+                                onClick = { onOpenTask(row.task_id) },
                             )
                         }
                     }

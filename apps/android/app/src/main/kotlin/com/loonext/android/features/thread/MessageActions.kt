@@ -1098,16 +1098,8 @@ private fun NobodyChip(selected: Boolean, onClick: () -> Unit) {
 /** One due chip; selected = ink fill, paper text. */
 @Composable
 private fun DueChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        label,
-        style = MaterialTheme.typography.labelMedium.copy(
-            fontSize = 12.5.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-        ),
-        color = if (selected) MaterialTheme.colorScheme.onPrimary
-        else MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        modifier = Modifier
+    Row(
+        Modifier
             .clip(CircleShape)
             .background(
                 if (selected) MaterialTheme.colorScheme.primary
@@ -1115,7 +1107,29 @@ private fun DueChip(label: String, selected: Boolean, onClick: () -> Unit) {
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
-    )
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        // #726: chosen is a fill AND a check, so a lone chip is never the answer.
+        if (selected) {
+            Icon(
+                Icons.Outlined.Check,
+                contentDescription = t("thread.selected"),
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(13.dp),
+            )
+        }
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.5.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            ),
+            color = if (selected) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+    }
 }
 
 /** #214 the sparkle + "Suggested" micro hint next to the due label. */

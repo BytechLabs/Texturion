@@ -114,10 +114,20 @@ fun visibleEvents(
     events: List<ConversationEvent>,
     oldestLoadedMessageAt: String?,
     allMessagesLoaded: Boolean,
-): List<ConversationEvent> = when {
-    allMessagesLoaded -> events
-    oldestLoadedMessageAt == null -> emptyList()
-    else -> events.filter { it.created_at >= oldestLoadedMessageAt }
+    /**
+     * #718: set while the window stops short of the newest message. Events
+     * newer than the newest loaded message are left out, so the window has no
+     * stray lines floating above a gap.
+     */
+    newestLoadedMessageAt: String? = null,
+): List<ConversationEvent> {
+    val inWindow = when {
+        allMessagesLoaded -> events
+        oldestLoadedMessageAt == null -> emptyList()
+        else -> events.filter { it.created_at >= oldestLoadedMessageAt }
+    }
+    return if (newestLoadedMessageAt == null) inWindow
+    else inWindow.filter { it.created_at <= newestLoadedMessageAt }
 }
 
 /**
@@ -138,11 +148,19 @@ fun buildTimeline(
      * read exactly as they did; the screen passes `LocalAppLocale.current`.
      */
     locale: String? = null,
+    /** #718: the window ends below the newest message (see [visibleEvents]). */
+    awayFromNewest: Boolean = false,
 ): List<TimelineItem> {
     val oldestMessageAt = messages.lastOrNull()?.created_at
     val shownEvents =
-        if (filter.events) visibleEvents(events, oldestMessageAt, allMessagesLoaded)
-        else emptyList()
+        if (filter.events) {
+            visibleEvents(
+                events,
+                oldestMessageAt,
+                allMessagesLoaded,
+                newestLoadedMessageAt = if (awayFromNewest) messages.firstOrNull()?.created_at else null,
+            )
+        } else emptyList()
     val shownMessages = messages.filter { matchesFilter(it, filter) }
 
     // Merge two DESC streams by (created_at, id) DESC.

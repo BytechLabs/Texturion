@@ -38,6 +38,13 @@ class ContactTimelineLogicTest {
     )
 
     @Test
+    fun `a job row opens the job and every other row its thread`() {
+        assertEquals(TimelineOpen.Task("7"), timelineOpen(entry(kind = "task", id = "7")))
+        assertEquals(TimelineOpen.Thread("conv-1"), timelineOpen(entry(kind = "call")))
+        assertEquals(null, timelineOpen(entry(kind = "call").copy(conversation_id = null)))
+    }
+
+    @Test
     fun `dedup is by kind AND id, because the tables have separate id spaces`() {
         // A conversation and a job could carry the same id; keying on id alone
         // would silently drop one from the history.

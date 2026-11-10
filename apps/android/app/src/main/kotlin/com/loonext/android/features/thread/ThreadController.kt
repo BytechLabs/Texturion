@@ -148,6 +148,20 @@ class ThreadController(
         private set
     var loadingOlder by mutableStateOf(false)
         private set
+
+    /**
+     * #718: the cursor toward newer messages. Non-null only while the loaded
+     * window was opened around a message and ends below the newest one; null
+     * means the list reaches the newest message, as it always did.
+     */
+    var newerCursor by mutableStateOf<String?>(null)
+        private set
+    var loadingNewer by mutableStateOf(false)
+        private set
+
+    /** The loaded window stops short of the newest message (opened at an older one). */
+    val awayFromNewest: Boolean
+        get() = newerCursor != null
     var events by mutableStateOf<List<ConversationEvent>>(emptyList())
         private set
     var pinnedMessages by mutableStateOf<List<Message>>(emptyList())
@@ -302,10 +316,12 @@ class ThreadController(
         if (seeded) {
             // Merge page 1 instead of trimming — the snapshot may hold pages
             // the user had already scrolled back through.
-            messages = mergeMessagesFirstPage(messages, detail.messages.data)
-            val cursor = detail.messages.next_cursor
-            if (messagesCursor == null && cursor != null && !allMessagesLoaded) {
-                messagesCursor = cursor
+            if (!awayFromNewest) {
+                messages = mergeMessagesFirstPage(messages, detail.messages.data)
+                val cursor = detail.messages.next_cursor
+                if (messagesCursor == null && cursor != null && !allMessagesLoaded) {
+                    messagesCursor = cursor
+                }
             }
         } else {
             messages = detail.messages.data
@@ -548,6 +564,9 @@ class ThreadController(
 
     /** Write-back after any state change worth surviving a reopen (#176). */
     private fun persistSnapshot() {
+        // A window opened around an old message has a hole above it; a reopen
+        // restoring it would show the hole as if it were the thread.
+        if (awayFromNewest) return
         val detail = conversation ?: return
         cache.put(
             CacheKeys.thread(companyId, conversationId),
@@ -589,6 +608,9 @@ class ThreadController(
     }
 
     private suspend fun refreshMessagesFirstPage() {
+        // Merging the newest page into a window that stops short of it would
+        // leave a gap; the reader pages down, or jumps to the latest.
+        if (awayFromNewest) return
         val page = repo.messages(companyId, conversationId)
         messages = mergeMessagesFirstPage(messages, page.data)
         if (messagesCursor == null && page.next_cursor != null && !allMessagesLoaded) {
@@ -602,6 +624,7 @@ class ThreadController(
      * on a deep-history message lands without trusting the broadcast payload.
      */
     private suspend fun refetchLoadedWindow() {
+        if (awayFromNewest) return
         val target = messages.size
         var acc = emptyList<Message>()
         var cursor: String? = null
@@ -694,14 +717,16 @@ class ThreadController(
             runCatching {
                 val detail = repo.detail(companyId, conversationId)
                 conversation = detail
-                messages = mergeMessagesFirstPage(messages, detail.messages.data)
-                // Only adopt the fresh cursor from a blank slate; when the user
-                // has already paged deeper, the existing cursor still points to
-                // the oldest UNloaded message and the merge kept the rest.
-                if (messagesCursor == null && detail.messages.next_cursor != null &&
-                    !allMessagesLoaded
-                ) {
-                    messagesCursor = detail.messages.next_cursor
+                if (!awayFromNewest) {
+                    messages = mergeMessagesFirstPage(messages, detail.messages.data)
+                    // Only adopt the fresh cursor from a blank slate; when the user
+                    // has already paged deeper, the existing cursor still points to
+                    // the oldest UNloaded message and the merge kept the rest.
+                    if (messagesCursor == null && detail.messages.next_cursor != null &&
+                        !allMessagesLoaded
+                    ) {
+                        messagesCursor = detail.messages.next_cursor
+                    }
                 }
             }
             // MERGE page 1, don't REPLACE with it. Assigning `events = page.data`
@@ -1673,24 +1698,64 @@ class ThreadController(
         }
     }
 
-    /** Page back (bounded) until [messageId] is loaded; true when found. */
+    /**
+     * #718: make [messageId] present. Already loaded is a yes; otherwise the
+     * server returns the window around it (never the whole history), and a
+     * message that is gone opens the thread at the newest with a short note.
+     */
     suspend fun ensureMessageLoaded(messageId: String): Boolean {
-        var guard = 0
-        while (messages.none { it.id == messageId } && messagesCursor != null && guard < 20) {
-            val cursor = messagesCursor ?: break
-            try {
-                val page = repo.messages(companyId, conversationId, cursor)
-                messages = appendPage(messages, page.data) { it.id }
-                messagesCursor = page.next_cursor
-                if (page.next_cursor == null) allMessagesLoaded = true
-            } catch (cause: Exception) {
-                notify(cause.userMessageForReader())
+        if (messages.any { it.id == messageId }) return true
+        try {
+            val page = repo.messagesAround(companyId, conversationId, messageId)
+            if (page.anchor_missing) {
+                notify(say("thread.messageGone"))
                 return false
             }
-            guard++
+            messages = page.data
+            messagesCursor = page.next_cursor
+            newerCursor = page.newer_cursor
+            allMessagesLoaded = page.next_cursor == null
+        } catch (cause: Exception) {
+            notify(cause.userMessageForReader())
+            return false
         }
         runCatching { ensureEventsCoverMessages() }
         persistSnapshot()
         return messages.any { it.id == messageId }
+    }
+
+    /** #718: page toward the newest message from the bottom of an anchored window. */
+    fun loadNewerMessages() {
+        val cursor = newerCursor ?: return
+        if (loadingNewer) return
+        loadingNewer = true
+        scope.launch {
+            try {
+                val page = repo.messagesNewer(companyId, conversationId, cursor)
+                messages = mergeMessagesFirstPage(messages, page.data)
+                newerCursor = page.newer_cursor
+                persistSnapshot()
+            } catch (cause: Exception) {
+                notify(cause.userMessageForReader())
+            } finally {
+                loadingNewer = false
+            }
+        }
+    }
+
+    /** #718: leave an anchored window and show the newest messages again. */
+    suspend fun jumpToLatest() {
+        if (!awayFromNewest) return
+        try {
+            val page = repo.messages(companyId, conversationId)
+            messages = page.data
+            messagesCursor = page.next_cursor
+            allMessagesLoaded = page.next_cursor == null
+            newerCursor = null
+            runCatching { ensureEventsCoverMessages() }
+            persistSnapshot()
+        } catch (cause: Exception) {
+            notify(cause.userMessageForReader())
+        }
     }
 }

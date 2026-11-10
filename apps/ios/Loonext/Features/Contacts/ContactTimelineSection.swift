@@ -163,8 +163,15 @@ struct ContactTimelineSection: View {
     /// calls section documents. A call that never threaded has nowhere to go,
     /// and a dead tap target is worse than a plain row.
     private func openAction(for entry: TimelineEntry) -> (@MainActor () -> Void)? {
-        guard let id = entry.conversation_id, let onOpenConversation else { return nil }
-        return { onOpenConversation(id) }
+        switch timelineOpen(entry) {
+        case .task(let taskId):
+            return { AppRouter.shared.openTaskId = taskId }
+        case .thread(let conversationId):
+            guard let onOpenConversation else { return nil }
+            return { onOpenConversation(conversationId) }
+        case nil:
+            return nil
+        }
     }
 
     private func reload() async {
@@ -269,4 +276,17 @@ private struct TimelineRow: View {
             locale: appLocale
         )
     }
+}
+
+/// Where tapping a timeline row goes (#718): a job opens the job, anything else
+/// its thread.
+enum TimelineOpen: Equatable {
+    case task(taskId: String)
+    case thread(conversationId: String)
+}
+
+func timelineOpen(_ entry: TimelineEntry) -> TimelineOpen? {
+    if entry.kind == "task" { return .task(taskId: entry.id) }
+    guard let conversationId = entry.conversation_id else { return nil }
+    return .thread(conversationId: conversationId)
 }

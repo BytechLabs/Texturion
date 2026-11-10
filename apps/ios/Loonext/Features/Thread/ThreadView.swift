@@ -599,7 +599,17 @@ private struct ThreadBody: View {
                             detailSheet = nil
                             startCall(detail: detail, contactName: contactName)
                         },
-                        calling: placingCall
+                        calling: placingCall,
+                        // #726: owners manage lead sources where a number's
+                        // source is set; everyone else is not offered it.
+                        onAddLeadSource: canAddLeadSource(
+                            role: me.memberships.first { $0.company_id == companyId }?.role
+                        )
+                            ? {
+                                detailSheet = nil
+                                AppRouter.shared.openSettingsSection = .numbers
+                            }
+                            : nil
                     )
                 case .assignee:
                     AssigneePickerSheet(
@@ -768,7 +778,8 @@ private struct ThreadBody: View {
             allMessagesLoaded: controller.allMessagesLoaded,
             calendar: .current,
             now: Date(),
-            locale: appLocale
+            locale: appLocale,
+            awayFromNewest: controller.awayFromNewest
         )
         return ZStack(alignment: .bottom) {
             if timeline.isEmpty {
@@ -814,6 +825,8 @@ private struct ThreadBody: View {
                     // (its newest row is self-authored) never pills, or every
                     // reply-while-scrolled-up would nag you about your own text.
                     .onChange(of: controller.newestMessageId ?? "") { _, _ in
+                        // Paging down an anchored window changes the first row too.
+                        if controller.awayFromNewest { return }
                         if isAtBottom {
                             if let first = timeline.first {
                                 proxy.scrollTo(first.key, anchor: .bottom)
@@ -822,14 +835,20 @@ private struct ThreadBody: View {
                             showNewPill = true
                         }
                     }
-                    .onChange(of: controller.pendingSends.count) { _, _ in
+                    .onChange(of: controller.pendingSends.count) { _, count in
+                        // Your own send always wants the bottom, so leave an
+                        // anchored window first.
+                        if count > 0, controller.awayFromNewest {
+                            Task { await controller.jumpToLatest() }
+                            return
+                        }
                         if isAtBottom, let first = timeline.first {
                             proxy.scrollTo(first.key, anchor: .bottom)
                         }
                     }
                     // "New message ↓" pill when an inbound lands while scrolled up.
                     .onChange(of: controller.newInboundTick) { _, tick in
-                        guard tick > 0 else { return }
+                        guard tick > 0, !controller.awayFromNewest else { return }
                         if isAtBottom {
                             if let first = timeline.first {
                                 withAnimation { proxy.scrollTo(first.key, anchor: .bottom) }
@@ -861,17 +880,23 @@ private struct ThreadBody: View {
                         if !Task.isCancelled { flashMessageId = nil }
                     }
                     .overlay(alignment: .bottom) {
-                        if showNewPill {
+                        if showNewPill || controller.awayFromNewest {
                             Button {
                                 showNewPill = false
-                                if let first = timeline.first {
-                                    withAnimation { proxy.scrollTo(first.key, anchor: .bottom) }
+                                Task {
+                                    await controller.jumpToLatest()
+                                    if let first = timeline.first {
+                                        withAnimation { proxy.scrollTo(first.key, anchor: .bottom) }
+                                    }
                                 }
                             } label: {
                                 HStack(spacing: 4) {
                                     Text(
                                         AppStrings.translate(
-                                            appLocale, "thread.newMessagePill"
+                                            appLocale,
+                                            controller.awayFromNewest
+                                                ? "thread.jumpToLatest"
+                                                : "thread.newMessagePill"
                                         )
                                     )
                                     .font(.golos(12, weight: .semibold))
@@ -896,6 +921,12 @@ private struct ThreadBody: View {
         if index == 0 {
             isAtBottom = true
             showNewPill = false
+        }
+        // #718: an anchored window also pages the other way. The first index
+        // is the newest row, so nearing it means nearing the end of what is
+        // loaded.
+        if index <= 4, controller.awayFromNewest {
+            controller.loadNewerMessages()
         }
         // Flipped list: high indexes are the oldest items at the visual top.
         if total > 0, index >= total - 5 {

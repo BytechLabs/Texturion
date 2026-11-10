@@ -207,3 +207,15 @@ private fun talkTime(seconds: Int): String {
 
 private fun dueLabel(iso: String, now: Instant): String =
     TimestampFormat.label(iso, now = now)
+
+/** Where tapping a timeline row goes (#718): a job opens the job, anything else its thread. */
+internal sealed interface TimelineOpen {
+    data class Task(val taskId: String) : TimelineOpen
+    data class Thread(val conversationId: String) : TimelineOpen
+}
+
+internal fun timelineOpen(entry: TimelineEntry): TimelineOpen? = when {
+    entry.kind == "task" -> TimelineOpen.Task(entry.id)
+    entry.conversation_id != null -> TimelineOpen.Thread(entry.conversation_id)
+    else -> null
+}

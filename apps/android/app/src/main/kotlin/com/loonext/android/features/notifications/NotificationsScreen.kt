@@ -105,7 +105,8 @@ fun NotificationsScreen(
      *  the company topic, so a colleague's reading must be ignored. */
     meUserId: String,
     modifier: Modifier = Modifier,
-    onOpenConversation: (String) -> Unit,
+    onOpenConversation: (conversationId: String, messageId: String?) -> Unit,
+    onOpenTask: (taskId: String) -> Unit,
 ) {
     val repo = remember(graph) { NotificationsFeedRepository(graph.api) }
     val scope = rememberCoroutineScope()
@@ -469,7 +470,16 @@ fun NotificationsScreen(
                                             onTap = {
                                                 haptics.tap()
                                                 markItemRead(row)
-                                                row.conversation_id?.let(onOpenConversation)
+                                                when (val target = notificationTarget(row)) {
+                                                    is NotificationTarget.Task ->
+                                                        onOpenTask(target.taskId)
+                                                    is NotificationTarget.Thread ->
+                                                        onOpenConversation(
+                                                            target.conversationId,
+                                                            target.messageId,
+                                                        )
+                                                    null -> Unit
+                                                }
                                             },
                                         )
                                     }

@@ -119,6 +119,25 @@ class TimelineTest {
     }
 
     @Test
+    fun `an anchored window leaves out events newer than its newest message`() {
+        val timeline = buildTimeline(
+            messages = listOf(message("m1", "2026-07-15T10:00:00Z")),
+            events = listOf(
+                event("newer", "2026-07-20T10:00:00Z"),
+                event("inside", "2026-07-15T09:00:00Z"),
+            ),
+            pending = emptyList(),
+            filter = ThreadFilter(),
+            allMessagesLoaded = true,
+            zone = zone,
+            today = today,
+            awayFromNewest = true,
+        )
+        assertFalse(timeline.any { it.key == "e:newer" })
+        assertTrue(timeline.any { it.key == "e:inside" })
+    }
+
+    @Test
     fun `events older than the loaded message window stay hidden`() {
         val timeline = buildTimeline(
             messages = listOf(message("m1", "2026-07-15T10:00:00Z")),

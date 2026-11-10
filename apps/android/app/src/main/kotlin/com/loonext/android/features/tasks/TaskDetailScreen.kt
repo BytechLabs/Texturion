@@ -339,18 +339,16 @@ private fun DetailTopBar(
     }
 }
 
-/** The task header's action row: labelled links onward, absent when neither exists. */
+/** The task header's action row: the labelled link to the customer, absent when there is none. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TaskOnwardLinks(
-    openConversation: (() -> Unit)?,
     openContact: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    if (openConversation == null && openContact == null) return
+    if (openContact == null) return
     FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        openConversation?.let { RecordOpenLink(t("contactsTasks.openConversation"), it) }
-        openContact?.let { RecordOpenLink(t("contactsTasks.openContact"), it) }
+        RecordOpenLink(t("contactsTasks.openContact"), openContact)
     }
 }
 
@@ -807,15 +805,11 @@ private fun TaskDetailBody(
             // #717: the header's action row. The ways onward are labelled links
             // here, not icons in a corner.
             item(key = "onward") {
-                val openConversation = detail.conversation_id?.let { conversation ->
-                    onOpenConversation?.let { open -> { open(conversation, detail.message_id) } }
-                }
                 val openContact = detail.contact_id?.let { contact ->
                     onOpenContact?.let { open -> { open(contact) } }
                 }
                 if (!noAccess) {
                     TaskOnwardLinks(
-                        openConversation = openConversation,
                         openContact = openContact,
                         modifier = Modifier.padding(start = 10.dp, end = 18.dp),
                     )
@@ -1104,15 +1098,27 @@ private fun TaskDetailBody(
             } else {
                 item(key = "source") {
                     val source = detail.source_message
+                    // #718: the link names its source and exists only with one.
+                    val sourceLink = taskSourceLink(
+                        conversationId = detail.conversation_id,
+                        messageId = detail.message_id,
+                        source = detail.source,
+                        call = detail.source_call,
+                        sourceMessageDirection = source?.direction,
+                        contactName = detail.contact?.name,
+                        locale = LocalAppLocale.current,
+                    )
+                    val openSource = sourceLink?.let { link ->
+                        onOpenConversation?.let { open ->
+                            { open(link.conversationId, link.messageId) }
+                        }
+                    }
                     if (source != null) {
                         SourceMessageCard(
                             body = source.body.ifBlank { t("contactsTasks.aPhoto") },
                             createdAt = source.created_at,
-                            onOpenConversation = detail.conversation_id?.let { conversation ->
-                                onOpenConversation?.let { open ->
-                                    { open(conversation, detail.message_id) }
-                                }
-                            },
+                            linkLabel = sourceLink?.label,
+                            onOpenConversation = openSource,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(start = 18.dp, end = 18.dp, top = 14.dp),
@@ -1130,11 +1136,8 @@ private fun TaskDetailBody(
                     if (sourceCall != null) {
                         SourceCallCard(
                             call = sourceCall,
-                            onOpenConversation = detail.conversation_id?.let { conversation ->
-                                onOpenConversation?.let { open ->
-                                    { open(conversation, null) }
-                                }
-                            },
+                            linkLabel = sourceLink?.label,
+                            onOpenConversation = openSource,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(start = 18.dp, end = 18.dp, top = 14.dp),
@@ -1970,6 +1973,7 @@ private fun AddressInput(
 private fun SourceMessageCard(
     body: String,
     createdAt: String,
+    linkLabel: String?,
     onOpenConversation: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -2013,9 +2017,9 @@ private fun SourceMessageCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                         modifier = Modifier.weight(1f),
                     )
-                    if (onOpenConversation != null) {
+                    if (onOpenConversation != null && linkLabel != null) {
                         Text(
-                            t("contactsTasks.openConversationArrow"),
+                            "$linkLabel →",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.secondary,

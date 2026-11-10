@@ -44,6 +44,13 @@ final class ThreadController {
     private(set) var messagesCursor: String?
     private(set) var allMessagesLoaded = false
     private(set) var loadingOlder = false
+    /// #718: the cursor toward newer messages. Non-nil only while the loaded
+    /// window was opened around a message and ends below the newest one; nil
+    /// means the list reaches the newest message, as it always did.
+    private(set) var newerCursor: String?
+    private(set) var loadingNewer = false
+    /// The loaded window stops short of the newest message.
+    var awayFromNewest: Bool { newerCursor != nil }
     private(set) var events: [ConversationEvent] = []
     private(set) var pinnedMessages: [Message] = []
     /// #716: the message the composer's catch-up hint was last answered for.
@@ -491,6 +498,9 @@ final class ThreadController {
     }
 
     private func refreshMessagesFirstPage() async throws {
+        // Merging the newest page into a window that stops short of it would
+        // leave a gap; the reader pages down, or jumps to the latest.
+        if awayFromNewest { return }
         let page = try await repo.messages(companyId: companyId, conversationId: conversationId)
         messages = mergeMessagesFirstPage(messages, page.data)
         if messagesCursor == nil, page.next_cursor != nil, !allMessagesLoaded {
@@ -501,6 +511,7 @@ final class ThreadController {
     /// Re-walk the pages the user already loaded (bounded) so a done/pin toggle
     /// on a deep-history message lands without trusting the broadcast payload.
     private func refetchLoadedWindow() async throws {
+        if awayFromNewest { return }
         let target = messages.count
         var acc: [Message] = []
         var cursor: String?
@@ -600,11 +611,13 @@ final class ThreadController {
                 conversationId: conversationId
             ) {
                 conversation = detail
-                messages = mergeMessagesFirstPage(messages, detail.messages.data)
-                // Only re-open pagination if we hadn't scrolled yet; a
-                // scrolled-back thread keeps its deeper cursor + loaded flag.
-                if messagesCursor == nil, detail.messages.next_cursor != nil, !allMessagesLoaded {
-                    messagesCursor = detail.messages.next_cursor
+                if !awayFromNewest {
+                    messages = mergeMessagesFirstPage(messages, detail.messages.data)
+                    // Only re-open pagination if we hadn't scrolled yet; a
+                    // scrolled-back thread keeps its deeper cursor + loaded flag.
+                    if messagesCursor == nil, detail.messages.next_cursor != nil, !allMessagesLoaded {
+                        messagesCursor = detail.messages.next_cursor
+                    }
                 }
             }
             if let page = try? await repo.events(
@@ -1738,29 +1751,66 @@ final class ThreadController {
         }
     }
 
-    /// Page back (bounded) until `messageId` is loaded; true when found.
+    /// #718: make `messageId` present. Already loaded is a yes; otherwise the
+    /// server returns the window around it (never the whole history), and a
+    /// message that is gone opens the thread at the newest with a short note.
     func ensureMessageLoaded(_ messageId: String) async -> Bool {
-        var guardCount = 0
-        while !messages.contains(where: { $0.id == messageId }),
-              let cursor = messagesCursor,
-              guardCount < 20 {
+        if messages.contains(where: { $0.id == messageId }) { return true }
+        do {
+            let page = try await repo.messagesAround(
+                companyId: companyId,
+                conversationId: conversationId,
+                messageId: messageId
+            )
+            if page.anchor_missing == true {
+                notify(t("thread.messageGone"))
+                return false
+            }
+            messages = page.data
+            messagesCursor = page.next_cursor
+            newerCursor = page.newer_cursor
+            allMessagesLoaded = page.next_cursor == nil
+        } catch {
+            notify(error.userMessage)
+            return false
+        }
+        try? await ensureEventsCoverMessages()
+        return messages.contains { $0.id == messageId }
+    }
+
+    /// #718: page toward the newest message from the bottom of an anchored window.
+    func loadNewerMessages() {
+        guard let cursor = newerCursor, !loadingNewer else { return }
+        loadingNewer = true
+        Task {
             do {
-                let page = try await repo.messages(
+                let page = try await repo.messagesNewer(
                     companyId: companyId,
                     conversationId: conversationId,
                     cursor: cursor
                 )
-                messages = appendPage(messages, page.data) { $0.id }
-                messagesCursor = page.next_cursor
-                if page.next_cursor == nil { allMessagesLoaded = true }
+                messages = mergeMessagesFirstPage(messages, page.data)
+                newerCursor = page.newer_cursor
             } catch {
                 notify(error.userMessage)
-                return false
             }
-            guardCount += 1
+            loadingNewer = false
         }
-        try? await ensureEventsCoverMessages()
-        return messages.contains { $0.id == messageId }
+    }
+
+    /// #718: leave an anchored window and show the newest messages again.
+    func jumpToLatest() async {
+        guard awayFromNewest else { return }
+        do {
+            let page = try await repo.messages(companyId: companyId, conversationId: conversationId)
+            messages = page.data
+            messagesCursor = page.next_cursor
+            allMessagesLoaded = page.next_cursor == nil
+            newerCursor = nil
+            try? await ensureEventsCoverMessages()
+        } catch {
+            notify(error.userMessage)
+        }
     }
 }
 

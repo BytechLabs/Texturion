@@ -94,6 +94,25 @@ final class MessagingTimelineTests: XCTestCase {
         )
     }
 
+    /// #718: an anchored window leaves out events newer than its newest message.
+    func testAnAnchoredWindowLeavesOutEventsNewerThanItsNewestMessage() {
+        let timeline = buildTimeline(
+            messages: [message("m1", at: "2026-07-15T10:00:00Z")],
+            events: [
+                event("newer", at: "2026-07-20T10:00:00Z"),
+                event("inside", at: "2026-07-15T09:00:00Z"),
+            ],
+            pending: [],
+            filter: ThreadFilter(),
+            allMessagesLoaded: true,
+            calendar: calendar,
+            now: now,
+            awayFromNewest: true
+        )
+        XCTAssertFalse(timeline.map(.key).contains("e:newer"))
+        XCTAssertTrue(timeline.map(.key).contains("e:inside"))
+    }
+
     func testPendingSendsRenderNewestBottomOfAReversedList() {
         let timeline = build(
             messages: [message("m1", at: "2026-07-15T10:00:00Z")],
