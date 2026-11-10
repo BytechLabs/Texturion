@@ -73,6 +73,15 @@ export interface SettingsSection {
   neverLanding?: boolean;
 }
 
+/**
+ * #731: one style for a group heading and one for a link, different in colour,
+ * weight and size, so a heading can never be read as a link. Headings are quiet
+ * labels; links are the full text colour.
+ */
+export const GROUP_HEADING_CLASS =
+  "text-[10.5px] font-semibold uppercase tracking-[0.08em] text-app-muted";
+export const NAV_LINK_CLASS = "text-sm font-medium text-foreground";
+
 /** #727: each group's heading. */
 export const GROUP_LABELS: Record<SettingsGroupId, MessageKey> = {
   workspace: "settingsMore.navGroupWorkspace",
@@ -348,12 +357,12 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
 
   if (asList) {
     return (
-      <nav aria-label={t("settingsMore.navSectionsAria")} className="space-y-5">
+      <nav aria-label={t("settingsMore.navSectionsAria")} className="space-y-6">
         {groups.map((group) => (
           <section key={group.id} aria-labelledby={`settings-group-${group.id}`}>
             <h2
               id={`settings-group-${group.id}`}
-              className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+              className={cn("mb-2 px-1", GROUP_HEADING_CLASS)}
             >
               {t(GROUP_LABELS[group.id])}
             </h2>
@@ -371,7 +380,7 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
                       strokeWidth={1.75}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">
+                      <span className={cn("block", NAV_LINK_CLASS)}>
                         {t(section.label)}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
@@ -400,7 +409,7 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
   }
 
   return (
-    <nav aria-label={t("settingsMore.navSectionsAria")} className="flex flex-col gap-4">
+    <nav aria-label={t("settingsMore.navSectionsAria")} className="flex flex-col gap-6">
       {groups.map((group) => (
         <section
           key={group.id}
@@ -409,7 +418,7 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
         >
           <h2
             id={`settings-group-${group.id}`}
-            className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+            className={cn("px-3 pb-1.5", GROUP_HEADING_CLASS)}
           >
             {t(GROUP_LABELS[group.id])}
           </h2>
@@ -423,13 +432,15 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ease-out",
-                  active
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                  "flex items-center gap-2.5 rounded-md px-3 py-2 transition-colors duration-150 ease-out",
+                  NAV_LINK_CLASS,
+                  active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
                 )}
               >
-                <Icon className="size-4 shrink-0" strokeWidth={1.75} />
+                <Icon
+                  className={cn("size-4 shrink-0", !active && "text-muted-foreground")}
+                  strokeWidth={1.75}
+                />
                 {t(section.label)}
                 {section.id === "whatsNew" && showWhatsNew && (
                   <span
