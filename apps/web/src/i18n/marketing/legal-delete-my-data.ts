@@ -18,6 +18,7 @@ export const legalDeleteMyDataEn = {
   sectionWhatStays: "What we have to keep",
   sectionWhen: "When it happens",
   sectionBoundary: "What closing a workspace does not reach",
+  sectionRecords: "Delete a message, conversation, call or voicemail",
   sectionHelp: "If you cannot sign in",
 
   accountOne:
@@ -46,6 +47,10 @@ export const legalDeleteMyDataEn = {
     "Closing a workspace erases what is in it. One thing sits outside every workspace, so it is worth naming rather than leaving to be discovered.",
   boundaryItem:
     "If you sent us a message through the contact form on our website, that is held outside any workspace, so closing one does not remove it. It is deleted on its own schedule after a year, and you can ask us to remove it sooner.",
+  recordsOne:
+    "Owners and admins can delete a single message, a whole conversation, a call or a voicemail from the thread or the call log, and a contact from its page. Deleted items go to the **Trash** under **Settings → History → Trash** and disappear from the inbox, search, the call log, exports and integrations at once. Anyone with that permission can restore them for 30 days.",
+  recordsTwo:
+    "After 30 days, or when someone chooses **Delete forever**, the item is erased for good: the message text, photos and files, voicemail recordings and their transcripts, and any summaries made from them. A text you already sent cannot be taken back from the customer's phone; deleting it removes it from Loonext only. What stays: a STOP and the proof of consent behind it, and the counts we bill from (message segments, call minutes and usage records), which hold no message content.",
   helpUser:
     "If you have lost access to your account and cannot use the in-app controls, email {privacyEmail} from the address on the account and we will handle it. Under PIPEDA and Quebec Law 25 we respond within the timelines the law sets.",
   helpCustomer:
@@ -68,6 +73,7 @@ export const legalDeleteMyDataFr: Translated<typeof legalDeleteMyDataEn> = {
   sectionWhatStays: "Ce que nous devons conserver",
   sectionWhen: "Quand la suppression a lieu",
   sectionBoundary: "Ce que la fermeture ne peut pas supprimer",
+  sectionRecords: "Supprimer un message, une conversation, un appel ou un message vocal",
   sectionHelp: "Si vous ne pouvez pas ouvrir une session",
 
   accountOne:
@@ -96,6 +102,10 @@ export const legalDeleteMyDataFr: Translated<typeof legalDeleteMyDataEn> = {
     "La fermeture d'un espace de travail efface ce qu'il contient. Un élément se trouve à l'extérieur de tous les espaces de travail; mieux vaut le nommer que vous laisser le découvrir plus tard.",
   boundaryItem:
     "Si vous nous avez envoyé un message au moyen du formulaire de contact de notre site Web, il est conservé à l'extérieur de tout espace de travail; la fermeture d'un espace ne le supprime donc pas. Il est supprimé selon son propre calendrier après un an, et vous pouvez nous demander de le supprimer plus tôt.",
+  recordsOne:
+    "Les propriétaires et les administrateurs peuvent supprimer un message, toute une conversation, un appel ou un message vocal depuis la conversation ou le journal d'appels, et un contact depuis sa fiche. Les éléments supprimés vont dans la **corbeille**, sous **Paramètres → Historique → Corbeille**, et disparaissent aussitôt de la boîte de réception, de la recherche, du journal d'appels, des exportations et des intégrations. Toute personne qui a cette permission peut les restaurer pendant 30 jours.",
+  recordsTwo:
+    "Après 30 jours, ou lorsque quelqu'un choisit **Supprimer définitivement**, l'élément est effacé pour de bon : le texte du message, les photos et les fichiers, les enregistrements de messages vocaux et leurs transcriptions, ainsi que les résumés qui en ont été tirés. Un texto déjà envoyé ne peut pas être retiré du téléphone du client; le supprimer ne le retire que de Loonext. Ce qui demeure : un STOP et la preuve de consentement qui s'y rattache, ainsi que les compteurs sur lesquels nous facturons (segments de messages, minutes d'appel et enregistrements d'utilisation), qui ne contiennent aucun contenu de message.",
   helpUser:
     "Si vous avez perdu l'accès à votre compte et ne pouvez pas utiliser les commandes dans l'application, écrivez à {privacyEmail} à partir de l'adresse associée au compte et nous nous en occuperons. En vertu de la LPRPDE et de la Loi 25 du Québec, nous répondons dans les délais prévus par la loi.",
   helpCustomer:

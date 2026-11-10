@@ -438,6 +438,18 @@ export default function PrivacyPage() {
           to the person who sent the STOP.
         </p>
         <p>
+          {/* #691 */}
+          Owners and admins can also delete a single message, conversation, call,
+          voicemail or contact. It leaves the inbox, search, exports and
+          integrations at once and waits in a Trash for <strong>30 days</strong>,
+          where it can be restored. After that, or when someone chooses
+          &ldquo;Delete forever&rdquo;, the message text, photos, voicemail
+          recordings, transcripts and any summaries made from them are erased
+          for good. A text you already sent stays on the customer&rsquo;s phone.
+          We keep the counts we bill from (message segments, call minutes) and
+          any do-not-text record, none of which holds message content.
+        </p>
+        <p>
           {/* #340: the contact form collects data from people who never become
               customers, so none of the account-based windows above cover it. */}
           If you write to us through the contact form on this site without ever

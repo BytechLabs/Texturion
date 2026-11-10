@@ -10015,3 +10015,70 @@ conversation cannot comment on its task.
 notes, newest page first and oldest first within a page, with the usual cursor.
 Web, Android and iOS show it as one list under the task with the comment box at
 the bottom.
+
+## D150 - deleting records goes to a 30-day Trash behind `records.delete` (#691, amends D77)
+
+**Decision.** A message, a conversation, a call and a voicemail can be deleted, and
+so can a contact. The act is a soft delete into a workspace Trash for 30 days,
+restorable by anyone holding the new capability `records.delete`; after 30 days,
+or on "Delete forever", the content is erased together with its stored files.
+Contact delete (`DELETE /v1/contacts/:id`) moves from `conversations.note` to the
+same capability. Task delete moves too, but that gate is built with the task work
+(D148, D149), not here.
+
+**The capability.** `records.delete` is a capability in the D-315 sense: owner and
+admin hold it, member, read-only and bookkeeper do not. Capabilities are preset
+sets, so an owner "grants" it by making someone an admin; a per-person grant would
+need a new mechanism and is not built.
+
+**Soft delete by column, not a trash table.** `deleted_at`, `deleted_by_user_id`
+on `messages`, `conversations` and `calls` (plus `voicemail_deleted_at` for a
+voicemail alone). A message is referenced by usage events, tasks, mentions and
+summaries; moving rows would break each edge and make restore a rebuild. Every
+read path filters on it: the inbox, thread, pinned list, search, For You, unread,
+the call log and call page, the contact timeline and counts, the notification
+feed, the spam review, bulk actions, the thread events, the history export, the
+workspace export and the public API. A trashed conversation is stored **closed**
+(its prior status is kept) so that the inbound threaders, which pick the open
+thread or reopen the latest closed one, never append to a thread nobody can see;
+the three that read closed rows skip trashed ones. Restore puts the status back,
+or comes back closed if a newer open thread has taken its place. Deleting a
+conversation also trashes its calls on the same stamp and cancels its pending
+scheduled texts. A task's calendar occurrence is scrubbed through the existing
+number-access path.
+
+**Purge.** The daily job `job:purge-trash` (and "Delete forever", the same code)
+removes the storage objects first (MMS media, note and task files, voicemail
+audio), then calls `api_purge_trash_item`, which erases the content and writes a
+content-free `record.purged` audit event. It erases: message bodies, MMS rows,
+mentions, note files, AI summaries, voicemail path, transcript and intake, the
+timeline events that carry content, and the caller's number on a purged call. A
+legal hold (D77) stops the erasure but not the delete.
+
+**What is kept, and why.** The row stays as a tombstone (`purged_at`) because the
+billing meter reads it: inbound segments and outbound MMS are counted from
+`messages`, `usage_events` point at it, and `call_records` hold the voice minutes.
+None of those is read or written by delete or purge, and a SQL test compares them
+before and after. A task made from erased content is soft-deleted and its title
+blanked; the conversation row stays when quotes or payment requests reference it.
+
+**Opt-out and consent.** `opt_outs` is keyed on (company, phone), not on a thread
+or a contact, and the pre-send gate asks only that, so deleting either cannot lift
+a STOP. The `opted_out`, `opt_out_revoked` and `consent_attested` timeline events
+survive a purge. Tests prove both halves.
+
+**Audit and integrations.** `record.deleted`, `record.restored` and `record.purged`
+in the audit log (ids and kinds, never content, 12 months like the rest).
+Outbound webhooks gain `message.deleted`, `conversation.deleted` and
+`call.deleted` (ids only). PostHog captures no message content today and this adds
+none.
+
+**Clients.** Delete controls on web, Android and iOS are hidden without the
+capability, use an undo toast (undo is restore), and a sent SMS says it is removed
+from Loonext only. Trash management (list, restore, Delete forever with a typed
+confirmation) is web only, under Settings, History.
+
+**Not built.** There is no per-customer "forget this customer" erasure; only
+workspace closure (docs/DELETION.md) erases customer data in bulk. Search
+(`api_search_v2`) still lists tasks from a trashed conversation until the task
+work gates them.

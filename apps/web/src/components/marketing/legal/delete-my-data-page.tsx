@@ -26,7 +26,8 @@ export function DeleteMyDataPageBody({
     { id: "what-stays", number: "4", heading: copy.sectionWhatStays },
     { id: "when", number: "5", heading: copy.sectionWhen },
     { id: "boundary", number: "6", heading: copy.sectionBoundary },
-    { id: "help", number: "7", heading: copy.sectionHelp },
+    { id: "records", number: "7", heading: copy.sectionRecords },
+    { id: "help", number: "8", heading: copy.sectionHelp },
   ];
   const boundaryCopy: Record<DeletionGap, string> = {
     contact_form_message: copy.boundaryItem,
@@ -77,7 +78,12 @@ export function DeleteMyDataPageBody({
         </ul>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="help" number="7" heading={copy.sectionHelp}>
+      <LegalSectionBlock id="records" number="7" heading={copy.sectionRecords}>
+        <p><LegalRichText text={copy.recordsOne} /></p>
+        <p><LegalRichText text={copy.recordsTwo} /></p>
+      </LegalSectionBlock>
+
+      <LegalSectionBlock id="help" number="8" heading={copy.sectionHelp}>
         <p>
           <LegalRichText
             text={copy.helpUser}

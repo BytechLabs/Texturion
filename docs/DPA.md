@@ -154,6 +154,12 @@ the regulator.
   rather than implied.** Today that is one: a message sent through the website
   contact form is held outside any workspace, is deleted on its own schedule
   after a year, and can be removed sooner on request.
+- A user with the `records.delete` permission can delete a message, conversation,
+  call, voicemail or contact. It is hidden from every view at once, restorable
+  from the Trash for **30 days**, then erased with its stored files, voicemail
+  recordings, transcripts and derived summaries (a deletion by the customer, on
+  their instruction). Billing counters and do-not-text records contain no message
+  content and are kept.
 - Contacts can be exported. **A broader export does not exist yet** (#304).
 
 > Source: `packages/shared/src/deletion-promises.ts`

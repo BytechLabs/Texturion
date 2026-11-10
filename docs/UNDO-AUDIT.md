@@ -68,6 +68,9 @@ toast on something that just vanished is the only way back.
 | Clear an inferred address | no | undo | re-enter | re-enter |
 | Merge two contacts (#695) | yes (the second record leaves the list) | **undo** ⁴ | **undo** ⁴ | **undo** ⁴ |
 | Bulk tag / untag contacts (#695) | no | undo | — | — |
+| Delete a message or note (#691) | yes | **undo** ⁵ | **undo** ⁵ | **undo** ⁵ |
+| Delete a conversation (#691) | yes (leaves the inbox) | **undo** ⁵ | **undo** ⁵ | **undo** ⁵ |
+| Delete a call or a voicemail (#691) | yes | **undo** ⁵ | **undo** ⁵ | **undo** ⁵ |
 
 ¹ Added by this audit. Web's status control and iOS's swipe-close both changed
 status with no undo at all, while Android had offered one since its swipe
@@ -123,6 +126,19 @@ Bulk contact tag and untag exist on web only: the phone lists have no selection
 mode, so there is nothing to bulk. Their undo is the other tag action over the
 rows `applied[]` says changed, so it can never strip a tag somebody already had.
 Bulk contact **delete** is a confirmation that states the count, per §1 and §4.
+
+⁵ Added by #691. A delete of a message, conversation, call or voicemail is not a
+destruction at the moment of the tap: the item moves to the Trash for 30 days, so
+the prior state exists and the guard is an undo toast (undo is `POST
+/v1/trash/restore`). A SENT text keeps a confirmation first on the phones, because
+the copy has to say it is removed from Loonext only and the customer still has it.
+The **final** step is the destructive one and gets the confirmation: **Delete
+forever** (web, Settings → History → Trash, typed confirmation) and the daily
+expiry that erases what has sat in the Trash 30 days. Bulk delete in the inbox
+(web) states the count in its confirmation and then offers one undo for the lot.
+Everything is gated by `records.delete`, and every delete, restore and purge
+writes a content-free audit event. Trash management is web-only, a back-office
+job like the others in the table above.
 
 ### Self-reversing → neither, correctly
 
