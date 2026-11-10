@@ -35,6 +35,8 @@ integration should be built against it.
 | GET | `/public/v1/tasks` | `tasks:read` | `conversations.read` |
 | POST | `/public/v1/tasks` | `tasks:write` | `conversations.note` |
 
+A contact row carries `tags`, the names of the workspace tags it has, sorted (empty when none).
+
 A task row names what it came from in `source` (`{ "kind": "message" | "call", "id": "…" }`).
 `message_id` is kept for existing integrations and is `null` for a task promoted from a call.
 

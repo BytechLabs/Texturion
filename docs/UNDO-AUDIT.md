@@ -66,6 +66,8 @@ toast on something that just vanished is the only way back.
 | Assign / unassign | no | undo | re-pick | re-pick |
 | Complete a task (inline) | no | undo | tap again | tap again |
 | Clear an inferred address | no | undo | re-enter | re-enter |
+| Merge two contacts (#695) | yes (the second record leaves the list) | **undo** ⁴ | **undo** ⁴ | **undo** ⁴ |
+| Bulk tag / untag contacts (#695) | no | undo | — | — |
 
 ¹ Added by this audit. Web's status control and iOS's swipe-close both changed
 status with no undo at all, while Android had offered one since its swipe
@@ -78,9 +80,10 @@ crew can still text the number. Unblock is the reverse control, in the thread
 menu, on the contact page and in Settings, Blocked numbers (web-only back-office
 list, like the other settings lists). Neither removes anything from view.
 
-**Undo toast sites, exhaustively:** web has five (`for-you-view.tsx`,
-`tasks-checklist.tsx`, and three in `thread-header.tsx`); Android and iOS have two
-each (spam, close). The three web-only ones are all in the "no" column above —
+**Undo toast sites, exhaustively:** web has seven (`for-you-view.tsx`,
+`tasks-checklist.tsx`, three in `thread-header.tsx`, and the merge and bulk-tag
+toasts in `components/contacts/`); Android and iOS have three
+each (spam, close, merge). The four web-only ones are all in the "no" column above —
 extra convenience on the client where a toast is cheapest, not coverage the phones
 are missing. **Do not "fix" them by adding toasts to mobile**; a snackbar for a
 checkbox you can just tap again is noise on a small screen.
@@ -109,10 +112,23 @@ remove control deleted it and reported success. No confirmation, no undo, and
 every other delete in the product already confirmed — so it was an inconsistency
 as much as a hazard.
 
+⁴ The merge toast offers Undo, and Undo is `POST /v1/contacts/:id/unmerge` on the
+record that was folded in. It puts the second contact and its number back; it does
+not move the conversations back (which thread came from which record is not
+recoverable) and it never lifts an opt-out. The survivor's page shows "Merged from
+{name}" with an Unmerge action behind a confirmation that says both of those
+things, gated like merge (`settings.manage`).
+
+Bulk contact tag and untag exist on web only: the phone lists have no selection
+mode, so there is nothing to bulk. Their undo is the other tag action over the
+rows `applied[]` says changed, so it can never strip a tag somebody already had.
+Bulk contact **delete** is a confirmation that states the count, per §1 and §4.
+
 ### Self-reversing → neither, correctly
 
 | Action | Why no guard |
 |---|---|
+| Remove a tag from a contact (#695) | Same picker, same reason, on the contact's page. |
 | Remove a tag from a conversation | The tag picker sits immediately beside the chips. Re-adding is one click on the control you are already looking at. |
 | Mark read / unread | Not destructive, and the same swipe reverses it. |
 | Discard a draft | The draft is local and unsent; nothing existed to destroy. |
