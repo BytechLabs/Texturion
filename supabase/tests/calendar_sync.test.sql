@@ -3393,6 +3393,10 @@ end $$;
 -- connecting seeds only open jobs.  Own workspace so the earlier blocks' state
 -- cannot leak in.  Tasks: T1 message-anchored, T2 call-anchored (no message),
 -- T3/T4/T5 anchorless, T6 message-anchored and done, T7 anchorless and done.
+--
+-- The outbox claim is not scoped to a connection, so the scrubs CS-15 leaves
+-- queued would be claimed here; start these blocks from an empty queue.
+delete from public.calendar_outbox where state in ('queued', 'leased');
 create or replace function pg_temp.q_company() returns uuid language sql immutable
 as $$ select 'cb000000-0000-4000-8000-0000000000c1'::uuid $$;
 create or replace function pg_temp.q_user() returns uuid language sql immutable
