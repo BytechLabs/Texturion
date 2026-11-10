@@ -94,7 +94,7 @@ test("the VM serves the emulators on the contract's address, and admits only the
 
 test("the emulators' DNS refuses every production name the VM's own DNS refuses, and keeps Google's push", () => {
   const locals = (text) => [...text.matchAll(/^local=\/(.+)\/$/gm)].map((match) => match[1]);
-  const vendorOnly = new Set(["api.telnyx.com", "api.resend.com", "oauth2.googleapis.com", "fcm.googleapis.com", "posthog.com"]);
+  const vendorOnly = new Set(["api.telnyx.com", "api.resend.com", "oauth2.googleapis.com", "fcm.googleapis.com", "eu.i.posthog.com"]);
   const production = locals(box("dnsmasq/host.conf")).filter((name) => !vendorOnly.has(name));
   assert.ok(production.length >= 4);
   assert.deepEqual(locals(box("dnsmasq/emulators.conf")), production);
