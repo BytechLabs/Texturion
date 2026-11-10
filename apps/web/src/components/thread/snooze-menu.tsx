@@ -21,6 +21,7 @@ import {
 
 import {
   DropdownMenuItem,
+  DropdownMenuHint,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -103,6 +104,7 @@ export function SnoozeMenuItems({
       <DeferralSubmenu
         kind="snooze"
         label={t("thread.snoozeUntilMenu")}
+        hint={t("thread.snoozeHint")}
         icon={<AlarmClock className="size-4" strokeWidth={1.75} />}
         presets={snoozePresets()}
         onSnooze={onSnooze}
@@ -127,6 +129,7 @@ export function SnoozeMenuItems({
 function DeferralSubmenu({
   kind,
   label,
+  hint,
   icon,
   presets,
   onSnooze,
@@ -134,6 +137,7 @@ function DeferralSubmenu({
 }: {
   kind: DeferralKind;
   label: string;
+  hint?: string;
   icon: React.ReactNode;
   presets: { id: string; label: string; at: number }[];
   onSnooze: (until: string, kind: DeferralKind) => void;
@@ -147,6 +151,7 @@ function DeferralSubmenu({
         {label}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
+        {hint && <DropdownMenuHint>{hint}</DropdownMenuHint>}
         {presets.map((preset) => (
           <DropdownMenuItem
             key={preset.id}

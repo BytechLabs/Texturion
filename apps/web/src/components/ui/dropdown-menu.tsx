@@ -331,8 +331,20 @@ function DropdownMenuSubContent({
   )
 }
 
+/** #710: a muted line at the top of a menu saying what its choices do. */
+function DropdownMenuHint({ className, ...props }: React.ComponentProps<"p">) {
+  return (
+    <p
+      data-slot="dropdown-menu-hint"
+      className={cn("max-w-60 px-2 pt-1.5 pb-1 text-xs text-muted-foreground", className)}
+      {...props}
+    />
+  )
+}
+
 export {
   DropdownMenu,
+  DropdownMenuHint,
   DropdownMenuPortal,
   DropdownMenuTrigger,
   DropdownMenuContent,

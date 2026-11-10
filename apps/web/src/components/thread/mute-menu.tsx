@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import {
   DropdownMenuItem,
+  DropdownMenuHint,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -72,6 +73,7 @@ export function MuteFollowMenuItems({
             {t("thread.muteMenu")}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
+            <DropdownMenuHint>{t("thread.muteHint")}</DropdownMenuHint>
             {DURATIONS.map((duration) => (
               <DropdownMenuItem
                 key={duration.id}

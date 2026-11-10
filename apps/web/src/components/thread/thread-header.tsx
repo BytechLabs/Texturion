@@ -747,13 +747,6 @@ export function ThreadHeader({
               <MailOpen className="size-4" strokeWidth={1.75} />
               {t("thread.markUnread")}
             </DropdownMenuItem>
-            <SnoozeMenuItems
-              snoozedUntil={snoozedUntil}
-              snoozeKind={snoozeKind}
-              onSnooze={snoozeUntil}
-              onUnsnooze={bringBack}
-              onPickCustom={setSnoozePicker}
-            />
             {/* #465: pinned and spam are STATES, not commands. They are drawn
                 as toggles and named as states, so they stop looking like
                 "Copy text" two rows down. */}
@@ -765,6 +758,27 @@ export function ThreadHeader({
               <Pin className="size-4" strokeWidth={1.75} />
               {t("thread.pinned")}
             </DropdownMenuToggleItem>
+            <SnoozeMenuItems
+              snoozedUntil={snoozedUntil}
+              snoozeKind={snoozeKind}
+              onSnooze={snoozeUntil}
+              onUnsnooze={bringBack}
+              onPickCustom={setSnoozePicker}
+            />
+            {/* #710: alerts apart from Snooze, so the two read as different things. */}
+            <DropdownMenuSeparator />
+            <MuteFollowMenuItems
+              conversationId={conversation.id}
+              muted={muted}
+              followed={conversation.followed === true}
+            />
+            <DropdownMenuSeparator />
+            {/* §5.2: the gallery's single entry point. */}
+            <DropdownMenuItem onSelect={onOpenGallery}>
+              <Images className="size-4" strokeWidth={1.75} />
+              {t("thread.viewAttachments")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuToggleItem
               checked={conversation.is_spam}
               onSelect={(event) => event.preventDefault()}
@@ -773,16 +787,6 @@ export function ThreadHeader({
               <OctagonAlert className="size-4" strokeWidth={1.75} />
               {t("thread.spam")}
             </DropdownMenuToggleItem>
-            {/* §5.2: the gallery's single entry point. */}
-            <DropdownMenuItem onSelect={onOpenGallery}>
-              <Images className="size-4" strokeWidth={1.75} />
-              {t("thread.viewAttachments")}
-            </DropdownMenuItem>
-            <MuteFollowMenuItems
-              conversationId={conversation.id}
-              muted={muted}
-              followed={conversation.followed === true}
-            />
             {blockedNumber.canManage &&
               (blocked ? (
                 <DropdownMenuItem
