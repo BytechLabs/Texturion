@@ -9910,3 +9910,53 @@ vendor account for uptime or status email, and timers on the rig.
   production. PostHog events cannot be erased per member when an account is
   deleted, and no production alert or dashboard groups by member. The rig keeps
   it because its scenarios judge one member at a time.
+
+## D148 - a task may have no source, and who can see it (#689, amends D64)
+
+**Decision.** D64 said a task with no source at all stays out of scope. That
+boundary is lifted. A task now has zero or one source: a message, an answered
+call, or none (a standalone task). The done rule is unchanged and still
+mechanical: if there is a message, the message owns done; otherwise
+`tasks.done_at` does.
+
+**Creating one.** One New task control everywhere: the Tasks page, a contact,
+a conversation and the command palette, on web, Android and iOS. Only the title
+is required. The assignee defaults to the person making it and the due date is
+empty; address, notes and the rest sit under More. `POST /v1/tasks` and
+`POST /public/v1/tasks` take the same body (title, description, assignee, due,
+optional `contact_id`, optional `conversation_id`), serialize `source: null`,
+and emit the same `task.created` and `task.completed` webhooks.
+
+**Links.** A standalone task may link to a contact (`tasks.contact_id`) and/or a
+conversation. A conversation fixes the contact; a different contact is refused.
+`tasks.conversation_id` is nullable only for a task with no message and no call
+(CHECK `tasks_anchored_has_conversation`).
+
+**The access rule.**
+
+- A standalone task **with** a conversation is gated exactly as that
+  conversation's other tasks are (#106/#107/#417): a member denied its number
+  does not find it in search, does not see it unclaimed on For You, and does not
+  see it on the map, and their own queue shows a redacted title.
+- A standalone task **without** a conversation has no number to be denied by, so
+  every active member of its company sees it. No other company ever does.
+
+Every reader already tested "is the conversation on a hidden number" with
+`NOT EXISTS`, which a task with no conversation passes, so For You, search and
+the bulk action needed no change. The readers that did not pass are the ones
+changed: `task_map_rows` (inner joins; the route's number filter also had to
+keep a null number), `calendar_task_access_allowed` (an inner join meant such a
+task never synced to a calendar), `api_contact_timeline`, `api_merge_contacts`
+(a task linked to the merged contact moves with it) and
+`api_sync_task_reminders`.
+
+**What a standalone task does not do.**
+
+- It writes no conversation event when it has no conversation, because there is
+  no thread to put one in (a trigger drops a `task_*` event with no
+  conversation). Task-scoped history is a separate step (#689 E).
+- It sends the customer nothing. It starts with reminders off, and finishing it
+  never asks the customer for a rating: it is the crew's own to-do, even when it
+  links to a thread.
+- It has no note composer when it has no conversation; task comments are a
+  separate step (#689 E).
