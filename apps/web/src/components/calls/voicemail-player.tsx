@@ -6,6 +6,7 @@
  * (on demand — URLs are signed for an hour and never rendered eagerly into
  * lists). Used by the /calls rows and the thread's call line.
  */
+import { callLooksSpam } from "@loonext/shared";
 import { Play } from "lucide-react";
 import { useState } from "react";
 
@@ -88,17 +89,11 @@ export function VoicemailPlayer({
   );
 }
 
-/** D43: honest screening label from the raw carrier verdict — mirrors the
- *  server's flag vocabulary; unknown strings show nothing (never cry wolf). */
+/** D43: the carrier's spam verdict as a label; anything else shows nothing. */
 export function screeningLabel(
   result: string | null,
+  callerName: string | null,
   t: Translate,
 ): string | null {
-  if (!result) return null;
-  const value = result.toLowerCase();
-  if (value.includes("no_flag") || value.includes("clean")) return null;
-  if (["spam", "fraud", "scam", "robo", "flag", "spoof"].some((m) => value.includes(m))) {
-    return t("shell.spamLikely");
-  }
-  return null;
+  return callLooksSpam(result, callerName) ? t("shell.spamLikely") : null;
 }

@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE } from "@loonext/shared";
+import { DEFAULT_LOCALE, type CallRouting } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/provider";
 
@@ -10,6 +10,31 @@ import { formatCallDuration } from "./call-duration";
  */
 
 export { formatCallDuration };
+
+/** #721: why no phone rang, or null when the call rang (or predates the column). */
+export function callRoutingReason(
+  routing: CallRouting | null,
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
+): string | null {
+  switch (routing) {
+    case "blocked":
+      return t("misc.callRoutingBlocked");
+    case "line_busy":
+      return t("misc.callRoutingLineBusy");
+    case "screened":
+      return t("misc.callRoutingScreened");
+    case "after_hours":
+      return t("misc.callRoutingAfterHours");
+    case "paused":
+      return t("misc.callRoutingPaused");
+    case "over_cap":
+      return t("misc.callRoutingOverCap");
+    case "nobody_reachable":
+      return t("misc.callRoutingNobodyReachable");
+    default:
+      return null;
+  }
+}
 
 /** The row's plain-language outcome line. D38: outbound calls speak from
  *  the crew's side ("You called…"; a customer no-answer is "No answer",
@@ -30,6 +55,8 @@ export function callOutcomeLabel(
      *  the answerer of an inbound one. Names WHO on an answered call so a crew's
      *  log doesn't mis-attribute every member's call to the viewer. */
     answered_by_name?: string | null;
+    /** #721: where the call went when it arrived. */
+    routing?: CallRouting | null;
   },
   t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
@@ -37,11 +64,13 @@ export function callOutcomeLabel(
   const dur =
     call.forward_seconds > 0 ? ` · ${formatCallDuration(call.forward_seconds)}` : "";
   const actor = call.answered_by_name ?? null;
+  const reason = callRoutingReason(call.routing ?? null, t);
+  const why = reason ? ` · ${reason}` : "";
   switch (call.outcome) {
     case "missed":
-      return outbound ? t("misc.callNoAnswer") : t("misc.callMissed");
+      return outbound ? t("misc.callNoAnswer") : `${t("misc.callMissed")}${why}`;
     case "voicemail":
-      return t("misc.callVoicemail");
+      return `${t("misc.callVoicemail")}${why}`;
     case "answered":
       if (outbound) {
         // "Sam called" when the placer is known; "You called" (crew's-side

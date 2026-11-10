@@ -326,6 +326,8 @@ export const shellEn = {
   callerVerified: "Caller verified",
   callerVerifiedYes: "Yes",
   callerVerifiedPartly: "Partly ({attestation})",
+  /** #721: the call detail row naming why nobody was rung. */
+  whyNoPhoneRang: "Why no phone rang",
   openConversation: "Open the conversation",
   viewContact: "View contact",
 
@@ -671,6 +673,7 @@ export const shellFr: Translated<typeof shellEn> = {
   callerVerified: "Appelant vérifié",
   callerVerifiedYes: "Oui",
   callerVerifiedPartly: "Partiellement ({attestation})",
+  whyNoPhoneRang: "Pourquoi aucun téléphone n'a sonné",
   openConversation: "Ouvrir la conversation",
   viewContact: "Voir le contact",
 

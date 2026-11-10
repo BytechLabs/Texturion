@@ -338,6 +338,14 @@ export const miscEn = {
   callAnsweredBy: "Answered by {name}",
   callCalling: "Calling…",
   callInProgress: "In progress",
+  /** #721: why no phone rang, after the outcome of a missed call or voicemail. */
+  callRoutingBlocked: "Blocked number",
+  callRoutingLineBusy: "Line busy",
+  callRoutingScreened: "Screened as spam",
+  callRoutingAfterHours: "After hours, nobody on call",
+  callRoutingPaused: "Line paused",
+  callRoutingOverCap: "Calling limit reached",
+  callRoutingNobodyReachable: "Nobody could be rung",
 } as const;
 
 export const miscFr: Translated<typeof miscEn> = {
@@ -645,4 +653,11 @@ export const miscFr: Translated<typeof miscEn> = {
   callAnsweredBy: "Pris par {name}",
   callCalling: "Appel en cours…",
   callInProgress: "En cours",
+  callRoutingBlocked: "Numéro bloqué",
+  callRoutingLineBusy: "Ligne occupée",
+  callRoutingScreened: "Filtré comme pourriel",
+  callRoutingAfterHours: "Hors des heures, personne de garde",
+  callRoutingPaused: "Ligne en pause",
+  callRoutingOverCap: "Limite d'appels atteinte",
+  callRoutingNobodyReachable: "Aucun téléphone n'a pu sonner",
 };

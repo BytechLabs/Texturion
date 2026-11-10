@@ -91,7 +91,7 @@ function OutcomePill({ call }: { call: Call }) {
 export function CallRow({ call }: { call: Call }) {
   const t = useT();
   const name = callerName(call, t);
-  const screening = screeningLabel(call.screening_result, t);
+  const screening = screeningLabel(call.screening_result, call.caller_name, t);
   const threaded = Boolean(call.conversation_id);
   const body = (
     <>

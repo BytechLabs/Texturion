@@ -1,5 +1,6 @@
 "use client";
 
+import { hasBusinessHours } from "@loonext/shared";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -255,6 +256,14 @@ function AwayMessageCard({
             approved, and the away reply is best-effort: it is skipped without
             a trace. Turning the switch on and hearing nothing more is the
             first week of every US workspace, so say it at the switch. */}
+        {/* #721: the reply fires outside the hours, and with none set there
+            is no outside; only a closed date sends it. */}
+        {enabled && !hasBusinessHours(company.business_hours) ? (
+          <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
+            {t("appShell.awayNoHours")}
+          </p>
+        ) : null}
+
         {!usSendApproved(company) && enabled ? (
           <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
             {usTextingOff(company)

@@ -7,6 +7,7 @@ import {
 } from "@loonext/shared";
 import type { PipelineStage } from "@loonext/shared";
 import type { DeferralKind } from "@loonext/shared";
+import type { CallRouting } from "@loonext/shared";
 import type { WorkPhase } from "@loonext/shared";
 
 import { pricingEn } from "@/i18n/marketing/pricing";
@@ -1988,6 +1989,9 @@ export interface Call {
   /** D43: raw carrier screening verdict + STIR/SHAKEN attestation. */
   screening_result: string | null;
   stir_attestation: string | null;
+  /** #721: where the call went when it arrived. Null for outbound and older
+   *  calls; absent from lists that do not select it. */
+  routing?: CallRouting | null;
   voicemail_seconds: number | null;
   /**
    * What the voicemail says, written best-effort after the recording is

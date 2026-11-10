@@ -51,6 +51,31 @@ describe("callOutcomeLabel", () => {
     ).toBe("Missed");
   });
 
+  it("#721: says why no phone rang, and nothing when the call rang", () => {
+    expect(
+      callOutcomeLabel({
+        outcome: "voicemail",
+        direction: "inbound",
+        forward_seconds: 0,
+        routing: "after_hours",
+      }),
+    ).toBe("Voicemail · After hours, nobody on call");
+    expect(
+      callOutcomeLabel({
+        outcome: "missed",
+        direction: "inbound",
+        forward_seconds: 0,
+        routing: "nobody_reachable",
+      }),
+    ).toBe("Missed · Nobody could be rung");
+    expect(
+      callOutcomeLabel({ outcome: "missed", direction: "inbound", forward_seconds: 0, routing: "rang" }),
+    ).toBe("Missed");
+    expect(
+      callOutcomeLabel({ outcome: "missed", direction: "inbound", forward_seconds: 0, routing: null }),
+    ).toBe("Missed");
+  });
+
   it("D38: an outbound no-answer is 'No answer', never 'Missed'", () => {
     expect(
       callOutcomeLabel({ outcome: "missed", direction: "outbound", forward_seconds: 0 }),

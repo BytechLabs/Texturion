@@ -341,6 +341,8 @@ export const appShellEn = {
   awayUsPendingApproval:
     "Customers with US numbers won't get this reply until your registration " +
     "is approved. Canadian numbers get it now.",
+  /** #721: with no hours there is no "outside your hours". */
+  awayNoHours: "No business hours are set, so this reply only goes out on dates you've marked closed.",
   awayMessageLabel: "Your away message",
   awayMergeHintBefore: "You can use",
   awayMergeHintBetween: "and",
@@ -1379,6 +1381,7 @@ export const appShellFr: Translated<typeof appShellEn> = {
     "Les clients avec un numéro américain ne recevront pas cette réponse tant " +
     "que votre inscription n'est pas approuvée. Les numéros canadiens la " +
     "reçoivent dès maintenant.",
+  awayNoHours: "Aucune heure d'ouverture n'est définie : cette réponse ne part donc que les jours que vous avez marqués comme fermés.",
   awayMessageLabel: "Votre message d'absence",
   awayMergeHintBefore: "Vous pouvez utiliser",
   awayMergeHintBetween: "et",

@@ -1,5 +1,6 @@
 "use client";
 
+import { hasBusinessHours } from "@loonext/shared";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -81,7 +82,7 @@ export function AfterHoursCallsCard({
   // never plays an after-hours greeting, so it never pays for this list.
   const greetings = useVoicemailGreetings(active !== "ring_everyone");
 
-  const hoursSet = Object.values(company.business_hours ?? {}).some(Boolean);
+  const hoursSet = hasBusinessHours(company.business_hours);
 
   function choose(value: CompanyView["after_hours_calls"]) {
     if (value === active) return;
