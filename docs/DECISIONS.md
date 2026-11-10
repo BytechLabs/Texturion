@@ -9960,3 +9960,58 @@ task never synced to a calendar), `api_contact_timeline`, `api_merge_contacts`
   links to a thread.
 - It has no note composer when it has no conversation; task comments are a
   separate step (#689 E).
+
+
+## D149 - a task has its own history and comments, and its comments may carry files (#689 E, amends D28 for tasks)
+
+**Decision.** A task's history and discussion belong to the task, not to the
+conversation it happens to sit in. A standalone or call task has no thread to
+borrow, and a message task's timeline never recorded most of what changes.
+
+**History is task-scoped.** `task_events` records one row per field change:
+created, title, description, address, assignee, due time, reminders, confirmation,
+done, reopened and deleted. Database triggers write it, so no writer can forget
+one: a trigger on `tasks`, and one on `messages.done_at` because a message task
+is done when its message is (D17). Each row keeps the value before and after and
+the member who made the change; a change nobody made (a job, the customer's
+reply) has no actor.
+
+The actor reaches a trigger through the transaction-local setting
+`loonext.task_actor`, set by the RPCs that change a task (`update_task`,
+`assign_task`, `delete_task`, `set_task_done`, `set_message_done`,
+`api_bulk_tasks`, `set_task_reminders_off`). Where a column already names the
+person (`created_by_user_id`, `done_by_user_id`, `confirmed_by`) it is the
+fallback. Existing creations, assignments and due times were copied from the
+conversation events; the previous due time was never recorded, so those rows
+have no "from".
+
+The source conversation's one-line summary (`conversation_events` `task_*`) is
+unchanged and is still written by the same RPCs.
+
+**Comments live on the task.** `task_comments` holds a member's comment (1 to
+4,000 characters), soft-deleted, with `edited_at`. Only the author edits one; the
+author or an owner or admin deletes it (the rule for deleting a task). There is
+no separate delete capability to check. A message task still shows the thread
+notes it was promoted from, and its composer still posts a note in the thread:
+for a task with a message the thread is the discussion.
+
+**Files are allowed on a task comment.** This amends D28, which closed every
+upload door except messages and notes, for tasks only. A comment's files are
+`attachments` rows with `owner_type = 'task_comment'`, uploaded through the same
+`POST /v1/attachments` (same size limit, type allow-list, byte check, malware
+scan, location strip and storage claim) and served through the same signed-URL
+route. The row carries the task's conversation, so every existing number-access
+gate applies unchanged. They stay out of the conversation's file gallery.
+Deleting a comment or its task retires its files; message retention removes them
+with the task.
+
+**Who can read it.** The task's own rule (D148): a task with a conversation is
+gated like that conversation, a task with none is visible to every active
+member of its company. `GET /v1/tasks/:id/activity` is `not_found` for anyone
+else. Writing a comment is a note-level act, so a member who can only read the
+conversation cannot comment on its task.
+
+**One list.** `GET /v1/tasks/:id/activity` merges history, comments and thread
+notes, newest page first and oldest first within a page, with the usual cursor.
+Web, Android and iOS show it as one list under the task with the comment box at
+the bottom.
