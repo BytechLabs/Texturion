@@ -1,16 +1,18 @@
 # Capacity: what breaks first, and at what volume
 
-> **Status: partial; #251 remains open.** Updated 2026-11-10. Section 2c holds
-> the hosted numbers: a temporary Pro-tier Supabase project and a separately
-> named Worker, both deleted after the run. Section 2b holds
+> **Status: partial; #251 remains open.** Updated 2026-11-10. Sections 2c and
+> 2e hold the hosted numbers: temporary Pro-tier Supabase projects and
+> separately named Workers, all deleted after their runs. Section 2b holds
 > the first ceilings found by driving a deployed non-production stack: the
 > Loonext rig (`docs/RIG.md`), which runs the production Worker, Durable Object
 > and a local Supabase stack. It found where that stack gives out and five ways
 > the failure was not truthful, all fixed. The fail-closed driver for a
-> **hosted** project ran once, on 2026-11-10, and section 2c records it. Still
-> unknown: Realtime delivery under hosted fan-out, Realtime above 500 sockets,
-> call latency and co-tenancy on Cloudflare, Durable Object compute, and
-> anything above the Micro compute size. A capacity number that reads as
+> **hosted** project ran on 2026-11-10, and sections 2c and 2e record it;
+> 2e adds hosted Realtime delivery under fan-out (it starts losing deliveries at
+> 500 sockets between 30 and 40 inbound messages a second), hosted call latency
+> to 32 simultaneous calls, and Durable Object cost per call. Still unknown:
+> why that Realtime loss starts, Realtime above 500 sockets, co-tenancy on
+> Cloudflare, calls above 32, and anything above the Micro compute size. A capacity number that reads as
 > measured and was guessed is worse than an admitted gap: it is the number
 > somebody quotes to a 50-tech prospect.
 
@@ -48,10 +50,10 @@ ceiling was found.
 | query | Hot list queries at realistic volume | `node scripts/ops/query-load.mjs` | 50,000 conversations / 200,000 messages; all current surfaces under 200 ms | Not reached | Local lower bound measured |
 | webhook | Duplicate retry storm and distinct inbound burst | `pnpm --filter @loonext/api test:load` | 25 concurrent copies → 1 row; 40 distinct → 40 rows; zero hangs. Rig: 100 copies → 1 row; 100 distinct each twice all landed | Rig: refusals begin between 100 and 200 distinct messages in a second, retryable, none lost. Hosted not measured | Local lower bound and rig ceiling measured |
 | pooler | Concurrent reads and database failure shape | `pnpm --filter @loonext/api capacity:deployed -- --target-id staging-capacity-251 --api-origin https://api-staging.example.net --supabase-origin https://abcdefghijklmnopqrst.supabase.co --scenario api` | 40 concurrent local reads; every database request has a 10 s deadline. Rig: `GET /v1/for-you` to 1,000 concurrent callers, every request answered, refusals a 503 with Retry-After (2b). Hosted, Micro compute: to 80 concurrent callers, every request answered (2c) | Rig: sheds from about 400 concurrent. Hosted, Micro: about 14 requests a second on a 5,000-conversation workspace, 10 s deadline missed at 160 concurrent (confirmed). Supavisor: refuses the 201st client connection (confirmed); the Worker does not go through it. Larger compute sizes unknown | Hosted measured on Micro (2c); larger sizes and the 50,000-conversation workspace required |
-| realtime | Private-topic join and broadcast fan-out | `pnpm --filter @loonext/api capacity:deployed -- --target-id staging-capacity-251 --api-origin https://api-staging.example.net --supabase-origin https://abcdefghijklmnopqrst.supabase.co --scenario realtime` | 40 independent local websockets × 20 broadcasts = 800 exact deliveries. Rig: 160 private-topic joins held stable. Hosted: 500 private-topic joins held stable, no refusal (2c) | Rig: 200 concurrent (tenant setting). Hosted: not reached; the driver stops at 500 and the project's setting is 10,000. Delivery fan-out unknown | Local delivery, rig joins and hosted joins to 500 measured; hosted fan-out and joins above 500 required |
-| durable-object | Call-session FIFO and bounded ring fan-out | `pnpm --filter @loonext/api test:workerd` | 12 hot objects × 24 targets = 288 completed dial effects; per-object peak ≤ 6. Rig: 32 simultaneous 12-person calls, no wrong or leaked call | Rig: first 5xx acknowledgements between 8 and 32 simultaneous calls. Latency, co-tenancy and saturation on Cloudflare unknown; the 2026-11-10 hosted run did not exercise the Durable Object (it needs Telnyx call events) | Structure and rig latency measured; Cloudflare measurement required |
+| realtime | Private-topic join and broadcast fan-out | `pnpm --filter @loonext/api capacity:deployed -- --target-id staging-capacity-251 --api-origin https://api-staging.example.net --supabase-origin https://abcdefghijklmnopqrst.supabase.co --scenario realtime` | 40 independent local websockets × 20 broadcasts = 800 exact deliveries. Rig: 160 private-topic joins held stable. Hosted: 500 private-topic joins held stable, no refusal (2c). Hosted fan-out: 500 sockets receive every delivery up to 30 inbound messages a second (2e) | Rig: 200 concurrent (tenant setting). Hosted joins: not reached; the driver stops at 500 and the project's setting is 10,000. Hosted delivery: at 500 sockets and 40 messages a second 14 to 16% of deliveries never arrive, with no error (2e); the cause is unknown | Local delivery, rig joins, hosted joins to 500 and hosted fan-out measured; joins above 500 and the cause of the loss required |
+| durable-object | Call-session FIFO and bounded ring fan-out | `pnpm --filter @loonext/api test:workerd` | 12 hot objects × 24 targets = 288 completed dial effects; per-object peak ≤ 6. Rig: 32 simultaneous 12-person calls, no wrong or leaked call. Hosted, against a fake switch (2e): 32 simultaneous 12-person calls, all rang, were answered and ended, no 5xx | Rig: first 5xx acknowledgements between 8 and 32 simultaneous calls. Hosted: not reached at 32; last crew phone rings in about 2.5 s at 2 and at 32 calls. Co-tenancy not separable; calls above 32 unknown | Structure, rig latency and hosted latency to 32 calls measured; calls above 32 required |
 | degradation | Truthful error instead of hang or silent drop | `pnpm --filter @loonext/api exec vitest run src/db-timeout.test.ts src/routes/honest-failure.test.ts src/app.test.ts` | Database stall/refusal and Telnyx 429/503 paths are bounded and truthful. Rig: overload answered 503 with Retry-After at every level to 1,000 callers; webhook refusals retryable, none lost | Rig ceilings reached and honest. Hosted: past the ceiling the API answered 200 or went silent until the driver's 10 s deadline; no 429 or 5xx came back in that time. Behaviour with a longer client deadline unknown | Rig measured; hosted overload partly measured (2c); a longer-deadline hosted run required |
-| cost | Storage/vendor units and serving compute | `pnpm --filter @loonext/api exec vitest run src/billing/costs.test.ts` | Message, voice, AI, storage, and egress units modelled | API Worker CPU per `/v1/for-you` request: median 4 ms, mean 7 ms, p99 48 ms (2c). Durable Object compute per load unit unknown | Partial; Worker measured, Durable Object usage delta required |
+| cost | Storage/vendor units and serving compute | `pnpm --filter @loonext/api exec vitest run src/billing/costs.test.ts` | Message, voice, AI, storage, and egress units modelled | API Worker CPU per `/v1/for-you` request: median 4 ms, mean 7 ms, p99 48 ms (2c). Call session: 145 ms of Durable Object CPU, 3.6 GB-s and 205 rows written per call; about $0.27 per 1,000 calls at published prices (2e). Durable Object use outside calls unknown | Partial; Worker reads and call sessions measured, other Durable Object usage required |
 <!-- capacity-matrix:end -->
 
 ---
@@ -1113,15 +1115,15 @@ was under $0.02.
 
 ### Still unknown after this run
 
-- **Realtime above 500 sockets**, and delivery under fan-out. The driver stops
-  at 500 and cannot publish.
+- **Realtime above 500 sockets.** The driver stops at 500. Delivery under
+  fan-out is section 2e.
 - **Behaviour when the caller waits past 10 s**: whether overload at the hosted
   ceiling becomes the 503 with Retry-After seen on the rig, or a late 200.
-- **Call latency and Durable Object compute.** Needs Telnyx call events; the
-  stack deliberately had none.
+- **Call latency and Durable Object compute.** Needed call events; section 2e
+  has them, against a fake switch.
 - **Co-tenancy.** The Worker's wall and CPU times came from Cloudflare's own
   analytics under whatever else shared those machines that hour. Nothing here
-  separates that from the database queue.
+  separates that from the database queue, and 2e could not separate it either.
 - **Any compute size above Micro**, and the 50,000-conversation workspace
   through the HTTP path.
 
@@ -1188,6 +1190,215 @@ conversations through the HTTP path, or a larger compute size.
 
 ---
 
+## 2e. Realtime broadcast fan-out and call sessions, hosted (2026-11-10)
+
+The same method as 2c, with a second temporary Worker standing in for Telnyx
+and drivers that send events. The stack was a Supabase project
+`loonext-capacity-251` in the BytechLabs organization (Pro, us-east-1, Micro
+compute, all 386 migrations through the Management API), the API Worker
+`loonext-api-capacity-251` on `workers.dev` (no routes, no crons, fake vendor
+values, production's Durable Object class and migration tag), and
+`loonext-telnyx-fake-capacity-251`, which holds the rig's switch model
+(`e2e/fake-telnyx-voice.ts`) in one Durable Object. The API Worker's
+`TELNYX_API_BASE` was the second Worker, so no dial could reach Telnyx. All
+three were deleted afterwards, and list calls confirm that neither Worker nor
+the project exists. The API Worker ran with `DEPLOY_ENV` unset, which the code
+treats as local. The clients were one workstation in Calgary behind a VPN; the
+Worker answered from Cloudflare's Seattle colo, the database is in Virginia and
+Realtime reported itself in us-west-1.
+
+The drivers are committed in `apps/api/scripts`: `hosted-capacity-fanout.ts`,
+`hosted-capacity-calls.ts`, and `capacity-fake-telnyx-worker.ts` (the switch).
+Both drivers refuse the production hosts and need the same target-bound phrase
+as `capacity:deployed`. Run either with
+`node --experimental-strip-types scripts/<name>.ts --help` from `apps/api`.
+Creating and deleting the project and Workers is not scripted in the repo.
+
+### Broadcast fan-out
+
+**How events were emitted.** The way production does it. The driver signs a
+Telnyx `message.received` webhook and posts it to the Worker; the Worker
+inserts the message; the `messages` trigger calls `realtime.send` through
+`broadcast_number_scoped`. The driver never publishes, and an ordinary member
+cannot. N independent sockets, each its own supabase-js client, joined as an
+ordinary member.
+
+**The topic is the per-number one, `company:<id>:number:<number id>`.** The
+company-topic send in `broadcast_number_scoped` has been removed, so a client
+on `company:<id>` alone receives no message events (the first run delivered
+nothing until this was found). Each inbound message puts two frames on that
+topic, `message.created` and `conversation.updated`. The table counts
+`message.created` deliveries; the frame rate is twice that.
+
+Events were spread evenly over 12 s per level. Latency runs from the driver
+sending the webhook to the driver receiving the frame, on one clock, so it
+includes the Worker's acknowledge-then-ingest path and the VPN hop each way
+(about 300 ms is the floor). The thread was read back through the API, and it
+held every event the Worker had acknowledged.
+
+| Sockets | Inbound messages/s | `message.created` deliveries | Received | Emit to socket p50 / p99 / max | First to last socket, p99 | Driver loop lag, p99 |
+|---|---|---|---|---|---|---|
+| 50 | 1 | 600 | all | 295 / 358 / 359 ms | 16 ms | 18 ms |
+| 50 | 10 | 6,000 | all | 288 / 780 / 834 ms | 21 ms | 21 ms |
+| 50 | 40 | 24,000 | all | 298 / 663 / 752 ms | 31 ms | 23 ms |
+| 200 | 1 | 2,400 | all | 298 / 449 / 451 ms | 19 ms | 20 ms |
+| 200 | 10 | 24,000 | all | 303 / 549 / 674 ms | 31 ms | 23 ms |
+| 200 | 25 | 60,000 | all | 308 / 548 / 605 ms | 44 ms | 24 ms |
+| 500 | 1 | 6,000 | all | 322 / 397 / 438 ms | 133 ms | 21 ms |
+| 500 | 5 | 30,000 | all | 305 / 357 / 419 ms | 121 ms | 24 ms |
+| 500 | 20 | 120,000 | all | 342 / 1,058 / 1,418 ms | 292 ms | 25 ms |
+| 500, two processes of 250 | 30 | 180,000 | all, in both | 327 / 726 / 858 ms | not kept | 33 ms |
+| 500 | 40 | 240,000 | **201,875 (84.1%)** | 1,156 / 3,227 / 3,815 ms | 1,969 ms | 372 ms |
+| 500, two processes of 250 | 40 | 240,000 | **206,599 (86.1%)** | 314 / 902 / 978 ms | not kept | 20 ms |
+
+**First thing to break: delivery at 500 sockets, between 30 and 40 inbound
+messages a second** (15,000 to 20,000 `message.created` deliveries a second,
+30,000 to 40,000 frames a second counting `conversation.updated`). At 40 a
+second, 14 to 16% of deliveries never arrived, not even after the 3 s of
+silence the driver waits for, and 78 of 480 events missed some sockets.
+Nothing told the sender or a receiver: the webhooks were acknowledged `200`
+and ingested (480 of 480), no socket dropped and no join failed. What did
+arrive arrived on time, so the symptom is a missing update, not a slow one.
+
+The single-process run also showed the driver struggling (event-loop lag
+372 ms), so the same 500 sockets were split across two processes, each lagging
+20 ms. The loss was the same (86%), which puts it in the service and not the
+driver. Below the limit nothing was lost at any level, and latency grew only
+with load: p99 under 0.4 s at 5 messages a second and about 1 s at 20.
+
+What this does not say. Only one cell crossed the limit. Whether it is a
+limit on deliveries a second, on frames a second or on sends a second was not
+separated, and 200 sockets were taken only to 25 messages a second. The
+project's own settings are `max_events_per_second` 2,500 and
+`max_bytes_per_second` 1 MB, and the sends here were at most 80 a second, so
+neither obviously explains it; the cause is not known. If the limit is per
+project, the figure to remember is about 30,000 delivered frames a second
+shared by every workspace on the project, not per workspace. A workspace of 50
+clients was nowhere near it.
+
+Inbound ingest through the Worker held at 40 messages a second for 12 s with
+every acknowledgement `200`. The Worker's CPU for one webhook averaged 9 to
+10 ms (median 6 to 10 ms, p99 35 to 51 ms) at every level. The rig refused
+between 100 and 200 distinct events a second; the hosted stack was not pushed
+there.
+
+### Call sessions
+
+**How calls were driven.** The driver is the carrier. For each simultaneous
+call it asks the fake switch for an inbound call to one of 33 seeded
+workspaces, each with a 12-person crew whose softphone credentials were
+seeded, delivers the switch's `call.initiated` to the Worker as a signed
+webhook, and keeps delivering what the switch queues (the 12 ring legs'
+events, the answer, the hangups). Then the first ring leg of each call
+answers, then every caller hangs up. Levels 2, 8, 16 and 32 were run twice:
+back to back, and then 50 s apart so Cloudflare's analytics could be read per
+level.
+
+| Simultaneous calls | Crew phones rung | First crew phone rings, p50 | Last crew phone rings, p50 / p99 | Answer to the others hung up, p50 / p99 | Acknowledgements |
+|---|---|---|---|---|---|
+| 2 | 24 of 24 | 2.28 s | 2.44 s / 2.44 s | 1.18 s / 1.18 s | 60 `200` |
+| 8 | 96 of 96 | 2.29 s | 2.42 s / 4.90 s | 1.13 s / 1.17 s | 240 `200` |
+| 16 | 192 of 192 | 2.69 s | 2.88 s / 3.41 s | 1.09 s / 1.46 s | 480 `200` |
+| 32 | 384 of 384 | 2.24 s | 2.50 s / 3.12 s | 1.22 s / 1.40 s | 960 `200` |
+
+These are the second (isolated) run, measured on the switch's own clock from
+the moment the caller dialled in. They include the driver's own round trips to
+the switch and the Worker (about 0.5 s) and cross-country database queries
+(Worker in Seattle, Postgres in Virginia). The back-to-back run had the same
+shape (last crew phone p50 2.97, 2.55, 2.42 and 2.20 s).
+
+**Nothing broke up to 32 simultaneous calls.** There was no `5xx` or timeout in
+the 3,480 webhook acknowledgements across the two runs. Every call rang its
+whole crew (exactly 12 dials a call), was answered, hung up the other 11
+phones, and ended with no leg alive. The rig saw its first `5xx` between 8 and
+32 calls; the hosted stack did not, though it was not pushed past 32. Ring time
+did not grow with the number of calls, so no queueing showed: the 2.3 to 2.9 s
+is mostly the path, not the load.
+
+**Cloudflare's own meter**, from `durableObjectsInvocationsAdaptiveGroups`,
+`durableObjectsPeriodicGroups` and `workersInvocationsAdaptive`, over the
+isolated run's four windows (46 s each, so a call's tail is inside its window):
+
+| Calls | Durable Object requests | DO CPU per call | DO duration per call | DO rows written per call | Worker requests | Worker CPU per call |
+|---|---|---|---|---|---|---|
+| 2 | 60 | 170 ms | 3.21 GB-s | 214 | 60 | 69 ms |
+| 8 | 241 | 145 ms | 3.94 GB-s | 218 | 235 | 65 ms |
+| 16 | 481 | 168 ms | 3.55 GB-s | 216 | 473 | 59 ms |
+| 32 | 958 | 133 ms | 3.54 GB-s | 197 | 960 | 57 ms |
+
+Over the 58 calls: 30 requests to the Durable Object per call (one per
+webhook event), CPU 145 ms per call (4.9 ms per invocation, median 0.7 to 0.9
+ms; the invocation that dials the crew is the p99, 64 to 93 ms), 205 rows
+written and 120 rows read per call. The Worker took 59 ms of CPU per call over
+30 requests. **CPU per call was flat from 2 to 32 simultaneous calls**, as was
+the ring time. The median wall time of a Durable Object invocation was 53 to
+72 ms.
+
+One result is unexplained, and it dominates duration. One invocation per call,
+about 1 in 30, stays open 17 to 20 s of wall time with about 10 ms of CPU
+(wall p99 is 20.0 s at every level). It starts after the driver has finished
+the call, the fake switch logged no slow or unanswered request, and the
+database's slowest statement was 529 ms. 20 s is the Telnyx client's timeout,
+so it may be a request this stack leaves unconfigured (push, FCM or the AI
+binding) waiting out its bound; it was not found. It makes the object active
+for about 28 s per call and the duration 3.6 GB-s. Without it, duration would
+be about a quarter of that.
+
+### Durable Object cost per 1,000 calls
+
+Prices are from Cloudflare's pricing pages, fetched 2026-11-10 (Durable
+Objects page "last updated Oct 18, 2026", Workers page "Oct 2, 2026"): Durable
+Object requests $0.15 per million, duration $12.50 per million GB-s, SQLite
+rows written $1.00 per million, rows read $0.001 per million; Workers requests
+$0.30 per million and CPU $0.02 per million ms. Durable Object CPU is not
+billed on its own. Using the measured 30 requests, 3.58 GB-s, 205 rows written
+and 120 rows read per call, and the Worker's 30 requests and 59 ms:
+
+| Per 1,000 calls | Quantity | Cost |
+|---|---|---|
+| Durable Object requests | 30,000 | $0.0045 |
+| Durable Object duration | 3,580 GB-s (about 900 without the unexplained tail) | $0.045 (about $0.011) |
+| Durable Object rows written | 205,000 | $0.205 |
+| Durable Object rows read | 120,000 | $0.0001 |
+| Worker requests for the webhooks | 30,000 | $0.009 |
+| Worker CPU | 59,000 ms | $0.001 |
+| **Total** | | **about $0.27, or $0.00027 a call** |
+
+Rows written are about three quarters of it. The Workers Paid plan's monthly
+allowance covers the first 1 million Durable Object requests (about 33,000
+calls), 400,000 GB-s (about 110,000 calls) and 50 million rows written (about
+240,000 calls), so a crew taking a few hundred calls a month pays nothing
+beyond the plan. These calls lasted about 10 s on the line. A call that rings
+or talks for minutes adds only what the object does while it is active, which
+this data cannot say.
+
+**Co-tenancy is still not separated.** Cloudflare publishes no per-machine or
+neighbour load, so a slow wall time cannot be split into our own queueing and a
+neighbour's. The flat CPU and flat ring times from 2 to 32 calls bound it for
+this one hour only.
+
+### What the run cost
+
+About one hour of one Micro project at $0.01344 an hour, about $0.015. The
+Realtime runs moved about 1.7 million frames against the plan's 5 million
+included messages. Workers and Durable Object usage was a few thousand
+requests, rows and GB-s, all inside the Workers Paid allowance. Under $0.05 in
+all.
+
+### Still unknown after this run
+
+- **Why delivery fails between 30 and 40 messages a second at 500 sockets**,
+  and whether the limit is per project, per topic or per second of fan-out;
+  and fan-out above 500 sockets.
+- **The 17 to 20 s Durable Object invocation.**
+- **Calls above 32 at once**, and Durable Object cost for calls that last
+  minutes.
+- What 2c lists that is not about Realtime or calls: compute above Micro, the
+  50,000-conversation workspace through HTTP, and behaviour when the caller
+  waits past 10 s.
+
+---
+
 ## 3. Where the declared ceilings already are
 
 Not measurements — these are limits the code sets deliberately, collected here
@@ -1210,12 +1421,14 @@ interactive experience, which is what section 1 measures.
 ## 4. Cost per unit of load
 
 The API Worker's CPU per request is measured in section 2c (median 4 ms on the
-post-login landing). Durable Object compute is not.
+post-login landing). Durable Object compute per call is section 2e: 145 ms of
+CPU, 3.6 GB-s and 205 rows written, about $0.27 per 1,000 calls at published
+prices.
 
 Partially answered elsewhere rather than here. `node scripts/ops/storage-report.mjs`
 (#240) reports stored bytes, egress and derived monthly cost per workspace from
 real data, which is the storage half. Message, voice and AI unit costs live in
 `billing/costs.ts` and are already summed per tenant by the overage warning.
 
-What is missing is compute: the Worker and DO cost of serving a busy workspace,
-which needs the same deployed environment as section 2.
+What is missing is the rest of the compute: the Worker and DO cost of serving a
+busy workspace across everything it does, not just reads and calls.
