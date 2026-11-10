@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.0](https://github.com/BytechLabs/Texturion/compare/api-v0.24.0...api-v0.25.0) (2026-11-10)
+
+
+### Features
+
+* **api:** a task links to other tasks and is found by its number ([712a2cf](https://github.com/BytechLabs/Texturion/commit/712a2cf93683f598d56e1829d40324f999561721))
+* **api:** tasks take assignee_ids and notify and sync each assignee ([28afd6a](https://github.com/BytechLabs/Texturion/commit/28afd6a81785717794629a91f6a96c472421e499))
+
 ## [0.24.0](https://github.com/BytechLabs/Texturion/compare/api-v0.23.0...api-v0.24.0) (2026-11-10)
 
 

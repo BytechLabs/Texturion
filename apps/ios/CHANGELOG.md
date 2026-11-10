@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.21.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.20.0...ios-v0.21.0) (2026-11-10)
+
+
+### Features
+
+* **ios:** add a task from one line and link it to other work ([005764c](https://github.com/BytechLabs/Texturion/commit/005764cb915c5017e9916c85bb1122a593c54be4))
+* **ios:** assign a task to more than one person ([30ac72c](https://github.com/BytechLabs/Texturion/commit/30ac72c75a043a7955f059aadec78cd3e15815f8))
+
+
+### Bug Fixes
+
+* **ios:** the task people picker no longer clashes with the thread's ([4343b62](https://github.com/BytechLabs/Texturion/commit/4343b6256242786430eef083379c5f1447d845c3))
+
 ## [0.20.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.19.0...ios-v0.20.0) (2026-11-10)
 
 
