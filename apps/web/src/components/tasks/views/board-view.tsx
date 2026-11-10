@@ -23,13 +23,11 @@ import { useTaskDone } from "../use-task-mutations";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
 
 /**
- * The Board view (D25, MVP 2 columns). Per the HOME-AND-VIEWS reconciliation
- * (D25 / TASKS.md T2), completion is DERIVED from the source message, so the
- * board has exactly two states — **To do → Done** — and moving a card to/from
- * Done calls the source message's `PATCH /v1/messages/:id {done}` (the same
- * derived path as every other view, via `useTaskDone`). The richer
- * To do → In progress → Waiting board is a fast-follow gated on the deferred T9
- * status decision; do NOT build a stored multi-status column here.
+ * The Board view (D25): two states, **To do → Done**. Done stays derived
+ * (D17/D64), so moving a card goes through the same done path every view uses
+ * (`useTaskDone`) and the board stores no status of its own. A job's pipeline
+ * state is a conversation tag (D92), not a column here; grouping by assignee or
+ * priority changes the columns, not the states.
  *
  * Interaction: HTML5 drag-and-drop between columns (no new DnD lib — the perf
  * guardrail forbids one) AND a keyboard-accessible move button on every card,
