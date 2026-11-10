@@ -495,7 +495,27 @@ begin
   if v->>'outcome' is distinct from 'committed' then
     raise exception 'CS-4 FAILED: reseed commit %', v;
   end if;
-  raise notice 'CS-4 PASSED: authenticated coalescing, renewable/recoverable lease, periodic poll and sliding reseed';
+
+  -- CS-4b: now() is frozen in this transaction, so date the last sync in the
+  -- past; the claim's start is then later than that completion, as it is when
+  -- production pulls again minutes later.
+  update public.calendar_connections
+     set last_sync_started_at = now() - interval '10 minutes',
+         last_sync_completed_at = now() - interval '9 minutes',
+         sync_due_at = now() - interval '1 second'
+   where id = v_claim.id;
+  select * into v_second from public.api_claim_due_calendar_pulls('pull-d', 1, 120);
+  if v_second.id is distinct from v_claim.id
+     or v_second.last_sync_started_at is distinct from now() then
+    raise exception 'CS-4b FAILED: a pull after a finished one was not claimed';
+  end if;
+  v := public.api_commit_calendar_pull(
+    v_second.id, 'pull-d', v_second.pull_generation, 'cursor-3'
+  );
+  if v->>'outcome' is distinct from 'committed' then
+    raise exception 'CS-4b FAILED: second pull commit %', v;
+  end if;
+  raise notice 'CS-4 PASSED: authenticated coalescing, renewable/recoverable lease, periodic poll and sliding reseed, and a later pull after a finished one';
 end $$;
 
 -- CS-5. The initial create claim is exclusive and commit records an INSTANCE,
