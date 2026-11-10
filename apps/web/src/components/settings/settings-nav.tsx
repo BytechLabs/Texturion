@@ -29,7 +29,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import {
+  inSettingsGroupOrder,
+  SETTINGS_GROUPS,
   visibleSettingsSections,
+  type SettingsGroupId,
   type SettingsSectionId,
 } from "@loonext/shared";
 
@@ -70,8 +73,22 @@ export interface SettingsSection {
   neverLanding?: boolean;
 }
 
-/** The G8 settings sections, in nav order. */
-export const SETTINGS_SECTIONS: SettingsSection[] = [
+/** #727: each group's heading. */
+const GROUP_LABELS: Record<SettingsGroupId, MessageKey> = {
+  workspace: "settingsMore.navGroupWorkspace",
+  messages: "settingsMore.navGroupMessages",
+  phone: "settingsMore.navGroupPhone",
+  billing: "settingsMore.navGroupBilling",
+  you: "settingsMore.navGroupYou",
+  developers: "settingsMore.navGroupDevelopers",
+  support: "settingsMore.navGroupSupport",
+};
+
+/**
+ * The G8 settings sections, in nav order: the shared groups' order (#727),
+ * which is also the order the index lands somebody by.
+ */
+export const SETTINGS_SECTIONS: SettingsSection[] = inSettingsGroupOrder<SettingsSection>([
   {
     id: "workspace",
     slug: "workspace",
@@ -270,7 +287,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Ban,
     neverLanding: true,
   },
-];
+], (section) => section.id);
+
+/** The visible sections under their group headings, empty groups dropped. */
+function grouped(sections: SettingsSection[]) {
+  return SETTINGS_GROUPS.map((group) => ({
+    id: group.id,
+    sections: sections.filter((section) => group.sections.includes(section.id)),
+  })).filter((group) => group.sections.length > 0);
+}
 
 /**
  * The settings left nav (G8). Desktop: slim link list. Mobile (`asList`):
@@ -305,82 +330,104 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
     setShowWhatsNew(shouldShowWhatsNewMarker(company.data?.created_at ?? null));
   }, [company.data?.created_at, pathname]);
 
+  const groups = grouped(sections);
+
   if (asList) {
     return (
-      <nav
-        aria-label={t("settingsMore.navSectionsAria")}
-        className="divide-y rounded-lg border bg-card"
-      >
-        {sections.map((section) => {
-          const Icon = section.icon;
-          return (
-            <Link
-              key={section.slug}
-              href={section.href ?? `/settings/${section.slug}`}
-              className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      <nav aria-label={t("settingsMore.navSectionsAria")} className="space-y-5">
+        {groups.map((group) => (
+          <section key={group.id} aria-labelledby={`settings-group-${group.id}`}>
+            <h2
+              id={`settings-group-${group.id}`}
+              className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
             >
-              <Icon
-                className="size-5 shrink-0 text-muted-foreground"
-                strokeWidth={1.75}
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">
-                  {t(section.label)}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {t(section.description)}
-                </span>
-              </span>
-              {section.id === "whatsNew" && showWhatsNew && (
-                <span
-                  aria-label={t("settingsMore.navSomethingNew")}
-                  className="size-2 shrink-0 rounded-full bg-primary"
-                />
-              )}
-              <ChevronRight
-                className="size-4 shrink-0 text-muted-foreground"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-            </Link>
-          );
-        })}
+              {t(GROUP_LABELS[group.id])}
+            </h2>
+            <div className="divide-y rounded-lg border bg-card">
+              {group.sections.map((section) => {
+                const Icon = section.icon;
+                return (
+                  <Link
+                    key={section.slug}
+                    href={section.href ?? `/settings/${section.slug}`}
+                    className="flex min-h-[44px] items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Icon
+                      className="size-5 shrink-0 text-muted-foreground"
+                      strokeWidth={1.75}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">
+                        {t(section.label)}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {t(section.description)}
+                      </span>
+                    </span>
+                    {section.id === "whatsNew" && showWhatsNew && (
+                      <span
+                        aria-label={t("settingsMore.navSomethingNew")}
+                        className="size-2 shrink-0 rounded-full bg-primary"
+                      />
+                    )}
+                    <ChevronRight
+                      className="size-4 shrink-0 text-muted-foreground"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </nav>
     );
   }
 
   return (
-    <nav
-      aria-label={t("settingsMore.navSectionsAria")}
-      className="flex flex-col gap-0.5"
-    >
-      {sections.map((section) => {
-        const href = section.href ?? `/settings/${section.slug}`;
-        const active = pathname === href || pathname.startsWith(`${href}/`);
-        const Icon = section.icon;
-        return (
-          <Link
-            key={section.slug}
-            href={href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ease-out",
-              active
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-            )}
+    <nav aria-label={t("settingsMore.navSectionsAria")} className="flex flex-col gap-4">
+      {groups.map((group) => (
+        <section
+          key={group.id}
+          aria-labelledby={`settings-group-${group.id}`}
+          className="flex flex-col gap-0.5"
+        >
+          <h2
+            id={`settings-group-${group.id}`}
+            className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
           >
-            <Icon className="size-4 shrink-0" strokeWidth={1.75} />
-            {t(section.label)}
-            {section.id === "whatsNew" && showWhatsNew && (
-              <span
-                aria-label={t("settingsMore.navSomethingNew")}
-                className="size-2 shrink-0 rounded-full bg-primary"
-              />
-            )}
-          </Link>
-        );
-      })}
+            {t(GROUP_LABELS[group.id])}
+          </h2>
+          {group.sections.map((section) => {
+            const href = section.href ?? `/settings/${section.slug}`;
+            const active = pathname === href || pathname.startsWith(`${href}/`);
+            const Icon = section.icon;
+            return (
+              <Link
+                key={section.slug}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ease-out",
+                  active
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4 shrink-0" strokeWidth={1.75} />
+                {t(section.label)}
+                {section.id === "whatsNew" && showWhatsNew && (
+                  <span
+                    aria-label={t("settingsMore.navSomethingNew")}
+                    className="size-2 shrink-0 rounded-full bg-primary"
+                  />
+                )}
+              </Link>
+            );
+          })}
+        </section>
+      ))}
     </nav>
   );
 }

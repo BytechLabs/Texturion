@@ -747,6 +747,14 @@ export const settingsMoreEn = {
   /* The Settings shell and its nav (G8) */
   settingsHeading: "Settings",
   navSectionsAria: "Settings sections",
+  /** #727: the headings the sections are grouped under. */
+  navGroupWorkspace: "Business",
+  navGroupMessages: "Messages",
+  navGroupPhone: "Calls and numbers",
+  navGroupBilling: "Billing and payments",
+  navGroupYou: "You",
+  navGroupDevelopers: "Developers",
+  navGroupSupport: "Help and history",
   navSomethingNew: "Something new",
   navWorkspace: "Workspace",
   navWorkspaceDesc: "Company name, business identity, timezone",
@@ -2013,6 +2021,13 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
 
   settingsHeading: "Paramètres",
   navSectionsAria: "Sections des paramètres",
+  navGroupWorkspace: "Entreprise",
+  navGroupMessages: "Messages",
+  navGroupPhone: "Appels et numéros",
+  navGroupBilling: "Facturation et paiements",
+  navGroupYou: "Vous",
+  navGroupDevelopers: "Développeurs",
+  navGroupSupport: "Aide et historique",
   navSomethingNew: "Quelque chose de nouveau",
   navWorkspace: "Espace de travail",
   navWorkspaceDesc:

@@ -37,49 +37,20 @@ import {
  *  wrong one. In nav order. */
 const OPENS: Record<MemberRole, SettingsSectionId[]> = {
   owner: [
+    // #727: in the shared groups' order.
     "workspace",
     "team",
-    "numbers",
+    "ai",
     "hours",
     // #689: Automatic texts reuses the "hours" id, so it opens for exactly the
     // roles Away reply does.
     "hours",
-    "calling",
     "templates",
-    "ai",
-    "usage",
-    "billing",
-    // #224: text-to-pay setup and the Stripe dashboard where refunds happen.
-    "payments",
-    "notifications",
-    "profile",
-    "account",
-    "devices",
-    "history",
-    "help",
-    "whatsNew",
-    // #243: connections to the workspace's own systems. settings.manage on
-    // the READ too — the list names the third parties this workspace's
-    // messages flow to, and those URLs routinely carry a per-tenant token.
-    "webhooks",
-    // #243: the other half — what may reach IN. Same capability, and
-    // deliberately adjacent so the two are decided together.
-    "apiKeys",
+    "numbers",
+    "calling",
     // #696: gated like Mark spam (conversations.note), so every role that
     // can mark a robotext can see and lift the blocks.
     "blockedNumbers",
-  ],
-  admin: [
-    "workspace",
-    "team",
-    "numbers",
-    "hours",
-    // #689: Automatic texts reuses the "hours" id, so it opens for exactly the
-    // roles Away reply does.
-    "hours",
-    "calling",
-    "templates",
-    "ai",
     "usage",
     "billing",
     // #224: text-to-pay setup and the Stripe dashboard where refunds happen.
@@ -88,9 +59,6 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     "profile",
     "account",
     "devices",
-    "history",
-    "help",
-    "whatsNew",
     // #243: connections to the workspace's own systems. settings.manage on
     // the READ too — the list names the third parties this workspace's
     // messages flow to, and those URLs routinely carry a per-tenant token.
@@ -98,7 +66,43 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     // #243: the other half — what may reach IN. Same capability, and
     // deliberately adjacent so the two are decided together.
     "apiKeys",
+    "history",
+    "help",
+    "whatsNew",
+  ],
+  admin: [
+    // #727: in the shared groups' order.
+    "workspace",
+    "team",
+    "ai",
+    "hours",
+    // #689: Automatic texts reuses the "hours" id, so it opens for exactly the
+    // roles Away reply does.
+    "hours",
+    "templates",
+    "numbers",
+    "calling",
+    // #696: gated like Mark spam (conversations.note), so every role that
+    // can mark a robotext can see and lift the blocks.
     "blockedNumbers",
+    "usage",
+    "billing",
+    // #224: text-to-pay setup and the Stripe dashboard where refunds happen.
+    "payments",
+    "notifications",
+    "profile",
+    "account",
+    "devices",
+    // #243: connections to the workspace's own systems. settings.manage on
+    // the READ too — the list names the third parties this workspace's
+    // messages flow to, and those URLs routinely carry a per-tenant token.
+    "webhooks",
+    // #243: the other half — what may reach IN. Same capability, and
+    // deliberately adjacent so the two are decided together.
+    "apiKeys",
+    "history",
+    "help",
+    "whatsNew",
   ],
   // Theirs, and only theirs: their login, their notifications, their devices,
   // the help route and what shipped — plus, since #286, the crew list.
@@ -110,14 +114,14 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
   // still refused server-side.
   member: [
     "team",
+    // #696: a member can mark a thread spam, so a member can see the blocks.
+    "blockedNumbers",
     "notifications",
     "profile",
     "account",
     "devices",
     "help",
     "whatsNew",
-    // #696: a member can mark a thread spam, so a member can see the blocks.
-    "blockedNumbers",
   ],
   // #315: not a rung below a member — a different set that happens to land in
   // the same place for settings, because both hold only the baseline.

@@ -16,6 +16,13 @@ export {
 } from "./settings-visibility";
 
 export {
+  inSettingsGroupOrder,
+  SETTINGS_GROUPS,
+  settingsGroupOf,
+  type SettingsGroupId,
+} from "./settings-groups";
+
+export {
   ORIENTATION_STEPS,
   orientationProgress,
   shouldShowOrientation,
