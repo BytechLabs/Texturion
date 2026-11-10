@@ -1,6 +1,8 @@
 package com.loonext.android.features.calls
 
 import com.loonext.android.ui.common.RefreshBox
+import com.loonext.android.ui.common.TrashSnackbarHost
+import com.loonext.android.ui.common.TrashSnackbarVisuals
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import androidx.compose.animation.AnimatedContent
@@ -39,7 +41,6 @@ import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Slider
@@ -347,13 +348,22 @@ fun CallsScreen(
             graph.storeCache.put(key, cached.copy(calls = edit(cached.calls)))
         }
     }
-    fun say(text: String, undoLabel: String? = null, undo: (() -> Unit)? = null) {
+    fun say(
+        text: String,
+        undoLabel: String? = null,
+        trashLabel: String? = null,
+        undo: (() -> Unit)? = null,
+    ) {
         scope.launch {
-            val result = snackbar.showSnackbar(
-                message = text,
-                actionLabel = undoLabel,
-                duration = if (undoLabel != null) SnackbarDuration.Long else SnackbarDuration.Short,
-            )
+            val result = if (undoLabel != null && trashLabel != null) {
+                snackbar.showSnackbar(TrashSnackbarVisuals(text, undoLabel, trashLabel))
+            } else {
+                snackbar.showSnackbar(
+                    message = text,
+                    actionLabel = undoLabel,
+                    duration = if (undoLabel != null) SnackbarDuration.Long else SnackbarDuration.Short,
+                )
+            }
             if (result == SnackbarResult.ActionPerformed) undo?.invoke()
         }
     }
@@ -391,6 +401,7 @@ fun CallsScreen(
                         emptyMap(),
                     ),
                     undoLabel = AppStrings.translate(logLocale, "contactsTasks.deleteUndo", emptyMap()),
+                    trashLabel = AppStrings.translate(logLocale, "trash.viewTrash", emptyMap()),
                 ) { restore(call, voicemail) }
             } catch (cause: Exception) {
                 say(cause.userMessage(logLocale))
@@ -690,7 +701,7 @@ fun CallsScreen(
             }
         }
         // #691: the Undo for a delete rides here, clear of the dial button.
-        SnackbarHost(
+        TrashSnackbarHost(
             snackbar,
             modifier = Modifier
                 .align(Alignment.BottomCenter)

@@ -60,6 +60,8 @@ data class ThreadNotice(
     val text: String,
     val actionLabel: String? = null,
     val action: (() -> Unit)? = null,
+    /** #710: a delete notice's second action, "View Trash". Null on every other notice. */
+    val trashLabel: String? = null,
 )
 
 /** A failed send-intent: the SAME Idempotency-Key rides the user's retry. */
@@ -246,9 +248,10 @@ class ThreadController(
     private fun notify(
         text: String,
         actionLabel: String? = null,
+        trashLabel: String? = null,
         action: (() -> Unit)? = null,
     ) {
-        notice = ThreadNotice(++noticeSeq, text, actionLabel, action)
+        notice = ThreadNotice(++noticeSeq, text, actionLabel, action, trashLabel)
     }
 
     /** One of our own sentences, in the reader's language. See [locale]. */
@@ -1184,6 +1187,7 @@ class ThreadController(
                         },
                     ),
                     actionLabel = say("thread.undo"),
+                    trashLabel = say("trash.viewTrash"),
                 ) { restoreMessage(message.id) }
             } catch (cause: Exception) {
                 runCatching { refetchLoadedWindow() }
@@ -1214,6 +1218,7 @@ class ThreadController(
                 notify(
                     say("thread.conversationDeleted"),
                     actionLabel = say("thread.undo"),
+                    trashLabel = say("trash.viewTrash"),
                 ) { restoreConversation() }
             } catch (cause: Exception) {
                 notify(cause.userMessageForReader())

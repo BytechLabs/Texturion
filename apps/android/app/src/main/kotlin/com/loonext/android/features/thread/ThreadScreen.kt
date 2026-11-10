@@ -77,7 +77,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
@@ -137,6 +136,9 @@ import com.loonext.android.features.attachments.openOriginal
 import com.loonext.android.features.compose.bannerKind
 import com.loonext.android.features.contacts.contactRepeatBadge
 import com.loonext.android.features.settings.openExternal
+import com.loonext.android.ui.common.TRASH_URL
+import com.loonext.android.ui.common.TrashSnackbarHost
+import com.loonext.android.ui.common.TrashSnackbarVisuals
 import com.loonext.android.features.settings.supportMailto
 import com.loonext.android.features.tasks.ReferenceSource
 import com.loonext.android.features.tasks.ReferenceTarget
@@ -305,12 +307,18 @@ fun ThreadScreen(
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(controller.notice) {
         val notice = controller.notice ?: return@LaunchedEffect
-        val result = snackbar.showSnackbar(
-            message = notice.text,
-            actionLabel = notice.actionLabel,
-            duration = if (notice.actionLabel != null) SnackbarDuration.Long
-            else SnackbarDuration.Short,
-        )
+        val actionLabel = notice.actionLabel
+        val trashLabel = notice.trashLabel
+        val result = if (actionLabel != null && trashLabel != null) {
+            snackbar.showSnackbar(TrashSnackbarVisuals(notice.text, actionLabel, trashLabel))
+        } else {
+            snackbar.showSnackbar(
+                message = notice.text,
+                actionLabel = actionLabel,
+                duration = if (actionLabel != null) SnackbarDuration.Long
+                else SnackbarDuration.Short,
+            )
+        }
         if (result == SnackbarResult.ActionPerformed) notice.action?.invoke()
     }
 
@@ -365,6 +373,9 @@ fun ThreadScreen(
                         )
                         TextButton(onClick = { controller.restoreConversation() }) {
                             Text(t("thread.undo"))
+                        }
+                        TextButton(onClick = { openExternal(context, TRASH_URL) }) {
+                            Text(t("trash.viewTrash"))
                         }
                         TextButton(onClick = onBack) { Text(t("thread.backToInbox")) }
                     }
@@ -460,7 +471,7 @@ fun ThreadScreen(
         }
         // Keyboard: the #187/#199 route host pads the ime; a local imePadding
         // here was a consumed no-op and is gone (ImeContractLintTest).
-        SnackbarHost(
+        TrashSnackbarHost(
             snackbar,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
@@ -2396,122 +2407,132 @@ private fun ConversationSheet(
                 }
             }
 
-            // Actions.
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface,
-            ) {
-                Column {
-                    val assignee = members
-                        .firstOrNull { it.user_id == detail.assigned_user_id }
-                        ?.display_name?.ifBlank { null }
-                    SheetActionRow(
-                        icon = Icons.Outlined.PersonAdd,
-                        label = assignee?.let { t("thread.assignedTo", "name" to it) }
-                            ?: t("thread.assignToEllipsis"),
-                        onClick = onAssign,
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    // #465: pinned and spam are STATES, drawn and named as such.
-                    SheetToggleRow(
-                        icon = Icons.Outlined.PushPin,
-                        label = t("thread.pinned"),
-                        checked = detail.pinned_at != null,
-                        onToggle = {
-                            haptics.tap()
-                            controller.toggleConversationPin()
-                            onDismiss()
-                        },
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SheetActionRow(
-                        icon = Icons.Outlined.PhotoLibrary,
-                        label = t("thread.photosAndFiles"),
-                        onClick = onOpenGallery,
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SheetToggleRow(
-                        icon = Icons.Outlined.Report,
-                        label = t("thread.spam"),
-                        checked = detail.is_spam,
-                        onToggle = {
-                            haptics.tap()
-                            controller.setSpam(!detail.is_spam)
-                            onDismiss()
-                        },
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SheetActionRow(
-                        icon = Icons.Outlined.AddTask,
-                        label = t("thread.newTask"),
-                        onClick = onNewTask,
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    // #696: a block sends this number's future texts and calls
-                    // straight to spam. Unblocking needs no confirmation: it
-                    // only lets the next one through.
-                    if (controller.blockedSender != null) {
-                        SheetActionRow(
-                            icon = Icons.Outlined.Undo,
-                            label = t("thread.unblockNumber"),
-                            onClick = {
-                                onDismiss()
-                                controller.unblockNumber()
-                            },
-                        )
-                    } else {
-                        SheetActionRow(
-                            icon = Icons.Outlined.Block,
-                            label = t("thread.blockNumber"),
-                            onClick = onBlock,
-                        )
-                    }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    // #694: mute and follow are this member's own. Mute opens
-                    // the durations in place rather than a second sheet.
-                    MuteFollowRows(controller, detail, haptics, onDismiss)
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    if (controller.contact?.opted_out == true) {
-                        // #407: a STOP the customer sent is a CARRIER block,
-                        // and only they can lift it. Offering to undo it here
-                        // promised something the next send would immediately
-                        // contradict — and taught the owner that consent is
-                        // theirs to reinstate. So the row becomes the answer
-                        // they actually need: the route back, which is one the
-                        // customer takes.
-                        if (isCarrierEnforcedOptOut(controller.contact?.opt_out_source)) {
-                            SheetNote(t("thread.carrierStopNote"))
-                        } else {
-                            SheetActionRow(
-                                icon = Icons.Outlined.Undo,
-                                label = t("thread.removeOptOut"),
-                                onClick = onRevokeOptOut,
-                            )
+            // #710: the actions in the web menu's order, one card per group.
+            val assignee = members
+                .firstOrNull { it.user_id == detail.assigned_user_id }
+                ?.display_name?.ifBlank { null }
+            conversationMenuGroups(canDelete = onDeleteConversation != null).forEach { group ->
+                // #293: deferral is a CHOICE (which "later"), not a toggle, so
+                // it keeps its own card rather than folding four presets into
+                // the one-tap rows.
+                if (group.singleOrNull() == ConversationMenuItem.SNOOZE) {
+                    SnoozeSection(detail = detail, controller = controller, onDismiss = onDismiss)
+                    return@forEach
+                }
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surface,
+                ) {
+                    Column {
+                        group.forEachIndexed { index, item ->
+                            if (index > 0) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            }
+                            when (item) {
+                                ConversationMenuItem.ASSIGN -> SheetActionRow(
+                                    icon = Icons.Outlined.PersonAdd,
+                                    label = assignee?.let { t("thread.assignedTo", "name" to it) }
+                                        ?: t("thread.assignToEllipsis"),
+                                    onClick = onAssign,
+                                )
+                                // #465: pinned and spam are STATES, drawn and named as such.
+                                ConversationMenuItem.PINNED -> SheetToggleRow(
+                                    icon = Icons.Outlined.PushPin,
+                                    label = t("thread.pinned"),
+                                    checked = detail.pinned_at != null,
+                                    onToggle = {
+                                        haptics.tap()
+                                        controller.toggleConversationPin()
+                                        onDismiss()
+                                    },
+                                )
+                                ConversationMenuItem.NEW_TASK -> SheetActionRow(
+                                    icon = Icons.Outlined.AddTask,
+                                    label = t("thread.newTask"),
+                                    onClick = onNewTask,
+                                )
+                                ConversationMenuItem.SNOOZE -> Unit
+                                // #694: mute and follow are this member's own.
+                                ConversationMenuItem.MUTE ->
+                                    MuteRows(controller, detail, haptics, onDismiss)
+                                ConversationMenuItem.FOLLOW -> SheetToggleRow(
+                                    icon = Icons.Outlined.NotificationAdd,
+                                    label = t("thread.follow"),
+                                    checked = detail.followed,
+                                    onToggle = {
+                                        haptics.tap()
+                                        controller.setFollowed(!detail.followed)
+                                        onDismiss()
+                                    },
+                                )
+                                ConversationMenuItem.ATTACHMENTS -> SheetActionRow(
+                                    icon = Icons.Outlined.PhotoLibrary,
+                                    label = t("thread.photosAndFiles"),
+                                    onClick = onOpenGallery,
+                                )
+                                ConversationMenuItem.SPAM -> SheetToggleRow(
+                                    icon = Icons.Outlined.Report,
+                                    label = t("thread.spam"),
+                                    checked = detail.is_spam,
+                                    onToggle = {
+                                        haptics.tap()
+                                        controller.setSpam(!detail.is_spam)
+                                        onDismiss()
+                                    },
+                                )
+                                // #696: a block sends this number's future texts and
+                                // calls straight to spam. Unblocking needs no
+                                // confirmation: it only lets the next one through.
+                                ConversationMenuItem.BLOCK ->
+                                    if (controller.blockedSender != null) {
+                                        SheetActionRow(
+                                            icon = Icons.Outlined.Undo,
+                                            label = t("thread.unblockNumber"),
+                                            onClick = {
+                                                onDismiss()
+                                                controller.unblockNumber()
+                                            },
+                                        )
+                                    } else {
+                                        SheetActionRow(
+                                            icon = Icons.Outlined.Block,
+                                            label = t("thread.blockNumber"),
+                                            onClick = onBlock,
+                                        )
+                                    }
+                                ConversationMenuItem.DELETE -> SheetActionRow(
+                                    icon = Icons.Outlined.Delete,
+                                    label = t("thread.deleteConversation"),
+                                    destructive = true,
+                                    onClick = { onDeleteConversation?.invoke() },
+                                )
+                                ConversationMenuItem.OPT_OUT ->
+                                    if (controller.contact?.opted_out == true) {
+                                        // #407: a STOP the customer sent is a CARRIER
+                                        // block, and only they can lift it. So the row
+                                        // becomes the route back, which the customer
+                                        // takes, not an undo we cannot honour.
+                                        if (isCarrierEnforcedOptOut(controller.contact?.opt_out_source)) {
+                                            SheetNote(t("thread.carrierStopNote"))
+                                        } else {
+                                            SheetActionRow(
+                                                icon = Icons.Outlined.Undo,
+                                                label = t("thread.removeOptOut"),
+                                                onClick = onRevokeOptOut,
+                                            )
+                                        }
+                                    } else {
+                                        SheetActionRow(
+                                            icon = Icons.Outlined.Block,
+                                            label = t("thread.optOutOfTexts"),
+                                            onClick = onOptOut,
+                                        )
+                                    }
+                            }
                         }
-                    } else {
-                        SheetActionRow(
-                            icon = Icons.Outlined.Block,
-                            label = t("thread.optOutOfTexts"),
-                            onClick = onOptOut,
-                        )
-                    }
-                    if (onDeleteConversation != null) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        SheetActionRow(
-                            icon = Icons.Outlined.Delete,
-                            label = t("thread.deleteConversation"),
-                            destructive = true,
-                            onClick = onDeleteConversation,
-                        )
                     }
                 }
             }
-
-            // #293: deferral gets its own card rather than a row in the
-            // actions list above, because it is a CHOICE (which "later") not a
-            // toggle, and folding four presets into that list would bury the
-            // actions that are one tap each.
-            SnoozeSection(detail = detail, controller = controller, onDismiss = onDismiss)
 
             // Timeline visibility.
             Surface(
@@ -2579,6 +2600,8 @@ private fun SheetActionRow(
     icon: ImageVector,
     label: String,
     destructive: Boolean = false,
+    /** #710: a line under the label saying what the row does. */
+    supporting: String? = null,
     onClick: () -> Unit,
 ) {
     Row(
@@ -2602,15 +2625,23 @@ private fun SheetActionRow(
             modifier = Modifier.size(18.dp),
         )
         Spacer(Modifier.width(13.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            color = if (destructive) MaterialTheme.colorScheme.error else Color.Unspecified,
-            modifier = Modifier.weight(1f),
-        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+                color = if (destructive) MaterialTheme.colorScheme.error else Color.Unspecified,
+            )
+            if (supporting != null) {
+                Text(
+                    supporting,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
@@ -2655,7 +2686,7 @@ private fun ThreadSkeletonBubble(inbound: Boolean, width: Dp) {
 }
 
 @Composable
-private fun MuteFollowRows(
+private fun MuteRows(
     controller: ThreadController,
     detail: com.loonext.android.core.model.ConversationDetail,
     haptics: Haptics,
@@ -2676,6 +2707,8 @@ private fun MuteFollowRows(
         SheetActionRow(
             icon = Icons.Outlined.NotificationsOff,
             label = t("thread.muteMenu"),
+            // #710: Mute reads like Snooze; say what it keeps and what it drops.
+            supporting = t("thread.muteHint"),
             onClick = { choosing = !choosing },
         )
         if (choosing) {
@@ -2697,17 +2730,6 @@ private fun MuteFollowRows(
             }
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-    SheetToggleRow(
-        icon = Icons.Outlined.NotificationAdd,
-        label = t("thread.follow"),
-        checked = detail.followed,
-        onToggle = {
-            haptics.tap()
-            controller.setFollowed(!detail.followed)
-            onDismiss()
-        },
-    )
 }
 
 @Composable

@@ -99,7 +99,7 @@ fun SnoozeSection(
                     onDismiss()
                 }
             } else {
-                SnoozeNote(t("thread.snoozeUntil"))
+                SnoozeNote(t("thread.snoozeUntil"), hint = t("thread.snoozeHint"))
                 snoozePresets(zone = zone, locale = LocalAppLocale.current).forEach { preset ->
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SnoozeRow(preset.label, trailing = clockOf(preset.at, zone)) {
@@ -221,16 +221,25 @@ private fun clockOf(atMillis: Long, zone: ZoneId): String =
 
 /** A section heading inside the sheet — says something, does nothing. */
 @Composable
-private fun SnoozeNote(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-        ),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp),
-    )
+private fun SnoozeNote(text: String, hint: String? = null) {
+    Column(Modifier.padding(horizontal = 15.dp, vertical = 11.dp)) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // #710: what Snooze does, since Mute below sounds like the same thing.
+        if (hint != null) {
+            Text(
+                hint,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Composable

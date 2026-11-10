@@ -167,6 +167,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.restoreFailed" to "Couldn't restore it. Try again, or check the Trash on the web.",
         // --- Mute and follow (#694) ------------------------------------------
         "thread.muteMenu" to "Mute notifications",
+        "thread.muteHint" to "Keeps it in your inbox, without alerts",
         "thread.mute1h" to "For 1 hour",
         "thread.mute8h" to "For 8 hours",
         "thread.mute1w" to "For 1 week",
@@ -208,6 +209,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.bringBackNow" to "Bring back now",
         "thread.cancelReminder" to "Cancel the reminder",
         "thread.snoozeUntil" to "Snooze until",
+        "thread.snoozeHint" to "Hides it from your inbox until then",
         "thread.remindMeToChase" to "Remind me to chase",
         "thread.pickADate" to "Pick a date…",
         "thread.remindMe" to "Remind me",
@@ -636,6 +638,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.reminderCancelled" to "Reminder cancelled.",
         "thread.backInYourInbox" to "Back in your inbox.",
         "thread.undo" to "Undo",
+        "trash.viewTrash" to "View Trash",
 
         // --- Asking for money, said back (#224 / #607) --------------------------
         "thread.askedFor" to "Asked for {amount}.",
@@ -902,6 +905,7 @@ object ThreadStrings : AppStrings.Section {
             "Elle reste 30 jours dans la corbeille. Vous pouvez l'y restaurer sur le web.",
         "thread.restoreFailed" to "Impossible de la restaurer. Réessayez, ou vérifiez la corbeille sur le web.",
         "thread.muteMenu" to "Mettre les notifications en sourdine",
+        "thread.muteHint" to "Le garde dans votre boîte, sans alertes",
         "thread.mute1h" to "Pendant 1 heure",
         "thread.mute8h" to "Pendant 8 heures",
         "thread.mute1w" to "Pendant 1 semaine",
@@ -943,6 +947,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.bringBackNow" to "Ramener maintenant",
         "thread.cancelReminder" to "Annuler le rappel",
         "thread.snoozeUntil" to "Reporter jusqu'à",
+        "thread.snoozeHint" to "Le retire de votre boîte jusque-là",
         "thread.remindMeToChase" to "Me rappeler de relancer",
         "thread.pickADate" to "Choisir une date…",
         "thread.remindMe" to "Me rappeler",
@@ -1403,6 +1408,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.reminderCancelled" to "Rappel annulé.",
         "thread.backInYourInbox" to "De retour dans votre boîte de réception.",
         "thread.undo" to "Annuler",
+        "trash.viewTrash" to "Voir la corbeille",
 
         // --- Asking for money, said back ---------------------------------------------------
         "thread.askedFor" to "Demande de {amount} envoyée.",
