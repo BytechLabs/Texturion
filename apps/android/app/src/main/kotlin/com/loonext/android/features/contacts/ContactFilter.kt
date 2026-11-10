@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
+import com.loonext.android.ui.common.ChoiceChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -83,12 +83,12 @@ fun ContactFilterSheet(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         tags.forEach { tag ->
-                            FilterChip(
-                                selected = activeTag == tag.id,
+                            ChoiceChip(
+                                label = tag.name,
+                                chosen = activeTag == tag.id,
                                 onClick = {
                                     onTagChange(if (activeTag == tag.id) null else tag.id)
                                 },
-                                label = { Text(tag.name) },
                             )
                         }
                     }
@@ -107,18 +107,18 @@ fun ContactFilterSheet(
                     ) {
                         // Empty is an ANSWER on a custom field, and the most useful
                         // filter of the lot: the customers still to ask.
-                        FilterChip(
-                            selected = active?.first != field.key,
+                        ChoiceChip(
+                            label = CONTACT_FILTER_ALL,
+                            chosen = active?.first != field.key,
                             onClick = { onChange(null) },
-                            label = { Text(CONTACT_FILTER_ALL) },
                         )
                         val choices = listOf("") + answersFor(field)
                         choices.forEach { choice ->
                             val chosen = active?.first == field.key && active.second == choice
-                            FilterChip(
-                                selected = chosen,
+                            ChoiceChip(
+                                label = answerLabel(choice),
+                                chosen = chosen,
                                 onClick = { onChange(if (chosen) null else field.key to choice) },
-                                label = { Text(answerLabel(choice)) },
                             )
                         }
                     }

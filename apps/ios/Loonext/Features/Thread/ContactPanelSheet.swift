@@ -30,6 +30,9 @@ struct ContactPanelSheet: View {
     let onCall: (@MainActor () -> Void)?
     /// A call is being placed, so Call waits.
     let calling: Bool
+    /// #726: opens where lead sources are managed. Nil hides it from whoever
+    /// cannot add one.
+    var onAddLeadSource: (@MainActor () -> Void)? = nil
 
     @State private var copied = false
     @State private var leadSources: [LeadSource] = []
@@ -222,7 +225,11 @@ struct ContactPanelSheet: View {
                             appLocale, "thread.sectionLeadSource"
                         )
                     ) {
-                        LeadSourcePicker(controller: controller, detail: detail)
+                        LeadSourcePicker(
+                            controller: controller,
+                            detail: detail,
+                            onAddSource: onAddLeadSource
+                        )
                     }
                 }
 
@@ -241,7 +248,8 @@ struct ContactPanelSheet: View {
                     controller: controller,
                     detail: detail,
                     withSource: !asksForSource,
-                    leadSources: leadSources
+                    leadSources: leadSources,
+                    onAddLeadSource: onAddLeadSource
                 )
             }
             .padding(.horizontal, 20)
@@ -267,6 +275,7 @@ private struct PreferencesSection: View {
     /// The source is answered, so it is a setting rather than an ask.
     let withSource: Bool
     let leadSources: [LeadSource]
+    var onAddLeadSource: (@MainActor () -> Void)? = nil
 
     @State private var open = false
     @State private var saving = false
@@ -324,30 +333,33 @@ private struct PreferencesSection: View {
                         // #717: the workspace's own language is the inherit
                         // choice's answer, so it is a second row only when this
                         // contact is already set to it.
-                        Picker(
-                            AppStrings.translate(appLocale, "thread.sectionLanguage"),
-                            selection: Binding(
-                                get: { contactLocale ?? languageInheritTag },
-                                set: { chooseLanguage($0 == languageInheritTag ? nil : $0) }
-                            )
-                        ) {
-                            Text(inheritLabel).tag(languageInheritTag)
-                            ForEach(
-                                choicesBesideDefault(
-                                    MessageLocale.all,
-                                    default: companyLocale.flatMap {
-                                        MessageLocale.all.contains($0) ? $0 : nil
-                                    },
-                                    stored: contactLocale
-                                ),
-                                id: \.self
-                            ) { candidate in
-                                Text(MessageLocale.label(candidate)).tag(candidate)
+                        // #726: chips, so the chosen language is filled and checked
+                        // and every other one is a plain outline.
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ChoiceChip(
+                                    label: inheritLabel,
+                                    chosen: contactLocale == nil,
+                                    disabled: saving
+                                ) { chooseLanguage(nil) }
+                                ForEach(
+                                    choicesBesideDefault(
+                                        MessageLocale.all,
+                                        default: companyLocale.flatMap {
+                                            MessageLocale.all.contains($0) ? $0 : nil
+                                        },
+                                        stored: contactLocale
+                                    ),
+                                    id: \.self
+                                ) { candidate in
+                                    ChoiceChip(
+                                        label: MessageLocale.label(candidate),
+                                        chosen: contactLocale == candidate,
+                                        disabled: saving
+                                    ) { chooseLanguage(candidate) }
+                                }
                             }
                         }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .disabled(saving)
                         Text(
                             AppStrings.translate(
                                 appLocale, "contactsTasks.localeContactScopeNote"
@@ -364,7 +376,11 @@ private struct PreferencesSection: View {
                                 )
                             )
                             .font(.subheadline.weight(.medium))
-                            LeadSourcePicker(controller: controller, detail: detail)
+                            LeadSourcePicker(
+                                controller: controller,
+                                detail: detail,
+                                onAddSource: onAddLeadSource
+                            )
                         }
                     }
                 }
@@ -382,9 +398,6 @@ private struct PreferencesSection: View {
         }
     }
 }
-
-/// SwiftUI cannot select nil, so "follow the workspace" needs a tag.
-private let languageInheritTag = "__inherit__"
 
 // MARK: - Sections
 

@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.FilterChip
+import com.loonext.android.ui.common.ChoiceChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,12 +65,12 @@ fun WorkPhaseRow(
     ) {
         WorkPhase.ALL.forEach { phase ->
             val on = value == phase
-            FilterChip(
-                selected = on,
+            ChoiceChip(
+                label = WorkPhase.label(phase, locale),
+                chosen = on,
                 // Tap the selected one to clear it: the honest answer for most
                 // notes is neither, and it has to be reachable after a mis-tap.
                 onClick = { onChange(if (on) null else phase) },
-                label = { Text(WorkPhase.label(phase, locale)) },
             )
         }
         Text(

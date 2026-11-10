@@ -36,31 +36,14 @@ struct WorkPhaseRow: View {
         HStack(spacing: 8) {
             ForEach(WorkPhase.all, id: \.self) { phase in
                 let on = value == phase
-                Button {
+                ChoiceChip(
+                    label: WorkPhase.label(phase, locale: appLocale),
+                    chosen: on
+                ) {
                     // Tap the selected one to clear it: the honest answer for most
                     // notes is neither, and it has to be reachable after a mis-tap.
                     onChange(on ? nil : phase)
-                } label: {
-                    Text(WorkPhase.label(phase, locale: appLocale))
-                        .font(.golos(12.5))
-                        .foregroundStyle(on ? BrandColor.paper : BrandColor.muted600)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            on ? BrandColor.ink : BrandColor.canvas,
-                            in: Capsule()
-                        )
-                        .overlay(
-                            Capsule().stroke(
-                                // muted250 is the named non-text rung for 1px
-                                // strokes, exempt from the AA text assertion.
-                                on ? Color.clear : BrandColor.muted250,
-                                lineWidth: 1
-                            )
-                        )
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(on ? [.isSelected] : [])
             }
             Text(AppStrings.translate(appLocale, WorkPhase.hintKey))
                 .font(.golos(11.5))

@@ -2,7 +2,6 @@ package com.loonext.android.features.thread
 
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +66,7 @@ import com.loonext.android.features.tasks.LinkedOwner
 import com.loonext.android.features.tasks.LinkedTasksList
 import com.loonext.android.features.tasks.ReferenceSource
 import com.loonext.android.ui.common.AppSheet
+import com.loonext.android.ui.common.ChoiceChip
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.formatPhone
@@ -105,6 +105,8 @@ internal fun ContactPanelSheet(
     onCall: (() -> Unit)? = null,
     /** A call is being placed, so Call waits. */
     calling: Boolean = false,
+    /** #726: opens where lead sources are managed. Null hides it from whoever cannot add one. */
+    onAddLeadSource: (() -> Unit)? = null,
 ) {
     val detail = controller.conversation ?: return
     val contact = controller.contact
@@ -289,7 +291,11 @@ internal fun ContactPanelSheet(
             // somebody ASKS in the first minute of a call.
             if (asksForSource) {
                 RecordSection(t("thread.sectionLeadSource")) {
-                    LeadSourcePicker(controller = controller, detail = detail)
+                    LeadSourcePicker(
+                        controller = controller,
+                        detail = detail,
+                        onAddSource = onAddLeadSource,
+                    )
                 }
             }
 
@@ -305,6 +311,7 @@ internal fun ContactPanelSheet(
                 detail = detail,
                 withSource = !asksForSource,
                 leadSources = leadSources,
+                onAddLeadSource = onAddLeadSource,
             )
 
             Spacer(Modifier.height(24.dp))
@@ -324,6 +331,7 @@ private fun PreferencesSection(
     /** The source is answered, so it is a setting rather than an ask. */
     withSource: Boolean,
     leadSources: List<LeadSource>,
+    onAddLeadSource: (() -> Unit)?,
 ) {
     val locale = LocalAppLocale.current
     val scope = rememberCoroutineScope()
@@ -399,22 +407,22 @@ private fun PreferencesSection(
                         Modifier.fillMaxWidth().padding(top = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        FilterChip(
-                            selected = contactLocale == null,
+                        ChoiceChip(
+                            label = inheritLabel,
+                            chosen = contactLocale == null,
                             enabled = !saving,
                             onClick = { chooseLanguage(null) },
-                            label = { Text(inheritLabel) },
                         )
                         choicesBesideDefault(
                             MessageLocale.ALL,
                             companyLocale?.takeIf { it in MessageLocale.ALL },
                             contactLocale,
                         ).forEach { candidate ->
-                            FilterChip(
-                                selected = contactLocale == candidate,
+                            ChoiceChip(
+                                label = MessageLocale.label(candidate),
+                                chosen = contactLocale == candidate,
                                 enabled = !saving,
                                 onClick = { chooseLanguage(candidate) },
-                                label = { Text(MessageLocale.label(candidate)) },
                             )
                         }
                     }
@@ -432,7 +440,11 @@ private fun PreferencesSection(
                             style = MaterialTheme.typography.labelLarge,
                         )
                         Spacer(Modifier.height(4.dp))
-                        LeadSourcePicker(controller = controller, detail = detail)
+                        LeadSourcePicker(
+                            controller = controller,
+                            detail = detail,
+                            onAddSource = onAddLeadSource,
+                        )
                     }
                 }
             }
@@ -459,12 +471,20 @@ private fun PreferencesSection(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LeadSourcePicker(controller: ThreadController, detail: ConversationDetail) {
+private fun LeadSourcePicker(
+    controller: ThreadController,
+    detail: ConversationDetail,
+    /** #726: where lead sources are managed; null for someone who cannot add one. */
+    onAddSource: (() -> Unit)?,
+) {
     val scope = rememberCoroutineScope()
     var sources by remember { mutableStateOf<List<LeadSource>>(emptyList()) }
     var pending by remember { mutableStateOf(false) }
-    var current by remember(detail.id) { mutableStateOf(detail.lead_source_id) }
-    var origin by remember(detail.id) { mutableStateOf(detail.lead_source_origin) }
+    // #726: held per conversation, so a thread never starts from the last
+    // thread's choice.
+    val choice = remember(detail.id) { LeadSourceChoice.of(detail) }
+    val current = choice.sourceId
+    val origin = choice.origin
 
     LaunchedEffect(detail.id) {
         // A list that will not load hides the picker rather than showing a
@@ -484,8 +504,8 @@ private fun LeadSourcePicker(controller: ThreadController, detail: ConversationD
         scope.launch {
             try {
                 val next = controller.setLeadSource(detail.id, id)
-                current = next.lead_source_id
-                origin = next.lead_source_origin
+                choice.sourceId = next.lead_source_id
+                choice.origin = next.lead_source_origin
             } finally {
                 pending = false
             }
@@ -493,18 +513,19 @@ private fun LeadSourcePicker(controller: ThreadController, detail: ConversationD
     }
 
     Column(Modifier.fillMaxWidth()) {
-        when {
-            origin == "number" && currentName != null -> Text(
-                t("thread.leadFromLine", "name" to currentName),
+        // #726: the empty state is a value of its own, said in words, so the
+        // chips below read as choices rather than as the answer.
+        when (val view = leadSourceView(currentName, origin)) {
+            is LeadSourceView.Chosen -> Text(
+                t(
+                    if (view.fromNumber) "thread.leadFromLine" else "thread.leadSaidSo",
+                    "name" to view.name,
+                ),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            currentName != null -> Text(
-                t("thread.leadSaidSo", "name" to currentName),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            else -> Text(
+            LeadSourceView.Unasked -> Text(
                 t("thread.leadAsk"),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -514,19 +535,24 @@ private fun LeadSourcePicker(controller: ThreadController, detail: ConversationD
         ) {
             options.forEach { source ->
                 val selected = source.id == current
-                FilterChip(
-                    selected = selected,
+                ChoiceChip(
+                    label = source.name,
+                    chosen = selected,
                     enabled = !pending,
                     // Tapping the chosen one again clears it: the fastest way
                     // back from a mistap is the control you just used.
                     onClick = { choose(if (selected) null else source.id) },
-                    label = { Text(source.name) },
                 )
             }
             if (current != null) {
                 TextButton(enabled = !pending, onClick = { choose(null) }) {
                     Text(t("thread.dontKnow"))
                 }
+            }
+            // One source is still a question, so whoever can add another is
+            // offered the way to.
+            if (onAddSource != null) {
+                TextButton(onClick = onAddSource) { Text(t("thread.addLeadSource")) }
             }
         }
     }

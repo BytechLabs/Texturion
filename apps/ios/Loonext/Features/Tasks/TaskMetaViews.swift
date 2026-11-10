@@ -101,26 +101,15 @@ struct TaskChoiceChip: View {
     let onTap: @MainActor () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            Text(title)
-                .font(.golos(12.5, weight: selected ? .semibold : .medium))
-                .foregroundStyle(selected ? BrandColor.ink : BrandColor.muted700)
-                .padding(.horizontal, 13)
-                .frame(minHeight: 44)
-                .background(BrandColor.paper, in: Capsule())
-                .overlay(
-                    Capsule().strokeBorder(
-                        selected ? BrandColor.ink : Color.clear,
-                        lineWidth: 2
-                    )
-                )
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
+        // #726: chosen is a fill AND a check, so a lone chip is never the answer.
+        ChoiceChip(
+            label: title,
+            chosen: selected,
+            disabled: !enabled,
+            minHeight: 44,
+            action: onTap
+        )
         .opacity(enabled ? 1 : 0.5)
-        .accessibilityLabel(title)
-        .accessibilityAddTraits(selected ? AccessibilityTraits.isSelected : [])
     }
 }
 

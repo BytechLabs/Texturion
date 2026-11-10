@@ -30,13 +30,23 @@ import SwiftUI
 struct LeadSourcePicker: View {
     let controller: ThreadController
     let detail: ConversationDetail
+    /// #726: where lead sources are managed; nil for someone who cannot add one.
+    var onAddSource: (@MainActor () -> Void)? = nil
 
     @State private var sources: [LeadSource] = []
-    @State private var current: String?
-    @State private var origin: String?
+    /// #726: held per conversation. Read through `shown`, so a thread never
+    /// draws the last thread's choice, not even for the frame before it loads.
+    @State private var held: LeadSourceChoice?
     @State private var pending = false
 
     @Environment(\.appLocale) private var appLocale
+
+    private var shown: LeadSourceChoice {
+        if let held, held.conversationId == detail.id { return held }
+        return LeadSourceChoice.of(detail)
+    }
+
+    private var current: String? { shown.sourceId }
 
     private var options: [LeadSource] {
         sources.filter { $0.archived_at == nil }
@@ -54,23 +64,21 @@ struct LeadSourcePicker: View {
         // prompt with no answers on offer.
         if !options.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                if origin == "number", let currentName {
+                // #726: the empty state is a value of its own, said in words, so
+                // the chips below read as choices rather than as the answer.
+                switch leadSourceView(name: currentName, origin: shown.origin) {
+                case .chosen(let name, let fromNumber):
                     Text(
                         AppStrings.translate(
-                            appLocale, "thread.leadFromLine", ["name": currentName]
+                            appLocale,
+                            fromNumber ? "thread.leadFromLine" : "thread.leadSaidSo",
+                            ["name": name]
                         )
                     )
                     .font(.callout)
-                } else if let currentName {
-                    Text(
-                        AppStrings.translate(
-                            appLocale, "thread.leadSaidSo", ["name": currentName]
-                        )
-                    )
-                    .font(.callout)
-                } else {
+                case .unasked:
                     Text(AppStrings.translate(appLocale, "thread.leadAsk"))
-                        .font(.footnote)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                 }
 
@@ -78,7 +86,8 @@ struct LeadSourcePicker: View {
                     options: options,
                     current: current,
                     pending: pending,
-                    onChoose: choose
+                    onChoose: choose,
+                    onAddSource: onAddSource
                 )
             }
             .task(id: detail.id) { await load() }
@@ -88,8 +97,7 @@ struct LeadSourcePicker: View {
     }
 
     private func load() async {
-        current = detail.lead_source_id
-        origin = detail.lead_source_origin
+        held = LeadSourceChoice.of(detail)
         sources = (try? await controller.leadSources()) ?? []
     }
 
@@ -98,8 +106,11 @@ struct LeadSourcePicker: View {
         Task { @MainActor in
             defer { pending = false }
             if let next = try? await controller.setLeadSource(id) {
-                current = next.lead_source_id
-                origin = next.lead_source_origin
+                held = LeadSourceChoice(
+                    conversationId: detail.id,
+                    sourceId: next.lead_source_id,
+                    origin: next.lead_source_origin
+                )
             }
         }
     }
@@ -110,6 +121,7 @@ private struct LeadSourceChips: View {
     let current: String?
     let pending: Bool
     let onChoose: (String?) -> Void
+    let onAddSource: (@MainActor () -> Void)?
 
     @Environment(\.appLocale) private var appLocale
 
@@ -120,31 +132,15 @@ private struct LeadSourceChips: View {
             HStack(spacing: 6) {
                 ForEach(options) { source in
                     let selected = source.id == current
-                    Button {
+                    ChoiceChip(
+                        label: source.name,
+                        chosen: selected,
+                        disabled: pending
+                    ) {
                         // Tapping the chosen one again clears it: the fastest
                         // way back from a mistap is the control you just used.
                         onChoose(selected ? nil : source.id)
-                    } label: {
-                        Text(source.name)
-                            .font(.caption)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(
-                                Capsule().fill(
-                                    selected
-                                        ? BrandColor.olive.opacity(0.18)
-                                        : Color.secondary.opacity(0.10)
-                                )
-                            )
-                            .overlay(
-                                Capsule().stroke(
-                                    selected ? BrandColor.olive.opacity(0.5) : .clear
-                                )
-                            )
-                            .foregroundStyle(Color.primary)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(pending)
                 }
                 if current != nil {
                     Button(AppStrings.translate(appLocale, "thread.dontKnow")) {
@@ -155,7 +151,53 @@ private struct LeadSourceChips: View {
                         .foregroundStyle(.secondary)
                         .disabled(pending)
                 }
+                // One source is still a question, so whoever can add another
+                // is offered the way to.
+                if let onAddSource {
+                    Button(AppStrings.translate(appLocale, "thread.addLeadSource")) {
+                        onAddSource()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BrandColor.olive)
+                }
             }
         }
     }
+}
+
+/// #726: the lead source of ONE conversation.
+///
+/// Built from the conversation's own server value and held per conversation, so
+/// opening another thread starts from that thread's answer and never from the
+/// last thread's choice. A thread nobody asked about starts with nothing chosen.
+struct LeadSourceChoice: Equatable {
+    let conversationId: String
+    var sourceId: String?
+    var origin: String?
+
+    static func of(_ detail: ConversationDetail) -> LeadSourceChoice {
+        LeadSourceChoice(
+            conversationId: detail.id,
+            sourceId: detail.lead_source_id,
+            origin: detail.lead_source_origin
+        )
+    }
+}
+
+/// What the source line says: an answer, or that nobody has asked.
+enum LeadSourceView: Equatable {
+    case unasked
+    /// `fromNumber`: the line they called named it, so nobody had to ask.
+    case chosen(name: String, fromNumber: Bool)
+}
+
+func leadSourceView(name: String?, origin: String?) -> LeadSourceView {
+    guard let name else { return .unasked }
+    return .chosen(name: name, fromNumber: origin == "number")
+}
+
+/// #726: only someone who can manage settings is offered "Add a source".
+func canAddLeadSource(role: String?) -> Bool {
+    MemberRole.has(role, Capability.settingsManage)
 }

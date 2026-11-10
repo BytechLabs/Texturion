@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
+import com.loonext.android.ui.common.ChoiceChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -200,10 +200,10 @@ fun PhotoMarkupSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     PhotoMarkup.TOOLS.forEach { option ->
-                        FilterChip(
-                            selected = tool == option,
+                        ChoiceChip(
+                            label = PhotoMarkup.label(option, locale),
+                            chosen = tool == option,
                             onClick = { tool = option },
-                            label = { Text(PhotoMarkup.label(option, locale)) },
                         )
                     }
                     TextButton(

@@ -215,6 +215,15 @@ internal fun PlanChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        // #726: chosen is a fill AND a check, so a lone chip is never the answer.
+        if (selected) {
+            Icon(
+                Icons.Outlined.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(14.dp),
+            )
+        }
         leading?.invoke()
         Text(
             label,

@@ -125,16 +125,10 @@ struct PhotoMarkupSheet: View {
                 HStack(spacing: 8) {
                     ForEach(PhotoMarkup.tools, id: \.self) { option in
                         let on = tool == option
-                        Button { tool = option } label: {
-                            Text(PhotoMarkup.label(option, locale: appLocale))
-                                .font(.golos(12.5))
-                                .foregroundStyle(on ? BrandColor.paper : BrandColor.muted600)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(on ? BrandColor.ink : BrandColor.canvas, in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(on ? [.isSelected] : [])
+                        ChoiceChip(
+                            label: PhotoMarkup.label(option, locale: appLocale),
+                            chosen: on
+                        ) { tool = option }
                     }
                     Button(AppStrings.translate(appLocale, PhotoMarkup.undoKey)) {
                         _ = marks.popLast()

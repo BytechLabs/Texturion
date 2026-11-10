@@ -999,6 +999,7 @@ private fun ContactDetailBody(
             companyId = companyId,
             contactId = contact.id,
             onOpenConversation = onOpenConversation,
+            onOpenTask = onOpenTask,
         )
 
         ContactCallsSection(
