@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.1](https://github.com/BytechLabs/Texturion/compare/android-v0.21.0...android-v0.21.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **android:** a screen reader reads a message and its time as one stop ([78c0ab8](https://github.com/BytechLabs/Texturion/commit/78c0ab830993b06ad4d3e3fc73df8fc1b1c307f2))
+* **android:** screen readers hear roles, selection and failed sends ([29ec8f6](https://github.com/BytechLabs/Texturion/commit/29ec8f6531043edae0a011d2b943763793e3a333))
+
 ## [0.21.0](https://github.com/BytechLabs/Texturion/compare/android-v0.20.0...android-v0.21.0) (2026-11-10)
 
 

@@ -2,6 +2,6 @@
   "apps/api": "0.25.0",
   "apps/web": "0.24.0",
   "packages/shared": "0.17.0",
-  "apps/android": "0.21.0",
+  "apps/android": "0.21.1",
   "apps/ios": "0.21.0"
 }
