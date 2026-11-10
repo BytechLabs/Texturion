@@ -164,8 +164,8 @@ begin
     raise exception 'TH-1 FAILED: a repeated assignment wrote % events', n;
   end if;
 
-  -- Reminder switch and confirmation are plain column writes; the confirmation
-  -- names its own actor.
+  -- Reminder switch and confirmation are plain column writes. confirmed_by says
+  -- 'customer' or 'crew', so a crew confirmation's member is the acting one.
   perform set_config('loonext.task_actor', '', true);
   update public.tasks set reminders_off = not reminders_off where id = v_task;
   select count(*) into n from public.task_events
@@ -173,13 +173,15 @@ begin
   if n is distinct from 1 then
     raise exception 'TH-1 FAILED: the reminder switch wrote % events', n;
   end if;
+  perform set_config('loonext.task_actor', v_member::text, true);
   update public.tasks
-     set confirmed_at = '2026-11-10 10:00+00', confirmed_by = v_member
+     set confirmed_at = '2026-11-10 10:00+00', confirmed_by = 'crew'
    where id = v_task;
+  perform set_config('loonext.task_actor', '', true);
   if not exists (select 1 from public.task_events
                   where task_id = v_task and kind = 'confirmation'
                     and actor_user_id = v_member and from_value is null) then
-    raise exception 'TH-1 FAILED: the confirmation did not name confirmed_by';
+    raise exception 'TH-1 FAILED: a crew confirmation did not name the acting member';
   end if;
 
   -- A change nobody names is a system change.
@@ -335,9 +337,9 @@ begin
   -- ---- the owner sees everything (no hidden numbers) ------------------------
   r := public.api_task_activity(v_c1, v_linked);
   if r->>'outcome' is distinct from 'ok' or not exists (
-       select 1 from jsonb_array_elements(r->'items') i
-        where i->>'kind' = 'comment'
-          and i->'detail'->>'body' = 'Call before noon') then
+       select 1 from jsonb_array_elements(r->'items') item
+        where item->>'kind' = 'comment'
+          and item->'detail'->>'body' = 'Call before noon') then
     raise exception 'TH-5 FAILED: the owner cannot read a comment: %', r;
   end if;
 
@@ -350,9 +352,9 @@ begin
   -- ---- ...but reads the task with no conversation, comment included ---------
   r := public.api_task_activity(v_c1, v_open, v_hidden);
   if r->>'outcome' is distinct from 'ok' or not exists (
-       select 1 from jsonb_array_elements(r->'items') i
-        where i->>'kind' = 'comment'
-          and i->'detail'->>'body' = 'Ask Sam about it') then
+       select 1 from jsonb_array_elements(r->'items') item
+        where item->>'kind' = 'comment'
+          and item->'detail'->>'body' = 'Ask Sam about it') then
     raise exception 'TH-5 FAILED: a company-wide task was hidden from a member: %', r;
   end if;
 
@@ -383,8 +385,8 @@ begin
           v_t0 + interval '3 hours')
   returning id into v_c_dead;
   r := public.api_task_activity(v_c1, v_open);
-  if exists (select 1 from jsonb_array_elements(r->'items') i
-              where i->>'id' = v_c_dead::text) then
+  if exists (select 1 from jsonb_array_elements(r->'items') item
+              where item->>'id' = v_c_dead::text) then
     raise exception 'TH-6 FAILED: a soft-deleted comment is still listed';
   end if;
 
