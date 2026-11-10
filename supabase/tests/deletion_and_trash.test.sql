@@ -102,7 +102,15 @@ values ('d1000000-0000-4000-8000-0000000000a0', 'd1000000-0000-4000-8000-0000000
         'd1000000-0000-4000-8000-000000000042', 'd1000000-0000-4000-8000-000000000030',
         'Replace the boiler valve', 'zebra99 gate, ring twice',
         'd1000000-0000-4000-8000-000000000001');
-update public.tasks set title = 'Replace boiler valve today'
+update public.tasks
+   set title = 'Replace boiler valve today',
+       addr_street = '14 Maple Row', addr_city = 'Springfield',
+       addr_postal_code = '90210', addr_provenance = 'manual'
+ where id = 'd1000000-0000-4000-8000-0000000000a0';
+-- The address trigger clears the map position on every address change, so the
+-- pin is set after it.
+update public.tasks
+   set lat = 40.1, lng = -75.2, geocoded_at = now(), geocode_status = 'ok'
  where id = 'd1000000-0000-4000-8000-0000000000a0';
 insert into public.task_comments (id, company_id, task_id, author_user_id, body)
 values ('d1000000-0000-4000-8000-0000000000a1', 'd1000000-0000-4000-8000-000000000002',
@@ -526,6 +534,16 @@ begin
                 and (title <> 'Removed' or description <> '')) then
     raise exception 'DT-5 FAILED: task title or description text survived purge';
   end if;
+  if exists (select 1 from public.tasks
+              where id = 'd1000000-0000-4000-8000-0000000000a0'
+                and (addr_street is not null or addr_unit is not null
+                     or addr_city is not null or addr_state is not null
+                     or addr_postal_code is not null or addr_country is not null
+                     or addr_provenance is not null or lat is not null
+                     or lng is not null or geocoded_at is not null
+                     or geocode_status is distinct from 'no_address')) then
+    raise exception 'DT-5 FAILED: a purged task kept its address or map position';
+  end if;
   if exists (select 1 from public.task_events
               where task_id = 'd1000000-0000-4000-8000-0000000000a0'
                 and (from_value is not null or to_value is not null)
@@ -539,7 +557,7 @@ begin
   if exists (select 1 from public.task_events
               where task_id = 'd1000000-0000-4000-8000-0000000000a0'
                 and (coalesce(from_value::text, '') || coalesce(to_value::text, ''))
-                    ~* '(boiler|zebra|valve)') then
+                    ~* '(boiler|zebra|valve|maple|springfield|90210)') then
     raise exception 'DT-5 FAILED: a task event still carries text';
   end if;
 
