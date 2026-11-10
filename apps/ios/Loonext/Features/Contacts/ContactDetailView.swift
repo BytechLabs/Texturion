@@ -478,7 +478,9 @@ struct ContactDetailView: View {
                 graph: graph,
                 companyId: companyId,
                 contactId: contact.id,
-                contactName: name
+                contactName: (contact.name?.isBlank ?? true)
+                    ? formatPhone(contact.phone_e164)
+                    : (contact.name ?? "")
             )
         }
         .frame(maxWidth: .infinity)
