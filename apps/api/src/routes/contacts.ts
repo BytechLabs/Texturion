@@ -913,6 +913,7 @@ async function announceImportOptOuts(
         .select("id,contact_id")
         .eq("company_id", companyId)
         .in("contact_id", chunk)
+        .is("deleted_at", null)
         .order("last_message_at", { ascending: false })
         .order("id", { ascending: false }),
       "import conversations lookup",
@@ -1407,6 +1408,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
           "contact_id",
           page.data.map((row) => row.id),
         )
+        .is("deleted_at", null)
         .order("last_message_at", { ascending: false }),
       // #191 attribution: created/updated actor display names for the page.
       resolveActorNames(
@@ -1570,6 +1572,7 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
         .from("conversations")
         .select("contact_id,conversation_tags(tags(name))")
         .eq("company_id", companyId)
+        .is("deleted_at", null)
         .in("contact_id", chunk),
       "contacts export tags",
     );
@@ -1895,6 +1898,7 @@ async function contactRelationship(
       .from("conversations")
       .select("id", { count: "exact", head: true })
       .eq("company_id", args.companyId)
+      .is("deleted_at", null)
       .eq("contact_id", args.contactId);
     if (denied) countQuery = countQuery.not("phone_number_id", "in", denied);
 
@@ -1903,6 +1907,7 @@ async function contactRelationship(
       .select("created_at")
       .eq("company_id", args.companyId)
       .eq("contact_id", args.contactId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: true })
       .limit(1);
     if (denied) firstQuery = firstQuery.not("phone_number_id", "in", denied);
@@ -2233,7 +2238,14 @@ contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), a
   });
 });
 
-contactsRoutes.delete("/contacts/:id", requireCapability("conversations.note"), async (c) => {
+/**
+ * DELETE /v1/contacts/:id — #691: gated by `records.delete`, no longer by
+ * `conversations.note`, which let anybody who could write a note remove a
+ * customer. The contact is soft-deleted as before; the opt-out list is keyed on
+ * the phone number and is not touched, so deleting a contact who sent STOP still
+ * leaves the number unreachable for every send.
+ */
+contactsRoutes.delete("/contacts/:id", requireCapability("records.delete"), async (c) => {
   const id = pathUuid(c, "id");
   const db = getDb(getEnv(c.env));
   const rows = unwrap<{ id: string }[]>(
@@ -2252,6 +2264,12 @@ contactsRoutes.delete("/contacts/:id", requireCapability("conversations.note"), 
   if (rows.length === 0) {
     return errorResponse(c, "not_found", "No such contact.");
   }
+  await recordAuditFromRequest(db, c, {
+    companyId: c.get("companyId"),
+    action: "record.deleted",
+    targetType: "contact",
+    targetId: id,
+  });
   return c.body(null, 204);
 });
 

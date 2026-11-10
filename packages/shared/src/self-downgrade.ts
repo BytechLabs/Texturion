@@ -77,6 +77,7 @@ export const CAPABILITY_PLAIN_NAMES: Partial<Record<Capability, SelfDowngradeKey
   "numbers.manage": "domain.capNumbers",
   "history.read": "domain.capHistory",
   "contacts.bulk": "domain.capContactsBulk",
+  "records.delete": "domain.capRecordsDelete",
 };
 
 /** Every catalogue key this module names. */
@@ -87,6 +88,7 @@ export type SelfDowngradeKey =
   | "domain.capNumbers"
   | "domain.capHistory"
   | "domain.capContactsBulk"
+  | "domain.capRecordsDelete"
   | "domain.selfDowngradeSomeOfWhat"
   | "domain.selfDowngradeListPair"
   | "domain.selfDowngradeMore"

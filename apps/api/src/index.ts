@@ -78,6 +78,8 @@ import { marketingRoutes } from "./routes/marketing";
 import { widgetRoutes } from "./routes/widget";
 import { contactsRoutes } from "./routes/contacts";
 import { conversationsRoutes } from "./routes/conversations";
+import { trashRoutes } from "./routes/trash";
+import { purgeTrash } from "./trash/purge";
 import { devicePushTokensRoutes } from "./routes/device-push-tokens";
 import { forYouRoutes } from "./routes/for-you";
 import { blockedSendersRoutes } from "./routes/blocked-senders";
@@ -330,6 +332,9 @@ app.route("/", publicApiRoutes);
 app.route("/v1", scheduledMessageRoutes);
 app.route("/v1", appointmentReminderRoutes); // #237 reminder rules
 app.route("/v1", onCallRoutes); // #244 rota + acknowledge
+// #691: deletes and the Trash. Before conversationsRoutes so POST
+// /conversations/delete is never read as a conversation id.
+app.route("/v1", trashRoutes);
 app.route("/v1", conversationsRoutes);
 app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
 app.route("/v1", taskActivityRoutes); // #689 E task history + comments
@@ -757,6 +762,9 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // the tail of this trigger is the notice→enforce pair whose order is
     // load-bearing and must not be pushed around by unrelated arrivals.
     job("job:prune-public-link-access", prunePublicLinkAccess),
+    // #691: what has sat in the Trash 30 days, with its storage objects. Beside
+    // the workspace purge because it is the same kind of promise, narrower.
+    job("job:purge-trash", purgeTrash),
     job("job:purge-closed-workspaces", purgeClosedWorkspaces),
     // #227: exports build here for the same reason the purge does — a busy
     // workspace cannot be processed inside a request.

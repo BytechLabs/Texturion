@@ -1324,9 +1324,11 @@ describe("GET /v1/conversations/:id/events", () => {
         created_at: "2026-07-01T08:00:00+00:00",
       },
     ]);
-    sb.on("GET", "/rest/v1/calls", () => [
-      { call_session_id: "sess-1", answered_by_user_id: ASSIGNEE },
-    ]);
+    sb.on("GET", "/rest/v1/calls", (call) =>
+      call.url.searchParams.get("select")?.includes("deleted_at")
+        ? []
+        : [{ call_session_id: "sess-1", answered_by_user_id: ASSIGNEE }],
+    );
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -1349,6 +1351,44 @@ describe("GET /v1/conversations/:id/events", () => {
     expect(status?.payload).not.toHaveProperty("answered_by_user_id");
   });
 
+  it("drops a call line whose call is in the Trash, and a voicemail line whose voicemail is (#691)", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    const line = (id: string, session: string, kind?: string) => ({
+      id,
+      conversation_id: CONV_ID,
+      actor_user_id: null,
+      type: "call_completed",
+      payload: { call_session_id: session, outcome: "answered", ...(kind ? { kind } : {}) },
+      created_at: "2026-07-01T09:00:00+00:00",
+    });
+    sb.on("GET", "/rest/v1/conversation_events", () => [
+      line("12121212-1111-4222-8333-444444444444", "gone"),
+      line("13131313-1111-4222-8333-444444444444", "vm-gone", "voicemail"),
+      line("14141414-1111-4222-8333-444444444444", "kept"),
+    ]);
+    sb.on("GET", "/rest/v1/calls", (call) =>
+      call.url.searchParams.get("select")?.includes("deleted_at")
+        ? [
+            { call_session_id: "gone", deleted_at: "2026-11-01T00:00:00Z", voicemail_deleted_at: null },
+            { call_session_id: "vm-gone", deleted_at: null, voicemail_deleted_at: "2026-11-01T00:00:00Z" },
+          ]
+        : [],
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/events`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { payload: { call_session_id: string } }[] };
+    expect(body.data.map((row) => row.payload.call_session_id)).toEqual(["kept"]);
+  });
+
   it("still serves the thread when the answerer lookup fails", async () => {
     // The name decorates a line that already reads correctly without it, so a
     // failed join must degrade to "Call answered" — never 500 a thread
@@ -1365,7 +1405,13 @@ describe("GET /v1/conversations/:id/events", () => {
         created_at: "2026-07-01T09:00:00+00:00",
       },
     ]);
-    sb.on("GET", "/rest/v1/calls", () => new Response("boom", { status: 500 }));
+    // #691: the Trash filter reads the same table first and must succeed; only
+    // the decoration lookup (the answerer) is the one that fails here.
+    sb.on("GET", "/rest/v1/calls", (call) =>
+      call.url.searchParams.get("select")?.includes("deleted_at")
+        ? []
+        : new Response("boom", { status: 500 }),
+    );
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(

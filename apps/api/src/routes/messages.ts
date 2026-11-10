@@ -356,6 +356,8 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
       .select(MESSAGE_COLUMNS)
       .eq("company_id", companyId)
       .eq("id", messageId)
+      // #691: a message in the Trash cannot be retried, pinned or marked done.
+      .is("deleted_at", null)
       .limit(1),
     "message lookup",
   );
@@ -495,6 +497,8 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
       .select(MESSAGE_COLUMNS)
       .eq("company_id", companyId)
       .eq("id", messageId)
+      // #691: a message in the Trash cannot be retried, pinned or marked done.
+      .is("deleted_at", null)
       .limit(1),
     "message lookup",
   );
@@ -653,6 +657,7 @@ messageRoutes.get(
         .select("id,phone_number_id")
         .eq("company_id", companyId)
         .eq("id", conversationId)
+        .is("deleted_at", null)
         .limit(1),
       "conversation lookup",
     );
@@ -678,6 +683,7 @@ messageRoutes.get(
       )
       .eq("company_id", companyId)
       .eq("conversation_id", conversationId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit + 1);

@@ -167,7 +167,9 @@ export async function buildConversationHistory(
     .from("conversations")
     .select("id,phone_number_id")
     .eq("company_id", args.companyId)
-    .eq("contact_id", contactId);
+    .eq("contact_id", contactId)
+    // #691: a deleted thread is not part of the history handed to the customer.
+    .is("deleted_at", null);
   if (convError) {
     throw new Error(`history export conversation read failed: ${convError.message}`);
   }
@@ -192,7 +194,8 @@ export async function buildConversationHistory(
         .from("messages")
         .select("id,conversation_id,direction,body,status,created_at")
         .eq("company_id", args.companyId)
-        .eq("conversation_id", conversation.id);
+        .eq("conversation_id", conversation.id)
+        .is("deleted_at", null);
       if (args.filters.from) query = query.gte("created_at", args.filters.from);
       if (args.filters.to) query = query.lte("created_at", args.filters.to);
       const { data, error } = await query
@@ -220,16 +223,24 @@ export async function buildConversationHistory(
   if (!capped) {
     let query = db
       .from("calls")
-      .select("id,conversation_id,direction,outcome,voicemail_transcript,started_at")
+      .select(
+        "id,conversation_id,direction,outcome,voicemail_transcript,voicemail_deleted_at,started_at",
+      )
       .eq("company_id", args.companyId)
-      .eq("contact_id", contactId);
+      .eq("contact_id", contactId)
+      .is("deleted_at", null);
     if (args.filters.from) query = query.gte("started_at", args.filters.from);
     if (args.filters.to) query = query.lte("started_at", args.filters.to);
     const { data, error } = await query.order("started_at", { ascending: true });
     if (error) {
       throw new Error(`history export call read failed: ${error.message}`);
     }
-    for (const call of (data ?? []) as unknown as CallRow[]) {
+    for (const row of (data ?? []) as unknown as (CallRow & {
+      voicemail_deleted_at?: string | null;
+    })[]) {
+      // #691: a voicemail in the Trash keeps its call and loses its words.
+      const { voicemail_deleted_at: voicemailDeletedAt, ...call } = row;
+      if (voicemailDeletedAt) call.voicemail_transcript = null;
       // A call whose thread this person cannot see, or which never threaded at
       // all, is not in the file — and is counted, so the document says a gap
       // exists rather than quietly having one.

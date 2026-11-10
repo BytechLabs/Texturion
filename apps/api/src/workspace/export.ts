@@ -75,13 +75,15 @@ const EXPORT_TABLES = [
     table: "conversations",
     columns:
       "id,contact_id,phone_number_id,assigned_user_id,status,is_spam,last_message_at,closed_at,created_at",
-    liveOnly: false,
+    // #691: liveOnly also keeps what is in the Trash out of the file.
+    liveOnly: true,
   },
   {
     table: "messages",
     columns:
       "id,conversation_id,direction,body,status,sent_by_user_id,done_at,created_at",
-    liveOnly: false,
+    // #691: liveOnly also keeps what is in the Trash out of the file.
+    liveOnly: true,
   },
   {
     table: "tasks",
@@ -96,7 +98,7 @@ const EXPORT_TABLES = [
     columns:
       "id,conversation_id,caller_e164,direction,outcome,answered_by_user_id," +
       "voicemail_seconds,voicemail_transcript,started_at,ended_at",
-    liveOnly: false,
+    liveOnly: true,
   },
   {
     // #419: `liveOnly` stays false — a soft-deleted saved reply is still data

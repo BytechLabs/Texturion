@@ -191,6 +191,7 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
     ended_at: string | null;
     direction: string;
     voicemail_path: string | null;
+    voicemail_deleted_at: string | null;
     voicemail_transcript_attempted_at: string | null;
     contacts: { id: string; name: string | null; phone_e164: string } | null;
   })[]>(
@@ -200,12 +201,14 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
         "id,call_session_id,caller_e164,contact_id,caller_name,phone_number_id," +
           "conversation_id,outcome,forward_seconds,screening_result," +
           "stir_attestation,voicemail_seconds,voicemail_transcript," +
-          "voicemail_transcript_attempted_at,voicemail_path," +
+          "voicemail_transcript_attempted_at,voicemail_path,voicemail_deleted_at," +
           "answered_by_user_id,state,answered_at,started_at,ended_at,direction," +
           "contacts(id,name,phone_e164)",
       )
       .eq("company_id", c.get("companyId"))
       .eq("call_session_id", sessionId)
+      // #691: a call in the Trash has no permalink.
+      .is("deleted_at", null)
       .limit(1),
     "call detail",
   );
@@ -221,9 +224,18 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
   });
 
   const actorNames = await resolveActorNames(db, [call.answered_by_user_id]);
-  const { voicemail_path, contacts, ...rest } = call;
+  const { voicemail_path, voicemail_deleted_at, contacts, ...rest } = call;
+  // #691: a voicemail in the Trash is a voicemail that is not there.
+  const voicemailGone = voicemail_deleted_at != null;
   return c.json({
     ...rest,
+    ...(voicemailGone
+      ? {
+          voicemail_seconds: null,
+          voicemail_transcript: null,
+          voicemail_transcript_attempted_at: null,
+        }
+      : {}),
     contact_name: contacts?.name ?? null,
     answered_by_name: call.answered_by_user_id
       ? actorNames.get(call.answered_by_user_id) ?? null
@@ -231,7 +243,7 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
     // The path itself never leaves the server — it is a storage key, and the
     // signed URL is minted by the voicemail endpoint on demand. What a client
     // needs to know is only whether there is anything to play.
-    has_voicemail: voicemail_path !== null,
+    has_voicemail: voicemail_path !== null && !voicemailGone,
   });
 });
 
@@ -265,6 +277,8 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireCapability("conversations.
       )
       .eq("company_id", c.get("companyId"))
       .eq("call_session_id", sessionId)
+      .is("deleted_at", null)
+      .is("voicemail_deleted_at", null)
       .limit(1),
     "call lookup",
   );
@@ -695,6 +709,7 @@ async function authorizeOutboundCall(
         )
         .eq("company_id", companyId)
         .eq("id", body.conversation_id)
+        .is("deleted_at", null)
         .limit(1),
       "conversation lookup",
     );

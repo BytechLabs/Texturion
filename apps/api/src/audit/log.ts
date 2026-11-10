@@ -282,7 +282,15 @@ export type AuditAction =
    * asked afterwards, whichever way the call turns out to have been.
    */
   | "attachment.quarantined"
-  | "attachment.released";
+  | "attachment.released"
+  /**
+   * #691: a message, conversation, call, voicemail or contact was deleted into
+   * the Trash, put back, or erased for good (by a person's "Delete forever" or by
+   * the 30-day expiry, which has no actor). Ids and kinds only, never content.
+   */
+  | "record.deleted"
+  | "record.restored"
+  | "record.purged";
 
 export interface AuditEntry {
   companyId: string;

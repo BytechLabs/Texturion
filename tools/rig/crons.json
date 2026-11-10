@@ -240,6 +240,7 @@
         "job:prune-audit-log",
         "job:prune-user-sessions",
         "job:prune-public-link-access",
+        "job:purge-trash",
         "job:purge-closed-workspaces",
         "job:build-data-exports",
         "job:prune-expired-exports",

@@ -365,6 +365,8 @@ publicApiRoutes.get(
         .select("id,conversation_id,direction,body,status,created_at")
         .eq("company_id", c.get("companyId"))
         .eq("conversation_id", conversationId)
+        // #691: what was deleted is not served to an integration either.
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(limit),
       "public messages list",

@@ -39,6 +39,7 @@ import { pruneUserSessions } from "./auth/session-retention";
 import { prunePublicLinkAccess } from "./crons/retention-prunes";
 import { buildDataExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
+import { purgeTrash } from "./trash/purge";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
@@ -353,6 +354,15 @@ describe("route inventory (SPEC §7: every built sub-app mounted under /v1)", ()
     ["POST", "/v1/conversations/:id/read"],
     ["POST", "/v1/conversations/:id/tags"],
     ["DELETE", "/v1/conversations/:id/tags/:tag_id"],
+    // #691: deletes and the Trash.
+    ["DELETE", "/v1/messages/:id"],
+    ["DELETE", "/v1/conversations/:id"],
+    ["POST", "/v1/conversations/delete"],
+    ["DELETE", "/v1/calls/:id"],
+    ["DELETE", "/v1/calls/:id/voicemail"],
+    ["GET", "/v1/trash"],
+    ["POST", "/v1/trash/restore"],
+    ["DELETE", "/v1/trash/:kind/:id"],
     // tasks (D17) — the checklist read shares the /conversations/:id space
     ["GET", "/v1/conversations/:id/tasks"],
     ["POST", "/v1/tasks"],
@@ -580,6 +590,8 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       // nothing at all, while PERSONAL-DATA-INVENTORY.md published a 30-day
       // window for it. Registered here is what makes the published window true.
       prunePublicLinkAccess,
+      // #691: the Trash's 30 days, with the storage objects.
+      purgeTrash,
       purgeClosedWorkspaces,
       buildDataExports,
       pruneExpiredExports, // #378: expired exports are deleted, not just hidden

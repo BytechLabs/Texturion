@@ -130,6 +130,8 @@ export async function latestConversationId(
       .select("id")
       .eq("company_id", companyId)
       .eq("contact_id", contactId)
+      // #691: opt-out and consent events attach to a thread somebody can see.
+      .is("deleted_at", null)
       .order("last_message_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(1),

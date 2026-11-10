@@ -988,8 +988,24 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     expect(sb.find("GET", "/rest/v1/opt_outs")).toHaveLength(1);
   });
 
-  it("DELETE soft-deletes (deleted_at) and 404s an unknown id", async () => {
+  it("DELETE is refused to a member: records.delete, not conversations.note (#691)", async () => {
     const sb = stubWithRole("member");
+    sb.on("PATCH", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(403);
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("DELETE soft-deletes (deleted_at), audits it and 404s an unknown id", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("POST", "/rest/v1/audit_log", () => new Response(null, { status: 201 }));
     sb.on("PATCH", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
     // The PATCH answers with the same shape GET does, opt-out state included.
     sb.on("GET", "/rest/v1/opt_outs", () => []);
@@ -1007,9 +1023,14 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     expect(typeof (patch.body as Record<string, unknown>).deleted_at).toBe(
       "string",
     );
+    expect(sb.find("POST", "/rest/v1/audit_log")[0].body).toMatchObject({
+      action: "record.deleted",
+      target_type: "contact",
+      target_id: CONTACT_ID,
+    });
 
     vi.unstubAllGlobals();
-    const sb2 = stubWithRole("member");
+    const sb2 = stubWithRole("admin");
     sb2.on("PATCH", "/rest/v1/contacts", () => []);
     stubFetch(jwksRoute(auth), sb2.route);
     const missing = await apiRequest(
@@ -1364,7 +1385,8 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
   });
 
   it("DELETE records deleted_by_user_id alongside deleted_at", async () => {
-    const sb = stubWithRole("member");
+    const sb = stubWithRole("admin");
+    sb.on("POST", "/rest/v1/audit_log", () => new Response(null, { status: 201 }));
     sb.on("PATCH", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
     // The PATCH answers with the same shape GET does, opt-out state included.
     sb.on("GET", "/rest/v1/opt_outs", () => []);

@@ -80,6 +80,8 @@ export async function loadSendView(
       )
       .eq("company_id", companyId)
       .eq("id", conversationId)
+      // #691: nothing is sent from a conversation that is in the Trash.
+      .is("deleted_at", null)
       .limit(1),
     "conversation lookup",
   );

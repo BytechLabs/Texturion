@@ -25,7 +25,10 @@ describe("the event vocabulary", () => {
     expect([...WEBHOOK_EVENT_TYPES].sort()).toEqual(
       [
         "call.completed",
+        "call.deleted",
         "contact.created",
+        "conversation.deleted",
+        "message.deleted",
         "message.failed",
         "message.received",
         "message.sent",

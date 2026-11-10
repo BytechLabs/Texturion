@@ -124,6 +124,7 @@ async function resolveNoteOwner(
       .select("conversation_id,direction")
       .eq("company_id", companyId)
       .eq("id", noteId)
+      .is("deleted_at", null)
       .limit(1),
     "note owner lookup",
   );
@@ -1122,6 +1123,7 @@ async function assertMmsVisible(
       .select("conversation_id")
       .eq("company_id", companyId)
       .eq("id", messageId)
+      .is("deleted_at", null)
       .limit(1),
     "mms message lookup",
   );

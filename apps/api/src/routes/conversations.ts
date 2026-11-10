@@ -322,6 +322,8 @@ async function findConversation(
       .select(CONVERSATION_COLUMNS)
       .eq("company_id", companyId)
       .eq("id", id)
+      // #691: a conversation in the Trash is gone to every route that finds one.
+      .is("deleted_at", null)
       .limit(1),
     "conversation lookup",
   );
@@ -579,6 +581,7 @@ conversationsRoutes.get(
         .select(MESSAGE_COLUMNS)
         .eq("company_id", companyId)
         .eq("conversation_id", id)
+        .is("deleted_at", null)
         .not("pinned_at", "is", null)
         .order("pinned_at", { ascending: false }),
       "pinned messages",
@@ -624,6 +627,7 @@ conversationsRoutes.get(
         )
         .eq("company_id", companyId)
         .eq("id", id)
+        .is("deleted_at", null)
         .limit(1),
       "conversation lookup",
     );
@@ -655,6 +659,7 @@ conversationsRoutes.get(
         .select(MESSAGE_COLUMNS)
         .eq("company_id", companyId)
         .eq("conversation_id", id)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .limit(messageLimit + 1),
@@ -1361,6 +1366,7 @@ conversationsRoutes.post(
         .select("direction,body,created_at")
         .eq("company_id", companyId)
         .eq("conversation_id", id)
+        .is("deleted_at", null)
         .in("direction", ["inbound", "outbound"])
         .order("created_at", { ascending: false })
         .limit(SUGGEST_REPLY_CONTEXT_MESSAGES),
@@ -1648,6 +1654,7 @@ conversationsRoutes.post(
         .select("id,direction,body,created_at")
         .eq("company_id", companyId)
         .eq("conversation_id", id)
+        .is("deleted_at", null)
         .in("direction", ["inbound", "outbound"])
         .order("created_at", { ascending: false })
         .limit(THREAD_SUMMARY_CONTEXT_MESSAGES),
@@ -2567,10 +2574,70 @@ conversationsRoutes.get(
       "conversation events page",
     );
     return c.json(
-      buildPage(await withAnswerers(db, companyId, rows), limit, "created_at"),
+      buildPage(
+        await withAnswerers(
+          db,
+          companyId,
+          await withoutTrashedCalls(db, companyId, rows),
+        ),
+        limit,
+        "created_at",
+      ),
     );
   },
 );
+
+/**
+ * #691 — a call or voicemail in the Trash leaves the thread's timeline.
+ *
+ * The line is a copy of the call (and, for a voicemail, of its transcript), so it
+ * has to follow the call row rather than outlive it. Resolved at read time for
+ * the same reason `withAnswerers` is: restoring the call brings the line back
+ * with nothing to rebuild. One query per page, and only when the page has a call.
+ */
+async function withoutTrashedCalls<T extends { id: string; created_at: string }>(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  rows: T[],
+): Promise<T[]> {
+  type EventRow = {
+    type?: string;
+    payload?: Record<string, unknown> | null;
+  } & { id: string; created_at: string };
+  const events = rows as unknown as EventRow[];
+  const sessionIds = events
+    .filter((row) => row.type === "call_completed")
+    .map((row) => row.payload?.call_session_id)
+    .filter((value): value is string => typeof value === "string");
+  if (sessionIds.length === 0) return rows;
+
+  const trashed = unwrap<
+    {
+      call_session_id: string;
+      deleted_at: string | null;
+      voicemail_deleted_at: string | null;
+    }[]
+  >(
+    await db
+      .from("calls")
+      .select("call_session_id,deleted_at,voicemail_deleted_at")
+      .eq("company_id", companyId)
+      .in("call_session_id", sessionIds)
+      .or("deleted_at.not.is.null,voicemail_deleted_at.not.is.null"),
+    "trashed calls on a timeline",
+  );
+  if (trashed.length === 0) return rows;
+  const bySession = new Map(trashed.map((row) => [row.call_session_id, row]));
+
+  return events.filter((row) => {
+    if (row.type !== "call_completed") return true;
+    const sessionId = row.payload?.call_session_id;
+    const call = typeof sessionId === "string" ? bySession.get(sessionId) : undefined;
+    if (!call) return true;
+    if (call.deleted_at != null) return false;
+    return !(row.payload?.kind === "voicemail" && call.voicemail_deleted_at != null);
+  }) as unknown as T[];
+}
 
 /**
  * #517 — stamp WHO answered onto each call line in the page.

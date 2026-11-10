@@ -94,6 +94,14 @@ describe("the model reproduces today's rank exactly", () => {
     );
   });
 
+  it("records.delete is on for owner and admin and off for everyone else (#691)", () => {
+    expect(roleHasCapability("owner", "records.delete")).toBe(true);
+    expect(roleHasCapability("admin", "records.delete")).toBe(true);
+    for (const role of ["member", "read_only", "bookkeeper"] as MemberRole[]) {
+      expect(roleHasCapability(role, "records.delete"), role).toBe(false);
+    }
+  });
+
   it("an admin gets billing, settings, team, numbers and history", () => {
     for (const cap of [
       "billing.manage",

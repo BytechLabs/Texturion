@@ -72,6 +72,17 @@ export const CAPABILITIES = [
    */
   "contacts.bulk",
   /**
+   * Delete a customer's record: a message, a conversation, a call, a voicemail
+   * or a contact, restore it from the Trash, or empty it (#691).
+   *
+   * Its own axis because deleting is the one thing a note-writer could do to a
+   * customer's history that nobody can fully undo, and `conversations.note` was
+   * doing double duty as "may delete a contact". On for owner and admin, off for
+   * member and for every other preset; an owner hands it to somebody by making
+   * them an admin.
+   */
+  "records.delete",
+  /**
    * The irreversible ones: the overage cap, US enablement, number release,
    * transferring ownership, closing the workspace. Owner only, and not part of
    * any preset — a capability nobody can be granted is the honest way to say
@@ -141,6 +152,7 @@ const ROLE_CAPABILITIES: Record<MemberRole, readonly Capability[]> = {
     "numbers.manage",
     "history.read",
     "contacts.bulk",
+    "records.delete",
   ],
   owner: [...CAPABILITIES],
 };
