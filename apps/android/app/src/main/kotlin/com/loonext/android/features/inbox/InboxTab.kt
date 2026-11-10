@@ -44,6 +44,7 @@ import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MarkEmailRead
 import androidx.compose.material.icons.outlined.MarkEmailUnread
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
@@ -1972,13 +1973,23 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                         ?.let { "$back · $it" } ?: back
                 }
             if (row.tags.isNotEmpty() || row.is_spam || assigneeName != null ||
-                snoozeLabel != null
+                snoozeLabel != null || row.muted
             ) {
                 Row(
                     Modifier.padding(top = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // #694: muted by me. It still counts as unread; it only
+                    // stops making noise.
+                    if (row.muted) {
+                        Icon(
+                            Icons.Outlined.NotificationsOff,
+                            contentDescription = t("thread.mutedBadge"),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
                     if (snoozeLabel != null) {
                         DsChip(
                             snoozeLabel,

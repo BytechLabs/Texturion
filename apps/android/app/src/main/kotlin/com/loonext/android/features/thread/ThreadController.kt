@@ -346,6 +346,54 @@ class ThreadController(
         }
     }
 
+    /** #694: mute for [duration] ("1h", "8h", "1w" or "forever"). */
+    fun mute(duration: String) {
+        val id = conversation?.id ?: return
+        scope.launch {
+            try {
+                val state = repo.muteConversation(companyId, id, duration)
+                applyMemberState(state.muted, state.muted_until, state.followed)
+                notify(say("thread.mutedToast"))
+            } catch (cause: Exception) {
+                notify(cause.userMessageForReader())
+            }
+        }
+    }
+
+    fun unmute() {
+        val current = conversation ?: return
+        scope.launch {
+            try {
+                repo.unmuteConversation(companyId, current.id)
+                applyMemberState(false, null, current.followed)
+                notify(say("thread.unmutedToast"))
+            } catch (cause: Exception) {
+                notify(cause.userMessageForReader())
+            }
+        }
+    }
+
+    fun setFollowed(follow: Boolean) {
+        val current = conversation ?: return
+        scope.launch {
+            try {
+                repo.setFollowing(companyId, current.id, follow)
+                applyMemberState(current.muted, current.muted_until, follow)
+                notify(say(if (follow) "thread.followedToast" else "thread.unfollowedToast"))
+            } catch (cause: Exception) {
+                notify(cause.userMessageForReader())
+            }
+        }
+    }
+
+    private fun applyMemberState(muted: Boolean, mutedUntil: String?, followed: Boolean) {
+        conversation = conversation?.copy(
+            muted = muted,
+            muted_until = mutedUntil,
+            followed = followed,
+        )
+    }
+
     fun unblockNumber() {
         val blocked = blockedSender ?: return
         scope.launch {

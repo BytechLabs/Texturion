@@ -153,6 +153,14 @@ data class ConversationSnippet(
     val attachment_kind: String? = null,
 )
 
+/** The answer to PUT or DELETE on a thread's mute or follow (#694). */
+@Serializable
+data class MemberThreadState(
+    val muted: Boolean = false,
+    val muted_until: String? = null,
+    val followed: Boolean = false,
+)
+
 /** GET /v1/conversations row (api_list_conversations RPC). */
 @Serializable
 data class ConversationListItem(
@@ -184,6 +192,15 @@ data class ConversationListItem(
      */
     val snoozed_until: String? = null,
     val snooze_note: String? = null,
+    /**
+     * #694: THIS member's mute and follow on the thread. Muted silences push and
+     * email for it, never a ring, an @mention or an assignment. [muted] is false
+     * once [muted_until] has passed; null with [muted] true means "until I
+     * unmute".
+     */
+    val muted: Boolean = false,
+    val muted_until: String? = null,
+    val followed: Boolean = false,
 )
 
 @Serializable
@@ -363,6 +380,15 @@ data class ConversationDetail(
      * reminder and a nap.
      */
     val snooze_kind: String? = null,
+    /**
+     * #694: THIS member's mute and follow on the thread. Muted silences push and
+     * email for it, never a ring, an @mention or an assignment. [muted] is false
+     * once [muted_until] has passed; null with [muted] true means "until I
+     * unmute".
+     */
+    val muted: Boolean = false,
+    val muted_until: String? = null,
+    val followed: Boolean = false,
     /** #106: 'note' = read + internal notes only (composer hides SMS mode). */
     val viewer_level: String = "text",
     /**

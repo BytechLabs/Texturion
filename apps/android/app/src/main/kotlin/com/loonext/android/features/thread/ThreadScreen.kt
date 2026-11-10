@@ -58,6 +58,9 @@ import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.NotificationAdd
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.PushPin
@@ -164,6 +167,7 @@ import com.loonext.android.ui.common.UrgentBadge
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
+import com.loonext.android.ui.common.Haptics
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
@@ -1491,6 +1495,7 @@ private fun ThreadHeader(
     val locale = LocalAppLocale.current
     val optedOutWord = t("thread.optedOut")
     val blockedWord = t("thread.blockedBadge")
+    val mutedWord = t("thread.mutedBadge")
     var menuOpen by remember { mutableStateOf(false) }
     var assigneeSheetOpen by remember { mutableStateOf(false) }
     var confirmOptOut by remember { mutableStateOf(false) }
@@ -1593,6 +1598,10 @@ private fun ThreadHeader(
                         if (controller.blockedSender != null) {
                             append(" · ")
                             append(blockedWord)
+                        }
+                        if (detail.muted) {
+                            append(" · ")
+                            append(mutedWord)
                         }
                     }
                     Row(
@@ -2265,6 +2274,10 @@ private fun ConversationSheet(
                         )
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    // #694: mute and follow are this member's own. Mute opens
+                    // the durations in place rather than a second sheet.
+                    MuteFollowRows(controller, detail, haptics, onDismiss)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     if (controller.contact?.opted_out == true) {
                         // #407: a STOP the customer sent is a CARRIER block,
                         // and only they can lift it. Offering to undo it here
@@ -2427,6 +2440,62 @@ private fun ThreadSkeletonBubble(inbound: Boolean, width: Dp) {
             else RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp),
         )
     }
+}
+
+@Composable
+private fun MuteFollowRows(
+    controller: ThreadController,
+    detail: com.loonext.android.core.model.ConversationDetail,
+    haptics: Haptics,
+    onDismiss: () -> Unit,
+) {
+    var choosing by remember { mutableStateOf(false) }
+    if (detail.muted) {
+        SheetActionRow(
+            icon = Icons.Outlined.Notifications,
+            label = t("thread.unmute"),
+            onClick = {
+                haptics.tap()
+                onDismiss()
+                controller.unmute()
+            },
+        )
+    } else {
+        SheetActionRow(
+            icon = Icons.Outlined.NotificationsOff,
+            label = t("thread.muteMenu"),
+            onClick = { choosing = !choosing },
+        )
+        if (choosing) {
+            listOf(
+                "1h" to "thread.mute1h",
+                "8h" to "thread.mute8h",
+                "1w" to "thread.mute1w",
+                "forever" to "thread.muteForever",
+            ).forEach { (duration, labelKey) ->
+                SheetActionRow(
+                    icon = Icons.Outlined.Schedule,
+                    label = t(labelKey),
+                    onClick = {
+                        haptics.tap()
+                        onDismiss()
+                        controller.mute(duration)
+                    },
+                )
+            }
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    SheetToggleRow(
+        icon = Icons.Outlined.NotificationAdd,
+        label = t("thread.follow"),
+        checked = detail.followed,
+        onToggle = {
+            haptics.tap()
+            controller.setFollowed(!detail.followed)
+            onDismiss()
+        },
+    )
 }
 
 @Composable

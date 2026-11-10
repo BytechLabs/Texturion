@@ -5,6 +5,7 @@ import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.core.model.AcknowledgeResult
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.BlockedSender
+import com.loonext.android.core.model.MemberThreadState
 import com.loonext.android.features.inbox.SAVED_VIEW_COUNT_MAX_VIEWS
 import com.loonext.android.features.inbox.SavedView
 import com.loonext.android.features.inbox.SavedViewCounts
@@ -276,6 +277,31 @@ class MessagingRepository(private val api: ApiClient) {
     /** #293 — bring it back now. Idempotent, so one tap is always safe. */
     suspend fun unsnooze(companyId: String, conversationId: String) {
         api.delete("/v1/conversations/$conversationId/snooze", companyId = companyId)
+    }
+
+    /** #694: mute this thread for ME. [duration] is "1h", "8h", "1w" or "forever". */
+    suspend fun muteConversation(
+        companyId: String,
+        conversationId: String,
+        duration: String,
+    ): MemberThreadState = api.put(
+        "/v1/conversations/$conversationId/mute",
+        body = buildJsonObject { put("duration", duration) },
+        companyId = companyId,
+    )
+
+    suspend fun unmuteConversation(companyId: String, conversationId: String) {
+        api.delete("/v1/conversations/$conversationId/mute", companyId = companyId)
+    }
+
+    /** #694: follow (or stop following) this thread for ME. */
+    suspend fun setFollowing(companyId: String, conversationId: String, follow: Boolean) {
+        val path = "/v1/conversations/$conversationId/follow"
+        if (follow) {
+            api.put<MemberThreadState, JsonObject>(path, body = buildJsonObject {}, companyId = companyId)
+        } else {
+            api.delete(path, companyId = companyId)
+        }
     }
 
     // --- #233 send later --------------------------------------------------
