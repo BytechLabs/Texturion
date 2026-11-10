@@ -37,6 +37,20 @@ struct TaskDetailView: View {
     @State private var duePickerOpen = false
     @State private var confirmDelete = false
     @State private var deleting = false
+    // #693: the workspace tags, the repeat sheet, and the "this one or this and
+    // future" questions a repeating task asks before an edit or a delete.
+    @State private var tags: [Tag] = []
+    @State private var repeatOpen = false
+    @State private var scopeDialogOpen = false
+    @State private var scopeContinuation: CheckedContinuation<ScopeChoice, Never>?
+    @State private var deleteScopeOpen = false
+
+    private enum ScopeChoice {
+        /// Go ahead. The scope is nil for a task that does not repeat, so its
+        /// requests carry no `scope`, exactly as before #693.
+        case go(String?)
+        case cancelled
+    }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLocale) private var appLocale
@@ -96,6 +110,11 @@ struct TaskDetailView: View {
                 members = page.data
             }
         }
+        .task(id: companyId) {
+            if let page = try? await mutations.tags(companyId: companyId) {
+                tags = page.data
+            }
+        }
         .task(id: taskId) {
             // Realtime: metadata changes ride task.changed; done flips ride
             // message.status. Payloads are ID-only — match and refetch.
@@ -134,9 +153,11 @@ struct TaskDetailView: View {
                     selectedUserId: detail.assigned_user_id,
                     showUnassigned: true
                 ) { userId in
-                    runPatch { try await mutations.assign(
-                        companyId: companyId, taskId: detail.id, userId: userId
-                    ) }
+                    runScopedPatch { scope in
+                        try await mutations.assign(
+                            companyId: companyId, taskId: detail.id, userId: userId, scope: scope
+                        )
+                    }
                 }
             }
         }
@@ -147,12 +168,40 @@ struct TaskDetailView: View {
                     onSet: { date in
                         // The API requires ISO 8601 WITH the local UTC offset.
                         let iso = encodeDueAt(date)
-                        runPatch { try await mutations.setDue(
-                            companyId: companyId, taskId: detail.id, dueAt: iso
-                        ) }
+                        runScopedPatch { scope in
+                            try await mutations.setDue(
+                                companyId: companyId, taskId: detail.id, dueAt: iso, scope: scope
+                            )
+                        }
                     }
                 )
             }
+        }
+        .sheet(isPresented: $repeatOpen) {
+            if let detail {
+                repeatSheet(detail)
+            }
+        }
+        .confirmationDialog(
+            AppStrings.translate(appLocale, "contactsTasks.scopeTitle"),
+            isPresented: $scopeDialogOpen,
+            titleVisibility: .visible
+        ) {
+            Button(AppStrings.translate(appLocale, "contactsTasks.scopeThis")) {
+                answerScope(.go(TaskScope.this))
+            }
+            Button(AppStrings.translate(appLocale, "contactsTasks.scopeFuture")) {
+                answerScope(.go(TaskScope.future))
+            }
+            Button(AppStrings.translate(appLocale, "common.cancel"), role: .cancel) {
+                answerScope(.cancelled)
+            }
+        } message: {
+            Text(AppStrings.translate(appLocale, "contactsTasks.scopeBody"))
+        }
+        .onChange(of: scopeDialogOpen) { _, open in
+            // Dismissed without a choice (a tap outside): that is a cancel.
+            if !open { answerScope(.cancelled) }
         }
         .alert(
             AppStrings.translate(appLocale, "contactsTasks.deleteTaskTitle"),
@@ -320,8 +369,60 @@ struct TaskDetailView: View {
             source: detail.source,
             source_call: detail.source_call,
             contact: detail.contact,
-            subscribed: detail.subscribed
+            subscribed: detail.subscribed,
+            // #693: a patch row that leaves these out keeps what the screen has;
+            // the refetch that follows every edit settles the rest.
+            priority: row.priority ?? detail.priority,
+            labels: row.labels ?? detail.labels,
+            series_id: row.series_id ?? detail.series_id,
+            occurrence_no: row.occurrence_no ?? detail.occurrence_no,
+            `repeat`: row.`repeat` ?? detail.`repeat`
         )
+    }
+
+    // MARK: - #693 scope
+
+    /// Ask "this one or this and future" when the task repeats; otherwise go
+    /// straight ahead with no scope. The wait for the dialog is a continuation
+    /// so a blur-save can await the answer.
+    private func chooseScope() async -> ScopeChoice {
+        guard taskNeedsScope(detail?.repeatRule) else { return .go(nil) }
+        // A sheet that has just closed (the assignee or due picker) swallows a
+        // dialog raised in the same breath, so let it finish going away.
+        try? await Task.sleep(for: .milliseconds(300))
+        return await withCheckedContinuation { continuation in
+            scopeContinuation = continuation
+            scopeDialogOpen = true
+        }
+    }
+
+    private func answerScope(_ choice: ScopeChoice) {
+        scopeDialogOpen = false
+        let waiting = scopeContinuation
+        scopeContinuation = nil
+        waiting?.resume(returning: choice)
+    }
+
+    /// A metadata edit that may be asked which occurrences it reaches.
+    private func runScopedPatch(_ patch: @escaping (String?) async throws -> TaskRowPatch) {
+        Task {
+            guard case .go(let scope) = await chooseScope() else { return }
+            runPatch { try await patch(scope) }
+        }
+    }
+
+    /// The same for an edit whose answer is not a task row (labels).
+    private func runScopedAction(_ action: @escaping (String?) async throws -> Void) {
+        Task {
+            guard case .go(let scope) = await chooseScope() else { return }
+            actionError = nil
+            do {
+                try await action(scope)
+                refreshKey += 1
+            } catch {
+                actionError = error.userMessage
+            }
+        }
     }
 
     private func toggleDone() {
@@ -373,13 +474,13 @@ struct TaskDetailView: View {
         }
     }
 
-    private func deleteTask() {
+    private func deleteTask(scope: String? = nil) {
         guard let detail else { return }
         deleting = true
         Task {
             actionError = nil
             do {
-                try await mutations.delete(companyId: companyId, taskId: detail.id)
+                try await mutations.delete(companyId: companyId, taskId: detail.id, scope: scope)
                 dismiss()
             } catch let error as ApiError where error.code == ApiErrorCode.forbidden {
                 actionError = AppStrings.translate(
@@ -426,9 +527,12 @@ struct TaskDetailView: View {
                     AppStrings.translate(appLocale, "contactsTasks.deleteTask"),
                     role: .destructive
                 ) {
+                    // #693: a repeating task asks which ones go.
+                    if taskNeedsScope(detail.repeatRule) {
+                        deleteScopeOpen = true
                     // #89: confirm only when the task carries notes or files;
                     // a plain task deletes now.
-                    if hasNotes(detail) || !detail.attachments.isEmpty {
+                    } else if hasNotes(detail) || !detail.attachments.isEmpty {
                         confirmDelete = true
                     } else {
                         deleteTask()
@@ -459,6 +563,9 @@ struct TaskDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     header(detail)
                     metaChips(detail)
+                    if !noAccess {
+                        metaExtras(detail)
+                    }
                     createdLine(detail)
                     if noAccess {
                         noAccessCard
@@ -493,6 +600,22 @@ struct TaskDetailView: View {
             }
         }
         .background(BrandColor.canvas.ignoresSafeArea())
+        // #693: which of a repeating task's occurrences a delete reaches.
+        .confirmationDialog(
+            AppStrings.translate(appLocale, "contactsTasks.deleteScopeTitle"),
+            isPresented: $deleteScopeOpen,
+            titleVisibility: .visible
+        ) {
+            Button(
+                AppStrings.translate(appLocale, "contactsTasks.deleteScopeThis"),
+                role: .destructive
+            ) { deleteTask(scope: TaskScope.this) }
+            Button(
+                AppStrings.translate(appLocale, "contactsTasks.deleteScopeFuture"),
+                role: .destructive
+            ) { deleteTask(scope: TaskScope.future) }
+            Button(AppStrings.translate(appLocale, "common.cancel"), role: .cancel) {}
+        }
     }
 
     private func header(_ detail: TaskDetail) -> some View {
@@ -542,9 +665,9 @@ struct TaskDetailView: View {
                     allowEmpty: false,
                     font: .golos(21, weight: .semibold)
                 ) { value in
-                    await saveField {
+                    await saveField { scope in
                         try await mutations.rename(
-                            companyId: companyId, taskId: detail.id, title: value
+                            companyId: companyId, taskId: detail.id, title: value, scope: scope
                         )
                     }
                 }
@@ -618,9 +741,11 @@ struct TaskDetailView: View {
                 .buttonStyle(.plain)
                 if detail.due_at != nil && !noAccess {
                     Button {
-                        runPatch { try await mutations.setDue(
-                            companyId: companyId, taskId: detail.id, dueAt: nil
-                        ) }
+                        runScopedPatch { scope in
+                            try await mutations.setDue(
+                                companyId: companyId, taskId: detail.id, dueAt: nil, scope: scope
+                            )
+                        }
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(BrandColor.muted300)
@@ -673,6 +798,173 @@ struct TaskDetailView: View {
                 .padding(.vertical, 11)
             }
         }
+    }
+
+    // MARK: - #693 priority, repeat, labels
+
+    /// A paper card under Assignee / Due: Priority, Repeat and Labels. A repeat
+    /// shows its icon and the sentence ("Repeats every Monday"); editing any of
+    /// the three on a repeating task asks "this one or this and future" first,
+    /// except the repeat itself, which always covers this one and the future.
+    private func metaExtras(_ detail: TaskDetail) -> some View {
+        PaperCard {
+            priorityRow(detail)
+            RowDivider()
+            repeatRow(detail)
+            RowDivider()
+            labelsRow(detail)
+        }
+    }
+
+    private func priorityRow(_ detail: TaskDetail) -> some View {
+        let current = detail.priorityValue
+        return Menu {
+            ForEach(TaskPriority.allCases) { priority in
+                Button {
+                    if priority != current {
+                        runScopedPatch { scope in
+                            try await mutations.setPriority(
+                                companyId: companyId,
+                                taskId: detail.id,
+                                priority: priority,
+                                scope: scope
+                            )
+                        }
+                    }
+                } label: {
+                    if priority == current {
+                        Label(
+                            AppStrings.translate(appLocale, priority.labelKey),
+                            systemImage: "checkmark"
+                        )
+                    } else {
+                        Text(AppStrings.translate(appLocale, priority.labelKey))
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 11) {
+                metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.priority"))
+                if current.isFlagged {
+                    TaskPriorityMark(priority: current)
+                } else {
+                    Text(AppStrings.translate(appLocale, current.labelKey))
+                        .font(.golos(13, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                }
+                Spacer(minLength: 0)
+                metaRowChevron
+            }
+            .padding(.horizontal, 15)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+    }
+
+    private func repeatRow(_ detail: TaskDetail) -> some View {
+        let rule = detail.repeatRule
+        let live = rule != nil && rule?.isStopped == false
+        return Button {
+            repeatOpen = true
+        } label: {
+            HStack(spacing: 11) {
+                metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.repeat"))
+                if let rule, live {
+                    Image(systemName: "repeat")
+                        .font(.scaled(12, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted500)
+                    Text(taskRepeatDetailLine(rule, locale: appLocale))
+                        .font(.golos(13, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        .multilineTextAlignment(.leading)
+                } else {
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            rule == nil ? "contactsTasks.repeatNone" : "contactsTasks.repeatEnded"
+                        )
+                    )
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted500)
+                }
+                Spacer(minLength: 0)
+                metaRowChevron
+            }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 11)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func labelsRow(_ detail: TaskDetail) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.labels"))
+            TaskLabelsEditor(
+                labels: detail.labelList,
+                available: tags,
+                onAdd: { tagId, name in
+                    runScopedAction { scope in
+                        let added = try await mutations.addTag(
+                            companyId: companyId,
+                            taskId: detail.id,
+                            tagId: tagId,
+                            name: name,
+                            scope: scope
+                        )
+                        // A label made by name changes what the picker offers.
+                        if tagId == nil, !tags.contains(where: { $0.id == added.tag.id }),
+                           let page = try? await mutations.tags(companyId: companyId) {
+                            tags = page.data
+                        }
+                    }
+                },
+                onRemove: { tagId in
+                    runScopedAction { scope in
+                        try await mutations.removeTag(
+                            companyId: companyId,
+                            taskId: detail.id,
+                            tagId: tagId,
+                            scope: scope
+                        )
+                    }
+                }
+            )
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Where a repeat is set, changed, paused or stopped. Always applies to this
+    /// one and the future, so it asks nothing.
+    private func repeatSheet(_ detail: TaskDetail) -> some View {
+        let live: TaskRepeatRule? = detail.repeatRule?.isStopped == false ? detail.repeatRule : nil
+        let initial: TaskRepeatDraft = live.map { TaskRepeatDraft(rule: $0) }
+            ?? TaskRepeatDraft.starting(
+                due: parseWireTimestamp(detail.due_at),
+                afterDone: detail.conversation_id != nil || detail.contact != nil
+            )
+        return TaskRepeatSheet(
+            initial: initial,
+            hasDue: detail.due_at != nil,
+            isEditing: live != nil,
+            onSave: { draft in
+                runPatch {
+                    try await mutations.setRepeat(
+                        companyId: companyId, taskId: detail.id, rule: draft.wireBody()
+                    )
+                }
+            },
+            onRemove: {
+                runPatch {
+                    try await mutations.setRepeat(
+                        companyId: companyId, taskId: detail.id, rule: nil
+                    )
+                }
+            }
+        )
     }
 
     /// #237 — who confirmed, said plainly.
@@ -835,12 +1127,13 @@ struct TaskDetailView: View {
 
     private func saveAddress(_ fields: AddressFieldValues, provenance: String) {
         guard let detail else { return }
-        runPatch {
+        runScopedPatch { scope in
             try await mutations.updateAddress(
                 companyId: companyId,
                 taskId: detail.id,
                 fields: fields,
-                provenance: provenance
+                provenance: provenance,
+                scope: scope
             )
         }
     }
@@ -858,9 +1151,12 @@ struct TaskDetailView: View {
                 allowEmpty: true,
                 font: .golos(13)
             ) { value in
-                await saveField {
+                await saveField { scope in
                     try await mutations.describe(
-                        companyId: companyId, taskId: detail.id, description: value
+                        companyId: companyId,
+                        taskId: detail.id,
+                        description: value,
+                        scope: scope
                     )
                 }
             }
@@ -870,10 +1166,15 @@ struct TaskDetailView: View {
 
     /// Run one inline-edit save; returns the error sentence (nil = saved).
     private func saveField(
-        _ patch: @escaping () async throws -> TaskRowPatch
+        _ patch: @escaping (String?) async throws -> TaskRowPatch
     ) async -> String? {
+        // #693: a repeating task asks which occurrences first. Cancelling leaves
+        // the typed text in the field, with a line saying it was not saved.
+        guard case .go(let scope) = await chooseScope() else {
+            return AppStrings.translate(appLocale, "contactsTasks.scopeNotSaved")
+        }
         do {
-            let row = try await patch()
+            let row = try await patch(scope)
             if let detail {
                 state = .ready(merged(detail, with: row))
             }

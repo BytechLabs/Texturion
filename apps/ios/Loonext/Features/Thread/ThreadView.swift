@@ -2443,6 +2443,9 @@ struct MakeTaskSheet: View {
     /// by comparing against what Lou proposed.
     @State private var suggestedAddress = false
     @State private var suggestedDueAt: Date?
+    /// #693: priority, labels and a repeat. Only a standalone task shows them.
+    @State private var meta = TaskDraftMeta()
+    @State private var workspaceTags: [Tag] = []
 
     private enum AddrField: Hashable {
         case street, unit, city, state, postal, country
@@ -2523,6 +2526,14 @@ struct MakeTaskSheet: View {
                     assigneeRow
                     dueRow
                     addressBlock
+                    if source.isStandalone {
+                        TaskDraftMetaSection(
+                            meta: $meta,
+                            tags: workspaceTags,
+                            due: due,
+                            linkedToCustomer: source.isLinkedToCustomer
+                        )
+                    }
                 } else {
                     moreButton
                 }
@@ -2541,6 +2552,11 @@ struct MakeTaskSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .task { await enrichIfNeeded() }
+        .task {
+            if source.isStandalone {
+                workspaceTags = await controller.workspaceTagsForTaskDraft()
+            }
+        }
         .sheet(isPresented: $duePickerOpen) {
             MakeTaskDueSheet(initial: due, locale: locale) { picked in
                 due = picked
@@ -2895,7 +2911,10 @@ struct MakeTaskSheet: View {
             .background(Capsule().fill(BrandColor.ink))
         }
         .buttonStyle(.plain)
-        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(
+            title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !meta.isValid(hasDue: due != nil)
+        )
         .accessibilityLabel(
             AppStrings.translate(locale, "thread.createTask")
         )
@@ -2931,7 +2950,8 @@ struct MakeTaskSheet: View {
             assignedUserId: assigneeId,
             dueAt: due.map { encodeDueAt($0) },
             address: addr,
-            provenance: addrProvenance ?? AddressProvenance.manual
+            provenance: addrProvenance ?? AddressProvenance.manual,
+            meta: meta
         )
         // #431: report only on an actual create. Somebody who closed the sheet has
         // told us nothing about whether the address was any good, and counting that

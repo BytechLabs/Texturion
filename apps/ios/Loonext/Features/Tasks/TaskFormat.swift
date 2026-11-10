@@ -97,6 +97,27 @@ func taskHistorySentence(
         return say(
             nothing ? "contactsTasks.histConfirmationCleared" : "contactsTasks.histConfirmed"
         )
+    case "priority":
+        guard let raw = text(item.to) else { return say("contactsTasks.histUpdated") }
+        return say(
+            "contactsTasks.histPriority",
+            ["priority": AppStrings.translate(locale, TaskPriority.from(raw).labelKey)]
+        )
+    case "label_added":
+        guard let name = text(item.to?["name"]) else { return say("contactsTasks.histUpdated") }
+        return say("contactsTasks.histLabelAdded", ["name": name])
+    case "label_removed":
+        guard let name = text(item.from?["name"]) else { return say("contactsTasks.histUpdated") }
+        return say("contactsTasks.histLabelRemoved", ["name": name])
+    case "repeat":
+        if nothing { return say("contactsTasks.histRepeatCleared") }
+        guard let rule = taskRepeatRule(from: item.to) else {
+            return say("contactsTasks.histUpdated")
+        }
+        return say(
+            "contactsTasks.histRepeat",
+            ["rule": taskRepeatSummary(rule, locale: locale)]
+        )
     case "done":
         return say("contactsTasks.histDone")
     case "reopened":
@@ -106,6 +127,28 @@ func taskHistorySentence(
     default:
         return say("contactsTasks.histUpdated")
     }
+}
+
+/// #693: read a repeat rule out of the summary object an activity event carries.
+/// Nil when the object has no kind and unit, so the line says "updated" rather
+/// than guessing at a rule.
+func taskRepeatRule(from value: JSONValue?) -> TaskRepeatRule? {
+    guard let object = value?.objectValue,
+          let kind = object["kind"]?.stringValue,
+          let unit = object["unit"]?.stringValue else { return nil }
+    return TaskRepeatRule(
+        kind: kind,
+        unit: unit,
+        every: object["every"]?.intValue,
+        weekdays: object["weekdays"]?.arrayValue?.compactMap { $0.intValue },
+        month_day: object["month_day"]?.intValue,
+        nth: object["nth"]?.intValue,
+        nth_weekday: object["nth_weekday"]?.intValue,
+        ends: nil,
+        paused: object["paused"]?.boolValue,
+        stopped: object["stopped"]?.boolValue,
+        id: nil
+    )
 }
 
 /// A quiet human sentence for one task_* activity event, ported from the

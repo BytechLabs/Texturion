@@ -50,22 +50,70 @@ final class NewTaskHost: TaskDraftHost {
         address: AddressFieldValues,
         provenance: String
     ) {
+        createTask(
+            from: source,
+            title: title,
+            assignedUserId: assignedUserId,
+            dueAt: dueAt,
+            address: address,
+            provenance: provenance,
+            meta: TaskDraftMeta()
+        )
+    }
+
+    func workspaceTagsForTaskDraft() async -> [Tag] {
+        let page = try? await TaskMutations(api: graph.api).tags(companyId: companyId)
+        return page?.data ?? []
+    }
+
+    func createTask(
+        from source: TaskDraftSource,
+        title: String,
+        assignedUserId: String?,
+        dueAt: String?,
+        address: AddressFieldValues,
+        provenance: String,
+        meta: TaskDraftMeta
+    ) {
         guard case .standalone(let conversationId, let contactId) = source else { return }
         let addressBody = taskAddressBody(address, provenance: provenance)
+        let repeatBody = meta.repeatBody()
         let mutations = TaskMutations(api: graph.api)
         Task { [companyId, locale, onNotice, onCreated] in
             do {
-                _ = try await mutations.createStandalone(
+                let row = try await mutations.createStandalone(
                     companyId: companyId,
                     title: title,
                     assignedUserId: assignedUserId,
                     dueAt: dueAt,
                     address: addressBody,
                     conversationId: conversationId,
-                    contactId: contactId
+                    contactId: contactId,
+                    priority: meta.priorityWire,
+                    labelIds: meta.labelIds,
+                    repeatRule: repeatBody
                 )
+                // A label typed by name is made once the task exists. The task
+                // is already saved, so a failure here is said, not undone.
+                var labelFailed = false
+                for name in meta.newLabelNames {
+                    do {
+                        _ = try await mutations.addTag(
+                            companyId: companyId, taskId: row.id, tagId: nil, name: name
+                        )
+                    } catch {
+                        labelFailed = true
+                    }
+                }
                 onCreated()
-                onNotice(AppStrings.translate(locale, "thread.taskCreatedStandalone"))
+                onNotice(
+                    AppStrings.translate(
+                        locale,
+                        labelFailed
+                            ? "contactsTasks.taskCreatedLabelFailed"
+                            : "thread.taskCreatedStandalone"
+                    )
+                )
             } catch {
                 onNotice(error.userMessage)
             }

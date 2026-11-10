@@ -23,6 +23,11 @@ struct TasksTab: View {
     @State private var members: [Member] = []
     @State private var pickerOpen = false
     @State private var newTaskOpen = false
+    // #693: priority and label filters, and the sort.
+    @State private var priorityFilter: [String] = []
+    @State private var tagFilter: String?
+    @State private var sortChoice: String?
+    @State private var workspaceTags: [Tag] = []
 
     @State private var state: LoadState<Void> = .loading
     @State private var rows: [TaskItem] = []
@@ -47,14 +52,21 @@ struct TasksTab: View {
         return RecordDeletion.canDelete(role: role)
     }
 
+    /// #693: what the Priority, Label and Sort chips add to every view's query.
+    private var metaFilters: TaskMetaFilters {
+        TaskMetaFilters(priority: priorityFilter, tagId: tagFilter, sort: sortChoice)
+    }
+
     private var filtersActive: Bool {
         assigneeChip != nil || unassignedChip || dueChip != nil || !debouncedQ.isEmpty
+            || metaFilters.hasFilter
     }
 
     private var reloadToken: String {
         [
             companyId, tab.rawValue, assigneeChip ?? "", unassignedChip ? "u" : "",
             dueChip?.rawValue ?? "", debouncedQ, String(refreshKey), view.rawValue,
+            metaFilters.token,
         ].joined(separator: "|")
     }
 
@@ -92,6 +104,7 @@ struct TasksTab: View {
                     unassignedChip: unassignedChip,
                     dueChip: dueChip,
                     q: debouncedQ,
+                    meta: metaFilters,
                     refreshKey: refreshKey,
                     onOpenTask: { AppRouter.shared.openTaskId = $0 },
                     onToggleDone: { task, done in toggleDone(task, done: done) }
@@ -107,6 +120,7 @@ struct TasksTab: View {
                     unassignedChip: unassignedChip,
                     dueChip: dueChip,
                     q: debouncedQ,
+                    meta: metaFilters,
                     refreshKey: refreshKey,
                     onOpenTask: { AppRouter.shared.openTaskId = $0 },
                     onToggleDone: { task, done in toggleDone(task, done: done) }
@@ -119,6 +133,7 @@ struct TasksTab: View {
                     unassignedChip: unassignedChip,
                     dueChip: dueChip,
                     q: debouncedQ,
+                    meta: metaFilters,
                     refreshKey: refreshKey,
                     onOpenTask: { AppRouter.shared.openTaskId = $0 }
                 )
@@ -145,6 +160,13 @@ struct TasksTab: View {
             // quiet fetch — a failure leaves the generic chip label.
             if let page = try? await graph.tasksApi.members(companyId: companyId) {
                 members = page.data
+            }
+        }
+        .task(id: companyId) {
+            // #693: the workspace tags back the Label chip and the bulk label
+            // actions. A quiet fetch; without them the chip just stays hidden.
+            if let page = try? await graph.tasksApi.tags(companyId: companyId) {
+                workspaceTags = page.data
             }
         }
         .task(id: companyId) {
@@ -367,10 +389,137 @@ struct TasksTab: View {
                         onClear: {}
                     )
                 }
+                priorityMenuChip
+                if !workspaceTags.isEmpty { labelMenuChip }
+                sortMenuChip
             }
             .padding(.horizontal, 18)
         }
         .padding(.bottom, 6)
+    }
+
+    // MARK: #693 priority, label and sort chips
+
+    private func menuChipLabel(_ label: String, selected: Bool) -> some View {
+        Text(label)
+            .font(.golos(11, weight: selected ? .semibold : .medium))
+            .foregroundStyle(selected ? BrandColor.muted900 : BrandColor.muted500)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(
+                selected
+                    ? AnyShapeStyle(BrandColor.avatarTint)
+                    : AnyShapeStyle(BrandColor.paper),
+                in: Capsule()
+            )
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+    }
+
+    private var priorityChipText: String {
+        let word = AppStrings.translate(appLocale, "contactsTasks.priority")
+        if priorityFilter.isEmpty { return word }
+        if priorityFilter.count == 1 {
+            return AppStrings.translate(
+                appLocale, TaskPriority.from(priorityFilter[0]).labelKey
+            )
+        }
+        return AppStrings.translate(
+            appLocale,
+            "contactsTasks.priorityMany",
+            ["count": String(priorityFilter.count)]
+        )
+    }
+
+    private var priorityMenuChip: some View {
+        Menu {
+            ForEach(TaskPriority.rankedForMenus) { priority in
+                let on = priorityFilter.contains(priority.rawValue)
+                Button {
+                    if on {
+                        priorityFilter.removeAll { $0 == priority.rawValue }
+                    } else {
+                        priorityFilter.append(priority.rawValue)
+                    }
+                } label: {
+                    if on {
+                        Label(
+                            AppStrings.translate(appLocale, priority.labelKey),
+                            systemImage: "checkmark"
+                        )
+                    } else {
+                        Text(AppStrings.translate(appLocale, priority.labelKey))
+                    }
+                }
+            }
+        } label: {
+            menuChipLabel(priorityChipText, selected: !priorityFilter.isEmpty)
+        }
+    }
+
+    private var labelChipText: String {
+        guard let id = tagFilter else {
+            return AppStrings.translate(appLocale, "contactsTasks.label")
+        }
+        return workspaceTags.first { $0.id == id }?.name
+            ?? AppStrings.translate(appLocale, "contactsTasks.label")
+    }
+
+    private var labelMenuChip: some View {
+        Menu {
+            ForEach(workspaceTags, id: \.id) { tag in
+                let on = tagFilter == tag.id
+                Button {
+                    tagFilter = on ? nil : tag.id
+                } label: {
+                    if on {
+                        Label(tag.name, systemImage: "checkmark")
+                    } else {
+                        Text(tag.name)
+                    }
+                }
+            }
+            if tagFilter != nil {
+                Button(AppStrings.translate(appLocale, "contactsTasks.clearLabelFilter")) {
+                    tagFilter = nil
+                }
+            }
+        } label: {
+            menuChipLabel(labelChipText, selected: tagFilter != nil)
+        }
+    }
+
+    private var sortChipText: String {
+        guard let sort = sortChoice else {
+            return AppStrings.translate(appLocale, "contactsTasks.sortTitle")
+        }
+        return AppStrings.translate(
+            appLocale,
+            "contactsTasks.sortedBy",
+            ["sort": AppStrings.translate(appLocale, TaskSortChoice.labelKey(sort))]
+        )
+    }
+
+    private var sortMenuChip: some View {
+        Menu {
+            ForEach(TaskSortChoice.all, id: \.self) { sort in
+                let on = (sortChoice ?? TaskSortChoice.created) == sort
+                Button {
+                    sortChoice = sort == TaskSortChoice.created ? nil : sort
+                } label: {
+                    if on {
+                        Label(
+                            AppStrings.translate(appLocale, TaskSortChoice.labelKey(sort)),
+                            systemImage: "checkmark"
+                        )
+                    } else {
+                        Text(AppStrings.translate(appLocale, TaskSortChoice.labelKey(sort)))
+                    }
+                }
+            }
+        } label: {
+            menuChipLabel(sortChipText, selected: sortChoice != nil)
+        }
     }
 
     private func filterChip(
@@ -541,7 +690,8 @@ struct TasksTab: View {
             assigneeUserId: assigneeChip,
             unassigned: unassignedChip,
             due: dueChip,
-            q: debouncedQ.isEmpty ? nil : debouncedQ
+            q: debouncedQ.isEmpty ? nil : debouncedQ,
+            meta: metaFilters
         )
         let api = graph.tasksApi
         let company = companyId
@@ -692,6 +842,8 @@ private struct TaskListRow: View {
                             : AnyShapeStyle(BrandColor.muted400)
                     )
                 }
+                // #693: priority, repeat and labels, only when there is any.
+                TaskRowBadges(task: task)
             }
             Spacer(minLength: 0)
             if let assigneeName {
@@ -867,6 +1019,11 @@ extension TasksTab {
                         verbManyKey: "contactsTasks.bulkMarkedNotDoneMany"
                     )
                 }
+                bulkPriorityMenu
+                if !workspaceTags.isEmpty {
+                    bulkLabelMenu(add: true)
+                    bulkLabelMenu(add: false)
+                }
                 // Destructive and last: an action adjacent to the ones people
                 // use by momentum is one somebody hits by momentum.
                 if canDeleteTasks {
@@ -923,6 +1080,49 @@ extension TasksTab {
         }
     }
 
+    /// #693: set one priority on every selected task.
+    @ViewBuilder
+    var bulkPriorityMenu: some View {
+        Menu(AppStrings.translate(appLocale, "contactsTasks.bulkSetPriority")) {
+            ForEach(TaskPriority.rankedForMenus) { priority in
+                Button(AppStrings.translate(appLocale, priority.labelKey)) {
+                    runBulk(
+                        action: "set_priority",
+                        verbOneKey: "contactsTasks.bulkPrioritySetOne",
+                        verbManyKey: "contactsTasks.bulkPrioritySetMany",
+                        priority: priority.rawValue
+                    )
+                }
+            }
+        }
+    }
+
+    /// #693: add or remove one workspace label on every selected task.
+    @ViewBuilder
+    func bulkLabelMenu(add: Bool) -> some View {
+        Menu(
+            AppStrings.translate(
+                appLocale,
+                add ? "contactsTasks.bulkAddLabel" : "contactsTasks.bulkRemoveLabel"
+            )
+        ) {
+            ForEach(workspaceTags, id: \.id) { tag in
+                Button(tag.name) {
+                    runBulk(
+                        action: add ? "add_label" : "remove_label",
+                        verbOneKey: add
+                            ? "contactsTasks.bulkLabelAddedOne"
+                            : "contactsTasks.bulkLabelRemovedOne",
+                        verbManyKey: add
+                            ? "contactsTasks.bulkLabelAddedMany"
+                            : "contactsTasks.bulkLabelRemovedMany",
+                        tagId: tag.id
+                    )
+                }
+            }
+        }
+    }
+
     /// Run one action over the current selection, then say what actually
     /// happened — from the SERVER's response, never from the selection. In
     /// filter mode this client does not know how many rows matched, and a count
@@ -932,7 +1132,9 @@ extension TasksTab {
         verbOneKey: String,
         verbManyKey: String,
         targetUserId: String? = nil,
-        unassign: Bool = false
+        unassign: Bool = false,
+        priority: String? = nil,
+        tagId: String? = nil
     ) {
         guard !bulkRunning else { return }
         bulkRunning = true
@@ -955,11 +1157,14 @@ extension TasksTab {
                             assigneeUserId: assigneeChip,
                             unassigned: unassignedChip,
                             due: dueChip,
-                            q: debouncedQ.isEmpty ? nil : debouncedQ
+                            q: debouncedQ.isEmpty ? nil : debouncedQ,
+                            meta: metaFilters
                           ).first
                         : nil,
                     targetUserId: targetUserId,
-                    unassign: unassign
+                    unassign: unassign,
+                    priority: priority,
+                    tagId: tagId
                 )
                 toggleError = bulkResultMessage(
                     verb: AppStrings.translate(appLocale, verbOneKey),

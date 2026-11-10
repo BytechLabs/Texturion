@@ -85,6 +85,44 @@ struct TaskListFilters: Equatable, Sendable {
     var dueAfter: String? = nil
     var overdue: Bool = false
     var q: String? = nil
+    /// #693: any of these priorities ("urgent", "high", ...). Empty = no filter.
+    var priority: [String] = []
+    /// #693: only tasks wearing this workspace tag.
+    var tagId: String? = nil
+    /// #693: "created" (the default, sent as nothing), "due" or "priority".
+    var sort: String? = nil
+}
+
+/// #693: the filters this feature added, kept as one value so the board, the
+/// calendar and the map take one extra parameter instead of three.
+struct TaskMetaFilters: Equatable, Sendable {
+    var priority: [String] = []
+    var tagId: String? = nil
+    var sort: String? = nil
+
+    /// A filter, not the sort: the sort re-orders and hides nothing.
+    var hasFilter: Bool { !priority.isEmpty || tagId != nil }
+
+    /// Joined into the views' reload tokens so a change reloads them.
+    var token: String {
+        [priority.sorted().joined(separator: ","), tagId ?? "", sort ?? ""].joined(separator: ":")
+    }
+}
+
+/// The sort choices the Sort chip offers. "created" is the server default.
+enum TaskSortChoice {
+    static let created = "created"
+    static let due = "due"
+    static let priority = "priority"
+    static let all = [created, due, priority]
+
+    static func labelKey(_ sort: String?) -> String {
+        switch sort {
+        case due: return "contactsTasks.sortDue"
+        case priority: return "contactsTasks.sortPriority"
+        default: return "contactsTasks.sortCreated"
+        }
+    }
 }
 
 /// Serialize filters to the GET /v1/tasks query params — the Swift port of
@@ -108,7 +146,9 @@ func taskQueryParams(
         filters.dueBefore == nil &&
         filters.dueAfter == nil &&
         filters.q == nil &&
-        !filters.unassigned
+        !filters.unassigned &&
+        filters.priority.isEmpty &&
+        filters.tagId == nil
     let status = filters.status ?? (needsAllSentinel ? TaskStatusFilter.open : nil)
 
     return [
@@ -120,6 +160,10 @@ func taskQueryParams(
         "due_after": filters.dueAfter,
         "overdue": filters.overdue ? "true" : nil,
         "q": filters.q,
+        "priority": filters.priority.isEmpty ? nil : filters.priority.joined(separator: ","),
+        "tag_id": filters.tagId,
+        // "created" is the default ordering, so it is never sent.
+        "sort": (filters.sort == nil || filters.sort == TaskSortChoice.created) ? nil : filters.sort,
         "cursor": cursor,
         "limit": String(limit),
     ]
@@ -129,7 +173,10 @@ func taskQueryParams(
 /// back with params whose ordering key (and content) match the page that
 /// minted it — the route 422s on a cursor from the other ordering.
 func orderingKey(_ filters: TaskListFilters) -> String {
-    (filters.overdue || filters.dueBefore != nil || filters.dueAfter != nil) ? "due" : "created"
+    // #693: a priority sort mints cursors of its own.
+    if filters.sort == TaskSortChoice.priority { return "priority" }
+    if filters.sort == TaskSortChoice.due { return "due" }
+    return (filters.overdue || filters.dueBefore != nil || filters.dueAfter != nil) ? "due" : "created"
 }
 
 /// Encode a boundary as ISO 8601 WITH the zone's UTC offset at that instant
@@ -179,6 +226,7 @@ func taskListArms(
     unassigned: Bool,
     due: DueChip?,
     q: String?,
+    meta: TaskMetaFilters = TaskMetaFilters(),
     now: Date = Date(),
     calendar: Calendar = .current
 ) -> [TaskListFilters] {
@@ -208,7 +256,10 @@ func taskListArms(
             dueBefore: dueFilters.dueBefore,
             dueAfter: dueFilters.dueAfter,
             overdue: dueFilters.overdue,
-            q: query
+            q: query,
+            priority: meta.priority,
+            tagId: meta.tagId,
+            sort: meta.sort
         )
     }
 

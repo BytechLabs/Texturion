@@ -49,6 +49,21 @@ struct TaskItem: Codable, Sendable {
     /// D64: the promoted call (list and checklist rows); nil for a message task.
     var call: TaskSourceCall? = nil
 
+    /// #693: how much it matters, the workspace labels it wears, the series it
+    /// belongs to and the rule that makes the next one. All optional with
+    /// defaults so a row from before #693 decodes and the memberwise init stays
+    /// source-compatible with every call site and preview. `repeat` is a Swift
+    /// keyword, hence the backticks; the wire name is still "repeat".
+    var priority: String? = nil
+    var labels: [TaskLabel]? = nil
+    var series_id: String? = nil
+    var occurrence_no: Int? = nil
+    var `repeat`: TaskRepeatRule? = nil
+
+    var priorityValue: TaskPriority { TaskPriority.from(priority) }
+    var labelList: [TaskLabel] { labels ?? [] }
+    var repeatRule: TaskRepeatRule? { `repeat` }
+
     /// A task with no message owns its done state (D64).
     var isCallTask: Bool { message_id == nil }
 }
@@ -238,6 +253,21 @@ struct TaskDetail: Codable, Sendable {
     /// #689 D: whether the caller follows this task. Optional with a default so
     /// the memberwise init stays source-compatible; nil reads as not following.
     var subscribed: Bool? = nil
+
+    /// #693: how much it matters, the workspace labels it wears, the series it
+    /// belongs to and the rule that makes the next one. All optional with
+    /// defaults so a row from before #693 decodes and the memberwise init stays
+    /// source-compatible with every call site and preview. `repeat` is a Swift
+    /// keyword, hence the backticks; the wire name is still "repeat".
+    var priority: String? = nil
+    var labels: [TaskLabel]? = nil
+    var series_id: String? = nil
+    var occurrence_no: Int? = nil
+    var `repeat`: TaskRepeatRule? = nil
+
+    var priorityValue: TaskPriority { TaskPriority.from(priority) }
+    var labelList: [TaskLabel] { labels ?? [] }
+    var repeatRule: TaskRepeatRule? { `repeat` }
 
     /// A task with no message owns its done state (D64).
     var isCallTask: Bool { message_id == nil }

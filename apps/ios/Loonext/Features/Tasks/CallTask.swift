@@ -17,6 +17,16 @@ enum TaskDraftSource {
         return false
     }
 
+    /// #693: a standalone task opened from a contact or a conversation. Such a
+    /// job usually comes back some time after it is done, so a repeat defaults
+    /// to "after it's done".
+    var isLinkedToCustomer: Bool {
+        if case .standalone(let conversationId, let contactId) = self {
+            return conversationId != nil || contactId != nil
+        }
+        return false
+    }
+
     var message: Message? {
         if case .message(let message) = self { return message }
         return nil
@@ -40,6 +50,43 @@ protocol TaskDraftHost: AnyObject {
         address: AddressFieldValues,
         provenance: String
     )
+    /// #693: the same create with priority, labels and a repeat. Only the New
+    /// task host acts on `meta`; the message and call hosts take the default
+    /// below, which drops it, because their sheets never show those rows.
+    func createTask(
+        from source: TaskDraftSource,
+        title: String,
+        assignedUserId: String?,
+        dueAt: String?,
+        address: AddressFieldValues,
+        provenance: String,
+        meta: TaskDraftMeta
+    )
+    /// #693: the workspace tags the label picker offers.
+    func workspaceTagsForTaskDraft() async -> [Tag]
+}
+
+extension TaskDraftHost {
+    func createTask(
+        from source: TaskDraftSource,
+        title: String,
+        assignedUserId: String?,
+        dueAt: String?,
+        address: AddressFieldValues,
+        provenance: String,
+        meta: TaskDraftMeta
+    ) {
+        createTask(
+            from: source,
+            title: title,
+            assignedUserId: assignedUserId,
+            dueAt: dueAt,
+            address: address,
+            provenance: provenance
+        )
+    }
+
+    func workspaceTagsForTaskDraft() async -> [Tag] { [] }
 }
 
 extension ThreadController: TaskDraftHost {

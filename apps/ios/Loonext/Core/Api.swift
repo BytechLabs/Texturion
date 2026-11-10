@@ -333,33 +333,31 @@ struct TasksApi: Sendable {
         filters: TaskListFilters? = nil,
         targetUserId: String? = nil,
         /// True when the caller means "unassign", which is a null the server needs.
-        unassign: Bool = false
+        unassign: Bool = false,
+        /// #693: for `set_priority`.
+        priority: String? = nil,
+        /// #693: for `add_label` and `remove_label`.
+        tagId: String? = nil
     ) async throws -> BulkTasksResult {
-        var body: [String: JSONValue] = ["action": .string(action)]
-        if let ids {
-            body["ids"] = .array(ids.map { .string($0) })
-        } else if let filters {
-            var filter: [String: JSONValue] = [:]
-            if let status = filters.status { filter["status"] = .string(status) }
-            if let assignee = filters.assignedUserId {
-                filter["assigned_user_id"] = .string(assignee)
-            }
-            if filters.unassigned { filter["unassigned"] = .bool(true) }
-            if filters.overdue { filter["overdue"] = .bool(true) }
-            body["filter"] = .object(filter)
-        }
-        // Explicit null is meaningful (unassign), so it is only written when the
-        // caller says so rather than whenever the id is absent.
-        if let targetUserId {
-            body["target_user_id"] = .string(targetUserId)
-        } else if unassign {
-            body["target_user_id"] = .null
-        }
         return try await api.post(
             "/v1/tasks/bulk",
-            body: JSONValue.object(body),
+            body: taskBulkBody(
+                action: action,
+                ids: ids,
+                filters: filters,
+                targetUserId: targetUserId,
+                unassign: unassign,
+                priority: priority,
+                tagId: tagId
+            ),
             companyId: companyId
         )
+    }
+
+    /// #693: the workspace tags, for the label filter, the label picker and the
+    /// bulk label actions.
+    func tags(companyId: String) async throws -> Page<Tag> {
+        try await api.get("/v1/tags", companyId: companyId)
     }
 
     /// THE one completion path (D14/T2): flip done on the SOURCE MESSAGE.

@@ -47,6 +47,8 @@ struct TaskBoardView: View {
     let unassignedChip: Bool
     let dueChip: DueChip?
     let q: String
+    /// #693: the priority and label filters and the sort.
+    let meta: TaskMetaFilters
     let refreshKey: Int
     let onOpenTask: @MainActor (String) -> Void
     let onToggleDone: @MainActor (TaskItem, Bool) -> Void
@@ -69,6 +71,7 @@ struct TaskBoardView: View {
         [
             companyId, boardTab.rawValue, assigneeChip ?? "", unassignedChip ? "u" : "",
             dueChip?.rawValue ?? "", q, String(refreshKey), String(localRefresh),
+            meta.token,
         ].joined(separator: "|")
     }
 
@@ -140,7 +143,8 @@ struct TaskBoardView: View {
             assigneeUserId: assigneeChip,
             unassigned: unassignedChip,
             due: dueChip,
-            q: q.isEmpty ? nil : q
+            q: q.isEmpty ? nil : q,
+            meta: meta
         )
         // taskListArms for a statusless tab yields exactly the two column
         // arms: [open, done].
@@ -291,6 +295,8 @@ private struct BoardCard: View {
                         : AnyShapeStyle(BrandColor.ink)
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
+            // #693: priority, repeat and labels, only when there is any.
+            TaskRowBadges(task: task)
             HStack {
                 let overdue = isOverdue(task)
                 Text(dueLine(overdue: overdue))
@@ -407,6 +413,7 @@ private func previewTask(
         unassignedChip: false,
         dueChip: nil,
         q: "",
+        meta: TaskMetaFilters(),
         refreshKey: 0,
         onOpenTask: { _ in },
         onToggleDone: { _, _ in }

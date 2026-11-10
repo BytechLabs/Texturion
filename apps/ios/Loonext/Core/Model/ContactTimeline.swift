@@ -30,6 +30,13 @@ struct TimelineEntry: Decodable, Identifiable, Equatable, Sendable {
     /// reporting it — so the row falls back to the bare label rather than
     /// carrying a name-shaped hole.
     let answered_by_user_id: String?
+    /// #693: the series a job belongs to and the repeat that makes the next one.
+    /// Optional with defaults so an older payload decodes and the memberwise
+    /// init every test calls keeps compiling.
+    var series_id: String? = nil
+    var `repeat`: TimelineRepeat? = nil
+
+    var repeatRule: TimelineRepeat? { `repeat` }
 
     /// The two source tables have independent id spaces, so a conversation and
     /// a job could share an id. Dedup on both or one silently vanishes.

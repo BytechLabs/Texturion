@@ -82,7 +82,12 @@ func taskCreateBody(
     sourceCallId: String? = nil,
     /// #689: with neither source, a standalone task may link to these.
     contactId: String? = nil,
-    conversationId: String? = nil
+    conversationId: String? = nil,
+    /// #693: omitted when the task is the default (normal) priority.
+    priority: String? = nil,
+    labelIds: [String] = [],
+    /// The repeat rule from `TaskRepeatDraft.wireBody`.
+    repeatRule: JSONValue? = nil
 ) -> JSONValue {
     var object: [String: JSONValue] = [:]
     if let messageId { object["message_id"] = .string(messageId) }
@@ -93,7 +98,85 @@ func taskCreateBody(
     if let address { object["address"] = address }
     if let contactId { object["contact_id"] = .string(contactId) }
     if let conversationId { object["conversation_id"] = .string(conversationId) }
+    if let priority { object["priority"] = .string(priority) }
+    if !labelIds.isEmpty { object["label_ids"] = .array(labelIds.map { .string($0) }) }
+    if let repeatRule { object["repeat"] = repeatRule }
     return .object(object)
+}
+
+// MARK: - #693 priority, labels, repeat and scope bodies
+
+/// Add `"scope"` to a PATCH body. Nil leaves the body alone, which the server
+/// reads as "this one": only a task that repeats is ever asked, so only a task
+/// that repeats sends it.
+func taskScoped(_ body: JSONValue, scope: String?) -> JSONValue {
+    guard let scope else { return body }
+    guard case .object(let object) = body else { return body }
+    var copy = object
+    copy["scope"] = .string(scope)
+    return .object(copy)
+}
+
+/// `{"priority": "high"}`
+func taskPriorityBody(_ priority: TaskPriority) -> JSONValue {
+    .object(["priority": .string(priority.rawValue)])
+}
+
+/// PATCH `{"repeat": {...}}`; nil MUST send an explicit JSON null (stop repeating).
+func taskRepeatPatchBody(_ rule: JSONValue?) -> JSONValue {
+    .object(["repeat": rule ?? .null])
+}
+
+/// POST /v1/tasks/:id/tags body: an existing tag by id, else a name that is
+/// created on the way. Exactly one of the two is sent.
+func taskTagAddBody(tagId: String?, name: String?, scope: String?) -> JSONValue {
+    var object: [String: JSONValue] = [:]
+    if let tagId {
+        object["tag_id"] = .string(tagId)
+    } else if let name {
+        object["name"] = .string(name)
+    }
+    return taskScoped(.object(object), scope: scope)
+}
+
+/// POST /v1/tasks/bulk body. Pulled out of `TasksApi.bulk` so the exact shapes
+/// (the filter keys, the null that means unassign) are testable.
+func taskBulkBody(
+    action: String,
+    ids: [String]?,
+    filters: TaskListFilters?,
+    targetUserId: String?,
+    unassign: Bool,
+    priority: String? = nil,
+    tagId: String? = nil
+) -> JSONValue {
+    var body: [String: JSONValue] = ["action": .string(action)]
+    if let ids {
+        body["ids"] = .array(ids.map { .string($0) })
+    } else if let filters {
+        var filter: [String: JSONValue] = [:]
+        if let status = filters.status { filter["status"] = .string(status) }
+        if let assignee = filters.assignedUserId {
+            filter["assigned_user_id"] = .string(assignee)
+        }
+        if filters.unassigned { filter["unassigned"] = .bool(true) }
+        if filters.overdue { filter["overdue"] = .bool(true) }
+        if !filters.priority.isEmpty {
+            filter["priority"] = .array(filters.priority.map { .string($0) })
+        }
+        if let filterTag = filters.tagId { filter["tag_id"] = .string(filterTag) }
+        body["filter"] = .object(filter)
+    }
+    // Explicit null is meaningful (unassign), so it is only written when the
+    // caller says so rather than whenever the id is absent.
+    if let targetUserId {
+        body["target_user_id"] = .string(targetUserId)
+    } else if unassign {
+        body["target_user_id"] = .null
+    }
+    if let priority { body["priority"] = .string(priority) }
+    if let tagId { body["tag_id"] = .string(tagId) }
+    return .object(body)
 }
 
 /// #214: the structured `address` block for POST /v1/tasks and PATCH
@@ -154,6 +237,19 @@ struct TaskRowPatch: Codable, Sendable {
     var reminders_off: Bool? = nil
     var confirmed_at: String? = nil
     var confirmed_by: String? = nil
+    /// #693: carried on every mutation row, optional so an older server still
+    /// decodes. `merged()` keeps the detail's own when a row leaves them out.
+    var priority: String? = nil
+    var labels: [TaskLabel]? = nil
+    var series_id: String? = nil
+    var occurrence_no: Int? = nil
+    var `repeat`: TaskRepeatRule? = nil
+}
+
+/// POST /v1/tasks/:id/tags: the tag that was attached and the task's labels now.
+struct TaskTagAdded: Decodable, Sendable {
+    let tag: TaskLabel
+    var labels: [TaskLabel]? = nil
 }
 
 // MARK: - Mutations
@@ -191,25 +287,116 @@ struct TaskMutations: Sendable {
         try await api.patch("/v1/tasks/\(taskId)", body: body, companyId: companyId)
     }
 
-    func rename(companyId: String, taskId: String, title: String) async throws -> TaskRowPatch {
-        try await patch(companyId: companyId, taskId: taskId, body: taskRenameBody(title))
+    func rename(
+        companyId: String,
+        taskId: String,
+        title: String,
+        scope: String? = nil
+    ) async throws -> TaskRowPatch {
+        try await patch(
+            companyId: companyId,
+            taskId: taskId,
+            body: taskScoped(taskRenameBody(title), scope: scope)
+        )
     }
 
     func describe(
         companyId: String,
         taskId: String,
-        description: String
+        description: String,
+        scope: String? = nil
     ) async throws -> TaskRowPatch {
-        try await patch(companyId: companyId, taskId: taskId, body: taskDescribeBody(description))
+        try await patch(
+            companyId: companyId,
+            taskId: taskId,
+            body: taskScoped(taskDescribeBody(description), scope: scope)
+        )
     }
 
-    func assign(companyId: String, taskId: String, userId: String?) async throws -> TaskRowPatch {
-        try await patch(companyId: companyId, taskId: taskId, body: taskAssignBody(userId))
+    func assign(
+        companyId: String,
+        taskId: String,
+        userId: String?,
+        scope: String? = nil
+    ) async throws -> TaskRowPatch {
+        try await patch(
+            companyId: companyId,
+            taskId: taskId,
+            body: taskScoped(taskAssignBody(userId), scope: scope)
+        )
+    }
+
+    /// #693: how much this matters. On a repeating task `scope` says whether the
+    /// later ones follow.
+    func setPriority(
+        companyId: String,
+        taskId: String,
+        priority: TaskPriority,
+        scope: String? = nil
+    ) async throws -> TaskRowPatch {
+        try await patch(
+            companyId: companyId,
+            taskId: taskId,
+            body: taskScoped(taskPriorityBody(priority), scope: scope)
+        )
+    }
+
+    /// #693: set or change the repeat rule; nil stops it. Always applies to this
+    /// one and the future, so no scope.
+    func setRepeat(
+        companyId: String,
+        taskId: String,
+        rule: JSONValue?
+    ) async throws -> TaskRowPatch {
+        try await patch(companyId: companyId, taskId: taskId, body: taskRepeatPatchBody(rule))
+    }
+
+    /// #693: put a workspace tag on a task, by id or by a name that is created.
+    func addTag(
+        companyId: String,
+        taskId: String,
+        tagId: String?,
+        name: String?,
+        scope: String? = nil
+    ) async throws -> TaskTagAdded {
+        try await api.post(
+            "/v1/tasks/\(taskId)/tags",
+            body: taskTagAddBody(tagId: tagId, name: name, scope: scope),
+            companyId: companyId
+        )
+    }
+
+    func removeTag(
+        companyId: String,
+        taskId: String,
+        tagId: String,
+        scope: String? = nil
+    ) async throws {
+        _ = try await api.raw(
+            "DELETE",
+            "/v1/tasks/\(taskId)/tags/\(tagId)",
+            query: ["scope": scope],
+            companyId: companyId
+        )
+    }
+
+    /// The workspace's tag list, the same one conversations and contacts use.
+    func tags(companyId: String) async throws -> Page<Tag> {
+        try await api.get("/v1/tags", companyId: companyId)
     }
 
     /// `dueAt` must be ISO 8601 WITH offset (`encodeDueAt`); nil clears.
-    func setDue(companyId: String, taskId: String, dueAt: String?) async throws -> TaskRowPatch {
-        try await patch(companyId: companyId, taskId: taskId, body: taskDueBody(dueAt))
+    func setDue(
+        companyId: String,
+        taskId: String,
+        dueAt: String?,
+        scope: String? = nil
+    ) async throws -> TaskRowPatch {
+        try await patch(
+            companyId: companyId,
+            taskId: taskId,
+            body: taskScoped(taskDueBody(dueAt), scope: scope)
+        )
     }
 
     /// #237 — stop (or restart) this job's reminders.
@@ -237,12 +424,13 @@ struct TaskMutations: Sendable {
         companyId: String,
         taskId: String,
         fields: AddressFieldValues,
-        provenance: String
+        provenance: String,
+        scope: String? = nil
     ) async throws -> TaskRowPatch {
         try await patch(
             companyId: companyId,
             taskId: taskId,
-            body: taskAddressPatchBody(fields, provenance: provenance)
+            body: taskScoped(taskAddressPatchBody(fields, provenance: provenance), scope: scope)
         )
     }
 
@@ -295,7 +483,10 @@ struct TaskMutations: Sendable {
         dueAt: String?,
         address: JSONValue? = nil,
         conversationId: String?,
-        contactId: String?
+        contactId: String?,
+        priority: String? = nil,
+        labelIds: [String] = [],
+        repeatRule: JSONValue? = nil
     ) async throws -> TaskRowPatch {
         try await api.post(
             "/v1/tasks",
@@ -306,7 +497,10 @@ struct TaskMutations: Sendable {
                 dueAt: dueAt,
                 address: address,
                 contactId: conversationId == nil ? contactId : nil,
-                conversationId: conversationId
+                conversationId: conversationId,
+                priority: priority,
+                labelIds: labelIds,
+                repeatRule: repeatRule
             ),
             companyId: companyId
         )
@@ -329,8 +523,15 @@ struct TaskMutations: Sendable {
     }
 
     /// Soft-delete; creator or owner/admin only (403 otherwise).
-    func delete(companyId: String, taskId: String) async throws {
-        try await api.delete("/v1/tasks/\(taskId)", companyId: companyId)
+    /// #693: on a repeating task `scope` is "this" (skip this one) or "future"
+    /// (end the repeat and remove the later unfinished ones).
+    func delete(companyId: String, taskId: String, scope: String? = nil) async throws {
+        _ = try await api.raw(
+            "DELETE",
+            "/v1/tasks/\(taskId)",
+            query: ["scope": scope],
+            companyId: companyId
+        )
     }
 
     /// One page of a task's history and comments, newest page first (#689).

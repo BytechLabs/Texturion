@@ -230,6 +230,10 @@ private struct TimelineRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
+            // #693: a job that comes back is told apart from a one-off.
+            if entry.kind == "task" && timelineShowsRepeatIcon(entry.repeatRule) {
+                TaskRepeatMark()
+            }
             Text(timeLabel)
                 .font(.golos(11))
                 .foregroundStyle(BrandColor.muted500)

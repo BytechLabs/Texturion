@@ -114,6 +114,8 @@ struct TaskMapView: View {
     let unassignedChip: Bool
     let dueChip: DueChip?
     let q: String
+    /// #693: the priority and label filters. The sort means nothing on a map.
+    let meta: TaskMetaFilters
     let refreshKey: Int
     let onOpenTask: @MainActor (String) -> Void
 
@@ -127,6 +129,7 @@ struct TaskMapView: View {
             unassignedChip ? "u" : "",
             dueChip?.rawValue ?? "-",
             q,
+            meta.token,
             String(refreshKey),
             String(localRefresh),
         ].joined(separator: "|")
@@ -186,6 +189,9 @@ struct TaskMapView: View {
                         "due_after": dueFilters.dueAfter,
                         "overdue": dueFilters.overdue ? "true" : nil,
                         "q": query,
+                        "priority": meta.priority.isEmpty
+                            ? nil : meta.priority.joined(separator: ","),
+                        "tag_id": meta.tagId,
                         "cursor": cursor,
                         "limit": "100",
                     ],
@@ -426,6 +432,10 @@ private struct PinPeekCard: View {
                             .foregroundStyle(BrandColor.muted500)
                             .lineLimit(1)
                     }
+                    // #693: how much it matters, whether it repeats, its labels.
+                    if let single {
+                        TaskRowBadges(task: single)
+                    }
                 }
                 Spacer(minLength: 0)
                 Button(action: onDismiss) {
@@ -478,15 +488,19 @@ private struct PinPeekCard: View {
                     Button {
                         onOpenTask(task.id)
                     } label: {
-                        Text(task.title)
-                            .font(.golos(12.5, weight: .medium))
-                            .strikethrough(task.done)
-                            .foregroundStyle(task.done ? BrandColor.muted400 : BrandColor.ink)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 15)
-                            .padding(.vertical, 10)
-                            .contentShape(Rectangle())
+                        HStack(spacing: 8) {
+                            Text(task.title)
+                                .font(.golos(12.5, weight: .medium))
+                                .strikethrough(task.done)
+                                .foregroundStyle(task.done ? BrandColor.muted400 : BrandColor.ink)
+                                .lineLimit(1)
+                            TaskPriorityMark(priority: task.priorityValue)
+                            if taskShowsRepeatIcon(task.repeatRule) { TaskRepeatMark() }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }

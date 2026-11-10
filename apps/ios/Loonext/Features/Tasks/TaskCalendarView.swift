@@ -122,6 +122,9 @@ struct TaskCalendarView: View {
     let unassignedChip: Bool
     let dueChip: DueChip?
     let q: String
+    /// #693: the priority and label filters ride the fetch; the sort means
+    /// nothing on a month grid and is dropped.
+    let meta: TaskMetaFilters
     let refreshKey: Int
     let onOpenTask: @MainActor (String) -> Void
     let onToggleDone: @MainActor (TaskItem, Bool) -> Void
@@ -145,6 +148,9 @@ struct TaskCalendarView: View {
         taskCalendarBaseAssignee(tab: tab, assigneeChip: assigneeChip, unassignedChip: unassignedChip)
     }
     private var unassignedResolved: Bool { unassignedChip && assigneeChip == nil }
+    private var fetchMeta: TaskMetaFilters {
+        TaskMetaFilters(priority: meta.priority, tagId: meta.tagId, sort: nil)
+    }
     private var isCurrentMonth: Bool { calendar.isDate(month, equalTo: Date(), toGranularity: .month) }
 
     /// The status tab and due chip are client-side, so they are deliberately
@@ -152,7 +158,7 @@ struct TaskCalendarView: View {
     private var fetchToken: String {
         [
             companyId, monthKey, baseAssignee ?? "-", unassignedResolved ? "u" : "",
-            query ?? "", String(refreshKey), String(localRefresh),
+            query ?? "", fetchMeta.token, String(refreshKey), String(localRefresh),
         ].joined(separator: "|")
     }
 
@@ -567,14 +573,17 @@ struct TaskCalendarView: View {
             unassigned: unassignedResolved,
             dueBefore: isoOffsetString(endExclusive, timeZone: cal.timeZone),
             dueAfter: isoOffsetString(gridStart, timeZone: cal.timeZone),
-            q: query
+            q: query,
+            priority: fetchMeta.priority,
+            tagId: fetchMeta.tagId
         )
         let undatedArms = taskListArms(
             tab: tab == .all ? .all : .mine,
             assigneeUserId: assigneeChip,
             unassigned: unassignedChip,
             due: nil,
-            q: query
+            q: query,
+            meta: fetchMeta
         )
         let api = graph.tasksApi
         let company = companyId
@@ -674,6 +683,8 @@ private struct CalendarTaskRow: View {
                             : AnyShapeStyle(BrandColor.muted400)
                     )
                 }
+                // #693: priority, repeat and labels, only when there is any.
+                TaskRowBadges(task: task)
             }
             Spacer(minLength: 0)
             if let assigneeName {
