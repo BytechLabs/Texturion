@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.0](https://github.com/BytechLabs/Texturion/compare/android-v0.18.0...android-v0.19.0) (2026-11-10)
+
+
+### Features
+
+* **android:** add a task from the Tasks tab, a contact or a conversation ([0d4d8e8](https://github.com/BytechLabs/Texturion/commit/0d4d8e885f4e458b1d8a2db1423cd5dfda4b2414))
+* **android:** customers get tags and a way to undo a merge ([e8103ce](https://github.com/BytechLabs/Texturion/commit/e8103ce0a6733f1a7447882f6b12d1b417914a7f))
+
 ## [0.18.0](https://github.com/BytechLabs/Texturion/compare/android-v0.17.4...android-v0.18.0) (2026-11-10)
 
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.22.0](https://github.com/BytechLabs/Texturion/compare/web-v0.21.0...web-v0.22.0) (2026-11-10)
+
+
+### Features
+
+* **web:** add a task from anywhere with New task ([03ebe02](https://github.com/BytechLabs/Texturion/commit/03ebe02b218410ad9fcf87460e127b6f00f7b4d2))
+* **web:** customers get tags, bulk actions and an unmerge ([b3e48f1](https://github.com/BytechLabs/Texturion/commit/b3e48f163b75aaa455875f5ae1f376636f073635))
+
+
+### Bug Fixes
+
+* **web:** a new task saved before your profile loads is still yours ([80800f3](https://github.com/BytechLabs/Texturion/commit/80800f3a84c58943b3ae734ae5bb99ded68706d5))
+* **web:** the undo toast says Undo in the reader's language ([60b2faf](https://github.com/BytechLabs/Texturion/commit/60b2faf64ad913717d3113e9b582cee395d15a69))
+
 ## [0.21.0](https://github.com/BytechLabs/Texturion/compare/web-v0.20.2...web-v0.21.0) (2026-11-10)
 
 
