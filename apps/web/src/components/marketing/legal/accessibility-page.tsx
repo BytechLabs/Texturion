@@ -108,7 +108,7 @@ export function AccessibilityPageBody({
       title={copy.title}
       summary={copy.summary}
       lastUpdated={copy.lastUpdated}
-      lastUpdatedIso="2026-11-07"
+      lastUpdatedIso="2026-11-10"
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? FR_PATH : EN_PATH}
       sections={sections}

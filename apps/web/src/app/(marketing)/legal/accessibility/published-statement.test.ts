@@ -118,9 +118,9 @@ describe("#238 the accessibility statement is published", () => {
   });
 
   it("dates the page to the evidence change and keeps the native protocol visible", () => {
-    expect(doc).toContain("**Last verified:** 2026-11-07");
-    expect(page).toContain('lastUpdatedIso="2026-11-07"');
-    expect(catalogue).toContain('lastUpdated: "November 7, 2026"');
+    expect(doc).toContain("**Last verified:** 2026-11-10");
+    expect(page).toContain('lastUpdatedIso="2026-11-10"');
+    expect(catalogue).toContain('lastUpdated: "November 10, 2026"');
     expect(doc).toContain("### Native manual evidence required for closure");
     expect(doc).toContain("physical device model");
     expect(doc).toContain("do not count as the TalkBack or VoiceOver pass");

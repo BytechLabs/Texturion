@@ -7,7 +7,7 @@ it is maintained by hand — but every row names a test, and
 
 **Standard:** WCAG 2.2 Level AA
 **Applies to:** the Loonext web application, and the Android and iOS apps where stated
-**Last verified:** 2026-11-07
+**Last verified:** 2026-11-10
 **Basis:** `docs/APP-LAYOUT-V2.md` §7 (the canonical product contract)
 
 This document exists to be handed to a buyer who asks (#285). Everything in it
@@ -93,6 +93,7 @@ TalkBack or VoiceOver pass into evidence. What we can state factually today:
 | Large-text render coverage | **Yes** — `AccessibilityAuditTest` runs every primary-flow surface (sign in, sign up, reset, inbox, thread, composer, ringing, in-call, tasks, settings) at 100% and at Android's largest 200%, writes each 200% surface to `build/screenshots/a11y-*-fontscale2.png`, and fails on clipped text, a control off the screen or squeezed to nothing, and every other audit check at that size; `DashboardScreenshotTest` covers `LeadSourcesCard` at 200% | **Partial** — `DashboardScreenshotTests.testRepresentativeDashboardInBothThemesAndTextSizes` renders the full For You dashboard in both themes at `.accessibility5`, keeps paginated PNG attachments, and asserts that the large-text layout materially grows; it is not a primary-flow pass |
 | Text sizes are declared in a scaling unit | **Yes**, and enforced — `scripts/check-native-a11y.mjs` | **Yes**, and enforced — `scripts/check-native-a11y.mjs` |
 | In-app language attached to native accessibility content | **Yes, mechanically** — the Compose accessibility provider adds the resolved locale as `LocaleSpan` metadata while preserving node semantics and explicit per-content language spans; `AccessibilityLanguageTest` | **Yes, mechanically** — the app root publishes the resolved locale through SwiftUI's native `locale` environment above the lock gate; `AccessibilityLanguageTests` |
+| A screen reader speaking the flows | **Once, on an emulator** — TalkBack 16 on the rig's Pixel 8 AVD, 2026-11-10: [`docs/accessibility-runs/2026-11-10-android-talkback-emulator.md`](accessibility-runs/2026-11-10-android-talkback-emulator.md). Sign in, the tab bar, the inbox and a row, a thread and its composer, the task list and settings were heard; ringing, in-call, sign up, bulk selection and task detail were not reached. Eleven defects were found and fixed. Not a physical-device pass | **No** — VoiceOver has not been run |
 | The primary flows through the platform's own accessibility checks | **Yes, mechanically** — `apps/android/app/src/test/kotlin/com/loonext/android/a11y/AccessibilityAuditTest.kt` (details below) | **Yes, mechanically** — `apps/ios/LoonextUITests/AccessibilityAuditUITests.swift` runs `performAccessibilityAudit()` (details below) |
 
 ### What the automated audits cover, and what they are not
@@ -160,12 +161,20 @@ answering a call, completing a task, and the rest of the audit's surfaces) at
 200%; iOS covers the For You dashboard at `.accessibility5` in both themes and
 re-audits its flows at the largest size, but renders no primary flow.
 
-**No TalkBack or VoiceOver pass has been performed**, on any flow. Nobody has
-sat down with either screen reader and worked through sending a message,
-answering a call, or completing a job. Until that happens, the correct answer
-to "do the phone apps work with a screen reader" is *we do not know* — and the
-labelling scan above is evidence that the groundwork is there, not evidence
-that the flows work.
+**No TalkBack or VoiceOver pass has been performed on a physical device**, on
+any flow, and VoiceOver has not been run at all. On 2026-11-10 TalkBack was
+driven through most of the Android flows on an emulator
+([record](accessibility-runs/2026-11-10-android-talkback-emulator.md)). It found
+eleven defects that the mechanical audit could not (controls announced without a
+role, choices that did not say which one was on, an inbox row whose actions
+were never offered, a failed send that made no sound), and they are fixed. It
+did not reach ringing, in-call, sign up, bulk selection or task detail, did not
+run French or large text, and was not a person using a screen reader. Nobody has
+yet sat down with either screen reader on a phone and worked through sending a
+message, answering a call, or completing a job. Until that happens, the correct
+answer to "do the phone apps work with a screen reader" is *better evidenced on
+Android, and still not known on a phone in a hand* — and for iOS, *we do not
+know*.
 
 **iOS now has a large-text visual render for the For You dashboard.** Since
 `5abac13d`, the iOS simulator renders it at `.accessibility5` in light and dark
@@ -197,7 +206,8 @@ A native pass is evidence only when its record contains all of the following:
    `docs/accessibility-runs/YYYY-MM-DD-<client>.md` so the result names the build
    it actually tested.
 
-No record matching this protocol exists yet.
+No record matching this protocol exists yet. The one record that exists is an
+emulator pass, which the first item above says does not count.
 
 ---
 
@@ -208,7 +218,9 @@ believing the rest of the document.
 
 - **No third-party audit** has been carried out. Everything here is
   first-party, which is exactly why each claim names the test behind it.
-- **Native screen-reader flows are untested end to end.** Every icon-only
+- **Native screen-reader flows are untested end to end.** The Android emulator
+  pass of 2026-11-10 reached most flows (see the record) and not ringing, in-call,
+  sign up, bulk selection or task detail; iOS has no pass. Every icon-only
   control now has a name and a build fails if one loses it, and each phone's
   primary flows run through the platform's accessibility audit on every build —
   but a name is necessary and nowhere near sufficient, and an audit does not

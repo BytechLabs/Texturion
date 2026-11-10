@@ -8,7 +8,7 @@ export const legalAccessibilityEn = {
     "What Loonext verifies about accessibility and what it does not: WCAG 2.2 AA criteria enforced by named tests, the gaps stated plainly, and no third-party audit claimed.",
   title: "Accessibility conformance statement",
   breadcrumbLabel: "Accessibility",
-  lastUpdated: "November 7, 2026",
+  lastUpdated: "November 10, 2026",
   summary:
     "We target WCAG 2.2 Level AA. Everything on this page is either enforced by a named test that fails our build, or listed as not verified — there is no third category, and nothing is claimed here because it is probably true. No third-party audit has been carried out, which is exactly why each claim names the check behind it.",
   sectionAsking: "What a buyer is usually asking",
@@ -35,14 +35,15 @@ export const legalAccessibilityEn = {
   columnHolds: "What holds",
   columnEnforcedBy: "Enforced by",
   notVerifiedOne:
-    "**No TalkBack or VoiceOver pass has been performed**, on any flow, on either phone app. Every icon-only control has an accessible name and a build fails if one loses it — but a name is necessary and nowhere near sufficient. Reading order, whether a live region speaks at the right moment, whether a custom control exposes the right role and state, and whether a whole task can be driven by a screen reader all need a person with a phone. None of that is claimed here.",
+    "**No TalkBack or VoiceOver pass has been performed on a physical device**, on any flow, on either phone app, and VoiceOver has not been run at all. On November 10, 2026 TalkBack was driven through most of the Android flows on an emulator; it found eleven defects that the automated audit could not (controls announced without a role, choices that did not say which one was on, a failed send that made no sound) and they are fixed. It did not reach ringing, in-call, sign up, bulk selection or task detail, did not run French or large text, and was not a person using a screen reader. Every icon-only control has an accessible name and a build fails if one loses it, but whether a whole task can be driven by a screen reader on a phone in somebody's hand is not claimed here.",
   notVerifiedTwo:
     "**Text scaling** is enforced as a mechanism on both phones. On Android, every build renders the send-message, answer-call, and complete-task flows at 200% and fails on text cut off or a control pushed off the screen. iOS renders the full For You dashboard in both themes at its largest accessibility text size and checks its flows at that size for hit regions and unreadable elements, but does not render them.",
   gapsIntro:
     "Stated plainly, because a buyer who finds one of these themselves stops believing the rest of the page.",
   gapAudit:
     "**No third-party audit** has been carried out. Everything here is first-party, which is why each claim names the check behind it.",
-  gapScreenReader: "Native screen-reader flows are untested end to end, as above.",
+  gapScreenReader:
+    "Native screen-reader flows are untested end to end, as above: Android has one emulator pass that did not reach every flow, and iOS has none.",
   gapIos:
     "Large-text render coverage is complete on Android only: it renders the three primary native flows at 200%. iOS renders the For You dashboard, not the three flows.",
   gapLocale:
@@ -57,7 +58,7 @@ export const legalAccessibilityFr: Translated<typeof legalAccessibilityEn> = {
     "Ce que Loonext vérifie en matière d'accessibilité et ce qu'il ne vérifie pas : les critères WCAG 2.2 AA protégés par des tests nommés, les lacunes indiquées clairement et aucune prétention d'audit indépendant.",
   title: "Déclaration de conformité en matière d'accessibilité",
   breadcrumbLabel: "Accessibilité",
-  lastUpdated: "7 novembre 2026",
+  lastUpdated: "10 novembre 2026",
   summary:
     "Nous visons le niveau AA des WCAG 2.2. Chaque élément de cette page est soit protégé par un test nommé qui fait échouer notre compilation, soit indiqué comme non vérifié; il n'existe aucune troisième catégorie et nous ne prétendons rien simplement parce que c'est probablement vrai. Aucun audit indépendant n'a été effectué, et c'est précisément pourquoi chaque affirmation nomme la vérification qui l'appuie.",
   sectionAsking: "Ce qu'un acheteur cherche habituellement à savoir",
@@ -85,7 +86,7 @@ export const legalAccessibilityFr: Translated<typeof legalAccessibilityEn> = {
   columnHolds: "Ce qui est assuré",
   columnEnforcedBy: "Appliqué par",
   notVerifiedOne:
-    "**Aucun parcours avec TalkBack ou VoiceOver n'a été effectué**, pour aucun flux et dans aucune des applications mobiles. Chaque commande composée uniquement d'une icône a un nom accessible, et une compilation échoue si elle le perd; un nom est toutefois nécessaire et loin d'être suffisant. L'ordre de lecture, l'annonce d'une région dynamique au bon moment, l'exposition du bon rôle et du bon état par une commande personnalisée, et la possibilité d'effectuer une tâche complète avec un lecteur d'écran exigent une personne et un téléphone. Nous ne prétendons rien de tel ici.",
+    "**Aucun parcours avec TalkBack ou VoiceOver n'a été effectué sur un appareil physique**, pour aucun flux et dans aucune des applications mobiles, et VoiceOver n'a pas été utilisé du tout. Le 10 novembre 2026, TalkBack a parcouru la plupart des flux Android sur un émulateur; il a relevé onze défauts que l'audit automatisé ne pouvait pas voir (des commandes annoncées sans rôle, des choix qui ne disaient pas lequel était actif, un envoi échoué sans aucun son), et ils sont corrigés. Il n'a pas atteint la sonnerie, l'appel en cours, la création de compte, la sélection multiple ni le détail d'une tâche, n'a pas couvert le français ni le texte agrandi, et ce n'était pas une personne utilisant un lecteur d'écran. Chaque commande composée uniquement d'une icône a un nom accessible, et une compilation échoue si elle le perd; mais la possibilité d'effectuer une tâche complète avec un lecteur d'écran sur un téléphone, entre les mains de quelqu'un, n'est pas affirmée ici.",
   notVerifiedTwo:
     "**La mise à l'échelle du texte** est imposée comme mécanisme sur les deux téléphones. Sur Android, chaque compilation rend les parcours d'envoi d'un message, de réponse à un appel et d'achèvement d'une tâche à 200 % et échoue si un texte est coupé ou si une commande sort de l'écran. iOS rend le tableau de bord Pour vous complet, dans les deux thèmes, à sa plus grande taille de texte d'accessibilité et vérifie ses parcours à cette taille pour les zones de toucher et les éléments illisibles, sans les rendre.",
   gapsIntro:
@@ -93,7 +94,7 @@ export const legalAccessibilityFr: Translated<typeof legalAccessibilityEn> = {
   gapAudit:
     "**Aucun audit indépendant** n'a été effectué. Toutes les vérifications sont internes, raison pour laquelle chaque affirmation nomme le test qui l'appuie.",
   gapScreenReader:
-    "Les parcours natifs avec un lecteur d'écran n'ont pas été testés de bout en bout, comme indiqué ci-dessus.",
+    "Les parcours natifs avec un lecteur d'écran n'ont pas été testés de bout en bout, comme indiqué ci-dessus : Android a un seul parcours sur émulateur qui n'a pas atteint tous les flux, et iOS n'en a aucun.",
   gapIos:
     "La couverture du rendu avec du texte agrandi n'est complète que sur Android : il rend les trois principaux parcours natifs à 200 %. iOS rend le tableau de bord Pour vous, pas les trois parcours.",
   gapLocale:
