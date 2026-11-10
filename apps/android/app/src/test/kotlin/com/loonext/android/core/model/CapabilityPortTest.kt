@@ -45,6 +45,38 @@ class CapabilityPortTest {
     }
 
     @Test
+    fun `only owners and admins can delete records`() {
+        // #691: deleting is its own permission, off for everyone who writes
+        // but does not run the workspace.
+        for (role in listOf(MemberRole.OWNER, MemberRole.ADMIN)) {
+            assertTrue("$role should hold records.delete", canDeleteRecords(role))
+        }
+        for (role in listOf(MemberRole.MEMBER, MemberRole.READ_ONLY, MemberRole.BOOKKEEPER)) {
+            assertFalse("$role should not hold records.delete", canDeleteRecords(role))
+        }
+        assertFalse(canDeleteRecords(null))
+        assertFalse(canDeleteRecords("auditor"))
+    }
+
+    @Test
+    fun `only a text the carrier took leaves a copy with the customer`() {
+        fun msg(direction: String, status: String?) = Message(
+            id = "m1",
+            conversation_id = "cv1",
+            direction = direction,
+            body = "On my way",
+            status = status,
+            created_at = "2026-11-10T12:00:00Z",
+        )
+        assertTrue(msg(MessageDirection.OUTBOUND, MessageStatus.SENT).customerStillHasCopy)
+        assertTrue(msg(MessageDirection.OUTBOUND, MessageStatus.DELIVERED).customerStillHasCopy)
+        assertFalse(msg(MessageDirection.OUTBOUND, MessageStatus.QUEUED).customerStillHasCopy)
+        assertFalse(msg(MessageDirection.OUTBOUND, MessageStatus.FAILED).customerStillHasCopy)
+        assertFalse(msg(MessageDirection.INBOUND, MessageStatus.RECEIVED).customerStillHasCopy)
+        assertFalse(msg(MessageDirection.NOTE, null).customerStillHasCopy)
+    }
+
+    @Test
     fun `an unknown role holds nothing`() {
         // Fail-closed, so a build that has not heard of a newer preset refuses
         // rather than guesses.
@@ -67,6 +99,7 @@ class CapabilityPortTest {
             Capability.TEAM_MANAGE,
             Capability.NUMBERS_MANAGE,
             Capability.HISTORY_READ,
+            Capability.RECORDS_DELETE,
         )
         assertTrue(
             "Capability.ALL is missing ${declared - Capability.ALL}",

@@ -607,6 +607,7 @@ object DomainStrings : AppStrings.Section {
         "domain.capNumbers" to "phone numbers",
         "domain.capHistory" to "the history log",
         "domain.capContactsBulk" to "importing and exporting customers",
+        "domain.capRecordsDelete" to "deleting messages, conversations, calls and customers",
         "domain.selfDowngradeSomeOfWhat" to "some of what you can do now",
         "domain.selfDowngradeListPair" to "{first} and {last}",
         "domain.selfDowngradeMore" to "{list}, and {count} more",
@@ -1166,6 +1167,7 @@ object DomainStrings : AppStrings.Section {
         "domain.capNumbers" to "les numéros de téléphone",
         "domain.capHistory" to "le journal d'historique",
         "domain.capContactsBulk" to "l'importation et l'exportation des clients",
+        "domain.capRecordsDelete" to "la suppression des messages, conversations, appels et clients",
         "domain.selfDowngradeSomeOfWhat" to
             "une partie de ce que vous pouvez faire actuellement",
         "domain.selfDowngradeListPair" to "{first} et {last}",

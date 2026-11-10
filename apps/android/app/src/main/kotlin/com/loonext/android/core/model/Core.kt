@@ -82,6 +82,7 @@ object MemberRole {
             Capability.TEAM_MANAGE,
             Capability.NUMBERS_MANAGE,
             Capability.HISTORY_READ,
+            Capability.RECORDS_DELETE,
         ),
         OWNER to Capability.ALL,
     )
@@ -132,6 +133,9 @@ object Capability {
     const val NUMBERS_MANAGE = "numbers.manage"
     const val HISTORY_READ = "history.read"
 
+    /** Delete a message, conversation, call, voicemail or contact, and run the Trash (#691). */
+    const val RECORDS_DELETE = "records.delete"
+
     /** Everything — the owner's set, and the list a test can iterate. */
     val ALL = setOf(
         WORKSPACE_ACCESS,
@@ -143,6 +147,7 @@ object Capability {
         TEAM_MANAGE,
         NUMBERS_MANAGE,
         HISTORY_READ,
+        RECORDS_DELETE,
     )
 }
 

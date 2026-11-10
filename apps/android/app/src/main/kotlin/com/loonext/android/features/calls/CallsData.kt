@@ -28,6 +28,9 @@ data class VoicemailPlayback(
 
 /** The calls tab's typed /v1 reads (log, voicemail, teammate names). */
 class CallsRepository(private val api: ApiClient) {
+    /** #691: delete a call or its voicemail to the Trash, and restore (Undo). */
+    val deletion = com.loonext.android.core.data.RecordDeletionRepository(api)
+
     /** Company call log, newest first, cursor-paged, #106-filtered in SQL. */
     suspend fun calls(
         companyId: String,

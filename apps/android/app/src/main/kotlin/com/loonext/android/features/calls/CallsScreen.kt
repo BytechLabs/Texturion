@@ -26,7 +26,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Message
 import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Dialpad
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PhoneCallback
 import androidx.compose.material.icons.outlined.PhoneForwarded
@@ -36,6 +38,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -59,6 +65,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -75,6 +82,7 @@ import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.features.tasks.CallTaskButton
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.canDeleteRecords
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
@@ -94,6 +102,7 @@ import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneStatus
 import com.loonext.android.ui.common.AiOrb
 import com.loonext.android.ui.common.AiOrbState
+import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.InitialsAvatar
@@ -322,6 +331,72 @@ fun CallsScreen(
     }.collectAsStateWithLifecycle()
     val textBackOn = (settingsCompany ?: me.company)?.mctb_enabled == true
 
+    // #691: delete a call, or just its voicemail, to the Trash. Both are
+    // restorable, so the guard is an Undo rather than a confirmation. The
+    // controls are absent without records.delete.
+    val canDelete = canDeleteRecords(
+        me.memberships.firstOrNull { it.company_id == companyId }?.role,
+    )
+    var deleteFor by remember { mutableStateOf<Call?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+    fun editLogs(edit: (List<Call>) -> List<Call>) {
+        CallsFilter.entries.forEach { f ->
+            val key = CacheKeys.calls(companyId, f.filterKey)
+            val cached = graph.storeCache.flowOf<CallsLog>(key).value ?: return@forEach
+            graph.storeCache.put(key, cached.copy(calls = edit(cached.calls)))
+        }
+    }
+    fun say(text: String, undoLabel: String? = null, undo: (() -> Unit)? = null) {
+        scope.launch {
+            val result = snackbar.showSnackbar(
+                message = text,
+                actionLabel = undoLabel,
+                duration = if (undoLabel != null) SnackbarDuration.Long else SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) undo?.invoke()
+        }
+    }
+    fun restore(call: Call, voicemail: Boolean) {
+        scope.launch {
+            try {
+                if (voicemail) {
+                    repo.deletion.restoreVoicemail(companyId, call.id)
+                    editLogs { logs -> logs.map { if (it.id == call.id) call else it } }
+                } else {
+                    repo.deletion.restoreCall(companyId, call.id)
+                    editLogs { logs -> reinsertCall(logs, call) }
+                }
+                refreshKey++
+            } catch (cause: Exception) {
+                say(AppStrings.translate(logLocale, "contactsTasks.deleteRestoreFailed", emptyMap()))
+            }
+        }
+    }
+    fun delete(call: Call, voicemail: Boolean) {
+        scope.launch {
+            try {
+                if (voicemail) {
+                    repo.deletion.deleteVoicemail(companyId, call.id)
+                    editLogs { logs -> withoutVoicemail(logs, call.id) }
+                } else {
+                    repo.deletion.deleteCall(companyId, call.id)
+                    editLogs { logs -> withoutCall(logs, call.id) }
+                }
+                refreshKey++
+                say(
+                    AppStrings.translate(
+                        logLocale,
+                        if (voicemail) "contactsTasks.voicemailDeleted" else "contactsTasks.callDeleted",
+                        emptyMap(),
+                    ),
+                    undoLabel = AppStrings.translate(logLocale, "contactsTasks.deleteUndo", emptyMap()),
+                ) { restore(call, voicemail) }
+            } catch (cause: Exception) {
+                say(cause.userMessage(logLocale))
+            }
+        }
+    }
+
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             run {
@@ -476,6 +551,11 @@ fun CallsScreen(
                                                     onOpen = call.conversation_id?.let { id ->
                                                         { openConversation(id) }
                                                     },
+                                                    onMore = if (canDelete) {
+                                                        { deleteFor = call }
+                                                    } else {
+                                                        null
+                                                    },
                                                     onDialBack = call.caller_e164
                                                         ?.takeIf { it.isNotBlank() }
                                                         ?.let { number ->
@@ -606,6 +686,30 @@ fun CallsScreen(
                     contentDescription = t("contactsTasks.dialANumber"),
                     modifier = Modifier.size(19.dp),
                 )
+            }
+        }
+        // #691: the Undo for a delete rides here, clear of the dial button.
+        SnackbarHost(
+            snackbar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 72.dp),
+        )
+    }
+
+    deleteFor?.let { call ->
+        AppSheet(onDismissRequest = { deleteFor = null }) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+                if (call.outcome == CallOutcome.VOICEMAIL && (call.voicemail_seconds ?: 0) > 0) {
+                    DeleteSheetRow(t("contactsTasks.deleteVoicemail")) {
+                        deleteFor = null
+                        delete(call, voicemail = true)
+                    }
+                }
+                DeleteSheetRow(t("contactsTasks.deleteCall")) {
+                    deleteFor = null
+                    delete(call, voicemail = false)
+                }
             }
         }
     }
@@ -911,6 +1015,8 @@ private fun CallRow(
     repo: CallsRepository,
     companyId: String,
     onOpen: (() -> Unit)?,
+    /** #691: opens the delete sheet; null when the member lacks records.delete. */
+    onMore: (() -> Unit)? = null,
     onDialBack: (() -> Unit)?,
     /** D64: "Make a task", offered on an answered call that has a conversation. */
     makeTask: (@Composable () -> Unit)? = null,
@@ -1061,6 +1167,25 @@ private fun CallRow(
                     softWrap = false,
                 )
                 makeTask?.invoke()
+                if (onMore != null) {
+                    Box(
+                        Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onMore),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Outlined.MoreHoriz,
+                            contentDescription = t(
+                                "contactsTasks.callMoreActions",
+                                "name" to name,
+                            ),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
                 if (onDialBack != null) {
                     val dialBackInteraction = remember { MutableInteractionSource() }
                     Surface(
@@ -1489,5 +1614,30 @@ private fun CallLogSkeleton(modifier: Modifier = Modifier) {
         PaperCard(Modifier.fillMaxWidth()) {
             SkeletonList(rows = 4)
         }
+    }
+}
+
+/** #691: one destructive row in the call delete sheet. */
+@Composable
+private fun DeleteSheetRow(label: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Outlined.Delete,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+            color = MaterialTheme.colorScheme.error,
+        )
     }
 }

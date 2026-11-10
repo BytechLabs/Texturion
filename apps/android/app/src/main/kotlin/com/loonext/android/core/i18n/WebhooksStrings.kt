@@ -125,6 +125,9 @@ object WebhooksStrings : AppStrings.Section {
         "webhooks.event.taskCreated" to "A job is added",
         "webhooks.event.taskCompleted" to "A job is finished",
         "webhooks.event.contactCreated" to "A new customer is added",
+        "webhooks.event.messageDeleted" to "A message is deleted",
+        "webhooks.event.conversationDeleted" to "A conversation is deleted",
+        "webhooks.event.callDeleted" to "A call or voicemail is deleted",
 
         "webhooks.urlError.notAUrl" to "That doesn't look like a web address.",
         "webhooks.urlError.notHttps" to
@@ -252,6 +255,9 @@ object WebhooksStrings : AppStrings.Section {
         "webhooks.event.taskCreated" to "Une tâche est ajoutée",
         "webhooks.event.taskCompleted" to "Une tâche est terminée",
         "webhooks.event.contactCreated" to "Un nouveau client est ajouté",
+        "webhooks.event.messageDeleted" to "Un message est supprimé",
+        "webhooks.event.conversationDeleted" to "Une conversation est supprimée",
+        "webhooks.event.callDeleted" to "Un appel ou un message vocal est supprimé",
 
         "webhooks.urlError.notAUrl" to "Ça ne ressemble pas à une adresse web.",
         "webhooks.urlError.notHttps" to

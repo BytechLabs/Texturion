@@ -328,3 +328,31 @@ fun formatAsYouDial(raw: String): String {
         else -> "(${national.take(3)}) ${national.substring(3, 6)}-${national.drop(6)}"
     }
 }
+
+/** #691: the log without a deleted call. */
+internal fun withoutCall(calls: List<Call>, callId: String): List<Call> =
+    calls.filterNot { it.id == callId }
+
+/**
+ * #691: a call whose voicemail went to the Trash. The call stays in the log;
+ * the recording, its length, its words and what was pulled from them do not.
+ */
+internal fun withoutVoicemail(call: Call): Call = call.copy(
+    voicemail_seconds = null,
+    voicemail_transcript = null,
+    voicemail_intake = null,
+)
+
+internal fun withoutVoicemail(calls: List<Call>, callId: String): List<Call> =
+    calls.map { if (it.id == callId) withoutVoicemail(it) else it }
+
+/**
+ * #691: Undo puts the call back where its start time belongs, newest first,
+ * so a restore from deep in the log does not wait for the next full read.
+ */
+internal fun reinsertCall(calls: List<Call>, call: Call): List<Call> =
+    if (calls.any { it.id == call.id }) {
+        calls.map { if (it.id == call.id) call else it }
+    } else {
+        (calls + call).sortedByDescending { it.started_at }
+    }

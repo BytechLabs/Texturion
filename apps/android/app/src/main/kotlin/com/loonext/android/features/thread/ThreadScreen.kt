@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
@@ -126,6 +127,8 @@ import com.loonext.android.core.compose.OnMyWay
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageLocale
+import com.loonext.android.core.model.canDeleteRecords
+import com.loonext.android.core.model.customerStillHasCopy
 import com.loonext.android.core.model.shouldOfferThreadSummaryFor
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.isConversationFlaggedUrgent
@@ -325,7 +328,30 @@ fun ThreadScreen(
             }
 
             is LoadState.Ready ->
-                if (galleryOpen) {
+                if (controller.conversationDeleted) {
+                    Column(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                    ) {
+                        Text(
+                            t("thread.conversationDeleted"),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            t("thread.conversationDeletedHint"),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 6.dp, bottom = 10.dp),
+                        )
+                        TextButton(onClick = { controller.restoreConversation() }) {
+                            Text(t("thread.undo"))
+                        }
+                        TextButton(onClick = onBack) { Text(t("thread.backToInbox")) }
+                    }
+                } else if (galleryOpen) {
                     AttachmentsGalleryScreen(
                         repo = repo,
                         cache = graph.storeCache,
@@ -618,6 +644,11 @@ private fun ThreadLoaded(
     }
 
     var actionsFor by remember { mutableStateOf<Message?>(null) }
+    // #691: a sent text is the one message whose delete needs a sentence first.
+    var confirmDeleteText by remember { mutableStateOf<Message?>(null) }
+    val canDelete = canDeleteRecords(
+        me.memberships.firstOrNull { it.company_id == companyId }?.role,
+    )
     var makeTaskFor by remember { mutableStateOf<Message?>(null) }
 
     // #520: is there a job on this thread due TODAY? Asked here rather than in
@@ -653,6 +684,7 @@ private fun ThreadLoaded(
             phoneLabel = formatPhone(detail.contact.phone_e164),
             members = controller.members,
             meUserId = me.user_id,
+            canDelete = canDelete,
             onBack = onBack,
             calling = placingCall,
             onCall = {
@@ -1319,7 +1351,41 @@ private fun ThreadLoaded(
                 makeTaskFor = message
             },
             onCopied = { onNotice(copiedCopy) },
+            onDelete = if (canDelete) {
+                {
+                    actionsFor = null
+                    if (message.customerStillHasCopy) {
+                        confirmDeleteText = message
+                    } else {
+                        controller.deleteMessage(message)
+                    }
+                }
+            } else {
+                null
+            },
             onDismiss = { actionsFor = null },
+        )
+    }
+    confirmDeleteText?.let { message ->
+        AlertDialog(
+            onDismissRequest = { confirmDeleteText = null },
+            title = { Text(t("thread.deleteTextTitle")) },
+            text = { Text(t("thread.deleteTextBody", "name" to contactName)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    haptics.reject()
+                    confirmDeleteText = null
+                    controller.deleteMessage(message)
+                }) {
+                    Text(
+                        t("thread.deleteConfirm"),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteText = null }) { Text(t("common.cancel")) }
+            },
         )
     }
     makeTaskFor?.let { message ->
@@ -1505,6 +1571,7 @@ private fun ThreadHeader(
     phoneLabel: String,
     members: List<Member>,
     meUserId: String,
+    canDelete: Boolean,
     onBack: () -> Unit,
     calling: Boolean,
     onCall: () -> Unit,
@@ -1523,6 +1590,7 @@ private fun ThreadHeader(
     var confirmOptOut by remember { mutableStateOf(false) }
     var confirmBlock by remember { mutableStateOf(false) }
     var confirmRevoke by remember { mutableStateOf(false) }
+    var confirmDeleteConversation by remember { mutableStateOf(false) }
 
     // Paper pill header (spec 21/30): back · avatar · name + status line ·
     // ink call circle · overflow dots.
@@ -1778,6 +1846,14 @@ private fun ThreadHeader(
                 menuOpen = false
                 confirmBlock = true
             },
+            onDeleteConversation = if (canDelete) {
+                {
+                    menuOpen = false
+                    confirmDeleteConversation = true
+                }
+            } else {
+                null
+            },
             onDismiss = { menuOpen = false },
         )
     }
@@ -1829,6 +1905,30 @@ private fun ThreadHeader(
             },
             dismissButton = {
                 TextButton(onClick = { confirmBlock = false }) { Text(t("common.cancel")) }
+            },
+        )
+    }
+    if (confirmDeleteConversation) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteConversation = false },
+            title = { Text(t("thread.deleteConversationTitle")) },
+            text = { Text(t("thread.deleteConversationBody", "name" to contactName)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    haptics.reject()
+                    confirmDeleteConversation = false
+                    controller.deleteConversation()
+                }) {
+                    Text(
+                        t("thread.deleteConfirm"),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteConversation = false }) {
+                    Text(t("common.cancel"))
+                }
             },
         )
     }
@@ -2135,6 +2235,8 @@ private fun ConversationSheet(
     onOptOut: () -> Unit,
     onRevokeOptOut: () -> Unit,
     onBlock: () -> Unit,
+    /** #691: null when the member lacks records.delete. */
+    onDeleteConversation: (() -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     val contactName = controller.contact?.name
@@ -2347,6 +2449,15 @@ private fun ConversationSheet(
                             onClick = onOptOut,
                         )
                     }
+                    if (onDeleteConversation != null) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        SheetActionRow(
+                            icon = Icons.Outlined.Delete,
+                            label = t("thread.deleteConversation"),
+                            destructive = true,
+                            onClick = onDeleteConversation,
+                        )
+                    }
                 }
             }
 
@@ -2418,7 +2529,12 @@ private fun SheetNote(text: String) {
 }
 
 @Composable
-private fun SheetActionRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun SheetActionRow(
+    icon: ImageVector,
+    label: String,
+    destructive: Boolean = false,
+    onClick: () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -2432,7 +2548,11 @@ private fun SheetActionRow(icon: ImageVector, label: String, onClick: () -> Unit
         Icon(
             icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = if (destructive) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
             modifier = Modifier.size(18.dp),
         )
         Spacer(Modifier.width(13.dp))
@@ -2442,6 +2562,7 @@ private fun SheetActionRow(icon: ImageVector, label: String, onClick: () -> Unit
                 fontSize = 13.5.sp,
                 fontWeight = FontWeight.Medium,
             ),
+            color = if (destructive) MaterialTheme.colorScheme.error else Color.Unspecified,
             modifier = Modifier.weight(1f),
         )
     }

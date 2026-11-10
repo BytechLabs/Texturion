@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.PushPin
@@ -55,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -105,6 +107,8 @@ fun MessageActionsSheet(
     onRetry: () -> Unit,
     onMakeTask: () -> Unit,
     onCopied: () -> Unit,
+    /** #691: null when the member lacks records.delete. */
+    onDelete: (() -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
@@ -155,6 +159,22 @@ fun MessageActionsSheet(
                     // The sheet closes; the task sheet opens from the screen.
                 }
             }
+            if (onDelete != null) {
+                ActionRow(
+                    icon = Icons.Outlined.Delete,
+                    label = t(
+                        if (message.direction == MessageDirection.NOTE) {
+                            "thread.deleteNote"
+                        } else {
+                            "thread.deleteMessage"
+                        },
+                    ),
+                    destructive = true,
+                ) {
+                    haptics.tap()
+                    onDelete()
+                }
+            }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -176,6 +196,8 @@ private fun ActionRow(
     label: String,
     /** Null = an action. Non-null = a state, drawn with a trailing mark. */
     on: Boolean? = null,
+    /** #691: a row that removes something, drawn in the error colour. */
+    destructive: Boolean = false,
     // Last so every call site keeps passing it as a trailing lambda.
     onClick: () -> Unit,
 ) {
@@ -196,7 +218,9 @@ private fun ActionRow(
         Icon(
             icon,
             contentDescription = null,
-            tint = if (on == true) {
+            tint = if (destructive) {
+                MaterialTheme.colorScheme.error
+            } else if (on == true) {
                 MaterialTheme.colorScheme.primary
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -207,6 +231,7 @@ private fun ActionRow(
         Text(
             label,
             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+            color = if (destructive) MaterialTheme.colorScheme.error else Color.Unspecified,
             modifier = Modifier.weight(1f),
         )
         // The box is drawn in BOTH states. Showing it only when on leaves an

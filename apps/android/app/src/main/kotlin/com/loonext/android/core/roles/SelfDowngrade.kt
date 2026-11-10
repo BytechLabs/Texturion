@@ -48,6 +48,7 @@ object SelfDowngrade {
         "numbers.manage" to "domain.capNumbers",
         "history.read" to "domain.capHistory",
         "contacts.bulk" to "domain.capContactsBulk",
+        "records.delete" to "domain.capRecordsDelete",
     )
 
     /** The capability set for each role. Kept in step with the shared module by test. */
@@ -74,6 +75,7 @@ object SelfDowngrade {
             "numbers.manage",
             "history.read",
             "contacts.bulk",
+            "records.delete",
         ),
     )
 

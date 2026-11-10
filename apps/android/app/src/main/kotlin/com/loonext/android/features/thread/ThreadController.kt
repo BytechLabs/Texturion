@@ -126,6 +126,13 @@ class ThreadController(
         private set
     var messages by mutableStateOf<List<Message>>(emptyList())
         private set
+    /**
+     * #691: this conversation went to the Trash from here. The screen keeps its
+     * place and offers the Undo, because the thread is the one surface that
+     * outlives the delete long enough for an Undo to be reachable.
+     */
+    var conversationDeleted by mutableStateOf(false)
+        private set
     var messagesCursor by mutableStateOf<String?>(null)
         private set
     var allMessagesLoaded by mutableStateOf(false)
@@ -1144,6 +1151,77 @@ class ThreadController(
             } catch (cause: Exception) {
                 replaceMessage(message)
                 notify(cause.userMessageForReader())
+            }
+        }
+    }
+
+    /**
+     * #691: one message (or note) to the Trash. It leaves the thread at once; a
+     * refusal brings it back by re-reading, never by guessing at its position.
+     * Undo is the Trash restore.
+     */
+    fun deleteMessage(message: Message) {
+        messages = messages.filterNot { it.id == message.id }
+        pinnedMessages = pinnedMessages.filterNot { it.id == message.id }
+        persistSnapshot()
+        scope.launch {
+            try {
+                repo.deletion.deleteMessage(companyId, message.id)
+                runCatching { refreshEvents() }
+                notify(
+                    say(
+                        if (message.direction == MessageDirection.NOTE) {
+                            "thread.noteDeleted"
+                        } else {
+                            "thread.messageDeleted"
+                        },
+                    ),
+                    actionLabel = say("thread.undo"),
+                ) { restoreMessage(message.id) }
+            } catch (cause: Exception) {
+                runCatching { refetchLoadedWindow() }
+                notify(cause.userMessageForReader())
+            }
+        }
+    }
+
+    private fun restoreMessage(messageId: String) {
+        scope.launch {
+            try {
+                repo.deletion.restoreMessage(companyId, messageId)
+                runCatching { refetchLoadedWindow() }
+                runCatching { refreshPinned() }
+                runCatching { refreshEvents() }
+            } catch (cause: Exception) {
+                notify(say("thread.restoreFailed"))
+            }
+        }
+    }
+
+    /** #691: the whole thread to the Trash. See [conversationDeleted]. */
+    fun deleteConversation() {
+        scope.launch {
+            try {
+                repo.deletion.deleteConversation(companyId, conversationId)
+                conversationDeleted = true
+                notify(
+                    say("thread.conversationDeleted"),
+                    actionLabel = say("thread.undo"),
+                ) { restoreConversation() }
+            } catch (cause: Exception) {
+                notify(cause.userMessageForReader())
+            }
+        }
+    }
+
+    fun restoreConversation() {
+        scope.launch {
+            try {
+                repo.deletion.restoreConversation(companyId, conversationId)
+                conversationDeleted = false
+                refreshAfterReconnect()
+            } catch (cause: Exception) {
+                notify(say("thread.restoreFailed"))
             }
         }
     }

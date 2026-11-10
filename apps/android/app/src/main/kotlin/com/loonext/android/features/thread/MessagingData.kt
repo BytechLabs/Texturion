@@ -140,6 +140,8 @@ internal data class ShareSavedViewBody(val shared: Boolean)
 data class DefaultSavedViewBody(val surface: String, val view_id: String?)
 
 class MessagingRepository(private val api: ApiClient) {
+    /** #691: delete to the Trash and restore (Undo). */
+    val deletion = com.loonext.android.core.data.RecordDeletionRepository(api)
 
     // --- Inbox list -------------------------------------------------------
 

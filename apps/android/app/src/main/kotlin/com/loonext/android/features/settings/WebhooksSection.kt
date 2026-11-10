@@ -213,7 +213,7 @@ private fun eventLabelKey(type: String): String {
     return "webhooks.event.$camel"
 }
 
-/** The eight subscribable events, in the order the API promises them. */
+/** The eleven subscribable events, in the order the API promises them. */
 private val EVENT_TYPES = listOf(
     "message.received",
     "message.sent",
@@ -223,6 +223,9 @@ private val EVENT_TYPES = listOf(
     "task.created",
     "task.completed",
     "contact.created",
+    "message.deleted",
+    "conversation.deleted",
+    "call.deleted",
 )
 
 @Composable

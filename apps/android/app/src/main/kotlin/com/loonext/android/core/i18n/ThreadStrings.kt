@@ -145,6 +145,26 @@ object ThreadStrings : AppStrings.Section {
         "thread.numberBlocked" to "Number blocked",
         "thread.numberUnblocked" to "Number unblocked",
         "thread.blockedBadge" to "Blocked",
+
+        // --- Delete to the Trash (#691) --------------------------------------
+        "thread.deleteMessage" to "Delete message",
+        "thread.deleteNote" to "Delete note",
+        "thread.deleteTextTitle" to "Delete this text?",
+        "thread.deleteTextBody" to
+            "It is removed from Loonext only. {name} already has this text on their phone, " +
+            "and deleting it here can't take it back.",
+        "thread.deleteConfirm" to "Delete",
+        "thread.messageDeleted" to "Message deleted",
+        "thread.noteDeleted" to "Note deleted",
+        "thread.deleteConversation" to "Delete conversation",
+        "thread.deleteConversationTitle" to "Delete this conversation?",
+        "thread.deleteConversationBody" to
+            "Every message, call and voicemail with {name} moves to the Trash. " +
+            "Their opt-out status is kept. Texts you already sent stay on their phone.",
+        "thread.conversationDeleted" to "Conversation deleted",
+        "thread.conversationDeletedHint" to
+            "It is in the Trash for 30 days. You can restore it there on the web.",
+        "thread.restoreFailed" to "Couldn't restore it. Try again, or check the Trash on the web.",
         // --- Mute and follow (#694) ------------------------------------------
         "thread.muteMenu" to "Mute notifications",
         "thread.mute1h" to "For 1 hour",
@@ -858,6 +878,26 @@ object ThreadStrings : AppStrings.Section {
         "thread.numberBlocked" to "Numéro bloqué",
         "thread.numberUnblocked" to "Numéro débloqué",
         "thread.blockedBadge" to "Bloqué",
+
+        // --- Suppression vers la corbeille (#691) -----------------------------
+        "thread.deleteMessage" to "Supprimer le message",
+        "thread.deleteNote" to "Supprimer la note",
+        "thread.deleteTextTitle" to "Supprimer ce texto ?",
+        "thread.deleteTextBody" to
+            "Il est retiré de Loonext seulement. {name} a déjà ce texto sur son téléphone, " +
+            "et le supprimer ici ne peut pas le lui retirer.",
+        "thread.deleteConfirm" to "Supprimer",
+        "thread.messageDeleted" to "Message supprimé",
+        "thread.noteDeleted" to "Note supprimée",
+        "thread.deleteConversation" to "Supprimer la conversation",
+        "thread.deleteConversationTitle" to "Supprimer cette conversation ?",
+        "thread.deleteConversationBody" to
+            "Tous les messages, appels et messages vocaux avec {name} vont à la corbeille. " +
+            "Son statut de désabonnement est conservé. Les textos déjà envoyés restent sur son téléphone.",
+        "thread.conversationDeleted" to "Conversation supprimée",
+        "thread.conversationDeletedHint" to
+            "Elle reste 30 jours dans la corbeille. Vous pouvez l'y restaurer sur le web.",
+        "thread.restoreFailed" to "Impossible de la restaurer. Réessayez, ou vérifiez la corbeille sur le web.",
         "thread.muteMenu" to "Mettre les notifications en sourdine",
         "thread.mute1h" to "Pendant 1 heure",
         "thread.mute8h" to "Pendant 8 heures",

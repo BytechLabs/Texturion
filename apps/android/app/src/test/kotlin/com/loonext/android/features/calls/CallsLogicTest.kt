@@ -538,4 +538,31 @@ class CallsLogicTest {
             ),
         )
     }
+
+    @Test
+    fun `a deleted call leaves the log and Undo puts it back in time order`() {
+        val a = call(id = "a").copy(started_at = "2026-11-10T12:00:00Z")
+        val b = call(id = "b").copy(started_at = "2026-11-10T11:00:00Z")
+        val c = call(id = "c").copy(started_at = "2026-11-10T10:00:00Z")
+        val after = withoutCall(listOf(a, b, c), "b")
+        assertEquals(listOf("a", "c"), after.map { it.id })
+        assertEquals(listOf("a", "b", "c"), reinsertCall(after, b).map { it.id })
+        // Restoring twice never duplicates the row.
+        assertEquals(3, reinsertCall(reinsertCall(after, b), b).size)
+    }
+
+    @Test
+    fun `deleting a voicemail keeps the call and drops the recording and its words`() {
+        val vm = call(id = "v", outcome = "voicemail").copy(
+            voicemail_seconds = 22,
+            voicemail_transcript = "Call me back",
+        )
+        val other = call(id = "o").copy(voicemail_seconds = 5)
+        val after = withoutVoicemail(listOf(vm, other), "v")
+        assertEquals(2, after.size)
+        assertNull(after[0].voicemail_seconds)
+        assertNull(after[0].voicemail_transcript)
+        assertNull(after[0].voicemail_intake)
+        assertEquals(5, after[1].voicemail_seconds)
+    }
 }
