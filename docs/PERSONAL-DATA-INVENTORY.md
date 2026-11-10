@@ -187,6 +187,7 @@ read.
 `high_priority_push_budget`, `high_priority_push_days`,
 `inbound_notification_days`, `message_mentions`,
 `outbound_call_authorizations`, `outbound_dial_leases`, `ownership_confirmations`,
+`realtime_topic_seq`,
 `ownership_transfers`, `retention_notices`, `template_uses`.
 
 Ids and counters. Listed rather than omitted, so "not in the document" always

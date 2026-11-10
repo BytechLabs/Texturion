@@ -281,7 +281,7 @@ begin
   -- the restriction.
   select array_agg(k order by k) into v_keys
   from jsonb_object_keys(v_payload) k
-  where k <> 'id';
+  where k not in ('id', 'seq');
   if v_keys is distinct from array['company_id'] then
     raise exception 'NT-5 FAILED: the payload carries % — naming the number or '
       'the member leaks the restriction to everyone on the topic', v_keys;
@@ -353,7 +353,7 @@ begin
   select m.payload into v_payload
   from realtime.messages m where m.event = 'access.changed' limit 1;
   select array_agg(k order by k) into v_keys
-  from jsonb_object_keys(v_payload) k where k <> 'id';
+  from jsonb_object_keys(v_payload) k where k not in ('id', 'seq');
   if v_keys is distinct from array['company_id'] then
     raise exception 'NT-6 FAILED: the discovery payload carries %', v_keys;
   end if;

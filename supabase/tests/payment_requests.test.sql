@@ -586,7 +586,7 @@ begin
   -- about what the TRIGGER put there.
   select array_agg(k order by k) into v_keys
     from jsonb_object_keys(v_payload) k
-   where k <> 'id';
+   where k not in ('id', 'seq');
   if v_keys is distinct from
      array['conversation_id', 'payment_request_id', 'type'] then
     raise exception 'PR-8 FAILED: the payload carries % — SPEC §8 payloads are '

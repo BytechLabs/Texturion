@@ -157,7 +157,7 @@ declare
     'conversation_tags', 'feature_flags', 'feature_flag_overrides',
     'grace_notices', 'high_priority_push_budget', 'high_priority_push_days',
     'inbound_notification_days', 'message_mentions',
-    'outbound_call_authorizations', 'outbound_dial_leases',
+    'outbound_call_authorizations', 'outbound_dial_leases', 'realtime_topic_seq',
     -- #537: a workspace id, a user id, a step, and a HASH of the emailed code.
     -- A credential rather than personal data, and dead within ten minutes.
     'ownership_confirmations', 'ownership_transfers',

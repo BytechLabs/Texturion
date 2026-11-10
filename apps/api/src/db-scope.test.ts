@@ -77,7 +77,7 @@ const TENANT_TABLES = new Set([
   "message_attachments", "message_mentions", "messages",
   "messaging_registrations", "notification_prefs", "notification_read_items",
   "notification_reads", "number_access", "number_port_outs", "opt_outs",
-  "outbound_call_authorizations", "outbound_dial_leases",
+  "outbound_call_authorizations", "outbound_dial_leases", "realtime_topic_seq",
   "alert_escalations", "appointment_reminder_rules",
   "contact_addresses", "contact_field_defs", "contact_phones",
   "pending_notifications",
