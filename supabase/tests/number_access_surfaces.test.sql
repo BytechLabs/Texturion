@@ -528,7 +528,8 @@ begin
 
   begin
     -- Trash a message: the denied one is refused and untouched, the allowed works.
-    if public.api_trash_message(co, usr, msg_h, hidden) ->> 'outcome' is distinct from 'not_found'
+    r := public.api_trash_message(co, usr, msg_h, hidden);
+    if r ->> 'outcome' is distinct from 'not_found'
        or (select deleted_at from public.messages where id = msg_h) is not null then
       raise exception 'NA-7 FAILED: a message on a denied number was trashed';
     end if;
@@ -537,7 +538,8 @@ begin
     end if;
 
     -- Trash a call: same.
-    if public.api_trash_call(co, usr, call_h, false, hidden) ->> 'outcome' is distinct from 'not_found'
+    r := public.api_trash_call(co, usr, call_h, false, hidden);
+    if r ->> 'outcome' is distinct from 'not_found'
        or (select deleted_at from public.calls where id = call_h) is not null then
       raise exception 'NA-7 FAILED: a call on a denied number was trashed';
     end if;
@@ -568,11 +570,13 @@ begin
     end if;
 
     -- Restore: refused on the denied item, works on the allowed one.
-    if public.api_restore_trash(co, usr, 'message', msg_h, hidden) ->> 'outcome' is distinct from 'not_found'
+    r := public.api_restore_trash(co, usr, 'message', msg_h, hidden);
+    if r ->> 'outcome' is distinct from 'not_found'
        or (select deleted_at from public.messages where id = msg_h) is null then
       raise exception 'NA-7 FAILED: a message on a denied number was restored';
     end if;
-    if public.api_restore_trash(co, usr, 'call', call_h, hidden) ->> 'outcome' is distinct from 'not_found'
+    r := public.api_restore_trash(co, usr, 'call', call_h, hidden);
+    if r ->> 'outcome' is distinct from 'not_found'
        or (select deleted_at from public.calls where id = call_h) is null then
       raise exception 'NA-7 FAILED: a call on a denied number was restored';
     end if;
@@ -599,7 +603,9 @@ begin
                        or voicemail_transcript is null)) then
       raise exception 'NA-7 FAILED: the refused purge still changed the denied call';
     end if;
-    if public.api_purge_trash_item('call', call_v, usr, co, hidden) ->> 'outcome' is distinct from 'purged'
+    -- Purge first, then read: one statement would read the row as it was before.
+    r := public.api_purge_trash_item('call', call_v, usr, co, hidden);
+    if r ->> 'outcome' is distinct from 'purged'
        or (select voicemail_path from public.calls where id = call_v) is not null then
       raise exception 'NA-7 FAILED: a call on an allowed number could not be purged';
     end if;
