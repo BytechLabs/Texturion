@@ -753,6 +753,13 @@ final class ThreadController {
         }
     }
 
+    /// #712: leave the thread unread. The caller then leaves it, so it is not read again at once.
+    func markUnread() {
+        Task {
+            try? await repo.markUnread(companyId: companyId, conversationId: conversationId)
+        }
+    }
+
     // MARK: - Sending
 
     /// Optimistic send: a local queued row appears immediately; the server's

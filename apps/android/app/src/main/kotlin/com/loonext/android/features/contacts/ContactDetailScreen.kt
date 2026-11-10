@@ -81,6 +81,12 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.BlockedSender
 import com.loonext.android.features.thread.MessagingRepository
+import com.loonext.android.ui.common.ContactActionId
+import com.loonext.android.ui.common.ContactActionsInput
+import com.loonext.android.ui.common.RecordMenu
+import com.loonext.android.ui.common.contactActions
+import com.loonext.android.ui.common.visibleIds
+import androidx.compose.material.icons.outlined.MoreHoriz
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ContactAddressBody
 import com.loonext.android.core.model.ContactFieldDef
@@ -146,6 +152,8 @@ internal fun ContactDetailScreen(
     canUnmerge: Boolean = false,
     /** #691: deleting a contact needs records.delete. */
     canDelete: Boolean = false,
+    /** #712: blocking a number needs `conversations.note`, like the thread's Block. */
+    canBlock: Boolean = true,
     /**
      * #228: the workspace's own language, so the inherit option can NAME what
      * it inherits. The shell's value seeds it; see [liveCompanyLocale] below for
@@ -268,6 +276,7 @@ internal fun ContactDetailScreen(
                 callerIdName = callerIdName,
                 canUnmerge = canUnmerge,
                 canDelete = canDelete,
+                canBlock = canBlock,
                 companyLocale = liveCompanyLocale,
                 contact = current.value,
                 members = members,
@@ -287,6 +296,7 @@ private fun ContactDetailBody(
     graph: AppGraph,
     mutations: ContactMutations,
     companyId: String,
+    canBlock: Boolean,
     callerIdName: String,
     canUnmerge: Boolean,
     canDelete: Boolean,
@@ -406,6 +416,54 @@ private fun ContactDetailBody(
     }
 
     val displayName = contact.name?.ifBlank { null } ?: formatPhone(contact.phone_e164)
+
+    // #712: the contact's one action list. The more button here and the footer below
+    // both read it, so neither can offer what the other does not.
+    var contactMenuOpen by remember(contact.id) { mutableStateOf(false) }
+    val contactMenuActions = contactActions(
+        ContactActionsInput(
+            canOpen = false,
+            optedOut = contact.opted_out,
+            carrierEnforced = isCarrierEnforcedOptOut(contact.opt_out_source),
+            blocked = blockedSender != null,
+            canBlock = canBlock,
+            canDelete = canDelete,
+        ),
+    )
+    val contactMenuIds = contactMenuActions.visibleIds()
+    fun startCall() {
+        if (softphone.hasMicPermission()) {
+            placeCall()
+        } else {
+            micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+    fun runContactAction(actionId: String) {
+        when (actionId) {
+            ContactActionId.TEXT -> {
+                if (conversation != null && onOpenConversation != null) {
+                    onOpenConversation(conversation.id)
+                } else {
+                    onComposeNew?.invoke(contact.id)
+                }
+            }
+            ContactActionId.CALL -> startCall()
+            ContactActionId.COPY_NUMBER -> clipboard.setText(AnnotatedString(contact.phone_e164))
+            ContactActionId.BLOCK -> confirmBlock = true
+            ContactActionId.UNBLOCK -> blockedSender?.let { blocked ->
+                runAction {
+                    messaging.unblockSender(companyId, blocked.id)
+                    blockedSender = null
+                }
+            }
+            ContactActionId.OPT_OUT -> confirmOptOut = true
+            ContactActionId.OPT_IN -> runAction {
+                messaging.revokeOptOut(companyId, contact.id)
+                onChanged()
+            }
+            ContactActionId.DELETE -> confirmDelete = true
+        }
+    }
 
     Column(
         Modifier
@@ -541,6 +599,22 @@ private fun ContactDetailBody(
                         newTaskOpen = true
                     },
                 )
+                Box {
+                    PaperCircleButton(
+                        onClick = {
+                            haptics.tap()
+                            contactMenuOpen = true
+                        },
+                        contentDescription = t("recordMenu.moreActionsFor", "name" to displayName),
+                        icon = Icons.Outlined.MoreHoriz,
+                    )
+                    RecordMenu(
+                        expanded = contactMenuOpen,
+                        onDismiss = { contactMenuOpen = false },
+                        actions = contactMenuActions,
+                        onSelect = { actionId, _ -> runContactAction(actionId) },
+                    )
+                }
             }
             if (newTaskOpen) {
                 NewTaskSheetHost(
@@ -1025,7 +1099,7 @@ private fun ContactDetailBody(
                 .padding(top = 2.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (!contact.opted_out) {
+            if (ContactActionId.OPT_OUT in contactMenuIds) {
                 FooterAction(
                     label = t("contactsTasks.optOutContact"),
                     caption = t("contactsTasks.optOutCaption"),
@@ -1036,7 +1110,7 @@ private fun ContactDetailBody(
                 Spacer(Modifier.height(10.dp))
             }
             val blocked = blockedSender
-            FooterAction(
+            if (ContactActionId.BLOCK in contactMenuIds || ContactActionId.UNBLOCK in contactMenuIds) FooterAction(
                 label = if (blocked != null) t("thread.unblockNumber") else t("thread.blockNumber"),
                 caption = if (blocked != null) t("thread.unblockCaption") else t("thread.blockCaption"),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1052,7 +1126,7 @@ private fun ContactDetailBody(
                     }
                 },
             )
-            if (canDelete) {
+            if (ContactActionId.DELETE in contactMenuIds) {
                 Spacer(Modifier.height(10.dp))
                 FooterAction(
                     label = t("contactsTasks.deleteContact"),
@@ -1428,6 +1502,7 @@ private fun PaperCircleButton(
     onClick: () -> Unit,
     contentDescription: String,
     modifier: Modifier = Modifier,
+    icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.AutoMirrored.Outlined.ArrowBack,
 ) {
     val interaction = remember { MutableInteractionSource() }
     Surface(
@@ -1442,7 +1517,7 @@ private fun PaperCircleButton(
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
-                Icons.AutoMirrored.Outlined.ArrowBack,
+                icon,
                 contentDescription = contentDescription,
                 modifier = Modifier.size(17.dp),
             )

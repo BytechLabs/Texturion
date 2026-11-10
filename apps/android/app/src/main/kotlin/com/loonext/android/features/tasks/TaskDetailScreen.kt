@@ -105,7 +105,14 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.loonext.android.AppGraph
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import com.loonext.android.BuildConfig
+import com.loonext.android.ui.common.RecordMenu
+import com.loonext.android.ui.common.TaskActionId
+import com.loonext.android.ui.common.TaskActionsInput
+import com.loonext.android.ui.common.taskActions
+import com.loonext.android.ui.common.visible
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
@@ -620,8 +627,19 @@ private fun TaskDetailBody(
                         onClick = ::toggleFollow,
                     )
                 }
-                // Both entries are gated; with neither, the menu would open empty.
-                if (!noAccess || canDelete) Box {
+                // #712: the task's one action list, the same one the list row, the board
+                // card and the calendar entry draw. A record with nothing allowed has no menu.
+                val taskMenuActions = taskActions(
+                    TaskActionsInput(
+                        done = detail.done,
+                        hasAccess = !noAccess,
+                        canDelete = canDelete,
+                        // It is already open.
+                        canOpen = false,
+                        canCopyLink = true,
+                    ),
+                )
+                if (taskMenuActions.visible().isNotEmpty()) Box {
                     PaperCircleButton(
                         icon = Icons.Outlined.MoreHoriz,
                         contentDescription = t("contactsTasks.taskActions"),
@@ -630,46 +648,45 @@ private fun TaskDetailBody(
                             menuOpen = true
                         },
                     )
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        if (!noAccess) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        t(
-                                            if (detail.done) {
-                                                "contactsTasks.markNotDone"
-                                            } else {
-                                                "contactsTasks.markDone"
-                                            },
-                                        ),
-                                    )
-                                },
-                                onClick = {
-                                    menuOpen = false
-                                    toggleDone()
-                                },
-                            )
-                        }
-                        if (canDelete) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        t("contactsTasks.deleteTask"),
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                },
-                                enabled = !deleting,
-                                onClick = {
-                                    menuOpen = false
+                    val clipboard = LocalClipboardManager.current
+                    RecordMenu(
+                        expanded = menuOpen,
+                        onDismiss = { menuOpen = false },
+                        actions = taskMenuActions,
+                        onSelect = { actionId, subId ->
+                            when (actionId) {
+                                TaskActionId.COPY_LINK -> {
+                                    haptics.tap()
+                                    clipboard.setText(AnnotatedString(taskLink(BuildConfig.APP_ORIGIN, detail.id)))
+                                }
+                                TaskActionId.DONE -> toggleDone()
+                                TaskActionId.DUE -> {
+                                    val days = subId?.toIntOrNull() ?: return@RecordMenu
+                                    scope.launch {
+                                        onActionError(null)
+                                        try {
+                                            mutations.setDue(
+                                                companyId,
+                                                detail.id,
+                                                movedDueAt(detail.due_at, days, Instant.now(), ZoneId.systemDefault()),
+                                                scope = if (needsScopeChoice(detail.repeat)) TaskScope.This else null,
+                                            )
+                                            onChanged()
+                                        } catch (cause: Exception) {
+                                            onActionError(cause.userMessage(locale))
+                                        }
+                                    }
+                                }
+                                TaskActionId.DELETE -> {
                                     // #89: confirm only when the task carries
                                     // notes or files; a plain task deletes now.
                                     // #693: a repeating job asks which ones go first.
                                     if (needsScopeChoice(detail.repeat)) deleteScopeOpen = true
                                     else if (hasContent) confirmDelete = true else deleteTask()
-                                },
-                            )
-                        }
-                    }
+                                }
+                            }
+                        },
+                    )
                 }
             }
         }

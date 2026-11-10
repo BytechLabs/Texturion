@@ -103,6 +103,21 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.snooze.isSnoozed
+import com.loonext.android.core.snooze.DeferralKind
+import com.loonext.android.core.snooze.followUpPresets
+import com.loonext.android.core.snooze.snoozePresets
+import com.loonext.android.core.time.TimestampFormat
+import com.loonext.android.ui.common.ConversationActionId
+import com.loonext.android.ui.common.ConversationActionsInput
+import com.loonext.android.ui.common.ConversationSurface
+import com.loonext.android.ui.common.MUTE_CHOICES
+import com.loonext.android.ui.common.RecordAction
+import com.loonext.android.ui.common.RecordMenu
+import com.loonext.android.ui.common.RecordSubAction
+import com.loonext.android.ui.common.RecordViewer
+import com.loonext.android.ui.common.conversationActions
+import java.time.Instant
+import java.time.ZoneId
 import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.core.model.ContactSummary
 import com.loonext.android.core.model.ConversationListItem
@@ -294,6 +309,9 @@ private data class InboxNotice(
 // ---------------------------------------------------------------------------
 // List state
 // ---------------------------------------------------------------------------
+
+/** The assign choice that clears the assignee; no member id can collide with it. */
+private const val UNASSIGNED_CHOICE = "unassigned"
 
 @Stable
 private class InboxController(
@@ -1164,6 +1182,134 @@ private class InboxController(
         }
     }
 
+    // --- #712: the conversation's action list, for one row ---------------------
+
+    /** The row with this id, wherever it is in the list. */
+    fun rowById(conversationId: String): ConversationListItem? =
+        pinnedRows.firstOrNull { it.id == conversationId } ?: rows.firstOrNull { it.id == conversationId }
+
+    /**
+     * What the inbox row offers: the same list the thread's sheet draws, minus what a
+     * row cannot do. It has no gallery to open and no catch-up to run, and it does not
+     * carry the number's blocked or opted-out state, so those are not offered here
+     * rather than offered on a guess.
+     */
+    fun actionsFor(
+        row: ConversationListItem,
+        viewer: RecordViewer,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): List<RecordAction> {
+        val deferred = row.snoozed_until?.let { isSnoozed(it) } == true
+        val people = members.filter { it.deactivated_at == null }
+        return conversationActions(
+            ConversationActionsInput(
+                unread = row.unread,
+                closed = row.status == ConversationStatus.CLOSED,
+                pinned = row.pinned_at != null,
+                deferred = deferred,
+                muted = row.muted,
+                followed = row.followed,
+                spam = row.is_spam,
+                blocked = null,
+                optOut = null,
+                viewer = viewer,
+                hasMembers = people.isNotEmpty(),
+                surface = ConversationSurface(
+                    canOpen = true,
+                    hasGallery = false,
+                    hasCatchUp = false,
+                    hasNewTask = false,
+                ),
+                assignChoices = listOf(
+                    RecordSubAction(UNASSIGNED_CHOICE, labelKey = "recordMenu.unassigned"),
+                ) + people.map { member ->
+                    RecordSubAction(
+                        member.user_id,
+                        label = member.display_name.ifBlank { say("inbox.teammateFallback") } +
+                            if (member.user_id == meUserId) " (${say("inbox.assigneeYou")})" else "",
+                    )
+                },
+                snoozeChoices = snoozePresets(zone = zone, locale = locale).map {
+                    RecordSubAction(
+                        Instant.ofEpochMilli(it.at).toString(),
+                        label = it.label,
+                        trailing = TimestampFormat.clock(Instant.ofEpochMilli(it.at), zone),
+                    )
+                },
+                followUpChoices = followUpPresets(zone = zone, locale = locale).map {
+                    RecordSubAction(
+                        Instant.ofEpochMilli(it.at).toString(),
+                        label = it.label,
+                        trailing = TimestampFormat.clock(Instant.ofEpochMilli(it.at), zone),
+                    )
+                },
+                muteChoices = MUTE_CHOICES,
+            ),
+        )
+    }
+
+    /** Run one action from the row's menu. [subId] is the chosen person, duration or instant. */
+    fun runRowAction(
+        row: ConversationListItem,
+        actionId: String,
+        subId: String?,
+        onOpen: (String) -> Unit,
+    ) {
+        clearSelection()
+        fun call(block: suspend () -> Unit) {
+            scope.launch {
+                try {
+                    block()
+                    scheduleRealtimeRefresh()
+                } catch (cause: Exception) {
+                    notify(cause.userMessage(locale))
+                }
+            }
+        }
+        when (actionId) {
+            ConversationActionId.OPEN -> onOpen(row.id)
+            ConversationActionId.MARK_READ, ConversationActionId.MARK_UNREAD -> toggleRead(row)
+            ConversationActionId.CLOSE, ConversationActionId.REOPEN -> toggleStatus(row)
+            ConversationActionId.ASSIGN -> call {
+                repo.setAssignee(companyId, row.id, subId?.takeIf { it != UNASSIGNED_CHOICE })
+            }
+            ConversationActionId.PIN -> call {
+                repo.setConversationPinned(companyId, row.id, row.pinned_at == null)
+            }
+            ConversationActionId.SNOOZE -> call {
+                repo.snooze(companyId, row.id, subId ?: return@call, kind = DeferralKind.SNOOZE)
+            }
+            ConversationActionId.FOLLOW_UP -> call {
+                repo.snooze(companyId, row.id, subId ?: return@call, kind = DeferralKind.FOLLOW_UP)
+            }
+            ConversationActionId.UNSNOOZE -> call { repo.unsnooze(companyId, row.id) }
+            ConversationActionId.MUTE -> call {
+                repo.muteConversation(companyId, row.id, subId ?: return@call)
+            }
+            ConversationActionId.UNMUTE -> call { repo.unmuteConversation(companyId, row.id) }
+            ConversationActionId.FOLLOW -> call { repo.setFollowing(companyId, row.id, !row.followed) }
+            ConversationActionId.SPAM -> call { repo.setSpam(companyId, row.id, !row.is_spam) }
+            ConversationActionId.DELETE -> scope.launch {
+                try {
+                    repo.deletion.deleteConversation(companyId, row.id)
+                    scheduleRealtimeRefresh()
+                    notify(say("thread.conversationDeleted"), actionLabel = say("inbox.undo")) {
+                        scope.launch {
+                            try {
+                                repo.deletion.restoreConversation(companyId, row.id)
+                                scheduleRealtimeRefresh()
+                            } catch (cause: Exception) {
+                                notify(cause.userMessage(locale))
+                            }
+                        }
+                    }
+                } catch (cause: Exception) {
+                    notify(cause.userMessage(locale))
+                }
+            }
+        }
+    }
+
     // --- Search -----------------------------------------------------------
 
     fun runSearch() {
@@ -1404,6 +1550,9 @@ private fun InboxList(
                             ConversationListPane(
                                 controller = controller,
                                 meUserId = me.user_id,
+                                viewer = RecordViewer.of(
+                                    me.memberships.firstOrNull { it.company_id == companyId }?.role,
+                                ),
                                 onOpen = { id ->
                                     controller.markLocallyRead(id)
                                     onOpen(id)
@@ -1677,6 +1826,7 @@ private fun GroupedRow(
 private fun ConversationListPane(
     controller: InboxController,
     meUserId: String,
+    viewer: RecordViewer,
     onOpen: (String) -> Unit,
 ) {
     val listState = rememberLazyListState()
@@ -1732,7 +1882,7 @@ private fun ConversationListPane(
     // #275: only while something is selected, and above the list so ticking a row
     // does not shove the list under the thumb.
     if (selecting) {
-        BulkSelectionBar(controller = controller)
+        BulkSelectionBar(controller = controller, viewer = viewer, onOpen = onOpen)
     }
     LazyColumn(
         state = listState,
@@ -2942,7 +3092,11 @@ private fun SearchContactRow(contact: ContactSummary, onClick: () -> Unit) {
  * There is no send action here and nothing to add one to: bulk management only.
  */
 @Composable
-private fun BulkSelectionBar(controller: InboxController) {
+private fun BulkSelectionBar(
+    controller: InboxController,
+    viewer: RecordViewer,
+    onOpen: (String) -> Unit,
+) {
     val selection = controller.selection
     val loadedIds = controller.rows.map { it.id }
     val running = controller.bulkRunning
@@ -2972,13 +3126,37 @@ private fun BulkSelectionBar(controller: InboxController) {
                 Spacer(Modifier.weight(1f))
                 if (running) LoadingIndicator()
                 Box {
+                    // #712: with ONE conversation picked, this is that conversation's own
+                    // menu, the same action list the thread's sheet draws. Long-press here
+                    // is what selects, so the menu is reached from the selection bar.
+                    val single = (selection as? BulkSelection.Ids)?.ids?.singleOrNull()
+                        ?.let(controller::rowById)
                     IconButton(onClick = { menuOpen = true }, enabled = !running) {
                         Icon(
                             Icons.Outlined.MoreVert,
-                            contentDescription = t("inbox.bulkMoreAria"),
+                            contentDescription = if (single != null) {
+                                t(
+                                    "recordMenu.moreActionsFor",
+                                    "name" to (
+                                        single.contact.name?.ifBlank { null }
+                                            ?: formatPhone(single.contact.phone_e164)
+                                        ),
+                                )
+                            } else {
+                                t("inbox.bulkMoreAria")
+                            },
                         )
                     }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    if (single != null) {
+                        RecordMenu(
+                            expanded = menuOpen,
+                            onDismiss = { menuOpen = false },
+                            actions = controller.actionsFor(single, viewer),
+                            onSelect = { actionId, subId ->
+                                controller.runRowAction(single, actionId, subId, onOpen)
+                            },
+                        )
+                    } else DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         for (member in controller.members) {
                             DropdownMenuItem(
                                 text = {

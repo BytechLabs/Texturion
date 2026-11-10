@@ -156,6 +156,23 @@ private struct ScheduledSheetRow: View {
             }
         }
         .buttonStyle(.plain)
+        // #712: the scheduled text's one action list. The swipe's Cancel and the
+        // long-press menu both run it.
+        .recordContextMenu(
+            scheduledActions(),
+            exactTime: TimestampFormat.exact(row.send_at, locale: appLocale)
+        ) { actionId, _ in
+            switch actionId {
+            case ScheduledActionId.open:
+                Haptics.tap()
+                onOpen()
+            case ScheduledActionId.cancel:
+                Haptics.tap()
+                onCancel(row.id)
+            default:
+                break
+            }
+        }
         .swipeActions(edge: .trailing) {
             Button(
                 AppStrings.translate(appLocale, "common.cancel"),

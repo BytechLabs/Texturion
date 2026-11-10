@@ -1,6 +1,16 @@
 package com.loonext.android.features.inbox
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.loonext.android.ui.common.RecordMenu
+import com.loonext.android.ui.common.ScheduledActionId
+import com.loonext.android.ui.common.rememberExactTime
+import com.loonext.android.ui.common.scheduledActions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -133,12 +143,24 @@ private fun ScheduledSheetRow(
 ) {
     val haptics = rememberHaptics()
     val held = row.status == "held"
+    // #712: the scheduled text's one action list. The Cancel button on the row and
+    // its long-press menu both run it.
+    var menuOpen by remember { mutableStateOf(false) }
+    val actions = scheduledActions()
+    Box {
     Row(
         Modifier
             .fillMaxWidth()
             // The thread, not a detail screen. A queued text only makes sense
             // beside what the customer last said, and that is one tap away.
-            .clickable { onOpenConversation(row.conversation_id) }
+            .combinedClickable(
+                onClick = { onOpenConversation(row.conversation_id) },
+                onLongClick = {
+                    haptics.tick()
+                    menuOpen = true
+                },
+                onLongClickLabel = t("recordMenu.moreActions"),
+            )
             .padding(start = 20.dp, top = 11.dp, bottom = 11.dp, end = 8.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -214,6 +236,19 @@ private fun ScheduledSheetRow(
         }) {
             Text(t("common.cancel"), style = MaterialTheme.typography.labelMedium)
         }
+    }
+    RecordMenu(
+        expanded = menuOpen,
+        onDismiss = { menuOpen = false },
+        actions = actions,
+        onSelect = { actionId, _ ->
+            when (actionId) {
+                ScheduledActionId.OPEN -> onOpenConversation(row.conversation_id)
+                ScheduledActionId.CANCEL -> onCancel(row.id)
+            }
+        },
+        exactTime = rememberExactTime(row.send_at),
+    )
     }
 }
 

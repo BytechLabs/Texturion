@@ -438,6 +438,8 @@ struct TaskCalendarView: View {
                     }
                     .contentShape(Rectangle())
                     .onTapGesture { onOpenTask(task.id) }
+                    // #712: no selection here, so long-press is the task's own menu.
+                    .taskContextMenu(task)
                     if task.id != tasks.last?.id {
                         RowDivider()
                     }

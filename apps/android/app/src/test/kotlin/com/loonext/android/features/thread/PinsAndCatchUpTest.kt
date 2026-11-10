@@ -4,6 +4,11 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageLocale
+import com.loonext.android.ui.common.ConversationActionsInput
+import com.loonext.android.ui.common.ConversationSurface
+import com.loonext.android.ui.common.RecordViewer
+import com.loonext.android.ui.common.conversationActions
+import com.loonext.android.ui.common.visibleIds
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -100,7 +105,15 @@ class PinsAndCatchUpTest {
 
     @Test
     fun `Catch me up is in the menu only when the thread offers it`() {
-        assertTrue(ConversationMenuItem.CATCH_UP in conversationMenuGroups(canDelete = true, canCatchUp = true).flatten())
-        assertFalse(ConversationMenuItem.CATCH_UP in conversationMenuGroups(canDelete = true).flatten())
+        fun ids(catchUp: Boolean) = conversationActions(
+            ConversationActionsInput(
+                unread = false, closed = false, pinned = false, deferred = false, muted = false,
+                followed = false, spam = false, blocked = false, optOut = null,
+                viewer = RecordViewer(canWrite = true, canDelete = true), hasMembers = true,
+                surface = ConversationSurface(canOpen = false, hasGallery = true, hasCatchUp = catchUp, hasNewTask = true),
+            ),
+        ).visibleIds()
+        assertTrue("catch-up" in ids(catchUp = true))
+        assertFalse("catch-up" in ids(catchUp = false))
     }
 }

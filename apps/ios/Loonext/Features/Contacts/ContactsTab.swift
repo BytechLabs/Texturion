@@ -136,6 +136,9 @@ struct ContactsTab: View {
     /// #248: an import the server refused outright, held until it is read.
     @State private var importRefusal: ImportRefusal?
     @State private var notice: String?
+    /// #712: the contact whose Opt out or Delete is waiting on its confirmation.
+    @State private var listConfirmOptOut: Contact?
+    @State private var listConfirmDelete: Contact?
 
     // #459: the phone's own address book, its own group below the crew's.
     // Loaded once into memory when access is granted; the filter runs locally
@@ -166,6 +169,92 @@ struct ContactsTab: View {
         let current = me ?? resolvedMe
         let role = current?.memberships.first { $0.company_id == companyId }?.role
         return MemberRole.atLeast(role, required: MemberRole.admin)
+    }
+
+    /// #712: what this member may do to a contact, from the same role the import gate reads.
+    private var listRole: String? {
+        (me ?? resolvedMe)?.memberships.first { $0.company_id == companyId }?.role
+    }
+
+    /// The contact's one action list, as the long-press menu draws it. The list row does
+    /// not know whether the number is blocked, so Block is not offered here rather than
+    /// offered on a guess; the contact's own screen has it.
+    private func listActions(for contact: Contact) -> [RecordAction] {
+        contactActions(
+            ContactActionsInput(
+                canOpen: true,
+                optedOut: contact.opted_out,
+                carrierEnforced: isCarrierEnforcedOptOut(contact.opt_out_source),
+                blocked: nil,
+                canBlock: false,
+                canDelete: RecordDeletion.canDelete(role: listRole)
+            )
+        )
+    }
+
+    private func performListAction(_ actionId: String, for contact: Contact) {
+        switch actionId {
+        case ContactActionId.open:
+            Haptics.tap()
+            AppRouter.shared.openContactId = contact.id
+        case ContactActionId.text:
+            Haptics.tap()
+            AppRouter.shared.composeTo = contact.phone_e164
+        case ContactActionId.call:
+            Haptics.tap()
+            callFromList(contact)
+        case ContactActionId.copyNumber:
+            Haptics.tap()
+            UIPasteboard.general.string = contact.phone_e164
+            notice = t("recordMenu.numberCopied")
+        case ContactActionId.optOut:
+            listConfirmOptOut = contact
+        case ContactActionId.optIn:
+            Task {
+                do {
+                    _ = try await mutations.revokeOptOut(companyId: companyId, contactId: contact.id)
+                    refreshKey += 1
+                } catch {
+                    notice = error.userMessage
+                }
+            }
+        case ContactActionId.delete:
+            listConfirmDelete = contact
+        default:
+            break
+        }
+    }
+
+    /// Mic first, then authorize: a denial never reserves the line.
+    private func callFromList(_ contact: Contact) {
+        let manager = CallsManager.get(graph: graph)
+        let callerIdName = (me ?? resolvedMe)?.display_name ?? ""
+        func place() {
+            manager.start(companyId: companyId, callerIdName: callerIdName)
+            Task {
+                do {
+                    try await manager.placeCall(
+                        displayName: (contact.name?.isBlank ?? true)
+                            ? formatPhone(contact.phone_e164)
+                            : (contact.name ?? ""),
+                        contactId: contact.id
+                    )
+                } catch {
+                    notice = error.userMessage
+                }
+            }
+        }
+        if manager.hasMicPermission {
+            place()
+            return
+        }
+        Task {
+            if await manager.requestMicPermission() {
+                place()
+            } else {
+                notice = t("contactsTasks.micNeededToPlace")
+            }
+        }
     }
 
     var body: some View {
@@ -275,6 +364,52 @@ struct ContactsTab: View {
             try? await Task.sleep(for: .seconds(notice == mergeNotice ? 10 : 5))
             if Task.isCancelled { return }
             notice = nil
+        }
+        .alert(
+            t("contactsTasks.optOutTitle"),
+            isPresented: Binding(
+                get: { listConfirmOptOut != nil },
+                set: { if !$0 { listConfirmOptOut = nil } }
+            ),
+            presenting: listConfirmOptOut
+        ) { contact in
+            Button(t("contactsTasks.optOut"), role: .destructive) {
+                Haptics.reject()
+                Task {
+                    do {
+                        _ = try await mutations.optOut(companyId: companyId, contactId: contact.id)
+                        refreshKey += 1
+                    } catch {
+                        notice = error.userMessage
+                    }
+                }
+            }
+            Button(t("common.cancel"), role: .cancel) {}
+        } message: { contact in
+            Text(t("contactsTasks.optOutBody", ["number": formatPhone(contact.phone_e164)]))
+        }
+        .alert(
+            t("contactsTasks.deleteContactTitle"),
+            isPresented: Binding(
+                get: { listConfirmDelete != nil },
+                set: { if !$0 { listConfirmDelete = nil } }
+            ),
+            presenting: listConfirmDelete
+        ) { contact in
+            Button(t("common.delete"), role: .destructive) {
+                Haptics.reject()
+                Task {
+                    do {
+                        try await mutations.delete(companyId: companyId, contactId: contact.id)
+                        refreshKey += 1
+                    } catch {
+                        notice = error.userMessage
+                    }
+                }
+            }
+            Button(t("contactsTasks.keepContact"), role: .cancel) {}
+        } message: { _ in
+            Text(t("contactsTasks.deleteContactBody"))
         }
         .sheet(isPresented: $createOpen) {
             CreateContactSheet(mutations: mutations, companyId: companyId) { created in
@@ -547,6 +682,10 @@ struct ContactsTab: View {
                                 ContactRow(contact: contact)
                                     .contentShape(Rectangle())
                                     .onTapGesture { AppRouter.shared.openContactId = contact.id }
+                                    // #712: long-press is the contact's own action menu.
+                                    .recordContextMenu(listActions(for: contact)) { actionId, _ in
+                                        performListAction(actionId, for: contact)
+                                    }
                             }
                             if nextCursor != nil {
                                 RowDivider()

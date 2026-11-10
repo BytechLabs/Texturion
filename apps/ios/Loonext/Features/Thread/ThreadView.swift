@@ -276,6 +276,15 @@ private struct ThreadBody: View {
         }
     }
 
+    /// `conversations.note`: status, assignment, pin, spam and block. Resolved from the
+    /// same membership the rest of the screen reads its role from.
+    private var canWriteConversations: Bool {
+        let workspaceId = controller.conversation?.company_id
+        let role = me.memberships
+            .first(where: { $0.company_id == workspaceId })?.role
+        return RecordViewer(role: role).canWrite
+    }
+
     private func deleteConversationAction() -> (@MainActor () -> Void)? {
         guard canDeleteRecords else { return nil }
         return {
@@ -575,13 +584,20 @@ private struct ThreadBody: View {
                         onAssign: { detailSheet = .assignee },
                         onOpenGallery: { detailSheet = nil; galleryOpen = true },
                         onNewTask: { detailSheet = nil; newTaskOpen = true },
+                        onMarkUnread: {
+                            // Leaving a thread unread means leaving it: opening it again reads it.
+                            detailSheet = nil
+                            controller.markUnread()
+                            onBack()
+                        },
                         onCatchUp: catchUpMenuAction(),
                         onOptOut: { detailSheet = nil; confirmOptOut = true },
                         onRevokeOptOut: { detailSheet = nil; confirmRevoke = true },
                         onBlock: { detailSheet = nil; confirmBlock = true },
                         onRefresh: { detailSheet = nil; controller.refreshAfterReconnect() },
                         onDismiss: { detailSheet = nil },
-                        onDeleteConversation: deleteConversationAction()
+                        onDeleteConversation: deleteConversationAction(),
+                        canWrite: canWriteConversations
                     )
                 case .contactPanel:
                     ContactPanelSheet(
@@ -1756,6 +1772,8 @@ private struct ConversationSheet: View {
     let onAssign: @MainActor () -> Void
     let onOpenGallery: @MainActor () -> Void
     let onNewTask: @MainActor () -> Void
+    /// #712: leave the thread unread, then leave it.
+    let onMarkUnread: @MainActor () -> Void
     /// #716: nil when the thread does not offer a catch-up, which hides the row.
     let onCatchUp: (@MainActor () -> Void)?
     let onOptOut: @MainActor () -> Void
@@ -1765,6 +1783,8 @@ private struct ConversationSheet: View {
     let onDismiss: @MainActor () -> Void
     /// #691: nil when this member may not delete, which hides the row.
     let onDeleteConversation: (@MainActor () -> Void)?
+    /// `conversations.note`: status, assignment, pin, spam and block.
+    let canWrite: Bool
 
     /// #293: the custom-date sheet, owned here rather than inside the row, so
     /// dismissing the actions sheet cannot take the picker with it. The value
@@ -1775,18 +1795,6 @@ private struct ConversationSheet: View {
     @State private var choosingMute = false
 
     @Environment(\.appLocale) private var appLocale
-
-    private struct MuteChoice: Identifiable {
-        let id: String
-        let key: String
-    }
-
-    private static let muteChoices = [
-        MuteChoice(id: "1h", key: "thread.mute1h"),
-        MuteChoice(id: "8h", key: "thread.mute8h"),
-        MuteChoice(id: "1w", key: "thread.mute1w"),
-        MuteChoice(id: "forever", key: "thread.muteForever"),
-    ]
 
     private let statuses = [
         ConversationStatus.new,
@@ -1811,12 +1819,13 @@ private struct ConversationSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 identityRow
-                statusSection
-                actionsCard
-                snoozeCard
-                alertsCard
-                attachmentsCard
-                destructiveCard
+                // #712: the sheet draws the conversation's one action list, in its order.
+                // Close and reopen are the status pills; snooze, unsnooze and follow-up are
+                // the deferral card; everything else is a row.
+                ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                    blockView(block)
+                }
+                refreshCard
                 timelineCard
             }
             .padding(.horizontal, 18)
@@ -1887,169 +1896,153 @@ private struct ConversationSheet: View {
         }
     }
 
-    /// #710: the sheet's cards follow the web menu's order. Everyday actions,
-    /// then deferral (`snoozeCard`), then alerts, then the gallery, with the
-    /// destructive ones last in a card of their own, Delete before Opt out.
-    private var actionsCard: some View {
-        VStack(spacing: 0) {
-            sheetRow(assigneeLabel, icon: "person.badge.plus", action: onAssign)
-            RowDivider()
-            // #465: pinned is a STATE, not a command. It was drawn as a plain
-            // action row, identical to "Photos & files" below it, while this
-            // sheet already had a toggleRow used only by the view filters. Same
-            // vocabulary everywhere now: a trailing mark means state, and the
-            // label names the state rather than flipping between two verbs.
-            toggleRow(
-                AppStrings.translate(appLocale, "thread.pinned"),
-                icon: "pin",
-                on: detail.pinned_at != nil
-            ) {
+    /// The conversation's one action list for this thread. The thread being open IS
+    /// the read state, so leaving it unread is the one choice.
+    private var actions: [RecordAction] {
+        conversationActions(
+            ConversationActionsInput(
+                unread: false,
+                closed: detail.status == ConversationStatus.closed,
+                pinned: detail.pinned_at != nil,
+                deferred: detail.snoozed_until.map { isSnoozed($0) } ?? false,
+                muted: detail.muted == true,
+                followed: detail.followed == true,
+                spam: detail.is_spam,
+                blocked: controller.blockedSender != nil,
+                optOut: controller.contact.map {
+                    OptOutState(
+                        optedOut: $0.opted_out == true,
+                        carrierEnforced: isCarrierEnforcedOptOut($0.opt_out_source)
+                    )
+                },
+                viewer: RecordViewer(canWrite: canWrite, canDelete: onDeleteConversation != nil),
+                hasMembers: !controller.members.isEmpty,
+                surface: ConversationSurface(
+                    canOpen: false,
+                    hasGallery: true,
+                    hasCatchUp: onCatchUp != nil,
+                    hasNewTask: true
+                )
+            )
+        )
+    }
+
+    private var blocks: [ConversationSheetBlock] {
+        conversationSheetBlocks(actions)
+    }
+
+    @ViewBuilder
+    private func blockView(_ block: ConversationSheetBlock) -> some View {
+        switch block {
+        case .status:
+            statusSection
+        case .deferral:
+            snoozeCard
+        case .rows(let rows):
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, action in
+                    if index > 0 { RowDivider() }
+                    actionRow(action)
+                }
+            }
+            .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+    }
+
+    /// One row of the list. Pinned, followed and spam are STATES, drawn and named as
+    /// such (#465): a trailing mark means state, and the label names the state.
+    @ViewBuilder
+    private func actionRow(_ action: RecordAction) -> some View {
+        let label = AppStrings.translate(appLocale, action.labelKey)
+        let symbol = recordActionSymbol(action.id)
+        switch action.id {
+        case ConversationActionId.markRead, ConversationActionId.markUnread:
+            sheetRow(label, icon: symbol, action: onMarkUnread)
+        case ConversationActionId.assign:
+            sheetRow(assigneeLabel, icon: symbol, action: onAssign)
+        case ConversationActionId.pin:
+            toggleRow(label, icon: symbol, on: action.checked == true) {
                 controller.toggleConversationPin()
                 onDismiss()
             }
-            RowDivider()
-            sheetRow(
-                AppStrings.translate(appLocale, "thread.newTask"),
-                icon: "text.badge.plus",
-                action: onNewTask
-            )
-            if let onCatchUp = onCatchUp {
-                RowDivider()
-                sheetRow(
-                    AppStrings.translate(appLocale, "thread.summaryOffer"),
-                    icon: "sparkles",
-                    action: onCatchUp
-                )
+        case ConversationActionId.catchUp:
+            sheetRow(label, icon: symbol) { onCatchUp?() }
+        case ConversationActionId.newTask:
+            sheetRow(label, icon: symbol, action: onNewTask)
+        // #694: mute and follow are this member's own. Mute opens the durations in place
+        // rather than a second sheet. #710: Mute reads like Snooze, so its row says what
+        // it keeps and what it drops.
+        case ConversationActionId.unmute:
+            sheetRow(label, icon: symbol) {
+                controller.unmute()
+                onDismiss()
             }
-            RowDivider()
+        case ConversationActionId.mute:
+            sheetRow(
+                label,
+                icon: symbol,
+                supporting: AppStrings.translate(appLocale, "thread.muteHint")
+            ) {
+                choosingMute.toggle()
+            }
+            if choosingMute {
+                ForEach(recordMuteChoices) { choice in
+                    sheetRow(
+                        AppStrings.translate(appLocale, choice.labelKey ?? choice.id),
+                        icon: "clock"
+                    ) {
+                        controller.mute(choice.id)
+                        onDismiss()
+                    }
+                }
+            }
+        case ConversationActionId.follow:
+            toggleRow(label, icon: symbol, on: action.checked == true) {
+                controller.setFollowed(detail.followed != true)
+                onDismiss()
+            }
+        case ConversationActionId.attachments:
+            sheetRow(label, icon: symbol, action: onOpenGallery)
+        case ConversationActionId.spam:
+            toggleRow(label, icon: symbol, on: action.checked == true) {
+                controller.setSpam(!detail.is_spam)
+                onDismiss()
+            }
+        // #696: a block sends this number's future texts and calls straight to spam.
+        // Unblocking needs no confirmation: it only lets the next one through.
+        case ConversationActionId.unblock:
+            sheetRow(label, icon: symbol) {
+                controller.unblockNumber()
+                onDismiss()
+            }
+        case ConversationActionId.block:
+            sheetRow(label, icon: symbol, action: onBlock)
+        case ConversationActionId.delete:
+            if let onDeleteConversation {
+                sheetRow(label, icon: symbol, action: onDeleteConversation)
+            }
+        // #407: a STOP the customer sent is a CARRIER block, and only they can lift it.
+        // So the row becomes a note, which the customer acts on, not an undo we cannot
+        // honour.
+        case ConversationActionId.carrierStop:
+            sheetNote(label)
+        case ConversationActionId.optIn:
+            sheetRow(label, icon: symbol, action: onRevokeOptOut)
+        case ConversationActionId.optOut:
+            sheetRow(label, icon: symbol, action: onOptOut)
+        default:
+            EmptyView()
+        }
+    }
+
+    /// The manual refresh is this screen's own utility, not an action on the record,
+    /// so it stays out of the shared list.
+    private var refreshCard: some View {
+        VStack(spacing: 0) {
             sheetRow(
                 AppStrings.translate(appLocale, "thread.refresh"),
                 icon: "arrow.clockwise"
             ) { onRefresh() }
-        }
-        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    /// #694: mute and follow are this member's own. Mute opens the durations
-    /// in place rather than a second sheet. #710: Mute reads like Snooze, so
-    /// its row says what it keeps and what it drops.
-    private var alertsCard: some View {
-        VStack(spacing: 0) {
-            if detail.muted == true {
-                sheetRow(
-                    AppStrings.translate(appLocale, "thread.unmute"),
-                    icon: "bell"
-                ) {
-                    controller.unmute()
-                    onDismiss()
-                }
-            } else {
-                sheetRow(
-                    AppStrings.translate(appLocale, "thread.muteMenu"),
-                    icon: "bell.slash",
-                    supporting: AppStrings.translate(appLocale, "thread.muteHint")
-                ) {
-                    choosingMute.toggle()
-                }
-                if choosingMute {
-                    ForEach(Self.muteChoices) { choice in
-                        sheetRow(
-                            AppStrings.translate(appLocale, choice.key),
-                            icon: "clock"
-                        ) {
-                            controller.mute(choice.id)
-                            onDismiss()
-                        }
-                    }
-                }
-            }
-            RowDivider()
-            toggleRow(
-                AppStrings.translate(appLocale, "thread.follow"),
-                icon: "bell.badge",
-                on: detail.followed == true
-            ) {
-                controller.setFollowed(detail.followed != true)
-                onDismiss()
-            }
-        }
-        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private var attachmentsCard: some View {
-        VStack(spacing: 0) {
-            sheetRow(
-                AppStrings.translate(appLocale, "thread.photosAndFiles"),
-                icon: "photo.on.rectangle",
-                action: onOpenGallery
-            )
-        }
-        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private var destructiveCard: some View {
-        VStack(spacing: 0) {
-            toggleRow(
-                AppStrings.translate(appLocale, "thread.spam"),
-                icon: "exclamationmark.octagon",
-                on: detail.is_spam
-            ) {
-                controller.setSpam(!detail.is_spam)
-                onDismiss()
-            }
-            RowDivider()
-            // #696: a block sends this number's future texts and calls
-            // straight to spam. Unblocking needs no confirmation: it only
-            // lets the next one through.
-            if controller.blockedSender != nil {
-                sheetRow(
-                    AppStrings.translate(appLocale, "thread.unblockNumber"),
-                    icon: "arrow.uturn.backward"
-                ) {
-                    controller.unblockNumber()
-                    onDismiss()
-                }
-            } else {
-                sheetRow(
-                    AppStrings.translate(appLocale, "thread.blockNumber"),
-                    icon: "hand.raised",
-                    action: onBlock
-                )
-            }
-            RowDivider()
-            if let onDeleteConversation {
-                sheetRow(
-                    AppStrings.translate(appLocale, "thread.deleteConversation"),
-                    icon: "trash",
-                    action: onDeleteConversation
-                )
-                RowDivider()
-            }
-            if controller.contact?.opted_out == true {
-                // #407: a STOP the customer sent is a CARRIER block, and only
-                // they can lift it. Offering to undo it here promised something
-                // the next send would immediately contradict — and taught the
-                // owner that consent is theirs to reinstate. So the row becomes
-                // the answer they actually need: the route back, which is one
-                // the customer takes.
-                if isCarrierEnforcedOptOut(controller.contact?.opt_out_source) {
-                    sheetNote(
-                        AppStrings.translate(appLocale, "thread.carrierStopNote")
-                    )
-                } else {
-                    sheetRow(
-                        AppStrings.translate(appLocale, "thread.removeOptOut"),
-                        icon: "arrow.uturn.backward",
-                        action: onRevokeOptOut
-                    )
-                }
-            } else {
-                sheetRow(
-                    AppStrings.translate(appLocale, "thread.optOutOfTexts"),
-                    icon: "nosign",
-                    action: onOptOut
-                )
-            }
         }
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }

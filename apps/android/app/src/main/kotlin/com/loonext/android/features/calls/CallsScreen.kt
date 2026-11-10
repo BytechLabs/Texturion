@@ -7,6 +7,16 @@ import android.media.AudioAttributes
 import android.media.MediaPlayer
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import com.loonext.android.ui.common.CallActionId
+import com.loonext.android.ui.common.CallActionsInput
+import com.loonext.android.ui.common.RecordAction
+import com.loonext.android.ui.common.RecordMenu
+import com.loonext.android.ui.common.callActions
+import com.loonext.android.ui.common.rememberExactTime
+import com.loonext.android.ui.common.visible
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -339,7 +349,7 @@ fun CallsScreen(
     val canDelete = canDeleteRecords(
         me.memberships.firstOrNull { it.company_id == companyId }?.role,
     )
-    var deleteFor by remember { mutableStateOf<Call?>(null) }
+    val clipboard = LocalClipboardManager.current
     val snackbar = remember { SnackbarHostState() }
     fun editLogs(edit: (List<Call>) -> List<Call>) {
         CallsFilter.entries.forEach { f ->
@@ -563,10 +573,36 @@ fun CallsScreen(
                                                     onOpen = call.conversation_id?.let { id ->
                                                         { openConversation(id) }
                                                     },
-                                                    onMore = if (canDelete) {
-                                                        { deleteFor = call }
-                                                    } else {
-                                                        null
+                                                    // #712: the call's one action list. The row's more button
+                                                    // and its long-press both draw it.
+                                                    actions = callActions(
+                                                        CallActionsInput(
+                                                            hasConversation = call.conversation_id != null,
+                                                            hasContact = call.contact_id != null,
+                                                            callerE164 = call.caller_e164,
+                                                            hasVoicemail = call.outcome == CallOutcome.VOICEMAIL &&
+                                                                (call.voicemail_seconds ?: 0) > 0,
+                                                            canDelete = canDelete,
+                                                        ),
+                                                    ),
+                                                    onAction = { actionId ->
+                                                        when (actionId) {
+                                                            CallActionId.CALL_BACK -> call.caller_e164
+                                                                ?.takeIf { it.isNotBlank() }
+                                                                ?.let { number ->
+                                                                    dialerPrefill = number.filter { it.isDigit() }
+                                                                    dialerOpen = true
+                                                                }
+                                                                ?: call.conversation_id?.let { openConversation(it) }
+                                                            CallActionId.TEXT ->
+                                                                call.conversation_id?.let { openConversation(it) }
+                                                            CallActionId.COPY_NUMBER -> {
+                                                                clipboard.setText(AnnotatedString(call.caller_e164.orEmpty()))
+                                                                say(AppStrings.translate(logLocale, "recordMenu.numberCopied", emptyMap()))
+                                                            }
+                                                            CallActionId.DELETE_VOICEMAIL -> delete(call, voicemail = true)
+                                                            CallActionId.DELETE_CALL -> delete(call, voicemail = false)
+                                                        }
                                                     },
                                                     onDialBack = call.caller_e164
                                                         ?.takeIf { it.isNotBlank() }
@@ -707,23 +743,6 @@ fun CallsScreen(
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 72.dp),
         )
-    }
-
-    deleteFor?.let { call ->
-        AppSheet(onDismissRequest = { deleteFor = null }) {
-            Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-                if (call.outcome == CallOutcome.VOICEMAIL && (call.voicemail_seconds ?: 0) > 0) {
-                    DeleteSheetRow(t("contactsTasks.deleteVoicemail")) {
-                        deleteFor = null
-                        delete(call, voicemail = true)
-                    }
-                }
-                DeleteSheetRow(t("contactsTasks.deleteCall")) {
-                    deleteFor = null
-                    delete(call, voicemail = false)
-                }
-            }
-        }
     }
 
     if (dialerOpen) {
@@ -1027,8 +1046,9 @@ private fun CallRow(
     repo: CallsRepository,
     companyId: String,
     onOpen: (() -> Unit)?,
-    /** #691: opens the delete sheet; null when the member lacks records.delete. */
-    onMore: (() -> Unit)? = null,
+    /** #712: this call's action list, and what to do with the id that was chosen. */
+    actions: List<RecordAction>,
+    onAction: (String) -> Unit,
     onDialBack: (() -> Unit)?,
     /** D64: "Make a task", offered on an answered call that has a conversation. */
     makeTask: (@Composable () -> Unit)? = null,
@@ -1036,11 +1056,31 @@ private fun CallRow(
     val name = callerDisplayName(call)
     val haptics = rememberHaptics()
     val coral = if (isSystemInDarkTheme()) BrandColor.DarkCoral else BrandColor.Coral
+    var menuOpen by remember { mutableStateOf(false) }
+    val hasMenu = actions.visible().isNotEmpty()
+    Box {
     Column(
         Modifier
             .fillMaxWidth()
             .then(
-                if (onOpen != null) Modifier.clickable(onClick = onOpen) else Modifier,
+                if (onOpen != null || hasMenu) {
+                    Modifier.combinedClickable(
+                        onClick = { onOpen?.invoke() },
+                        // #712: long-press is the same menu as the more button. The
+                        // time's own long-press yields to it, so the menu leads with it.
+                        onLongClick = if (hasMenu) {
+                            {
+                                haptics.tick()
+                                menuOpen = true
+                            }
+                        } else {
+                            null
+                        },
+                        onLongClickLabel = t("recordMenu.moreActions"),
+                    )
+                } else {
+                    Modifier
+                },
             ),
     ) {
         // #185 swipe shortcuts, on the row surface only (the voicemail player
@@ -1165,6 +1205,7 @@ private fun CallRow(
                 }
                 Timestamp(
                     call.started_at,
+                    pressable = !hasMenu,
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     // #566: a non-weighted sibling is measured BEFORE the
@@ -1179,12 +1220,15 @@ private fun CallRow(
                     softWrap = false,
                 )
                 makeTask?.invoke()
-                if (onMore != null) {
+                if (hasMenu) {
                     Box(
                         Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .clickable(onClick = onMore),
+                            .clickable {
+                                haptics.tap()
+                                menuOpen = true
+                            },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -1254,6 +1298,14 @@ private fun CallRow(
                 )
             }
         }
+    }
+    RecordMenu(
+        expanded = menuOpen,
+        onDismiss = { menuOpen = false },
+        actions = actions,
+        onSelect = { actionId, _ -> onAction(actionId) },
+        exactTime = rememberExactTime(call.started_at),
+    )
     }
 }
 
@@ -1629,27 +1681,3 @@ private fun CallLogSkeleton(modifier: Modifier = Modifier) {
     }
 }
 
-/** #691: one destructive row in the call delete sheet. */
-@Composable
-private fun DeleteSheetRow(label: String, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Icons.Outlined.Delete,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(16.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-            color = MaterialTheme.colorScheme.error,
-        )
-    }
-}

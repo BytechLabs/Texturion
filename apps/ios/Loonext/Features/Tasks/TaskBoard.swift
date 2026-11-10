@@ -329,6 +329,8 @@ private struct BoardCard: View {
         // stays for accessibility (a drag is invisible to VoiceOver).
         .draggable(task.id)
         .onTapGesture(perform: onOpen)
+        // #712: long-press is the task's own menu, the same list the list and calendar use.
+        .taskContextMenu(task)
     }
 
     private func dueLine(overdue: Bool) -> String {

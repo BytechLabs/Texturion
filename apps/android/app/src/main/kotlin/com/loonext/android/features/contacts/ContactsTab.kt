@@ -16,6 +16,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import com.loonext.android.core.model.canDeleteRecords
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -226,6 +228,8 @@ fun ContactsTab(
         mutations = mutations,
         companyId = companyId,
         canImport = canImport,
+        canDelete = canDeleteRecords(role),
+        callerIdName = resolvedMe?.display_name.orEmpty(),
         refreshKey = listRefresh,
         onRefresh = { listRefresh++ },
         onOpenContact = { onOpenContact?.invoke(it) },
@@ -241,6 +245,8 @@ private fun ContactListScreen(
     mutations: ContactMutations,
     companyId: String,
     canImport: Boolean,
+    canDelete: Boolean,
+    callerIdName: String,
     refreshKey: Int,
     onRefresh: () -> Unit,
     onOpenContact: (String) -> Unit,
@@ -901,7 +907,27 @@ private fun ContactListScreen(
                                         modifier = Modifier.animateItem(),
                                     ) {
                                         Column {
-                                            ContactRow(contact, onClick = { onOpenContact(contact.id) })
+                                            ContactRow(
+                                                contact,
+                                                onClick = { onOpenContact(contact.id) },
+                                                // #712: long-press is the contact's own action menu.
+                                                menu = { expanded, dismiss ->
+                                                    ContactRecordMenu(
+                                                        contact = contact,
+                                                        expanded = expanded,
+                                                        onDismiss = dismiss,
+                                                        graph = graph,
+                                                        mutations = mutations,
+                                                        companyId = companyId,
+                                                        canDelete = canDelete,
+                                                        callerIdName = callerIdName,
+                                                        onOpen = onOpenContact,
+                                                        onText = onComposeTo,
+                                                        onChanged = onRefresh,
+                                                        onMessage = { scope.launch { snackbar.showSnackbar(it) } },
+                                                    )
+                                                },
+                                            )
                                             if (index != rows.lastIndex) {
                                                 RowDivider(Modifier.padding(horizontal = 15.dp))
                                             }
@@ -1313,12 +1339,26 @@ private fun SearchPill(
 }
 
 @Composable
-private fun ContactRow(contact: Contact, onClick: () -> Unit) {
+private fun ContactRow(
+    contact: Contact,
+    onClick: () -> Unit,
+    menu: @Composable (expanded: Boolean, onDismiss: () -> Unit) -> Unit,
+) {
     val name = contact.name?.ifBlank { null } ?: formatPhone(contact.phone_e164)
+    val haptics = rememberHaptics()
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptics.tick()
+                    menuOpen = true
+                },
+                onLongClickLabel = t("recordMenu.moreActions"),
+            )
             .padding(horizontal = 15.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
@@ -1372,6 +1412,8 @@ private fun ContactRow(contact: Contact, onClick: () -> Unit) {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+    menu(menuOpen) { menuOpen = false }
     }
 }
 

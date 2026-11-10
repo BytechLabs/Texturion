@@ -67,6 +67,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.time.TimestampFormat
@@ -949,6 +950,7 @@ private fun ReadyShell(
                         // holds to settings.manage (owner and admin).
                         canUnmerge = MemberRole.atLeast(role, MemberRole.ADMIN),
                         canDelete = canDeleteRecords(role),
+                        canBlock = MemberRole.has(role, Capability.CONVERSATIONS_NOTE),
                         // #228: the contact's language row names what "same as
                         // workspace" currently means, which it cannot do
                         // without the workspace's own setting.

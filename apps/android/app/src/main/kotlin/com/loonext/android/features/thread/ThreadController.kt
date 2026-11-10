@@ -835,6 +835,11 @@ class ThreadController(
         scope.launch { runCatching { repo.markRead(companyId, conversationId) } }
     }
 
+    /** #712: leave the thread unread. The caller then leaves it, so it is not read again at once. */
+    fun markUnread() {
+        scope.launch { runCatching { repo.markUnread(companyId, conversationId) } }
+    }
+
     // --- Sending ------------------------------------------------------------------
 
     /**

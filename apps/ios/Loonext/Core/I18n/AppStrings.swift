@@ -61,6 +61,7 @@ enum AppStrings {
         DomainStrings.section,
         InboxStrings.section,
         PaymentsStrings.section,
+        RecordMenuStrings.section,
         SettingsStrings.section,
         SettingsMoreStrings.section,
         ShellStrings.section,

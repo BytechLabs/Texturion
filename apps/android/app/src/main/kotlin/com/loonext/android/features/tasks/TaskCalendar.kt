@@ -478,12 +478,19 @@ internal fun TaskCalendarView(
                                     .clip(cardGroupShape(index, dayTasks.size))
                                     .background(MaterialTheme.colorScheme.surface),
                             ) {
-                                TaskListRow(
-                                    task = task,
-                                    assigneeNames = taskAssigneeNames(task.assigneeIdList, task.assignees, memberName),
-                                    onClick = { onOpenTask(task.id) },
-                                    onToggleDone = { done -> onToggleDone(task, done) },
-                                )
+                                // #712: no selection here, so long-press is the task's own menu.
+                                val taskMenu = LocalTaskMenu.current
+                                var menuOpen by remember { mutableStateOf(false) }
+                                Box {
+                                    TaskListRow(
+                                        task = task,
+                                        assigneeNames = taskAssigneeNames(task.assigneeIdList, task.assignees, memberName),
+                                        onClick = { onOpenTask(task.id) },
+                                        onToggleDone = { done -> onToggleDone(task, done) },
+                                        onLongPress = taskMenu?.let { { menuOpen = true } },
+                                    )
+                                    taskMenu?.invoke(task, menuOpen) { menuOpen = false }
+                                }
                                 if (index < dayTasks.lastIndex) RowDivider()
                             }
                         }

@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import UIKit
 
 private enum CallsFilter: String, CaseIterable, Identifiable {
     // The raw values stay ENGLISH and stay identity: they are the `.task(id:)`
@@ -325,18 +326,74 @@ struct CallsView: View {
         return RecordDeletion.canDelete(role: role)
     }
 
-    private func deleteCallAction(for call: Call) -> (@MainActor () -> Void)? {
-        guard canDeleteRecords else { return nil }
-        return { deleteRecord(call, kind: .call) }
+    /// #712: the call's one action list. The row's long-press menu draws it, so
+    /// a member without `records.delete` never sees either delete, and a call with
+    /// no voicemail has no voicemail to delete on its own.
+    private func recordActions(for call: Call) -> [RecordAction] {
+        callActions(
+            CallActionsInput(
+                hasConversation: call.conversation_id != nil,
+                hasContact: call.contact_id != nil,
+                callerE164: call.caller_e164,
+                hasVoicemail: call.outcome == CallOutcome.voicemail
+                    && (call.voicemail_seconds ?? 0) > 0,
+                canDelete: canDeleteRecords
+            )
+        )
     }
 
-    /// Only a call that has a voicemail can have one deleted on its own.
-    private func deleteVoicemailAction(for call: Call) -> (@MainActor () -> Void)? {
-        guard canDeleteRecords else { return nil }
-        guard call.outcome == CallOutcome.voicemail,
-              (call.voicemail_seconds ?? 0) > 0
-        else { return nil }
-        return { deleteRecord(call, kind: .voicemail) }
+    private func performAction(_ actionId: String, for call: Call) {
+        switch actionId {
+        case CallActionId.callBack:
+            callBack(call)
+        case CallActionId.text:
+            Haptics.tap()
+            if let id = call.conversation_id { openConversation(id) }
+        case CallActionId.copyNumber:
+            Haptics.tap()
+            UIPasteboard.general.string = call.caller_e164
+            showNotice(t("recordMenu.numberCopied"))
+        case CallActionId.deleteVoicemail:
+            Haptics.tap()
+            deleteRecord(call, kind: .voicemail)
+        case CallActionId.deleteCall:
+            Haptics.tap()
+            deleteRecord(call, kind: .call)
+        default:
+            break
+        }
+    }
+
+    /// Mic first, then authorize: a denial never reserves the line.
+    private func callBack(_ call: Call) {
+        Haptics.confirm()
+        let place: @MainActor () -> Void = {
+            Task {
+                do {
+                    try await manager.placeCall(
+                        displayName: callerDisplayName(call),
+                        conversationId: call.conversation_id,
+                        contactId: call.contact_id,
+                        to: call.conversation_id == nil && call.contact_id == nil
+                            ? call.caller_e164
+                            : nil
+                    )
+                } catch {
+                    showNotice(error.userMessage)
+                }
+            }
+        }
+        if manager.hasMicPermission {
+            place()
+            return
+        }
+        Task {
+            if await manager.requestMicPermission() {
+                place()
+            } else {
+                showNotice(t("contactsTasks.micNeededToPlace"))
+            }
+        }
     }
 
     /// Both go to the Trash, so the toast carries an Undo that restores it. No
@@ -485,8 +542,8 @@ struct CallsView: View {
                                 companyId: companyId,
                                 onOpen: openAction(for: call),
                                 makeTask: makeTaskButton(for: call),
-                                onDeleteCall: deleteCallAction(for: call),
-                                onDeleteVoicemail: deleteVoicemailAction(for: call)
+                                actions: recordActions(for: call),
+                                onAction: { actionId in performAction(actionId, for: call) }
                             )
                             if call.id != calls.last?.id {
                                 RowDivider().padding(.leading, 64)
@@ -743,9 +800,10 @@ private struct CallRow: View {
     /// After the required `let`s and defaulted, so the call sites and previews
     /// that omit it keep compiling.
     var makeTask: AnyView?
-    /// #691: nil hides the item (no `records.delete`, or no voicemail to delete).
-    var onDeleteCall: (@MainActor () -> Void)?
-    var onDeleteVoicemail: (@MainActor () -> Void)?
+    /// #712: this call's action list, and what to do with the id that was chosen. Empty
+    /// means no menu at all.
+    var actions: [RecordAction] = []
+    var onAction: (@MainActor (String) -> Void)?
 
     /// #228: AFTER the required `let`s, so the memberwise init every call site
     /// above uses keeps the same argument order.
@@ -881,29 +939,13 @@ private struct CallRow: View {
         .onTapGesture {
             onOpen?()
         }
-        .contextMenu {
-            if let onDeleteVoicemail {
-                Button(role: .destructive) {
-                    Haptics.tap()
-                    onDeleteVoicemail()
-                } label: {
-                    Label(
-                        AppStrings.translate(appLocale, "thread.deleteVoicemail"),
-                        systemImage: "trash"
-                    )
-                }
-            }
-            if let onDeleteCall {
-                Button(role: .destructive) {
-                    Haptics.tap()
-                    onDeleteCall()
-                } label: {
-                    Label(
-                        AppStrings.translate(appLocale, "thread.deleteCall"),
-                        systemImage: "trash"
-                    )
-                }
-            }
+        // #712: long-press draws the call's one action list. The time's own long-press
+        // yields to it, so the menu leads with the exact time instead.
+        .recordContextMenu(
+            actions,
+            exactTime: TimestampFormat.exact(call.started_at, locale: appLocale)
+        ) { actionId, _ in
+            onAction?(actionId)
         }
     }
 }

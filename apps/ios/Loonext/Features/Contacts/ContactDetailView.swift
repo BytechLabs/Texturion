@@ -30,6 +30,8 @@ struct ContactDetailView: View {
     var canUnmerge: Bool = false
     /// #691: deleting a contact needs records.delete.
     var canDelete: Bool = false
+    /// #712: blocking a number needs `conversations.note`, like the thread's Block.
+    var canBlock: Bool = true
 
     private enum DetailState {
         case loading
@@ -236,6 +238,61 @@ struct ContactDetailView: View {
                 actionError = error.userMessage
             }
             working = false
+        }
+    }
+
+    // MARK: - The contact's one action list (#712)
+
+    /// The more button and the manage card below both read this, so neither can offer
+    /// what the other does not.
+    private func contactMenuActions(_ contact: Contact) -> [RecordAction] {
+        contactActions(
+            ContactActionsInput(
+                canOpen: false,
+                optedOut: contact.opted_out,
+                carrierEnforced: isCarrierEnforcedOptOut(contact.opt_out_source),
+                blocked: blockedSender != nil,
+                canBlock: canBlock,
+                canDelete: canDelete
+            )
+        )
+    }
+
+    private func performContactAction(_ actionId: String, _ contact: Contact) {
+        switch actionId {
+        case ContactActionId.text:
+            Haptics.tap()
+            if let conversationId, let onOpenConversation {
+                onOpenConversation(conversationId)
+            } else {
+                onComposeNew?(contact.id)
+            }
+        case ContactActionId.call:
+            Haptics.tap()
+            callWithMicPreflight(contact)
+        case ContactActionId.copyNumber:
+            Haptics.tap()
+            UIPasteboard.general.string = contact.phone_e164
+        case ContactActionId.block:
+            confirmBlock = true
+        case ContactActionId.unblock:
+            guard let blocked = blockedSender else { return }
+            runAction {
+                try await MessagingRepository(api: graph.api)
+                    .unblockSender(companyId: companyId, id: blocked.id)
+                blockedSender = nil
+            }
+        case ContactActionId.optOut:
+            confirmOptOut = true
+        case ContactActionId.optIn:
+            runAction {
+                _ = try await mutations.revokeOptOut(companyId: companyId, contactId: contactId)
+                refreshKey += 1
+            }
+        case ContactActionId.delete:
+            confirmDelete = true
+        default:
+            break
         }
     }
 
@@ -494,6 +551,30 @@ struct ContactDetailView: View {
                     ? formatPhone(contact.phone_e164)
                     : (contact.name ?? "")
             )
+            // #712: the contact's own menu, the one list every surface draws.
+            let menuActions = contactMenuActions(contact)
+            if !menuActions.visible.isEmpty {
+                Menu {
+                    RecordMenuContent(actions: menuActions) { actionId, _ in
+                        performContactAction(actionId, contact)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.scaled(13, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        .frame(width: 38, height: 38)
+                        .background(BrandColor.paper, in: Circle())
+                }
+                .accessibilityLabel(
+                    AppStrings.translate(
+                        appLocale,
+                        "recordMenu.moreActionsFor",
+                        ["name": (contact.name?.isBlank ?? true)
+                            ? formatPhone(contact.phone_e164)
+                            : (contact.name ?? "")]
+                    )
+                )
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -1121,7 +1202,8 @@ struct ContactDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(label: t("contactsTasks.manageThisContact"))
             PaperCard {
-                if !contact.opted_out {
+                let menuIds = contactMenuActions(contact).visibleIds
+                if menuIds.contains(ContactActionId.optOut) {
                     manageRow(
                         text: t("contactsTasks.stopAllTexting"),
                         actionLabel: t("contactsTasks.optOutContact"),
@@ -1129,6 +1211,7 @@ struct ContactDetailView: View {
                     ) { confirmOptOut = true }
                     RowDivider()
                 }
+                if menuIds.contains(ContactActionId.block) || menuIds.contains(ContactActionId.unblock) {
                 manageRow(
                     text: blockedSender != nil
                         ? t("thread.unblockCaption")
@@ -1148,7 +1231,8 @@ struct ContactDetailView: View {
                         blockedSender = nil
                     }
                 }
-                if canDelete {
+                }
+                if menuIds.contains(ContactActionId.delete) {
                     RowDivider()
                     manageRow(
                         text: t("contactsTasks.hideThisContact"),

@@ -13,14 +13,17 @@ private struct ExactTimeModifier: ViewModifier {
     let iso: String?
 
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.recordMenuOwnsLongPress) private var menuOwnsLongPress
     @State private var showsExact = false
 
     func body(content: Content) -> some View {
         content
             .accessibilityLabel(TimestampFormat.spoken(iso, locale: appLocale))
             .simultaneousGesture(
+                // #712: inside a record that opens a menu on long-press, the menu wins and
+                // leads with this same exact time, so one press never means two things.
                 LongPressGesture(minimumDuration: 0.45).onEnded { _ in
-                    showsExact = true
+                    if !menuOwnsLongPress { showsExact = true }
                 }
             )
             .popover(isPresented: $showsExact) {
@@ -29,6 +32,18 @@ private struct ExactTimeModifier: ViewModifier {
                     .padding(12)
                     .presentationCompactAdaptation(.popover)
             }
+    }
+}
+
+private struct RecordMenuOwnsLongPressKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// #712: true under a row whose long-press opens a record menu.
+    var recordMenuOwnsLongPress: Bool {
+        get { self[RecordMenuOwnsLongPressKey.self] }
+        set { self[RecordMenuOwnsLongPressKey.self] = newValue }
     }
 }
 

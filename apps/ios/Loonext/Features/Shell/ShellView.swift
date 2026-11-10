@@ -480,7 +480,8 @@ struct ShellView: View {
                 // #695: Unmerge is gated like merge, which the server holds to
                 // settings.manage (owner and admin).
                 canUnmerge: MemberRole.atLeast(role, required: MemberRole.admin),
-                canDelete: RecordDeletion.canDelete(role: role)
+                canDelete: RecordDeletion.canDelete(role: role),
+                canBlock: MemberRole.has(role, Capability.conversationsNote)
             )
             // Edits/opt-outs/deletes made in the detail show on return to the
             // contacts list (no realtime for contact mutations on iOS).

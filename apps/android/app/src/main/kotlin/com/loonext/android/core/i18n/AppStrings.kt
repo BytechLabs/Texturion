@@ -71,6 +71,7 @@ object AppStrings {
         DomainStrings,
         InboxStrings,
         PaymentsStrings,
+        RecordMenuStrings,
         SettingsMoreStrings,
         SettingsStrings,
         ShellStrings,

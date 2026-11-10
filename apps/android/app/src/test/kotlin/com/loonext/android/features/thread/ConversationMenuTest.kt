@@ -1,7 +1,13 @@
 package com.loonext.android.features.thread
 
 import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.MessageLocale
+import com.loonext.android.ui.common.ConversationActionsInput
+import com.loonext.android.ui.common.ConversationSurface
+import com.loonext.android.ui.common.OptOutState
+import com.loonext.android.ui.common.RecordViewer
+import com.loonext.android.ui.common.conversationActions
 import com.loonext.android.ui.common.TrashSnackbarVisuals
 import com.loonext.android.ui.common.snackbarActionLabels
 import org.junit.Assert.assertEquals
@@ -9,45 +15,66 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** #710: the menu's grouping, and the hints and notice labels it leans on. */
+/** #710 and #712: the sheet's layout, derived from the conversation's one action list. */
 class ConversationMenuTest {
-    private val flat get() = conversationMenuGroups(canDelete = true, canCatchUp = true).flatten()
+    private fun actions(role: String = MemberRole.OWNER, catchUp: Boolean = false) = conversationActions(
+        ConversationActionsInput(
+            unread = false, closed = false, pinned = false, deferred = false, muted = false,
+            followed = false, spam = false, blocked = false,
+            optOut = OptOutState(optedOut = false, carrierEnforced = false),
+            viewer = RecordViewer.of(role), hasMembers = true,
+            surface = ConversationSurface(canOpen = false, hasGallery = true, hasCatchUp = catchUp, hasNewTask = true),
+        ),
+    )
+
+    private fun cards(role: String = MemberRole.OWNER, catchUp: Boolean = false): List<List<String>> =
+        conversationSheetBlocks(actions(role, catchUp)).map { block ->
+            when (block) {
+                is SheetBlock.Rows -> block.actions.map { it.id }
+                SheetBlock.Status -> listOf("status")
+                SheetBlock.Deferral -> listOf("deferral")
+            }
+        }
 
     @Test
-    fun groupsFollowTheWebOrderWithDestructiveLast() {
+    fun cardsFollowTheWebOrderWithDestructiveLast() {
         assertEquals(
             listOf(
-                listOf(ConversationMenuItem.ASSIGN, ConversationMenuItem.PINNED, ConversationMenuItem.NEW_TASK),
-                listOf(ConversationMenuItem.SNOOZE),
-                listOf(ConversationMenuItem.MUTE, ConversationMenuItem.FOLLOW),
-                listOf(ConversationMenuItem.ATTACHMENTS),
-                listOf(
-                    ConversationMenuItem.SPAM,
-                    ConversationMenuItem.BLOCK,
-                    ConversationMenuItem.DELETE,
-                    ConversationMenuItem.OPT_OUT,
-                ),
+                listOf("mark-unread", "assign"),
+                listOf("status"),
+                listOf("pin", "new-task"),
+                listOf("deferral"),
+                listOf("mute", "follow"),
+                listOf("attachments"),
+                listOf("spam", "block", "delete", "opt-out"),
             ),
-            conversationMenuGroups(canDelete = true),
+            cards(),
         )
     }
 
     @Test
     fun deleteComesRightBeforeOptOutNeverInTheMiddle() {
-        val last = conversationMenuGroups(canDelete = true).last()
-        assertEquals(ConversationMenuItem.DELETE, last[last.size - 2])
-        assertEquals(ConversationMenuItem.OPT_OUT, last.last())
+        val last = cards().last()
+        assertEquals("delete", last[last.size - 2])
+        assertEquals("opt-out", last.last())
     }
 
     @Test
     fun withoutRecordsDeleteTheRowIsGone() {
-        assertFalse(ConversationMenuItem.DELETE in conversationMenuGroups(canDelete = false).flatten())
+        assertFalse("delete" in cards(MemberRole.MEMBER).flatten())
+    }
+
+    @Test
+    fun aReadOnlyViewerGetsNoStatusPillsAndNoWriteRows() {
+        val flat = cards(MemberRole.READ_ONLY).flatten()
+        assertFalse("status" in flat)
+        assertFalse("assign" in flat || "pin" in flat || "spam" in flat)
     }
 
     @Test
     fun everyRowAppearsExactlyOnce() {
-        assertEquals(ConversationMenuItem.entries.toSet(), flat.toSet())
-        assertEquals(ConversationMenuItem.entries.size, flat.size)
+        val flat = cards().flatten()
+        assertEquals(flat.toSet().size, flat.size)
     }
 
     @Test

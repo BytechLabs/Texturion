@@ -59,13 +59,18 @@ fun Timestamp(
     maxLines: Int = Int.MAX_VALUE,
     softWrap: Boolean = true,
     overflow: TextOverflow = TextOverflow.Clip,
+    /**
+     * #712: false where the row around it opens a record menu on long-press. That menu
+     * leads with the exact time instead, so one press never means two things.
+     */
+    pressable: Boolean = true,
 ) {
     val locale = LocalAppLocale.current
     val label = TimestampFormat.label(iso, style, locale)
     if (label.isEmpty()) return
     val exact = TimestampFormat.exact(iso, locale)
     val spoken = TimestampFormat.spoken(iso, locale)
-    ExactTimePress(exact, modifier) {
+    ExactTimePress(exact, modifier, pressable = pressable) {
         Text(
             label,
             style = textStyle,
@@ -84,19 +89,24 @@ fun Timestamp(
 fun ExactTimePress(
     exact: String,
     modifier: Modifier = Modifier,
+    pressable: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     var shown by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     Box(
-        modifier.pointerInput(exact) {
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                val pressed = awaitLongPressOrCancellation(down.id)
-                if (pressed != null) {
-                    pressed.consume()
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    shown = true
+        if (!pressable) {
+            modifier
+        } else {
+            modifier.pointerInput(exact) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val pressed = awaitLongPressOrCancellation(down.id)
+                    if (pressed != null) {
+                        pressed.consume()
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        shown = true
+                    }
                 }
             }
         },

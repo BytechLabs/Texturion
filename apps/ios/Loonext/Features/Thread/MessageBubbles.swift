@@ -41,7 +41,15 @@ struct MessageBubble: View {
     var body: some View {
         VStack(alignment: horizontalAlignment, spacing: 2) {
             bubble
-                .contextMenu { menuItems }
+                // #712: the long-press menu is the message's one action list.
+                .recordContextMenu(
+                    messageActions(
+                        message,
+                        viewer: RecordViewer(canWrite: true, canDelete: actions.onDelete != nil)
+                    ),
+                    exactTime: bubbleExactTime,
+                    onSelect: { id, _ in perform(id) }
+                )
             MessageMetaLine(
                 message: message,
                 authorName: authorName,
@@ -209,94 +217,39 @@ struct MessageBubble: View {
         }
     }
 
-    @ViewBuilder
-    private var menuItems: some View {
-        // #720: the exact time with its zone; the quiet line under a bubble shows only the clock.
-        Label(TimestampFormat.exact(message.created_at, locale: appLocale), systemImage: "clock")
-        if !message.body.isBlank {
-            Button {
-                Haptics.tap()
-                UIPasteboard.general.string = message.body
-                actions.onCopied()
-            } label: {
-                Label(
-                    AppStrings.translate(appLocale, "thread.copyText"),
-                    systemImage: "doc.on.doc"
-                )
-            }
-        }
-        // #465: done and pinned are STATES, not commands, and as plain Buttons
-        // they were indistinguishable from "Copy text" above them. A Toggle in
-        // a Menu is the platform's own answer: it draws the checkmark itself,
-        // and the label names the state rather than flipping between two verbs.
-        Toggle(
-            isOn: Binding(
-                get: { message.done_at != nil },
-                // Marking done COMMITS and unmarking is a light touch — the
-                // same split the tasks list makes, because it is the same act
-                // reached from a different surface.
-                set: { done in
-                    if done { Haptics.confirm() } else { Haptics.tap() }
-                    actions.onToggleDone()
-                }
-            )
-        ) {
-            Label(
-                AppStrings.translate(appLocale, "thread.done"),
-                systemImage: "checkmark.circle"
-            )
-        }
-        Toggle(
-            isOn: Binding(
-                get: { message.pinned_at != nil },
-                set: { _ in
-                    Haptics.tap()
-                    actions.onTogglePin()
-                }
-            )
-        ) {
-            Label(
-                AppStrings.translate(appLocale, "thread.pinned"),
-                systemImage: "pin"
-            )
-        }
-        if message.retryable {
-            Button {
-                // A retry is a send, and a send commits.
-                Haptics.confirm()
-                actions.onRetry()
-            } label: {
-                Label(
-                    AppStrings.translate(appLocale, "thread.retrySend"),
-                    systemImage: "arrow.clockwise"
-                )
-            }
-        }
-        if !message.has_task, message.promoted_task == nil,
-           message.direction != MessageDirection.note {
-            Button {
-                Haptics.confirm()
-                actions.onMakeTask()
-            } label: {
-                Label(
-                    AppStrings.translate(appLocale, "thread.makeTask"),
-                    systemImage: "checklist"
-                )
-            }
-        }
-        if let onDelete = actions.onDelete {
-            Button(role: .destructive) {
-                Haptics.tap()
-                onDelete()
-            } label: {
-                Label(
-                    AppStrings.translate(
-                        appLocale,
-                        RecordDeletion.menuLabelKey(message)
-                    ),
-                    systemImage: "trash"
-                )
-            }
+    /// #720: the exact time with its zone; the quiet line under a bubble shows only the clock.
+    private var bubbleExactTime: String? {
+        let exact = TimestampFormat.exact(message.created_at, locale: appLocale)
+        return exact.isEmpty ? nil : exact
+    }
+
+    /// Runs one action from the menu. The ids are `MessageActionId`'s.
+    private func perform(_ id: String) {
+        switch id {
+        case MessageActionId.copyText:
+            Haptics.tap()
+            UIPasteboard.general.string = message.body
+            actions.onCopied()
+        case MessageActionId.done:
+            // Marking done COMMITS and unmarking is a light touch — the same split
+            // the tasks list makes, because it is the same act from another surface.
+            if message.done_at == nil { Haptics.confirm() } else { Haptics.tap() }
+            actions.onToggleDone()
+        case MessageActionId.pin:
+            Haptics.tap()
+            actions.onTogglePin()
+        case MessageActionId.retry:
+            // A retry is a send, and a send commits.
+            Haptics.confirm()
+            actions.onRetry()
+        case MessageActionId.makeTask:
+            Haptics.confirm()
+            actions.onMakeTask()
+        case MessageActionId.delete:
+            Haptics.tap()
+            actions.onDelete?()
+        default:
+            break
         }
     }
 }

@@ -7,6 +7,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -359,14 +362,30 @@ private fun BoardCard(
     // The paper card gives under the finger: pressScale shares the click's
     // interaction source so the ripple and the settle are one gesture.
     val pressInteraction = remember { MutableInteractionSource() }
+    // #712: long-press opens the task's own menu, the same list the list and calendar use.
+    val taskMenu = LocalTaskMenu.current
+    var menuOpen by remember { mutableStateOf(false) }
+    val haptics = rememberHaptics()
+    Box {
     Surface(
-        onClick = onOpen,
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,
-        interactionSource = pressInteraction,
         modifier = modifier
             .fillMaxWidth()
-            .pressScale(pressInteraction),
+            .pressScale(pressInteraction)
+            .clip(MaterialTheme.shapes.medium)
+            .combinedClickable(
+                interactionSource = pressInteraction,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                role = androidx.compose.ui.semantics.Role.Button,
+                onClick = onOpen,
+                onLongClick = taskMenu?.let {
+                    {
+                        haptics.tap()
+                        menuOpen = true
+                    }
+                },
+            ),
     ) {
         Column(
             Modifier
@@ -425,6 +444,8 @@ private fun BoardCard(
                 }
             }
         }
+    }
+    taskMenu?.invoke(task, menuOpen) { menuOpen = false }
     }
 }
 

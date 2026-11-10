@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 /// Task detail: inline-editable title/description (blur save), assignee and
@@ -528,35 +529,75 @@ struct TaskDetailView: View {
         )
     }
 
-    private func overflowMenu(_ detail: TaskDetail) -> some View {
-        Menu {
-            if !noAccess {
-                Button(
-                    AppStrings.translate(
-                        appLocale,
-                        detail.done
-                            ? "contactsTasks.markNotDone"
-                            : "contactsTasks.markDone"
+    /// #712: the task's one action list, the same one the list row, the board card and
+    /// the calendar entry draw. A record with nothing allowed has no menu.
+    private func overflowActions(_ detail: TaskDetail) -> [RecordAction] {
+        taskActions(
+            TaskActionsInput(
+                done: detail.done,
+                hasAccess: !noAccess,
+                canDelete: canDelete && !deleting,
+                // It is already open.
+                canOpen: false,
+                canCopyLink: true
+            )
+        )
+    }
+
+    private func performOverflow(_ detail: TaskDetail, actionId: String, subId: String?) {
+        switch actionId {
+        case TaskActionId.copyLink:
+            Haptics.tap()
+            UIPasteboard.general.string = taskLink(origin: AppConfig.appOrigin, taskId: detail.id)
+        case TaskActionId.done:
+            toggleDone()
+        case TaskActionId.due:
+            guard let days = subId.flatMap({ Int($0) }) else { return }
+            Haptics.tap()
+            let next = movedDueAt(detail.due_at, days: days)
+            let scope = taskNeedsScope(detail.repeatRule) ? "this" : nil
+            Task {
+                actionError = nil
+                do {
+                    _ = try await mutations.setDue(
+                        companyId: companyId,
+                        taskId: detail.id,
+                        dueAt: next,
+                        scope: scope
                     )
-                ) { toggleDone() }
-            }
-            if canDelete {
-                Button(
-                    AppStrings.translate(appLocale, "contactsTasks.deleteTask"),
-                    role: .destructive
-                ) {
-                    // #693: a repeating task asks which ones go.
-                    if taskNeedsScope(detail.repeatRule) {
-                        deleteScopeOpen = true
-                    // #89: confirm only when the task carries notes or files;
-                    // a plain task deletes now.
-                    } else if hasNotes(detail) || !detail.attachments.isEmpty {
-                        confirmDelete = true
-                    } else {
-                        deleteTask()
-                    }
+                    refreshKey += 1
+                } catch {
+                    actionError = error.userMessage
                 }
-                .disabled(deleting)
+            }
+        case TaskActionId.delete:
+            // #693: a repeating task asks which ones go.
+            if taskNeedsScope(detail.repeatRule) {
+                deleteScopeOpen = true
+            // #89: confirm only when the task carries notes or files;
+            // a plain task deletes now.
+            } else if hasNotes(detail) || !detail.attachments.isEmpty {
+                confirmDelete = true
+            } else {
+                deleteTask()
+            }
+        default:
+            break
+        }
+    }
+
+    @ViewBuilder
+    private func overflowMenu(_ detail: TaskDetail) -> some View {
+        let actions = overflowActions(detail)
+        if !actions.visible.isEmpty {
+            overflowMenuButton(detail, actions: actions)
+        }
+    }
+
+    private func overflowMenuButton(_ detail: TaskDetail, actions: [RecordAction]) -> some View {
+        Menu {
+            RecordMenuContent(actions: actions) { actionId, subId in
+                performOverflow(detail, actionId: actionId, subId: subId)
             }
         } label: {
             Image(systemName: "ellipsis.circle")

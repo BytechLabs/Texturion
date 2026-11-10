@@ -56,6 +56,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -745,6 +746,26 @@ private fun TaskListScreen(
                     },
                     modifier = Modifier.fillMaxSize(),
                 ) {
+                    // #712: the task's one action menu, for every view that draws a task.
+                    val canDeleteTasks = canDeleteRecords(
+                        me.memberships.firstOrNull { it.company_id == companyId }?.role,
+                    )
+                    CompositionLocalProvider(
+                        LocalTaskMenu provides { task, expanded, dismiss ->
+                            TaskRecordMenu(
+                                task = task,
+                                expanded = expanded,
+                                onDismiss = dismiss,
+                                canDelete = canDeleteTasks,
+                                mutations = mutations,
+                                companyId = companyId,
+                                onToggleDone = onToggleDone,
+                                onOpen = onOpenTask,
+                                onChanged = { refreshKey++ },
+                                onMessage = { scope.launch { snackbar.showSnackbar(it) } },
+                            )
+                        },
+                    ) {
                     when (view) {
                         TaskViewKind.Board -> TaskBoard(
                             cache = graph.storeCache,
@@ -799,6 +820,7 @@ private fun TaskListScreen(
                             onOpenTask = onOpenTask,
                             onToggleDone = onToggleDone,
                         )
+                    }
                     }
                 }
             }
@@ -1050,6 +1072,13 @@ private fun TaskList(
                     bucket.name ?: bucket.labelKey?.let { t(it) }.orEmpty()
                 }
                 val loadedIds = rows.map { it.id }
+                // #712: a task the menu deleted must not stay "selected" with no row behind it.
+                LaunchedEffect(loadedIds) {
+                    val picked = selection as? BulkSelection.Ids
+                    if (picked != null && picked.ids.any { it !in loadedIds }) {
+                        selection = BulkSelection.Ids(picked.ids.filter { it in loadedIds }.toSet())
+                    }
+                }
 
                 fun runBulk(
                     action: String,
@@ -1119,6 +1148,8 @@ private fun TaskList(
                 if (!selection.isEmpty()) {
                     TaskBulkBar(
                         selection = selection,
+                        singleTask = (selection as? BulkSelection.Ids)?.ids?.singleOrNull()
+                            ?.let { id -> rows.firstOrNull { it.id == id } },
                         canDelete = canDelete,
                         loadedIds = loadedIds,
                         // Null for a filter selection, whose rows are not loaded.
@@ -1566,6 +1597,8 @@ private fun TaskListSkeleton() {
 @Composable
 private fun TaskBulkBar(
     selection: BulkSelection,
+    /** #712: the one task picked, whose own menu the more button opens in place of the bulk menu. */
+    singleTask: Task?,
     loadedIds: List<String>,
     selectedLabelIds: List<List<String>>?,
     hasMore: Boolean,
@@ -1613,13 +1646,23 @@ private fun TaskBulkBar(
                     Text(t("contactsTasks.columnDone"))
                 }
                 Box {
+                    // Long-press selects here, so a single task's own menu is reached
+                    // from the bar: the same list the board card and the calendar use.
+                    val taskMenu = LocalTaskMenu.current
+                    val single = singleTask?.takeIf { taskMenu != null }
                     IconButton(onClick = { menuOpen = true }, enabled = !running) {
                         Icon(
                             Icons.Outlined.MoreVert,
-                            contentDescription = t("contactsTasks.moreBulkActions"),
+                            contentDescription = if (single != null) {
+                                t("recordMenu.moreActionsFor", "name" to single.title)
+                            } else {
+                                t("contactsTasks.moreBulkActions")
+                            },
                         )
                     }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    if (single != null) {
+                        taskMenu?.invoke(single, menuOpen) { menuOpen = false }
+                    } else DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
                             text = { Text(t("contactsTasks.assignPeople")) },
                             onClick = { menuOpen = false; assignOpen = true },

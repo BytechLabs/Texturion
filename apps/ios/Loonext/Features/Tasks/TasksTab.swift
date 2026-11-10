@@ -60,6 +60,9 @@ struct TasksTab: View {
     @State private var bulkSelection: BulkSelection = .empty
     @State private var bulkRunning = false
     @State private var bulkAssignOpen = false
+    /// #712: the task's one action menu and its delete confirmation, owned once for
+    /// the list, the board and the calendar.
+    @State private var menuController: TaskMenuController?
 
     @Environment(\.appLocale) private var appLocale
 
@@ -274,6 +277,8 @@ struct TasksTab: View {
                 tab = .mine
             }
         }
+        .modifier(TaskMenuInstaller(controller: menuController))
+        .onAppear { installMenuController() }
         .sheet(isPresented: $bulkAssignOpen) {
             TaskAssigneesSheet(
                 members: members,
@@ -917,6 +922,27 @@ struct TasksTab: View {
         }
     }
 
+    private func installMenuController() {
+        guard menuController == nil else { return }
+        menuController = TaskMenuController(
+            api: graph.tasksApi,
+            companyId: companyId,
+            canDelete: canDeleteTasks,
+            onOpen: { AppRouter.shared.openTaskId = $0 },
+            onToggleDone: { task, done in toggleDone(task, done: done) },
+            onChanged: { refreshKey += 1 },
+            onError: { toggleError = $0 }
+        )
+    }
+
+    /// The one task picked, when exactly one is. Long-press selects here, so its own menu
+    /// is reached from the selection bar: the same list the board card and the calendar use.
+    private var singleSelectedTask: TaskItem? {
+        guard case let .ids(ids) = bulkSelection, ids.count == 1, let id = ids.first
+        else { return nil }
+        return rows.first { $0.id == id }
+    }
+
     private func toggleDone(_ task: TaskItem, done: Bool) {
         // One semantic haptic per done flip, shared by list rows and board
         // moves — marking done COMMITS, unmarking is a light touch. Fired
@@ -1178,6 +1204,24 @@ extension TasksTab {
                 .buttonStyle(.plain)
                 .disabled(bulkRunning)
 
+            if let single = singleSelectedTask, let menu = menuController {
+                Menu {
+                    RecordMenuContent(actions: menu.actions(for: single)) { actionId, subId in
+                        menu.perform(single, actionId: actionId, subId: subId)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.scaled(13, weight: .semibold))
+                }
+                .disabled(bulkRunning)
+                .accessibilityLabel(
+                    AppStrings.translate(
+                        appLocale,
+                        "recordMenu.moreActionsFor",
+                        ["name": single.title]
+                    )
+                )
+            } else {
             Menu {
                 // #689 C: pick people, then Apply; they are ADDED to every
                 // selected task (nobody is removed). Unassign clears everyone.
@@ -1222,6 +1266,7 @@ extension TasksTab {
             .accessibilityLabel(
                 AppStrings.translate(appLocale, "contactsTasks.moreBulkActions")
             )
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

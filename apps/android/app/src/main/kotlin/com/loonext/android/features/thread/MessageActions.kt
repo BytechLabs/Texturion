@@ -99,6 +99,10 @@ import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.InitialsAvatar
+import com.loonext.android.ui.common.MessageActionId
+import com.loonext.android.ui.common.RecordViewer
+import com.loonext.android.ui.common.messageActions
+import com.loonext.android.ui.common.visible
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
 import java.time.Instant
@@ -111,8 +115,9 @@ import com.loonext.android.core.time.TimestampFormat
 import kotlinx.coroutines.launch
 
 /**
- * Long-press actions for one message: copy, done toggle, pin/unpin, retry
- * (failed sends only, honoring the retry rule), and Make a task.
+ * Long-press actions for one message, drawn from `messageActions` (#712): copy,
+ * done toggle, pin/unpin, retry (failed sends only, honoring the retry rule),
+ * Make a task, and delete.
  */
 @Composable
 fun MessageActionsSheet(
@@ -139,67 +144,63 @@ fun MessageActionsSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
-            if (message.body.isNotBlank()) {
-                ActionRow(Icons.Outlined.ContentCopy, t("thread.copyText")) {
-                    haptics.tap()
-                    clipboard.setText(AnnotatedString(message.body))
-                    onCopied()
-                    onDismiss()
+            // #712: the rows ARE the message's action list. The long-press sheet is
+            // the only surface a bubble has, and it draws what messageActions says.
+            messageActions(message, RecordViewer(canWrite = true, canDelete = onDelete != null))
+                .visible()
+                .forEach { action ->
+                    ActionRow(
+                        icon = messageActionIcon(action.id),
+                        label = t(action.labelKey),
+                        on = action.checked,
+                        destructive = action.destructive,
+                    ) {
+                        when (action.id) {
+                            MessageActionId.COPY_TEXT -> {
+                                haptics.tap()
+                                clipboard.setText(AnnotatedString(message.body))
+                                onCopied()
+                                onDismiss()
+                            }
+                            MessageActionId.DONE -> {
+                                haptics.confirm()
+                                onToggleDone()
+                                onDismiss()
+                            }
+                            MessageActionId.PIN -> {
+                                haptics.tap()
+                                onTogglePin()
+                                onDismiss()
+                            }
+                            MessageActionId.RETRY -> {
+                                haptics.confirm()
+                                onRetry()
+                                onDismiss()
+                            }
+                            // The sheet closes; the task sheet opens from the screen.
+                            MessageActionId.MAKE_TASK -> {
+                                haptics.tap()
+                                onMakeTask()
+                            }
+                            MessageActionId.DELETE -> {
+                                haptics.tap()
+                                onDelete?.invoke()
+                            }
+                        }
+                    }
                 }
-            }
-            ActionRow(
-                icon = Icons.Outlined.CheckCircle,
-                label = t("thread.done"),
-                on = message.done_at != null,
-            ) {
-                haptics.confirm()
-                onToggleDone()
-                onDismiss()
-            }
-            ActionRow(
-                icon = Icons.Outlined.PushPin,
-                label = t("thread.pinned"),
-                on = message.pinned_at != null,
-            ) {
-                haptics.tap()
-                onTogglePin()
-                onDismiss()
-            }
-            if (message.retryable) {
-                ActionRow(Icons.Outlined.Refresh, t("thread.retrySend")) {
-                    haptics.confirm()
-                    onRetry()
-                    onDismiss()
-                }
-            }
-            if (!message.has_task && message.promoted_task == null &&
-                message.direction != MessageDirection.NOTE
-            ) {
-                ActionRow(Icons.Outlined.AddTask, t("thread.makeTask")) {
-                    haptics.tap()
-                    onMakeTask()
-                    // The sheet closes; the task sheet opens from the screen.
-                }
-            }
-            if (onDelete != null) {
-                ActionRow(
-                    icon = Icons.Outlined.Delete,
-                    label = t(
-                        if (message.direction == MessageDirection.NOTE) {
-                            "thread.deleteNote"
-                        } else {
-                            "thread.deleteMessage"
-                        },
-                    ),
-                    destructive = true,
-                ) {
-                    haptics.tap()
-                    onDelete()
-                }
-            }
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+private fun messageActionIcon(id: String): ImageVector = when (id) {
+    MessageActionId.COPY_TEXT -> Icons.Outlined.ContentCopy
+    MessageActionId.RETRY -> Icons.Outlined.Refresh
+    MessageActionId.DONE -> Icons.Outlined.CheckCircle
+    MessageActionId.MAKE_TASK -> Icons.Outlined.AddTask
+    MessageActionId.PIN -> Icons.Outlined.PushPin
+    else -> Icons.Outlined.Delete
 }
 
 /**

@@ -64,6 +64,8 @@ import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.MarkEmailRead
+import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Undo
@@ -169,6 +171,13 @@ import com.loonext.android.features.compose.usSuspended
 import com.loonext.android.features.compose.usTextingOff
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.AppSheet
+import com.loonext.android.ui.common.ConversationActionId
+import com.loonext.android.ui.common.ConversationActionsInput
+import com.loonext.android.ui.common.ConversationSurface
+import com.loonext.android.ui.common.OptOutState
+import com.loonext.android.ui.common.RecordAction
+import com.loonext.android.ui.common.RecordViewer
+import com.loonext.android.ui.common.conversationActions
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
@@ -720,6 +729,10 @@ private fun ThreadLoaded(
     val canDelete = canDeleteRecords(
         me.memberships.firstOrNull { it.company_id == companyId }?.role,
     )
+    val canWrite = MemberRole.has(
+        me.memberships.firstOrNull { it.company_id == companyId }?.role,
+        Capability.CONVERSATIONS_NOTE,
+    )
     var makeTaskFor by remember { mutableStateOf<Message?>(null) }
 
     // #520: is there a job on this thread due TODAY? Asked here rather than in
@@ -777,6 +790,7 @@ private fun ThreadLoaded(
             members = controller.members,
             meUserId = me.user_id,
             canDelete = canDelete,
+            canWrite = canWrite,
             onCatchUp = if (catchUpOffered && !recapOpen) {
                 {
                     answerCatchUp()
@@ -1706,6 +1720,8 @@ private fun ThreadHeader(
     members: List<Member>,
     meUserId: String,
     canDelete: Boolean,
+    /** `conversations.note`: status, assignment, pin, spam and block. */
+    canWrite: Boolean,
     /** #716: null when the thread does not offer a catch-up. */
     onCatchUp: (() -> Unit)?,
     onBack: () -> Unit,
@@ -1970,6 +1986,13 @@ private fun ThreadHeader(
                 menuOpen = false
                 newTaskOpen = true
             },
+            // Leaving a thread unread means leaving it: opening it again reads it.
+            onMarkUnread = {
+                menuOpen = false
+                controller.markUnread()
+                onBack()
+            },
+            canWrite = canWrite,
             onOpenContactPanel = {
                 menuOpen = false
                 onOpenContactPanel()
@@ -2294,13 +2317,43 @@ private fun ConversationSheet(
     onAssign: () -> Unit,
     onOpenGallery: () -> Unit,
     onNewTask: () -> Unit,
+    onMarkUnread: () -> Unit,
     onOptOut: () -> Unit,
     onRevokeOptOut: () -> Unit,
     onBlock: () -> Unit,
     /** #691: null when the member lacks records.delete. */
     onDeleteConversation: (() -> Unit)?,
+    canWrite: Boolean,
     onDismiss: () -> Unit,
 ) {
+    val contact = controller.contact
+    val actions = conversationActions(
+        ConversationActionsInput(
+            // The thread being open IS the read state: leaving it unread is the one choice.
+            unread = false,
+            closed = detail.status == ConversationStatus.CLOSED,
+            pinned = detail.pinned_at != null,
+            deferred = detail.snoozed_until?.let { isSnoozed(it) } == true,
+            muted = detail.muted,
+            followed = detail.followed,
+            spam = detail.is_spam,
+            blocked = controller.blockedSender != null,
+            optOut = contact?.let {
+                OptOutState(
+                    optedOut = it.opted_out == true,
+                    carrierEnforced = isCarrierEnforcedOptOut(it.opt_out_source),
+                )
+            },
+            viewer = RecordViewer(canWrite = canWrite, canDelete = onDeleteConversation != null),
+            hasMembers = members.isNotEmpty(),
+            surface = ConversationSurface(
+                canOpen = false,
+                hasGallery = true,
+                hasCatchUp = onCatchUp != null,
+                hasNewTask = true,
+            ),
+        ),
+    )
     val contactName = controller.contact?.name
         ?: controller.contact?.phone_e164?.let(::formatPhone)
         ?: t("thread.contactFallback")
@@ -2353,194 +2406,46 @@ private fun ConversationSheet(
                 }
             }
 
-            // Status pills.
-            Column {
-                Text(
-                    t("thread.statusHeading"),
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = androidx.compose.ui.unit.TextUnit(
-                            0.12f,
-                            androidx.compose.ui.unit.TextUnitType.Em,
-                        ),
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 6.dp, bottom = 7.dp),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    listOf(
-                        ConversationStatus.NEW,
-                        ConversationStatus.OPEN,
-                        ConversationStatus.WAITING,
-                        ConversationStatus.CLOSED,
-                    ).forEach { status ->
-                        val selected = detail.status == status
-                        Surface(
-                            onClick = {
-                                if (!selected) {
-                                    haptics.tap()
-                                    controller.setStatus(status)
-                                }
-                                onDismiss()
-                            },
-                            shape = CircleShape,
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.surface
-                            },
-                            contentColor = if (selected) {
-                                MaterialTheme.colorScheme.onPrimary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        ) {
-                            Text(
-                                statusLabel(status, locale),
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                ),
-                                modifier = Modifier.padding(
-                                    horizontal = 13.dp,
-                                    vertical = 8.dp,
-                                ),
-                            )
-                        }
-                    }
-                }
-            }
-
-            // #710: the actions in the web menu's order, one card per group.
+            // #712: the sheet draws the conversation's one action list, in its order.
+            // Close and reopen are the status pills; snooze, unsnooze and follow-up are
+            // the deferral card; everything else is a row.
             val assignee = members
                 .firstOrNull { it.user_id == detail.assigned_user_id }
                 ?.display_name?.ifBlank { null }
-            conversationMenuGroups(
-                canDelete = onDeleteConversation != null,
-                canCatchUp = onCatchUp != null,
-            ).forEach { group ->
-                // #293: deferral is a CHOICE (which "later"), not a toggle, so
-                // it keeps its own card rather than folding four presets into
-                // the one-tap rows.
-                if (group.singleOrNull() == ConversationMenuItem.SNOOZE) {
-                    SnoozeSection(detail = detail, controller = controller, onDismiss = onDismiss)
-                    return@forEach
-                }
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.surface,
-                ) {
-                    Column {
-                        group.forEachIndexed { index, item ->
-                            if (index > 0) {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            }
-                            when (item) {
-                                ConversationMenuItem.ASSIGN -> SheetActionRow(
-                                    icon = Icons.Outlined.PersonAdd,
-                                    label = assignee?.let { t("thread.assignedTo", "name" to it) }
-                                        ?: t("thread.assignToEllipsis"),
-                                    onClick = onAssign,
+            conversationSheetBlocks(actions).forEach { block ->
+                when (block) {
+                    SheetBlock.Status -> StatusPills(detail, controller, haptics, locale, onDismiss)
+                    // #293: deferral is a CHOICE (which "later"), not a toggle, so
+                    // it keeps its own card rather than folding four presets into
+                    // the one-tap rows.
+                    SheetBlock.Deferral ->
+                        SnoozeSection(detail = detail, controller = controller, onDismiss = onDismiss)
+                    is SheetBlock.Rows -> Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surface,
+                    ) {
+                        Column {
+                            block.actions.forEachIndexed { index, action ->
+                                if (index > 0) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                }
+                                ConversationSheetRow(
+                                    action = action,
+                                    assignee = assignee,
+                                    controller = controller,
+                                    detail = detail,
+                                    haptics = haptics,
+                                    onCatchUp = onCatchUp,
+                                    onNewTask = onNewTask,
+                                    onAssign = onAssign,
+                                    onOpenGallery = onOpenGallery,
+                                    onMarkUnread = onMarkUnread,
+                                    onOptOut = onOptOut,
+                                    onRevokeOptOut = onRevokeOptOut,
+                                    onBlock = onBlock,
+                                    onDeleteConversation = onDeleteConversation,
+                                    onDismiss = onDismiss,
                                 )
-                                // #465: pinned and spam are STATES, drawn and named as such.
-                                ConversationMenuItem.PINNED -> SheetToggleRow(
-                                    icon = Icons.Outlined.PushPin,
-                                    label = t("thread.pinned"),
-                                    checked = detail.pinned_at != null,
-                                    onToggle = {
-                                        haptics.tap()
-                                        controller.toggleConversationPin()
-                                        onDismiss()
-                                    },
-                                )
-                                ConversationMenuItem.CATCH_UP -> SheetActionRow(
-                                    icon = Icons.Outlined.AutoAwesome,
-                                    label = t("thread.summaryOffer"),
-                                    onClick = { onCatchUp?.invoke() },
-                                )
-                                ConversationMenuItem.NEW_TASK -> SheetActionRow(
-                                    icon = Icons.Outlined.AddTask,
-                                    label = t("thread.newTask"),
-                                    onClick = onNewTask,
-                                )
-                                ConversationMenuItem.SNOOZE -> Unit
-                                // #694: mute and follow are this member's own.
-                                ConversationMenuItem.MUTE ->
-                                    MuteRows(controller, detail, haptics, onDismiss)
-                                ConversationMenuItem.FOLLOW -> SheetToggleRow(
-                                    icon = Icons.Outlined.NotificationAdd,
-                                    label = t("thread.follow"),
-                                    checked = detail.followed,
-                                    onToggle = {
-                                        haptics.tap()
-                                        controller.setFollowed(!detail.followed)
-                                        onDismiss()
-                                    },
-                                )
-                                ConversationMenuItem.ATTACHMENTS -> SheetActionRow(
-                                    icon = Icons.Outlined.PhotoLibrary,
-                                    label = t("thread.photosAndFiles"),
-                                    onClick = onOpenGallery,
-                                )
-                                ConversationMenuItem.SPAM -> SheetToggleRow(
-                                    icon = Icons.Outlined.Report,
-                                    label = t("thread.spam"),
-                                    checked = detail.is_spam,
-                                    onToggle = {
-                                        haptics.tap()
-                                        controller.setSpam(!detail.is_spam)
-                                        onDismiss()
-                                    },
-                                )
-                                // #696: a block sends this number's future texts and
-                                // calls straight to spam. Unblocking needs no
-                                // confirmation: it only lets the next one through.
-                                ConversationMenuItem.BLOCK ->
-                                    if (controller.blockedSender != null) {
-                                        SheetActionRow(
-                                            icon = Icons.Outlined.Undo,
-                                            label = t("thread.unblockNumber"),
-                                            onClick = {
-                                                onDismiss()
-                                                controller.unblockNumber()
-                                            },
-                                        )
-                                    } else {
-                                        SheetActionRow(
-                                            icon = Icons.Outlined.Block,
-                                            label = t("thread.blockNumber"),
-                                            onClick = onBlock,
-                                        )
-                                    }
-                                ConversationMenuItem.DELETE -> SheetActionRow(
-                                    icon = Icons.Outlined.Delete,
-                                    label = t("thread.deleteConversation"),
-                                    destructive = true,
-                                    onClick = { onDeleteConversation?.invoke() },
-                                )
-                                ConversationMenuItem.OPT_OUT ->
-                                    if (controller.contact?.opted_out == true) {
-                                        // #407: a STOP the customer sent is a CARRIER
-                                        // block, and only they can lift it. So the row
-                                        // becomes the route back, which the customer
-                                        // takes, not an undo we cannot honour.
-                                        if (isCarrierEnforcedOptOut(controller.contact?.opt_out_source)) {
-                                            SheetNote(t("thread.carrierStopNote"))
-                                        } else {
-                                            SheetActionRow(
-                                                icon = Icons.Outlined.Undo,
-                                                label = t("thread.removeOptOut"),
-                                                onClick = onRevokeOptOut,
-                                            )
-                                        }
-                                    } else {
-                                        SheetActionRow(
-                                            icon = Icons.Outlined.Block,
-                                            label = t("thread.optOutOfTexts"),
-                                            onClick = onOptOut,
-                                        )
-                                    }
                             }
                         }
                     }
@@ -2585,6 +2490,194 @@ private fun ConversationSheet(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StatusPills(
+    detail: com.loonext.android.core.model.ConversationDetail,
+    controller: ThreadController,
+    haptics: Haptics,
+    locale: String,
+    onDismiss: () -> Unit,
+) {
+    Column {
+        Text(
+            t("thread.statusHeading"),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = androidx.compose.ui.unit.TextUnit(
+                    0.12f,
+                    androidx.compose.ui.unit.TextUnitType.Em,
+                ),
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 6.dp, bottom = 7.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            listOf(
+                ConversationStatus.NEW,
+                ConversationStatus.OPEN,
+                ConversationStatus.WAITING,
+                ConversationStatus.CLOSED,
+            ).forEach { status ->
+                val selected = detail.status == status
+                Surface(
+                    onClick = {
+                        if (!selected) {
+                            haptics.tap()
+                            controller.setStatus(status)
+                        }
+                        onDismiss()
+                    },
+                    shape = CircleShape,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                    contentColor = if (selected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                ) {
+                    Text(
+                        statusLabel(status, locale),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        modifier = Modifier.padding(
+                            horizontal = 13.dp,
+                            vertical = 8.dp,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConversationSheetRow(
+    action: RecordAction,
+    assignee: String?,
+    controller: ThreadController,
+    detail: com.loonext.android.core.model.ConversationDetail,
+    haptics: Haptics,
+    onCatchUp: (() -> Unit)?,
+    onNewTask: () -> Unit,
+    onAssign: () -> Unit,
+    onOpenGallery: () -> Unit,
+    onMarkUnread: () -> Unit,
+    onOptOut: () -> Unit,
+    onRevokeOptOut: () -> Unit,
+    onBlock: () -> Unit,
+    onDeleteConversation: (() -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    val label = t(action.labelKey)
+    when (action.id) {
+        ConversationActionId.MARK_READ, ConversationActionId.MARK_UNREAD -> SheetActionRow(
+            icon = if (action.id == ConversationActionId.MARK_READ) {
+                Icons.Outlined.MarkEmailRead
+            } else {
+                Icons.Outlined.MarkEmailUnread
+            },
+            label = label,
+            onClick = onMarkUnread,
+        )
+        ConversationActionId.ASSIGN -> SheetActionRow(
+            icon = Icons.Outlined.PersonAdd,
+            label = assignee?.let { t("thread.assignedTo", "name" to it) } ?: label,
+            onClick = onAssign,
+        )
+        // #465: pinned and spam are STATES, drawn and named as such.
+        ConversationActionId.PIN -> SheetToggleRow(
+            icon = Icons.Outlined.PushPin,
+            label = label,
+            checked = action.checked == true,
+            onToggle = {
+                haptics.tap()
+                controller.toggleConversationPin()
+                onDismiss()
+            },
+        )
+        ConversationActionId.CATCH_UP -> SheetActionRow(
+            icon = Icons.Outlined.AutoAwesome,
+            label = label,
+            onClick = { onCatchUp?.invoke() },
+        )
+        ConversationActionId.NEW_TASK -> SheetActionRow(
+            icon = Icons.Outlined.AddTask,
+            label = label,
+            onClick = onNewTask,
+        )
+        // #694: mute and follow are this member's own.
+        ConversationActionId.MUTE, ConversationActionId.UNMUTE ->
+            MuteRows(controller, detail, haptics, onDismiss)
+        ConversationActionId.FOLLOW -> SheetToggleRow(
+            icon = Icons.Outlined.NotificationAdd,
+            label = label,
+            checked = action.checked == true,
+            onToggle = {
+                haptics.tap()
+                controller.setFollowed(!detail.followed)
+                onDismiss()
+            },
+        )
+        ConversationActionId.ATTACHMENTS -> SheetActionRow(
+            icon = Icons.Outlined.PhotoLibrary,
+            label = label,
+            onClick = onOpenGallery,
+        )
+        ConversationActionId.SPAM -> SheetToggleRow(
+            icon = Icons.Outlined.Report,
+            label = label,
+            checked = action.checked == true,
+            onToggle = {
+                haptics.tap()
+                controller.setSpam(!detail.is_spam)
+                onDismiss()
+            },
+        )
+        // #696: a block sends this number's future texts and calls straight to
+        // spam. Unblocking needs no confirmation: it only lets the next one through.
+        ConversationActionId.UNBLOCK -> SheetActionRow(
+            icon = Icons.Outlined.Undo,
+            label = label,
+            onClick = {
+                onDismiss()
+                controller.unblockNumber()
+            },
+        )
+        ConversationActionId.BLOCK -> SheetActionRow(
+            icon = Icons.Outlined.Block,
+            label = label,
+            onClick = onBlock,
+        )
+        ConversationActionId.DELETE -> SheetActionRow(
+            icon = Icons.Outlined.Delete,
+            label = label,
+            destructive = true,
+            onClick = { onDeleteConversation?.invoke() },
+        )
+        // #407: a STOP the customer sent is a CARRIER block, and only they can lift
+        // it. So the row becomes a note, which the customer acts on, not an undo we
+        // cannot honour.
+        ConversationActionId.CARRIER_STOP -> SheetNote(label)
+        ConversationActionId.OPT_IN -> SheetActionRow(
+            icon = Icons.Outlined.Undo,
+            label = label,
+            onClick = onRevokeOptOut,
+        )
+        ConversationActionId.OPT_OUT -> SheetActionRow(
+            icon = Icons.Outlined.Block,
+            label = label,
+            onClick = onOptOut,
+        )
     }
 }
 

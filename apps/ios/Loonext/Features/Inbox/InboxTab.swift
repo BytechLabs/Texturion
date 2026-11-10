@@ -796,6 +796,186 @@ private final class InboxController {
         }
     }
 
+    // MARK: - #712 the conversation's action list, for one row
+
+    /// The assign choice that clears the assignee; no member id can collide with it.
+    private static let unassignedChoice = "unassigned"
+
+    /// The row with this id, wherever it is in the list.
+    func row(id conversationId: String) -> ConversationListItem? {
+        pinnedRows.first { $0.id == conversationId } ?? rows.first { $0.id == conversationId }
+    }
+
+    /// What the inbox row offers: the same list the thread's sheet draws, minus what a
+    /// row cannot do. It has no gallery to open and no catch-up to run, and it does not
+    /// carry the number's blocked or opted-out state, so those are not offered here
+    /// rather than offered on a guess.
+    func actions(for row: ConversationListItem, viewer: RecordViewer) -> [RecordAction] {
+        let people = members.filter { $0.deactivated_at == nil }
+        let you = AppStrings.translate(locale, "inbox.assigneeYou")
+        let teammate = AppStrings.translate(locale, "inbox.teammateFallback")
+        var assignChoices = [
+            RecordSubAction(id: Self.unassignedChoice, labelKey: "recordMenu.unassigned")
+        ]
+        assignChoices += people.map { member in
+            let name = member.display_name.isBlank ? teammate : member.display_name
+            let suffix = member.user_id == meUserId ? " (\(you))" : ""
+            return RecordSubAction(id: member.user_id, label: name + suffix)
+        }
+        return conversationActions(
+            ConversationActionsInput(
+                unread: row.unread,
+                closed: row.status == ConversationStatus.closed,
+                pinned: row.pinned_at != nil,
+                deferred: row.snoozed_until.map { isSnoozed($0) } ?? false,
+                muted: row.muted == true,
+                followed: row.followed == true,
+                spam: row.is_spam,
+                blocked: nil,
+                optOut: nil,
+                viewer: viewer,
+                hasMembers: !people.isEmpty,
+                surface: ConversationSurface(
+                    canOpen: true,
+                    hasGallery: false,
+                    hasCatchUp: false,
+                    hasNewTask: false
+                ),
+                assignChoices: assignChoices,
+                snoozeChoices: snoozePresets(locale: locale).map {
+                    RecordSubAction(
+                        id: snoozeInstantISO($0.at),
+                        label: $0.label,
+                        trailing: TimestampFormat.clock($0.at)
+                    )
+                },
+                followUpChoices: followUpPresets(locale: locale).map {
+                    RecordSubAction(
+                        id: snoozeInstantISO($0.at),
+                        label: $0.label,
+                        trailing: TimestampFormat.clock($0.at)
+                    )
+                },
+                muteChoices: recordMuteChoices
+            )
+        )
+    }
+
+    /// Run one action from the row's menu. `subId` is the chosen person, duration or instant.
+    func runRowAction(
+        _ row: ConversationListItem,
+        actionId: String,
+        subId: String?,
+        onOpen: @MainActor (String) -> Void
+    ) {
+        clearBulkSelection()
+        func call(_ work: @escaping () async throws -> Void) {
+            Task {
+                do {
+                    try await work()
+                    await refreshFirstPage()
+                } catch {
+                    notify(error.userMessage)
+                }
+            }
+        }
+        let companyId = self.companyId
+        let repo = self.repo
+        switch actionId {
+        case ConversationActionId.open:
+            onOpen(row.id)
+        case ConversationActionId.markRead, ConversationActionId.markUnread:
+            toggleRead(row)
+        case ConversationActionId.close, ConversationActionId.reopen:
+            let closed = row.status == ConversationStatus.closed
+            setRowStatus(
+                row.id,
+                status: closed ? ConversationStatus.open : ConversationStatus.closed,
+                from: row.status,
+                announce: true
+            )
+        case ConversationActionId.assign:
+            assignRow(row.id, userId: subId == Self.unassignedChoice ? nil : subId)
+        case ConversationActionId.pin:
+            call {
+                _ = try await repo.setConversationPinned(
+                    companyId: companyId,
+                    conversationId: row.id,
+                    pinned: row.pinned_at == nil
+                )
+            }
+        case ConversationActionId.snooze, ConversationActionId.followUp:
+            guard let until = subId else { return }
+            let kind: DeferralKind = actionId == ConversationActionId.followUp ? .followUp : .snooze
+            call {
+                try await repo.snooze(
+                    companyId: companyId,
+                    conversationId: row.id,
+                    untilISO: until,
+                    kind: kind
+                )
+            }
+        case ConversationActionId.unsnooze:
+            call { try await repo.unsnooze(companyId: companyId, conversationId: row.id) }
+        case ConversationActionId.mute:
+            guard let duration = subId else { return }
+            call {
+                _ = try await repo.muteConversation(
+                    companyId: companyId,
+                    conversationId: row.id,
+                    duration: duration
+                )
+            }
+        case ConversationActionId.unmute:
+            call { try await repo.unmuteConversation(companyId: companyId, conversationId: row.id) }
+        case ConversationActionId.follow:
+            call {
+                try await repo.setFollowing(
+                    companyId: companyId,
+                    conversationId: row.id,
+                    follow: row.followed != true
+                )
+            }
+        case ConversationActionId.spam:
+            call {
+                _ = try await repo.setSpam(
+                    companyId: companyId,
+                    conversationId: row.id,
+                    spam: !row.is_spam
+                )
+            }
+        case ConversationActionId.delete:
+            let deletion = RecordDeletionRepository(api: repo.api)
+            Task {
+                do {
+                    try await deletion.deleteConversation(companyId: companyId, conversationId: row.id)
+                    await refreshFirstPage()
+                    notify(
+                        AppStrings.translate(locale, "thread.conversationDeleted"),
+                        actionLabel: AppStrings.translate(locale, "inbox.undo")
+                    ) { [weak self] in
+                        Task {
+                            do {
+                                try await deletion.restore(
+                                    companyId: companyId,
+                                    kind: .conversation,
+                                    id: row.id
+                                )
+                                await self?.refreshFirstPage()
+                            } catch {
+                                self?.notify(error.userMessage)
+                            }
+                        }
+                    }
+                } catch {
+                    notify(error.userMessage)
+                }
+            }
+        default:
+            break
+        }
+    }
+
     /// Clear the unread dot locally the moment a thread opens.
     func markLocallyRead(_ conversationId: String) {
         rows = rows.map { row in
@@ -1284,7 +1464,10 @@ private struct InboxList: View {
                             controller.markLocallyRead(id)
                             onOpen(id, nil)
                         },
-                        onAssign: { assignFor = $0 }
+                        onAssign: { assignFor = $0 },
+                        viewer: RecordViewer(
+                            role: me.memberships.first(where: { $0.company_id == companyId })?.role
+                        )
                     )
                 }
             }
@@ -1425,6 +1608,8 @@ private struct ConversationListPane: View {
     @Binding var selection: String?
     let onOpen: @MainActor (String) -> Void
     let onAssign: @MainActor (ConversationListItem) -> Void
+    /// #712: what this member may do to a conversation, for the single-row menu.
+    let viewer: RecordViewer
 
     @Environment(\.appLocale) private var appLocale
 
@@ -1452,7 +1637,7 @@ private struct ConversationListPane: View {
             // #275: only while something is selected, and above the list so
             // selecting a row does not shove the list under the thumb.
             if !controller.bulkSelection.isEmpty {
-                BulkSelectionBar(controller: controller)
+                BulkSelectionBar(controller: controller, viewer: viewer, onOpen: onOpen)
             }
             List(selection: $selection) {
                 if !controller.pinnedRows.isEmpty {
@@ -2344,10 +2529,21 @@ func inboxRowsFixture() -> some View {
 @MainActor
 private struct BulkSelectionBar: View {
     let controller: InboxController
+    /// #712: what this member may do to a conversation.
+    let viewer: RecordViewer
+    let onOpen: @MainActor (String) -> Void
 
     @Environment(\.appLocale) private var appLocale
 
     private var loadedIds: [String] { controller.rows.map(\.id) }
+
+    /// The one conversation picked, when exactly one is.
+    private var single: ConversationListItem? {
+        guard case let .ids(ids) = controller.bulkSelection, ids.count == 1,
+              let id = ids.first
+        else { return nil }
+        return controller.row(id: id)
+    }
 
     private var showSelectLoaded: Bool {
         guard case let .ids(ids) = controller.bulkSelection else { return false }
@@ -2377,6 +2573,37 @@ private struct BulkSelectionBar: View {
 
                 if controller.bulkRunning { ProgressView() }
 
+                // #712: with ONE conversation picked, this is that conversation's own menu, the
+                // same action list the thread's sheet draws. Long-press here is what selects,
+                // so the menu is reached from the selection bar.
+                if let single {
+                    Menu {
+                        RecordMenuContent(
+                            actions: controller.actions(for: single, viewer: viewer),
+                            onSelect: { actionId, subId in
+                                controller.runRowAction(
+                                    single,
+                                    actionId: actionId,
+                                    subId: subId,
+                                    onOpen: onOpen
+                                )
+                            }
+                        )
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.scaled(13, weight: .semibold))
+                    }
+                    .disabled(controller.bulkRunning)
+                    .accessibilityLabel(
+                        AppStrings.translate(
+                            appLocale,
+                            "recordMenu.moreActionsFor",
+                            ["name": single.contact.name?.isBlank == false
+                                ? single.contact.name ?? ""
+                                : formatPhone(single.contact.phone_e164)]
+                        )
+                    )
+                } else {
                 Menu {
                     ForEach(controller.members.filter { $0.deactivated_at == nil }, id: \.user_id) {
                         member in
@@ -2425,6 +2652,7 @@ private struct BulkSelectionBar: View {
                 .accessibilityLabel(
                     AppStrings.translate(appLocale, "inbox.bulkMoreAria")
                 )
+                }
             }
 
             // The escalation ladder: the page first, then the filter. Never one
