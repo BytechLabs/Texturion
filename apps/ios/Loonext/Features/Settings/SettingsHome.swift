@@ -5,6 +5,9 @@ import SwiftUI
 enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case workspace
     case hours
+    /// #689: the texts we send for the workspace, and when they hold back.
+    /// Beside Away reply, which is the oldest of them.
+    case automaticTexts
     case calling
     case templates
     case ai
@@ -68,7 +71,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         // and the API still refuses each write.
         case .team: Capability.workspaceAccess
         // The business's, each behind the axis that actually governs it.
-        case .workspace, .hours, .calling, .templates, .ai:
+        case .workspace, .hours, .automaticTexts, .calling, .templates, .ai:
             Capability.settingsManage
         // #243: the endpoint list names the third parties this workspace's
         // messages flow to, and those URLs routinely carry a per-tenant token
@@ -100,6 +103,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .workspace: "settingsMore.sectionWorkspace"
         case .hours: "settingsMore.sectionHours"
+        case .automaticTexts: "domain.autoTextsTitle"
         case .calling: "settingsMore.sectionCalling"
         case .templates: "settingsMore.sectionTemplates"
         case .ai: "settingsMore.sectionAi"
@@ -122,6 +126,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .workspace: "settingsMore.sectionWorkspaceBlurb"
         case .hours: "settingsMore.sectionHoursBlurb"
+        case .automaticTexts: "domain.autoTextsBlurb"
         case .calling: "settingsMore.sectionCallingBlurb"
         case .templates: "settingsMore.sectionTemplatesBlurb"
         case .ai: "settingsMore.sectionAiBlurb"
@@ -153,6 +158,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .workspace: "building.2"
         case .hours: "clock"
+        case .automaticTexts: "clock.arrow.circlepath"
         case .calling: "phone"
         case .templates: "text.bubble"
         case .ai: "circle.hexagongrid"
@@ -500,6 +506,10 @@ struct SettingsHome: View {
                     )
                 case .hours:
                     HoursSectionView(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+                case .automaticTexts:
+                    AutomaticTextsSectionView(
+                        scope: scope, company: company, onCompanyUpdated: onCompanyUpdated
+                    )
                 case .calling:
                     CallingSectionView(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
                 case .templates:

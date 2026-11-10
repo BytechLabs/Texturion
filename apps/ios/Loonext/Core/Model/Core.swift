@@ -391,6 +391,31 @@ enum DefaultRingAll: DefaultCodableProvider {
     static var defaultValue: String { "all" }
 }
 
+/// #689: the automatic-texts integer defaults, equal to the server's.
+enum DefaultRatingAskDelayHours: DefaultCodableProvider {
+    static var defaultValue: Int { 4 }
+}
+
+enum DefaultRatingAskExpiryHours: DefaultCodableProvider {
+    static var defaultValue: Int { 24 }
+}
+
+enum DefaultRatingAskCooldownDays: DefaultCodableProvider {
+    static var defaultValue: Int { 30 }
+}
+
+enum DefaultScheduledTextExpiryHours: DefaultCodableProvider {
+    static var defaultValue: Int { 24 }
+}
+
+enum DefaultReminderExpiryHours: DefaultCodableProvider {
+    static var defaultValue: Int { 2 }
+}
+
+enum DefaultAutoReplyCooldownMinutes: DefaultCodableProvider {
+    static var defaultValue: Int { 180 }
+}
+
 /// #278: 45 seconds is both the pre-#278 window and the ceiling.
 enum DefaultRingSeconds: DefaultCodableProvider {
     static var defaultValue: Int { 45 }
@@ -579,6 +604,20 @@ struct CompanyView: Codable, Sendable {
     @Default<DefaultEmptyList<PhoneNumberSummary>> var numbers: [PhoneNumberSummary]
     @Default<DefaultEmptyList<String>> var enabled_modules: [String]
     @Default<DefaultEmptyRegistrationPair> var registration: RegistrationPair
+    /// #689: the automatic-texts settings. Every default MATCHES the server's,
+    /// so a payload from a Worker that predates them reads as the product as it
+    /// was: nothing is ever decoded to false or 0 by omission.
+    @Default<DefaultTrue> var hold_scheduled_on_reply: Bool
+    @Default<DefaultTrue> var hold_reminders_on_reply: Bool
+    @Default<DefaultTrue> var hold_rating_ask_on_reply: Bool
+    @Default<DefaultTrue> var hold_reminders_unverified_calendar: Bool
+    @Default<DefaultTrue> var rating_ask_enabled: Bool
+    @Default<DefaultRatingAskDelayHours> var rating_ask_delay_hours: Int
+    @Default<DefaultRatingAskExpiryHours> var rating_ask_expiry_hours: Int
+    @Default<DefaultRatingAskCooldownDays> var rating_ask_cooldown_days: Int
+    @Default<DefaultScheduledTextExpiryHours> var scheduled_text_expiry_hours: Int
+    @Default<DefaultReminderExpiryHours> var reminder_expiry_hours: Int
+    @Default<DefaultAutoReplyCooldownMinutes> var auto_reply_cooldown_minutes: Int
 
     var subscriptionActive: Bool { subscription_status == SubscriptionStatus.active }
 

@@ -194,6 +194,7 @@ enum OnCall {
             ("mentions", say("domain.categoryMentions", locale)),
             ("assignments", say("domain.categoryAssignments", locale)),
             ("tasks", say("domain.categoryTasks", locale)),
+            ("scheduled_texts", say("domain.categoryScheduledTexts", locale)),
             ("missed_calls", say("domain.categoryMissedCalls", locale)),
             ("voicemails", say("domain.categoryVoicemails", locale)),
         ]
