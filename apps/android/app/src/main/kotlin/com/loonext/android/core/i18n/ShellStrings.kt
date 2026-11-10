@@ -265,6 +265,14 @@ object ShellStrings : AppStrings.Section {
         "shell.wifiOnlyDescription" to
             "Threads and galleries always load. Only full-size photos and downloads " +
             "wait for Wi-Fi — tap one to load it anyway.",
+        // #721: why no phone rang, after a missed call or voicemail.
+        "shell.callRoutingBlocked" to "Blocked number",
+        "shell.callRoutingLineBusy" to "Line busy",
+        "shell.callRoutingScreened" to "Screened as spam",
+        "shell.callRoutingAfterHours" to "After hours, nobody on call",
+        "shell.callRoutingPaused" to "Line paused",
+        "shell.callRoutingOverCap" to "Calling limit reached",
+        "shell.callRoutingNobodyReachable" to "Nobody could be rung",
     )
 
     override val frCA = mapOf(
@@ -447,5 +455,12 @@ object ShellStrings : AppStrings.Section {
             "Les conversations et les galeries se chargent toujours. Seules les " +
             "photos en pleine résolution et les téléchargements attendent le " +
             "Wi-Fi — touchez-en une pour la charger quand même.",
+        "shell.callRoutingBlocked" to "Numéro bloqué",
+        "shell.callRoutingLineBusy" to "Ligne occupée",
+        "shell.callRoutingScreened" to "Filtré comme pourriel",
+        "shell.callRoutingAfterHours" to "Hors des heures, personne de garde",
+        "shell.callRoutingPaused" to "Ligne en pause",
+        "shell.callRoutingOverCap" to "Limite d'appels atteinte",
+        "shell.callRoutingNobodyReachable" to "Aucun téléphone n'a pu sonner",
     )
 }

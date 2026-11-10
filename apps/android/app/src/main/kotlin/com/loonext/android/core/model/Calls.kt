@@ -29,6 +29,8 @@ data class Call(
     val forward_seconds: Int = 0,
     val screening_result: String? = null,
     val stir_attestation: String? = null,
+    /** #721: where the call went when it arrived; null for outbound and older calls. */
+    val routing: String? = null,
     val voicemail_seconds: Int? = null,
     /**
      * What the voicemail says, written best-effort after the recording is

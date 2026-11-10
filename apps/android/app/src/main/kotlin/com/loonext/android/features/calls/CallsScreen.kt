@@ -1105,7 +1105,7 @@ private fun CallRow(
                         // first: it says whether the rest of the line is worth
                         // reading. Fixed content ("Spam likely"), so it is safe to
                         // let it take its intrinsic width.
-                        screeningLabel(call.screening_result)?.let { label ->
+                        screeningLabel(call.screening_result, call.caller_name)?.let { label ->
                             Surface(
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.surfaceContainer,

@@ -8,6 +8,10 @@ import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.telephony.AudioRoute
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.ui.common.formatPhone
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 
 /**
  * Pure call-display helpers — a Kotlin port of the web's
@@ -64,6 +68,24 @@ fun formatCallDuration(seconds: Int): String {
 }
 
 /**
+ * #721: why no phone rang, in the web's words (checked against
+ * `vectors/call-routing.json`); null when the call rang or predates the column.
+ */
+fun callRoutingReason(routing: String?, locale: String? = null): String? {
+    val key = when (routing) {
+        "blocked" -> "shell.callRoutingBlocked"
+        "line_busy" -> "shell.callRoutingLineBusy"
+        "screened" -> "shell.callRoutingScreened"
+        "after_hours" -> "shell.callRoutingAfterHours"
+        "paused" -> "shell.callRoutingPaused"
+        "over_cap" -> "shell.callRoutingOverCap"
+        "nobody_reachable" -> "shell.callRoutingNobodyReachable"
+        else -> return null
+    }
+    return AppStrings.translate(locale, key)
+}
+
+/**
  * The row's plain-language outcome line (web parity). Outbound speaks from
  * the crew's side ("You called…", "No answer" — nothing was missed by the
  * crew). An answered call NAMES the acting member (#191): the placer of an
@@ -77,9 +99,10 @@ fun callOutcomeLabel(call: Call): String {
     val dur =
         if (call.forward_seconds > 0) " · ${formatCallDuration(call.forward_seconds)}" else ""
     val actor = call.answered_by_name?.takeIf { it.isNotBlank() }
+    val why = callRoutingReason(call.routing)?.let { " · $it" } ?: ""
     return when (call.outcome) {
-        CallOutcome.MISSED -> if (outbound) "No answer" else "Missed"
-        CallOutcome.VOICEMAIL -> "Voicemail"
+        CallOutcome.MISSED -> if (outbound) "No answer" else "Missed$why"
+        CallOutcome.VOICEMAIL -> "Voicemail$why"
         CallOutcome.ANSWERED ->
             if (outbound) {
                 "${if (actor != null) "$actor called" else "You called"}$dur"
@@ -95,17 +118,45 @@ fun callOutcomeLabel(call: Call): String {
 fun isActionableMiss(call: Call): Boolean =
     call.outcome == CallOutcome.MISSED && call.direction != "outbound"
 
-/**
- * Honest carrier-screening label from the raw verdict (web parity). Quiet by
- * design — the verdict came from the network, not from us.
- */
-fun screeningLabel(result: String?): String? {
-    if (result.isNullOrBlank()) return null
-    val value = result.lowercase()
-    if ("no_flag" in value || "clean" in value) return null
-    val markers = listOf("spam", "fraud", "scam", "robo", "flag", "spoof")
-    return if (markers.any { it in value }) "Spam likely" else null
+private const val SPAM_LIKELY = "spam_likely"
+private val SPAM_WORD_SEPARATORS = Regex("""[\s-]+""")
+
+private fun isSpamLikelyWord(value: String): Boolean =
+    value.trim().lowercase().replace(SPAM_WORD_SEPARATORS, "_") == SPAM_LIKELY
+
+private fun resultSaysSpamLikely(result: String): Boolean {
+    if (isSpamLikelyWord(result)) return true
+    val parsed = try {
+        Json.parseToJsonElement(result)
+    } catch (_: IllegalArgumentException) {
+        return false
+    }
+    return when (parsed) {
+        is JsonPrimitive -> parsed.isString && isSpamLikelyWord(parsed.content)
+        is JsonObject -> parsed.entries.any { (key, value) ->
+            when {
+                key == "action" || value !is JsonPrimitive -> false
+                value.isString -> isSpamLikelyWord(value.content)
+                else -> value.booleanOrNull == true && isSpamLikelyWord(key)
+            }
+        }
+        else -> false
+    }
 }
+
+/**
+ * #721: Kotlin port of `packages/shared/src/call-screening.ts`, checked against
+ * `vectors/call-screening.json`. True only on Telnyx's explicit `spam_likely`;
+ * the `"action":"flag_calls"` every call carries is our own mode, not a verdict.
+ */
+fun callLooksSpam(result: String?, callerName: String?): Boolean {
+    if (!result.isNullOrBlank() && resultSaysSpamLikely(result)) return true
+    return !callerName.isNullOrBlank() && isSpamLikelyWord(callerName)
+}
+
+/** The carrier's spam verdict as a label (web parity); anything else shows nothing. */
+fun screeningLabel(result: String?, callerName: String?): String? =
+    if (callLooksSpam(result, callerName)) "Spam likely" else null
 
 /** "0:42" / "12:04" / "1:02:33" — the live in-call timer. */
 fun formatTimer(elapsedMs: Long): String {

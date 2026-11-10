@@ -635,7 +635,8 @@ private fun AfterHoursCard(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
-    val hoursSet = company.business_hours.values.any { it != null }
+    // #721: the server rule, hasBusinessHours: a zero-length window is not hours.
+    val hoursSet = company.business_hours.values.any { it != null && it.open != it.close }
 
     val afterHoursUpdated = t("settings.afterHoursUpdated")
 

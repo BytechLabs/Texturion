@@ -5,6 +5,13 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.telephony.AudioRoute
 import com.loonext.android.telephony.CallPhase
+import java.io.File
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -190,16 +197,56 @@ class CallsLogicTest {
         assertFalse(isActionableMiss(call(outcome = "answered")))
     }
 
+    /**
+     * #721: the cases `packages/shared/src/call-screening.ts` generates. Every
+     * production call carries `"action":"flag_calls"`, and the old word match
+     * labelled all of them spam.
+     */
     @Test
-    fun `screening labels stay quiet unless the carrier flagged the call`() {
-        assertNull(screeningLabel(null))
-        assertNull(screeningLabel(""))
-        assertNull(screeningLabel("no_flag"))
-        assertNull(screeningLabel("CLEAN"))
-        assertEquals("Spam likely", screeningLabel("SPAM"))
-        assertEquals("Spam likely", screeningLabel("fraud_risk"))
-        assertEquals("Spam likely", screeningLabel("robocall"))
-        assertNull(screeningLabel("unknown_verdict"))
+    fun `screening agrees with the shared vectors`() {
+        var dir: File? = File("").absoluteFile
+        var text: String? = null
+        while (dir != null && text == null) {
+            val candidate = File(dir, "packages/shared/vectors/call-screening.json")
+            if (candidate.exists()) text = candidate.readText()
+            dir = dir.parentFile
+        }
+        val cases = Json.parseToJsonElement(checkNotNull(text) { "call-screening.json not found" }).jsonArray
+        assertTrue("no screening vectors", cases.isNotEmpty())
+        for (case in cases.map { it.jsonObject }) {
+            val result = case["result"]?.jsonPrimitive?.contentOrNull
+            val callerName = case["callerName"]?.jsonPrimitive?.contentOrNull
+            assertEquals(
+                "result $result, caller $callerName",
+                case.getValue("spam").jsonPrimitive.boolean,
+                callLooksSpam(result, callerName),
+            )
+        }
+        assertEquals("Spam likely", screeningLabel("spam_likely", null))
+        assertNull(screeningLabel("""{"action":"flag_calls","reputation":0}""", null))
+    }
+
+    /** #721: every route's reason, in the web's words. */
+    @Test
+    fun `routing reasons agree with the shared vectors`() {
+        var dir: File? = File("").absoluteFile
+        var text: String? = null
+        while (dir != null && text == null) {
+            val candidate = File(dir, "packages/shared/vectors/call-routing.json")
+            if (candidate.exists()) text = candidate.readText()
+            dir = dir.parentFile
+        }
+        val cases = Json.parseToJsonElement(checkNotNull(text) { "call-routing.json not found" }).jsonArray
+        assertTrue("no routing vectors", cases.isNotEmpty())
+        for (case in cases.map { it.jsonObject }) {
+            val routing = case.getValue("routing").jsonPrimitive.content
+            assertEquals(routing, case["reason"]?.jsonPrimitive?.contentOrNull, callRoutingReason(routing))
+        }
+        assertEquals(
+            "Voicemail · After hours, nobody on call",
+            callOutcomeLabel(call(outcome = "voicemail").copy(routing = "after_hours")),
+        )
+        assertEquals("Missed", callOutcomeLabel(call(outcome = "missed").copy(routing = "rang")))
     }
 
     @Test

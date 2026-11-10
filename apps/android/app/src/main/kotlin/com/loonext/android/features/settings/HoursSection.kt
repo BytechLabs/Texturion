@@ -267,6 +267,11 @@ private fun AwayReplyCard(
         // approved, and the away reply is best-effort: a refusal is swallowed
         // so it never breaks inbound ingest. A switch reading ON while every
         // US customer gets silence is the first week of every US workspace.
+        // #721: the reply fires outside the hours; with none set, only a
+        // closed date sends it.
+        if (enabled && company.business_hours.values.none { it != null && it.open != it.close }) {
+            ReachNote(t("settings.awayNoHours"))
+        }
         if (enabled && !usSendApproved(company)) {
             ReachNote(
                 if (usTextingOff(company)) {
