@@ -56,6 +56,15 @@
 --
 -- The backfill runs in this transaction, after the triggers exist, and the
 -- trigger DDL holds a lock that stops an insert slipping between the two.
+--
+-- TWO MORE CHANGES TO api_for_you, because measuring showed the stored unread
+-- alone moves little (a probe of a short thread costs what a primary key lookup
+-- costs) and the rest of the time was elsewhere:
+--   * It is plpgsql, so its plan is kept between calls. As a SQL function it was
+--     planned on every call: 6.7 ms of 25 on Micro.
+--   * "Is this job done" reads the linked message by primary key for each
+--     candidate task, instead of joining `messages`. Where the planner chose a
+--     hash join it read the whole table twice per call.
 
 create table public.conversation_unread_basis (
   conversation_id uuid primary key
@@ -290,11 +299,15 @@ create or replace function public.api_for_you(
   p_hidden_number_ids uuid[] default null
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $fn$
+-- #698: plpgsql, not sql, so the plan is kept between calls. A SQL function is
+-- planned again on every call, and this query's planning was a third of its time.
+begin
+  return (
 
   with
   conv as (
@@ -641,6 +654,8 @@ as $fn$
                          and c.status in ('new','open','waiting'))))))
       from conv_totals ct)
   )
+  );
+end;
 $fn$;
 
 revoke execute on function public.api_for_you(uuid, uuid, timestamptz, integer, uuid[])
