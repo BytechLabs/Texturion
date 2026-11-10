@@ -171,7 +171,10 @@ export async function runResponseTimeRecapJob(
     .select("id,name,created_at")
     .eq("subscription_status", "active")
     .not("plan", "is", null)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    // A stable order, so a run that stops at the ceiling picks up where the
+    // last one left off instead of re-reading the same first workspaces.
+    .order("id");
   if (error) throw new Error(`recap company list failed: ${error.message}`);
 
   let sent = 0;
@@ -213,6 +216,9 @@ export async function runResponseTimeRecapJob(
     const owner = await ownerEmail(db, row.id);
     if (!owner) continue;
 
+    // One recap per workspace per month, however many times the job runs.
+    if (!(await claimRecap(db, row.id, now))) continue;
+
     await sendEmail(env, {
       to: [owner],
       subject: `${row.name}: how fast you answered this month`,
@@ -241,6 +247,26 @@ export async function runResponseTimeRecapJob(
         `will be picked up by the next run.`,
     );
   }
+}
+
+/** True for the first run in a calendar month to claim this workspace. */
+async function claimRecap(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  now: Date,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("email_ledger")
+    .upsert(
+      {
+        company_id: companyId,
+        email_key: `response_recap:${now.toISOString().slice(0, 7)}`,
+      },
+      { onConflict: "company_id,email_key", ignoreDuplicates: true },
+    )
+    .select("email_key");
+  if (error) throw new Error(`recap ledger insert failed: ${error.message}`);
+  return (data ?? []).length > 0;
 }
 
 /** The same RPC the panel reads, so the two can never disagree. */

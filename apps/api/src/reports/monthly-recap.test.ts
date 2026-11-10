@@ -7,11 +7,15 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { supabaseStub } from "../test/routes-harness";
+import { completeEnv, stubFetch } from "../test/support";
+import { resendRoute, type SentEmailCapture } from "../telnyx/test-support";
 import {
   MEANINGFUL_CHANGE_RATIO,
   RECAP_WINDOW_DAYS,
   recapDirection,
   recapText,
+  runResponseTimeRecapJob,
 } from "./monthly-recap";
 
 const base = {
@@ -109,5 +113,53 @@ describe("recapText", () => {
     const text = recapText(base);
     expect(text).not.toMatch(/\+\d{7,}/);
     expect(text).not.toContain("@");
+  });
+});
+
+describe("runResponseTimeRecapJob", () => {
+  const env = completeEnv();
+  const COMPANY = "cccccccc-0000-4000-8000-00000000000c";
+  const OWNER = "10000000-aaaa-4000-8000-000000000001";
+
+  function run(claimed: boolean) {
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/companies", () => [
+      { id: COMPANY, name: "Bright Spark", created_at: "2026-01-01T00:00:00Z" },
+    ]);
+    // Faster than the first fortnight, so a recap is owed.
+    let call = 0;
+    sb.on("POST", "/rest/v1/rpc/api_response_time_stats", () => {
+      call += 1;
+      return call === 1
+        ? { leads: 10, answered: 10, unanswered: 0, median_seconds: 120 }
+        : { leads: 10, answered: 10, unanswered: 0, median_seconds: 900 };
+    });
+    sb.on("GET", "/rest/v1/company_members", () => [
+      { company_id: COMPANY, user_id: OWNER },
+    ]);
+    sb.on("GET", "/rest/v1/notification_prefs", () => []);
+    sb.on("GET", `/auth/v1/admin/users/${OWNER}`, () => ({
+      id: OWNER,
+      email: "owner@example.test",
+    }));
+    sb.on("POST", "/rest/v1/email_ledger", () =>
+      claimed ? [{ email_key: "response_recap:2026-11" }] : [],
+    );
+    const emails: SentEmailCapture[] = [];
+    stubFetch(async (url, request) => {
+      const mail = await resendRoute(emails)(url, request);
+      return mail ?? sb.route(url, request);
+    });
+    return emails;
+  }
+
+  it("sends the first run of the month and nothing on a second run", async () => {
+    const first = run(true);
+    await runResponseTimeRecapJob(env, new Date("2026-11-01T14:35:00Z"));
+    expect(first).toHaveLength(1);
+
+    const again = run(false);
+    await runResponseTimeRecapJob(env, new Date("2026-11-01T14:50:00Z"));
+    expect(again).toHaveLength(0);
   });
 });

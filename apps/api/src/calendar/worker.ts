@@ -2332,7 +2332,7 @@ export function calendarOwnerDisclosurePayload(
   };
 }
 
-async function discloseCalendarOwner(
+export async function discloseCalendarOwner(
   env: Env,
   db: SupabaseClient,
   disclosure: CalendarOwnerDisclosureRow,
@@ -2353,8 +2353,11 @@ async function discloseCalendarOwner(
         env.APP_ORIGIN,
       ),
   });
+  // Logged, not thrown. A throw makes the drain retry the whole disclosure,
+  // and every device that already got it is notified again on each pass while
+  // one bad token keeps failing.
   if (failures.length > 0) {
-    throw new Error(
+    console.error(
       `calendar owner disclosure failed on ${failures.length} delivery target(s)`,
     );
   }

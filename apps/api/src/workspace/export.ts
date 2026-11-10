@@ -303,10 +303,15 @@ async function buildOne(
     "application/json",
   );
 
-  await db
+  // The email follows the stamp and only if it landed: a stamp that silently
+  // failed would leave the row running and send this email on every run.
+  const marked = await db
     .from("data_exports")
     .update({ status: "ready", completed_at: new Date().toISOString() })
     .eq("id", row.id);
+  if (marked.error) {
+    throw new Error(`export ready stamp failed: ${marked.error.message}`);
+  }
   await notifyReady(env, db, row);
   return { parts, completed: true };
 }

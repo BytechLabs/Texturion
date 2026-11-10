@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
+import { pgError, supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { buildDataExports, pruneExpiredExports } from "./export";
 
@@ -48,6 +48,8 @@ interface WorldOptions {
   /** Rows returned for this table, once; every other table is empty. */
   rowsFor?: { table: string; rows: Record<string, unknown>[] };
   uploadFails?: boolean;
+  /** The write that marks the export ready fails. */
+  readyStampFails?: boolean;
 }
 
 function world(options: WorldOptions = {}): {
@@ -68,7 +70,11 @@ function world(options: WorldOptions = {}): {
       },
     ],
   );
-  sb.on("PATCH", "/rest/v1/data_exports", () => []);
+  sb.on("PATCH", "/rest/v1/data_exports", (call) =>
+    options.readyStampFails && (call.body as { status?: string }).status === "ready"
+      ? pgError("57014", "statement timeout")
+      : [],
+  );
   sb.on("POST", "/rest/v1/rpc/record_export_table", () => null);
   for (const table of TABLES) {
     sb.on("GET", `/rest/v1/${table}`, () =>
@@ -187,6 +193,24 @@ describe("buildDataExports", () => {
       .map((call) => call.body as { status?: string })
       .filter((body) => body.status === "ready");
     expect(ready).toHaveLength(1);
+  });
+
+  it("sends no ready email when the row could not be marked ready", async () => {
+    // Otherwise the row stays running and the email goes out on every run.
+    const { routes } = world({ readyStampFails: true });
+    const mails: string[] = [];
+    stubFetch(
+      (url) => {
+        if (url.hostname === "api.resend.com") mails.push(url.href);
+        return undefined;
+      },
+      ...routes,
+    );
+
+    const summary = await buildDataExports(env);
+
+    expect(summary.completed).toBe(0);
+    expect(mails).toHaveLength(0);
   });
 
   it("asks only for exports still owed work", async () => {

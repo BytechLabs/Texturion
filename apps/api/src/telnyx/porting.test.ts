@@ -545,6 +545,32 @@ describe("handlePortingEvent — §5.1 transitions", () => {
     expect(emails.some((e) => e.subject.includes("needs a quick fix"))).toBe(true);
   });
 
+  it("emails once when two deliveries of the same exception overlap", async () => {
+    // A webhook and the daily poll both read the row before either writes it.
+    // Only the one that changes the status may send.
+    const { env, emails } = setup({
+      telnyx_porting_order_id: ORDER_ID,
+      status: "submitted",
+      messaging_port_status: "pending",
+    });
+    const event = {
+      data: {
+        event_type: "porting_order.status_changed",
+        payload: {
+          id: ORDER_ID,
+          status: {
+            value: "exception",
+            details: [{ code: "ACCOUNT_NUMBER_MISMATCH" }],
+          },
+        },
+      },
+    };
+
+    await Promise.all([handlePortingEvent(env, event), handlePortingEvent(env, event)]);
+
+    expect(emails.filter((e) => e.subject.includes("needs a quick fix"))).toHaveLength(1);
+  });
+
   it("is a guarded no-op for an unknown order id (out-of-order / foreign)", async () => {
     const { env, rest } = setup({
       telnyx_porting_order_id: ORDER_ID,
