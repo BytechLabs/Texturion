@@ -70,6 +70,17 @@ declare
     -- missing filter would do that to tasks on numbers the actor was denied.
     -- NA-6 asserts it.
     'api_bulk_tasks',
+    -- #691: the Trash. A member holding records.delete who is denied a number
+    -- must not list, trash, restore or erase anything on it. The writes belong
+    -- here for the reason the bulk ones do: a missing filter changes or destroys
+    -- a row the actor was never allowed to see. NA-7 asserts all of them.
+    'api_list_trash',
+    'api_purge_trash_item',
+    'api_restore_trash',
+    'api_trash_call',
+    'api_trash_conversations',
+    'api_trash_message',
+    'api_trash_object_paths',
     -- The shared definition behind api_notifications + its badge (#359, the
     -- one-notification-definition refactor). It is not called directly by any
     -- route — both notification surfaces read THROUGH it — which is exactly
@@ -481,6 +492,137 @@ begin
   end if;
 
   raise notice 'NA-6 PASSED: the task bulk write cannot reach a denied number';
+end $$;
+
+-- ===========================================================================
+-- NA-7 [#691] The Trash: list, trash, restore, object paths and purge.
+--
+-- The list and the object paths are reads; trash, restore and purge are writes,
+-- and the last one destroys. Each is asserted against a denied item (refused,
+-- row unchanged) and an allowed one (works), so a filter that refuses everything
+-- cannot pass for a correct one. The block undoes itself: it raises a private
+-- error at the end and the enclosing sub-transaction rolls back.
+-- ===========================================================================
+do $$
+declare
+  co     uuid := '36800000-0000-4000-8000-000000000001';
+  usr    uuid := '36800000-0000-4000-8000-000000000002';
+  hidden uuid[] := array['36800000-0000-4000-8000-000000000011']::uuid[];
+  vvis   uuid := '36800000-0000-4000-8000-000000000030';
+  vhid   uuid := '36800000-0000-4000-8000-000000000031';
+  call_v uuid := '36800000-0000-4000-8000-0000000000c1';
+  call_h uuid := '36800000-0000-4000-8000-0000000000c2';
+  msg_v  uuid;
+  msg_h  uuid;
+  r      jsonb;
+begin
+  select m.id into msg_v from public.messages m where m.conversation_id = vvis limit 1;
+  select m.id into msg_h from public.messages m where m.conversation_id = vhid limit 1;
+  insert into public.calls
+    (id, company_id, phone_number_id, call_session_id, caller_e164, outcome,
+     voicemail_path, voicemail_transcript)
+  values (call_v, co, '36800000-0000-4000-8000-000000000010', 'na7-vis',
+          '+12125559001', 'voicemail', 'na7/vis.mp3', 'visible words'),
+         (call_h, co, '36800000-0000-4000-8000-000000000011', 'na7-hid',
+          '+12125559002', 'voicemail', 'na7/hid.mp3', 'hidden words');
+
+  begin
+    -- Trash a message: the denied one is refused and untouched, the allowed works.
+    if public.api_trash_message(co, usr, msg_h, hidden) ->> 'outcome' is distinct from 'not_found'
+       or (select deleted_at from public.messages where id = msg_h) is not null then
+      raise exception 'NA-7 FAILED: a message on a denied number was trashed';
+    end if;
+    if public.api_trash_message(co, usr, msg_v, hidden) ->> 'outcome' is distinct from 'trashed' then
+      raise exception 'NA-7 FAILED: a message on an allowed number could not be trashed';
+    end if;
+
+    -- Trash a call: same.
+    if public.api_trash_call(co, usr, call_h, false, hidden) ->> 'outcome' is distinct from 'not_found'
+       or (select deleted_at from public.calls where id = call_h) is not null then
+      raise exception 'NA-7 FAILED: a call on a denied number was trashed';
+    end if;
+    if public.api_trash_call(co, usr, call_v, false, hidden) ->> 'outcome' is distinct from 'trashed' then
+      raise exception 'NA-7 FAILED: a call on an allowed number could not be trashed';
+    end if;
+
+    -- Put the denied items in the Trash as an unrestricted actor, so the list,
+    -- restore and purge have something to refuse.
+    perform public.api_trash_message(co, usr, msg_h);
+    perform public.api_trash_call(co, usr, call_h, false);
+
+    -- The list (a read): denied absent, allowed present, and the unrestricted
+    -- list shows both, so absence is the filter and not an empty fixture.
+    if not exists (select 1 from public.api_list_trash(co, 50, null, null, hidden) t
+                    where t ->> 'id' = msg_v::text)
+       or not exists (select 1 from public.api_list_trash(co, 50, null, null, hidden) t
+                       where t ->> 'id' = call_v::text) then
+      raise exception 'NA-7 FAILED: the Trash list hid items on an allowed number';
+    end if;
+    if exists (select 1 from public.api_list_trash(co, 50, null, null, hidden) t
+                where t ->> 'id' in (msg_h::text, call_h::text)) then
+      raise exception 'NA-7 FAILED: the Trash list showed an item on a denied number';
+    end if;
+    if (select count(*) from public.api_list_trash(co, 50) t
+         where t ->> 'id' in (msg_h::text, call_h::text)) is distinct from 2 then
+      raise exception 'NA-7 FAILED: the unrestricted Trash list lacks the denied items';
+    end if;
+
+    -- Restore: refused on the denied item, works on the allowed one.
+    if public.api_restore_trash(co, usr, 'message', msg_h, hidden) ->> 'outcome' is distinct from 'not_found'
+       or (select deleted_at from public.messages where id = msg_h) is null then
+      raise exception 'NA-7 FAILED: a message on a denied number was restored';
+    end if;
+    if public.api_restore_trash(co, usr, 'call', call_h, hidden) ->> 'outcome' is distinct from 'not_found'
+       or (select deleted_at from public.calls where id = call_h) is null then
+      raise exception 'NA-7 FAILED: a call on a denied number was restored';
+    end if;
+    if public.api_restore_trash(co, usr, 'message', msg_v, hidden) ->> 'outcome' is distinct from 'restored' then
+      raise exception 'NA-7 FAILED: a message on an allowed number could not be restored';
+    end if;
+
+    -- Object paths (a read): nothing for the denied call, its audio for the allowed one.
+    if exists (select 1 from public.api_trash_object_paths('call', call_h, co, hidden)) then
+      raise exception 'NA-7 FAILED: object paths named a denied number''s voicemail';
+    end if;
+    if not exists (select 1 from public.api_trash_object_paths('call', call_v, co, hidden) p
+                    where p.path = 'na7/vis.mp3') then
+      raise exception 'NA-7 FAILED: object paths hid an allowed number''s voicemail';
+    end if;
+
+    -- Purge: refused on the denied item with the row unchanged, works on the allowed one.
+    if public.api_purge_trash_item('call', call_h, usr, co, hidden) ->> 'outcome' is distinct from 'not_found' then
+      raise exception 'NA-7 FAILED: a call on a denied number was purged';
+    end if;
+    if exists (select 1 from public.calls
+                where id = call_h
+                  and (purged_at is not null or voicemail_path is null
+                       or voicemail_transcript is null)) then
+      raise exception 'NA-7 FAILED: the refused purge still changed the denied call';
+    end if;
+    if public.api_purge_trash_item('call', call_v, usr, co, hidden) ->> 'outcome' is distinct from 'purged'
+       or (select voicemail_path from public.calls where id = call_v) is not null then
+      raise exception 'NA-7 FAILED: a call on an allowed number could not be purged';
+    end if;
+
+    -- Trash a conversation: the denied one is untouched, the allowed one goes.
+    r := public.api_trash_conversations(co, usr, array[vhid], hidden);
+    if r -> 'trashed' is distinct from '[]'::jsonb
+       or (select deleted_at from public.conversations where id = vhid) is not null then
+      raise exception 'NA-7 FAILED: a conversation on a denied number was trashed';
+    end if;
+    r := public.api_trash_conversations(co, usr, array[vvis], hidden);
+    if r -> 'trashed' is distinct from to_jsonb(array[vvis]) then
+      raise exception 'NA-7 FAILED: a conversation on an allowed number could not be trashed';
+    end if;
+
+    raise exception 'NA7-UNDO';
+  exception when raise_exception then
+    if sqlerrm is distinct from 'NA7-UNDO' then
+      raise;
+    end if;
+  end;
+
+  raise notice 'NA-7 PASSED: the Trash cannot list, trash, restore or erase a denied number''s items';
 end $$;
 
 rollback;
