@@ -26,6 +26,7 @@ import type {
   Contact,
   ContactDetail,
   ContactListItem,
+  ContactTag,
   ImportResult,
   OptOut,
   Page,
@@ -48,6 +49,8 @@ export function fetchContactsPage(
    * either would filter somebody's list by a rule they did not choose.
    */
   field?: ContactFieldFilter,
+  /** #695: only contacts carrying this workspace tag. */
+  tagId?: string,
 ): Promise<Page<ContactListItem>> {
   // List rows carry `opted_out` (the G6 opted-out badge) and
   // `last_activity_at` (the G6 "Last activity" column — conversation
@@ -62,6 +65,7 @@ export function fetchContactsPage(
       // Sent even when empty: "" is a real answer on a custom field, and
       // dropping it would silently widen the list back to everybody.
       value: field ? field.value : undefined,
+      tag_id: tagId,
     },
   });
 }
@@ -75,12 +79,13 @@ export interface ContactFieldFilter {
 /** Contacts table — trgm-backed search via `q` (G6), keypad letters via `t9`. */
 export function useContacts(
   q = "",
-  options: { t9?: boolean; field?: ContactFieldFilter } = {},
+  options: { t9?: boolean; field?: ContactFieldFilter; tagId?: string } = {},
 ) {
   const companyId = useCompanyId();
   const trimmed = q.trim();
   const t9 = options.t9 === true;
   const field = options.field;
+  const tagId = options.tagId;
   return useInfiniteQuery({
     // The flag is part of the key: the same digits mean a different result set
     // with names folded in, and sharing a cache entry would show one caller the
@@ -91,9 +96,10 @@ export function useContacts(
       ...keys.contacts.list(companyId, trimmed),
       t9 ? "t9" : "n",
       field ? `${field.key}=${field.value}` : "all",
+      tagId ? `tag=${tagId}` : "any-tag",
     ],
     queryFn: ({ pageParam }) =>
-      fetchContactsPage(companyId, trimmed, pageParam, t9, field),
+      fetchContactsPage(companyId, trimmed, pageParam, t9, field, tagId),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
     // Keep the previous result set visible while a new search term resolves —
@@ -600,5 +606,100 @@ export function useRemoveContactAddress(contactId: string) {
       queryClient.invalidateQueries({
         queryKey: keys.contacts.detail(companyId, contactId),
       }),
+  });
+}
+
+/**
+ * #246 / #695 - POST /v1/contacts/:id/unmerge: put the folded-in record back.
+ *
+ * The id is the RECORD THAT WAS FOLDED IN (`merged_from.id` on the survivor's
+ * detail), not the survivor's. Restores that contact and its number; the
+ * conversations stay where they are, which the confirmation says out loud.
+ */
+export function useUnmergeContact() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (mergedContactId: string) =>
+      apiFetch<{ unmerged: true }>(`/v1/contacts/${mergedContactId}/unmerge`, {
+        method: "POST",
+        companyId,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [companyId, "contacts"] });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.lists(companyId),
+      });
+    },
+  });
+}
+
+/**
+ * #695 - a contact's tags. POST by id or by name (create-on-attach, subject to
+ * the workspace's tag lock), DELETE by id. The detail and every list refetch:
+ * a tag shows on the row, in the filter result and on the page.
+ */
+export function useAddContactTag(contactId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { tag_id: string } | { name: string }) =>
+      apiFetch<ContactTag>(`/v1/contacts/${contactId}/tags`, {
+        method: "POST",
+        companyId,
+        body: input,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [companyId, "contacts"] });
+      void queryClient.invalidateQueries({ queryKey: keys.tags(companyId) });
+    },
+  });
+}
+
+export function useRemoveContactTag(contactId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tagId: string) =>
+      apiFetch<void>(`/v1/contacts/${contactId}/tags/${tagId}`, {
+        method: "DELETE",
+        companyId,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [companyId, "contacts"] });
+    },
+  });
+}
+
+/** POST /v1/contacts/bulk - what the server did, row by row. */
+export type ContactBulkAction = "add_tag" | "remove_tag" | "delete";
+
+export interface ContactBulkRequest {
+  action: ContactBulkAction;
+  ids: string[];
+  tag_id?: string;
+}
+
+export interface ContactBulkResult {
+  action: ContactBulkAction;
+  matched: number;
+  /** Only the rows that CHANGED; the undo of a tag action is the other tag action over these. */
+  applied: { id: string; previous: Record<string, unknown> }[];
+  failed: { id: string; reason: string }[];
+}
+
+export function useBulkContacts() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: ContactBulkRequest) =>
+      apiFetch<ContactBulkResult>("/v1/contacts/bulk", {
+        method: "POST",
+        companyId,
+        body: request,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [companyId, "contacts"] });
+    },
   });
 }

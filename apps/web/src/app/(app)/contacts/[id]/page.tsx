@@ -20,6 +20,8 @@ import { ExportHistory } from "@/components/contacts/export-history";
 import { ContactCustomFields } from "@/components/contacts/custom-fields";
 import { ContactTimeline } from "@/components/contacts/contact-timeline";
 import { ContactCallHistory } from "@/components/contacts/contact-call-history";
+import { ContactTags } from "@/components/contacts/contact-tags";
+import { MergedFrom } from "@/components/contacts/merged-from";
 import { LoadError, SettingsCard } from "@/components/settings/section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -343,6 +345,8 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
 
   return (
     <div className="space-y-6">
+      {/* #695: only when a record was folded into this one. */}
+      <MergedFrom contact={contact} />
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-xl font-medium tabular-nums">
           {formatPhone(contact.phone_e164)}
@@ -551,6 +555,8 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           <RecordAttribution contact={contact} />
         </div>
       </SettingsCard>
+
+      <ContactTags contact={contact} />
 
       <SettingsCard title={t("appShell.contactConsentCard")}>
         <ConsentLine contact={contact} />

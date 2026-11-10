@@ -27,6 +27,12 @@ export default function ContactsPage() {
   const [importSource, setImportSource] = useState<ImportSource>(null);
   // Stable identity so the table's effect doesn't re-fire every render.
   const handleQueryChange = useCallback((next: string) => setQuery(next), []);
+  // #695: the tag the table is narrowed to, so export mirrors the view.
+  const [tagId, setTagId] = useState<string | undefined>(undefined);
+  const handleTagChange = useCallback(
+    (next: string | undefined) => setTagId(next),
+    [],
+  );
 
   // The empty-state action stays a single obvious "Import CSV" — the fuller
   // import menu lives in the toolbar (owner/admin only).
@@ -46,6 +52,7 @@ export default function ContactsPage() {
         <ContactsActions
           canImport={canImport}
           query={query}
+          tagId={tagId}
           importSource={importSource}
           onImportSourceChange={setImportSource}
         />
@@ -57,6 +64,7 @@ export default function ContactsPage() {
       <ContactsTable
         emptyAction={emptyImportButton}
         onQueryChange={handleQueryChange}
+        onTagFilterChange={handleTagChange}
       />
     </div>
   );

@@ -48,11 +48,14 @@ export function ContactsActions({
   canImport,
   /** The live search query, so export mirrors what the user is looking at. */
   query,
+  tagId,
   importSource,
   onImportSourceChange,
 }: {
   canImport: boolean;
   query: string;
+  /** #695: the tag the list is narrowed to, so export mirrors it too. */
+  tagId?: string;
   importSource: ImportSource;
   onImportSourceChange: (source: ImportSource) => void;
 }) {
@@ -78,7 +81,7 @@ export function ContactsActions({
 
   function runExport() {
     setExportError(null);
-    exportContacts.mutate(query, {
+    exportContacts.mutate({ q: query, tagId }, {
       onError: (cause) =>
         setExportError(
           cause instanceof ApiError

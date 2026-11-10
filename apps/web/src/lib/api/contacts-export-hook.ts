@@ -15,12 +15,20 @@ import { fetchContactsExport, triggerBlobDownload } from "./contacts-export";
 export function useExportContacts() {
   const companyId = useCompanyId();
   return useMutation({
-    mutationFn: async (q: string) => {
-      const { blob, filename } = await fetchContactsExport(companyId, q, {
-        fetch,
-        getToken: getAccessToken,
-        baseUrl: publicEnv.NEXT_PUBLIC_API_URL,
-      });
+    mutationFn: async (
+      input: string | { q: string; tagId?: string; ids?: string[] },
+    ) => {
+      const request = typeof input === "string" ? { q: input } : input;
+      const { blob, filename } = await fetchContactsExport(
+        companyId,
+        request.q,
+        {
+          fetch,
+          getToken: getAccessToken,
+          baseUrl: publicEnv.NEXT_PUBLIC_API_URL,
+        },
+        { tagId: request.tagId, ids: request.ids },
+      );
       triggerBlobDownload(blob, filename);
       return { filename };
     },

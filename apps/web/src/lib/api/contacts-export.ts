@@ -44,6 +44,12 @@ export async function fetchContactsExport(
   companyId: string,
   q: string,
   deps: ExportDeps,
+  /**
+   * #695: narrow the export the same way the list is narrowed - to one tag, or
+   * to an explicit selection of contacts. Both optional; absent means "what the
+   * search shows".
+   */
+  selection: { tagId?: string; ids?: string[] } = {},
 ): Promise<{ blob: Blob; filename: string }> {
   const baseUrl = deps.baseUrl.replace(/\/$/, "");
 
@@ -65,6 +71,10 @@ export async function fetchContactsExport(
   const url = new URL(`${baseUrl}/v1/contacts/export`);
   const trimmed = q.trim();
   if (trimmed !== "") url.searchParams.set("q", trimmed);
+  if (selection.tagId) url.searchParams.set("tag_id", selection.tagId);
+  if (selection.ids && selection.ids.length > 0) {
+    url.searchParams.set("ids", selection.ids.join(","));
+  }
 
   const response = await fetchImpl(url.toString(), {
     method: "GET",

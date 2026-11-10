@@ -16,6 +16,7 @@ const state: { pairs: DuplicatePair[] } = { pairs: [] };
 vi.mock("@/lib/api/contacts", () => ({
   useDuplicateContacts: () => ({ data: { data: state.pairs } }),
   useMergeContacts: () => ({ mutate: vi.fn(), isPending: false }),
+  useUnmergeContact: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { DuplicateContactsCard } from "./duplicate-contacts-card";

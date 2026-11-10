@@ -63,6 +63,13 @@ vi.mock("@/lib/api/contacts", () => ({
   useOptOutContact: () => ({ isPending: false, mutate: vi.fn() }),
   useRevokeOptOut: () => ({ isPending: false, mutate: vi.fn() }),
   useDeleteContact: () => ({ isPending: false, mutate: vi.fn() }),
+  // #695: tags on the customer, and the way back from a merge.
+  useAddContactTag: () => ({ isPending: false, mutate: vi.fn() }),
+  useRemoveContactTag: () => ({ isPending: false, mutate: vi.fn() }),
+  useUnmergeContact: () => ({ isPending: false, mutate: vi.fn() }),
+}));
+vi.mock("@/lib/api/tags", () => ({
+  useTags: () => ({ data: { data: [] } }),
 }));
 // #291: the page mounts ContactCustomFields, whose hook reaches
 // CompanyProvider — which this static-render harness does not set up. An empty
@@ -180,6 +187,39 @@ beforeEach(() => {
   state.contact = contact();
   state.conversations = undefined; // no existing conversation by default
   blockedRows.current = [];
+});
+
+describe("/contacts/[id] tags and unmerge (#695)", () => {
+  it("shows the tags the customer carries, each with a way to remove it", () => {
+    state.contact = contact({
+      tags: [
+        { id: "t-1", name: "Property manager", color: null },
+        { id: "t-2", name: "Warranty", color: null },
+      ],
+    });
+    const html = render("c-1");
+    expect(html).toContain("Property manager");
+    expect(html).toContain("Remove tag Warranty");
+    expect(html).toContain("Add a tag");
+  });
+
+  it("says what was merged in, and offers Unmerge to someone who can merge", () => {
+    state.contact = contact({
+      merged_from: {
+        id: "c-2",
+        name: "Jane Smith",
+        phone_e164: "+12125550199",
+        merged_at: "2026-11-02T15:00:00Z",
+      },
+    });
+    const html = render("c-1");
+    expect(html).toContain("Merged from Jane Smith");
+    expect(html).toContain("Unmerge");
+  });
+
+  it("says nothing about a merge when none happened", () => {
+    expect(render("c-1")).not.toContain("Merged from");
+  });
 });
 
 describe("/contacts/[id] Message action (#73)", () => {

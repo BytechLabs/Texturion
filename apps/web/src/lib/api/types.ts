@@ -1289,7 +1289,29 @@ export interface Contact {
  * GET /v1/contacts/:id and GET /v1/contacts list rows add the app-side
  * opt-out state (the G6 opted-out badge).
  */
+/** #695: a workspace tag as a contact carries it. */
+export interface ContactTag {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+/** #695: the most recent record merged into a contact, and when. */
+export interface MergedFrom {
+  id: string;
+  name: string | null;
+  phone_e164: string;
+  merged_at: string;
+}
+
 export interface ContactDetail extends Contact {
+  /** #695: the workspace tags this customer carries, by name. */
+  tags?: ContactTag[];
+  /**
+   * #695: the most recent record folded into this one. Null when nothing was
+   * merged in. The Unmerge action acts on THIS record's id.
+   */
+  merged_from?: MergedFrom | null;
   /**
    * #291: primary first, then oldest. Empty for every contact that predates
    * the feature — `address` still holds their one address and still works.

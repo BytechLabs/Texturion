@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { undoableToast } from "@/components/ui/optimistic-undo";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,7 @@ import { ApiError } from "@/lib/api/error";
 import {
   useDuplicateContacts,
   useMergeContacts,
+  useUnmergeContact,
   type DuplicatePair,
 } from "@/lib/api/contacts";
 import { formatPhone } from "@/lib/format/phone";
@@ -119,7 +121,7 @@ function describe(name: string | null, phone: string): string {
  * The customer keeps both numbers either way, which is the fact that makes the
  * decision safe and the one most likely to be assumed wrong.
  */
-function MergeDialog({
+export function MergeDialog({
   pair,
   onClose,
 }: {
@@ -128,6 +130,7 @@ function MergeDialog({
 }) {
   const t = useT();
   const merge = useMergeContacts();
+  const unmerge = useUnmergeContact();
   const [keepFirst, setKeepFirst] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -202,13 +205,28 @@ function MergeDialog({
                 {
                   onSuccess: (result) => {
                     onClose();
-                    toast.success(
-                      t(
+                    // #695: a merge removes a record from view, so it gets the
+                    // undo toast (docs/UNDO-AUDIT.md). Undo is the unmerge of
+                    // the record that was folded in; the threads stay where the
+                    // merge put them, which the unmerge confirmation says.
+                    undoableToast({
+                      message: t(
                         result.opted_out
                           ? "contacts.mergedOptedOut"
                           : "contacts.merged",
                       ),
-                    );
+                      onUndo: () =>
+                        unmerge.mutate(folded.id, {
+                          onSuccess: () =>
+                            toast.success(t("contacts.mergedUndone")),
+                          onError: (cause) =>
+                            toast.error(
+                              cause instanceof ApiError
+                                ? cause.message
+                                : t("contacts.unmergeFailed"),
+                            ),
+                        }),
+                    });
                   },
                   onError: (cause) =>
                     setError(

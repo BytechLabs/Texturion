@@ -229,6 +229,58 @@ export const contactsEn = {
   merged: "Merged.",
   mergeFailed: "Couldn't merge those. Try again in a moment.",
 
+  // ── Undoing a merge ─────────────────────────────────────────────────────
+  mergedFromLine: "Merged from {name} ({date})",
+  unmergeAction: "Unmerge",
+  unmergeTitle: "Unmerge {name}?",
+  unmergeBody:
+    "{name} comes back as its own customer, with its own number. Their " +
+    "conversations stay under this contact, because there is no telling which " +
+    "thread came from which record. If either number was opted out, it stays " +
+    "opted out.",
+  unmergeConfirm: "Unmerge",
+  unmerging: "Unmerging…",
+  unmerged: "Unmerged. {name} is its own customer again.",
+  unmergeFailed: "Couldn't unmerge. Try again in a moment.",
+  mergedUndone: "Merge undone.",
+
+  // ── Tags on a customer ──────────────────────────────────────────────────
+  contactTagsCard: "Tags",
+  contactTagsBlurb:
+    "Group customers your own way, like property managers or warranty work. " +
+    "The tags are the same ones your conversations use.",
+  tagFilterLabel: "Filter by tag",
+  tagFilterAll: "All tags",
+  tagFilterClear: "Show every customer",
+  tagFilteredEmptyTitle: "No customers carry that tag",
+  tagFilteredEmptyDetail: "Tag a few from their page, or select rows here and tag them together.",
+
+  // ── Acting on several customers ─────────────────────────────────────────
+  selectAllOnPage: "Select every customer on this page",
+  selectContact: "Select {name}",
+  bulkSelected: "{count} selected",
+  bulkClear: "Clear selection",
+  bulkTag: "Tag",
+  bulkUntag: "Untag",
+  bulkPickTag: "Pick a tag",
+  bulkNoTags: "No tags yet. Add one from a customer's page first.",
+  bulkExport: "Export",
+  bulkMore: "More actions",
+  bulkMerge: "Merge",
+  bulkMergeNeedsTwo: "Select exactly two customers to merge them",
+  bulkDelete: "Delete",
+  bulkTagged: "Tagged {count} with {tag}.",
+  bulkUntagged: "Removed {tag} from {count}.",
+  bulkNothingChanged: "Nothing to change. They already match.",
+  bulkSomeMissing: "{count} couldn't be found and were skipped.",
+  bulkFailed: "Couldn't update those customers. Try again.",
+  bulkDeleteTitle: "Delete {count} customers?",
+  bulkDeleteBody:
+    "They disappear from your contact list. Conversations and messages stay, " +
+    "and a customer comes back automatically if they text you again.",
+  bulkDeleteConfirm: "Delete {count}",
+  bulkDeleted: "Deleted {count}.",
+
   // ── This customer's history, as a document ──────────────────────────────
   exportHistoryAction: "Export their messages",
   exportHistoryBlurb:
@@ -652,6 +704,62 @@ export const contactsFr: Translated<typeof contactsEn> = {
     "numéro.",
   merged: "Fusionné.",
   mergeFailed: "Impossible de fusionner. Réessayez dans un moment.",
+
+  // ── Annuler une fusion ──────────────────────────────────────────────────
+  mergedFromLine: "Fusionné depuis {name} ({date})",
+  unmergeAction: "Défusionner",
+  unmergeTitle: "Défusionner {name} ?",
+  unmergeBody:
+    "{name} redevient un client distinct, avec son propre numéro. Ses " +
+    "conversations restent sous cette fiche, car on ne peut pas savoir quel " +
+    "fil venait de quelle fiche. Si l'un des numéros était désabonné, il le " +
+    "reste.",
+  unmergeConfirm: "Défusionner",
+  unmerging: "Défusion…",
+  unmerged: "Défusionné. {name} est de nouveau un client distinct.",
+  unmergeFailed: "Impossible de défusionner. Réessayez dans un moment.",
+  mergedUndone: "Fusion annulée.",
+
+  // ── Étiquettes sur un client ────────────────────────────────────────────
+  contactTagsCard: "Étiquettes",
+  contactTagsBlurb:
+    "Regroupez vos clients à votre façon, comme les gestionnaires " +
+    "immobiliers ou les travaux sous garantie. Ce sont les mêmes étiquettes " +
+    "que celles de vos conversations.",
+  tagFilterLabel: "Filtrer par étiquette",
+  tagFilterAll: "Toutes les étiquettes",
+  tagFilterClear: "Afficher tous les clients",
+  tagFilteredEmptyTitle: "Aucun client n'a cette étiquette",
+  tagFilteredEmptyDetail:
+    "Étiquetez-en depuis leur fiche, ou sélectionnez des lignes ici pour les étiqueter ensemble.",
+
+  // ── Agir sur plusieurs clients ──────────────────────────────────────────
+  selectAllOnPage: "Sélectionner tous les clients de cette page",
+  selectContact: "Sélectionner {name}",
+  bulkSelected: "{count} sélectionné(s)",
+  bulkClear: "Effacer la sélection",
+  bulkTag: "Étiqueter",
+  bulkUntag: "Retirer l'étiquette",
+  bulkPickTag: "Choisir une étiquette",
+  bulkNoTags:
+    "Aucune étiquette pour l'instant. Ajoutez-en une depuis la fiche d'un client.",
+  bulkExport: "Exporter",
+  bulkMore: "Plus d'actions",
+  bulkMerge: "Fusionner",
+  bulkMergeNeedsTwo: "Sélectionnez exactement deux clients pour les fusionner",
+  bulkDelete: "Supprimer",
+  bulkTagged: "{count} client(s) étiqueté(s) {tag}.",
+  bulkUntagged: "Étiquette {tag} retirée de {count} client(s).",
+  bulkNothingChanged: "Rien à changer. Ils correspondent déjà.",
+  bulkSomeMissing: "{count} introuvable(s), ignoré(s).",
+  bulkFailed: "Impossible de mettre à jour ces clients. Réessayez.",
+  bulkDeleteTitle: "Supprimer {count} clients ?",
+  bulkDeleteBody:
+    "Ils disparaissent de votre liste de clients. Les conversations et les " +
+    "messages restent, et un client revient automatiquement s'il vous écrit " +
+    "de nouveau.",
+  bulkDeleteConfirm: "Supprimer {count}",
+  bulkDeleted: "{count} client(s) supprimé(s).",
 
   // ── L'historique de ce client, en document ──────────────────────────────
   exportHistoryAction: "Exporter ses messages",

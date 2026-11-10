@@ -3,12 +3,15 @@
 import { Search, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { roleHasCapability } from "@loonext/shared";
 
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { LoadError } from "@/components/settings/section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -24,7 +27,10 @@ import {
   type ContactFieldFilter,
 } from "@/lib/api/contacts";
 import { ContactFilter } from "@/components/contacts/contact-filter";
+import { ContactTagFilter } from "@/components/contacts/contact-tag-filter";
+import { ContactsBulkBar } from "@/components/contacts/contacts-bulk-bar";
 import { useT } from "@/i18n/provider";
+import { useActiveCompany } from "@/lib/company/provider";
 import { flattenPages } from "@/lib/api/pagination";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
@@ -48,6 +54,7 @@ function SkeletonRows() {
 export function ContactsTable({
   emptyAction,
   onQueryChange,
+  onTagFilterChange,
 }: {
   /** Rendered inside the brand-new empty state (e.g. the import button). */
   emptyAction?: React.ReactNode;
@@ -56,8 +63,13 @@ export function ContactsTable({
    * "what I'm looking at" (D20 §3.1) — the table stays the owner of the input.
    */
   onQueryChange?: (query: string) => void;
+  /** #695: lifts the tag filter too, so the toolbar export mirrors the view. */
+  onTagFilterChange?: (tagId: string | undefined) => void;
 }) {
   const t = useT();
+  const { role } = useActiveCompany();
+  const canEdit = roleHasCapability(role, "conversations.note");
+  const canMerge = roleHasCapability(role, "settings.manage");
   const router = useRouter();
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
@@ -75,10 +87,31 @@ export function ContactsTable({
     onQueryChange?.(query);
   }, [query, onQueryChange]);
 
-  const contacts = useContacts(query, { field: fieldFilter });
+  // #695: narrow to one tag, and select rows to act on together.
+  const [tagFilter, setTagFilter] = useState<string | undefined>(undefined);
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    onTagFilterChange?.(tagFilter);
+  }, [tagFilter, onTagFilterChange]);
+
+  const contacts = useContacts(query, { field: fieldFilter, tagId: tagFilter });
   const rows = flattenPages(contacts.data);
   const searching = query.trim() !== "";
   const filtering = fieldFilter !== undefined;
+
+  // The selection is only ever rows still on screen: a delete, a merge or a
+  // new filter drops the ones that left, so the bar never counts a ghost.
+  const selectedRows = useMemo(
+    () => rows.filter((row) => selectedIds.has(row.id)),
+    [rows, selectedIds],
+  );
+  const allSelected = rows.length > 0 && selectedRows.length === rows.length;
+  function toggleRow(id: string, on: boolean) {
+    const next = new Set(selectedIds);
+    if (on) next.add(id);
+    else next.delete(id);
+    setSelectedIds(next);
+  }
 
   return (
     <div className="space-y-3">
@@ -102,6 +135,7 @@ export function ContactsTable({
           Absent entirely unless the workspace defined a field with a closed
           set of answers, so most lists look exactly as they did. */}
       <ContactFilter value={fieldFilter} onChange={setFieldFilter} />
+      <ContactTagFilter value={tagFilter} onChange={setTagFilter} />
 
       <div className="rounded-lg border bg-card">
         {contacts.isPending ? (
@@ -115,6 +149,11 @@ export function ContactsTable({
             <CalmEmptyState
               title={t("contacts.noMatchesFor", { query: query.trim() })}
               description={t("contacts.noMatchesDetail")}
+            />
+          ) : tagFilter !== undefined ? (
+            <CalmEmptyState
+              title={t("contacts.tagFilteredEmptyTitle")}
+              description={t("contacts.tagFilteredEmptyDetail")}
             />
           ) : filtering ? (
             // #291: NOT the brand-new empty state. "Your customers show up
@@ -137,9 +176,36 @@ export function ContactsTable({
           )
         ) : (
           <>
+            {selectedRows.length > 0 && (
+              <ContactsBulkBar
+                selected={selectedRows}
+                canEdit={canEdit}
+                canMerge={canMerge}
+                onClear={() => setSelectedIds(new Set())}
+              />
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      aria-label={t("contacts.selectAllOnPage")}
+                      checked={
+                        allSelected
+                          ? true
+                          : selectedRows.length > 0
+                            ? "indeterminate"
+                            : false
+                      }
+                      onCheckedChange={(on) =>
+                        setSelectedIds(
+                          on === true
+                            ? new Set(rows.map((row) => row.id))
+                            : new Set(),
+                        )
+                      }
+                    />
+                  </TableHead>
                   <TableHead>{t("contacts.fieldName")}</TableHead>
                   <TableHead>{t("contacts.fieldNumber")}</TableHead>
                   <TableHead className="text-right">
@@ -169,8 +235,17 @@ export function ContactsTable({
                       router.push(`/contacts/${contact.id}`);
                     }}
                   >
+                    <TableCell className="w-10">
+                      <Checkbox
+                        aria-label={t("contacts.selectContact", {
+                          name: contactDisplayName(contact, t),
+                        })}
+                        checked={selectedIds.has(contact.id)}
+                        onCheckedChange={(on) => toggleRow(contact.id, on === true)}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
-                      <span className="flex items-center gap-2">
+                      <span className="flex flex-wrap items-center gap-2">
                         <Link
                           href={`/contacts/${contact.id}`}
                           className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -183,6 +258,22 @@ export function ContactsTable({
                           <Badge variant="outline" className="border-destructive text-foreground">
                             {t("contacts.optedOut")}
                           </Badge>
+                        )}
+                        {/* #695: the tags this customer carries, quietly -
+                            three at most, so a heavily tagged row does not
+                            outgrow its neighbours. */}
+                        {(contact.tags ?? []).slice(0, 3).map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground"
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                        {(contact.tags ?? []).length > 3 && (
+                          <span className="text-[11px] text-muted-foreground">
+                            +{(contact.tags ?? []).length - 3}
+                          </span>
                         )}
                       </span>
                     </TableCell>

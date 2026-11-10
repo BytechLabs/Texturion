@@ -62,6 +62,23 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
     expect(url.searchParams.has("q")).toBe(false);
   });
 
+  it("narrows the export to a tag and to a selection of contacts (#695)", async () => {
+    const fetchSpy = vi.fn(async () => csvResponse("name,phone"));
+    await fetchContactsExport(
+      "company-1",
+      "",
+      {
+        fetch: fetchSpy as unknown as typeof fetch,
+        getToken: async () => "test-token",
+        baseUrl: BASE,
+      },
+      { tagId: "tag-1", ids: ["c-1", "c-2"] },
+    );
+    const url = new URL((fetchSpy.mock.calls[0] as unknown as [string])[0]);
+    expect(url.searchParams.get("tag_id")).toBe("tag-1");
+    expect(url.searchParams.get("ids")).toBe("c-1,c-2");
+  });
+
   it("throws unauthorized without a session (never fetches)", async () => {
     const fetchSpy = vi.fn(async () => csvResponse("x"));
     await expect(
