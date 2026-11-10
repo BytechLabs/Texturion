@@ -24,6 +24,7 @@ export function CallButton({
   contactId,
   contactName,
   label,
+  variant,
   className,
 }: {
   /** Call from an existing thread… */
@@ -38,6 +39,8 @@ export function CallButton({
    * the mic-permission copy and the server's refusal message.
    */
   label?: string;
+  /** A labelled call that sits among other actions rather than leading them. */
+  variant?: "outline";
   className?: string;
 }) {
   const t = useT();
@@ -79,7 +82,7 @@ export function CallButton({
 
   return (
     <Button
-      variant={label ? "default" : "ghost"}
+      variant={variant ?? (label ? "default" : "ghost")}
       size={label ? "sm" : "icon-sm"}
       className={className}
       aria-label={

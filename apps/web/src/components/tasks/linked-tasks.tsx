@@ -18,14 +18,19 @@ export function LinkedTasks({
   kind,
   id,
   active = true,
+  shownElsewhere = [],
 }: {
   kind: "conversation" | "contact";
   id: string;
   active?: boolean;
+  /** Tasks a list beside this one already shows, so none appears twice. */
+  shownElsewhere?: readonly string[];
 }) {
   const t = useT();
   const linked = useLinkedTasks(kind, id, active);
-  const rows = linked.data?.data ?? [];
+  const rows = (linked.data?.data ?? []).filter(
+    (row) => !shownElsewhere.includes(row.id),
+  );
   if (rows.length === 0) return null;
   return (
     <section aria-label={t("tasks.linkedTasks")} className="space-y-1">

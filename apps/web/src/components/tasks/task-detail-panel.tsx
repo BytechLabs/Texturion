@@ -28,6 +28,7 @@ import { useStagedFiles } from "@/components/attachments/use-staged-files";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
+import { RecordHeader } from "@/components/ui/record-header";
 import { CountryDatalist } from "@/components/ui/country-datalist";
 import {
   Dialog,
@@ -419,111 +420,120 @@ function TaskDetailLoaded({
       {/* Header: done state + title + actions menu. pr-12 reserves the drawer's
           own close (X, top-right) so the actions menu no longer sits under it
           (#81 — an accidental delete when reaching for close). */}
-      <div className="flex items-start gap-3 border-b border-app-line pb-4 pl-5 pr-12 pt-5">
-        {/* Completion is derived from the source message, so marking a task
-            done needs access to the conversation it came from. Without it the
-            API refuses every attempt, and offering the control produced a
-            circle that flipped, snapped back, and said "Couldn't move that
-            task. Try again." forever. */}
-        {noAccess ? (
-          <span
-            aria-hidden
-            className="mt-1 size-5 shrink-0 rounded-full border border-dashed border-app-line"
-            title={t("tasks.doneNeedsAccessTitle")}
-          />
-        ) : (
-          <TaskDoneCheckbox task={task} className="mt-1" />
-        )}
-        <div className="min-w-0 flex-1">
-          <TaskNumber task={task} className="ml-1 block" />
-          <input
-            aria-label={t("tasks.titleAria")}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={saveTitle}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                e.currentTarget.blur();
-              }
-            }}
-            maxLength={500}
-            className={cn(
-              "w-full rounded-app-ctrl bg-transparent px-1 py-0.5 text-lg font-semibold text-app-ink outline-none",
-              "focus-visible:bg-app-inset focus-visible:ring-2 focus-visible:ring-ring",
-              task.done && "text-app-muted line-through opacity-70",
-            )}
-          />
-        </div>
-        {/* #689 D: follow to hear when this changes. An icon toggle beside the
-            menu rather than a menu item: one tap, and the bell shows the state.
-            Not offered without access to the task, which the server 404s. */}
-        {!noAccess && (
-          <button
-            type="button"
-            aria-label={t(task.subscribed ? "tasks.unfollowAria" : "tasks.followAria")}
-            aria-pressed={task.subscribed}
-            title={t(task.subscribed ? "tasks.unfollowAria" : "tasks.followAria")}
-            disabled={follow.isPending}
-            onClick={() => follow.mutate(!task.subscribed)}
-            className={cn(
-              "tap-target mt-0.5 shrink-0 rounded-full p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              task.subscribed
-                ? "text-app-ink hover:text-app-muted"
-                : "text-app-muted-2 hover:text-app-ink",
-            )}
-          >
-            {task.subscribed ? (
-              <Bell className="size-4" strokeWidth={1.75} fill="currentColor" aria-hidden />
-            ) : (
-              <BellOff className="size-4" strokeWidth={1.75} aria-hidden />
-            )}
-          </button>
-        )}
-        {/* #713: no trigger when neither item is allowed. */}
-        {(!noAccess || canDelete) && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+      <RecordHeader
+        className="border-b border-app-line pb-4 pl-5 pr-12 pt-5"
+        leading={
+          // Completion is derived from the source message, so marking a task
+          // done needs access to the conversation it came from. Without it the
+          // API refuses every attempt, and offering the control produced a
+          // circle that flipped, snapped back, and said "Couldn't move that
+          // task. Try again." forever.
+          noAccess ? (
+            <span
+              aria-hidden
+              className="mt-1 size-5 shrink-0 rounded-full border border-dashed border-app-line"
+              title={t("tasks.doneNeedsAccessTitle")}
+            />
+          ) : (
+            <TaskDoneCheckbox task={task} className="mt-1" />
+          )
+        }
+        title={
+          <>
+            <TaskNumber task={task} className="ml-1 block" />
+            <input
+              aria-label={t("tasks.titleAria")}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={saveTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
+              maxLength={500}
+              className={cn(
+                "w-full rounded-app-ctrl bg-transparent px-1 py-0.5 text-lg font-semibold text-app-ink outline-none",
+                "focus-visible:bg-app-inset focus-visible:ring-2 focus-visible:ring-ring",
+                task.done && "text-app-muted line-through opacity-70",
+              )}
+            />
+          </>
+        }
+        trailing={
+          <>
+            {/* #689 D: follow to hear when this changes. An icon toggle beside the
+                menu rather than a menu item: one tap, and the bell shows the state.
+                Not offered without access to the task, which the server 404s. */}
+            {!noAccess && (
               <button
                 type="button"
-                aria-label={t("tasks.actionsAria")}
-                className="tap-target mt-0.5 shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={t(task.subscribed ? "tasks.unfollowAria" : "tasks.followAria")}
+                aria-pressed={task.subscribed}
+                title={t(task.subscribed ? "tasks.unfollowAria" : "tasks.followAria")}
+                disabled={follow.isPending}
+                onClick={() => follow.mutate(!task.subscribed)}
+                className={cn(
+                  "tap-target mt-0.5 shrink-0 rounded-full p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  task.subscribed
+                    ? "text-app-ink hover:text-app-muted"
+                    : "text-app-muted-2 hover:text-app-ink",
+                )}
               >
-                <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
+                {task.subscribed ? (
+                  <Bell className="size-4" strokeWidth={1.75} fill="currentColor" aria-hidden />
+                ) : (
+                  <BellOff className="size-4" strokeWidth={1.75} aria-hidden />
+                )}
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              {/* Mirrors the check-circle — the same derived-done write, and the
-                  same access requirement. */}
-              {!noAccess && (
-                <DropdownMenuToggleItem
-                  checked={task.done}
-                  onCheckedChange={toggleDone}
-                  disabled={done.isPending}
-                >
-                  <Check className="size-4" strokeWidth={1.75} aria-hidden />
-                  {t("tasks.markDoneAction")}
-                </DropdownMenuToggleItem>
-              )}
-              {/* #89: a real, destructive Delete (records.delete only).
-                  Confirms first when the task carries notes or files. */}
-              {canDelete && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={requestDelete}
-                    disabled={del.isPending}
+            )}
+            {/* #713: no trigger when neither item is allowed. */}
+            {(!noAccess || canDelete) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t("tasks.actionsAria")}
+                    className="tap-target mt-0.5 shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
-                    {t("tasks.deleteTask")}
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+                    <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  {/* Mirrors the check-circle — the same derived-done write, and the
+                      same access requirement. */}
+                  {!noAccess && (
+                    <DropdownMenuToggleItem
+                      checked={task.done}
+                      onCheckedChange={toggleDone}
+                      disabled={done.isPending}
+                    >
+                      <Check className="size-4" strokeWidth={1.75} aria-hidden />
+                      {t("tasks.markDoneAction")}
+                    </DropdownMenuToggleItem>
+                  )}
+                  {/* #89: a real, destructive Delete (records.delete only).
+                      Confirms first when the task carries notes or files. */}
+                  {canDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={requestDelete}
+                        disabled={del.isPending}
+                      >
+                        <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
+                        {t("tasks.deleteTask")}
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>
+        }
+      />
 
       {/* Scrollable body. */}
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">

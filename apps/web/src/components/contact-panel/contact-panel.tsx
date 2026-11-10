@@ -1,13 +1,14 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowUpRight, Ban, Check, Copy, Plus, Sparkles, Undo2, X } from "lucide-react";
+import { Ban, Check, ChevronDown, Copy, Plus, Sparkles, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { contactRelationshipLine , avatarInitials } from "@loonext/shared";
 
+import { CallButton } from "@/components/calls/call-button";
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
 import { avatarColorClass } from "@/components/shell/avatar-color";
@@ -35,6 +36,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  RecordHeader,
+  RecordOpenLink,
+  RecordSection,
+} from "@/components/ui/record-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type Translate } from "@/i18n/provider";
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
@@ -48,7 +54,9 @@ import { ApiError } from "@/lib/api/error";
 import { roleHasCapability, suggestExistingTag } from "@loonext/shared";
 import { useCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
+import { activeSources, useLeadSources } from "@/lib/api/lead-sources";
 import { useTags } from "@/lib/api/tags";
+import { useConversationTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 import type { ConversationDetail, ContactDetail } from "@/lib/api/types";
@@ -56,54 +64,13 @@ import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
-import { ContactLanguage } from "./contact-language";
+import { ContactLanguage, useContactLanguageLabel } from "./contact-language";
 import { AutoSaveNotes, InlineTextField } from "./inline-field";
 import { TasksChecklist } from "./tasks-checklist";
 import { LinkedTasks } from "@/components/tasks/linked-tasks";
 
 function onApiError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback);
-}
-
-/** An elevated section card (mockup .panel): a white card with the panel shadow
- * and a bold section head, holding the section's content. Reserved for the
- * things people act on — Tasks and Attachments — so weight tracks importance. */
-function PanelSection({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-app-card border border-app-line bg-app-paper p-3.5">
-      <h3 className="mb-2.5 text-[13px] font-bold text-app-ink">{label}</h3>
-      {children}
-    </section>
-  );
-}
-
-/**
- * The QUIET tier (#6 declutter): look-up-occasionally metadata (Consent, Tags,
- * prior Conversations) gets no card chrome — just a small uppercase label over
- * its content. Two label weights (bold-card vs quiet-uppercase) replace the old
- * six-identical-cards monotony, so the eye lands on identity + actions first.
- */
-function QuietGroup({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <h3 className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-        {label}
-      </h3>
-      {children}
-    </section>
-  );
 }
 
 /** Consent status line (D3/D4): who consented, how, when — plain language. */
@@ -132,14 +99,12 @@ function consentLine(
 }
 
 /**
- * The context panel (APP-LAYOUT-V2 §1.5 — Missive-style Details, trimmed to the
- * calm core), tiered for personality + scannability (#6): an IDENTITY card
- * (app-ava avatar + inline-edit name + number+copy + address + notes) · a quiet
- * Consent group (actionable only when opted-out) · a Tasks-checklist card · the
- * AttachmentsClump card (an iMessage-style grid that opens the single gallery
- * surface, §5.2 — one entry point, never a second gallery) · a quiet Tags group
- * · a quiet prior-Conversations group · a quiet opt-out danger zone.
- * Default-closed and toggled from the thread header.
+ * The context panel (APP-LAYOUT-V2 §1.5) as one surface (#717): a
+ * header (who, their number, how long they have been a customer) with an
+ * action row that calls, copies and opens the contact, then one section style
+ * for Details, Consent, Tasks, Tags and Conversations, and the rarely-changed
+ * settings folded into Preferences. Default-closed and toggled from the thread
+ * header.
  */
 export function ContactPanel({
   conversation,
@@ -156,10 +121,8 @@ export function ContactPanel({
   onOpenGallery: () => void;
   /** The panel is actually visible — gates the lazy attachments preview fetch. */
   active?: boolean;
-  /** #119: "sheet" renders the contact as the SHEET HEADER (the account
-   * sheet's anatomy — header row + border, X clear of everything) instead of
-   * an identity card inside the body; address+notes become their own card.
-   * "panel" keeps the desktop drawer's identity card. */
+  /** #119: "sheet" is the phone's bottom sheet, whose own close button sits
+   * over the header's right edge; "panel" is the desktop drawer. */
   variant?: "panel" | "sheet";
 }) {
   const t = useT();
@@ -168,6 +131,8 @@ export function ContactPanel({
   const [confirmOptOut, setConfirmOptOut] = useState(false);
   const optOut = useOptOutContact();
   const revoke = useRevokeOptOut();
+  const leadSources = useLeadSources();
+  const checklist = useConversationTasks(conversation.id, { enabled: active });
 
   if (contactPending) {
     return (
@@ -193,6 +158,11 @@ export function ContactPanel({
   const phone = formatPhone(contact.phone_e164);
   const memberName = (id: string | null) =>
     id ? memberNames.get(id) ?? t("contacts.aTeammate") : null;
+  // #301: an unanswered source stays out in the open as the one-tap ask; once
+  // answered it is a setting, and joins Preferences.
+  const asksForSource =
+    activeSources(leadSources.data?.data).length > 0 &&
+    conversation.lead_source_id === null;
 
   const copyNumber = async () => {
     try {
@@ -204,173 +174,108 @@ export function ContactPanel({
     }
   };
 
-  const avatarChip = (
-    <span
-      aria-hidden
-      className={cn(
-        "grid size-11 shrink-0 place-items-center rounded-[14px] text-[15px] font-bold text-app-olive-deep",
-        avatarColorClass(contact.id),
-      )}
-    >
-      {avatarInitials(contactDisplayName(contact))}
-    </span>
-  );
-
   const relationship = contactRelationshipLine(
     contact.conversation_count,
     contact.first_conversation_at,
     t,
   );
 
-  const nameAndPhone = (
-    <div className="min-w-0 flex-1">
-      <InlineTextField
-        contactId={contact.id}
-        field="name"
-        value={contact.name}
-        label={t("contacts.contactNameLabel")}
-        placeholder={t("contacts.addName")}
-        className="pr-7 text-[15px] font-semibold"
-      />
-      <div className="flex items-center gap-1 px-2">
-        <span className="select-all whitespace-nowrap text-sm tabular-nums text-muted-foreground">
-          {phone}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={copyNumber}
-          aria-label={t(
-            copied ? "contacts.numberCopied" : "contacts.copyNumber",
-          )}
-        >
-          {copied ? (
-            <Check className="size-3 text-success" strokeWidth={1.75} />
-          ) : (
-            <Copy className="size-3" strokeWidth={1.75} />
-          )}
-        </Button>
-      </div>
-      {/* #410: how long they have been a customer, and how often. Quiet
-          metadata inside the identity block rather than a group of its own —
-          the panel's doc calls it a calm core, and two facts do not earn a
-          heading. Absent entirely when there is no history to summarise. */}
-      {relationship !== null && (
-        <p className="px-2 pt-0.5 text-[13px] text-muted-foreground">
-          {relationship}
-        </p>
-      )}
-    </div>
-  );
-
-  const addressAndNotes = (
-    <>
-      <InlineTextField
-        contactId={contact.id}
-        field="address"
-        value={contact.address}
-        label={t("contacts.contactAddressLabel")}
-        placeholder={t("contacts.addAddress")}
-        wrap
-      />
-      <div className="px-2">
-        <AutoSaveNotes contactId={contact.id} value={contact.notes} />
-      </div>
-    </>
-  );
-
   return (
-    // §1.5 / #6: a CALM, TIERED surface. Weight tracks importance: an identity
-    // block (avatar + name + number + address + notes) and two action cards
-    // (Tasks, Attachments) carry card chrome; look-up metadata (Consent, Tags,
-    // Conversations) is a quiet uppercase-label group. Two label weights, not
-    // six identical cards — the eye lands on who-this-is first. Progressive
-    // disclosure: the thread stays the hero; this detail lives in the panel.
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-      {/* #119 (sheet): the CONTACT is the sheet header — the account sheet's
-          anatomy (px-4 py-3 row over a soft hairline). pr-12 keeps the whole
-          row clear of the sheet's own close button at right-4. */}
-      {variant === "sheet" && (
-        <div className="flex items-center gap-3 border-b border-app-line-soft py-3 pl-4 pr-12">
-          {avatarChip}
-          {nameAndPhone}
-          <Button
-            asChild
-            variant="ghost"
-            size="icon-xs"
-            aria-label={t("contacts.openContactPage")}
-            className="shrink-0"
-          >
-            <Link href={`/contacts/${contact.id}`}>
-              <ArrowUpRight strokeWidth={1.75} />
-            </Link>
-          </Button>
-        </div>
-      )}
-      <div className="space-y-5 p-4">
-        {variant === "panel" ? (
-          /* IDENTITY — the panel's one anchor of personality (#6): a colored
-             app-ava avatar + the editable name and number up top, then address
-             and notes under a hairline. Who this is, in one card. */
-          <section className="relative rounded-app-card border border-app-line bg-app-paper p-3.5">
-            {/* #82: jump from the conversation to the full contact page.
-                Overlaid on the card corner (not a flex cell) so the narrow
-                drawer's text column keeps its width — the number must never
-                wrap mid-digits. */}
-            <Button
-              asChild
-              variant="ghost"
-              size="icon-xs"
-              aria-label={t("contacts.openContactPage")}
-              className="absolute right-2 top-2"
-            >
-              <Link href={`/contacts/${contact.id}`}>
-                <ArrowUpRight strokeWidth={1.75} />
-              </Link>
-            </Button>
-            <div className="flex items-start gap-3">
-              {avatarChip}
-              {nameAndPhone}
-            </div>
-            <div className="mt-3 space-y-1 border-t border-app-line-soft pt-3">
-              {addressAndNotes}
-            </div>
-          </section>
-        ) : (
-          /* #119 (sheet): identity moved into the header above, so address +
-             notes get their own unlabeled card — mirroring the account
-             sheet's first card. */
-          <section className="space-y-1 rounded-app-card border border-app-line bg-app-paper p-3.5">
-            {addressAndNotes}
-          </section>
+      <RecordHeader
+        // pr-12 keeps the sheet's header clear of the sheet's own close button.
+        className={cn(
+          "border-b border-app-line-soft p-4",
+          variant === "sheet" && "pr-12",
         )}
+        leading={
+          <span
+            aria-hidden
+            className={cn(
+              "grid size-11 shrink-0 place-items-center rounded-[14px] text-[15px] font-bold text-app-olive-deep",
+              avatarColorClass(contact.id),
+            )}
+          >
+            {avatarInitials(contactDisplayName(contact))}
+          </span>
+        }
+        title={
+          <InlineTextField
+            contactId={contact.id}
+            field="name"
+            value={contact.name}
+            label={t("contacts.contactNameLabel")}
+            placeholder={t("contacts.addName")}
+            className="text-[15px] font-semibold"
+          />
+        }
+        meta={
+          <>
+            <p className="select-all whitespace-nowrap px-2 text-sm tabular-nums text-muted-foreground">
+              {phone}
+            </p>
+            {/* #410: how long they have been a customer, and how often. */}
+            {relationship !== null && (
+              <p className="px-2 text-[13px] text-muted-foreground">
+                {relationship}
+              </p>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <CallButton
+              conversationId={conversation.id}
+              contactName={contactDisplayName(contact)}
+              label={t("shell.call")}
+              variant="outline"
+            />
+            <Button variant="outline" size="sm" onClick={copyNumber}>
+              {copied ? (
+                <Check className="text-success" strokeWidth={1.75} aria-hidden />
+              ) : (
+                <Copy strokeWidth={1.75} aria-hidden />
+              )}
+              {t(copied ? "contacts.numberCopied" : "contacts.copyNumber")}
+            </Button>
+            <RecordOpenLink
+              href={`/contacts/${contact.id}`}
+              label={t("contacts.openContact")}
+            />
+          </>
+        }
+      />
+      <div className="space-y-5 p-4">
+        <RecordSection label={t("contacts.detailsGroup")}>
+          <div className="space-y-1">
+            <InlineTextField
+              contactId={contact.id}
+              field="address"
+              value={contact.address}
+              label={t("contacts.contactAddressLabel")}
+              placeholder={t("contacts.addAddress")}
+              wrap
+            />
+            <AutoSaveNotes contactId={contact.id} value={contact.notes} />
+          </div>
+        </RecordSection>
 
-        {/* Consent history (D3/D4) — quiet metadata about the person, unless
-            they're opted out (then it carries the actionable revoke). */}
-        <QuietGroup label={t("contacts.consentGroup")}>
+        {/* Consent history (D3/D4), actionable only when they are opted out. */}
+        <RecordSection label={t("contacts.consentGroup")}>
           <p className="px-2 text-[13px] text-muted-foreground">
             {consentLine(contact, memberName, t)}
           </p>
           {contact.opted_out && (
             <div className="flex flex-wrap items-center gap-2 px-2 pt-1.5">
               <Badge variant="destructive">{t("contacts.optedOut")}</Badge>
-              {/* #407: which kind of opt-out decides whether there is anything
-                  to press. A STOP the customer sent is a CARRIER block —
-                  clearing our row would not clear Telnyx's, so the server
-                  refuses it and always will. Offering the button anyway taught
-                  owners that consent is theirs to reinstate and the feature is
-                  merely broken, which is the one mental model this product
-                  cannot afford. The other two surfaces (contact detail, thread
-                  header) already ask this; the panel was the one left behind.
-                  *Applying: G10 — system states must be precise.* */}
+              {/* #407: a STOP the customer sent is a carrier block that only
+                  they can lift, so it gets an explanation instead of a
+                  button. */}
               {isCarrierEnforcedOptOut(contact.opt_out_source) ? (
                 <p className="basis-full text-xs text-muted-foreground">
                   {t("contacts.carrierOptOutNote")}
                 </p>
               ) : (
-                /* #73: the shared Button (matching the contact detail page's
-                   opt-in), never a raw <button> — consistent styling, focus
-                   ring and disabled state across the app. */
                 <Button
                   variant="outline"
                   size="sm"
@@ -392,66 +297,58 @@ export function ContactPanel({
               )}
             </div>
           )}
-        </QuietGroup>
+        </RecordSection>
 
-        {/* #228: directly under Consent, because the two are one idea about
-            this person: whether we may send them automated texts at all, and
-            which language those texts go out in. Quiet, like Consent, since a
-            crew touches it once per customer at most. */}
-        <QuietGroup label={t("contacts.languageGroup")}>
-          <div className="px-2">
-            <ContactLanguage contact={contact} />
+        {/* Tasks checklist (D17/TASKS.md T5.2). `active` gates the fetch to
+            when the panel is open. */}
+        <RecordSection label={t("contacts.tasksGroup")}>
+          <div className="space-y-3 px-2">
+            <TasksChecklist conversationId={conversation.id} active={active} />
+            <LinkedTasks
+              kind="conversation"
+              id={conversation.id}
+              active={active}
+              shownElsewhere={checklist.data?.data.map((task) => task.id)}
+            />
           </div>
-        </QuietGroup>
+        </RecordSection>
 
-        {/* Tasks checklist (D17/TASKS.md T5.2) — an action surface, so it keeps
-            card weight. Checking a row calls the source message's PATCH
-            /v1/messages/:id {done} (derived completion, T2), striking the
-            message through in the thread via the one message.status broadcast.
-            `active` gates the fetch to when the panel is open. */}
-        <PanelSection label={t("contacts.tasksGroup")}>
-          <TasksChecklist conversationId={conversation.id} active={active} />
-          <LinkedTasks kind="conversation" id={conversation.id} active={active} />
-        </PanelSection>
-
-        {/* §1.5 / §5.2: the attachments clump — a titled card of recent thumbs
-            that opens the single gallery surface (one entry point, never a
-            second gallery). Renders nothing while empty. */}
+        {/* §5.2: the one entry point to the gallery. Renders nothing while
+            empty. */}
         <AttachmentsClump
           conversationId={conversation.id}
           onOpenGallery={onOpenGallery}
           enabled={active}
         />
 
-        {/* #301: where this customer came from. Above the tags because it is
-            a question somebody ASKS a customer in the first minute, while a
-            tag is a filing decision made afterwards — and because the ask
-            disappears the moment it is answered, so it should not sit under
-            something that never does. *Applying: Prioritize Intent.* */}
-        <QuietGroup label={t("contacts.leadSourceGroup")}>
-          <LeadSourcePicker conversation={conversation} />
-        </QuietGroup>
+        {asksForSource && (
+          <RecordSection label={t("contacts.leadSourceGroup")}>
+            <div className="px-2">
+              <LeadSourcePicker conversation={conversation} />
+            </div>
+          </RecordSection>
+        )}
 
-        {/* Tags on this conversation — quiet. */}
-        <QuietGroup label={t("contacts.tagsGroup")}>
+        <RecordSection label={t("contacts.tagsGroup")}>
           <ConversationTags conversation={conversation} />
-        </QuietGroup>
+        </RecordSection>
 
-        {/* Prior conversations with this contact — quiet. */}
-        <QuietGroup label={t("contacts.conversationsGroup")}>
+        <RecordSection label={t("contacts.conversationsGroup")}>
           <PriorConversations
             phoneE164={contact.phone_e164}
             currentConversationId={conversation.id}
           />
-        </QuietGroup>
+        </RecordSection>
+
+        <Preferences
+          contact={contact}
+          conversation={conversation}
+          withSource={!asksForSource}
+        />
       </div>
 
       {/* §3.3 quiet danger zone: opting out is routine and reversible, so the
-          trigger sits alone, neutral at rest and only reddening on hover — no
-          resting scare-styling. #73: the shared Button (ghost/sm, matching the
-          contact detail page's opt-out) rather than a raw <button>, for
-          consistent styling and a focus ring. The confirm dialog still guards
-          the actual action. */}
+          trigger is neutral at rest and the confirm dialog guards the action. */}
       {!contact.opted_out && (
         <div className="mt-auto border-t border-app-line p-4">
           <Button
@@ -503,6 +400,76 @@ export function ContactPanel({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * #717: the settings a crew sets once per customer, if ever, folded into one
+ * row that says what they are set to and opens on demand.
+ */
+function Preferences({
+  contact,
+  conversation,
+  withSource,
+}: {
+  contact: ContactDetail;
+  conversation: ConversationDetail;
+  /** The source is answered, so it is a setting rather than an ask. */
+  withSource: boolean;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const language = useContactLanguageLabel(contact.locale);
+  const sources = useLeadSources();
+  const source = withSource
+    ? (sources.data?.data ?? []).find(
+        (row) => row.id === conversation.lead_source_id,
+      )?.name
+    : undefined;
+  const summary = [language, source].filter(Boolean).join(" · ");
+
+  return (
+    <section aria-label={t("contacts.preferencesGroup")} className="space-y-1.5">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((was) => !was)}
+        className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+          {t("contacts.preferencesGroup")}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-right text-[12px] text-muted-foreground">
+          {summary}
+        </span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 text-app-muted-2 transition-transform duration-150",
+            open && "rotate-180",
+          )}
+          strokeWidth={1.75}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <div className="space-y-4 px-2 pt-1">
+          <div className="space-y-1.5">
+            <p className="text-[12px] font-medium text-app-ink">
+              {t("contacts.languageGroup")}
+            </p>
+            <ContactLanguage contact={contact} />
+          </div>
+          {withSource && (
+            <div className="space-y-1.5">
+              <p className="text-[12px] font-medium text-app-ink">
+                {t("contacts.leadSourceGroup")}
+              </p>
+              <LeadSourcePicker conversation={conversation} />
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -9,6 +9,7 @@ import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { LoadError } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
+import { RecordHeader } from "@/components/ui/record-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useCall } from "@/lib/api/calls";
@@ -80,23 +81,49 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
         </Link>
       </Button>
 
-      <header className="space-y-1">
-        <div className="flex items-center justify-between gap-2">
-          <h1 className="text-xl font-semibold">{who}</h1>
+      <RecordHeader
+        title={<h1 className="text-xl font-semibold">{who}</h1>}
+        meta={
+          <p className="text-sm text-muted-foreground">
+            {outcomeLine(row, t)} ·{" "}
+            <span title={formatAbsoluteDateTime(row.started_at, undefined, t.locale)}>
+              {formatRelativeTime(row.started_at, undefined, t)}
+            </span>
+          </p>
+        }
+        trailing={
           <CallActions
             callId={row.id}
             callerName={who}
             hasVoicemail={row.has_voicemail}
             onDeleted={() => router.replace("/calls")}
           />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {outcomeLine(row, t)} ·{" "}
-          <span title={formatAbsoluteDateTime(row.started_at, undefined, t.locale)}>
-            {formatRelativeTime(row.started_at, undefined, t)}
-          </span>
-        </p>
-      </header>
+        }
+        // The ways onward: a call is rarely the end of the thought, and the
+        // reader wants the thread it belongs to, or the person.
+        actions={
+          (row.conversation_id || row.contact_id) && (
+            <>
+              {row.conversation_id && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/inbox/${row.conversation_id}`}>
+                    <MessageSquare strokeWidth={1.75} aria-hidden />
+                    {t("shell.openConversation")}
+                  </Link>
+                </Button>
+              )}
+              {row.contact_id && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/contacts/${row.contact_id}`}>
+                    <User strokeWidth={1.75} aria-hidden />
+                    {t("shell.viewContact")}
+                  </Link>
+                </Button>
+              )}
+            </>
+          )
+        }
+      />
 
       {/* The words first. Somebody following a link from a search result or a
           colleague is here to read them, and making them scroll past metadata
@@ -170,26 +197,6 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
         )}
       </section>
 
-      {/* The ways onward. A call is rarely the end of the thought — the reader
-          wants the thread it belongs to, or the person. */}
-      <div className="flex flex-wrap gap-2">
-        {row.conversation_id && (
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/inbox/${row.conversation_id}`}>
-              <MessageSquare strokeWidth={1.75} aria-hidden />
-              {t("shell.openConversation")}
-            </Link>
-          </Button>
-        )}
-        {row.contact_id && (
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/contacts/${row.contact_id}`}>
-              <User strokeWidth={1.75} aria-hidden />
-              {t("shell.viewContact")}
-            </Link>
-          </Button>
-        )}
-      </div>
     </div>
   );
 }

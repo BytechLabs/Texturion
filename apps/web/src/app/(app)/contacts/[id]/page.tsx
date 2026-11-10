@@ -27,6 +27,7 @@ import { MergedFrom } from "@/components/contacts/merged-from";
 import { LoadError, SettingsCard } from "@/components/settings/section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RecordHeader } from "@/components/ui/record-header";
 import {
   Dialog,
   DialogContent,
@@ -352,68 +353,77 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
     <div className="space-y-6">
       {/* #695: only when a record was folded into this one. */}
       <MergedFrom contact={contact} />
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="text-xl font-medium tabular-nums">
-          {formatPhone(contact.phone_e164)}
-        </p>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t("appShell.contactCopyNumberAria")}
-          onClick={() => {
-            void navigator.clipboard.writeText(contact.phone_e164);
-            toast.success(t("appShell.contactNumberCopied"));
-          }}
-        >
-          <Copy strokeWidth={1.75} />
-        </Button>
-        {contact.opted_out && (
-          <Badge variant="outline" className="border-destructive text-foreground">
-            {t("appShell.contactOptedOutBadge")}
-          </Badge>
-        )}
-        {blockedNumber.blocked && (
-          <Badge variant="outline">{t("blockedNumbers.blockedBadge")}</Badge>
-        )}
-        {/* #73/#82: message this contact. Contextual — if a conversation already
-            exists, open it; otherwise start one via the compose flow (which
-            prefills the recipient from ?contact=). Opted-out contacts are gated
-            honestly by the composer's own opt-out banner. */}
-        {/* #135: call ANY contact — including a fresh import you've never
-            texted. From an existing thread (its number presents as caller ID)
-            or straight from the contact (the server resolves the business
-            number; threading creates the conversation on answer). Opted-out
-            contacts stay callable (STOP is SMS consent — a requested callback
-            may be the only channel). #106 note-level members get the API's
-            honest error — the list row carries no viewer level to gate
-            client-side. */}
-        <CallButton
-          conversationId={existingConversation?.id}
-          contactId={existingConversation ? undefined : contact.id}
-          contactName={contact.name?.trim() || formatPhone(contact.phone_e164)}
-          className="ml-auto"
-        />
-        <NewTaskButton
-          context={{
-            contactId: contact.id,
-            contactName: contact.name?.trim() || formatPhone(contact.phone_e164),
-          }}
-        />
-        <Button asChild>
-          <Link
-            href={
-              existingConversation
-                ? `/inbox/${existingConversation.id}`
-                : `/inbox/new?contact=${contact.id}`
-            }
-          >
-            <SquarePen strokeWidth={1.75} />
-            {existingConversation
-              ? t("appShell.contactOpenConversation")
-              : t("appShell.contactMessage")}
-          </Link>
-        </Button>
-      </div>
+      <RecordHeader
+        title={
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xl font-medium tabular-nums">
+              {formatPhone(contact.phone_e164)}
+            </p>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("appShell.contactCopyNumberAria")}
+              onClick={() => {
+                void navigator.clipboard.writeText(contact.phone_e164);
+                toast.success(t("appShell.contactNumberCopied"));
+              }}
+            >
+              <Copy strokeWidth={1.75} />
+            </Button>
+            {contact.opted_out && (
+              <Badge variant="outline" className="border-destructive text-foreground">
+                {t("appShell.contactOptedOutBadge")}
+              </Badge>
+            )}
+            {blockedNumber.blocked && (
+              <Badge variant="outline">{t("blockedNumbers.blockedBadge")}</Badge>
+            )}
+          </div>
+        }
+        actions={
+          <>
+            {/* #73/#82: message this contact. Contextual — if a conversation already
+                exists, open it; otherwise start one via the compose flow (which
+                prefills the recipient from ?contact=). Opted-out contacts are gated
+                honestly by the composer's own opt-out banner. */}
+            {/* #135: call ANY contact — including a fresh import you've never
+                texted. From an existing thread (its number presents as caller ID)
+                or straight from the contact (the server resolves the business
+                number; threading creates the conversation on answer). Opted-out
+                contacts stay callable (STOP is SMS consent — a requested callback
+                may be the only channel). #106 note-level members get the API's
+                honest error — the list row carries no viewer level to gate
+                client-side. */}
+            <CallButton
+              conversationId={existingConversation?.id}
+              contactId={existingConversation ? undefined : contact.id}
+              contactName={contact.name?.trim() || formatPhone(contact.phone_e164)}
+              label={t("shell.call")}
+              variant="outline"
+            />
+            <NewTaskButton
+              context={{
+                contactId: contact.id,
+                contactName: contact.name?.trim() || formatPhone(contact.phone_e164),
+              }}
+            />
+            <Button asChild>
+              <Link
+                href={
+                  existingConversation
+                    ? `/inbox/${existingConversation.id}`
+                    : `/inbox/new?contact=${contact.id}`
+                }
+              >
+                <SquarePen strokeWidth={1.75} />
+                {existingConversation
+                  ? t("appShell.contactOpenConversation")
+                  : t("appShell.contactMessage")}
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
       {contact.opted_out && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
