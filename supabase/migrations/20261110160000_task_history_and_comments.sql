@@ -189,7 +189,9 @@ begin
     insert into public.task_events
       (company_id, task_id, actor_user_id, kind, from_value, to_value)
     values
-      (new.company_id, new.id, public.task_event_actor(new.confirmed_by),
+      -- confirmed_by says 'customer' or 'crew', not who: a crew confirmation's
+      -- member comes from the acting RPC, and a customer's reply has none.
+      (new.company_id, new.id, public.task_event_actor(null),
        'confirmation', to_jsonb(old.confirmed_at), to_jsonb(new.confirmed_at));
   end if;
 
