@@ -65,6 +65,8 @@ export const WEB_SECTION_ROUTES: Record<
   // reach back in.
   webhooks: "route",
   apiKeys: "route",
+  // #696: web-only list; the phones block from the thread and the contact.
+  blockedNumbers: "route",
 };
 
 /** Where a section's route lives. Sections may override the default slug path. */

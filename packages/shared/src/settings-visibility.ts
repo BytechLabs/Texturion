@@ -70,7 +70,10 @@ export type SettingsSectionId =
   | "webhooks"
   // #243: the workspace API keys. Beside Connections because they are the two
   // halves of one subject — what leaves the building, and what may reach in.
-  | "apiKeys";
+  | "apiKeys"
+  // #696: the numbers this workspace sends straight to spam. Web only; the
+  // phones block and unblock from the thread and the contact.
+  | "blockedNumbers";
 
 /**
  * The capability a section needs to be worth showing.
@@ -109,6 +112,9 @@ const SECTION_CAPABILITY: Record<SettingsSectionId, Capability> = {
   // reach this workspace's data, and creating one mints a credential — so the
   // read is gated exactly as the writes are, matching the API.
   apiKeys: "settings.manage",
+  // #696: the same axis as marking a thread spam, which is who may block and
+  // unblock. A tech sees the robotexts, so a tech can see what is blocked.
+  blockedNumbers: "conversations.note",
   /**
    * #286: EVERY role, not just the ones who can change it.
    *

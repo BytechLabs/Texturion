@@ -74,6 +74,8 @@ export const keys = {
   /** Badges are keyed on the ids ASKED FOR, so a changed set refetches. */
   savedViewCounts: (companyId: string, surface: string, ids: string[]) =>
     [companyId, "saved-views", surface, "counts", ids.join(",")] as const,
+  /** #696: numbers the workspace sends straight to spam. */
+  blockedSenders: (companyId: string) => [companyId, "blocked-senders"] as const,
   /** #243: the workspace API keys, live and revoked. */
   apiKeys: (companyId: string) => [companyId, "api-keys"] as const,
   /** #243: the endpoint list, and one delivery log per endpoint. */

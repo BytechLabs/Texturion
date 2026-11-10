@@ -8,6 +8,8 @@ import type { ContactDetail } from "@/lib/api/types";
  * texting a known contact without retyping their number — it routes to the
  * compose flow with the recipient prefilled (/inbox/new?contact=<id>).
  */
+const blockedRows = { current: [] as { id: string; phone_e164: string }[] };
+
 const state = {
   contact: null as unknown as ContactDetail,
   conversations: undefined as unknown,
@@ -75,6 +77,13 @@ vi.mock("@/lib/api/contacts", () => ({
 vi.mock("@/lib/company/provider", () => ({
   useCompanyId: () => "company-1",
   useActiveCompany: () => ({ role: "owner" }),
+}));
+// #696: the block list. A contact whose number is on it says so and offers
+// the way back; every other contact offers the block.
+vi.mock("@/lib/api/blocked-senders", () => ({
+  useBlockedSenders: () => ({ data: { data: blockedRows.current } }),
+  useBlockSender: () => ({ mutate: vi.fn(), isPending: false }),
+  useUnblockSender: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 // Its request hook reaches the provider too. Not pending and never called — these
 // assertions are about the record above it.
@@ -170,6 +179,7 @@ function render(id = "c-1"): string {
 beforeEach(() => {
   state.contact = contact();
   state.conversations = undefined; // no existing conversation by default
+  blockedRows.current = [];
 });
 
 describe("/contacts/[id] Message action (#73)", () => {
@@ -243,5 +253,20 @@ describe("/contacts/[id] call history (#205)", () => {
     const html = render("c-1");
     expect(html).toContain("Call history");
     expect(html).toContain("No calls with this contact yet.");
+  });
+});
+
+describe("/contacts/[id] block number (#696)", () => {
+  it("offers Block number, and says what it does", () => {
+    const html = render("c-1");
+    expect(html).toContain("Block number");
+    expect(html).not.toContain("Unblock number");
+  });
+
+  it("offers Unblock number and marks a contact whose number is blocked", () => {
+    blockedRows.current = [{ id: "b-1", phone_e164: "+12125550123" }];
+    const html = render("c-1");
+    expect(html).toContain("Unblock number");
+    expect(html).toContain("Blocked");
   });
 });

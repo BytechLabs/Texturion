@@ -30,6 +30,10 @@ import {
 
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
+import {
+  BlockNumberDialog,
+  useBlockedNumber,
+} from "@/components/blocked/block-number";
 import { CallButton } from "@/components/calls/call-button";
 import { avatarColorClass } from "@/components/shell/avatar-color";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
@@ -141,6 +145,7 @@ export function ThreadHeader({
   const memberNames = useMemberNames();
   const { userId } = useActiveCompany();
   const [confirmOptOut, setConfirmOptOut] = useState(false);
+  const [confirmBlock, setConfirmBlock] = useState(false);
   // #293: owned HERE, not inside the overflow menu — a Radix Dialog mounted
   // inside DropdownMenuContent is unmounted the moment the menu closes, so the
   // picker would flash and vanish.
@@ -157,6 +162,9 @@ export function ThreadHeader({
     ? memberNames.get(conversation.assigned_user_id) ?? t("thread.teammate")
     : null;
   const phone = conversation.contact.phone_e164;
+  // #696: the number this thread is with, so a blocked thread says it is one.
+  const blockedNumber = useBlockedNumber(phone);
+  const blocked = blockedNumber.blocked !== undefined;
   // #505: the repeat-customer signal, on the surface the person mid-reply is
   // actually looking at. The panel already carries the full line, but it
   // defaults closed, so the fact reached everyone except the one about to use
@@ -402,7 +410,7 @@ export function ThreadHeader({
             The no-badge branch renders `nameButton` bare, so a first-time
             caller's header is unchanged down to the DOM — which is the point:
             a header that decorates everybody distinguishes nobody. */}
-        {repeatBadge === null && !urgent ? (
+        {repeatBadge === null && !urgent && !blocked ? (
           nameButton
         ) : (
           // `min-w-0` so this wrapper can be narrower than its content:
@@ -435,6 +443,17 @@ export function ThreadHeader({
                 <TriangleAlert className="size-3" strokeWidth={2.25} />
                 <span aria-hidden className="hidden sm:inline">
                   {URGENT_BADGE_LABEL}
+                </span>
+              </span>
+            )}
+            {blocked && (
+              <span
+                aria-label={t("blockedNumbers.blockedBadge")}
+                className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase"
+              >
+                <Ban className="size-3" strokeWidth={2.25} />
+                <span aria-hidden className="hidden sm:inline">
+                  {t("blockedNumbers.blockedBadge")}
                 </span>
               </span>
             )}
@@ -704,6 +723,21 @@ export function ThreadHeader({
               <Images className="size-4" strokeWidth={1.75} />
               {t("thread.viewAttachments")}
             </DropdownMenuItem>
+            {blockedNumber.canManage &&
+              (blocked ? (
+                <DropdownMenuItem
+                  disabled={blockedNumber.unblocking}
+                  onSelect={blockedNumber.unblock}
+                >
+                  <Undo2 className="size-4" strokeWidth={1.75} />
+                  {t("blockedNumbers.unblockAction")}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onSelect={() => setConfirmBlock(true)}>
+                  <Ban className="size-4" strokeWidth={1.75} />
+                  {t("blockedNumbers.blockAction")}
+                </DropdownMenuItem>
+              ))}
             <DropdownMenuSeparator />
             {contact?.opted_out ? (
               // A STOP the customer sent is a carrier block, and only they can
@@ -748,6 +782,12 @@ export function ThreadHeader({
         onConfirm={(until, note) =>
           snoozeUntil(until, snoozePicker ?? "snooze", note)
         }
+      />
+
+      <BlockNumberDialog
+        phone={phone}
+        open={confirmBlock}
+        onOpenChange={setConfirmBlock}
       />
 
       <Dialog open={confirmOptOut} onOpenChange={setConfirmOptOut}>

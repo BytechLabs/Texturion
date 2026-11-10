@@ -44,6 +44,11 @@ vi.mock("@/lib/api/contacts", () => ({
 vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({ data: { data: [] } }),
 }));
+vi.mock("@/lib/api/blocked-senders", () => ({
+  useBlockedSenders: () => ({ data: { data: [] } }),
+  useBlockSender: () => ({ mutate: vi.fn(), isPending: false }),
+  useUnblockSender: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "co-1", userId: "u-1", role: "owner" }),
 }));

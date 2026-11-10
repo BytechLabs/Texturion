@@ -8,6 +8,10 @@ import { toast } from "sonner";
 
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
+import {
+  BlockNumberDialog,
+  useBlockedNumber,
+} from "@/components/blocked/block-number";
 import { CallButton } from "@/components/calls/call-button";
 import { ContactLanguage } from "@/components/contact-panel/contact-language";
 import { AddressList } from "@/components/contacts/address-list";
@@ -334,6 +338,8 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
 
   const [confirmingOptOut, setConfirmingOptOut] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingBlock, setConfirmingBlock] = useState(false);
+  const blockedNumber = useBlockedNumber(contact.phone_e164);
 
   return (
     <div className="space-y-6">
@@ -356,6 +362,9 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           <Badge variant="outline" className="border-destructive text-foreground">
             {t("appShell.contactOptedOutBadge")}
           </Badge>
+        )}
+        {blockedNumber.blocked && (
+          <Badge variant="outline">{t("blockedNumbers.blockedBadge")}</Badge>
         )}
         {/* #73/#82: message this contact. Contextual — if a conversation already
             exists, open it; otherwise start one via the compose flow (which
@@ -584,6 +593,30 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               </Button>
             </div>
           )}
+          {blockedNumber.canManage && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                {blockedNumber.blocked
+                  ? t("blockedNumbers.manageNoteBlocked")
+                  : t("blockedNumbers.manageNote")}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                disabled={blockedNumber.unblocking}
+                onClick={() =>
+                  blockedNumber.blocked
+                    ? blockedNumber.unblock()
+                    : setConfirmingBlock(true)
+                }
+              >
+                {blockedNumber.blocked
+                  ? t("blockedNumbers.unblockAction")
+                  : t("blockedNumbers.blockAction")}
+              </Button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">
               {t("appShell.contactHideNote")}
@@ -599,6 +632,12 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           </div>
         </div>
       </SettingsCard>
+
+      <BlockNumberDialog
+        phone={contact.phone_e164}
+        open={confirmingBlock}
+        onOpenChange={setConfirmingBlock}
+      />
 
       <Dialog open={confirmingOptOut} onOpenChange={setConfirmingOptOut}>
         <DialogContent>

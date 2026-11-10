@@ -62,6 +62,9 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     // #243: the other half — what may reach IN. Same capability, and
     // deliberately adjacent so the two are decided together.
     "apiKeys",
+    // #696: gated like Mark spam (conversations.note), so every role that
+    // can mark a robotext can see and lift the blocks.
+    "blockedNumbers",
   ],
   admin: [
     "workspace",
@@ -89,6 +92,7 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     // #243: the other half — what may reach IN. Same capability, and
     // deliberately adjacent so the two are decided together.
     "apiKeys",
+    "blockedNumbers",
   ],
   // Theirs, and only theirs: their login, their notifications, their devices,
   // the help route and what shipped — plus, since #286, the crew list.
@@ -106,6 +110,8 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     "devices",
     "help",
     "whatsNew",
+    // #696: a member can mark a thread spam, so a member can see the blocks.
+    "blockedNumbers",
   ],
   // #315: not a rung below a member — a different set that happens to land in
   // the same place for settings, because both hold only the baseline.

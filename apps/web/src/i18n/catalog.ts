@@ -60,6 +60,7 @@ import { onboardingEn, onboardingFr } from "./sections/onboarding";
 import { settingsEn, settingsFr } from "./sections/settings";
 import { settingsMoreEn, settingsMoreFr } from "./sections/settingsMore";
 import { apiKeysEn, apiKeysFr } from "./sections/apiKeys";
+import { blockedNumbersEn, blockedNumbersFr } from "./sections/blockedNumbers";
 import { calendarFeedEn, calendarFeedFr } from "./sections/calendarFeed";
 import { domainEn, domainFr } from "./sections/domain";
 import { quotesEn, quotesFr } from "./sections/quotes";
@@ -337,6 +338,7 @@ export const EN = {
   quotes: quotesEn,
   webhooks: webhooksEn,
   apiKeys: apiKeysEn,
+  blockedNumbers: blockedNumbersEn,
   calendarFeed: calendarFeedEn,
   appShell: appShellEn,
   thread: threadEn,
@@ -365,6 +367,7 @@ export const FR_CA: Catalog = {
   quotes: quotesFr,
   webhooks: webhooksFr,
   apiKeys: apiKeysFr,
+  blockedNumbers: blockedNumbersFr,
   calendarFeed: calendarFeedFr,
   appShell: appShellFr,
   thread: threadFr,

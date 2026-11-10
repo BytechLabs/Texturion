@@ -2,6 +2,7 @@
 
 import {
   Bell,
+  Ban,
   Building2,
   ChevronRight,
   Clock,
@@ -247,6 +248,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "apiKeys.navApiKeys",
     description: "apiKeys.navApiKeysDesc",
     icon: KeyRound,
+  },
+  {
+    // #696 — the numbers sent straight to spam. A place you go on purpose, so
+    // it never wins the landing redirect for a member.
+    id: "blockedNumbers",
+    slug: "blocked-numbers",
+    label: "blockedNumbers.navBlockedNumbers",
+    description: "blockedNumbers.navBlockedNumbersDesc",
+    icon: Ban,
+    neverLanding: true,
   },
 ];
 
