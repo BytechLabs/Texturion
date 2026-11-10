@@ -78,7 +78,8 @@ enum TimestampFormat {
     ) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.timeZone = timeZone
-        if isFrench(locale) {
+        // No locale means the reader's, as on Android, never English by default.
+        if isFrench(locale ?? UiLocaleStore.readerLocale) {
             formatter.locale = Locale(identifier: "fr_CA")
             formatter.dateFormat = french
         } else {
@@ -128,7 +129,7 @@ enum TimestampFormat {
             nowMs: Int64((now.timeIntervalSince1970 * 1000).rounded()),
             timeZone: timeZone
         )
-        let time = clock(date, locale: words, timeZone: timeZone)
+        let time = clock(date, locale: locale, timeZone: timeZone)
         switch shape.bucket {
         case .now:
             return AppStrings.translate(words, "time.now")
@@ -145,13 +146,13 @@ enum TimestampFormat {
                 ? AppStrings.translate(words, "time.tomorrowAt", ["time": time])
                 : AppStrings.translate(words, "time.tomorrow")
         case .thisWeek:
-            let day = draw(date, words, timeZone, english: "EEE", french: "EEE")
+            let day = draw(date, locale, timeZone, english: "EEE", french: "EEE")
             return long ? "\(day) \(time)" : day
         case .thisYear:
-            let day = draw(date, words, timeZone, english: "MMM d", french: "d MMM")
+            let day = draw(date, locale, timeZone, english: "MMM d", french: "d MMM")
             return long ? "\(day), \(time)" : day
         case .older:
-            let day = draw(date, words, timeZone, english: "MMM d, yyyy", french: "d MMM yyyy")
+            let day = draw(date, locale, timeZone, english: "MMM d, yyyy", french: "d MMM yyyy")
             return long ? "\(day), \(time)" : day
         }
     }
