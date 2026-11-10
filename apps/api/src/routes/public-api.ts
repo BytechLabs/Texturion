@@ -8,7 +8,9 @@
  *   GET  /public/v1/conversations/:id/messages
  *   POST /public/v1/messages   { conversation_id, body } + Idempotency-Key.
  *   GET  /public/v1/tasks      the job list, newest first.
- *   POST /public/v1/tasks      { message_id, title?, due_at?, description? }
+ *   POST /public/v1/tasks      { message_id?, title?, due_at?, description?,
+ *                              assigned_user_id?, contact_id?, conversation_id? }
+ *                              (no message_id: a standalone task, title required)
  *
  * ---------------------------------------------------------------------------
  * WHY THIS IS NOT THE INTERNAL API WITH A DIFFERENT DOOR
@@ -72,11 +74,13 @@ const PUBLIC_CONTACT_COLUMNS =
   "id,phone_e164,name,email,business_name,address,notes,created_at,updated_at";
 
 const PUBLIC_TASK_COLUMNS =
-  "id,message_id,source_call_id,conversation_id,title,description,due_at,assigned_user_id,created_at";
+  "id,message_id,source_call_id,conversation_id,contact_id,title,description,due_at,assigned_user_id,created_at";
 
 /**
- * A public task keeps `message_id` (null for a task promoted from a call, D64)
- * and gains `source`, which names which kind of thing the task came from. The
+ * A public task keeps `message_id` (null for a task promoted from a call, D64,
+ * or a standalone one) and gains `source`, which names which kind of thing the
+ * task came from (null for a standalone task; `conversation_id` and
+ * `contact_id` are then its optional links). The
  * old field is not repurposed: an integration that read it keeps working, it
  * just sees null where there is no message.
  */
@@ -122,12 +126,30 @@ const subscribeSchema = z.object({
   description: z.string().trim().max(200).optional(),
 });
 
-const createTaskSchema = z.object({
-  message_id: z.uuid(),
-  title: z.string().trim().min(1).max(200).optional(),
-  description: z.string().trim().max(2000).optional(),
-  due_at: z.iso.datetime({ offset: true }).optional(),
-});
+const createTaskSchema = z
+  .object({
+    // Absent: a standalone task (D64 amended, #689), which needs a title.
+    message_id: z.uuid().optional(),
+    title: z.string().trim().min(1).max(200).optional(),
+    description: z.string().trim().max(2000).optional(),
+    due_at: z.iso.datetime({ offset: true }).optional(),
+    assigned_user_id: z.uuid().nullable().optional(),
+    contact_id: z.uuid().optional(),
+    conversation_id: z.uuid().optional(),
+  })
+  .refine((body) => body.message_id !== undefined || body.title !== undefined, {
+    message: "title is required when the task has no message_id.",
+    path: ["title"],
+  })
+  .refine(
+    (body) =>
+      body.message_id === undefined ||
+      (body.contact_id === undefined && body.conversation_id === undefined),
+    {
+      message: "contact_id and conversation_id link a task that has no message_id.",
+      path: ["contact_id"],
+    },
+  );
 
 export const publicApiRoutes = new Hono<AppEnv>();
 
@@ -457,15 +479,22 @@ publicApiRoutes.post(
         role,
       });
       if (access.hiddenNumberIds !== null) {
-        const sourceRows = unwrap<{ conversation_id: string }[]>(
-          await db
-            .from("messages")
-            .select("conversation_id")
-            .eq("company_id", c.get("companyId"))
-            .eq("id", body.message_id)
-            .limit(1),
-          "public task source lookup",
-        );
+        // A standalone task is gated by the conversation it links to, if any;
+        // one with no conversation has no number to be denied by.
+        const sourceRows =
+          body.message_id !== undefined
+            ? unwrap<{ conversation_id: string }[]>(
+                await db
+                  .from("messages")
+                  .select("conversation_id")
+                  .eq("company_id", c.get("companyId"))
+                  .eq("id", body.message_id)
+                  .limit(1),
+                "public task source lookup",
+              )
+            : body.conversation_id !== undefined
+              ? [{ conversation_id: body.conversation_id }]
+              : [];
         if (sourceRows[0]) {
           await requireConversationAccess(db, {
             companyId: c.get("companyId"),
@@ -485,10 +514,12 @@ publicApiRoutes.post(
     // that forgets the audit.
     const { data, error } = await db.rpc("create_task", {
       p_company_id: c.get("companyId"),
-      p_message_id: body.message_id,
+      p_message_id: body.message_id ?? null,
       p_title: body.title ?? null,
       p_description: body.description ?? null,
-      p_assigned_user_id: null,
+      // Unassigned unless the caller names someone: an integration's key is not
+      // a crew member to hand work to.
+      p_assigned_user_id: body.assigned_user_id ?? null,
       p_due_at: body.due_at ?? null,
       p_actor_user_id: c.get("userId"),
       // #214's address arguments, all null. Named explicitly rather than
@@ -502,6 +533,9 @@ publicApiRoutes.post(
       p_addr_postal_code: null,
       p_addr_country: null,
       p_addr_provenance: null,
+      p_call_id: null,
+      p_contact_id: body.contact_id ?? null,
+      p_conversation_id: body.conversation_id ?? null,
     });
     if (error) throw new Error(`public create_task failed: ${error.message}`);
 
@@ -515,6 +549,37 @@ publicApiRoutes.post(
     }
     if (result?.outcome === "conflict") {
       return errorResponse(c, "conflict", "This message is already a task.");
+    }
+    if (result?.outcome === "not_member") {
+      return errorResponse(
+        c,
+        "validation_failed",
+        "assigned_user_id: not an active member of this workspace.",
+      );
+    }
+    if (result?.outcome === "no_conversation") {
+      return errorResponse(
+        c,
+        "validation_failed",
+        "conversation_id: no such conversation in this workspace.",
+      );
+    }
+    if (result?.outcome === "no_contact") {
+      return errorResponse(
+        c,
+        "validation_failed",
+        "contact_id: no such contact in this workspace.",
+      );
+    }
+    if (result?.outcome === "contact_mismatch") {
+      return errorResponse(
+        c,
+        "validation_failed",
+        "contact_id: not the contact of that conversation.",
+      );
+    }
+    if (result?.outcome === "title_required") {
+      return errorResponse(c, "validation_failed", "title: required without a message_id.");
     }
     if (!result?.task) throw new Error("create_task returned no row");
     return c.json(publicTask(result.task), 201);

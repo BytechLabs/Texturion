@@ -124,7 +124,8 @@ export async function syncTaskReminders(
 
   const task = unwrap<{
     due_at: string | null;
-    conversation_id: string;
+    // Null for a standalone task with no conversation (#689): no thread to text.
+    conversation_id: string | null;
     reminders_off: boolean;
     conversations: {
       // #291: the number the thread is with. The timezone stays the
@@ -178,7 +179,7 @@ export async function syncTaskReminders(
   // `{job_time}` resolve against this conversation's next open due-dated task,
   // which for a job with a due date is this one.
   let planned: PlannedReminder[] = [];
-  if (dueAt !== null && !task.reminders_off && clock) {
+  if (dueAt !== null && !task.reminders_off && clock && task.conversation_id) {
     const rendered = new Map<string, string>();
     for (const rule of rules) {
       if (rendered.has(rule.body)) continue;

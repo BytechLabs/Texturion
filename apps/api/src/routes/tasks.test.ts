@@ -278,11 +278,143 @@ describe("POST /v1/tasks — promote a message", () => {
     expect(await errorCode(response)).toBe("validation_failed");
   });
 
-  it("422 when no source is given (a task with no source is not built yet, #689)", async () => {
+  it("422 when there is neither a source nor a title", async () => {
     stubFetch(jwksRoute(auth), membersRoute());
-    const response = await request("POST", "/v1/tasks", { title: "orphan" });
+    const response = await request("POST", "/v1/tasks", { description: "orphan" });
     expect(response.status).toBe(422);
     expect(await errorCode(response)).toBe("validation_failed");
+  });
+
+  it("422 when a contact or conversation link rides on a promotion", async () => {
+    stubFetch(jwksRoute(auth), membersRoute());
+    const response = await request("POST", "/v1/tasks", {
+      message_id: MESSAGE_ID,
+      contact_id: OTHER_USER,
+    });
+    expect(response.status).toBe(422);
+    expect(await errorCode(response)).toBe("validation_failed");
+  });
+
+  describe("standalone (#689)", () => {
+    const HIDDEN_NUM = "f0000000-0000-4000-8000-0000000000f2";
+    const hidingRule = { phone_number_id: HIDDEN_NUM, level: "none" };
+    const standalone = () =>
+      taskRow({
+        message_id: null,
+        conversation_id: null,
+        contact_id: null,
+        title: "Order a furnace filter",
+        assigned_user_id: auth.subject,
+      });
+
+    it("creates a task from a title alone: no source, assignee defaults to the creator, source null", async () => {
+      const stubs = createStubs({ task: standalone() });
+      stubFetch(...stubs.all);
+
+      const response = await request("POST", "/v1/tasks", {
+        title: "Order a furnace filter",
+      });
+      expect(response.status).toBe(201);
+      expect(stubs.rpc.calls[0].body).toMatchObject({
+        p_company_id: COMPANY_ID,
+        p_message_id: null,
+        p_call_id: null,
+        p_title: "Order a furnace filter",
+        p_assigned_user_id: auth.subject,
+        p_contact_id: null,
+        p_conversation_id: null,
+      });
+      const body = (await response.json()) as Record<string, unknown>;
+      expect(body).toMatchObject({ message_id: null, source: null });
+    });
+
+    it("an explicit null assignee leaves the task unassigned", async () => {
+      const stubs = createStubs({ task: standalone() });
+      stubFetch(...stubs.all);
+      await request("POST", "/v1/tasks", { title: "Floating", assigned_user_id: null });
+      expect(
+        (stubs.rpc.calls[0].body as Record<string, unknown>).p_assigned_user_id,
+      ).toBeNull();
+    });
+
+    it("a promotion keeps its assignee default of nobody", async () => {
+      const stubs = createStubs();
+      stubFetch(...stubs.all);
+      await request("POST", "/v1/tasks", { message_id: MESSAGE_ID });
+      expect(
+        (stubs.rpc.calls[0].body as Record<string, unknown>).p_assigned_user_id,
+      ).toBeNull();
+    });
+
+    it("forwards the optional contact and conversation links", async () => {
+      const stubs = createStubs({ task: standalone() });
+      stubFetch(...stubs.all);
+      await request("POST", "/v1/tasks", {
+        title: "Call back about the quote",
+        contact_id: OTHER_USER,
+        due_at: "2026-12-01T15:00:00.000Z",
+      });
+      expect(stubs.rpc.calls[0].body).toMatchObject({
+        p_contact_id: OTHER_USER,
+        p_conversation_id: null,
+        p_due_at: "2026-12-01T15:00:00.000Z",
+      });
+    });
+
+    it.each([
+      ["title_required"],
+      ["no_conversation"],
+      ["no_contact"],
+      ["contact_mismatch"],
+      ["bad_link"],
+    ])("maps the standalone outcome %s to 422", async (outcome) => {
+      const stubs = createStubs({ outcome });
+      stubFetch(...stubs.all);
+      const response = await request("POST", "/v1/tasks", { title: "x" });
+      expect(response.status).toBe(422);
+      expect(await errorCode(response)).toBe("validation_failed");
+    });
+
+    it("a standalone task linked to a hidden conversation is refused like that conversation's own", async () => {
+      const conv = stubRoute(restMatch(env, "GET", "conversations"), () => [
+        { phone_number_id: HIDDEN_NUM },
+      ]);
+      const rpc = stubRoute(rpcMatch(env, "create_task"), () => ({
+        outcome: "created",
+        task: standalone(),
+      }));
+      stubFetch(
+        jwksRoute(auth),
+        membersRoute(),
+        numberAccessRoute([hidingRule]),
+        conv.route,
+        rpc.route,
+        ...reminderRoutes(),
+      );
+      const response = await request("POST", "/v1/tasks", {
+        title: "Follow up",
+        conversation_id: CONVERSATION_ID,
+      });
+      expect(response.status).toBe(404);
+      expect(rpc.calls).toHaveLength(0);
+    });
+
+    it("a standalone task with no conversation needs no number access", async () => {
+      const rpc = stubRoute(rpcMatch(env, "create_task"), () => ({
+        outcome: "created",
+        task: standalone(),
+      }));
+      stubFetch(
+        jwksRoute(auth),
+        membersRoute(),
+        numberAccessRoute([hidingRule]),
+        rpc.route,
+        ...reminderRoutes(),
+      );
+      const response = await request("POST", "/v1/tasks", { title: "Buy parts" });
+      expect(response.status).toBe(201);
+      expect(rpc.calls).toHaveLength(1);
+    });
   });
 
   it("422 when both a message and a call are given", async () => {
@@ -693,7 +825,11 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     );
     await request("GET", "/v1/tasks?has_location=true");
     const q = list.calls[0].url.searchParams;
-    expect(q.get("phone_number_id")).toBe(`not.in.(${HIDDEN_NUM})`);
+    // A standalone task with no conversation has no number (#689): the filter
+    // must keep it, which a bare `not.in` would not.
+    expect(q.get("or")).toBe(
+      `(phone_number_id.is.null,phone_number_id.not.in.(${HIDDEN_NUM}))`,
+    );
   });
 
   it("has_location projects the flat view row → done + contact, stripping view-only columns (#221)", async () => {
@@ -994,6 +1130,47 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
     const nq = notes.calls[0].url.searchParams;
     expect(nq.get("task_id")).toBe(`eq.${TASK_ID}`);
     expect(nq.get("direction")).toBe("eq.note");
+  });
+
+  it("a standalone task with no conversation: source null, linked contact, full access for a restricted member (#689)", async () => {
+    const CONTACT_ID = "c0000000-0000-4000-8000-0000000000c9";
+    const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      taskRow({
+        message_id: null,
+        conversation_id: null,
+        contact_id: CONTACT_ID,
+        linked_contact: { id: CONTACT_ID, name: "Pat Plumber" },
+        messages: null,
+      }),
+    ]);
+    const profiles = stubRoute(restMatch(env, "GET", "profiles"), () => []);
+    const empty = (table: string) => stubRoute(restMatch(env, "GET", table), () => []);
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      // This caller is denied a number; a task with no conversation has none.
+      numberAccessRoute([
+        { phone_number_id: "f0000000-0000-4000-8000-0000000000f1", level: "none" },
+      ]),
+      detail.route,
+      profiles.route,
+      empty("attachments").route,
+      empty("message_attachments").route,
+      empty("conversation_events").route,
+      empty("messages").route,
+    );
+
+    const response = await request("GET", `/v1/tasks/${TASK_ID}`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      source: null,
+      source_message: null,
+      source_call: null,
+      conversation_id: null,
+      viewer_level: "text",
+      contact: { id: CONTACT_ID, name: "Pat Plumber" },
+    });
   });
 
   it("attachments is the D28 DERIVED union (source MMS + linked-note files + legacy rows), gallery-shaped, sorted, no urls", async () => {

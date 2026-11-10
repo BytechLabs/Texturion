@@ -179,12 +179,13 @@ end $$;
 do $$
 declare r jsonb; v_task jsonb;
 begin
-  -- Neither source, and both sources.
+  -- Neither source (and no title), and both sources.
   r := public.create_task(
     'ca000000-0000-4000-8000-0000000000c1'::uuid, null, null, null, null, null,
     'ca000000-0000-4000-8000-00000000000a'::uuid);
-  if r->>'outcome' is distinct from 'no_source' then
-    raise exception 'CA-2 FAILED: no source gave %', r;
+  -- (Since #689 a task with no source is a standalone one, which needs a title.)
+  if r->>'outcome' is distinct from 'title_required' then
+    raise exception 'CA-2 FAILED: no source and no title gave %', r;
   end if;
   r := public.create_task(
     'ca000000-0000-4000-8000-0000000000c1'::uuid,

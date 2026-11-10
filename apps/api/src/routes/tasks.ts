@@ -6,18 +6,25 @@
  * the source message's `messages.done_at` when there is one (T2), else the
  * task's own `done_at`. `status='open'` when NULL, `'done'` otherwise. A
  * message task is checked off with the EXISTING `PATCH /v1/messages/:id
- * {done}` (routes/messages.ts); a call task with `PATCH /v1/tasks/:id {done}`.
- * Every task row carries `source: {kind: 'message'|'call'|null, id}`.
+ * {done}` (routes/messages.ts); a call or standalone task with
+ * `PATCH /v1/tasks/:id {done}`.
+ * Every task row carries `source: {kind: 'message'|'call', id} | null`; null is
+ * a standalone task (D64 amended, #689).
  *
- *   POST   /v1/tasks                 M  — promote a message OR an answered call.
- *          Body { message_id | source_call_id (exactly one), title?,
- *          description?, assigned_user_id?, due_at? }. Resolves
- *          conversation_id server-side from the source (a call's own
- *          conversation); title defaults to the message-body snippet / "Call
- *          from <caller>" (editable). A second live promotion of the same
+ *   POST   /v1/tasks                 M  — promote a message, promote an answered
+ *          call, or create a standalone task.
+ *          Body { message_id | source_call_id | neither, title?, description?,
+ *          assigned_user_id?, due_at?, address?, contact_id?, conversation_id? }.
+ *          `title` is required when there is no source; `contact_id` and
+ *          `conversation_id` link a standalone task only. A standalone task's
+ *          assignee defaults to the creator (an explicit null leaves it
+ *          unassigned). A source resolves conversation_id server-side (a call's
+ *          own conversation); title defaults to the message-body snippet /
+ *          "Call from <caller>" (editable). A second live promotion of the same
  *          source → 409 `conflict` (partial-unique tasks_message_uq /
- *          tasks_source_call_uq). Writes a `task_created` event. The DB trigger
- *          fires the ID-only `task.changed {conversation_id}` broadcast (T1.3).
+ *          tasks_source_call_uq). Writes a `task_created` event when the task
+ *          has a conversation. The DB trigger fires the ID-only
+ *          `task.changed {conversation_id}` broadcast (T1.3).
  *   GET    /v1/tasks                 M  — flat filtered list, cursor
  *          { data, next_cursor }. Params: status(open|done, applied on the
  *          task's effective done state), assigned_user_id(or `me`)|unassigned,
@@ -286,7 +293,7 @@ function dueKeysetFilter(cursor: DueCursor): string {
  * derived (see TASK_DONE_AT) and added to each row by `withSource`/the callers.
  */
 const TASK_COLUMNS =
-  "id,company_id,message_id,source_call_id,conversation_id,title,description," +
+  "id,company_id,message_id,source_call_id,conversation_id,contact_id,title,description," +
   "assigned_user_id,due_at,created_by_user_id,created_at,updated_at," +
   // #214 structured job address + provenance (null when the task has no address).
   "addr_street,addr_unit,addr_city,addr_state,addr_postal_code," +
@@ -320,6 +327,19 @@ const SOURCE_CALL_COLUMNS =
   "id,call_session_id,caller_e164,caller_name,outcome,forward_seconds," +
   "started_at,ended_at,contact_id,voicemail_path";
 const SOURCE_CALL_EMBED = `source_call:calls!source_call_id(${SOURCE_CALL_COLUMNS})`;
+
+/**
+ * The contact a standalone task was linked to (#689). `!contact_id` names the
+ * one foreign key so the embed can never become ambiguous.
+ */
+const LINKED_CONTACT_EMBED = "linked_contact:contacts!contact_id(id,name)";
+
+/** The linked-contact embed in the `contact` shape the map rows already use. */
+function linkedContact(
+  contact: { id: string; name: string | null } | null | undefined,
+): { id: string; name: string | null; lat: null; lng: null } | null {
+  return contact ? { id: contact.id, name: contact.name, lat: null, lng: null } : null;
+}
 
 interface SourceCallRow {
   id: string;
@@ -408,20 +428,39 @@ function addressParams(a: z.infer<typeof addressSchema> | null | undefined) {
 
 const createSchema = z
   .object({
-  // Exactly one source (D64): a message, or an answered call. A task with no
-  // source at all is not built yet (#689), so neither is refused here.
+  // At most one source (D64): a message, or an answered call. With neither the
+  // task is standalone (#689) and needs a title.
   message_id: z.uuid().optional(),
   source_call_id: z.uuid().optional(),
   title: z.string().trim().min(1).max(TITLE_MAX).optional(),
+  // A standalone task may link to a contact and/or a conversation.
+  contact_id: z.uuid().optional(),
+  conversation_id: z.uuid().optional(),
   description: z.string().max(5000).optional(),
   assigned_user_id: z.uuid().nullable().optional(),
   due_at: z.iso.datetime({ offset: true }).nullable().optional(),
   // #214: the confirmed enriched (or hand-entered) job address.
   address: addressSchema.nullable().optional(),
 })
-  .refine((body) => (body.message_id === undefined) !== (body.source_call_id === undefined), {
-    message: "Provide exactly one of message_id or source_call_id.",
-  });
+  .refine((body) => body.message_id === undefined || body.source_call_id === undefined, {
+    message: "Provide at most one of message_id or source_call_id.",
+  })
+  .refine(
+    (body) =>
+      body.message_id !== undefined ||
+      body.source_call_id !== undefined ||
+      body.title !== undefined,
+    { message: "title is required when the task has no source.", path: ["title"] },
+  )
+  .refine(
+    (body) =>
+      (body.message_id === undefined && body.source_call_id === undefined) ||
+      (body.contact_id === undefined && body.conversation_id === undefined),
+    {
+      message: "contact_id and conversation_id link a task that has no source.",
+      path: ["contact_id"],
+    },
+  );
 
 const patchSchema = z
   .object({
@@ -469,6 +508,11 @@ const taskOutcomeSchema = z.object({
     "no_call",
     "call_not_answered",
     "call_no_conversation",
+    "title_required",
+    "no_conversation",
+    "no_contact",
+    "contact_mismatch",
+    "bad_link",
     "not_member",
     "conflict",
   ]),
@@ -506,8 +550,9 @@ async function findTask(
 export const tasksRoutes = new Hono<AppEnv>();
 
 /**
- * POST /v1/tasks — promote a message to a task (T4). This is the route the
- * thread overflow "Make a task" affordance calls (T5.1).
+ * POST /v1/tasks: promote a message or an answered call to a task (T4), or
+ * create a standalone one (#689). This is the route the thread overflow "Make a
+ * task" affordance and every "New task" control call (T5.1).
  */
 tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) => {
   const body = await parseJsonBody(c, createSchema);
@@ -523,9 +568,24 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   // without touching messages/conversations. A call is gated by its
   // conversation, the same door its message-anchored twin would use.
   const role = c.get("role");
+  const isStandalone =
+    body.message_id === undefined && body.source_call_id === undefined;
   if (role !== "owner" && role !== "admin") {
     const access = await resolveNumberAccess(db, { companyId, userId, role });
-    if (access.hiddenNumberIds !== null) {
+    if (isStandalone) {
+      // A standalone task linked to a conversation is gated like that
+      // conversation. One with no conversation has no number to be denied by
+      // (#689): every active member may create and see it.
+      if (body.conversation_id !== undefined && access.hiddenNumberIds !== null) {
+        await requireConversationAccess(db, {
+          companyId,
+          userId,
+          role,
+          conversationId: body.conversation_id,
+          need: "note",
+        });
+      }
+    } else if (access.hiddenNumberIds !== null) {
       const sourceRows =
         body.message_id !== undefined
           ? unwrap<{ conversation_id: string | null }[]>(
@@ -558,6 +618,15 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     }
   }
 
+  // A standalone task is the creator's own to-do unless they say otherwise; an
+  // explicit null leaves it unassigned. A promotion keeps "nobody until
+  // assigned" (the source already belongs to a thread).
+  const assigneeUserId = isStandalone
+    ? body.assigned_user_id === undefined
+      ? userId
+      : body.assigned_user_id
+    : body.assigned_user_id ?? null;
+
   // T3: the mutation is the `create_task` security-definer RPC — ONE atomic
   // transaction that resolves conversation_id from the source message or call
   // (company-scoped, §10), validates the assignee, inserts the tasks row (the
@@ -576,11 +645,14 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     // can never arrive (createSchema requires min-length 1).
     p_title: body.title ?? null,
     p_description: body.description ?? null,
-    p_assigned_user_id: body.assigned_user_id ?? null,
+    p_assigned_user_id: assigneeUserId,
     p_due_at: body.due_at ?? null,
     p_actor_user_id: userId,
     // #214: the confirmed job address (all-null when the task has none).
     ...addressParams(body.address),
+    // #689: the optional links of a standalone task.
+    p_contact_id: body.contact_id ?? null,
+    p_conversation_id: body.conversation_id ?? null,
   });
   if (error) throw new Error(`create_task failed: ${error.message}`);
   const result = parseTaskOutcome(data);
@@ -614,7 +686,34 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   if (result.outcome === "no_source") {
     throw new ApiError(
       "validation_failed",
-      "Provide exactly one of message_id or source_call_id.",
+      "Provide at most one of message_id or source_call_id.",
+    );
+  }
+  if (result.outcome === "title_required") {
+    throw new ApiError("validation_failed", "title: required for a task with no source.");
+  }
+  if (result.outcome === "no_conversation") {
+    throw new ApiError(
+      "validation_failed",
+      "conversation_id: no such conversation in this company.",
+    );
+  }
+  if (result.outcome === "no_contact") {
+    throw new ApiError(
+      "validation_failed",
+      "contact_id: no such contact in this company.",
+    );
+  }
+  if (result.outcome === "contact_mismatch") {
+    throw new ApiError(
+      "validation_failed",
+      "contact_id: not the contact of that conversation.",
+    );
+  }
+  if (result.outcome === "bad_link") {
+    throw new ApiError(
+      "validation_failed",
+      "contact_id and conversation_id link a task that has no source.",
     );
   }
   if (result.outcome === "not_member") {
@@ -636,11 +735,11 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   // #515: a task created already pointed at somebody is a hand-off like any
   // other. Creating one for yourself notifies nobody — `notifyAssigned` drops
   // a self-assignment before it queries anything.
-  if (body.assigned_user_id) {
+  if (assigneeUserId) {
     await notifyAssignedTask(c, {
       companyId,
       actorUserId: userId,
-      assigneeUserId: body.assigned_user_id,
+      assigneeUserId,
       task: result.task,
       taskId: result.task.id as string,
     });
@@ -664,8 +763,9 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
       task_id: result.task.id,
       title: result.task.title ?? null,
       due_at: result.task.due_at ?? null,
-      assigned_user_id: body.assigned_user_id ?? null,
-      // Kept nullable for the integrations that read it; `source` says which.
+      assigned_user_id: assigneeUserId,
+      // Kept nullable for the integrations that read it; `source` says which
+      // (null for a standalone task).
       message_id: body.message_id ?? null,
       source: taskSource(result.task),
     },
@@ -1056,7 +1156,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     : db
         .from("tasks")
         .select(
-          `${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${CALENDAR_HOLD_EMBED}`,
+          `${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},${CALENDAR_HOLD_EMBED}`,
         )
         .eq("company_id", companyId)
         .is("deleted_at", null);
@@ -1085,10 +1185,10 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
       role: c.get("role"),
     });
     if (access.hiddenNumberIds && access.hiddenNumberIds.length > 0) {
-      query = query.not(
-        "phone_number_id",
-        "in",
-        `(${access.hiddenNumberIds.join(",")})`,
+      // A standalone task with no conversation has no number (#689), and
+      // `not in` alone would drop it as NULL; it is not hidden by a number.
+      query = query.or(
+        `phone_number_id.is.null,phone_number_id.not.in.(${access.hiddenNumberIds.join(",")})`,
       );
     }
   }
@@ -1121,6 +1221,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     // Non-map path: `done` derives from the task_done_at computed column.
     done_state?: string | null;
     source_call?: SourceCallRow | null;
+    linked_contact?: { id: string; name: string | null } | null;
     // has_location (task_map_rows view) path: flat columns — `done` derives from
     // done_at and the source contact's geocode rides on contact_* .
     done_at?: string | null;
@@ -1172,12 +1273,14 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     // `done`/`call`, and there is no `contact`.
     delete rest.done_state;
     delete rest.source_call;
+    delete rest.linked_contact;
     const done = (row.done_state ?? null) !== null;
     return withSource({
       ...rest,
       done,
       status: done ? "done" : "open",
       call: publicSourceCall(row.source_call),
+      contact: linkedContact(row.linked_contact),
     });
   });
 
@@ -1682,12 +1785,14 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
   interface DetailRow {
     id: string;
     message_id: string | null;
-    conversation_id: string;
+    // Null only for a standalone task with no conversation (#689).
+    conversation_id: string | null;
     assigned_user_id: string | null;
     created_by_user_id: string;
     done_state: string | null;
     done_by: string | null;
     source_call: SourceCallRow | null;
+    linked_contact: { id: string; name: string | null } | null;
     // Null for a call-anchored task (D64).
     messages: { id: string; body: string; done_at: string | null } | null;
     [key: string]: unknown;
@@ -1696,7 +1801,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     await db
       .from("tasks")
       .select(
-        `${TASK_COLUMNS},${TASK_DONE_SELECT},done_by:task_done_by,${SOURCE_CALL_EMBED},` +
+        `${TASK_COLUMNS},${TASK_DONE_SELECT},done_by:task_done_by,${SOURCE_CALL_EMBED},${LINKED_CONTACT_EMBED},` +
           "messages!message_id(id,body,done_at,done_by_user_id,created_at,direction)",
       )
       .eq("company_id", companyId)
@@ -1727,10 +1832,11 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     for (const p of found) profiles.set(p.user_id, p);
   }
 
-  const { messages, done_state, done_by, source_call, ...task } = row;
+  const { messages, done_state, done_by, source_call, linked_contact, ...task } = row;
   const done = (done_state ?? null) !== null;
   const identity = {
     ...withSource(task),
+    contact: linkedContact(linked_contact),
     done,
     done_at: done_state ?? null,
     done_by_user_id: done ? done_by ?? null : null,
@@ -1747,12 +1853,15 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
   // the hidden conversation — the source message, its attachments, the note
   // discussion — is withheld. `viewer_level` lets the web hide the text/reply
   // affordance at 'note' and show a no-access notice at 'none'.
-  const viewerLevel = await resolveConversationLevel(db, {
-    companyId,
-    userId: c.get("userId"),
-    role: c.get("role"),
-    conversationId: row.conversation_id,
-  });
+  // A task with no conversation (#689) has no number to be denied by.
+  const viewerLevel = row.conversation_id
+    ? await resolveConversationLevel(db, {
+        companyId,
+        userId: c.get("userId"),
+        role: c.get("role"),
+        conversationId: row.conversation_id,
+      })
+    : "text";
   if (viewerLevel === "none") {
     return c.json({
       ...identity,
@@ -1974,11 +2083,15 @@ function onCallTaskDone(
         source: input.task.source,
       },
     });
-    await askForJobRating(db, {
-      companyId: input.companyId,
-      taskId: input.task.id,
-      userId: input.userId,
-    });
+    // Only a job taken on the phone asks the customer how it went. A standalone
+    // task is the crew's own to-do (#689), even when it links to a thread.
+    if (input.task.source?.kind === "call") {
+      await askForJobRating(db, {
+        companyId: input.companyId,
+        taskId: input.task.id,
+        userId: input.userId,
+      });
+    }
   })().catch((cause: unknown) => {
     console.error("job rating ask failed:", cause);
   });

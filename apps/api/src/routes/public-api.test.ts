@@ -495,6 +495,42 @@ describe("writes", () => {
     });
   });
 
+  it("creates a standalone task from a title alone, with source null", async () => {
+    const sb = stubWithKey(["tasks:write"]);
+    sb.on("POST", "/rest/v1/rpc/create_task", () => ({
+      outcome: "created",
+      task: { id: "tk-2", title: "Order a filter", message_id: null, source_call_id: null },
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Order a filter",
+        contact_id: "22222222-2222-4222-8222-222222222222",
+      }),
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ source: null, message_id: null });
+    expect(sb.find("POST", "/rest/v1/rpc/create_task")[0].body).toMatchObject({
+      p_message_id: null,
+      p_title: "Order a filter",
+      p_assigned_user_id: null,
+      p_contact_id: "22222222-2222-4222-8222-222222222222",
+      p_conversation_id: null,
+    });
+  });
+
+  it("refuses a task with neither a message nor a title", async () => {
+    const sb = stubWithKey(["tasks:write"]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      body: JSON.stringify({ description: "no title" }),
+    });
+    expect(res.status).toBe(422);
+  });
+
   it("reports an already-promoted message as a conflict rather than a 500", async () => {
     const sb = stubWithKey(["tasks:write"]);
     sb.on("POST", "/rest/v1/rpc/create_task", () => ({ outcome: "conflict" }));

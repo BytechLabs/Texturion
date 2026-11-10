@@ -3,9 +3,9 @@
  *
  * ── WHAT MAKES THIS DIFFERENT FROM THE OTHER TWO EXPORTS ──────────────────
  *
- * A task list looks like internal admin, and it is not. Every task hangs off a
- * conversation (`tasks.conversation_id` is NOT NULL — D17: a task promotes a
- * real message), so a row here names a customer, quotes something they asked
+ * A task list looks like internal admin, and it is not. A task usually hangs off a
+ * conversation (D17: a task promotes a real message; a standalone task, #689,
+ * may have none), so a row here names a customer, quotes something they asked
  * for, and says who was sent to deal with it. That makes this customer data
  * wearing a project-management hat, and it inherits both rules the history
  * export lives by:
@@ -62,6 +62,7 @@ interface TaskRow {
     contact_phone_e164: string | null;
     contacts: { name: string | null } | null;
   } | null;
+  linked_contact?: { name: string | null } | null;
 }
 
 /** One row as the file reads it. */
@@ -139,7 +140,9 @@ export async function buildTaskExport(
         // the constraints instead of the stubs. Same hint scheduled-send.ts
         // already carries.
         "messages!message_id(done_at)," +
-        "conversations(phone_number_id,contact_phone_e164,contacts(name))",
+        "conversations(phone_number_id,contact_phone_e164,contacts(name))," +
+        // A standalone task (#689) names its customer through its own link.
+        "linked_contact:contacts!contact_id(name)",
     )
     .eq("company_id", args.companyId)
     // Soft-deleted work is deleted work. A file that resurrected it would be
@@ -236,7 +239,10 @@ function toEntry(row: TaskRow, names: Map<string, string>): TaskEntry {
     // never given a name is still identifiable to the person reading this.
     // It is the THREAD's number (#291), because that is the one to ring back.
     customer:
-      contact?.name?.trim() || row.conversations?.contact_phone_e164 || "—",
+      contact?.name?.trim() ||
+      row.linked_contact?.name?.trim() ||
+      row.conversations?.contact_phone_e164 ||
+      "—",
     title: row.title,
     detail: row.description,
     // A task with no date is not overdue and not due today. Saying "no date"

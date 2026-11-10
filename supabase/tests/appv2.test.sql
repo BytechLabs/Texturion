@@ -77,7 +77,7 @@ begin
 end $$;
 
 -- ===========================================================================
--- A2. tasks has the DERIVED model: conversation_id NOT NULL, no status column
+-- A2. tasks has the DERIVED model: conversation_id required unless standalone, no status column
 --     or task_status enum, and a task-owned done_at ONLY for a task with no
 --     message (D17 as amended by D64: the message owns done when there is one).
 -- ===========================================================================
@@ -92,7 +92,12 @@ begin
   select is_nullable='YES' into cid_null from information_schema.columns
   where table_schema='public' and table_name='tasks' and column_name='conversation_id';
   if cid_null is null then raise exception 'A2 FAILED: tasks.conversation_id missing'; end if;
-  if cid_null is distinct from false then raise exception 'A2 FAILED: tasks.conversation_id must be NOT NULL'; end if;
+  if cid_null is distinct from true then raise exception 'A2 FAILED: tasks.conversation_id must be NULLable (#689: a standalone task may have none)'; end if;
+  if not exists (select 1 from pg_constraint
+                  where conrelid = 'public.tasks'::regclass
+                    and conname = 'tasks_anchored_has_conversation') then
+    raise exception 'A2 FAILED: tasks_anchored_has_conversation (#689) is missing: a message or call task could lose its conversation';
+  end if;
 
   select string_agg(column_name, ', ') into bad from information_schema.columns
   where table_schema='public' and table_name='tasks'
@@ -110,7 +115,7 @@ begin
              where n.nspname='public' and t.typname='task_status') then
     raise exception 'A2 FAILED: task_status enum must NOT exist (D17 derived model)';
   end if;
-  raise notice 'A2 PASSED: tasks is the derived model (conversation_id NOT NULL; no status column; done owned by the message or, without one, the task; no task_status enum)';
+  raise notice 'A2 PASSED: tasks is the derived model (conversation_id required for a message or call task; no status column; done owned by the message or, without one, the task; no task_status enum)';
 end $$;
 
 -- ===========================================================================

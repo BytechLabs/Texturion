@@ -185,6 +185,8 @@ const SUITES = [
   "call_anchored_tasks",
   // #695: tags on a contact.
   "contact_tags",
+  // #689 / D64 amended: a task with no source, and who can see it.
+  "standalone_tasks",
 ];
 
 const args = process.argv.slice(2);
