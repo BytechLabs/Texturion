@@ -5,30 +5,19 @@ import { CalendarClock } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { MemberAvatar } from "@/components/inbox/member-avatar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useT } from "@/i18n/provider";
-import { useMe } from "@/lib/api/me";
 import { useUpdateTask } from "@/lib/api/tasks";
-import { useMembers } from "@/lib/api/team";
 import type { Task } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
+import { AssigneeField } from "./assignee-field";
+import { taskAssigneeIds } from "./task-assignees";
 import { isOverdue, taskThreadId } from "./task-format";
-
-/** Sentinel <Select> value for "unassigned" (Radix forbids an empty string). */
-const UNASSIGNED = "__unassigned__";
 
 /**
  * Inline quick-edits (TASKS-V2 D-B) — assignee and due editable directly on a
@@ -37,65 +26,22 @@ const UNASSIGNED = "__unassigned__";
  * scopes the checklist/thread invalidation to the task's own thread.
  */
 
-/** A compact assignee picker: the avatar/name is the trigger; a Select edits it. */
+/** A compact assignee picker: the stacked avatars are the trigger; a checklist edits the crew. */
 export function InlineAssignee({ task }: { task: Task }) {
   const t = useT();
-  const me = useMe();
-  const members = useMembers();
   const update = useUpdateTask(taskThreadId(task));
-  const memberOptions = members.data?.data ?? [];
-  const value = task.assigned_user_id ?? UNASSIGNED;
-  const name =
-    task.assigned_user_id !== null
-      ? memberOptions.find((m) => m.user_id === task.assigned_user_id)
-          ?.display_name ?? t("tasks.teammate")
-      : null;
-
   return (
-    <Select
-      value={value}
-      onValueChange={(next) =>
+    <AssigneeField
+      compact
+      ariaLabel={t("tasks.assignee")}
+      value={taskAssigneeIds(task)}
+      onCommit={(ids) =>
         update.mutate(
-          {
-            taskId: task.id,
-            assigned_user_id: next === UNASSIGNED ? null : next,
-          },
+          { taskId: task.id, assignee_ids: ids },
           { onError: () => toast.error(t("tasks.reassignFailed")) },
         )
       }
-    >
-      <SelectTrigger
-        aria-label={t("tasks.assignee")}
-        className="h-auto min-h-8 w-auto gap-1.5 border-none bg-transparent px-1.5 py-1 text-[13px] shadow-none hover:bg-app-hover focus-visible:ring-2 focus-visible:ring-ring data-[size=default]:h-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {name ? (
-          <span className="flex items-center gap-1.5">
-            <MemberAvatar name={name} className="size-4" />
-            <span className="truncate text-app-muted">{name}</span>
-          </span>
-        ) : (
-          <SelectValue placeholder={t("tasks.unassigned")} />
-        )}
-      </SelectTrigger>
-      {/* #123: popper position (not the default item-aligned) so Radix's
-          collision detection FLIPS the list above the trigger when it sits low
-          in a bottom sheet — item-aligned rendered it off the bottom edge of
-          the phone viewport, which read as "the dropdown won't open". */}
-      <SelectContent
-        position="popper"
-        sideOffset={4}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <SelectItem value={UNASSIGNED}>{t("tasks.unassigned")}</SelectItem>
-        {memberOptions.map((member) => (
-          <SelectItem key={member.id} value={member.user_id}>
-            {member.display_name}
-            {me.data?.user_id === member.user_id ? t("tasks.youSuffix") : ""}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    />
   );
 }
 

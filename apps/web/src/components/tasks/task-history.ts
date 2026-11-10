@@ -86,6 +86,18 @@ export function taskHistorySentence(
         ? t("tasks.histAssigned", { by, name })
         : t("tasks.histReassigned", { by });
     }
+    case "assignee_added": {
+      const name = item.to_user?.display_name;
+      return name
+        ? t("tasks.histAssigneeAdded", { by, name })
+        : t("tasks.histUpdated", { by });
+    }
+    case "assignee_removed": {
+      const name = item.from_user?.display_name;
+      return name
+        ? t("tasks.histAssigneeRemoved", { by, name })
+        : t("tasks.histUpdated", { by });
+    }
     case "due": {
       const due = asString(item.to);
       return due

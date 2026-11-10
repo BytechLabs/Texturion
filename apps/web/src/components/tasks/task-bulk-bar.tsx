@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Flag, Tag, Trash2, Undo2, UserPlus } from "lucide-react";
+import { useState } from "react";
 
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
@@ -12,10 +13,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useT } from "@/i18n/provider";
 import { useTags } from "@/lib/api/tags";
 import type { TaskPriority } from "@/lib/api/types";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
+import { MAX_ASSIGNEES, toggleAssignee } from "./task-assignees";
 import { PRIORITY_PICKER, priorityLabelKey } from "./task-planning";
 import {
   canEscalate,
@@ -42,6 +45,80 @@ import {
  * many rows the server will find and a number it guessed would be a number
  * somebody trusted.
  */
+/**
+ * Pick people, then add them. Assigning here ADDS to each task's crew and takes
+ * nobody off, so a batch of jobs that already have different crews keeps them.
+ */
+function BulkAssign({
+  pending,
+  onAssign,
+}: {
+  pending: boolean;
+  onAssign: (userIds: string[]) => void;
+}) {
+  const t = useT();
+  const roster = useMemberNames();
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const atMax = picked.length >= MAX_ASSIGNEES;
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setPicked([]);
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button size="sm" variant="outline" disabled={pending}>
+          <UserPlus className="size-3.5" aria-hidden />
+          {t("tasks.bulkAssign")}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-1">
+        <ul role="listbox" aria-multiselectable aria-label={t("tasks.bulkAssign")} className="max-h-64 overflow-y-auto">
+          {[...roster].map(([userId, name]) => {
+            const selected = picked.includes(userId);
+            return (
+              <li key={userId} role="presentation">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  disabled={!selected && atMax}
+                  onClick={() => setPicked((ids) => toggleAssignee(ids, userId))}
+                  className="tap-target flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-app-hover focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                >
+                  <MemberAvatar name={name} />
+                  <span className="flex-1 truncate">{name}</span>
+                  {selected && <Check className="size-4 text-primary" aria-hidden />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="px-2 pb-2 pt-2 text-xs text-muted-foreground">
+          {atMax
+            ? t("tasks.assigneesMax", { max: MAX_ASSIGNEES })
+            : t("tasks.bulkAssignHint")}
+        </p>
+        <Button
+          size="sm"
+          className="w-full"
+          disabled={picked.length === 0}
+          onClick={() => {
+            onAssign(picked);
+            setOpen(false);
+          }}
+        >
+          {t("tasks.bulkAssignApply")}
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function TaskBulkBar({
   selection,
   loadedIds,
@@ -67,7 +144,7 @@ export function TaskBulkBar({
   onClear: () => void;
   onMarkDone: () => void;
   onMarkUndone: () => void;
-  onAssign: (userId: string | null) => void;
+  onAssign: (userIds: string[]) => void;
   onDelete: () => void;
   onSetPriority: (priority: TaskPriority) => void;
   onAddLabel: (tagId: string) => void;
@@ -75,7 +152,6 @@ export function TaskBulkBar({
 }) {
   const t = useT();
   const canDelete = useCanDeleteRecords();
-  const memberNames = useMemberNames();
   const tags = useTags().data?.data ?? [];
   const showEscalate = canEscalate(selection, loadedIds, hasMore);
 
@@ -102,22 +178,7 @@ export function TaskBulkBar({
           {t("tasks.markDoneAction")}
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="outline" disabled={pending}>
-              <UserPlus className="size-3.5" aria-hidden />
-              {t("tasks.bulkAssign")}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {Object.entries(memberNames).map(([userId, name]) => (
-              <DropdownMenuItem key={userId} onSelect={() => onAssign(userId)}>
-                <MemberAvatar name={name} />
-                {name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <BulkAssign pending={pending} onAssign={onAssign} />
 
         {/* Behind the menu, not on the bar. Un-ticking a batch is rare enough
             that a button for it would crowd out the one people came for, and

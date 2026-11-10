@@ -24,6 +24,39 @@ function event(
   };
 }
 
+describe("taskHistorySentence assignees (#689 C)", () => {
+  it("says who was added and who was removed", () => {
+    expect(
+      taskHistorySentence(
+        event({
+          event: "assignee_added",
+          to: "u2",
+          to_user: { user_id: "u2", display_name: "Ben" },
+        }),
+        "Rehman",
+        t,
+      ),
+    ).toBe("Rehman added Ben to this task");
+    expect(
+      taskHistorySentence(
+        event({
+          event: "assignee_removed",
+          from: "u2",
+          from_user: { user_id: "u2", display_name: "Ben" },
+        }),
+        "Rehman",
+        t,
+      ),
+    ).toBe("Rehman removed Ben from this task");
+  });
+
+  it("falls back to a plain update when the person has no name", () => {
+    expect(
+      taskHistorySentence(event({ event: "assignee_added", to: "u2" }), "Rehman", t),
+    ).toBe("Rehman updated this task");
+  });
+});
+
 describe("taskHistorySentence", () => {
   it("names the person and the change", () => {
     expect(taskHistorySentence(event({ event: "created" }), "Rehman", t)).toBe(

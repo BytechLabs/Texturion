@@ -2,11 +2,13 @@
 
 import { Check } from "lucide-react";
 
-import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
+import { useMemberNames } from "@/components/inbox/member-avatar";
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
+import { AssigneeStack, assigneeSummary } from "./assignee-field";
+import { assigneeNames } from "./task-assignees";
 import { formatDue, isOverdue, taskThreadId } from "./task-format";
 import { useTaskDone } from "./use-task-mutations";
 
@@ -110,7 +112,7 @@ export function TaskDue({
   );
 }
 
-/** The assignee cell (T6.1): avatar + name, or a quiet "Unassigned". */
+/** The assignee cell (T6.1): stacked avatars + a short name, or a quiet "Unassigned". */
 export function TaskAssignee({
   task,
   showName = true,
@@ -119,25 +121,23 @@ export function TaskAssignee({
   showName?: boolean;
 }) {
   const t = useT();
-  const names = useMemberNames();
-  if (task.assigned_user_id === null) {
+  const roster = useMemberNames();
+  const names = assigneeNames(task, roster, t("tasks.teammate"));
+  if (names.length === 0) {
     return showName ? (
       <span className="text-[13px] text-muted-foreground">
         {t("tasks.unassigned")}
       </span>
     ) : null;
   }
-  const name = names.get(task.assigned_user_id) ?? t("tasks.teammate");
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      <MemberAvatar name={name} />
-      <span
-        className={
-          showName ? "truncate text-[13px] text-muted-foreground" : "sr-only"
-        }
-      >
-        {name}
-      </span>
+      <AssigneeStack names={names} />
+      {showName && (
+        <span className="truncate text-[13px] text-muted-foreground">
+          {assigneeSummary(names, t)}
+        </span>
+      )}
     </span>
   );
 }

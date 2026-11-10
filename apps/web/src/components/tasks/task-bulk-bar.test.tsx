@@ -15,7 +15,11 @@ vi.mock("@/lib/hooks/use-records-delete", () => ({
 }));
 vi.mock("@/components/inbox/member-avatar", () => ({
   MemberAvatar: () => null,
-  useMemberNames: () => ({}),
+  useMemberNames: () =>
+    new Map([
+      ["u1", "Ana"],
+      ["u2", "Ben"],
+    ]),
 }));
 
 vi.mock("@/lib/api/tags", () => ({
@@ -59,6 +63,42 @@ function openMore(
   fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key: "Enter" });
   return onDelete;
 }
+
+describe("TaskBulkBar assign (#689 C)", () => {
+  function renderBar(onAssign: (ids: string[]) => void) {
+    render(
+      <TaskBulkBar
+        selection={{ mode: "ids", ids: new Set(["a"]) }}
+        loadedIds={["a"]}
+        hasMore={false}
+        pending={false}
+        onSelectLoaded={vi.fn()}
+        onSelectAllMatching={vi.fn()}
+        onClear={vi.fn()}
+        onMarkDone={vi.fn()}
+        onMarkUndone={vi.fn()}
+        onAssign={onAssign}
+        onDelete={vi.fn()}
+        onSetPriority={vi.fn()}
+        onAddLabel={vi.fn()}
+        onRemoveLabel={vi.fn()}
+      />,
+    );
+  }
+
+  it("lists the members, and adds everyone ticked in one call", () => {
+    const onAssign = vi.fn();
+    renderBar(onAssign);
+    fireEvent.click(screen.getByRole("button", { name: "Assign" }));
+    const apply = screen.getByRole("button", { name: "Add to tasks" });
+    expect((apply as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("option", { name: "Ana" }));
+    fireEvent.click(screen.getByRole("option", { name: "Ben" }));
+    fireEvent.click(apply);
+    expect(onAssign).toHaveBeenCalledOnce();
+    expect(onAssign).toHaveBeenCalledWith(["u1", "u2"]);
+  });
+});
 
 describe("TaskBulkBar delete (#691)", () => {
   it("hides Delete from a member without records.delete", () => {

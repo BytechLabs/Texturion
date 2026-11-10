@@ -48,13 +48,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useT, type MessageKey, type Translate } from "@/i18n/provider";
@@ -90,7 +83,9 @@ import {
 import { AiOrb } from "@/components/ui/ai-orb";
 import { cn } from "@/lib/utils";
 
+import { AssigneeField } from "./assignee-field";
 import { TaskDoneCheckbox } from "./task-atoms";
+import { taskAssigneeIds } from "./task-assignees";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
 import {
@@ -117,7 +112,6 @@ import { TaskCommentComposer, TaskFeed } from "./task-feed";
 import { ShareJobPhotos } from "@/components/tasks/share-job-photos";
 
 /** Sentinel <Select> value for "unassigned" (Radix forbids an empty string). */
-const UNASSIGNED = "__unassigned__";
 
 /**
  * The task detail panel (TASKS-V2 D-A/D-B/D-C/D-D) — the shared body of the
@@ -234,8 +228,6 @@ function TaskDetailLoaded({
   useEffect(() => setTitle(task.title), [task.title]);
   useEffect(() => setDescription(task.description), [task.description]);
 
-  const assignee = task.assigned_user_id ?? UNASSIGNED;
-  const memberOptions = members.data?.data ?? [];
   /**
    * #294: user id → display name, so a group of photos can say who took them.
    *
@@ -286,12 +278,12 @@ function TaskDetailLoaded({
 
   const setReminders = useSetTaskReminders();
 
-  const saveAssignee = (value: string) => {
+  const saveAssignees = (ids: string[]) => {
     scoped((scope) =>
       update.mutate(
         {
           taskId: task.id,
-          assigned_user_id: value === UNASSIGNED ? null : value,
+          assignee_ids: ids,
           ...(scope ? { scope } : {}),
         },
         { onError: () => toast.error(t("tasks.reassignFailed")) },
@@ -639,24 +631,12 @@ function TaskDetailLoaded({
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="task-assignee">{t("tasks.assignee")}</Label>
-            <Select value={assignee} onValueChange={saveAssignee}>
-              <SelectTrigger id="task-assignee" className="w-full">
-                <SelectValue placeholder={t("tasks.unassigned")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={UNASSIGNED}>
-                  {t("tasks.unassigned")}
-                </SelectItem>
-                {memberOptions.map((member) => (
-                  <SelectItem key={member.id} value={member.user_id}>
-                    {member.display_name}
-                    {me.data?.user_id === member.user_id
-                      ? t("tasks.youSuffix")
-                      : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <AssigneeField
+              id="task-assignee"
+              ariaLabel={t("tasks.assignee")}
+              value={taskAssigneeIds(task)}
+              onCommit={saveAssignees}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">

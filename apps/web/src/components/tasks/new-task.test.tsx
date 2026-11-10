@@ -30,7 +30,12 @@ vi.mock("@/lib/api/me", () => ({
 }));
 vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({
-    data: { data: [{ id: "m1", user_id: "me-1", display_name: "Sam" }] },
+    data: {
+      data: [
+        { id: "m1", user_id: "me-1", display_name: "Sam" },
+        { id: "m2", user_id: "u2", display_name: "Ben" },
+      ],
+    },
   }),
 }));
 vi.mock("@/lib/company/provider", () => ({
@@ -85,9 +90,25 @@ describe("#689 New task", () => {
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
     expect(mutateAsync).toHaveBeenCalledWith({
       title: "Order a furnace filter",
-      assigned_user_id: "me-1",
+      assignee_ids: ["me-1"],
     });
     expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("takes more than one assignee under More, me first (#689 C)", async () => {
+    openWith();
+    typeTitle("Two-person install");
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "Assignee" }));
+    expect(screen.getByRole("option", { name: /Sam/ }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(screen.getByRole("option", { name: "Ben" }));
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutateAsync).toHaveBeenCalledWith({
+      title: "Two-person install",
+      assignee_ids: ["me-1", "u2"],
+    });
   });
 
   it("refuses an empty title without calling the server", async () => {

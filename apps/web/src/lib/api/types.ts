@@ -1048,6 +1048,12 @@ export interface TaskRepeat {
   stopped: boolean;
 }
 
+/** One person on a task. */
+export interface TaskAssignee {
+  user_id: string;
+  display_name: string | null;
+}
+
 export interface Task {
   id: string;
   company_id: string;
@@ -1068,7 +1074,12 @@ export interface Task {
   contact_id?: string | null;
   title: string;
   description: string;
+  /** The first assignee, kept for readers that want one person. */
   assigned_user_id: string | null;
+  /** #689 C: everyone on the task, first assignee first. Absent on an older cached row. */
+  assignee_ids?: string[];
+  /** #689 C: the same people with display names. */
+  assignees?: TaskAssignee[];
   due_at: string | null;
   created_by_user_id: string;
   created_at: string;
@@ -1232,6 +1243,8 @@ export type TaskHistoryKind =
   | "description"
   | "address"
   | "assignee"
+  | "assignee_added"
+  | "assignee_removed"
   | "due"
   | "reminders"
   | "confirmation"

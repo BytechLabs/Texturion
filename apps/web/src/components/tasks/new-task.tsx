@@ -15,13 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
@@ -31,10 +24,10 @@ import {
   type TaskAddressInput,
 } from "@/lib/api/tasks";
 import type { Tag, TaskPriority } from "@/lib/api/types";
-import { useMembers } from "@/lib/api/team";
 import { useCompanyId } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
+import { AssigneeField } from "./assignee-field";
 import { NO_CONVERSATION } from "./task-format";
 import { draftProblem, draftToRequest, type RepeatDraft } from "./task-planning";
 import {
@@ -47,7 +40,6 @@ import {
 const NEW_TASK_EVENT = "loonext:new-task";
 
 /** Radix forbids an empty <Select> value, so "nobody" is this. */
-const UNASSIGNED = "__unassigned__";
 
 /** What a New task control already knows, so the form can link it. */
 export interface NewTaskContext {
@@ -144,7 +136,6 @@ function NewTaskForm({
 }) {
   const t = useT();
   const me = useMe();
-  const members = useMembers();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   const create = useCreateTaskFromMessage(
@@ -153,8 +144,8 @@ function NewTaskForm({
 
   const [title, setTitle] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
-  const [assigneeOverride, setAssigneeOverride] = useState<string | null>(null);
-  const assignee = assigneeOverride ?? me.data?.user_id ?? UNASSIGNED;
+  const [crewOverride, setCrewOverride] = useState<string[] | null>(null);
+  const crew = crewOverride ?? (me.data ? [me.data.user_id] : []);
   const [due, setDue] = useState("");
   const [notes, setNotes] = useState("");
   const [addr, setAddr] = useState(EMPTY_ADDRESS);
@@ -204,9 +195,7 @@ function NewTaskForm({
       const created = await create.mutateAsync({
         title: trimmed,
         // Until `me` loads, leave it out so the API assigns the creator.
-        ...(assigneeOverride === null && !me.data
-          ? {}
-          : { assigned_user_id: assignee === UNASSIGNED ? null : assignee }),
+        ...(crewOverride === null && !me.data ? {} : { assignee_ids: crew }),
         ...(due === "" ? {} : { due_at: new Date(due).toISOString() }),
         ...(notes.trim() === "" ? {} : { description: notes.trim() }),
         ...(address ? { address } : {}),
@@ -286,22 +275,12 @@ function NewTaskForm({
           <div id="new-task-more" className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="new-task-assignee">{t("tasks.assignee")}</Label>
-              <Select value={assignee} onValueChange={setAssigneeOverride}>
-                <SelectTrigger id="new-task-assignee" className="w-full">
-                  <SelectValue placeholder={t("tasks.unassigned")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>{t("tasks.unassigned")}</SelectItem>
-                  {(members.data?.data ?? []).map((member) => (
-                    <SelectItem key={member.id} value={member.user_id}>
-                      {member.display_name}
-                      {me.data?.user_id === member.user_id
-                        ? t("thread.youSuffix")
-                        : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <AssigneeField
+                id="new-task-assignee"
+                ariaLabel={t("tasks.assignee")}
+                value={crew}
+                onCommit={setCrewOverride}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="new-task-due">{t("tasks.due")}</Label>

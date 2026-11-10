@@ -143,6 +143,8 @@ export interface BulkTasksBody {
     | "tag_id"
   >;
   target_user_id?: string | null;
+  /** #689 C: for `assign`. These people are ADDED to every selected task. */
+  assignee_ids?: string[];
   /** #693: for `set_priority`. */
   priority?: TaskPriority;
   /** #693: for `add_label` and `remove_label`. */
@@ -334,6 +336,8 @@ export interface CreateTaskInput {
   title?: string;
   description?: string;
   assigned_user_id?: string | null;
+  /** #689 C: the whole crew (up to ten). Wins over `assigned_user_id`. */
+  assignee_ids?: string[];
   due_at?: string | null;
   /** #214 confirmed enriched / hand-entered job address (null = none). */
   address?: TaskAddressInput | null;
@@ -379,6 +383,9 @@ export function useCreateTaskFromMessage(conversationId: string) {
           ...(input.assigned_user_id !== undefined
             ? { assigned_user_id: input.assigned_user_id }
             : {}),
+          ...(input.assignee_ids !== undefined
+            ? { assignee_ids: input.assignee_ids }
+            : {}),
           ...(input.due_at !== undefined ? { due_at: input.due_at } : {}),
           ...(input.address !== undefined ? { address: input.address } : {}),
           ...(input.contact_id !== undefined
@@ -417,7 +424,10 @@ export function useCreateTaskFromMessage(conversationId: string) {
 export interface UpdateTaskInput {
   title?: string;
   description?: string;
+  /** One person, exactly: the shorthand for a crew of one (null = nobody). */
   assigned_user_id?: string | null;
+  /** #689 C: replace the whole crew. An empty list unassigns everyone. */
+  assignee_ids?: string[];
   due_at?: string | null;
   /** #214 replace the whole address block (null clears it). */
   address?: TaskAddressInput | null;
@@ -464,6 +474,10 @@ export function useUpdateTask(conversationId: string) {
         queryClient.setQueryData<TaskDetail>(detailKey, {
           ...previousDetail,
           ...patch,
+          // The first assignee follows the crew, as the server keeps it.
+          ...(patch.assignee_ids !== undefined
+            ? { assigned_user_id: patch.assignee_ids[0] ?? null }
+            : {}),
         });
       }
       return { previousDetail, detailKey };
@@ -559,7 +573,7 @@ export function useRemoveTaskLabel(conversationId: string) {
   });
 }
 
-/** Convenience over `useUpdateTask` — assign (or unassign with null). */
+/** Convenience over `useUpdateTask` — assign one person exactly (or unassign with null). */
 export function useAssignTask(conversationId: string) {
   const update = useUpdateTask(conversationId);
   return {

@@ -162,7 +162,7 @@ export function ListView({ state }: { state: TaskPageState }) {
           onClear={() => setSelection(EMPTY_SELECTION)}
           onMarkDone={() => runBulk({ action: "mark_done" })}
           onMarkUndone={() => runBulk({ action: "mark_undone" })}
-          onAssign={(userId) => runBulk({ action: "assign", target_user_id: userId })}
+          onAssign={(userIds) => runBulk({ action: "assign", assignee_ids: userIds })}
           onDelete={() => runBulk({ action: "delete" })}
           onSetPriority={(priority) =>
             runBulk({ action: "set_priority", priority })
