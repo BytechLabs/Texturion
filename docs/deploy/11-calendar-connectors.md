@@ -164,3 +164,17 @@ provider is offered on Settings > Calendar only when its client id, client
 secret and the keyring are all set. Connect one calendar of your own, schedule a
 job assigned to you, and confirm the event appears within a minute, then move it
 in the calendar and confirm the job follows.
+
+## E. What the connectors do to events (D137, #692)
+
+Nothing to configure; this is what to expect on a member's calendar.
+
+- A job appears when it is assigned to the member, dated and inside the sync
+  window. Connecting backfills only open jobs, so finished work is not added.
+- A job leaves the calendar when it is finished, reassigned, unassigned,
+  undated, deleted or moved out of the window: Loonext deletes the event.
+  Reopening a job that is still theirs creates the event again.
+- The event is left in place, with a line saying the job was removed in
+  Loonext, only when it cannot be deleted safely (it has guests or an online
+  meeting, the connected account is not its organiser) or the provider refuses
+  the delete.

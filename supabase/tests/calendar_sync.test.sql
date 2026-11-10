@@ -3389,6 +3389,423 @@ begin
   raise notice 'CS-15 PASSED: number/role/deactivation access changes drive durable security scrub';
 end $$;
 
-\echo 'calendar_sync.test.sql: CS-1..CS-15 PASSED'
+-- CS-16..CS-20 (#692): a finished or reassigned job leaves the calendar, and
+-- connecting seeds only open jobs.  Own workspace so the earlier blocks' state
+-- cannot leak in.  Tasks: T1 message-anchored, T2 call-anchored (no message),
+-- T3/T4/T5 anchorless, T6 message-anchored and done, T7 anchorless and done.
+create or replace function pg_temp.q_company() returns uuid language sql immutable
+as $$ select 'cb000000-0000-4000-8000-0000000000c1'::uuid $$;
+create or replace function pg_temp.q_user() returns uuid language sql immutable
+as $$ select 'cb000000-0000-4000-8000-00000000000b'::uuid $$;
+create or replace function pg_temp.q_other() returns uuid language sql immutable
+as $$ select 'cb000000-0000-4000-8000-00000000000c'::uuid $$;
+create or replace function pg_temp.q_task(n integer) returns uuid language sql immutable
+as $$ select ('cb000000-0000-4000-8000-00000000b00' || n)::uuid $$;
+create or replace function pg_temp.q_msg(n integer) returns uuid language sql immutable
+as $$ select ('cb000000-0000-4000-8000-00000000a00' || n)::uuid $$;
+create or replace function pg_temp.q_conn() returns uuid language sql stable
+as $$
+  select id from public.calendar_connections
+   where company_id = pg_temp.q_company() and user_id = pg_temp.q_user()
+     and revoked_at is null
+$$;
+create or replace function pg_temp.q_link(n integer) returns uuid language sql stable
+as $$
+  select id from public.task_calendar_links
+   where connection_id = pg_temp.q_conn() and task_id = pg_temp.q_task(n)
+$$;
+-- The queued outbox action for a task, or null.
+create or replace function pg_temp.q_queued(n integer) returns text language sql stable
+as $$
+  select action from public.calendar_outbox
+   where connection_id = pg_temp.q_conn() and task_id = pg_temp.q_task(n)
+     and state = 'queued'
+$$;
+-- Plays the worker for every queued create: claim, then commit the event.
+create or replace function pg_temp.q_drain_creates() returns integer
+language plpgsql as $$
+declare
+  v_out  public.calendar_outbox%rowtype;
+  v_task public.tasks%rowtype;
+  v      jsonb;
+  v_n    integer := 0;
+begin
+  loop
+    select * into v_out from public.api_claim_calendar_outbox('q-worker', 1, 120);
+    exit when v_out.id is null;
+    if v_out.action is distinct from 'create' then
+      raise exception 'q_drain_creates claimed a % row', v_out.action;
+    end if;
+    select * into v_task from public.tasks where id = v_out.task_id;
+    v := public.api_commit_calendar_outbox_created(
+      v_out.id, 'q-worker', v_out.generation,
+      'ev-' || v_out.id, 'inst-' || v_out.id, null, 'q-v1',
+      (v_out.requested_snapshot->>'start')::timestamptz,
+      (v_out.requested_snapshot->>'end')::timestamptz,
+      v_out.requested_snapshot->>'timeZone', v_task.title, v_task.description
+    );
+    if v->>'outcome' is distinct from 'committed' then
+      raise exception 'q_drain_creates commit %', v;
+    end if;
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
+-- CS-16. Connecting seeds only OPEN jobs, on either anchor; the horizon does
+-- the same.
+do $$
+declare
+  v jsonb;
+begin
+  insert into auth.users (id, email) values
+    ('cb000000-0000-4000-8000-00000000000a', 'cal692-owner@test.local'),
+    ('cb000000-0000-4000-8000-00000000000b', 'cal692-member@test.local'),
+    ('cb000000-0000-4000-8000-00000000000c', 'cal692-other@test.local');
+  insert into public.companies
+    (id, name, owner_user_id, country, requested_area_code, aup_accepted_at, timezone)
+  values (pg_temp.q_company(), 'Calendar Leaves', 'cb000000-0000-4000-8000-00000000000a',
+          'CA', '780', now(), 'America/Edmonton');
+  insert into public.company_members (company_id, user_id, role) values
+    (pg_temp.q_company(), 'cb000000-0000-4000-8000-00000000000a', 'owner'),
+    (pg_temp.q_company(), pg_temp.q_user(), 'member'),
+    (pg_temp.q_company(), pg_temp.q_other(), 'member');
+  insert into public.phone_numbers
+    (id, company_id, provisioning_key, country, number_e164, status)
+  values ('cb000000-0000-4000-8000-0000000000f1', pg_temp.q_company(),
+          'calendar-692-fixture', 'CA', '+17805557692', 'active');
+  insert into public.contacts (id, company_id, phone_e164, name) values
+    ('cb000000-0000-4000-8000-0000000000d1', pg_temp.q_company(),
+     '+17805558692', 'Leaving Customer');
+  insert into public.conversations
+    (id, company_id, contact_id, phone_number_id, status, last_message_at)
+  values ('cb000000-0000-4000-8000-0000000000e1', pg_temp.q_company(),
+          'cb000000-0000-4000-8000-0000000000d1',
+          'cb000000-0000-4000-8000-0000000000f1', 'open', now());
+  insert into public.messages
+    (id, company_id, conversation_id, direction, body, status, segments)
+  values
+    (pg_temp.q_msg(1), pg_temp.q_company(), 'cb000000-0000-4000-8000-0000000000e1',
+     'inbound', 'Open message task.', 'received', 1),
+    (pg_temp.q_msg(6), pg_temp.q_company(), 'cb000000-0000-4000-8000-0000000000e1',
+     'inbound', 'Finished message task.', 'received', 1);
+  insert into public.tasks
+    (id, company_id, message_id, conversation_id, title, description,
+     assigned_user_id, due_at, created_by_user_id)
+  values
+    (pg_temp.q_task(1), pg_temp.q_company(), pg_temp.q_msg(1),
+     'cb000000-0000-4000-8000-0000000000e1', 'T1 message job', '',
+     pg_temp.q_user(), now() + interval '2 days', pg_temp.q_user()),
+    (pg_temp.q_task(2), pg_temp.q_company(), null,
+     'cb000000-0000-4000-8000-0000000000e1', 'T2 call job', '',
+     pg_temp.q_user(), now() + interval '3 days', pg_temp.q_user()),
+    (pg_temp.q_task(3), pg_temp.q_company(), null,
+     'cb000000-0000-4000-8000-0000000000e1', 'T3 reassign job', '',
+     pg_temp.q_user(), now() + interval '4 days', pg_temp.q_user()),
+    (pg_temp.q_task(4), pg_temp.q_company(), null,
+     'cb000000-0000-4000-8000-0000000000e1', 'T4 clear-due job', '',
+     pg_temp.q_user(), now() + interval '5 days', pg_temp.q_user()),
+    (pg_temp.q_task(5), pg_temp.q_company(), null,
+     'cb000000-0000-4000-8000-0000000000e1', 'T5 delete job', '',
+     pg_temp.q_user(), now() + interval '6 days', pg_temp.q_user()),
+    (pg_temp.q_task(6), pg_temp.q_company(), pg_temp.q_msg(6),
+     'cb000000-0000-4000-8000-0000000000e1', 'T6 finished message job', '',
+     pg_temp.q_user(), now() - interval '10 days', pg_temp.q_user());
+  insert into public.tasks
+    (id, company_id, message_id, conversation_id, title, description,
+     assigned_user_id, due_at, created_by_user_id, done_at, done_by_user_id)
+  values
+    (pg_temp.q_task(7), pg_temp.q_company(), null,
+     'cb000000-0000-4000-8000-0000000000e1', 'T7 finished call job', '',
+     pg_temp.q_user(), now() - interval '20 days', pg_temp.q_user(),
+     now() - interval '19 days', pg_temp.q_user());
+  perform public.set_message_done(
+    pg_temp.q_company(), pg_temp.q_msg(6), true, pg_temp.q_user()
+  );
+
+  v := public.api_complete_calendar_connection(
+    pg_temp.q_company(), pg_temp.q_user(), 'microsoft', 'acct-692',
+    'cal692@test.local', 'calendar-692', 'Jobs', 'America/Edmonton',
+    'AQIDBAUGBwgJCgsMDQ4PEBESExQ', 'AQIDBAUGBwgJCgsM', 'v1',
+    'graph-sub-692', '/me/calendars/calendar-692/events', repeat('6', 64),
+    now() + interval '2 hours', null
+  );
+  if v->>'outcome' is distinct from 'connected'
+     or (v->>'creates_queued')::int is distinct from 5 then
+    raise exception 'CS-16 FAILED: backfill queued % creates, expected the 5 open jobs: %',
+      v->>'creates_queued', v;
+  end if;
+  if exists (
+    select 1 from public.calendar_outbox
+     where connection_id = pg_temp.q_conn()
+       and task_id in (pg_temp.q_task(6), pg_temp.q_task(7))
+  ) then
+    raise exception 'CS-16 FAILED: backfill seeded a finished job';
+  end if;
+  if pg_temp.q_drain_creates() is distinct from 5 then
+    raise exception 'CS-16 FAILED: expected 5 events created';
+  end if;
+  if public.calendar_enqueue_connection_horizon(pg_temp.q_conn()) is distinct from 0
+     or exists (
+       select 1 from public.calendar_outbox
+        where connection_id = pg_temp.q_conn() and state = 'queued'
+     ) then
+    raise exception 'CS-16 FAILED: the horizon seeded a finished job';
+  end if;
+  raise notice 'CS-16 PASSED: backfill and horizon skip finished jobs on both anchors';
+end $$;
+
+-- CS-17. Finishing a job queues the removal of its event, on both anchors, and
+-- the worker's delete commit leaves the mapping unlinked with nothing queued.
+do $$
+declare
+  v_out public.calendar_outbox%rowtype;
+  v jsonb;
+begin
+  perform public.set_message_done(
+    pg_temp.q_company(), pg_temp.q_msg(1), true, pg_temp.q_user()
+  );
+  perform public.set_task_done(
+    pg_temp.q_company(), pg_temp.q_task(2), true, pg_temp.q_user()
+  );
+  if pg_temp.q_queued(1) is distinct from 'unlink'
+     or pg_temp.q_queued(2) is distinct from 'unlink' then
+    raise exception 'CS-17 FAILED: finishing queued % / % instead of unlink',
+      pg_temp.q_queued(1), pg_temp.q_queued(2);
+  end if;
+  if (select requested_snapshot from public.calendar_outbox
+       where connection_id = pg_temp.q_conn() and task_id = pg_temp.q_task(1)
+         and state = 'queued') is not null then
+    raise exception 'CS-17 FAILED: a removal carried a snapshot';
+  end if;
+
+  -- The worker deletes the provider event and commits with no version left.
+  loop
+    select * into v_out from public.api_claim_calendar_outbox('q-remove', 1, 120);
+    exit when v_out.id is null;
+    v := public.api_commit_calendar_outbox_sent(
+      v_out.id, 'q-remove', v_out.generation, null, null, null, null, null, null
+    );
+    if v->>'outcome' is distinct from 'committed' then
+      raise exception 'CS-17 FAILED: removal commit % queued a follow-up', v;
+    end if;
+  end loop;
+  if (select count(*) from public.task_calendar_links
+       where connection_id = pg_temp.q_conn()
+         and task_id in (pg_temp.q_task(1), pg_temp.q_task(2))
+         and link_state = 'unlinked' and provider_version is null) is distinct from 2
+     or exists (
+       select 1 from public.calendar_outbox
+        where connection_id = pg_temp.q_conn() and state in ('queued', 'leased')
+     ) then
+    raise exception 'CS-17 FAILED: finished jobs were not left unlinked and quiet';
+  end if;
+
+  -- A finished job's later edits do not sync.
+  update public.tasks set title = 'T1 edited while done'
+   where id = pg_temp.q_task(1);
+  update public.tasks set title = 'T2 edited while done'
+   where id = pg_temp.q_task(2);
+  if pg_temp.q_queued(1) is not null or pg_temp.q_queued(2) is not null then
+    raise exception 'CS-17 FAILED: an edit to a finished job queued % / %',
+      pg_temp.q_queued(1), pg_temp.q_queued(2);
+  end if;
+  raise notice 'CS-17 PASSED: finishing a job on either anchor removes its event';
+end $$;
+
+-- CS-18. Reopening a job that is still assigned, dated and in the window
+-- creates its event again on the same mapping; one that is not stays off.
+do $$
+begin
+  perform public.set_message_done(
+    pg_temp.q_company(), pg_temp.q_msg(1), false, pg_temp.q_user()
+  );
+  perform public.set_task_done(
+    pg_temp.q_company(), pg_temp.q_task(2), false, pg_temp.q_user()
+  );
+  if pg_temp.q_queued(1) is distinct from 'create'
+     or pg_temp.q_queued(2) is distinct from 'create'
+     or not exists (
+       select 1 from public.calendar_outbox
+        where connection_id = pg_temp.q_conn() and task_id = pg_temp.q_task(1)
+          and state = 'queued' and link_id = pg_temp.q_link(1)
+     ) then
+    raise exception 'CS-18 FAILED: reopening queued % / % instead of create on the same mapping',
+      pg_temp.q_queued(1), pg_temp.q_queued(2);
+  end if;
+  if pg_temp.q_drain_creates() is distinct from 2
+     or (select count(*) from public.task_calendar_links
+          where connection_id = pg_temp.q_conn()
+            and task_id in (pg_temp.q_task(1), pg_temp.q_task(2))
+            and link_state = 'active') is distinct from 2 then
+    raise exception 'CS-18 FAILED: reopened jobs did not get their events back';
+  end if;
+
+  -- T7 is 20 days past due, inside the 90-day window: an open past-due job is
+  -- still work and belongs on the calendar.
+  perform public.set_task_done(
+    pg_temp.q_company(), pg_temp.q_task(7), false, pg_temp.q_user()
+  );
+  if pg_temp.q_queued(7) is distinct from 'create' then
+    raise exception 'CS-18 FAILED: an open past-due job was not created';
+  end if;
+
+  -- Once it is someone else's job, finishing and reopening it stays off this
+  -- member's calendar.
+  update public.tasks set assigned_user_id = pg_temp.q_other()
+   where id = pg_temp.q_task(7);
+  perform public.set_task_done(
+    pg_temp.q_company(), pg_temp.q_task(7), true, pg_temp.q_user()
+  );
+  perform public.set_task_done(
+    pg_temp.q_company(), pg_temp.q_task(7), false, pg_temp.q_user()
+  );
+  if pg_temp.q_queued(7) is not null then
+    raise exception 'CS-18 FAILED: reopening a job assigned to someone else queued %',
+      pg_temp.q_queued(7);
+  end if;
+  raise notice 'CS-18 PASSED: reopen recreates the event only while the job is the member''s';
+end $$;
+
+-- CS-19. Reassign, unassign, clear-due and delete queue the removal from the
+-- OLD member's calendar (not a scrub), and the commit records whether the
+-- event is gone: a deleted event is re-created if the job comes back, an
+-- annotated one is patched.
+do $$
+declare
+  v_out public.calendar_outbox%rowtype;
+  v_task public.tasks%rowtype;
+  v jsonb;
+begin
+  -- T3 is reassigned, then reassigned back before the delete commits.
+  update public.tasks set assigned_user_id = pg_temp.q_other()
+   where id = pg_temp.q_task(3);
+  if pg_temp.q_queued(3) is distinct from 'unlink' then
+    raise exception 'CS-19 FAILED: reassign queued % for the old member', pg_temp.q_queued(3);
+  end if;
+  select * into v_out from public.api_claim_calendar_outbox('q-reassign', 1, 120);
+  if v_out.task_id is distinct from pg_temp.q_task(3) then
+    raise exception 'CS-19 FAILED: claimed % for the reassigned job', v_out.task_id;
+  end if;
+  update public.tasks set assigned_user_id = pg_temp.q_user()
+   where id = pg_temp.q_task(3);
+  v := public.api_commit_calendar_outbox_sent(
+    v_out.id, 'q-reassign', v_out.generation, null, null, null, null, null, null
+  );
+  if v->>'outcome' is distinct from 'followup_queued'
+     or not exists (
+       select 1 from public.calendar_outbox
+        where connection_id = pg_temp.q_conn() and task_id = pg_temp.q_task(3)
+          and state = 'queued' and action = 'create'
+          and link_id = pg_temp.q_link(3) and provider_precondition is null
+     ) then
+    raise exception 'CS-19 FAILED: a deleted event was patched instead of re-created %', v;
+  end if;
+  if pg_temp.q_drain_creates() is distinct from 1 then
+    raise exception 'CS-19 FAILED: the re-created event was not committed';
+  end if;
+
+  -- T4's clear-due leaves only an annotated event (the provider refused the
+  -- delete): the commit carries a version, so a returning job is patched.
+  update public.tasks set due_at = null where id = pg_temp.q_task(4);
+  if pg_temp.q_queued(4) is distinct from 'unlink' then
+    raise exception 'CS-19 FAILED: clearing the due date queued %', pg_temp.q_queued(4);
+  end if;
+  select * into v_out from public.api_claim_calendar_outbox('q-clear', 1, 120);
+  update public.tasks set due_at = now() + interval '8 days'
+   where id = pg_temp.q_task(4);
+  v := public.api_commit_calendar_outbox_sent(
+    v_out.id, 'q-clear', v_out.generation, 'q-annotated', null, null, null, null, null
+  );
+  if v->>'outcome' is distinct from 'followup_queued'
+     or not exists (
+       select 1 from public.calendar_outbox
+        where connection_id = pg_temp.q_conn() and task_id = pg_temp.q_task(4)
+          and state = 'queued' and action = 'upsert'
+          and provider_precondition = 'q-annotated'
+     ) then
+    raise exception 'CS-19 FAILED: an annotated event was not patched on return %', v;
+  end if;
+  select * into v_out from public.api_claim_calendar_outbox('q-clear-2', 1, 120);
+  select * into v_task from public.tasks where id = pg_temp.q_task(4);
+  v := public.api_commit_calendar_outbox_sent(
+    v_out.id, 'q-clear-2', v_out.generation, 'q-v2',
+    (v_out.requested_snapshot->>'start')::timestamptz,
+    (v_out.requested_snapshot->>'end')::timestamptz,
+    v_out.requested_snapshot->>'timeZone', v_task.title, v_task.description
+  );
+  if v->>'outcome' is distinct from 'committed' then
+    raise exception 'CS-19 FAILED: the patched event did not commit %', v;
+  end if;
+
+  -- With nothing in flight: reassign, clear-due and delete each queue the
+  -- removal, never a scrub.
+  update public.tasks set assigned_user_id = pg_temp.q_other()
+   where id = pg_temp.q_task(3);
+  update public.tasks set due_at = null where id = pg_temp.q_task(4);
+  update public.tasks set deleted_at = now() where id = pg_temp.q_task(5);
+  if pg_temp.q_queued(3) is distinct from 'unlink'
+     or pg_temp.q_queued(4) is distinct from 'unlink'
+     or pg_temp.q_queued(5) is distinct from 'unlink' then
+    raise exception 'CS-19 FAILED: reassign/clear/delete queued %/%/%',
+      pg_temp.q_queued(3), pg_temp.q_queued(4), pg_temp.q_queued(5);
+  end if;
+
+  -- Unassigning is the same removal.
+  update public.tasks set assigned_user_id = null where id = pg_temp.q_task(3);
+  if pg_temp.q_queued(3) is distinct from 'unlink' then
+    raise exception 'CS-19 FAILED: unassign queued %', pg_temp.q_queued(3);
+  end if;
+  raise notice 'CS-19 PASSED: reassign, unassign, clear-due and delete remove the old event';
+end $$;
+
+-- CS-20. A job that finishes while its create is in flight loses the event it
+-- was just given.
+do $$
+declare
+  v_out  public.calendar_outbox%rowtype;
+  v_task public.tasks%rowtype;
+  v jsonb;
+begin
+  insert into public.messages
+    (id, company_id, conversation_id, direction, body, status, segments)
+  values (pg_temp.q_msg(8), pg_temp.q_company(),
+          'cb000000-0000-4000-8000-0000000000e1',
+          'inbound', 'Finishes mid-create.', 'received', 1);
+  insert into public.tasks
+    (id, company_id, message_id, conversation_id, title, description,
+     assigned_user_id, due_at, created_by_user_id)
+  values (pg_temp.q_task(8), pg_temp.q_company(), pg_temp.q_msg(8),
+          'cb000000-0000-4000-8000-0000000000e1', 'T8 mid-create job', '',
+          pg_temp.q_user(), now() + interval '9 days', pg_temp.q_user());
+  update public.calendar_outbox
+     set state = 'leased', lease_owner = 'q-race',
+         lease_expires_at = now() + interval '120 seconds'
+   where connection_id = pg_temp.q_conn() and task_id = pg_temp.q_task(8)
+     and action = 'create' and state = 'queued'
+  returning * into v_out;
+  if v_out.id is null then
+    raise exception 'CS-20 FAILED: the T8 create was not queued';
+  end if;
+  perform public.set_message_done(
+    pg_temp.q_company(), pg_temp.q_msg(8), true, pg_temp.q_user()
+  );
+  select * into v_task from public.tasks where id = pg_temp.q_task(8);
+  select * into v_out from public.calendar_outbox where id = v_out.id;
+  v := public.api_commit_calendar_outbox_created(
+    v_out.id, 'q-race', v_out.generation,
+    'ev-t8', 'inst-t8', null, 'q-v1',
+    (v_out.requested_snapshot->>'start')::timestamptz,
+    (v_out.requested_snapshot->>'end')::timestamptz,
+    v_out.requested_snapshot->>'timeZone', v_task.title, v_task.description
+  );
+  if pg_temp.q_queued(8) is distinct from 'unlink' then
+    raise exception 'CS-20 FAILED: a job finished mid-create kept its event (%) %',
+      pg_temp.q_queued(8), v;
+  end if;
+  raise notice 'CS-20 PASSED: finishing mid-create queues the removal of the new event';
+end $$;
+
+\echo 'calendar_sync.test.sql: CS-1..CS-20 PASSED'
 
 rollback;

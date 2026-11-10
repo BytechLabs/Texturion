@@ -7,6 +7,7 @@ import {
   CalendarFullResyncRequiredError,
   CalendarEventNotFoundError,
   CalendarPreconditionError,
+  CalendarProviderError,
   CalendarReauthRequiredError,
   type CalendarChangeNotice,
   type CalendarProvider,
@@ -1011,9 +1012,6 @@ describe("calendar sync worker", () => {
       requested_snapshot: null,
     };
     vi.mocked(calendar.getEvent).mockResolvedValue(remote(LINK.provider_instance_id));
-    vi.mocked(calendar.annotateAndUnlink).mockResolvedValue(
-      remote(LINK.provider_instance_id),
-    );
     const db = store({ claimOutbox: vi.fn().mockResolvedValue([row]) });
 
     await drainCalendarSync({
@@ -1025,10 +1023,134 @@ describe("calendar sync worker", () => {
     const readOrder = vi.mocked(calendar.getEvent).mock.invocationCallOrder[0]!;
     const markOrder = vi.mocked(db.markProviderEffectStarted).mock
       .invocationCallOrder[0]!;
-    const writeOrder = vi.mocked(calendar.annotateAndUnlink).mock
+    const writeOrder = vi.mocked(calendar.deleteEvent).mock
       .invocationCallOrder[0]!;
     expect(readOrder).toBeLessThan(markOrder);
     expect(markOrder).toBeLessThan(writeOrder);
+  });
+
+  it("deletes the event of a job that left the member's calendar", async () => {
+    const calendar = provider();
+    const row = {
+      ...OUTBOX,
+      action: "unlink" as const,
+      link_id: LINK.id,
+      requested_snapshot: null,
+    };
+    const db = store({ claimOutbox: vi.fn().mockResolvedValue([row]) });
+
+    await drainCalendarSync({
+      store: db,
+      authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
+      workerId: "worker-1",
+    });
+
+    expect(calendar.deleteEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instanceId: LINK.provider_instance_id,
+        version: LINK.provider_version,
+      }),
+    );
+    expect(calendar.annotateAndUnlink).not.toHaveBeenCalled();
+    expect(db.commitSent).toHaveBeenCalledWith({
+      outbox: row,
+      workerId: "worker-1",
+      providerVersion: null,
+      sent: null,
+      description: null,
+    });
+  });
+
+  it("deletes the event of a finished job even when the queued action was an upsert", async () => {
+    const calendar = provider();
+    const row = {
+      ...OUTBOX,
+      action: "upsert" as const,
+      link_id: LINK.id,
+    };
+    const db = store({
+      claimOutbox: vi.fn().mockResolvedValue([row]),
+      getTask: vi.fn().mockResolvedValue({
+        ...TASK,
+        done_state: "2026-08-25T11:00:00.000Z",
+      }),
+    });
+
+    await drainCalendarSync({
+      store: db,
+      authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
+      workerId: "worker-1",
+    });
+
+    expect(calendar.deleteEvent).toHaveBeenCalledOnce();
+    expect(calendar.patchEvent).not.toHaveBeenCalled();
+    expect(db.commitSent).toHaveBeenCalledWith(
+      expect.objectContaining({ providerVersion: null, sent: null }),
+    );
+  });
+
+  it.each([
+    ["the provider refuses the delete", {}, new CalendarProviderError(
+      "refused", "google", "response", "delete event", 403)],
+    ["the connected account does not own the event", { organizerIsConnectedAccount: false }, null],
+    ["the event has guests", { hasAttendees: true }, null],
+  ] as const)(
+    "falls back to the unlink note when %s",
+    async (_label, patch, deleteError) => {
+      const calendar = provider();
+      const row = {
+        ...OUTBOX,
+        action: "unlink" as const,
+        link_id: LINK.id,
+        requested_snapshot: null,
+      };
+      vi.mocked(calendar.getEvent).mockResolvedValue({
+        ...remote(LINK.provider_instance_id),
+        ...patch,
+      });
+      if (deleteError) vi.mocked(calendar.deleteEvent).mockRejectedValue(deleteError);
+      vi.mocked(calendar.annotateAndUnlink).mockResolvedValue(
+        remote(LINK.provider_instance_id),
+      );
+      const db = store({ claimOutbox: vi.fn().mockResolvedValue([row]) });
+
+      await drainCalendarSync({
+        store: db,
+        authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
+        workerId: "worker-1",
+      });
+
+      expect(calendar.annotateAndUnlink).toHaveBeenCalledWith(
+        expect.objectContaining({ note: expect.stringContaining("removed in Loonext") }),
+      );
+      expect(db.commitSent).toHaveBeenCalledWith(
+        expect.objectContaining({ providerVersion: "etag-returned" }),
+      );
+      expect(db.retryOutbox).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retries instead of annotating when the delete is throttled", async () => {
+    const calendar = provider();
+    const row = {
+      ...OUTBOX,
+      action: "unlink" as const,
+      link_id: LINK.id,
+      requested_snapshot: null,
+    };
+    vi.mocked(calendar.deleteEvent).mockRejectedValue(
+      new CalendarProviderError("slow down", "google", "retry", "delete event", 429),
+    );
+    const db = store({ claimOutbox: vi.fn().mockResolvedValue([row]) });
+
+    await drainCalendarSync({
+      store: db,
+      authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
+      workerId: "worker-1",
+    });
+
+    expect(calendar.annotateAndUnlink).not.toHaveBeenCalled();
+    expect(db.retryOutbox).toHaveBeenCalled();
   });
 
   it("preserves a safe Graph event's original HTML while appending the unlink note", async () => {
@@ -1041,6 +1163,7 @@ describe("calendar sync worker", () => {
     };
     vi.mocked(calendar.getEvent).mockResolvedValue({
       ...remote(LINK.provider_instance_id),
+      organizerIsConnectedAccount: false,
       description: "Formatted note",
       rawDescription: "<p><strong>Formatted</strong> note</p>",
       descriptionFormat: "html",

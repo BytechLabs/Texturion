@@ -8666,6 +8666,26 @@ decided and implemented (or the inbound requirement is explicitly withdrawn).
    initiate is attributable only by absence. This must be tested against a live
    tenant before phase two lets any deletion propagate.
 
+**Amendment (#692, 2026-11-09): finished jobs leave the calendar, and a job
+that leaves a member leaves their calendar.** The calendar mirrors work still to
+do. A task is off the calendar when it is deleted **or done**, where done is the
+effective done state: `messages.done_at` for a message-anchored task (D17) and
+`tasks.done_at` for a call-anchored or standalone one (D64). Becoming done,
+reassigned, unassigned, undated, deleted, or moved out of the sync window all
+queue the same `unlink` action, and the worker now **deletes the provider
+event** rather than annotating it. This is an ordinary removal: the mapping is
+marked unlinked, not scrubbed. The note-and-leave behaviour above is kept only
+as the fallback when the event cannot be deleted without touching other people
+(it has attendees or an online meeting, or its organiser is not the connected
+account) or the provider refuses the delete (a 4xx answer). A throttled,
+unauthorised or conflicting delete is retried or reconciled as before, never
+annotated. Reopening a task that is still assigned, dated and in the window
+creates its event again on the same mapping, and a removal that deleted the
+event is followed by a create, never a patch of an event that is gone. Connecting
+a calendar and the horizon seed only open tasks; past-due open tasks stay
+because they are still work. None of this touches "a deletion is a question":
+an event deleted on the provider side still asks the crew.
+
 **Consistency:** D92 (job state is a tag on the conversation — which is why the
 "event removed" state lives on the link row and no `task_status` column
 appears), D17 and D64 (a task promotes a source; completion stays derived), D3

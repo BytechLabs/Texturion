@@ -104,6 +104,8 @@ export interface CalendarTaskRow {
   due_at: string | null;
   assigned_user_id: string | null;
   deleted_at: string | null;
+  /** The effective done time (task_done_at): the source message's, or the task's own. */
+  done_state?: string | null;
 }
 
 export interface CalendarLinkRow {
@@ -418,6 +420,18 @@ function retryDelaySeconds(error: unknown, attempts = 1): number {
   return Math.min(3_600, Math.max(5, 5 * 2 ** Math.min(attempts, 9)));
 }
 
+/** The provider answered the delete with a refusal (not a retry, reauth or precondition). */
+function deleteWasRefused(error: unknown): boolean {
+  if (!(error instanceof CalendarProviderError)) return false;
+  if (error.kind === "invalid_event") return true;
+  return (
+    error.kind === "response" &&
+    error.status !== null &&
+    error.status >= 400 &&
+    error.status < 500
+  );
+}
+
 function taskIsEligible(
   task: CalendarTaskRow,
   connection: CalendarConnectionRow,
@@ -426,6 +440,7 @@ function taskIsEligible(
   const dueAt = task.due_at === null ? Number.NaN : Date.parse(task.due_at);
   return (
     task.deleted_at === null &&
+    (task.done_state ?? null) === null &&
     task.due_at !== null &&
     Number.isFinite(dueAt) &&
     dueAt >= now.getTime() - INITIAL_LOOKBACK_DAYS * 86_400_000 &&
@@ -973,21 +988,47 @@ async function processOutbox(
       expectMutationOutcome("mark calendar unlink effect started", started, [
         "marked",
       ]);
-      const remote = await authorized.provider.annotateAndUnlink({
-        accessToken: authorized.accessToken,
-        calendarId: connection.selected_calendar_id,
-        instanceId: link!.provider_instance_id,
-        version: current.version,
-        currentDescription: current.rawDescription ?? current.description,
-        descriptionFormat: current.descriptionFormat,
-        note: UNLINK_NOTE,
-        calendarTimeZone: connection.selected_calendar_timezone,
-        connectedAccountEmail: connection.provider_account_id,
-      });
+      // A job that left this member's calendar (done, reassigned, unassigned,
+      // undated, deleted) takes its event with it. Only an event that cannot
+      // be deleted without touching other people, or one the provider refuses
+      // to delete, keeps the note-and-leave behaviour.
+      let deleted = false;
+      if (
+        current.organizerIsConnectedAccount &&
+        !current.hasAttendees &&
+        !current.hasOnlineMeeting
+      ) {
+        try {
+          await authorized.provider.deleteEvent({
+            accessToken: authorized.accessToken,
+            calendarId: connection.selected_calendar_id,
+            instanceId: link!.provider_instance_id,
+            version: current.version,
+            calendarTimeZone: connection.selected_calendar_timezone,
+            connectedAccountEmail: connection.provider_account_id,
+          });
+          deleted = true;
+        } catch (error) {
+          if (!deleteWasRefused(error)) throw error;
+        }
+      }
+      const remote = deleted
+        ? null
+        : await authorized.provider.annotateAndUnlink({
+            accessToken: authorized.accessToken,
+            calendarId: connection.selected_calendar_id,
+            instanceId: link!.provider_instance_id,
+            version: current.version,
+            currentDescription: current.rawDescription ?? current.description,
+            descriptionFormat: current.descriptionFormat,
+            note: UNLINK_NOTE,
+            calendarTimeZone: connection.selected_calendar_timezone,
+            connectedAccountEmail: connection.provider_account_id,
+          });
       const committed = await deps.store.commitSent({
         outbox,
         workerId: deps.workerId!,
-        providerVersion: remote.version,
+        providerVersion: remote ? remote.version : null,
         sent: null,
         description: null,
       });
@@ -1938,7 +1979,15 @@ export function createCalendarSyncStore(db: SupabaseClient): CalendarSyncStore {
         p_lease_seconds: input.leaseSeconds,
       }),
     getConnection: (id) => one("calendar_connections", { id }),
-    getTask: (id) => one("tasks", { id }),
+    async getTask(id) {
+      const { data, error } = await db
+        .from("tasks")
+        .select("*, done_state:task_done_at")
+        .eq("id", id)
+        .maybeSingle();
+      rpcError("read tasks", error);
+      return data as CalendarTaskRow | null;
+    },
     getLink: (id) => one("task_calendar_links", { id }),
     async findSyncableLink(companyId, connectionId, providerInstanceId) {
       const { data, error } = await db
