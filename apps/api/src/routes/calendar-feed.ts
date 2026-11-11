@@ -31,6 +31,7 @@
  * unauthenticated surface carries.
  */
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 
 import { buildIcs, type IcsEvent } from "@loonext/shared";
 
@@ -42,6 +43,19 @@ import { hashToken } from "../public-links/tokens";
 import { PUBLIC_PAGE_HEADERS } from "../public-links/guard";
 
 export const calendarFeedRoutes = new Hono<AppEnv>();
+
+/**
+ * #744 — the web app fetches the link it just created to prove it answers, so
+ * the app's own origin (and no other) may read the feed. The token is already
+ * the credential; this only lets the page that minted it check the result.
+ */
+calendarFeedRoutes.use(
+  "/calendar/*",
+  cors({
+    origin: (origin, c) => (origin === getEnv(c.env).APP_ORIGIN ? origin : null),
+    allowMethods: ["GET", "HEAD"],
+  }),
+);
 
 /**
  * How long an undated job occupies, when a calendar insists on a duration.

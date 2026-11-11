@@ -300,12 +300,9 @@ export const SETTINGS_INDEX: readonly SettingsIndexEntry[] = [
   entry("profile", "sign-out",
     ["Sign out", "log out", "logout", "leave"],
     ["Se déconnecter", "déconnexion", "quitter"]),
-  entry("profile", "calendar-sync",
-    ["Two-way calendar sync", "google calendar", "outlook", "calendar connection", "calendar", "time zone", "sync tasks"],
-    ["Synchronisation bidirectionnelle du calendrier", "google agenda", "outlook", "connexion au calendrier", "calendrier", "fuseau horaire", "agenda"]),
-  entry("profile", "calendar-read-only-feed",
-    ["Your schedule in your calendar", "calendar feed", "ics", "subscribe calendar", "apple calendar", "read only calendar"],
-    ["Votre horaire dans votre calendrier", "flux de calendrier", "ics", "s'abonner au calendrier", "calendrier en lecture seule"]),
+  entry("profile", "calendar",
+    ["Calendar", "two-way calendar sync", "google calendar", "outlook", "calendar connection", "time zone", "sync tasks", "calendar feed", "ics", "subscribe calendar", "apple calendar", "read only calendar"],
+    ["Calendrier", "synchronisation bidirectionnelle du calendrier", "google agenda", "outlook", "connexion au calendrier", "fuseau horaire", "agenda", "flux de calendrier", "ics", "s'abonner au calendrier", "calendrier en lecture seule"]),
 
   // Account
   entry("account", "sign-in-methods",

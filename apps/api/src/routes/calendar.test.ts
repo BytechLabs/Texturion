@@ -7,7 +7,10 @@ import {
   supabaseStub,
 } from "../test/routes-harness";
 import { completeEnv, createTestAuth, jwksRoute, stubFetch, type TestAuth } from "../test/support";
+import { Hono } from "hono";
+import type { AppEnv } from "../context";
 import { calendarRoutes } from "./calendar";
+import { calendarFeedRoutes } from "./calendar-feed";
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
@@ -41,5 +44,29 @@ describe("the calendar feed link", () => {
     expect(url.startsWith(`${env.API_ORIGIN}/calendar/`)).toBe(true);
     expect(url.endsWith("/schedule.ics")).toBe(true);
     expect(url.startsWith(env.APP_ORIGIN)).toBe(false);
+  });
+});
+
+describe("the calendar feed answers the app's own page", () => {
+  const feedApp = new Hono<AppEnv>();
+  feedApp.route("/", calendarFeedRoutes);
+
+  it("lets the app origin read the answer, so the page can check the link", async () => {
+    const res = await feedApp.request(
+      "/calendar/short/schedule.ics",
+      { headers: { Origin: env.APP_ORIGIN } },
+      env,
+    );
+    expect(res.status).toBe(404);
+    expect(res.headers.get("access-control-allow-origin")).toBe(env.APP_ORIGIN);
+  });
+
+  it("does not open the feed to any other origin", async () => {
+    const res = await feedApp.request(
+      "/calendar/short/schedule.ics",
+      { headers: { Origin: "https://elsewhere.example" } },
+      env,
+    );
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
   });
 });

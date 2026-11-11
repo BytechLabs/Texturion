@@ -414,6 +414,21 @@ final class CalendarFeedCardTests: XCTestCase {
         )
     }
 
+    func testTheCardIsTheOneCalendarSectionAndStatesBothWays() throws {
+        // #744: one card, one anchor, the choice up front. The phones have no
+        // Google/Microsoft connection screen, so the two-way option says where it
+        // is set up. Read off the source because that is what a person sees.
+        let card = try cardSource()
+        XCTAssertTrue(card.contains(#"anchor: "calendar""#), "the card is not the one Calendar anchor")
+        XCTAssertFalse(card.contains("calendar-read-only-feed"), "the old second anchor is back")
+        for key in [
+            "sectionTitle", "sectionDescription", "twoWayOptionTitle", "twoWayOptionPitch",
+            "twoWayOnPhone", "subscribeOptionTitle", "subscribeOptionPitch",
+        ] {
+            XCTAssertTrue(card.contains("calendarFeed.\(key)"), "the card does not say \(key)")
+        }
+    }
+
     func testTheSourceScansAreActuallyReadingTheirSubjects() throws {
         // Four assertions above read files off disk. A scan that matches nothing
         // passes forever, and those four are worth exactly as much as these.

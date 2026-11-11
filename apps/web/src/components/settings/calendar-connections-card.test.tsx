@@ -329,9 +329,6 @@ describe("#245 two-way calendar settings", () => {
     expect(screen.getByText(/Last verified/)).toBeTruthy();
     expect(screen.getByText(/Last synced/)).toBeTruthy();
     expect(screen.getByText(/2 scheduling conflicts/i)).toBeTruthy();
-    expect(
-      screen.queryByRole("link", { name: /read-only calendar feed instead/i }),
-    ).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     expect(mocks.disconnect).not.toHaveBeenCalled();
@@ -347,7 +344,7 @@ describe("#245 two-way calendar settings", () => {
     );
   });
 
-  it("offers reauthorization and the read-only fallback when disconnected", () => {
+  it("offers reauthorization when the sign-in has expired", () => {
     setView([
       connection({
         status: "reauth_required",
@@ -368,11 +365,6 @@ describe("#245 two-way calendar settings", () => {
       { provider: "google" },
       expect.anything(),
     );
-    expect(
-      screen
-        .getByRole("link", { name: /read-only calendar feed instead/i })
-        .getAttribute("href"),
-    ).toBe("#calendar-read-only-feed");
   });
 
   it("describes an active transient failure as an automatic retry", () => {
@@ -438,11 +430,6 @@ describe("#245 two-way calendar settings", () => {
     expect(disclosure.textContent).toMatch(/révoque.*lecture seule/i);
     expect(
       screen.getByRole("button", { name: "Connecter Google Agenda" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("link", {
-        name: /Utiliser plutôt le flux de calendrier en lecture seule/i,
-      }),
     ).toBeTruthy();
   });
 

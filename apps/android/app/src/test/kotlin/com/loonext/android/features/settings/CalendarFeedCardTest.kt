@@ -259,6 +259,26 @@ class CalendarFeedCardTest {
         )
     }
 
+    // -- 1b. one Calendar section, with the choice up front (#744) ------------
+
+    @Test
+    fun `the card is the one Calendar section and states both ways up front`() {
+        render()
+        awaitText(en("create"))
+
+        compose.onNodeWithText(en("sectionTitle")).assertExists()
+        compose.onNodeWithText(en("twoWayOptionTitle")).assertExists()
+        compose.onNodeWithText(en("twoWayOptionPitch")).assertExists()
+        compose.onNodeWithText(en("subscribeOptionTitle")).assertExists()
+        compose.onNodeWithText(en("subscribeOptionPitch")).assertExists()
+        // The phones have no connection screen, so the two-way option says where
+        // it is set up rather than offering a button that is not here.
+        compose.onNodeWithText(en("twoWayOnPhone")).assertExists()
+        // The two old, unrelated titles are gone.
+        assertEquals(0, nodes("Your schedule in your calendar"))
+        assertEquals(0, nodes("Two-way calendar sync"))
+    }
+
     // -- 2. the second press -------------------------------------------------
 
     @Test

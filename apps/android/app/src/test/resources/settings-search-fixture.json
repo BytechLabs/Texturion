@@ -1584,36 +1584,18 @@
    ]
   },
   {
-   "id": "profile:calendar-sync",
+   "id": "profile:calendar",
    "section": "profile",
-   "anchor": "calendar-sync",
+   "anchor": "calendar",
    "page": null,
    "en": [
-    "Two-way calendar sync",
+    "Calendar",
+    "two-way calendar sync",
     "google calendar",
     "outlook",
     "calendar connection",
-    "calendar",
     "time zone",
-    "sync tasks"
-   ],
-   "fr": [
-    "Synchronisation bidirectionnelle du calendrier",
-    "google agenda",
-    "outlook",
-    "connexion au calendrier",
-    "calendrier",
-    "fuseau horaire",
-    "agenda"
-   ]
-  },
-  {
-   "id": "profile:calendar-read-only-feed",
-   "section": "profile",
-   "anchor": "calendar-read-only-feed",
-   "page": null,
-   "en": [
-    "Your schedule in your calendar",
+    "sync tasks",
     "calendar feed",
     "ics",
     "subscribe calendar",
@@ -1621,7 +1603,13 @@
     "read only calendar"
    ],
    "fr": [
-    "Votre horaire dans votre calendrier",
+    "Calendrier",
+    "synchronisation bidirectionnelle du calendrier",
+    "google agenda",
+    "outlook",
+    "connexion au calendrier",
+    "fuseau horaire",
+    "agenda",
     "flux de calendrier",
     "ics",
     "s'abonner au calendrier",
@@ -1974,7 +1962,7 @@
     "hours:business-hours",
     "hours:closed-dates",
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -1987,7 +1975,7 @@
     "hours:business-hours",
     "hours:closed-dates",
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -2153,7 +2141,7 @@
     "hours:closed-dates",
     "payments:payments-setup",
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -2166,7 +2154,7 @@
     "hours:business-hours",
     "hours:closed-dates",
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -2191,7 +2179,7 @@
     "hours:business-hours",
     "hours:closed-dates",
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -2204,7 +2192,7 @@
     "hours:business-hours",
     "hours:closed-dates",
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -2293,7 +2281,7 @@
    "visible": "member",
    "ids": [
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -2302,7 +2290,7 @@
    "visible": "member",
    "ids": [
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -2420,7 +2408,7 @@
    "visible": "member",
    "ids": [
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -2429,7 +2417,7 @@
    "visible": "member",
    "ids": [
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -2450,7 +2438,7 @@
    "visible": "member",
    "ids": [
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {
@@ -2459,7 +2447,7 @@
    "visible": "member",
    "ids": [
     "notifications:quiet-hours-row",
-    "profile:calendar-sync"
+    "profile:calendar"
    ]
   },
   {

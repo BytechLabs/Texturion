@@ -28,7 +28,7 @@ describe("#719 settings search", () => {
         "business-hours", // hours and away reply
         "numbers-list", // per-number hours
         "closed-dates",
-        "calendar-sync",
+        "calendar",
         "quiet-hours-row",
       ]),
     );
@@ -98,5 +98,16 @@ describe("#719 settings search", () => {
     expect(anchorsOf("time zone", "en", member)).toContain("quiet-hours-row");
     // An owner finds the same words.
     expect(anchorsOf("billing", "en", asRole("owner"))).toContain("subscription");
+  });
+
+  it("#744: both ways of getting a calendar are one entry, under one name", () => {
+    const calendar = SETTINGS_INDEX.filter((e) => e.anchor.startsWith("calendar"));
+    expect(calendar.map((e) => e.anchor)).toEqual(["calendar"]);
+    expect(calendar[0]?.en[0]).toBe("Calendar");
+    for (const word of ["google calendar", "ics", "apple calendar", "outlook"]) {
+      expect(anchorsOf(word), word).toContain("calendar");
+    }
+    expect(anchorsOf("calendrier", "fr")).toContain("calendar");
+    expect(anchorsOf("flux de calendrier", "fr")).toContain("calendar");
   });
 });

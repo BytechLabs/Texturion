@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { SettingsCard } from "@/components/settings/section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -215,8 +214,8 @@ function ConnectionStatus({ connection }: { connection: CalendarConnection }) {
 }
 
 /**
- * #245 — writable Google/Microsoft calendars, immediately beside the existing
- * read-only feed.
+ * #245 — writable Google/Microsoft calendars. #744: rendered inside the one
+ * Calendar section, as its first option.
  *
  * The disclosure is intentionally visible at rest. Connecting revokes a live
  * credential and changes which copy can be dragged, so burying that fact in an
@@ -272,9 +271,6 @@ export function CalendarConnectionsCard() {
 
   const connections = view.data?.connections ?? [];
   const disclosures = view.data?.disclosures ?? [];
-  const hasActiveConnection = connections.some(
-    (connection) => connection.status === "active",
-  );
   const cleanupInProgress = connections.some(
     (connection) => connection.status === "disconnected",
   );
@@ -348,10 +344,7 @@ export function CalendarConnectionsCard() {
   );
 
   return (
-    <SettingsCard id="calendar-sync"
-      title={t("calendarFeed.twoWayTitle")}
-      description={t("calendarFeed.twoWayDescription")}
-    >
+    <div id="calendar-two-way">
       <div className="space-y-5">
         <p
           id="calendar-connection-disclosure"
@@ -580,15 +573,6 @@ export function CalendarConnectionsCard() {
                 );
                 })}
               </div>
-            )}
-
-            {!hasActiveConnection && (
-              <a
-                href="#calendar-read-only-feed"
-                className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-4 hover:underline"
-              >
-                {t("calendarFeed.readOnlyFallback")}
-              </a>
             )}
 
             {attention.isLoading ? (
@@ -859,6 +843,6 @@ export function CalendarConnectionsCard() {
           </>
         )}
       </div>
-    </SettingsCard>
+    </div>
   );
 }

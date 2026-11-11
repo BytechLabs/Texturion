@@ -34,10 +34,20 @@ enum CalendarFeedStrings {
     static let section = AppStrings.Section(
         name: "CalendarFeedStrings",
         en: [
-            "calendarFeed.title": "Your schedule in your calendar",
-            "calendarFeed.description":
-                "Add your scheduled jobs to Google Calendar, Apple Calendar, Outlook or any "
-                + "other calendar app. It updates on its own — you only set it up once.",
+
+            "calendarFeed.sectionTitle": "Calendar",
+            "calendarFeed.sectionDescription": "See your scheduled jobs in the calendar you already use. Pick one of the two ways below.",
+            "calendarFeed.twoWayOptionTitle": "Connect Google or Microsoft (two-way)",
+            "calendarFeed.twoWayOptionPitch": "A change in Loonext or in your calendar shows up in both. Pick this if you use Google Calendar or Microsoft 365.",
+            "calendarFeed.subscribeOptionTitle": "Subscribe from any calendar app (read-only)",
+            "calendarFeed.subscribeOptionPitch": "Your jobs appear in your calendar, but changes made there do not come back. Pick this for Apple Calendar or any other app, or if you would rather not connect an account.",
+            "calendarFeed.subscribeAlternative": "Or subscribe read-only",
+            "calendarFeed.twoWayOnPhone": "Two-way sync with Google or Microsoft is set up in Loonext on the web, not in this app.",
+            "calendarFeed.linkChecking": "Checking that the link works…",
+            "calendarFeed.linkWorking": "Working",
+            "calendarFeed.linkBroken": "This link did not work (error {status}). Get a new link and try again.",
+            "calendarFeed.linkUnreachable": "Could not reach this link to check it. Check your connection, then try again.",
+            "calendarFeed.linkCheckAgain": "Check again",
 
             "calendarFeed.create": "Set up my calendar",
             "calendarFeed.rotate": "Get a new link",
@@ -64,8 +74,6 @@ enum CalendarFeedStrings {
                 + "you subscribe.",
 
             "calendarFeed.failed": "That didn't go through. Try again.",
-            "calendarFeed.twoWayTitle": "Two-way calendar sync",
-            "calendarFeed.twoWayDescription": "Reschedule an assigned job in Loonext or its linked calendar event and the other copy follows.",
             "calendarFeed.twoWayDisclosure": "Loonext creates calendar events for scheduled jobs assigned to you and checks those linked events for schedule changes. It never imports unrelated events or invites customers. Connecting revokes your existing read-only calendar feed so each job appears once.",
             "calendarFeed.googleProvider": "Google Calendar",
             "calendarFeed.microsoftProvider": "Microsoft 365",
@@ -163,14 +171,22 @@ enum CalendarFeedStrings {
             "calendarFeed.connectionsLoading": "Loading calendar connections…",
             "calendarFeed.connectionsLoadFailed": "Your calendar connections could not be loaded.",
             "calendarFeed.retryConnections": "Try again",
-            "calendarFeed.readOnlyFallback": "Use the read-only calendar feed instead",
         ],
         frCA: [
-            "calendarFeed.title": "Votre horaire dans votre calendrier",
-            "calendarFeed.description":
-                "Ajoutez vos travaux planifiés à Google Agenda, Calendrier Apple, Outlook ou "
-                + "n'importe quelle autre application de calendrier. La mise à jour se fait "
-                + "toute seule — vous ne le configurez qu'une fois.",
+
+            "calendarFeed.sectionTitle": "Calendrier",
+            "calendarFeed.sectionDescription": "Voyez vos travaux planifiés dans le calendrier que vous utilisez déjà. Choisissez l'une des deux façons ci-dessous.",
+            "calendarFeed.twoWayOptionTitle": "Connecter Google ou Microsoft (bidirectionnel)",
+            "calendarFeed.twoWayOptionPitch": "Un changement dans Loonext ou dans votre calendrier apparaît des deux côtés. Choisissez cette option si vous utilisez Google Agenda ou Microsoft 365.",
+            "calendarFeed.subscribeOptionTitle": "S'abonner depuis n'importe quelle application de calendrier (lecture seule)",
+            "calendarFeed.subscribeOptionPitch": "Vos travaux apparaissent dans votre calendrier, mais les changements qui y sont faits ne reviennent pas. Choisissez cette option pour Calendrier Apple ou toute autre application, ou si vous préférez ne pas connecter de compte.",
+            "calendarFeed.subscribeAlternative": "Ou s'abonner en lecture seule",
+            "calendarFeed.twoWayOnPhone": "La synchronisation bidirectionnelle avec Google ou Microsoft se configure dans Loonext sur le web, et non dans cette application.",
+            "calendarFeed.linkChecking": "Vérification du lien…",
+            "calendarFeed.linkWorking": "Fonctionne",
+            "calendarFeed.linkBroken": "Ce lien ne fonctionne pas (erreur {status}). Obtenez un nouveau lien et réessayez.",
+            "calendarFeed.linkUnreachable": "Impossible de joindre ce lien pour le vérifier. Vérifiez votre connexion, puis réessayez.",
+            "calendarFeed.linkCheckAgain": "Vérifier à nouveau",
 
             "calendarFeed.create": "Configurer mon calendrier",
             "calendarFeed.rotate": "Obtenir un nouveau lien",
@@ -195,8 +211,6 @@ enum CalendarFeedStrings {
                 + "minutes après l'abonnement.",
 
             "calendarFeed.failed": "Ça n'a pas fonctionné. Réessayez.",
-            "calendarFeed.twoWayTitle": "Synchronisation bidirectionnelle du calendrier",
-            "calendarFeed.twoWayDescription": "Replanifiez un travail qui vous est attribué dans Loonext ou son événement de calendrier lié; l'autre copie suivra.",
             "calendarFeed.twoWayDisclosure": "Loonext crée des événements de calendrier pour les travaux planifiés qui vous sont attribués et vérifie les changements d'horaire de ces événements liés. Il n'importe jamais les événements sans lien et n'invite jamais de clients. La connexion révoque votre flux de calendrier existant en lecture seule afin que chaque travail n'apparaisse qu'une fois.",
             "calendarFeed.googleProvider": "Google Agenda",
             "calendarFeed.microsoftProvider": "Microsoft 365",
@@ -294,7 +308,6 @@ enum CalendarFeedStrings {
             "calendarFeed.connectionsLoading": "Chargement des connexions de calendrier…",
             "calendarFeed.connectionsLoadFailed": "Vos connexions de calendrier n'ont pas pu être chargées.",
             "calendarFeed.retryConnections": "Réessayer",
-            "calendarFeed.readOnlyFallback": "Utiliser plutôt le flux de calendrier en lecture seule",
         ]
     )
 }

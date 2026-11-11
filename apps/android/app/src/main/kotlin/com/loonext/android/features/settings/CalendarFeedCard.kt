@@ -152,7 +152,7 @@ private fun CalendarFeedBody(
     // The label Android 13's clipboard preview shows beside what was copied. The
     // card's own title rather than a new string — this is not a place to invent
     // wording the other two clients have never said.
-    val clipLabel = t("calendarFeed.title")
+    val clipLabel = t("calendarFeed.sectionTitle")
 
     /**
      * The fact that answers "did this work?", and the one a person needs before
@@ -221,11 +221,39 @@ private fun CalendarFeedBody(
         }
     }
 
+    // #744: the one Calendar card. The phones have no Google/Microsoft
+    // connection screen (it is web only), so the two-way option is named with
+    // where it is set up, and the read-only link is the thing this card does.
     SettingsCard(
-        anchor = "calendar-read-only-feed",
-        title = t("calendarFeed.title"),
-        description = t("calendarFeed.description"),
+        anchor = "calendar",
+        title = t("calendarFeed.sectionTitle"),
+        description = t("calendarFeed.sectionDescription"),
     ) {
+        Text(
+            t("calendarFeed.twoWayOptionTitle"),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            t("calendarFeed.twoWayOptionPitch"),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            t("calendarFeed.twoWayOnPhone"),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            t("calendarFeed.subscribeOptionTitle"),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            t("calendarFeed.subscribeOptionPitch"),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
         val minted = url
         when {
             /*

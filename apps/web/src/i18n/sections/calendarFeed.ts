@@ -24,9 +24,24 @@ import type { Translated } from "../translated";
  *    warning has to be in the words rather than implied by the amber border.
  */
 export const calendarFeedEn = {
-  title: "Your schedule in your calendar",
-  description:
-    "Add your scheduled jobs to Google Calendar, Apple Calendar, Outlook or any other calendar app. It updates on its own — you only set it up once.",
+  sectionTitle: "Calendar",
+  sectionDescription:
+    "See your scheduled jobs in the calendar you already use. Pick one of the two ways below.",
+  twoWayOptionTitle: "Connect Google or Microsoft (two-way)",
+  twoWayOptionPitch:
+    "A change in Loonext or in your calendar shows up in both. Pick this if you use Google Calendar or Microsoft 365.",
+  subscribeOptionTitle: "Subscribe from any calendar app (read-only)",
+  subscribeOptionPitch:
+    "Your jobs appear in your calendar, but changes made there do not come back. Pick this for Apple Calendar or any other app, or if you would rather not connect an account.",
+  subscribeAlternative: "Or subscribe read-only",
+  twoWayOnPhone:
+    "Two-way sync with Google or Microsoft is set up in Loonext on the web, not in this app.",
+  linkChecking: "Checking that the link works…",
+  linkWorking: "Working",
+  linkBroken: "This link did not work (error {status}). Get a new link and try again.",
+  linkUnreachable:
+    "Could not reach this link to check it. Check your connection, then try again.",
+  linkCheckAgain: "Check again",
 
   create: "Set up my calendar",
   rotate: "Get a new link",
@@ -48,9 +63,6 @@ export const calendarFeedEn = {
 
   failed: "That didn't go through. Try again.",
 
-  twoWayTitle: "Two-way calendar sync",
-  twoWayDescription:
-    "Reschedule an assigned job in Loonext or its linked calendar event and the other copy follows.",
   twoWayDisclosure:
     "Loonext creates calendar events for scheduled jobs assigned to you and checks those linked events for schedule changes. It never imports unrelated events or invites customers. Connecting revokes your existing read-only calendar feed so each job appears once.",
 
@@ -177,13 +189,27 @@ export const calendarFeedEn = {
   connectionsLoading: "Loading calendar connections…",
   connectionsLoadFailed: "Your calendar connections could not be loaded.",
   retryConnections: "Try again",
-  readOnlyFallback: "Use the read-only calendar feed instead",
 } as const;
 
 export const calendarFeedFr: Translated<typeof calendarFeedEn> = {
-  title: "Votre horaire dans votre calendrier",
-  description:
-    "Ajoutez vos travaux planifiés à Google Agenda, Calendrier Apple, Outlook ou n'importe quelle autre application de calendrier. La mise à jour se fait toute seule — vous ne le configurez qu'une fois.",
+  sectionTitle: "Calendrier",
+  sectionDescription:
+    "Voyez vos travaux planifiés dans le calendrier que vous utilisez déjà. Choisissez l'une des deux façons ci-dessous.",
+  twoWayOptionTitle: "Connecter Google ou Microsoft (bidirectionnel)",
+  twoWayOptionPitch:
+    "Un changement dans Loonext ou dans votre calendrier apparaît des deux côtés. Choisissez cette option si vous utilisez Google Agenda ou Microsoft 365.",
+  subscribeOptionTitle: "S'abonner depuis n'importe quelle application de calendrier (lecture seule)",
+  subscribeOptionPitch:
+    "Vos travaux apparaissent dans votre calendrier, mais les changements qui y sont faits ne reviennent pas. Choisissez cette option pour Calendrier Apple ou toute autre application, ou si vous préférez ne pas connecter de compte.",
+  subscribeAlternative: "Ou s'abonner en lecture seule",
+  twoWayOnPhone:
+    "La synchronisation bidirectionnelle avec Google ou Microsoft se configure dans Loonext sur le web, et non dans cette application.",
+  linkChecking: "Vérification du lien…",
+  linkWorking: "Fonctionne",
+  linkBroken: "Ce lien ne fonctionne pas (erreur {status}). Obtenez un nouveau lien et réessayez.",
+  linkUnreachable:
+    "Impossible de joindre ce lien pour le vérifier. Vérifiez votre connexion, puis réessayez.",
+  linkCheckAgain: "Vérifier à nouveau",
 
   create: "Configurer mon calendrier",
   rotate: "Obtenir un nouveau lien",
@@ -205,9 +231,6 @@ export const calendarFeedFr: Translated<typeof calendarFeedEn> = {
 
   failed: "Ça n'a pas fonctionné. Réessayez.",
 
-  twoWayTitle: "Synchronisation bidirectionnelle du calendrier",
-  twoWayDescription:
-    "Replanifiez un travail qui vous est attribué dans Loonext ou son événement de calendrier lié; l'autre copie suivra.",
   twoWayDisclosure:
     "Loonext crée des événements de calendrier pour les travaux planifiés qui vous sont attribués et vérifie les changements d'horaire de ces événements liés. Il n'importe jamais les événements sans lien et n'invite jamais de clients. La connexion révoque votre flux de calendrier existant en lecture seule afin que chaque travail n'apparaisse qu'une fois.",
 
@@ -342,5 +365,4 @@ export const calendarFeedFr: Translated<typeof calendarFeedEn> = {
   connectionsLoadFailed:
     "Vos connexions de calendrier n'ont pas pu être chargées.",
   retryConnections: "Réessayer",
-  readOnlyFallback: "Utiliser plutôt le flux de calendrier en lecture seule",
 };

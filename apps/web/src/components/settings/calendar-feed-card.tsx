@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, CalendarClock, Check, Copy } from "lucide-react";
 
-import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
+import { checkFeedLink, type FeedLinkCheck } from "@/lib/calendar/check-feed-link";
 import { formatTimestamp } from "@/lib/format/time";
 import {
   useCalendarFeed,
@@ -17,6 +17,9 @@ import {
 
 /**
  * #245 — your scheduled work, in the calendar you already use.
+ *
+ * #744: the read-only option inside the one Calendar section. A link that was
+ * just created is fetched once to prove it answers.
  *
  * ## Evaluation
  *
@@ -55,6 +58,25 @@ export function CalendarFeedCard() {
   const [url, setUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
+  /** null while the check is running; set once the link has answered or not. */
+  const [linkCheck, setLinkCheck] = useState<FeedLinkCheck | null>(null);
+  const [checkRun, setCheckRun] = useState(0);
+
+  useEffect(() => {
+    if (!url) return;
+    let current = true;
+    void checkFeedLink(url).then((result) => {
+      if (current) setLinkCheck(result);
+    });
+    return () => {
+      current = false;
+    };
+  }, [url, checkRun]);
+
+  function recheck() {
+    setLinkCheck(null);
+    setCheckRun((n) => n + 1);
+  }
 
   const active = status.data?.active === true;
 
@@ -71,11 +93,7 @@ export function CalendarFeedCard() {
   }
 
   return (
-    <SettingsCard
-      id="calendar-read-only-feed"
-      title={t("calendarFeed.title")}
-      description={t("calendarFeed.description")}
-    >
+    <div id="calendar-read-only-feed">
       {status.isLoading ? (
         <Skeleton className="h-9 w-48" />
       ) : url ? (
@@ -103,6 +121,39 @@ export function CalendarFeedCard() {
               <code className="block overflow-x-auto break-all rounded border bg-background px-3 py-2 font-mono text-xs">
                 {url}
               </code>
+              {/* #744: the product proves the link answers before the person
+                  pastes it somewhere that would only say "could not subscribe". */}
+              <div role="status" className="flex flex-wrap items-center gap-2 text-[13px]">
+                {linkCheck === null ? (
+                  <span className="text-app-muted">
+                    {t("calendarFeed.linkChecking")}
+                  </span>
+                ) : linkCheck.state === "working" ? (
+                  <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
+                    <Check className="size-4" aria-hidden />
+                    {t("calendarFeed.linkWorking")}
+                  </span>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1.5 font-medium text-destructive">
+                      <AlertTriangle className="size-4" aria-hidden />
+                      {linkCheck.state === "error"
+                        ? t("calendarFeed.linkBroken", {
+                            status: String(linkCheck.status),
+                          })
+                        : t("calendarFeed.linkUnreachable")}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={recheck}
+                    >
+                      {t("calendarFeed.linkCheckAgain")}
+                    </Button>
+                  </>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={copy}>
                   {copied ? (
@@ -117,6 +168,7 @@ export function CalendarFeedCard() {
                   size="sm"
                   onClick={() => {
                     setUrl(null);
+                    setLinkCheck(null);
                     setCopied(false);
                   }}
                 >
@@ -204,6 +256,6 @@ export function CalendarFeedCard() {
           {t("calendarFeed.create")}
         </Button>
       )}
-    </SettingsCard>
+    </div>
   );
 }

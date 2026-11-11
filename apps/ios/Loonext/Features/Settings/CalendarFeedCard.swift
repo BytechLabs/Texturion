@@ -75,27 +75,60 @@ struct CalendarFeedCard: View {
 
     private var card: some View {
         SettingsCard(
-            title: t("calendarFeed.title"), anchor: "calendar-read-only-feed",
-            description: t("calendarFeed.description")
+            title: t("calendarFeed.sectionTitle"), anchor: "calendar",
+            description: t("calendarFeed.sectionDescription")
         ) {
-            if let url {
-                shownOnce(url)
-            } else {
-                switch state {
-                case .loading:
-                    ProgressView().controlSize(.small)
-                case .failed(let message):
-                    loadFailed(message)
-                case .ready(let status):
-                    if status.active {
-                        live(status)
-                    } else {
-                        setUpButton
+            VStack(alignment: .leading, spacing: 12) {
+                options
+                if let url {
+                    shownOnce(url)
+                } else {
+                    switch state {
+                    case .loading:
+                        ProgressView().controlSize(.small)
+                    case .failed(let message):
+                        loadFailed(message)
+                    case .ready(let status):
+                        if status.active {
+                            live(status)
+                        } else {
+                            setUpButton
+                        }
                     }
                 }
             }
         }
         .task { await load() }
+    }
+
+    // MARK: - The two ways (#744)
+
+    /// The choice, stated up front. The phones have no Google/Microsoft
+    /// connection screen (it is set up on the web), so the two-way option says
+    /// where it lives and the read-only link below is what this card does.
+    private var options: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(t("calendarFeed.twoWayOptionTitle"))
+                .font(.golos(13.5, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+            Text(t("calendarFeed.twoWayOptionPitch"))
+                .font(.golos(12))
+                .foregroundStyle(BrandColor.muted600)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(t("calendarFeed.twoWayOnPhone"))
+                .font(.golos(12))
+                .foregroundStyle(BrandColor.muted600)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(t("calendarFeed.subscribeOptionTitle"))
+                .font(.golos(13.5, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+                .padding(.top, 8)
+            Text(t("calendarFeed.subscribeOptionPitch"))
+                .font(.golos(12))
+                .foregroundStyle(BrandColor.muted600)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - The irreversible moment
