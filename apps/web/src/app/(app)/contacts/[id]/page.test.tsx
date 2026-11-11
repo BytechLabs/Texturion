@@ -13,6 +13,7 @@ const blockedRows = { current: [] as { id: string; phone_e164: string }[] };
 const state = {
   contact: null as unknown as ContactDetail,
   conversations: undefined as unknown,
+  query: "",
 };
 
 vi.mock("next/link", () => ({
@@ -31,6 +32,27 @@ vi.mock("next/link", () => ({
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/contacts/c-1",
+  useSearchParams: () => new URLSearchParams(state.query),
+}));
+// #740: the lists behind the tabs. Each stub names itself so a test can tell
+// which list is on screen; the rows are theirs to test.
+vi.mock("@/components/inbox/conversation-row", () => ({
+  ConversationRow: () => <li>conversation-row</li>,
+}));
+vi.mock("@/components/calls/call-row", () => ({
+  CallRow: () => <li>call-row</li>,
+}));
+vi.mock("@/lib/api/gallery", () => ({
+  useAttachmentGallery: () => ({
+    data: undefined,
+    isPending: false,
+    isError: false,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock("@/lib/api/contacts", () => ({
   useContact: () => ({
@@ -105,7 +127,15 @@ vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({ data: { data: [] } }),
 }));
 vi.mock("@/lib/api/conversations", () => ({
-  useConversations: () => ({ data: state.conversations }),
+  useConversations: () => ({
+    data: state.conversations,
+    isPending: false,
+    isError: false,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
+  }),
 }));
 // #133: the page mounts CallButton — stub the hook chain so the module graph
 // never reaches src/env.ts (which throws without NEXT_PUBLIC_* vars).
@@ -136,6 +166,15 @@ vi.mock("@/lib/api/task-links", () => ({
   useLinkedTasks: () => ({ data: undefined }),
 }));
 vi.mock("@/lib/api/calls", () => ({
+  useCalls: () => ({
+    data: undefined,
+    isPending: false,
+    isError: false,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
+  }),
   useVoicemailUrl: () => ({
     data: undefined,
     isFetching: false,
@@ -179,6 +218,7 @@ function render(id = "c-1"): string {
 beforeEach(() => {
   state.contact = contact();
   state.conversations = undefined; // no existing conversation by default
+  state.query = "";
   blockedRows.current = [];
 });
 
@@ -302,5 +342,83 @@ describe("/contacts/[id] block number (#696)", () => {
     const html = render("c-1");
     expect(html).toContain("Unblock number");
     expect(html).toContain("Blocked");
+  });
+});
+
+describe("/contacts/[id] sections (#740)", () => {
+  const withThreads = () => {
+    state.conversations = {
+      pages: [{ data: [{ id: "conv-9", status: "open" }], next_cursor: null }],
+      pageParams: [],
+    };
+  };
+  const tabs = ["activity", "conversations", "calls", "tasks", "files"] as const;
+  const marks = {
+    activity: "Messages",
+    conversations: "conversation-row",
+    calls: "No calls yet",
+    tasks: "No tasks yet",
+    files: "Photos and files shared",
+  };
+
+  it("offers every section as a tab, on a phone and on a desktop", () => {
+    const html = render("c-1");
+    for (const label of ["Details", "Activity", "Conversations", "Calls", "Tasks", "Files"]) {
+      expect(html).toContain(label);
+    }
+  });
+
+  it("shows one list at a time, whichever tab the link names", () => {
+    withThreads();
+    for (const tab of tabs) {
+      state.query = `tab=${tab}`;
+      const html = render("c-1");
+      expect(html, tab).toContain(marks[tab]);
+      for (const other of tabs.filter((name) => name !== tab)) {
+        if (other === "activity") continue;
+        expect(html, `${tab} hides ${other}`).not.toContain(marks[other]);
+      }
+      // The timeline is the only list with its own filter row.
+      if (tab !== "activity") expect(html).not.toContain("Changes");
+    }
+  });
+
+  it("keeps the details column on screen beside any tab", () => {
+    state.query = "tab=calls";
+    expect(render("c-1")).toContain("contact-name");
+  });
+
+  it("hides empty detail fields behind Add details", () => {
+    const html = render("c-1");
+    expect(html).toContain("Add details");
+    expect(html).toContain("contact-name");
+    for (const id of ["contact-business", "contact-address", "contact-email", "contact-notes"]) {
+      expect(html).not.toContain(id);
+    }
+  });
+
+  it("shows the fields that are filled, and no Add details when none is empty", () => {
+    state.contact = contact({
+      business_name: "Maple Property Group",
+      address: "12 Elm St",
+      email: "dana@example.com",
+      notes: "Gate code 4411",
+    });
+    const html = render("c-1");
+    expect(html).not.toContain("Add details");
+    for (const id of ["contact-business", "contact-address", "contact-email", "contact-notes"]) {
+      expect(html).toContain(id);
+    }
+  });
+
+  it("keeps the header actions, tags and consent reachable on every tab", () => {
+    for (const query of ["", "tab=files", "tab=calls"]) {
+      state.query = query;
+      const html = render("c-1");
+      expect(html).toContain("Message");
+      expect(html).toContain("Add a tag");
+      expect(html).toContain("Consent");
+      expect(html).toContain("Block number");
+    }
   });
 });

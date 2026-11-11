@@ -70,6 +70,14 @@ struct ContactDetailView: View {
     /// #695: the workspace's tag list, for the picker. Empty when the read
     /// fails: the picker then offers only "new", and the server decides.
     @State private var workspaceTags: [Tag] = []
+    /// #740: one thing at a time on a phone: Details, Activity or Files, with the
+    /// customer's conversations, calls and tasks one tap inside Activity.
+    @State private var tab: ContactTab = .details
+    @State private var pane: ContactActivityPane = .timeline
+    /// #740: the fields that were empty when the screen opened, so clearing the one you
+    /// are typing in does not fold it away. Nil until the first load.
+    @State private var initiallyEmpty: [ContactDetailField]?
+    @State private var addingDetails = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLocale) private var appLocale
@@ -205,9 +213,9 @@ struct ContactDetailView: View {
 
     private func load() async {
         do {
-            state = .ready(
-                try await mutations.detail(companyId: companyId, contactId: contactId)
-            )
+            let loaded = try await mutations.detail(companyId: companyId, contactId: contactId)
+            if initiallyEmpty == nil { initiallyEmpty = emptyContactDetailFields(loaded) }
+            state = .ready(loaded)
         } catch let error as ApiError where error.code == ApiErrorCode.notFound {
             state = .failed(
                 message: t("contactsTasks.contactGone"), notFound: true
@@ -342,16 +350,31 @@ struct ContactDetailView: View {
     /// assignments, references), the same one a job, a thread and a call show.
     /// It replaces the #324 History section.
     private func activitySection(_ contact: Contact) -> some View {
-        ContactSection(title: AppStrings.translate(appLocale, "activity.heading")) {
-            ActivityTimelineView(
-                graph: graph,
-                companyId: companyId,
-                recordType: .contact,
-                recordId: contact.id,
-                onOpenConversation: activityOpenConversation,
-                onOpenTask: { AppRouter.shared.openTaskId = $0 }
-            )
-        }
+        ActivityTimelineView(
+            graph: graph,
+            companyId: companyId,
+            recordType: .contact,
+            recordId: contact.id,
+            onOpenConversation: activityOpenConversation,
+            onOpenTask: { AppRouter.shared.openTaskId = $0 }
+        )
+    }
+
+    private var tabOptions: [SegmentedOption<ContactTab>] {
+        ContactTab.allCases.map { SegmentedOption($0, title: t($0.labelKey)) }
+    }
+
+    private var paneOptions: [SegmentedOption<ContactActivityPane>] {
+        ContactActivityPane.allCases.map { SegmentedOption($0, title: t($0.labelKey)) }
+    }
+
+    /// #740: the fields still folded behind "Add details".
+    private func hiddenFields(_ contact: Contact) -> Set<ContactDetailField> {
+        hiddenContactDetailFields(
+            initiallyEmpty: initiallyEmpty ?? emptyContactDetailFields(contact),
+            emptyNow: emptyContactDetailFields(contact),
+            adding: addingDetails
+        )
     }
 
     /// The timeline hands back the message too; a customer's screen only opens the thread.
@@ -392,30 +415,58 @@ struct ContactDetailView: View {
                         }
                     )
                 }
-                consentCard(contact)
-                detailsCard(contact)
-                tagsCard(contact)
-                attributionCaption(contact)
-                conversationSection
-                // #690: tasks for this customer, and tasks that point at them.
-                VStack(alignment: .leading, spacing: 6) {
-                    SectionHeader(label: AppStrings.translate(appLocale, "taskRefs.linkedTitle"))
+                SegmentedControl(
+                    options: tabOptions,
+                    selected: tab
+                ) { tab = $0 }
+                if tab == .activity {
+                    SegmentedControl(
+                        options: paneOptions,
+                        selected: pane,
+                        size: .compact
+                    ) { pane = $0 }
+                }
+                let block = contactBlockOnScreen(tab: tab, pane: pane)
+                if block == .details {
+                    consentCard(contact)
+                    detailsCard(contact)
+                    tagsCard(contact)
+                    attributionCaption(contact)
+                    manageCard(contact)
+                }
+                if block == .conversations {
+                    conversationSection
+                }
+                if block == .tasks {
+                    // #690: tasks for this customer, and tasks that point at them.
                     LinkedTasksSection(
                         references: TaskReferencesApi(api: graph.api),
                         companyId: companyId,
                         target: .contact(contact.id),
-                        onOpenTask: { AppRouter.shared.openTaskId = $0 }
+                        onOpenTask: { AppRouter.shared.openTaskId = $0 },
+                        limit: contactListCap
                     )
                 }
-                activitySection(contact)
-                // Calls stays the place a voicemail plays in place.
-                ContactCallsSection(
-                    graph: graph,
-                    companyId: companyId,
-                    contactId: contact.id,
-                    onOpenConversation: onOpenConversation
-                )
-                manageCard(contact)
+                if block == .timeline {
+                    activitySection(contact)
+                }
+                if block == .calls {
+                    // Calls stays the place a voicemail plays in place.
+                    ContactCallsSection(
+                        graph: graph,
+                        companyId: companyId,
+                        contactId: contact.id,
+                        onOpenConversation: onOpenConversation,
+                        showsHeading: false
+                    )
+                }
+                if block == .files {
+                    ContactFilesSection(
+                        graph: graph,
+                        companyId: companyId,
+                        conversationId: conversationId
+                    )
+                }
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
@@ -649,7 +700,8 @@ struct ContactDetailView: View {
 
     /// Spec 07 details card: label-left autosave rows with hairline dividers.
     private func detailsCard(_ contact: Contact) -> some View {
-        PaperCard {
+        let hidden = hiddenFields(contact)
+        return PaperCard {
             AutosaveField(
                 label: t("contactsTasks.nameField"),
                 initial: contact.name ?? "",
@@ -663,6 +715,7 @@ struct ContactDetailView: View {
             }
             .id("\(contact.id)|name")
             RowDivider()
+            if !hidden.contains(.business) {
             // #291: directly under the name, because for a property manager or
             // a general contractor it IS the name — "Dave" is not a useful
             // record, "Dave at Maple Property Group" is.
@@ -682,6 +735,8 @@ struct ContactDetailView: View {
             }
             .id("\(contact.id)|business_name")
             RowDivider()
+            }
+            if !hidden.contains(.address) {
             AutosaveField(
                 label: t("contactsTasks.address"),
                 initial: contact.address ?? "",
@@ -694,6 +749,7 @@ struct ContactDetailView: View {
                 )
             }
             .id("\(contact.id)|address")
+            }
             // #291: the OTHER addresses, absent until there are any. The row
             // above stays the one-address case, which is most of them.
             //
@@ -738,6 +794,7 @@ struct ContactDetailView: View {
                 }
             )
             RowDivider()
+            if !hidden.contains(.address) {
             AddressList(
                 addresses: contact.addresses ?? [],
                 onAdd: { label, address in
@@ -784,6 +841,8 @@ struct ContactDetailView: View {
                 }
             )
             RowDivider()
+            }
+            if !hidden.contains(.email) {
             // #291: beside the address rather than beside the phone, because it
             // answers the same question — how we reach them when a text is the
             // wrong shape for what we are sending.
@@ -803,6 +862,8 @@ struct ContactDetailView: View {
             }
             .id("\(contact.id)|email")
             RowDivider()
+            }
+            if !hidden.contains(.notes) {
             AutosaveField(
                 label: t("contactsTasks.notesField"),
                 initial: contact.notes ?? "",
@@ -816,6 +877,27 @@ struct ContactDetailView: View {
             }
             .id("\(contact.id)|notes")
             RowDivider()
+            }
+            if !hidden.isEmpty {
+                Button {
+                    addingDetails = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .font(.scaled(IconSize.small, weight: .semibold))
+                            .accessibilityHidden(true)
+                        Text(t("contactsTasks.addDetails"))
+                            .font(.golos(13, weight: .medium))
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(BrandColor.muted500)
+                    .padding(.horizontal, 15)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                RowDivider()
+            }
             // #291: the fields this workspace defined for itself. Renders
             // nothing at all until somebody defines one, so a crew that never
             // opens the settings screen never sees an empty heading.
@@ -1116,7 +1198,6 @@ struct ContactDetailView: View {
     private var conversationSection: some View {
         if let conversationId, let onOpenConversation {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(label: t("contactsTasks.conversationsSection"), count: 1)
                 PaperCard {
                     Button {
                         onOpenConversation(conversationId)
@@ -1137,6 +1218,12 @@ struct ContactDetailView: View {
                     .buttonStyle(.plain)
                 }
             }
+        } else {
+            EmptyState(
+                title: t("contactsTasks.noConversationsYet"),
+                systemImage: "bubble.left.and.bubble.right",
+                size: .panel
+            )
         }
     }
 
@@ -1565,7 +1652,10 @@ private struct ContactCallsSection: View {
     let companyId: String
     let contactId: String
     let onOpenConversation: ((_ conversationId: String) -> Void)?
+    /// #740: the Calls tab names the list, so it draws no heading of its own.
+    var showsHeading = true
 
+    @State private var showAll = false
     @State private var state: LoadState<[Call]> = .loading
     @State private var nextCursor: String?
     @State private var loadingMore = false
@@ -1576,8 +1666,14 @@ private struct ContactCallsSection: View {
     private var service: CallsService { CallsService(api: graph.api) }
 
     var body: some View {
-        ContactSection(title: AppStrings.translate(appLocale, "contactsTasks.callsSection")) {
-            content
+        Group {
+            if showsHeading {
+                ContactSection(title: AppStrings.translate(appLocale, "contactsTasks.callsSection")) {
+                    content
+                }
+            } else {
+                content
+            }
         }
         .task(id: "\(contactId)|\(refreshKey)") { await reload() }
         // Realtime: the calls table's DB trigger broadcasts call.updated
@@ -1621,7 +1717,12 @@ private struct ContactCallsSection: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 6)
             } else {
-                readyList(groupContactCallsByDay(calls))
+                // #740: the first few calls, with "Show all" for the rest.
+                readyList(
+                    groupContactCallsByDay(cappedContactRows(calls, showAll: showAll)),
+                    total: calls.count,
+                    shown: cappedContactRows(calls, showAll: showAll).count
+                )
             }
         }
     }
@@ -1642,7 +1743,7 @@ private struct ContactCallsSection: View {
         )
     }
 
-    private func readyList(_ groups: [CallDayGroup]) -> some View {
+    private func readyList(_ groups: [CallDayGroup], total: Int, shown: Int) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(groups) { group in
                 SectionHeader(label: group.label, count: group.calls.count)
@@ -1662,7 +1763,23 @@ private struct ContactCallsSection: View {
                     }
                 }
             }
-            if nextCursor != nil {
+            if shown < total {
+                HStack {
+                    Spacer()
+                    Button(
+                        AppStrings.translate(
+                            appLocale,
+                            "contactsTasks.showAll",
+                            ["count": String(total)]
+                        )
+                    ) { showAll = true }
+                        .font(.golos(12, weight: .semibold))
+                        .foregroundStyle(BrandColor.olive)
+                        .buttonStyle(.plain)
+                    Spacer()
+                }
+                .padding(.top, 8)
+            } else if nextCursor != nil {
                 HStack {
                     Spacer()
                     if loadingMore {

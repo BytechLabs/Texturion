@@ -36,14 +36,18 @@ export function useCallEffects(enabled: boolean) {
   });
 }
 
-export function useCalls(outcome?: CallOutcomeFilter, reason?: string) {
+export function useCalls(
+  outcome?: CallOutcomeFilter,
+  reason?: string,
+  contactId?: string,
+) {
   const companyId = useCompanyId();
   return useInfiniteQuery({
-    queryKey: keys.calls(companyId, outcome ?? "all", reason ?? "any"),
+    queryKey: keys.calls(companyId, outcome ?? "all", reason ?? "any", contactId ?? "any"),
     queryFn: ({ pageParam }) =>
       apiFetch<Page<Call>>("/v1/calls", {
         companyId,
-        searchParams: { cursor: pageParam, outcome, reason },
+        searchParams: { cursor: pageParam, outcome, reason, contact_id: contactId },
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,

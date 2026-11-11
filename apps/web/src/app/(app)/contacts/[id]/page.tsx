@@ -1,8 +1,8 @@
 "use client";
 
-import { ChevronLeft, Clock, Copy, SquarePen } from "lucide-react";
+import { ChevronLeft, Clock, Copy, Plus, SquarePen } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,13 +15,24 @@ import {
 } from "@/components/blocked/block-number";
 import { CallButton } from "@/components/calls/call-button";
 import { NewTaskButton } from "@/components/tasks/new-task";
-import { LinkedTasks } from "@/components/tasks/linked-tasks";
 import { ContactLanguage } from "@/components/contact-panel/contact-language";
 import { AddressList } from "@/components/contacts/address-list";
 import { PhoneList } from "@/components/contacts/phone-list";
 import { ExportHistory } from "@/components/contacts/export-history";
 import { ContactCustomFields } from "@/components/contacts/custom-fields";
-import { ActivityTimeline } from "@/components/activity/activity-timeline";
+import { ContactHistory } from "@/components/contacts/contact-history";
+import {
+  CONTACT_PANES,
+  PHONE_ACTIVITY_PANES,
+  emptyDetailFields,
+  paneOf,
+  parseContactTab,
+  phoneTabOf,
+  type ContactPane,
+  type ContactTab,
+  type DetailField,
+  type PhoneTab,
+} from "@/components/contacts/contact-tabs";
 import { ContactTags } from "@/components/contacts/contact-tags";
 import { MergedFrom } from "@/components/contacts/merged-from";
 import { SettingsCard } from "@/components/settings/section";
@@ -34,6 +45,7 @@ import { useContactActions } from "@/components/contacts/contact-record-actions"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchablePicker } from "@/components/ui/searchable-picker";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n/provider";
@@ -171,9 +183,7 @@ function RecordAttribution({ contact }: { contact: ContactDetail }) {
   return (
     <div className="space-y-0.5 text-xs text-muted-foreground">
       {addedBy && (
-        <p>
-          {t("appShell.contactAddedBy", { name: addedBy, date: addedOn })}
-        </p>
+        <p>{t("appShell.contactAddedBy", { name: addedBy, date: addedOn })}</p>
       )}
       {editedBy && editedBy !== addedBy && (
         <p>{t("appShell.contactEditedBy", { name: editedBy })}</p>
@@ -218,35 +228,34 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
         : t("appShell.contactClockUnknown");
 
   function save(next: string | null) {
-    update.mutate(
-      { timezone: next } as ContactPatch,
-      {
-        onSuccess: () => {
-          setEditing(false);
-          toast.success(
-            next
-              ? t("appShell.contactTimezoneUpdated")
-              : t("appShell.contactTimezoneReset"),
-          );
-        },
-        onError: (cause) =>
-          toast.error(
-            cause instanceof ApiError
-              ? cause.message
-              : t("appShell.contactTimezoneSaveFailed"),
-          ),
+    update.mutate({ timezone: next } as ContactPatch, {
+      onSuccess: () => {
+        setEditing(false);
+        toast.success(
+          next
+            ? t("appShell.contactTimezoneUpdated")
+            : t("appShell.contactTimezoneReset"),
+        );
       },
-    );
+      onError: (cause) =>
+        toast.error(
+          cause instanceof ApiError
+            ? cause.message
+            : t("appShell.contactTimezoneSaveFailed"),
+        ),
+    });
   }
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="contact-timezone">
-        {t("appShell.contactTheirTime")}
-      </Label>
+      <Label htmlFor="contact-timezone">{t("appShell.contactTheirTime")}</Label>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <p className="flex items-center gap-1.5 text-sm">
-          <Clock className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden />
+          <Clock
+            className="size-4 text-muted-foreground"
+            strokeWidth={1.75}
+            aria-hidden
+          />
           <span className="tabular-nums">{reading}</span>
         </p>
         <p className="text-xs text-muted-foreground">{provenance}</p>
@@ -327,6 +336,50 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   const email = useAutosave(contact.id, "email", contact.email ?? "");
   const notes = useAutosave(contact.id, "notes", contact.notes ?? "");
 
+  // #740: the page's tab lives in the URL, so a link can open one. A desktop
+  // shows the details beside every tab; a phone shows one tab at a time.
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tab = parseContactTab(searchParams.get("tab"));
+  function selectTab(next: ContactTab) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "details") params.delete("tab");
+    else params.set("tab", next);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }
+  const paneLabel: Record<ContactPane, string> = {
+    activity: t("appShell.contactTabActivity"),
+    conversations: t("appShell.contactTabConversations"),
+    calls: t("appShell.contactTabCalls"),
+    tasks: t("appShell.contactTabTasks"),
+    files: t("appShell.contactTabFiles"),
+  };
+  const phoneTab = phoneTabOf(tab);
+  const phoneTabs: { value: PhoneTab; label: string }[] = [
+    { value: "details", label: t("appShell.contactTabDetails") },
+    { value: "activity", label: paneLabel.activity },
+    { value: "files", label: paneLabel.files },
+  ];
+
+  // #740: fields nobody has filled in sit behind "Add details". Decided when
+  // the page opens, so clearing a field you are typing in does not make it
+  // vanish under your cursor.
+  const [initiallyEmpty] = useState<DetailField[]>(() =>
+    emptyDetailFields(contact),
+  );
+  const [addingDetails, setAddingDetails] = useState(false);
+  const emptyNow = emptyDetailFields(contact);
+  const hidden = (field: DetailField) =>
+    !addingDetails &&
+    initiallyEmpty.includes(field) &&
+    emptyNow.includes(field);
+  const anyHidden = (["business", "address", "email", "notes"] as const).some(
+    hidden,
+  );
+
   const [confirmingOptOut, setConfirmingOptOut] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingBlock, setConfirmingBlock] = useState(false);
@@ -354,45 +407,56 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   );
 
   return (
-    <div className="space-y-6">
-      {/* #695: only when a record was folded into this one. */}
-      <MergedFrom contact={contact} />
-      <RecordHeader
-        title={
-          // The name leads, as in every list and on the phones; a contact
-          // with no name is titled by its number.
-          <div className="flex flex-wrap items-center gap-2">
-            <p className={cn("text-xl font-medium", !named && "tabular-nums")}>
-              {contactDisplayName(contact, t)}
-            </p>
-            {!named && copyNumber}
-            {contact.opted_out && (
-              <Badge variant="outline" className="border-destructive text-foreground">
-                {t("appShell.contactOptedOutBadge")}
-              </Badge>
-            )}
-            {blockedNumber.blocked && (
-              <Badge variant="outline">{t("blockedNumbers.blockedBadge")}</Badge>
-            )}
-          </div>
-        }
-        meta={
-          named ? (
-            <div className="flex items-center gap-1">
-              <p className="text-sm text-app-muted tabular-nums">
-                {formatPhone(contact.phone_e164)}
+    // #740: who they are on the left, what happened on the right. On a phone
+    // the two columns are one: the header, then a control that picks Details,
+    // Activity or Files.
+    <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start lg:gap-8 lg:space-y-0">
+      <div className="min-w-0 space-y-6">
+        {/* #695: only when a record was folded into this one. */}
+        <MergedFrom contact={contact} />
+        <RecordHeader
+          title={
+            // The name leads, as in every list and on the phones; a contact
+            // with no name is titled by its number.
+            <div className="flex flex-wrap items-center gap-2">
+              <p
+                className={cn("text-xl font-medium", !named && "tabular-nums")}
+              >
+                {contactDisplayName(contact, t)}
               </p>
-              {copyNumber}
+              {!named && copyNumber}
+              {contact.opted_out && (
+                <Badge
+                  variant="outline"
+                  className="border-destructive text-foreground"
+                >
+                  {t("appShell.contactOptedOutBadge")}
+                </Badge>
+              )}
+              {blockedNumber.blocked && (
+                <Badge variant="outline">
+                  {t("blockedNumbers.blockedBadge")}
+                </Badge>
+              )}
             </div>
-          ) : undefined
-        }
-        actions={
-          <>
-            {/* #73/#82: message this contact. Contextual — if a conversation already
+          }
+          meta={
+            named ? (
+              <div className="flex items-center gap-1">
+                <p className="text-sm text-app-muted tabular-nums">
+                  {formatPhone(contact.phone_e164)}
+                </p>
+                {copyNumber}
+              </div>
+            ) : undefined
+          }
+          actions={
+            <>
+              {/* #73/#82: message this contact. Contextual — if a conversation already
                 exists, open it; otherwise start one via the compose flow (which
                 prefills the recipient from ?contact=). Opted-out contacts are gated
                 honestly by the composer's own opt-out banner. */}
-            {/* #135: call ANY contact — including a fresh import you've never
+              {/* #135: call ANY contact — including a fresh import you've never
                 texted. From an existing thread (its number presents as caller ID)
                 or straight from the contact (the server resolves the business
                 number; threading creates the conversation on answer). Opted-out
@@ -400,178 +464,224 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                 may be the only channel). #106 note-level members get the API's
                 honest error — the list row carries no viewer level to gate
                 client-side. */}
-            <CallButton
-              conversationId={existingConversation?.id}
-              contactId={existingConversation ? undefined : contact.id}
-              contactName={contact.name?.trim() || formatPhone(contact.phone_e164)}
-              label={t("shell.call")}
-              variant="outline"
-            />
-            <NewTaskButton
-              context={{
-                contactId: contact.id,
-                contactName: contact.name?.trim() || formatPhone(contact.phone_e164),
-              }}
-            />
-            <Button asChild>
-              <Link
-                href={
-                  existingConversation
-                    ? `/inbox/${existingConversation.id}`
-                    : `/inbox/new?contact=${contact.id}`
+              <CallButton
+                conversationId={existingConversation?.id}
+                contactId={existingConversation ? undefined : contact.id}
+                contactName={
+                  contact.name?.trim() || formatPhone(contact.phone_e164)
                 }
-              >
-                <SquarePen strokeWidth={1.75} />
-                {existingConversation
-                  ? t("appShell.contactOpenConversation")
-                  : t("appShell.contactMessage")}
-              </Link>
-            </Button>
-            <RecordOverflowMenu
-              actions={menuActions}
-              label={t("recordMenu.moreActionsFor", {
-                name: contact.name?.trim() || formatPhone(contact.phone_e164),
-              })}
-            />
-          </>
-        }
-      />
+                label={t("shell.call")}
+                variant="outline"
+              />
+              <NewTaskButton
+                context={{
+                  contactId: contact.id,
+                  contactName:
+                    contact.name?.trim() || formatPhone(contact.phone_e164),
+                }}
+              />
+              <Button asChild>
+                <Link
+                  href={
+                    existingConversation
+                      ? `/inbox/${existingConversation.id}`
+                      : `/inbox/new?contact=${contact.id}`
+                  }
+                >
+                  <SquarePen strokeWidth={1.75} />
+                  {existingConversation
+                    ? t("appShell.contactOpenConversation")
+                    : t("appShell.contactMessage")}
+                </Link>
+              </Button>
+              <RecordOverflowMenu
+                actions={menuActions}
+                label={t("recordMenu.moreActionsFor", {
+                  name: contact.name?.trim() || formatPhone(contact.phone_e164),
+                })}
+              />
+            </>
+          }
+        />
 
-      {contact.opted_out && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
-          <p className="text-sm">{t("appShell.contactOptedOutNotice")}</p>
-          {/* Which kind of opt-out decides whether there is anything to press.
+        {contact.opted_out && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+            <p className="text-sm">{t("appShell.contactOptedOutNotice")}</p>
+            {/* Which kind of opt-out decides whether there is anything to press.
               A carrier block is a carrier block: undoing our record would not
               lift it, and the very next send would come back rejected anyway.
               #331 added a second source with the same consequence, so this
               asks the predicate rather than naming one. */}
-          {isCarrierEnforcedOptOut(contact.opt_out_source) ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              {t("appShell.contactCarrierOptOut")}
-            </p>
-          ) : (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={revoke.isPending}
-                onClick={() =>
-                  revoke.mutate(contact.id, {
-                    onSuccess: () =>
-                      toast.success(t("appShell.contactOptedBackIn")),
-                    onError: (cause) =>
-                      toast.error(
-                        cause instanceof ApiError
-                          ? cause.message
-                          : t("appShell.contactOptInFailed"),
-                      ),
-                  })
-                }
-              >
-                {revoke.isPending
-                  ? t("appShell.contactWorking")
-                  : t("appShell.contactMarkOptedIn")}
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                {t("appShell.contactManualOptOutNote")}
+            {isCarrierEnforcedOptOut(contact.opt_out_source) ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {t("appShell.contactCarrierOptOut")}
               </p>
-            </div>
-          )}
-        </div>
-      )}
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={revoke.isPending}
+                  onClick={() =>
+                    revoke.mutate(contact.id, {
+                      onSuccess: () =>
+                        toast.success(t("appShell.contactOptedBackIn")),
+                      onError: (cause) =>
+                        toast.error(
+                          cause instanceof ApiError
+                            ? cause.message
+                            : t("appShell.contactOptInFailed"),
+                        ),
+                    })
+                  }
+                >
+                  {revoke.isPending
+                    ? t("appShell.contactWorking")
+                    : t("appShell.contactMarkOptedIn")}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {t("appShell.contactManualOptOutNote")}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
-      <SettingsCard title={t("appShell.contactDetailsCard")}>
-        <div className="space-y-4">
-          {/* #291: FIRST, and above the name, because it belongs to the number
+        <SegmentedControl
+          className="lg:hidden"
+          fill
+          ariaLabel={t("appShell.contactTabsAria")}
+          value={phoneTab}
+          options={phoneTabs}
+          onChange={(next) =>
+            selectTab(
+              next === "activity" && phoneTab === "activity" ? tab : next,
+            )
+          }
+        />
+
+        <div
+          className={cn("space-y-6 lg:block", tab !== "details" && "hidden")}
+        >
+          <SettingsCard title={t("appShell.contactDetailsCard")}>
+            <div className="space-y-4">
+              {/* #291: FIRST, and above the name, because it belongs to the number
               in the header rather than to the record below it — the same
               question, answered twice over. Absent entirely until a crew adds
               one, so most records read exactly as they did before.
               *Applying: Relationship Strength — the closest semantic pair on
               the page gets the tightest grouping.* */}
-          <PhoneList contact={contact} />
-          <div className="space-y-1.5">
-            <Label htmlFor="contact-name">{t("appShell.contactName")}</Label>
-            <Input
-              id="contact-name"
-              value={name.value}
-              maxLength={200}
-              placeholder={t("appShell.contactNamePlaceholder")}
-              onChange={(event) => name.onChange(event.target.value)}
-            />
-            <SaveStatus state={name.state} />
-          </div>
-          {/* #291: directly under the name, because for a property manager
+              <PhoneList contact={contact} />
+              <div className="space-y-1.5">
+                <Label htmlFor="contact-name">
+                  {t("appShell.contactName")}
+                </Label>
+                <Input
+                  id="contact-name"
+                  value={name.value}
+                  maxLength={200}
+                  placeholder={t("appShell.contactNamePlaceholder")}
+                  onChange={(event) => name.onChange(event.target.value)}
+                />
+                <SaveStatus state={name.state} />
+              </div>
+              {/* #291: directly under the name, because for a property manager
               or a general contractor it IS the name — "Dave" is not a useful
               record, "Dave at Maple Property Group" is.
               *Applying: Relationship Strength — a strong semantic pair gets
               tight grouping.* */}
-          <div className="space-y-1.5">
-            <Label htmlFor="contact-business">
-              {t("appShell.contactBusiness")}
-            </Label>
-            <Input
-              id="contact-business"
-              value={businessName.value}
-              maxLength={200}
-              placeholder={t("appShell.contactBusinessPlaceholder")}
-              autoComplete="off"
-              onChange={(event) => businessName.onChange(event.target.value)}
-            />
-            <SaveStatus state={businessName.state} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="contact-address">
-              {t("appShell.contactAddress")}
-            </Label>
-            <Input
-              id="contact-address"
-              value={address.value}
-              maxLength={500}
-              placeholder={t("appShell.contactAddressPlaceholder")}
-              autoComplete="off"
-              onChange={(event) => address.onChange(event.target.value)}
-            />
-            <SaveStatus state={address.state} />
-            {/* #291: the OTHER addresses, absent until there are any. The
+              {!hidden("business") && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="contact-business">
+                    {t("appShell.contactBusiness")}
+                  </Label>
+                  <Input
+                    id="contact-business"
+                    value={businessName.value}
+                    maxLength={200}
+                    placeholder={t("appShell.contactBusinessPlaceholder")}
+                    autoComplete="off"
+                    onChange={(event) =>
+                      businessName.onChange(event.target.value)
+                    }
+                  />
+                  <SaveStatus state={businessName.state} />
+                </div>
+              )}
+              {!hidden("address") && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="contact-address">
+                    {t("appShell.contactAddress")}
+                  </Label>
+                  <Input
+                    id="contact-address"
+                    value={address.value}
+                    maxLength={500}
+                    placeholder={t("appShell.contactAddressPlaceholder")}
+                    autoComplete="off"
+                    onChange={(event) => address.onChange(event.target.value)}
+                  />
+                  <SaveStatus state={address.state} />
+                  {/* #291: the OTHER addresses, absent until there are any. The
                 field above stays the one-address case, which is most of them —
                 a property manager with forty is the reason this exists, not
                 the reason every record should carry an empty list. */}
-            <AddressList contact={contact} />
-          </div>
-          {/* #291: beside the address rather than beside the phone, because
+                  <AddressList contact={contact} />
+                </div>
+              )}
+              {/* #291: beside the address rather than beside the phone, because
               it answers the same question — how do we reach them when a text
               is the wrong shape for what we are sending. */}
-          <div className="space-y-1.5">
-            <Label htmlFor="contact-email">{t("appShell.contactEmail")}</Label>
-            <Input
-              id="contact-email"
-              type="email"
-              value={email.value}
-              maxLength={254}
-              placeholder={t("appShell.contactEmailPlaceholder")}
-              autoComplete="off"
-              onChange={(event) => email.onChange(event.target.value)}
-            />
-            <SaveStatus state={email.state} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="contact-notes">{t("appShell.contactNotes")}</Label>
-            <Textarea
-              id="contact-notes"
-              value={notes.value}
-              maxLength={5000}
-              rows={4}
-              placeholder={t("appShell.contactNotesPlaceholder")}
-              onChange={(event) => notes.onChange(event.target.value)}
-            />
-            <SaveStatus state={notes.state} />
-          </div>
-          {/* #291: the fields this workspace defined for itself. Absent
+              {!hidden("email") && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="contact-email">
+                    {t("appShell.contactEmail")}
+                  </Label>
+                  <Input
+                    id="contact-email"
+                    type="email"
+                    value={email.value}
+                    maxLength={254}
+                    placeholder={t("appShell.contactEmailPlaceholder")}
+                    autoComplete="off"
+                    onChange={(event) => email.onChange(event.target.value)}
+                  />
+                  <SaveStatus state={email.state} />
+                </div>
+              )}
+              {!hidden("notes") && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="contact-notes">
+                    {t("appShell.contactNotes")}
+                  </Label>
+                  <Textarea
+                    id="contact-notes"
+                    value={notes.value}
+                    maxLength={5000}
+                    rows={4}
+                    placeholder={t("appShell.contactNotesPlaceholder")}
+                    onChange={(event) => notes.onChange(event.target.value)}
+                  />
+                  <SaveStatus state={notes.state} />
+                </div>
+              )}
+              {anyHidden && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="-ml-2 text-muted-foreground"
+                  onClick={() => setAddingDetails(true)}
+                >
+                  <Plus strokeWidth={1.75} />
+                  {t("appShell.contactAddDetails")}
+                </Button>
+              )}
+              {/* #291: the fields this workspace defined for itself. Absent
               entirely until somebody defines one, so a crew that never opens
               the settings screen never sees an empty heading. */}
-          <ContactCustomFields contact={contact} />
-          <DestinationClock contact={contact} />
-          {/* #228: the same control the thread panel carries, because a
+              <ContactCustomFields contact={contact} />
+              <DestinationClock contact={contact} />
+              {/* #228: the same control the thread panel carries, because a
               contact nobody has texted yet has no thread and therefore no
               panel. A language you can only set on customers who already wrote
               to you is not a setting a crew can rely on.
@@ -579,94 +689,134 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               A heading rather than a Label: a radiogroup has no single control
               for htmlFor to point at, and the group already carries its own
               accessible name. */}
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium">
-              {t("appShell.contactLanguage")}
-            </p>
-            <ContactLanguage contact={contact} />
-          </div>
-          <RecordAttribution contact={contact} />
-        </div>
-      </SettingsCard>
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">
+                  {t("appShell.contactLanguage")}
+                </p>
+                <ContactLanguage contact={contact} />
+              </div>
+              <RecordAttribution contact={contact} />
+            </div>
+          </SettingsCard>
 
-      <ContactTags contact={contact} />
+          <ContactTags contact={contact} />
 
-      <SettingsCard title={t("appShell.contactConsentCard")}>
-        <ConsentLine contact={contact} />
-      </SettingsCard>
+          <SettingsCard title={t("appShell.contactConsentCard")}>
+            <ConsentLine contact={contact} />
+          </SettingsCard>
 
-      {/* #714: ONE activity timeline for the customer (texts, calls, edits,
-          tags, merges, opt-outs, blocks, assignments, mentions, references),
-          the same one a job, a thread and a call show. It replaces the
-          History and Call history cards. */}
-      <LinkedTasks kind="contact" id={contact.id} />
-      <ActivityTimeline recordType="contact" recordId={contact.id} />
-
-      {/* §3.3: the danger zone stays genuinely quiet — these are routine,
+          {/* §3.3: the danger zone stays genuinely quiet — these are routine,
           reversible actions, so the triggers are neutral until hovered, no red
           scare-styling. The typed/confirm gauntlet lives in the dialogs. */}
-      <SettingsCard title={t("appShell.contactManageCard")}>
-        <div className="space-y-4">
-          {/* #304: first in this card, because it is the only thing here that
+          <SettingsCard title={t("appShell.contactManageCard")}>
+            <div className="space-y-4">
+              {/* #304: first in this card, because it is the only thing here that
               is not destructive — and absent entirely for anybody without
               contacts.bulk, so most crews never see it. */}
-          <ExportHistory contactId={contact.id} />
-          {!contact.opted_out && (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-muted-foreground">
-                {t("appShell.contactStopTexting")}
-              </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-destructive"
-                onClick={() => setConfirmingOptOut(true)}
-              >
-                {t("appShell.contactOptOutAction")}
-              </Button>
+              <ExportHistory contactId={contact.id} />
+              {!contact.opted_out && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    {t("appShell.contactStopTexting")}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => setConfirmingOptOut(true)}
+                  >
+                    {t("appShell.contactOptOutAction")}
+                  </Button>
+                </div>
+              )}
+              {blockedNumber.canManage && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    {blockedNumber.blocked
+                      ? t("blockedNumbers.manageNoteBlocked")
+                      : t("blockedNumbers.manageNote")}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    disabled={blockedNumber.unblocking}
+                    onClick={() =>
+                      blockedNumber.blocked
+                        ? blockedNumber.unblock()
+                        : setConfirmingBlock(true)
+                    }
+                  >
+                    {blockedNumber.blocked
+                      ? t("blockedNumbers.unblockAction")
+                      : t("blockedNumbers.blockAction")}
+                  </Button>
+                </div>
+              )}
+              {canDelete && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    {t("appShell.contactHideNote")}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => setConfirmingDelete(true)}
+                  >
+                    {t("appShell.contactDeleteAction")}
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
-          {blockedNumber.canManage && (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-muted-foreground">
-                {blockedNumber.blocked
-                  ? t("blockedNumbers.manageNoteBlocked")
-                  : t("blockedNumbers.manageNote")}
-              </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-destructive"
-                disabled={blockedNumber.unblocking}
-                onClick={() =>
-                  blockedNumber.blocked
-                    ? blockedNumber.unblock()
-                    : setConfirmingBlock(true)
-                }
-              >
-                {blockedNumber.blocked
-                  ? t("blockedNumbers.unblockAction")
-                  : t("blockedNumbers.blockAction")}
-              </Button>
-            </div>
-          )}
-          {canDelete && (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-muted-foreground">
-                {t("appShell.contactHideNote")}
-              </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-destructive"
-                onClick={() => setConfirmingDelete(true)}
-              >
-                {t("appShell.contactDeleteAction")}
-              </Button>
-            </div>
-          )}
+          </SettingsCard>
         </div>
-      </SettingsCard>
+      </div>
+
+      {/* #714/#740: ONE activity timeline for the customer (texts, calls,
+          edits, tags, merges, opt-outs, blocks, assignments, mentions,
+          references), the same one a job, a thread and a call show, with the
+          customer's conversations, calls, tasks and files each one tap away
+          behind the same control. */}
+      <div
+        className={cn(
+          "min-w-0 space-y-4 lg:block",
+          tab === "details" && "hidden",
+        )}
+      >
+        <SegmentedControl
+          className="hidden lg:flex"
+          ariaLabel={t("appShell.contactTabsAria")}
+          value={paneOf(tab)}
+          options={CONTACT_PANES.map((pane) => ({
+            value: pane,
+            label: paneLabel[pane],
+          }))}
+          onChange={selectTab}
+        />
+        {phoneTab === "activity" && (
+          <SegmentedControl
+            className="lg:hidden"
+            fill
+            size="sm"
+            ariaLabel={t("appShell.contactTabActivity")}
+            value={paneOf(tab)}
+            options={PHONE_ACTIVITY_PANES.map((pane) => ({
+              value: pane,
+              label:
+                pane === "activity"
+                  ? t("appShell.contactTabTimeline")
+                  : paneLabel[pane],
+            }))}
+            onChange={selectTab}
+          />
+        )}
+        <ContactHistory
+          contact={contact}
+          pane={paneOf(tab)}
+          conversationId={existingConversation?.id ?? null}
+        />
+      </div>
 
       <BlockNumberDialog
         phone={contact.phone_e164}
@@ -739,7 +889,7 @@ export default function ContactDetailPage({
   const contact = useContact(id);
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8 md:px-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 md:px-6">
       <Link
         href="/contacts"
         className="inline-flex min-h-[44px] items-center gap-1 text-sm text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground"

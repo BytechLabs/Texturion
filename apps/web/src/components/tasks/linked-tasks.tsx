@@ -2,7 +2,9 @@
 
 import { taskNumberLabel } from "@loonext/shared";
 import Link from "next/link";
+import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useLinkedTasks } from "@/lib/api/task-links";
@@ -20,29 +22,42 @@ export function LinkedTasks({
   id,
   active = true,
   shownElsewhere = [],
+  limit,
+  empty,
 }: {
   kind: "conversation" | "contact";
   id: string;
   active?: boolean;
   /** Tasks a list beside this one already shows, so none appears twice. */
   shownElsewhere?: readonly string[];
+  /** Cap the list at this many rows, with a "Show all" for the rest. */
+  limit?: number;
+  /** Drawn in place of nothing when no task is linked. */
+  empty?: React.ReactNode;
 }) {
   const t = useT();
   const linked = useLinkedTasks(kind, id, active);
+  const [all, setAll] = useState(false);
   const rows = (linked.data?.data ?? []).filter(
     (row) => !shownElsewhere.includes(row.id),
   );
-  if (rows.length === 0) return null;
+  if (rows.length === 0) return linked.isPending ? null : (empty ?? null);
+  const shown = limit !== undefined && !all ? rows.slice(0, limit) : rows;
   return (
     <section aria-label={t("tasks.linkedTasks")} className="space-y-1">
       <p className={SECTION_LABEL_CLASS}>
         {t("tasks.linkedTasks")}
       </p>
       <ul className="space-y-0.5">
-        {rows.map((row) => (
+        {shown.map((row) => (
           <LinkedRow key={row.id} row={row} />
         ))}
       </ul>
+      {shown.length < rows.length && (
+        <Button variant="ghost" size="sm" onClick={() => setAll(true)}>
+          {t("appShell.contactShowAll", { count: rows.length })}
+        </Button>
+      )}
     </section>
   );
 }

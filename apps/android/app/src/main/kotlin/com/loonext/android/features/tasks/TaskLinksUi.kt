@@ -95,8 +95,11 @@ fun LinkedTasksList(
      * says nothing at all rather than "none" when nothing is left.
      */
     shownElsewhere: Set<String>? = null,
+    /** #740: show this many rows, then "Show all". Null shows every row. */
+    limit: Int? = null,
 ) {
     val locale = LocalAppLocale.current
+    var showAll by remember(owner) { mutableStateOf(false) }
     var tasks by remember(owner) { mutableStateOf<List<LinkedTask>?>(null) }
     var failed by remember(owner) { mutableStateOf(false) }
     LaunchedEffect(owner, companyId) {
@@ -118,7 +121,7 @@ fun LinkedTasksList(
         loaded == null -> Unit
         loaded.isEmpty() -> if (shownElsewhere == null) MutedLine(t("taskLinks.linkedNone"))
         else -> Column {
-            loaded.forEach { task ->
+            (if (limit == null || showAll) loaded else loaded.take(limit)).forEach { task ->
                 TaskLinkRow(
                     label = taskLinkLabel(task.number, task.title),
                     done = task.done,
@@ -126,6 +129,11 @@ fun LinkedTasksList(
                     onOpen = onOpenTask?.let { open -> { open(task.id) } },
                     onRemove = null,
                 )
+            }
+            if (limit != null && !showAll && loaded.size > limit) {
+                TextButton(onClick = { showAll = true }) {
+                    Text(t("contactsTasks.showAll", "count" to loaded.size.toString()))
+                }
             }
         }
     }

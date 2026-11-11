@@ -70,6 +70,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,6 +113,12 @@ import com.loonext.android.ui.common.choicesBesideDefault
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.EmptyStateSize
+import com.loonext.android.ui.common.Segment
+import com.loonext.android.ui.common.SegmentedControl
+import com.loonext.android.ui.common.SegmentedSize
+import androidx.compose.material.icons.outlined.Add
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.features.tasks.NewTaskSheetHost
@@ -354,6 +361,16 @@ private fun ContactDetailBody(
     LaunchedEffect(companyId) {
         runCatching { mutations.tags(companyId) }.onSuccess { workspaceTags = it.data }
     }
+
+    // #740: one thing at a time on a phone: Details, Activity or Files, with the
+    // customer's conversations, calls and tasks one tap inside Activity.
+    var tab by rememberSaveable(contact.id) { mutableStateOf(ContactTab.Details) }
+    var pane by rememberSaveable(contact.id) { mutableStateOf(ContactActivityPane.Timeline) }
+    val onScreen = blockOnScreen(tab, pane)
+    // #740: fields nobody has filled in sit behind "Add details".
+    val initiallyEmpty = remember(contact.id) { emptyDetailFields(contact) }
+    var addingDetails by remember(contact.id) { mutableStateOf(false) }
+    val hiddenFields = hiddenDetailFields(initiallyEmpty, emptyDetailFields(contact), addingDetails)
 
     var confirmOptOut by remember(contact.id) { mutableStateOf(false) }
     var confirmBlock by remember(contact.id) { mutableStateOf(false) }
@@ -708,6 +725,23 @@ private fun ContactDetailBody(
             )
         }
 
+        SegmentedControl(
+            segments = ContactTab.entries.map { Segment(it, t(it.labelKey)) },
+            selected = tab,
+            onSelect = { tab = it },
+            fill = true,
+        )
+        if (tab == ContactTab.Activity) {
+            SegmentedControl(
+                segments = ContactActivityPane.entries.map { Segment(it, t(it.labelKey)) },
+                selected = pane,
+                onSelect = { pane = it },
+                size = SegmentedSize.Sm,
+                fill = true,
+            )
+        }
+
+        if (onScreen == ContactBlock.Details) {
         // Consent strip: lime check when consent is on file, muted otherwise.
         ConsentStrip(
             hasConsent = contact.consent_source != null,
@@ -737,6 +771,7 @@ private fun ContactDetailBody(
                 },
             )
             RowDivider()
+            if (ContactDetailField.Business !in hiddenFields) {
             // #291: directly under the name, because for a property manager or
             // a general contractor it IS the name — "Dave" is not a useful
             // record, "Dave at Maple Property Group" is.
@@ -754,7 +789,8 @@ private fun ContactDetailBody(
                 },
             )
             RowDivider()
-            AutosaveRow(
+            }
+            if (ContactDetailField.Address !in hiddenFields) AutosaveRow(
                 fieldKey = "${contact.id}:address",
                 label = t("contactsTasks.address"),
                 initial = contact.address.orEmpty(),
@@ -795,6 +831,7 @@ private fun ContactDetailBody(
                 },
             )
             RowDivider()
+            if (ContactDetailField.Address !in hiddenFields) {
             // #291: the OTHER addresses, absent until there are any. The row
             // above stays the one-address case, which is most of them.
             //
@@ -835,6 +872,8 @@ private fun ContactDetailBody(
                 },
             )
             RowDivider()
+            }
+            if (ContactDetailField.Email !in hiddenFields) {
             // #291: beside the address rather than beside the phone, because it
             // answers the same question — how we reach them when a text is the
             // wrong shape for what we are sending.
@@ -852,6 +891,8 @@ private fun ContactDetailBody(
                 },
             )
             RowDivider()
+            }
+            if (ContactDetailField.Notes !in hiddenFields) {
             AutosaveRow(
                 fieldKey = "${contact.id}:notes",
                 label = t("contactsTasks.notesField"),
@@ -866,6 +907,25 @@ private fun ContactDetailBody(
                 },
             )
             RowDivider()
+            }
+            if (hiddenFields.isNotEmpty()) {
+                TextButton(
+                    onClick = {
+                        haptics.tap()
+                        addingDetails = true
+                    },
+                    modifier = Modifier.padding(horizontal = 7.dp),
+                ) {
+                    Icon(
+                        Icons.Outlined.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(IconSize.Small),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(t("contactsTasks.addDetails"))
+                }
+                RowDivider()
+            }
             // #291: the fields this workspace defined for itself. Renders
             // nothing at all until somebody defines one, so a crew that never
             // opens the settings screen never sees an empty heading.
@@ -950,11 +1010,45 @@ private fun ContactDetailBody(
             }
         }
 
+        // #695: the tags this customer carries, from the workspace's one list.
+        PaperCard(Modifier.fillMaxWidth()) {
+            ContactTagsRow(
+                tags = contact.tags,
+                available = workspaceTags,
+                onAdd = { tagId, name ->
+                    scope.launch {
+                        runCatching {
+                            mutations.addTag(companyId, contact.id, tagId, name)
+                            refreshContact()
+                            // A new tag changes the list the picker offers.
+                            if (tagId == null) {
+                                workspaceTags = mutations.tags(companyId).data
+                            }
+                        }.onFailure { actionError = it.userMessage(locale) }
+                    }
+                },
+                onRemove = { tagId ->
+                    scope.launch {
+                        runCatching {
+                            mutations.removeTag(companyId, contact.id, tagId)
+                            refreshContact()
+                        }.onFailure { actionError = it.userMessage(locale) }
+                    }
+                },
+            )
+        }
+        }
+
         // The contact's live thread, when one exists and the shell wired it.
         val conversationRow = conversation
-        if (conversationRow != null && onOpenConversation != null) {
+        if (onScreen == ContactBlock.Conversations && (conversationRow == null || onOpenConversation == null)) {
+            EmptyState(
+                title = t("contactsTasks.noConversationsYet"),
+                size = EmptyStateSize.Panel,
+            )
+        }
+        if (onScreen == ContactBlock.Conversations && conversationRow != null && onOpenConversation != null) {
             Column {
-                SectionHeader(t("contactsTasks.conversationsSection"))
                 val cardInteraction = remember { MutableInteractionSource() }
                 PaperCard(
                     Modifier
@@ -1025,47 +1119,19 @@ private fun ContactDetailBody(
             }
         }
 
-        // #695: the tags this customer carries, from the workspace's one list.
-        PaperCard(Modifier.fillMaxWidth()) {
-            ContactTagsRow(
-                tags = contact.tags,
-                available = workspaceTags,
-                onAdd = { tagId, name ->
-                    scope.launch {
-                        runCatching {
-                            mutations.addTag(companyId, contact.id, tagId, name)
-                            refreshContact()
-                            // A new tag changes the list the picker offers.
-                            if (tagId == null) {
-                                workspaceTags = mutations.tags(companyId).data
-                            }
-                        }.onFailure { actionError = it.userMessage(locale) }
-                    }
-                },
-                onRemove = { tagId ->
-                    scope.launch {
-                        runCatching {
-                            mutations.removeTag(companyId, contact.id, tagId)
-                            refreshContact()
-                        }.onFailure { actionError = it.userMessage(locale) }
-                    }
-                },
-            )
-        }
-
         // #205: the contact's call history in the call log's grammar —
         // day-grouped, cache-first, voicemail playable inline, tap-through to
         // the conversation. Call back reuses the same mic-preflight + softphone
         // path as the header pill.
         // The Calls section below stays as the place a voicemail plays in place.
-        if (onOpenTask != null) {
+        if (onScreen == ContactBlock.Tasks && onOpenTask != null) {
             Column {
-                SectionHeader(t("taskLinks.linkedTasks"))
                 LinkedTasksList(
                     repo = remember(graph) { ReferenceRepository(graph.api) },
                     companyId = companyId,
                     owner = LinkedOwner.Contact(contact.id),
                     onOpenTask = onOpenTask,
+                    limit = CONTACT_LIST_CAP,
                 )
             }
         }
@@ -1073,7 +1139,7 @@ private fun ContactDetailBody(
         // #714: ONE activity timeline (texts, calls, edits, tags, merges,
         // opt-outs, assignments, references), the same one a job, a thread and
         // a call show. It replaces the #324 History section.
-        ContactSection(t("activity.heading")) {
+        if (onScreen == ContactBlock.Timeline) {
             com.loonext.android.features.activity.ActivityTimeline(
                 graph = graph,
                 companyId = companyId,
@@ -1084,11 +1150,20 @@ private fun ContactDetailBody(
             )
         }
 
-        ContactCallsSection(
+        if (onScreen == ContactBlock.Files) {
+            ContactFilesSection(
+                graph = graph,
+                companyId = companyId,
+                conversationId = conversation?.id,
+            )
+        }
+
+        if (onScreen == ContactBlock.Calls) ContactCallsSection(
             graph = graph,
             mutations = mutations,
             companyId = companyId,
             contactId = contact.id,
+            showHeading = false,
             onCallBack = {
                 if (softphone.hasMicPermission()) {
                     placeCall()
@@ -1101,7 +1176,7 @@ private fun ContactDetailBody(
 
         // §3.3: routine, reversible actions stay quiet — the confirm dialogs
         // carry the weight, not red scare-styling on the triggers.
-        Column(
+        if (onScreen == ContactBlock.Details) Column(
             Modifier
                 .fillMaxWidth()
                 .padding(top = 2.dp),

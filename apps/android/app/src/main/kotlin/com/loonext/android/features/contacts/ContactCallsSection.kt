@@ -89,12 +89,12 @@ import kotlinx.coroutines.launch
  */
 @Composable
 internal fun ContactSection(
-    title: String,
+    title: String?,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier.fillMaxWidth()) {
-        SectionHeader(title)
+        if (title != null) SectionHeader(title)
         content()
     }
 }
@@ -114,7 +114,10 @@ internal fun ContactCallsSection(
     onCallBack: (() -> Unit)?,
     onOpenConversation: ((conversationId: String) -> Unit)?,
     modifier: Modifier = Modifier,
+    /** #740: the Calls tab names the list, so it draws no heading of its own. */
+    showHeading: Boolean = true,
 ) {
+    var showAll by remember(contactId) { mutableStateOf(false) }
     var refreshKey by remember(contactId) { mutableIntStateOf(0) }
     var loadingMore by remember(contactId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -149,7 +152,7 @@ internal fun ContactCallsSection(
     // revalidating on return to the foreground.
     ResyncOnResume(contactId) { refreshKey++ }
 
-    ContactSection(t("contactsTasks.callsSection"), modifier) {
+    ContactSection(if (showHeading) t("contactsTasks.callsSection") else null, modifier) {
         when (val current = state) {
             is LoadState.Loading -> PaperCard(Modifier.fillMaxWidth()) {
                 SkeletonList(rows = 2, avatar = false)
@@ -171,8 +174,11 @@ internal fun ContactCallsSection(
                         size = EmptyStateSize.Panel,
                     )
                 } else {
-                    val groups = remember(current.value.calls) {
-                        groupContactCallsByDay(current.value.calls)
+                    // #740: the first few calls, with "Show all" for the rest.
+                    val shownCalls = cappedRows(current.value.calls, showAll)
+                    val capped = shownCalls.size < current.value.calls.size
+                    val groups = remember(shownCalls) {
+                        groupContactCallsByDay(shownCalls)
                     }
                     groups.forEachIndexed { groupIndex, (label, calls) ->
                         SectionHeader(
@@ -211,7 +217,19 @@ internal fun ContactCallsSection(
                             }
                         }
                     }
-                    if (current.value.nextCursor != null) {
+                    if (capped) {
+                        TextButton(onClick = {
+                            haptics.tap()
+                            showAll = true
+                        }) {
+                            Text(
+                                t(
+                                    "contactsTasks.showAll",
+                                    "count" to current.value.calls.size.toString(),
+                                ),
+                            )
+                        }
+                    } else if (current.value.nextCursor != null) {
                         Box(
                             Modifier
                                 .fillMaxWidth()

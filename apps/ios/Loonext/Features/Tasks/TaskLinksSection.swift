@@ -265,7 +265,10 @@ struct LinkedTasksSection: View {
     /// twice. Passing it also means this list continues that one, so it says
     /// nothing at all rather than "none" when nothing is left.
     var shownElsewhere: Set<String>? = nil
+    /// #740: show this many rows, then "Show all". Nil shows every row.
+    var limit: Int? = nil
 
+    @State private var showAll = false
     @State private var tasks: [LinkedTask] = []
     @State private var loaded = false
     @State private var failed = false
@@ -288,7 +291,7 @@ struct LinkedTasksSection: View {
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted500)
             }
-            ForEach(visibleTasks) { task in
+            ForEach(limit == nil || showAll ? visibleTasks : Array(visibleTasks.prefix(limit ?? 0))) { task in
                 Button {
                     onOpenTask(task.id)
                 } label: {
@@ -315,6 +318,19 @@ struct LinkedTasksSection: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+            }
+            if let limit, !showAll, visibleTasks.count > limit {
+                Button(
+                    AppStrings.translate(
+                        appLocale,
+                        "contactsTasks.showAll",
+                        ["count": String(visibleTasks.count)]
+                    )
+                ) { showAll = true }
+                    .font(.golos(12, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                    .buttonStyle(.plain)
+                    .frame(minHeight: 44)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
