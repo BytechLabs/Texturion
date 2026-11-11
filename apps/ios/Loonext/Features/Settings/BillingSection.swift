@@ -742,6 +742,7 @@ private struct PlanCard: View {
                 .padding(.top, 10)
                 InlineError(resumeError)
             }
+            CallEffectNote(scope: scope, reason: "paused")
         }
     }
 

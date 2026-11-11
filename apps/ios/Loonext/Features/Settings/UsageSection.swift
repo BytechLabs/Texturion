@@ -407,6 +407,7 @@ private struct CapCard: View {
                 .onAppear { pending = current }
                 .onChange(of: current) { _, value in pending = value }
             }
+            CallEffectNote(scope: scope, reason: "over_cap")
         }
     }
 

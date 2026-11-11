@@ -47,6 +47,12 @@ object CacheKeys {
     /** #324: the merged conversations + calls + jobs history for one customer. */
     fun contactTimeline(companyId: String, contactId: String) = "contactTimeline/$companyId/$contactId"
     fun calls(companyId: String, filterKey: String = "default") = "calls/$companyId/$filterKey"
+
+    /** #734: one call's own page, by carrier session id. */
+    /** #725: 30-day call counts per reason, one read for every settings note. */
+    fun callEffects(companyId: String) = "callEffects/$companyId"
+
+    fun call(companyId: String, sessionId: String) = "call/$companyId/$sessionId"
     fun voicemail(companyId: String) = "voicemail/$companyId"
     fun thread(companyId: String, conversationId: String) = "thread/$companyId/$conversationId"
     fun gallery(companyId: String, conversationId: String) = "gallery/$companyId/$conversationId"

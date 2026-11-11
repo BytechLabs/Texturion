@@ -15,6 +15,9 @@ import Foundation
 /// - `openContactId` — open this contact's detail surface.
 /// - `openCalls` — show the calls surface (a nav tab since the Paper & Olive
 ///   shell).
+/// - `openCallSessionId` — open one call's own page (#734, a call row's Details).
+/// - `callsReason` — narrow the calls log to one reason (#725, a setting's
+///   "See them"); set alongside `openCalls`.
 /// - `openContacts` — show the contacts surface (nav-less destination reached
 ///   from the account sheet).
 /// - `openInbox` + `inboxDestination` — show the inbox landed on a filter
@@ -54,6 +57,8 @@ struct InboxDestination: Equatable, Sendable {
     @Published var pendingHighlightMessageId: String?  // set alongside openConversationId by search hits only
     @Published var openTaskId: String?           // command: open this task's detail (shell pushes, then clears)
     @Published var openContactId: String?        // command: open this contact's detail (shell pushes, then clears)
+    @Published var openCallSessionId: String?    // command (#734): open this call's own page by carrier session id (shell pushes, then clears)
+    @Published var callsReason: String?          // command (#725): narrow the calls log to one reason (the calls tab reads it, then clears)
     @Published var openCalls: Bool = false        // command: show the calls tab
     @Published var openContacts: Bool = false     // command: show the contacts surface
     // #508 command: show the inbox landed on a filter. Two fields for the same

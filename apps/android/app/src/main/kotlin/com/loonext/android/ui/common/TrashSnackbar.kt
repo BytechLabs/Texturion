@@ -18,10 +18,11 @@ import com.loonext.android.BuildConfig
 import com.loonext.android.features.settings.openExternal
 
 /**
- * #710: where "View Trash" goes. The phones hold no Trash screen (managing it
- * is web-only), so the second action opens the web Trash in the browser.
+ * #710/#735: where "View Trash" goes, and the Trash row in the account sheet. The
+ * phones hold no Trash screen (managing it is web-only), so both open the web
+ * Trash in the browser.
  */
-val TRASH_URL = "${BuildConfig.APP_ORIGIN}/settings/history/trash"
+val TRASH_URL = "${BuildConfig.APP_ORIGIN}/trash"
 
 /**
  * A delete notice: the Undo, plus a second "View Trash" action. Material's

@@ -175,7 +175,8 @@ struct CallsService: CallsBackend {
         companyId: String,
         outcome: String? = nil,
         cursor: String? = nil,
-        limit: Int = 25
+        limit: Int = 25,
+        reason: String? = nil
     ) async throws -> Page<Call> {
         try await api.get(
             "/v1/calls",
@@ -183,9 +184,20 @@ struct CallsService: CallsBackend {
                 "outcome": outcome,
                 "cursor": cursor,
                 "limit": String(limit),
+                "reason": reason,
             ],
             companyId: companyId
         )
+    }
+
+    /// One call, by its carrier session id: the call's own page.
+    func call(companyId: String, sessionId: String) async throws -> Call {
+        try await api.get("/v1/calls/\(sessionId)", companyId: companyId)
+    }
+
+    /// #725: 30-day counts per reason, for the settings that cause them (settings.manage).
+    func effects(companyId: String) async throws -> CallEffects {
+        try await api.get("/v1/calls/effects", companyId: companyId)
     }
 
     /// Mint a fresh signed playback URL — on demand, per view.

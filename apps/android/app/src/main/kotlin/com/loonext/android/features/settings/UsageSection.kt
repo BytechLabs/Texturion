@@ -362,6 +362,7 @@ private fun CapCard(
                 }
             }
         }
+        CallEffectNote(scope, "over_cap")
     }
 
     val next = proposed

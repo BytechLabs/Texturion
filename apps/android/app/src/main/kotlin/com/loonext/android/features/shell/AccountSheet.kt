@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Settings
@@ -68,6 +69,9 @@ import com.loonext.android.BuildConfig
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NumberStatus
+import com.loonext.android.core.model.canDeleteRecords
+import com.loonext.android.features.settings.openExternal
+import com.loonext.android.ui.common.TRASH_URL
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.DsChip
@@ -389,6 +393,20 @@ internal fun AccountSheetContent(
                         onDismiss()
                     },
                 )
+                // #735: the Trash sits with the other destinations, for the roles
+                // that can delete (and so restore). The phones hold no Trash
+                // screen, so this opens the web one.
+                if (canDeleteRecords(membership?.role)) {
+                    RowDivider()
+                    SheetRow(
+                        icon = Icons.Outlined.Delete,
+                        label = t("shell.navTrash"),
+                        onClick = {
+                            openExternal(context, TRASH_URL)
+                            onDismiss()
+                        },
+                    )
+                }
                 RowDivider()
                 SheetRow(
                     icon = Icons.Outlined.Settings,

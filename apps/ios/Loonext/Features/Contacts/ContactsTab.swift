@@ -314,6 +314,13 @@ struct ContactsTab: View {
             actionsRow
         }
         .background(BrandColor.canvas.ignoresSafeArea())
+        // #732: New contact is the tab's one main action, the shared button.
+        .mainAction(
+            systemImage: "person.badge.plus",
+            label: t("contactsTasks.newContact")
+        ) {
+            createOpen = true
+        }
         // A pushed contact detail popped — refetch so edits/opt-outs/deletes
         // made inside it show on return (the shell bumps this on pop).
         .onChange(of: router.contactsRevision) { _, _ in refreshKey += 1 }
@@ -491,17 +498,6 @@ struct ContactsTab: View {
                 }
             }
             Spacer()
-            Button {
-                createOpen = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.scaled(17, weight: .medium))
-                    .foregroundStyle(BrandColor.paper)
-                    .frame(width: 44, height: 44)
-                    .background(BrandColor.ink, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(t("contactsTasks.newContact"))
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)

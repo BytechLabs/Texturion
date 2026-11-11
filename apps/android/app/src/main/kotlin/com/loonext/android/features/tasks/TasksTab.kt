@@ -116,6 +116,7 @@ import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SwipeAction
 import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.MainActionButton
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
@@ -424,14 +425,6 @@ private fun TaskListScreen(
                 verticalAlignment = Alignment.Bottom,
             ) {
                 ScreenTitle(t("contactsTasks.tasksTitle"), Modifier.weight(1f))
-                PaperCircleButton(
-                    icon = Icons.Outlined.AddTask,
-                    contentDescription = t("thread.newTask"),
-                    onClick = {
-                        haptics.tap()
-                        quickAddOpen = true
-                    },
-                )
                 if (view != TaskViewKind.Map) {
                     PaperCircleButton(
                         icon = Icons.Outlined.Search,
@@ -825,6 +818,15 @@ private fun TaskListScreen(
                 }
             }
         }
+        // #732: New task is the tab's one main action, the shared button.
+        MainActionButton(
+            icon = Icons.Outlined.AddTask,
+            contentDescription = t("thread.newTask"),
+            onClick = { quickAddOpen = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 18.dp, bottom = 10.dp),
+        )
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 

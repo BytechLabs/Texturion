@@ -59,11 +59,24 @@ struct Call: Codable, Sendable {
     /// #721: where the call went when it arrived. Nil for outbound and older
     /// calls, and for a cached payload written before the column existed.
     var routing: String? = nil
+    /// #725: why the call ended. Nil for older calls and for a cached payload
+    /// written before the column existed.
+    var ended_reason: String? = nil
+    /// Only on GET /v1/calls/:sessionId (the call's own page).
+    var ended_at: String? = nil
+    var has_voicemail: Bool? = nil
+    var voicemail_transcript_attempted_at: String? = nil
 
     /// Display resolution order: contact > CNAM dip > raw number.
     var displayName: String? {
         contact_name ?? caller_name ?? caller_e164
     }
+}
+
+/// GET /v1/calls/effects: how many calls each reason touched over the last `days`.
+struct CallEffects: Codable, Sendable, Equatable {
+    let days: Int
+    let counts: [String: Int]
 }
 
 /// #367 depth (1) — what the caller said, from `calls.voicemail_intake`.

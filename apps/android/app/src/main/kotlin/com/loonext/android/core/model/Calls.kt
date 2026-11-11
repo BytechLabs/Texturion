@@ -31,6 +31,8 @@ data class Call(
     val stir_attestation: String? = null,
     /** #721: where the call went when it arrived; null for outbound and older calls. */
     val routing: String? = null,
+    /** #725: why the call ended; null for a call that predates the column. */
+    val ended_reason: String? = null,
     val voicemail_seconds: Int? = null,
     /**
      * What the voicemail says, written best-effort after the recording is
@@ -54,11 +56,22 @@ data class Call(
     /** When the line was picked up — the #210 live-duration anchor. */
     val answered_at: String? = null,
     val started_at: String,
+    /** Only on GET /v1/calls/:sessionId (the call's own page). */
+    val ended_at: String? = null,
+    val has_voicemail: Boolean? = null,
+    val voicemail_transcript_attempted_at: String? = null,
 ) {
     /** Display resolution order: contact > CNAM dip > raw number. */
     val displayName: String?
         get() = contact_name ?: caller_name ?: caller_e164
 }
+
+/** GET /v1/calls/effects: how many calls each reason touched over the last [days]. */
+@Serializable
+data class CallEffects(
+    val days: Int = 30,
+    val counts: Map<String, Int> = emptyMap(),
+)
 
 /**
  * #367 depth (1) — what the caller said, from `calls.voicemail_intake`.

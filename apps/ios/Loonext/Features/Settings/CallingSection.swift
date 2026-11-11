@@ -439,6 +439,7 @@ private struct AfterHoursCard: View {
                 Spacer().frame(height: 4)
                 ReadOnlyLine(t("settings.afterHoursReadOnly"))
             }
+            CallEffectNote(scope: scope, reason: "after_hours")
         }
     }
 
@@ -578,6 +579,7 @@ private struct ScreeningCard: View {
                 Spacer().frame(height: 4)
                 ReadOnlyLine(t("settings.screeningReadOnly"))
             }
+            CallEffectNote(scope: scope, reason: "screened")
         }
     }
 

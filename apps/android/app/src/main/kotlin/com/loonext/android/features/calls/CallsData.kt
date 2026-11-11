@@ -1,6 +1,7 @@
 package com.loonext.android.features.calls
 
 import com.loonext.android.core.model.Call
+import com.loonext.android.core.model.CallEffects
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.net.ApiClient
@@ -37,15 +38,26 @@ class CallsRepository(private val api: ApiClient) {
         outcome: String? = null,
         cursor: String? = null,
         limit: Int = 25,
+        /** #725: only the calls a routing or an end reason touched. */
+        reason: String? = null,
     ): Page<Call> = api.get(
         "/v1/calls",
         query = mapOf(
             "outcome" to outcome,
+            "reason" to reason,
             "cursor" to cursor,
             "limit" to limit.toString(),
         ),
         companyId = companyId,
     )
+
+    /** One call, by its carrier session id: the call's own page. */
+    suspend fun call(companyId: String, sessionId: String): Call =
+        api.get("/v1/calls/$sessionId", companyId = companyId)
+
+    /** #725: 30-day counts per reason, for the settings that cause them (settings.manage). */
+    suspend fun effects(companyId: String): CallEffects =
+        api.get("/v1/calls/effects", companyId = companyId)
 
     /** Mint a fresh signed playback URL — on demand, per view. */
     suspend fun voicemail(companyId: String, sessionId: String): VoicemailPlayback =

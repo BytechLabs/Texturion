@@ -548,6 +548,8 @@ fun ShellContent(
     /** #503: the waiting-room card's route into a settings section. */
     onOpenSettings: (SettingsSection) -> Unit,
     onOpenCalls: () -> Unit,
+    /** #734: a call row's Details action, by the call's carrier session id. */
+    onOpenCall: (sessionId: String) -> Unit = {},
     /**
      * #508: the response-time card's unanswered row. Switches to the Inbox tab
      * landed on the matching filter, rather than pushing a route — one inbox,
@@ -590,6 +592,7 @@ fun ShellContent(
             onComposeTo = onComposeTo,
             onOpenContact = onOpenContact,
             onOpenContacts = onOpenContacts,
+            onOpenCall = onOpenCall,
         )
 
         ShellTab.Tasks -> TasksTab(

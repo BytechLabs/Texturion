@@ -23,6 +23,8 @@ enum ShellRoute: Hashable {
     case thread(conversationId: String, highlightMessageId: String?)
     case task(taskId: String)
     case contact(contactId: String)
+    /// #734: one call's own page, by carrier session id.
+    case call(sessionId: String)
 }
 
 /// Live nav counts. The numeric counts feed screen headers and the app-icon
@@ -182,6 +184,12 @@ struct ShellView: View {
             activeSheet = nil
             path.append(.contact(contactId: id))
             Task { @MainActor in router.openContactId = nil }
+        }
+        .onReceive(router.$openCallSessionId) { id in
+            guard let id else { return }
+            activeSheet = nil
+            path.append(.call(sessionId: id))
+            Task { @MainActor in router.openCallSessionId = nil }
         }
         .onReceive(router.$openSettingsSection) { section in
             guard let section else { return }
@@ -429,10 +437,10 @@ struct ShellView: View {
         .overlay { bottomFade }
         .overlay(alignment: .bottom) { pillNav.ignoresSafeArea(.keyboard, edges: .bottom) }
         .overlay(alignment: .bottomTrailing) {
-            // Calls carries its own dial FAB and Inbox its own spec-20 compose
-            // FAB (which hides during search) in this corner — the shell's
-            // compose entry yields on both so two ink circles never stack.
-            if tab != .calls && tab != .inbox {
+            // #732: Inbox, Calls, Tasks and Contacts each carry their own main
+            // action (the shared button, in this corner) — the shell's compose
+            // entry is For you's alone, so two ink circles never stack.
+            if tab == .forYou {
                 composeButton.ignoresSafeArea(.keyboard, edges: .bottom)
             }
         }
@@ -486,6 +494,14 @@ struct ShellView: View {
             // Edits/opt-outs/deletes made in the detail show on return to the
             // contacts list (no realtime for contact mutations on iOS).
             .onDisappear { AppRouter.shared.contactsRevision &+= 1 }
+        case .call(let sessionId):
+            CallDetailView(
+                graph: graph,
+                companyId: companyId,
+                sessionId: sessionId,
+                onOpenConversation: { AppRouter.shared.openConversationId = $0 },
+                onOpenContact: { AppRouter.shared.openContactId = $0 }
+            )
         }
     }
 
@@ -663,20 +679,13 @@ struct ShellView: View {
     /// with the pencil glyph, riding 18pt from the trailing edge above the
     /// pill nav.
     private var composeButton: some View {
-        Button {
-            Haptics.tap()
+        MainActionButton(
+            systemImage: "pencil",
+            label: AppStrings.translate(appLocale, "shell.newMessage")
+        ) {
             activeSheet = .compose(prefillContactId: nil, prefillPhone: nil)
-        } label: {
-            Image(systemName: "pencil")
-                .font(.scaled(21, weight: .medium))
-                .foregroundStyle(BrandColor.paper)
-                .frame(width: 54, height: 54)
-                .background(BrandColor.ink, in: Circle())
         }
-        .buttonStyle(.plain)
-        .shadow(color: BrandColor.inkFixed.opacity(0.3), radius: 15, x: 0, y: 7)
-        .accessibilityLabel(AppStrings.translate(appLocale, "shell.newMessage"))
-        .padding(.trailing, 18)
+        .padding(.trailing, MainAction.trailing)
         .padding(.bottom, 96)
     }
 

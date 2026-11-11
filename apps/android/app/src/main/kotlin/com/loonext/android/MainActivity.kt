@@ -78,6 +78,7 @@ import com.loonext.android.features.auth.AuthCallbacks
 import com.loonext.android.features.auth.AuthFlow
 import com.loonext.android.features.auth.AuthViewModel
 import com.loonext.android.features.auth.OAUTH_REDIRECT_SCHEME
+import com.loonext.android.features.calls.CallDetailScreen
 import com.loonext.android.features.calls.CallsOverlay
 import com.loonext.android.features.compose.NewConversationScreen
 import com.loonext.android.features.contacts.ContactDetailScreen
@@ -110,6 +111,7 @@ import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LocalWindowSizeClass
+import com.loonext.android.ui.common.MainActionButton
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.contentMaxWidth
 import com.loonext.android.ui.common.imeHost
@@ -533,6 +535,9 @@ private sealed interface Overlay {
     ) : Overlay
     data class Task(val taskId: String) : Overlay
     data class Contact(val contactId: String) : Overlay
+
+    /** #734: one call's own page, by carrier session id. */
+    data class Call(val sessionId: String) : Overlay
     data class Compose(
         val prefillContactId: String?,
         /** #183 part 3: a raw number to seed the recipient with (a "Text with
@@ -581,6 +586,17 @@ private fun ReadyShell(
     val unreadNotifications by remember(companyId) {
         graph.storeCache.flowOf<Int>(CacheKeys.unreadNotifications(companyId))
     }.collectAsStateWithLifecycle()
+
+    // #725: a setting's "See them" link publishes a reason; leave the settings
+    // route and land on the Calls tab, which narrows its log and clears it.
+    LaunchedEffect(Unit) {
+        graph.pendingCallReason.collect { requested ->
+            if (requested != null) {
+                routeStack.clear()
+                tab = ShellTab.Calls
+            }
+        }
+    }
 
     // The thread the user is LOOKING at right now (tab-internal or overlay) —
     // suppresses the global inbound toast for that conversation (#165).
@@ -760,24 +776,14 @@ private fun ReadyShell(
                 onOpenAccountSheet = { sheetOpen = true },
                 floatingAction = if (tab == ShellTab.Inbox) {
                     {
-                        // Spec 20's ink pencil FAB, hosted in the shell slot so it can
-                        // never be underdrawn by the pill/gradient (#173).
-                        Surface(
+                        // #732: New text is the tab's one main action, the shared
+                        // button, hosted in the shell slot so it can never be
+                        // underdrawn by the pill/gradient (#173).
+                        MainActionButton(
+                            icon = Icons.Outlined.Edit,
+                            contentDescription = t("shell.newConversation"),
                             onClick = { push(Overlay.Compose(null)) },
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            shadowElevation = 10.dp,
-                            modifier = Modifier.size(54.dp),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Outlined.Edit,
-                                    contentDescription = t("shell.newConversation"),
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                        }
+                        )
                     }
                 } else {
                     null
@@ -807,6 +813,7 @@ private fun ReadyShell(
                     // the Calls tab (the pager animates) instead of pushing a
                     // duplicate route.
                     onOpenCalls = { tab = ShellTab.Calls },
+                    onOpenCall = { push(Overlay.Call(it)) },
                     // #508: the response-time card's unanswered row. Arms the
                     // destination BEFORE the tab switch so the inbox reads it
                     // on the composition that switch causes, and bumps the
@@ -962,6 +969,20 @@ private fun ReadyShell(
                         onComposeNew = { push(Overlay.Compose(it)) },
                         onOpenTask = { push(Overlay.Task(it)) },
                     )
+
+                    is Overlay.Call -> OverlayScaffold(
+                        t("shell.callActionDetails"),
+                        onBack = { pop() },
+                    ) {
+                        CallDetailScreen(
+                            graph = graph,
+                            companyId = companyId,
+                            sessionId = active.sessionId,
+                            modifier = it,
+                            onOpenConversation = { id -> push(Overlay.Thread(id)) },
+                            onOpenContact = { id -> push(Overlay.Contact(id)) },
+                        )
+                    }
 
                     is Overlay.Compose -> NewConversationScreen(
                         graph = graph,

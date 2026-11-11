@@ -48,6 +48,8 @@ struct CallsView: View {
     private let deletion: RecordDeletionRepository
 
     @State private var filter: CallsFilter = .all
+    /// #725: a setting's "See them" narrows the log to one reason; the chip clears it.
+    @State private var reason: String?
     @State private var state: LoadState<[Call]> = .loading
     @State private var nextCursor: String?
     @State private var loadingMore = false
@@ -94,7 +96,13 @@ struct CallsView: View {
         .task(id: companyId) {
             manager.start(companyId: companyId, callerIdName: me.display_name)
         }
-        .task(id: "\(companyId)|\(filter.rawValue)|\(refreshKey)") { await reload() }
+        .task(id: "\(companyId)|\(filter.rawValue)|\(reason ?? "")|\(refreshKey)") { await reload() }
+        .onReceive(AppRouter.shared.$callsReason) { requested in
+            guard let requested else { return }
+            reason = isCallReasonFilter(requested) ? requested : nil
+            filter = .all
+            AppRouter.shared.callsReason = nil
+        }
         .task(id: companyId) {
             // Realtime: the calls table's DB trigger broadcasts call.updated
             // (ID-only) on every session change — refetch the first page.
@@ -225,17 +233,6 @@ struct CallsView: View {
                     .foregroundStyle(BrandColor.muted500)
             }
             Spacer()
-            Button {
-                activeSheet = .dialer
-            } label: {
-                Image(systemName: "circle.grid.3x3")
-                    .font(.scaled(17, weight: .medium))
-                    .foregroundStyle(BrandColor.ink)
-                    .frame(width: 44, height: 44)
-                    .background(BrandColor.paper, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(t("contactsTasks.dialANumber"))
         }
         .padding(.horizontal, 18)
         .padding(.top, 16)
@@ -311,10 +308,26 @@ struct CallsView: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
 
+            if let reason {
+                ReasonChip(label: callReasonLabel(reason, appLocale)) {
+                    Haptics.tap()
+                    self.reason = nil
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 4)
+            }
+
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(BrandColor.canvas)
+        // #732: Dial is the tab's one main action, the shared button.
+        .mainAction(
+            systemImage: "circle.grid.3x3",
+            label: t("contactsTasks.dialANumber")
+        ) {
+            activeSheet = .dialer
+        }
     }
 
     // MARK: - Deleting (#691)
@@ -347,8 +360,7 @@ struct CallsView: View {
         case CallActionId.callBack:
             callBack(call)
         case CallActionId.text:
-            Haptics.tap()
-            if let id = call.conversation_id { openConversation(id) }
+            messageCall(call)
         case CallActionId.copyNumber:
             Haptics.tap()
             UIPasteboard.general.string = call.caller_e164
@@ -540,10 +552,11 @@ struct CallsView: View {
                                 call: call,
                                 service: service,
                                 companyId: companyId,
-                                onOpen: openAction(for: call),
+                                rowActions: callRowActions(call),
                                 makeTask: makeTaskButton(for: call),
                                 actions: recordActions(for: call),
-                                onAction: { actionId in performAction(actionId, for: call) }
+                                onAction: { actionId in performAction(actionId, for: call) },
+                                onRowAction: rowActionHandler(for: call)
                             )
                             if call.id != calls.last?.id {
                                 RowDivider().padding(.leading, 64)
@@ -571,22 +584,52 @@ struct CallsView: View {
         }
     }
 
-    /// Extracted with explicit types — the inline Optional.map producing a
-    /// closure-of-closure inside the ForEach made swiftc's type checker give
-    /// up ("failed to produce diagnostic", CI run 5).
-    private func openAction(for call: Call) -> (@MainActor () -> Void)? {
-        guard let id = call.conversation_id else { return nil }
-        return { openConversation(id) }
+    /// #734: the row goes nowhere; its actions do. Extracted with an explicit
+    /// type — a closure built inline inside the ForEach made swiftc's type
+    /// checker give up ("failed to produce diagnostic", CI run 5).
+    private func rowActionHandler(for call: Call) -> @MainActor (CallRowAction) -> Void {
+        return { action in performRowAction(action, for: call) }
+    }
+
+    private func performRowAction(_ action: CallRowAction, for call: Call) {
+        switch action {
+        case .message:
+            messageCall(call)
+        case .callBack:
+            callBack(call)
+        case .contact:
+            if let id = call.contact_id { AppRouter.shared.openContactId = id }
+        case .addContact:
+            if let number = call.caller_e164 { activeSheet = .addContact(prefill: number) }
+        case .details:
+            AppRouter.shared.openCallSessionId = call.call_session_id
+        case .task:
+            break
+        }
+    }
+
+    /// Message opens the conversation, or starts a new text to the number.
+    private func messageCall(_ call: Call) {
+        Haptics.tap()
+        if let id = call.conversation_id {
+            openConversation(id)
+        } else if let number = call.caller_e164, !number.isBlank {
+            AppRouter.shared.composeTo = number
+        }
     }
 
     private func reload() async {
         do {
-            let page = try await service.calls(companyId: companyId, outcome: filter.outcome)
+            let page = try await service.calls(
+                companyId: companyId,
+                outcome: filter.outcome,
+                reason: reason
+            )
             nextCursor = page.next_cursor
             state = .ready(page.data)
             // On the default pill the page just fetched IS the ongoing source,
             // so the pinned card costs no second request.
-            if filter == .all { ongoing = ongoingCalls(page.data) }
+            if filter == .all && reason == nil { ongoing = ongoingCalls(page.data) }
         } catch {
             if case .ready = state {
                 // Keep the stale list on a quiet refetch failure.
@@ -598,7 +641,7 @@ struct CallsView: View {
         // no outcome yet), so a narrow pill reads the unfiltered log as well —
         // otherwise the live call would vanish the moment Missed is tapped. A
         // failure here just leaves the last known card up, never an error.
-        if filter != .all,
+        if filter != .all || reason != nil,
            let page = try? await service.calls(companyId: companyId) {
             ongoing = ongoingCalls(page.data)
         }
@@ -613,7 +656,8 @@ struct CallsView: View {
                 let page = try await service.calls(
                     companyId: companyId,
                     outcome: filter.outcome,
-                    cursor: cursor
+                    cursor: cursor,
+                    reason: reason
                 )
                 nextCursor = page.next_cursor
                 if case .ready(let existing) = state {
@@ -795,7 +839,9 @@ private struct CallRow: View {
     let call: Call
     let service: CallsService
     let companyId: String
-    let onOpen: (@MainActor () -> Void)?
+    /// #734: the compact actions under the row. Defaulted, so the previews that
+    /// omit it keep compiling.
+    var rowActions: [CallRowAction] = []
     /// D64: "Make a task", offered on an answered call that has a conversation.
     /// After the required `let`s and defaulted, so the call sites and previews
     /// that omit it keep compiling.
@@ -804,6 +850,7 @@ private struct CallRow: View {
     /// means no menu at all.
     var actions: [RecordAction] = []
     var onAction: (@MainActor (String) -> Void)?
+    var onRowAction: (@MainActor (CallRowAction) -> Void)?
 
     /// #228: AFTER the required `let`s, so the memberwise init every call site
     /// above uses keeps the same argument order.
@@ -897,11 +944,19 @@ private struct CallRow: View {
                     // reads better broken in two.
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
-                if let makeTask { makeTask }
             }
             .padding(.horizontal, 15)
             .padding(.top, 11)
-            .padding(.bottom, showsVoicemail ? 6 : 11)
+            .padding(.bottom, 2)
+            CallRowActionBar(
+                actions: rowActions,
+                name: name,
+                task: makeTask,
+                onAction: onRowAction
+            )
+            .padding(.leading, 56)
+            .padding(.trailing, 8)
+            .padding(.bottom, showsVoicemail ? 2 : 6)
             if showsVoicemail {
                 VoicemailPlayerRow(
                     service: service,
@@ -935,10 +990,7 @@ private struct CallRow: View {
                 }
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onOpen?()
-        }
+        // #734: a tap goes nowhere; only the actions do.
         // #712: long-press draws the call's one action list. The time's own long-press
         // yields to it, so the menu leads with the exact time instead.
         .recordContextMenu(
@@ -950,10 +1002,95 @@ private struct CallRow: View {
     }
 }
 
+/// #734: what a call row offers, each its own 48pt control. Icons only, so the
+/// row stays one quiet line on a phone; each carries its name for VoiceOver.
+/// The Task action is drawn by `task`, which owns its sheet.
+private struct CallRowActionBar: View {
+    let actions: [CallRowAction]
+    let name: String
+    let task: AnyView?
+    let onAction: (@MainActor (CallRowAction) -> Void)?
+
+    @Environment(\.appLocale) private var appLocale
+
+    private func symbol(_ action: CallRowAction) -> String {
+        switch action {
+        case .message: "message"
+        case .callBack: "phone"
+        case .contact: "person"
+        case .addContact: "person.badge.plus"
+        case .task: "checklist"
+        case .details: "info.circle"
+        }
+    }
+
+    private func label(_ action: CallRowAction) -> String {
+        AppStrings.translate(appLocale, callRowActionLabelKey(action)) + ", " + name
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(actions, id: \.self) { action in
+                if action == .task {
+                    if let task { task }
+                } else {
+                    Button {
+                        Haptics.tap()
+                        onAction?(action)
+                    } label: {
+                        Image(systemName: symbol(action))
+                            .font(.scaled(15, weight: .medium))
+                            .foregroundStyle(BrandColor.muted600)
+                            .frame(width: 48, height: 48)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(label(action))
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+/// #725: the removable chip for the reason the log is narrowed to.
+private struct ReasonChip: View {
+    let label: String
+    let onRemove: @MainActor () -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        HStack {
+            HStack(spacing: 0) {
+                Text(label)
+                    .font(.golos(12, weight: .medium))
+                    .foregroundStyle(BrandColor.muted900)
+                    .padding(.leading, 12)
+                Button {
+                    onRemove()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.scaled(11, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted600)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(
+                    AppStrings.translate(appLocale, "inbox.removeFilterAria", ["label": label])
+                )
+            }
+            .background(BrandColor.avatarTint, in: Capsule())
+            Spacer()
+        }
+    }
+}
+
 /// Inline voicemail playback: mint the 1h signed URL on demand (never
 /// cached), stream via AVPlayer with seek + live progress. Spec 25 pill:
 /// inset capsule, ink play circle, muted tabular time.
-private struct VoicemailPlayerRow: View {
+struct VoicemailPlayerRow: View {
     let service: CallsService
     let companyId: String
     let sessionId: String
@@ -1192,8 +1329,7 @@ func callLogFixture() -> some View {
                     contactName: "Dana Whitcomb"
                 ),
                 service: service,
-                companyId: "company-1",
-                onOpen: nil
+                companyId: "company-1"
             )
             RowDivider().padding(.leading, 64)
             CallRow(
@@ -1205,8 +1341,7 @@ func callLogFixture() -> some View {
                     forwardSeconds: 272
                 ),
                 service: service,
-                companyId: "company-1",
-                onOpen: nil
+                companyId: "company-1"
             )
             RowDivider().padding(.leading, 64)
             CallRow(
@@ -1218,8 +1353,7 @@ func callLogFixture() -> some View {
                     forwardSeconds: 58
                 ),
                 service: service,
-                companyId: "company-1",
-                onOpen: nil
+                companyId: "company-1"
             )
             RowDivider().padding(.leading, 64)
             CallRow(
@@ -1230,8 +1364,7 @@ func callLogFixture() -> some View {
                     voicemailSeconds: 42
                 ),
                 service: service,
-                companyId: "company-1",
-                onOpen: nil
+                companyId: "company-1"
             )
             RowDivider().padding(.leading, 64)
             CallRow(
@@ -1242,8 +1375,7 @@ func callLogFixture() -> some View {
                     screening: "spam_likely"
                 ),
                 service: service,
-                companyId: "company-1",
-                onOpen: nil
+                companyId: "company-1"
             )
         }
         .padding(18)

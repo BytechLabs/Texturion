@@ -65,9 +65,9 @@ enum RecordDeletion {
                 || message.status == MessageStatus.delivered)
     }
 
-    /// #710: the web Trash. The phones hold no Trash screen, so "View Trash"
-    /// opens this in the browser.
-    static let trashURL = AppConfig.appOrigin.appendingPathComponent("settings/history/trash")
+    /// #710/#735: the web Trash. The phones hold no Trash screen, so "View Trash"
+    /// and the account sheet's Trash row open this in the browser.
+    static let trashURL = AppConfig.appOrigin.appendingPathComponent("trash")
 
     static func isNote(_ message: Message) -> Bool {
         message.direction == MessageDirection.note

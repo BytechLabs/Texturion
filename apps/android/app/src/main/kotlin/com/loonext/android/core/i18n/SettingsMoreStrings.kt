@@ -959,6 +959,9 @@ object SettingsMoreStrings : AppStrings.Section {
             "below is the backstop: sending and calling pause there, and " +
             "nothing bills past it.",
         "settingsMore.atCapTitle" to "At your spending cap",
+        "settingsMore.callEffectOne" to "This touched {count} call in the last {days} days.",
+        "settingsMore.callEffectOther" to "This touched {count} calls in the last {days} days.",
+        "settingsMore.callEffectView" to "See them",
         "settingsMore.nearCapTitle" to "Approaching your spending cap",
         "settingsMore.atCapBody" to
             "You've reached the spending cap you set. Sending and calling " +
@@ -2289,6 +2292,9 @@ object SettingsMoreStrings : AppStrings.Section {
             "plafond de dépenses ci-dessous est le filet : les envois et les " +
             "appels s'arrêtent là, et rien n'est facturé au-delà.",
         "settingsMore.atCapTitle" to "À votre plafond de dépenses",
+        "settingsMore.callEffectOne" to "Ce réglage a touché {count} appel ces {days} derniers jours.",
+        "settingsMore.callEffectOther" to "Ce réglage a touché {count} appels ces {days} derniers jours.",
+        "settingsMore.callEffectView" to "Les voir",
         "settingsMore.nearCapTitle" to "Proche de votre plafond de dépenses",
         "settingsMore.atCapBody" to
             "Vous avez atteint le plafond de dépenses que vous avez fixé. Les " +

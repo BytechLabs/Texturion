@@ -249,6 +249,102 @@ class CallsLogicTest {
         assertEquals("Missed", callOutcomeLabel(call(outcome = "missed").copy(routing = "rang")))
     }
 
+    /** #725: every end reason, in the web's words. */
+    @Test
+    fun `end reasons agree with the shared vectors`() {
+        var dir: File? = File("").absoluteFile
+        var text: String? = null
+        while (dir != null && text == null) {
+            val candidate = File(dir, "packages/shared/vectors/call-end-reasons.json")
+            if (candidate.exists()) text = candidate.readText()
+            dir = dir.parentFile
+        }
+        val cases = Json.parseToJsonElement(checkNotNull(text) { "call-end-reasons.json not found" }).jsonArray
+        assertTrue("no end-reason vectors", cases.isNotEmpty())
+        for (case in cases.map { it.jsonObject }) {
+            val reason = case.getValue("reason").jsonPrimitive.content
+            assertEquals(reason, case["words"]?.jsonPrimitive?.contentOrNull, callEndReason(reason))
+        }
+        assertNull(callEndReason(null))
+        assertNull(callEndReason("a_reason_from_the_future"))
+        assertEquals(
+            "Missed · The caller hung up",
+            callOutcomeLabel(call(outcome = "missed").copy(ended_reason = "caller_hung_up")),
+        )
+        assertEquals(
+            "Voicemail · After hours, nobody on call",
+            callOutcomeLabel(
+                call(outcome = "voicemail").copy(routing = "after_hours", ended_reason = "caller_hung_up"),
+            ),
+        )
+    }
+
+    /** #734: a row offers actions, and which ones depends on what the call has. */
+    @Test
+    fun `a call row offers the actions its call can support`() {
+        val bare = call(outcome = "missed", callerE164 = "+14155550101")
+        assertEquals(
+            listOf(CallRowAction.MESSAGE, CallRowAction.CALL_BACK, CallRowAction.ADD_CONTACT, CallRowAction.DETAILS),
+            callRowActions(bare),
+        )
+        val linked = call(outcome = "answered", callerE164 = "+14155550101")
+            .copy(conversation_id = "conv-1", contact_id = "con-1")
+        assertEquals(
+            listOf(
+                CallRowAction.MESSAGE,
+                CallRowAction.CALL_BACK,
+                CallRowAction.CONTACT,
+                CallRowAction.TASK,
+                CallRowAction.DETAILS,
+            ),
+            callRowActions(linked),
+        )
+        // A task only comes from an answered call that has a conversation.
+        assertFalse(CallRowAction.TASK in callRowActions(linked.copy(outcome = "missed")))
+        assertFalse(CallRowAction.TASK in callRowActions(linked.copy(conversation_id = null)))
+        // No number and no conversation: nothing to text, call or add; Details always remains.
+        assertEquals(listOf(CallRowAction.DETAILS), callRowActions(call(outcome = "missed")))
+    }
+
+    @Test
+    fun `the calls list narrows only to a known reason`() {
+        assertTrue(isCallReasonFilter("after_hours"))
+        assertTrue(isCallReasonFilter("declined_by_everyone"))
+        assertFalse(isCallReasonFilter("made_up"))
+        assertFalse(isCallReasonFilter(null))
+        assertEquals("After hours, nobody on call", callReasonLabel("after_hours"))
+        assertEquals("Everyone declined", callReasonLabel("declined_by_everyone"))
+        assertEquals("answered", callReasonLabel("answered"))
+    }
+
+    @Test
+    fun `an effect note is silent at zero`() {
+        val effects = com.loonext.android.core.model.CallEffects(
+            days = 30,
+            counts = mapOf("after_hours" to 12),
+        )
+        assertEquals(12, callEffectCount(effects, "after_hours"))
+        assertEquals(0, callEffectCount(effects, "blocked"))
+        assertEquals(0, callEffectCount(null, "after_hours"))
+    }
+
+    @Test
+    fun `the call page says what happened and why there are no words`() {
+        assertEquals("shell.outcomeLeftVoicemail", callOutcomeLineKey(call(outcome = "voicemail")))
+        assertEquals("shell.outcomeNoAnswer", callOutcomeLineKey(call(outcome = "missed", direction = "outbound")))
+        assertEquals("shell.outcomeInProgress", callOutcomeLineKey(call()))
+        val lost = callTranscriptState(call(outcome = "voicemail"))
+        assertEquals("shell.transcriptRecordingLost", lost.key)
+        assertTrue(lost.muted)
+        val tried = callTranscriptState(
+            call(outcome = "voicemail").copy(has_voicemail = true, voicemail_transcript_attempted_at = "2026-07-15T12:05:00Z"),
+        )
+        assertEquals("shell.transcriptNoWords", tried.key)
+        val words = callTranscriptState(call(outcome = "voicemail").copy(has_voicemail = true, voicemail_transcript = "Call me"))
+        assertEquals("Call me", words.text)
+        assertFalse(words.muted)
+    }
+
     @Test
     fun `durations format like the web`() {
         assertEquals("58s", formatCallDuration(58))

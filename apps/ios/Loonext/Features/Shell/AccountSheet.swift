@@ -27,6 +27,7 @@ struct AccountSheet: View {
     /// without a long scroll.
     @Environment(\.verticalSizeClass) private var vSizeClass
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.openURL) private var openURL
 
     private var compactHeight: Bool { vSizeClass == .compact }
 
@@ -230,6 +231,18 @@ struct AccountSheet: View {
                 label: AppStrings.translate(appLocale, "shell.navContacts"),
                 action: onOpenContacts
             )
+            // #735: the Trash sits with the other destinations, for the roles
+            // that can delete (and so restore). The phones hold no Trash
+            // screen, so this opens the web one.
+            if RecordDeletion.canDelete(role: membership?.role) {
+                RowDivider()
+                linkRow(
+                    icon: "trash",
+                    label: AppStrings.translate(appLocale, "shell.navTrash")
+                ) {
+                    openURL(RecordDeletion.trashURL)
+                }
+            }
             RowDivider()
             linkRow(
                 icon: "gearshape",

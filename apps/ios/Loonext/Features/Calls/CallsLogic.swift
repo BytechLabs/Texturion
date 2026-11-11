@@ -57,6 +57,34 @@ func callRoutingReason(_ routing: String?, _ locale: String? = nil) -> String? {
     return AppStrings.translate(locale, key)
 }
 
+/// #725: how a call finished, in the web's words (checked against
+/// `vectors/call-end-reasons.json`). Nil for the plain endings and for an unknown reason.
+func callEndReason(_ reason: String?, _ locale: String? = nil) -> String? {
+    let key: String
+    switch reason {
+    case "caller_hung_up": key = "shell.callEndedCallerHungUp"
+    case "no_answer_in_time": key = "shell.callEndedNoAnswerInTime"
+    case "declined_by_everyone": key = "shell.callEndedDeclinedByEveryone"
+    case "nobody_reachable": key = "shell.callEndedNobodyReachable"
+    case "rejected_blocked": key = "shell.callEndedRejectedBlocked"
+    case "rejected_over_limit": key = "shell.callEndedRejectedOverLimit"
+    case "line_paused": key = "shell.callEndedLinePaused"
+    case "stuck_call_cleaned_up": key = "shell.callEndedStuckCallCleanedUp"
+    case "intent_expired": key = "shell.callEndedIntentExpired"
+    case "voicemail_failed": key = "shell.callEndedVoicemailFailed"
+    case "carrier_refused": key = "shell.callEndedCarrierRefused"
+    case "placer_hung_up": key = "shell.callEndedPlacerHungUp"
+    case "customer_hung_up": key = "shell.callEndedCustomerHungUp"
+    default: return nil
+    }
+    return AppStrings.translate(locale, key)
+}
+
+/// Where the call went beats how it ended: "After hours" over "The caller hung up".
+func callWhyLine(_ call: Call, _ locale: String? = nil) -> String? {
+    callRoutingReason(call.routing, locale) ?? callEndReason(call.ended_reason, locale)
+}
+
 /// The row's plain-language outcome line (web parity). Outbound speaks from
 /// the crew's side ("You called…", "No answer" — nothing was missed by the
 /// crew). A null outcome is a session still in flight. #191: an answered call
@@ -68,7 +96,7 @@ func callOutcomeLabel(_ call: Call) -> String {
         ? " · \(formatCallDuration(call.forward_seconds))"
         : ""
     let actor = call.answered_by_name
-    let why = callRoutingReason(call.routing).map { " · \($0)" } ?? ""
+    let why = callWhyLine(call).map { " · \($0)" } ?? ""
     switch call.outcome {
     case CallOutcome.missed:
         return outbound ? "No answer" : "Missed" + why
@@ -86,6 +114,118 @@ func callOutcomeLabel(_ call: Call) -> String {
         // Unknown future outcomes degrade to the in-flight copy, never crash.
         return outbound ? "Calling…" : "In progress"
     }
+}
+
+/// #734: what a call row offers, each its own control. The row itself goes
+/// nowhere. Mirrors the web's CallRowActions: text them (the conversation, or a
+/// new text to that number), call back, the contact (or add one), a task, and
+/// the call's own page.
+enum CallRowAction: Hashable, Sendable {
+    case message
+    case callBack
+    case contact
+    case addContact
+    case task
+    case details
+}
+
+func callRowActions(_ call: Call) -> [CallRowAction] {
+    let hasNumber = call.caller_e164.map { !$0.isBlank } ?? false
+    var actions: [CallRowAction] = []
+    if call.conversation_id != nil || hasNumber { actions.append(.message) }
+    if hasNumber { actions.append(.callBack) }
+    if call.contact_id != nil {
+        actions.append(.contact)
+    } else if hasNumber {
+        actions.append(.addContact)
+    }
+    // D64: only an answered call in a conversation can become a task.
+    if call.outcome == CallOutcome.answered && call.conversation_id != nil {
+        actions.append(.task)
+    }
+    actions.append(.details)
+    return actions
+}
+
+/// The catalogue key naming an action, for its spoken label.
+func callRowActionLabelKey(_ action: CallRowAction) -> String {
+    switch action {
+    case .message: "shell.callActionMessage"
+    case .callBack: "shell.callActionCallBack"
+    case .contact: "shell.callActionContact"
+    case .addContact: "shell.callActionAddContact"
+    case .task: "shell.callActionTask"
+    case .details: "shell.callActionDetails"
+    }
+}
+
+/// #725: the reasons the calls list can be narrowed to: every routing and every
+/// end reason, from the shared lists. Anything else in a link is ignored.
+let callRoutingFilters: Set<String> = [
+    "blocked", "line_busy", "screened", "after_hours", "paused", "over_cap",
+    "nobody_reachable", "rang",
+]
+let callEndReasonFilters: Set<String> = [
+    "answered", "caller_hung_up", "no_answer_in_time", "declined_by_everyone",
+    "nobody_reachable", "left_voicemail", "rejected_blocked", "rejected_over_limit",
+    "line_paused", "stuck_call_cleaned_up", "intent_expired", "voicemail_failed",
+    "carrier_refused", "placer_hung_up", "customer_hung_up", "no_answer",
+]
+
+func isCallReasonFilter(_ value: String?) -> Bool {
+    guard let value else { return false }
+    return callRoutingFilters.contains(value) || callEndReasonFilters.contains(value)
+}
+
+/// The chip's words: the routing wording first (as on a row), else the end
+/// reason, else the id.
+func callReasonLabel(_ reason: String, _ locale: String? = nil) -> String {
+    callRoutingReason(reason, locale) ?? callEndReason(reason, locale) ?? reason
+}
+
+/// #725: how many calls a reason touched. The settings notes stay silent at zero.
+func callEffectCount(_ effects: CallEffects?, _ reason: String) -> Int {
+    effects?.counts[reason] ?? 0
+}
+
+/// What the call page says happened, in the owner's words (web `outcomeLine`).
+func callOutcomeLineKey(_ call: Call) -> String {
+    guard let outcome = call.outcome else { return "shell.outcomeInProgress" }
+    if call.direction == "outbound" {
+        return outcome == CallOutcome.answered
+            ? "shell.outcomeAnswered"
+            : "shell.outcomeNoAnswer"
+    }
+    switch outcome {
+    case CallOutcome.answered: return "shell.outcomeAnswered"
+    case CallOutcome.voicemail: return "shell.outcomeLeftVoicemail"
+    default: return "shell.outcomeMissed"
+    }
+}
+
+/// The honest transcript state (web `transcriptState`): the words when there
+/// are some, else which of the four not-transcribed sentences is true. `muted`
+/// means the page is talking, not the caller.
+struct CallTranscriptState: Equatable {
+    let key: String?
+    let text: String?
+    let muted: Bool
+}
+
+func callTranscriptState(_ call: Call) -> CallTranscriptState {
+    if let words = call.voicemail_transcript, !words.isBlank {
+        return CallTranscriptState(key: nil, text: words, muted: false)
+    }
+    if call.has_voicemail != true {
+        let key = call.outcome == CallOutcome.voicemail
+            ? "shell.transcriptRecordingLost"
+            : "shell.transcriptNoVoicemail"
+        return CallTranscriptState(key: key, text: nil, muted: true)
+    }
+    let key = call.voicemail_transcript_attempted_at != nil
+        ? "shell.transcriptNoWords"
+        : "shell.transcriptNotYet"
+    return CallTranscriptState(key: key, text: nil, muted: true)
 }
 
 /// An INBOUND miss is the row's one urgent element (amber); nothing else is.

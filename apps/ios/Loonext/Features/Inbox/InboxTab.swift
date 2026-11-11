@@ -1275,26 +1275,14 @@ private struct InboxList: View {
             }
         }
         .background(BrandColor.canvas)
-        // The ink 54pt compose FAB (spec 20) — the same compose action the
-        // old header pencil fired; hidden while global search is showing.
-        .overlay(alignment: .bottomTrailing) {
-            if let controller, !controller.searching {
-                Button {
-                    onCompose()
-                } label: {
-                    Image(systemName: "pencil")
-                        .font(.scaled(20, weight: .medium))
-                        .foregroundStyle(BrandColor.paper)
-                        .frame(width: 54, height: 54)
-                        .background(BrandColor.ink, in: Circle())
-                        .shadow(color: BrandColor.inkFixed.opacity(0.28), radius: 14, x: 0, y: 8)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(AppStrings.translate(appLocale, "inbox.composeAria"))
-                .padding(.trailing, 18)
-                .padding(.bottom, 12)
-            }
-        }
+        // #732: New text is the tab's one main action, the shared button;
+        // hidden while global search is showing.
+        .mainAction(
+            systemImage: "pencil",
+            label: AppStrings.translate(appLocale, "inbox.composeAria"),
+            isVisible: controller.map { !$0.searching } ?? false,
+            action: onCompose
+        )
         .onChange(of: controller?.notice?.id) { _, _ in
             guard let notice = controller?.notice else { return }
             visibleNotice = notice

@@ -2,6 +2,7 @@ package com.loonext.android.features.calls
 
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Call
+import com.loonext.android.core.model.CallEffects
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.PhoneNumberSummary
@@ -86,6 +87,35 @@ fun callRoutingReason(routing: String?, locale: String? = null): String? {
 }
 
 /**
+ * #725: how a call finished, in the web's words (checked against
+ * `vectors/call-end-reasons.json`). Null for the two plain endings (answered,
+ * a voicemail left, a customer who never answered) and for an unknown reason.
+ */
+fun callEndReason(reason: String?, locale: String? = null): String? {
+    val key = when (reason) {
+        "caller_hung_up" -> "shell.callEndedCallerHungUp"
+        "no_answer_in_time" -> "shell.callEndedNoAnswerInTime"
+        "declined_by_everyone" -> "shell.callEndedDeclinedByEveryone"
+        "nobody_reachable" -> "shell.callEndedNobodyReachable"
+        "rejected_blocked" -> "shell.callEndedRejectedBlocked"
+        "rejected_over_limit" -> "shell.callEndedRejectedOverLimit"
+        "line_paused" -> "shell.callEndedLinePaused"
+        "stuck_call_cleaned_up" -> "shell.callEndedStuckCallCleanedUp"
+        "intent_expired" -> "shell.callEndedIntentExpired"
+        "voicemail_failed" -> "shell.callEndedVoicemailFailed"
+        "carrier_refused" -> "shell.callEndedCarrierRefused"
+        "placer_hung_up" -> "shell.callEndedPlacerHungUp"
+        "customer_hung_up" -> "shell.callEndedCustomerHungUp"
+        else -> return null
+    }
+    return AppStrings.translate(locale, key)
+}
+
+/** Where the call went beats how it ended: "After hours" over "The caller hung up". */
+fun callWhyLine(call: Call, locale: String? = null): String? =
+    callRoutingReason(call.routing, locale) ?: callEndReason(call.ended_reason, locale)
+
+/**
  * The row's plain-language outcome line (web parity). Outbound speaks from
  * the crew's side ("You called…", "No answer" — nothing was missed by the
  * crew). An answered call NAMES the acting member (#191): the placer of an
@@ -99,7 +129,7 @@ fun callOutcomeLabel(call: Call): String {
     val dur =
         if (call.forward_seconds > 0) " · ${formatCallDuration(call.forward_seconds)}" else ""
     val actor = call.answered_by_name?.takeIf { it.isNotBlank() }
-    val why = callRoutingReason(call.routing)?.let { " · $it" } ?: ""
+    val why = callWhyLine(call)?.let { " · $it" } ?: ""
     return when (call.outcome) {
         CallOutcome.MISSED -> if (outbound) "No answer" else "Missed$why"
         CallOutcome.VOICEMAIL -> "Voicemail$why"
@@ -112,6 +142,120 @@ fun callOutcomeLabel(call: Call): String {
 
         else -> if (outbound) "Calling…" else "In progress"
     }
+}
+
+/**
+ * #734: what a call row offers, each its own control. The row itself goes
+ * nowhere. Mirrors the web's CallRowActions: text them (the conversation, or a
+ * new text to that number), call back, the contact (or add one), a task, and
+ * the call's own page.
+ */
+enum class CallRowAction { MESSAGE, CALL_BACK, CONTACT, ADD_CONTACT, TASK, DETAILS }
+
+fun callRowActions(call: Call): List<CallRowAction> {
+    val hasNumber = !call.caller_e164.isNullOrBlank()
+    return buildList {
+        if (call.conversation_id != null || hasNumber) add(CallRowAction.MESSAGE)
+        if (hasNumber) add(CallRowAction.CALL_BACK)
+        if (call.contact_id != null) {
+            add(CallRowAction.CONTACT)
+        } else if (hasNumber) {
+            add(CallRowAction.ADD_CONTACT)
+        }
+        // D64: only an answered call in a conversation can become a task.
+        if (call.outcome == CallOutcome.ANSWERED && call.conversation_id != null) {
+            add(CallRowAction.TASK)
+        }
+        add(CallRowAction.DETAILS)
+    }
+}
+
+/** The catalogue key naming an action, for its spoken label. */
+fun callRowActionLabelKey(action: CallRowAction): String = when (action) {
+    CallRowAction.MESSAGE -> "shell.callActionMessage"
+    CallRowAction.CALL_BACK -> "shell.callActionCallBack"
+    CallRowAction.CONTACT -> "shell.callActionContact"
+    CallRowAction.ADD_CONTACT -> "shell.callActionAddContact"
+    CallRowAction.TASK -> "shell.callActionTask"
+    CallRowAction.DETAILS -> "shell.callActionDetails"
+}
+
+/**
+ * #725: the reasons the calls list can be narrowed to: every routing and every
+ * end reason, from the shared lists. Anything else in a link is ignored.
+ */
+val CALL_ROUTING_FILTERS = setOf(
+    "blocked", "line_busy", "screened", "after_hours", "paused", "over_cap",
+    "nobody_reachable", "rang",
+)
+val CALL_END_REASON_FILTERS = setOf(
+    "answered", "caller_hung_up", "no_answer_in_time", "declined_by_everyone",
+    "nobody_reachable", "left_voicemail", "rejected_blocked", "rejected_over_limit",
+    "line_paused", "stuck_call_cleaned_up", "intent_expired", "voicemail_failed",
+    "carrier_refused", "placer_hung_up", "customer_hung_up", "no_answer",
+)
+
+fun isCallReasonFilter(value: String?): Boolean =
+    value != null && (value in CALL_ROUTING_FILTERS || value in CALL_END_REASON_FILTERS)
+
+/** The chip's words: the routing wording first (as on a row), else the end reason, else the id. */
+fun callReasonLabel(reason: String, locale: String? = null): String =
+    callRoutingReason(reason, locale) ?: callEndReason(reason, locale) ?: reason
+
+/**
+ * #725: "This touched N calls in the last 30 days." The settings notes stay
+ * silent at zero, so this is null then.
+ */
+fun callEffectCount(effects: CallEffects?, reason: String): Int = effects?.counts?.get(reason) ?: 0
+
+/** What the call page says happened, in the owner's words (web `outcomeLine`). */
+fun callOutcomeLineKey(call: Call): String {
+    if (call.outcome == null) return "shell.outcomeInProgress"
+    if (call.direction == "outbound") {
+        return if (call.outcome == CallOutcome.ANSWERED) {
+            "shell.outcomeAnswered"
+        } else {
+            "shell.outcomeNoAnswer"
+        }
+    }
+    return when (call.outcome) {
+        CallOutcome.ANSWERED -> "shell.outcomeAnswered"
+        CallOutcome.VOICEMAIL -> "shell.outcomeLeftVoicemail"
+        else -> "shell.outcomeMissed"
+    }
+}
+
+/**
+ * The honest transcript state (web `transcriptState`): the words when there
+ * are some, else which of the four not-transcribed sentences is true. [muted]
+ * means the page is talking, not the caller.
+ */
+data class TranscriptState(val key: String?, val text: String?, val muted: Boolean)
+
+fun callTranscriptState(call: Call): TranscriptState {
+    call.voicemail_transcript?.takeIf { it.isNotBlank() }?.let {
+        return TranscriptState(null, it, muted = false)
+    }
+    if (call.has_voicemail != true) {
+        return TranscriptState(
+            if (call.outcome == CallOutcome.VOICEMAIL) {
+                "shell.transcriptRecordingLost"
+            } else {
+                "shell.transcriptNoVoicemail"
+            },
+            null,
+            muted = true,
+        )
+    }
+    return TranscriptState(
+        if (call.voicemail_transcript_attempted_at != null) {
+            "shell.transcriptNoWords"
+        } else {
+            "shell.transcriptNotYet"
+        },
+        null,
+        muted = true,
+    )
 }
 
 /** An INBOUND miss is the row's one urgent element (amber); nothing else is. */

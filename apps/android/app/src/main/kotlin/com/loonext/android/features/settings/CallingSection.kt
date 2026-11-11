@@ -429,6 +429,7 @@ private fun ScreeningCard(
             Spacer(Modifier.height(4.dp))
             ReadOnlyLine(t("settings.screeningReadOnly"))
         }
+        CallEffectNote(scope, "screened")
     }
 }
 
@@ -577,6 +578,7 @@ private fun RingCard(
             Spacer(Modifier.height(4.dp))
             ReadOnlyLine(t("settings.ringReadOnly"))
         }
+        CallEffectNote(scope, "no_answer_in_time")
     }
 }
 
@@ -710,6 +712,7 @@ private fun AfterHoursCard(
             Spacer(Modifier.height(4.dp))
             ReadOnlyLine(t("settings.afterHoursReadOnly"))
         }
+        CallEffectNote(scope, "after_hours")
     }
 }
 

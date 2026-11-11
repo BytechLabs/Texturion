@@ -187,6 +187,38 @@ final class CallsLogicTests: XCTestCase {
         XCTAssertEqual(callOutcomeLabel(rang), "Missed")
     }
 
+    private struct EndReasonVector: Decodable {
+        let reason: String
+        let words: String?
+    }
+
+    /// #725: every end reason, in the web's words.
+    func testEndReasonsAgreeWithTheSharedVectors() throws {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var cases: [EndReasonVector] = []
+        while dir.path != "/" {
+            let candidate = dir.appendingPathComponent("packages/shared/vectors/call-end-reasons.json")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                cases = try JSONDecoder().decode([EndReasonVector].self, from: Data(contentsOf: candidate))
+                break
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        XCTAssertFalse(cases.isEmpty, "call-end-reasons.json not found; run node scripts/generate-parity-vectors.mjs")
+        for vector in cases {
+            XCTAssertEqual(callEndReason(vector.reason), vector.words, vector.reason)
+        }
+        XCTAssertNil(callEndReason(nil))
+        XCTAssertNil(callEndReason("a_reason_from_the_future"))
+        var missed = call(outcome: "missed")
+        missed.ended_reason = "caller_hung_up"
+        XCTAssertEqual(callOutcomeLabel(missed), "Missed · The caller hung up")
+        var voicemail = call(outcome: "voicemail")
+        voicemail.routing = "after_hours"
+        voicemail.ended_reason = "caller_hung_up"
+        XCTAssertEqual(callOutcomeLabel(voicemail), "Voicemail · After hours, nobody on call")
+    }
+
     func testDurationsFormatLikeTheWeb() {
         XCTAssertEqual("58s", formatCallDuration(58))
         XCTAssertEqual("4m 32s", formatCallDuration(272))

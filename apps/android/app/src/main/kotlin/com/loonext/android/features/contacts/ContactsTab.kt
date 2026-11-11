@@ -111,6 +111,7 @@ import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.MainActionButton
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SkeletonList
@@ -683,7 +684,7 @@ private fun ContactListScreen(
                 .fillMaxSize()
                 .padding(horizontal = 18.dp),
         ) {
-            // Title row: Bricolage heading + muted count, ink "+" circle.
+            // Title row: Bricolage heading + muted count.
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -709,28 +710,6 @@ private fun ContactListScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                    }
-                }
-                val addInteraction = remember { MutableInteractionSource() }
-                Surface(
-                    onClick = {
-                        haptics.tap()
-                        createOpen = true
-                    },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    interactionSource = addInteraction,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .pressScale(addInteraction),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Outlined.Add,
-                            contentDescription = t("contactsTasks.newContact"),
-                            modifier = Modifier.size(18.dp),
-                        )
                     }
                 }
             }
@@ -1091,6 +1070,15 @@ private fun ContactListScreen(
                 }
             }
         }
+        // #732: New contact is the tab's one main action, the shared button.
+        MainActionButton(
+            icon = Icons.Outlined.PersonAdd,
+            contentDescription = t("contactsTasks.newContact"),
+            onClick = { createOpen = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 18.dp, bottom = 10.dp),
+        )
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 

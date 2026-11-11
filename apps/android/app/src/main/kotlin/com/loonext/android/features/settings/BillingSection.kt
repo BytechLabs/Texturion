@@ -1563,6 +1563,7 @@ private fun PausedPlanNote(
         Spacer(Modifier.height(10.dp))
         Button(onClick = { error = null; confirming = true }) { Text(copy.resumeLabel) }
     }
+    CallEffectNote(scope, "paused")
 
     if (confirming) {
         ConfirmDialog(

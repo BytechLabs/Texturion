@@ -171,6 +171,12 @@ class AppGraph(
     val pendingDial = MutableStateFlow<String?>(null)
 
     /**
+     * #725: a setting's "See them" link publishes the reason here; MainActivity
+     * switches to the Calls tab and CallsScreen narrows the log to it.
+     */
+    val pendingCallReason = MutableStateFlow<String?>(null)
+
+    /**
      * #183 part 3: create the device-side Connected-Apps account (idempotent)
      * and kick a sync so the "Call/Text with Loonext" rows get written. Called
      * once the user grants contacts access at the dialer. Silent if the platform

@@ -277,6 +277,13 @@ struct TasksTab: View {
                 tab = .mine
             }
         }
+        // #732: New task is the tab's one main action, the shared button.
+        .mainAction(
+            systemImage: "plus",
+            label: AppStrings.translate(appLocale, "thread.newTask")
+        ) {
+            quickAddOpen = true
+        }
         .modifier(TaskMenuInstaller(controller: menuController))
         .onAppear { installMenuController() }
         .sheet(isPresented: $bulkAssignOpen) {
@@ -322,18 +329,6 @@ struct TasksTab: View {
         HStack(alignment: .center, spacing: 8) {
             ScreenTitle(text: AppStrings.translate(appLocale, "contactsTasks.tasksTitle"))
             Spacer(minLength: 8)
-            Button {
-                Haptics.tap()
-                quickAddOpen = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.scaled(15, weight: .medium))
-                    .foregroundStyle(BrandColor.paper)
-                    .frame(width: 38, height: 38)
-                    .background(BrandColor.ink, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(AppStrings.translate(appLocale, "thread.newTask"))
             HStack(spacing: 6) {
                 viewToggle(kind: .list, icon: "list.bullet", labelKey: "contactsTasks.viewList")
                 viewToggle(

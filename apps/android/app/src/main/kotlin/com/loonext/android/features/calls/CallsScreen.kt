@@ -38,12 +38,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Message
 import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Dialpad
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PhoneCallback
 import androidx.compose.material.icons.outlined.PhoneForwarded
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PhoneMissed
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.Icon
@@ -128,6 +132,7 @@ import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.SwipeAction
 import com.loonext.android.ui.common.SwipeActionRow
+import com.loonext.android.ui.common.MainActionButton
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.rememberCacheFirst
@@ -179,8 +184,9 @@ internal suspend fun fetchCallsLog(
     companyId: String,
     outcome: String?,
     cacheKey: String,
+    reason: String? = null,
 ): CallsLog {
-    val page = repo.calls(companyId, outcome = outcome)
+    val page = repo.calls(companyId, outcome = outcome, reason = reason)
     val cached = cache.flowOf<CallsLog>(cacheKey).value
     if (cached == null || cached.calls.size <= page.data.size) {
         return CallsLog(page.data, page.next_cursor)
@@ -212,6 +218,8 @@ fun CallsScreen(
     onOpenContact: (contactId: String) -> Unit = {},
     /** #459: leave the keypad for the contacts list. */
     onOpenContacts: () -> Unit = {},
+    /** #734: a row's Details action, by the call's carrier session id. */
+    onOpenCall: (sessionId: String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val manager = remember(graph) { SoftphoneManager.get(context, graph.api) }
@@ -226,6 +234,17 @@ fun CallsScreen(
     // #228: the day headings are built outside composition, from this.
     val logLocale = LocalAppLocale.current
     var filter by rememberSaveable { mutableStateOf(CallsFilter.All) }
+    // #725: a setting's "See them" narrows the log to one reason; the chip clears it.
+    var reason by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        graph.pendingCallReason.collect { requested ->
+            if (requested != null) {
+                reason = requested.takeIf(::isCallReasonFilter)
+                filter = CallsFilter.All
+                graph.pendingCallReason.value = null
+            }
+        }
+    }
     var loadingMore by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
@@ -271,14 +290,17 @@ fun CallsScreen(
     // to a previously-used filter) paints instantly from StoreCache while the
     // first page revalidates silently; only a never-fetched filter may show
     // the loading state.
-    val cacheKey = CacheKeys.calls(companyId, filter.filterKey)
+    val cacheKey = CacheKeys.calls(
+        companyId,
+        filter.filterKey + (reason?.let { ":$it" } ?: ""),
+    )
     val state = rememberCacheFirst(
         cache = graph.storeCache,
         key = cacheKey,
         refreshKey = refreshKey,
     ) {
         try {
-            fetchCallsLog(graph.storeCache, repo, companyId, filter.outcome, cacheKey)
+            fetchCallsLog(graph.storeCache, repo, companyId, filter.outcome, cacheKey, reason)
         } finally {
             refreshing = false
         }
@@ -419,6 +441,23 @@ fun CallsScreen(
         }
     }
 
+    // #734: Message opens the conversation, or starts a new text to the number.
+    fun messageCall(call: Call) {
+        val conversationId = call.conversation_id
+        val number = call.caller_e164?.takeIf { it.isNotBlank() }
+        when {
+            conversationId != null -> openConversation(conversationId)
+            number != null -> onComposeTo(number)
+        }
+    }
+    // Call back goes through the dialer prefilled with the number.
+    fun callBack(call: Call) {
+        call.caller_e164?.takeIf { it.isNotBlank() }?.let { number ->
+            dialerPrefill = number.filter { it.isDigit() }
+            dialerOpen = true
+        }
+    }
+
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             run {
@@ -476,6 +515,16 @@ fun CallsScreen(
                         },
                     )
                 }
+            }
+            reason?.let { active ->
+                ReasonChip(
+                    label = callReasonLabel(active, logLocale),
+                    onRemove = {
+                        haptics.tap()
+                        reason = null
+                    },
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 4.dp),
+                )
             }
             RefreshBox(
                 isRefreshing = refreshing,
@@ -570,8 +619,20 @@ fun CallsScreen(
                                                                 )
                                                             }
                                                         },
-                                                    onOpen = call.conversation_id?.let { id ->
-                                                        { openConversation(id) }
+                                                    // #734: the row goes nowhere; its actions do.
+                                                    rowActions = callRowActions(call),
+                                                    onRowAction = { rowAction ->
+                                                        when (rowAction) {
+                                                            CallRowAction.MESSAGE -> messageCall(call)
+                                                            CallRowAction.CALL_BACK -> callBack(call)
+                                                            CallRowAction.CONTACT ->
+                                                                call.contact_id?.let(onOpenContact)
+                                                            CallRowAction.ADD_CONTACT ->
+                                                                addContactPrefill = call.caller_e164
+                                                            CallRowAction.DETAILS ->
+                                                                onOpenCall(call.call_session_id)
+                                                            CallRowAction.TASK -> Unit
+                                                        }
                                                     },
                                                     // #712: the call's one action list. The row's more button
                                                     // and its long-press both draw it.
@@ -587,15 +648,8 @@ fun CallsScreen(
                                                     ),
                                                     onAction = { actionId ->
                                                         when (actionId) {
-                                                            CallActionId.CALL_BACK -> call.caller_e164
-                                                                ?.takeIf { it.isNotBlank() }
-                                                                ?.let { number ->
-                                                                    dialerPrefill = number.filter { it.isDigit() }
-                                                                    dialerOpen = true
-                                                                }
-                                                                ?: call.conversation_id?.let { openConversation(it) }
-                                                            CallActionId.TEXT ->
-                                                                call.conversation_id?.let { openConversation(it) }
+                                                            CallActionId.CALL_BACK -> callBack(call)
+                                                            CallActionId.TEXT -> messageCall(call)
                                                             CallActionId.COPY_NUMBER -> {
                                                                 clipboard.setText(AnnotatedString(call.caller_e164.orEmpty()))
                                                                 say(AppStrings.translate(logLocale, "recordMenu.numberCopied", emptyMap()))
@@ -604,15 +658,6 @@ fun CallsScreen(
                                                             CallActionId.DELETE_CALL -> delete(call, voicemail = false)
                                                         }
                                                     },
-                                                    onDialBack = call.caller_e164
-                                                        ?.takeIf { it.isNotBlank() }
-                                                        ?.let { number ->
-                                                            {
-                                                                dialerPrefill =
-                                                                    number.filter { it.isDigit() }
-                                                                dialerOpen = true
-                                                            }
-                                                        },
                                                 )
                                                 if (index < calls.lastIndex) RowDivider()
                                             }
@@ -638,12 +683,14 @@ fun CallsScreen(
                                                 loadingMore = true
                                                 val key = cacheKey
                                                 val outcome = filter.outcome
+                                                val onlyReason = reason
                                                 scope.launch {
                                                     try {
                                                         val page = repo.calls(
                                                             companyId,
                                                             outcome = outcome,
                                                             cursor = cursor,
+                                                            reason = onlyReason,
                                                         )
                                                         // Append onto whatever the cache
                                                         // holds NOW (a silent revalidate
@@ -709,33 +756,18 @@ fun CallsScreen(
             }
         }
 
-        // The dialpad FAB — 54dp ink circle above the pill nav (spec 25).
-        val fabInteraction = remember { MutableInteractionSource() }
-        Surface(
+        // #732: Dial is the tab's one main action, the shared button.
+        MainActionButton(
+            icon = Icons.Outlined.Dialpad,
+            contentDescription = t("contactsTasks.dialANumber"),
             onClick = {
-                haptics.tap()
                 dialerPrefill = ""
                 dialerOpen = true
             },
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            interactionSource = fabInteraction,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 18.dp, bottom = 10.dp)
-                .size(54.dp)
-                .pressScale(fabInteraction)
-                .shadow(14.dp, CircleShape, spotColor = BrandColor.Ink.copy(alpha = 0.3f)),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Outlined.Dialpad,
-                    contentDescription = t("contactsTasks.dialANumber"),
-                    modifier = Modifier.size(19.dp),
-                )
-            }
-        }
+                .padding(end = 18.dp, bottom = 10.dp),
+        )
         // #691: the Undo for a delete rides here, clear of the dial button.
         TrashSnackbarHost(
             snackbar,
@@ -1045,14 +1077,25 @@ private fun CallRow(
     call: Call,
     repo: CallsRepository,
     companyId: String,
-    onOpen: (() -> Unit)?,
+    /** #734: the compact actions under the row, and what to do with the one chosen. */
+    rowActions: List<CallRowAction>,
+    onRowAction: (CallRowAction) -> Unit,
     /** #712: this call's action list, and what to do with the id that was chosen. */
     actions: List<RecordAction>,
     onAction: (String) -> Unit,
-    onDialBack: (() -> Unit)?,
     /** D64: "Make a task", offered on an answered call that has a conversation. */
     makeTask: (@Composable () -> Unit)? = null,
 ) {
+    val onMessage = if (CallRowAction.MESSAGE in rowActions) {
+        { onRowAction(CallRowAction.MESSAGE) }
+    } else {
+        null
+    }
+    val onDialBack = if (CallRowAction.CALL_BACK in rowActions) {
+        { onRowAction(CallRowAction.CALL_BACK) }
+    } else {
+        null
+    }
     val name = callerDisplayName(call)
     val haptics = rememberHaptics()
     val coral = if (isSystemInDarkTheme()) BrandColor.DarkCoral else BrandColor.Coral
@@ -1063,9 +1106,10 @@ private fun CallRow(
         Modifier
             .fillMaxWidth()
             .then(
-                if (onOpen != null || hasMenu) {
+                if (hasMenu) {
                     Modifier.combinedClickable(
-                        onClick = { onOpen?.invoke() },
+                        // #734: a tap goes nowhere; only the actions do.
+                        onClick = {},
                         // #712: long-press is the same menu as the more button. The
                         // time's own long-press yields to it, so the menu leads with it.
                         onLongClick = if (hasMenu) {
@@ -1104,7 +1148,7 @@ private fun CallRow(
                     },
                 )
             },
-            endAction = onOpen?.let { open ->
+            endAction = onMessage?.let { open ->
                 SwipeAction(
                     icon = Icons.AutoMirrored.Outlined.Message,
                     label = t("contactsTasks.textBack"),
@@ -1219,7 +1263,6 @@ private fun CallRow(
                     maxLines = 1,
                     softWrap = false,
                 )
-                makeTask?.invoke()
                 if (hasMenu) {
                     Box(
                         Modifier
@@ -1242,32 +1285,15 @@ private fun CallRow(
                         )
                     }
                 }
-                if (onDialBack != null) {
-                    val dialBackInteraction = remember { MutableInteractionSource() }
-                    Surface(
-                        onClick = {
-                            haptics.tap()
-                            onDialBack()
-                        },
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        interactionSource = dialBackInteraction,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .pressScale(dialBackInteraction),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Outlined.Call,
-                                contentDescription = t("contactsTasks.callBack"),
-                                modifier = Modifier.size(15.dp),
-                            )
-                        }
-                    }
-                }
             }
         }
+        CallRowActionBar(
+            actions = rowActions,
+            name = name,
+            onAction = onRowAction,
+            task = makeTask,
+            modifier = Modifier.padding(start = 56.dp, end = 8.dp, bottom = 2.dp),
+        )
         if (call.outcome == CallOutcome.VOICEMAIL && (call.voicemail_seconds ?: 0) > 0) {
             VoicemailPlayerRow(
                 repo = repo,
@@ -1275,7 +1301,6 @@ private fun CallRow(
                 sessionId = call.call_session_id,
                 seconds = call.voicemail_seconds ?: 0,
                 transcriptShown = !call.voicemail_transcript.isNullOrBlank(),
-                onRowTap = onOpen,
             )
             // #367: the two lines that answer "do I need to call back", ABOVE
             // the transcript they were read out of. A shortcut printed after the
@@ -1289,7 +1314,6 @@ private fun CallRow(
                     transcript,
                     // Inside this row's own clickable Column — without forwarding,
                     // combinedClickable would eat the tap that opens the thread.
-                    onRowTap = onOpen,
                     modifier = Modifier.padding(
                         start = 64.dp,
                         end = 15.dp,
@@ -1306,6 +1330,92 @@ private fun CallRow(
         onSelect = { actionId, _ -> onAction(actionId) },
         exactTime = rememberExactTime(call.started_at),
     )
+    }
+}
+
+/**
+ * #734: what a call row offers, each its own 48dp control. Icons only, so the
+ * row stays one quiet line on a phone; each carries its name for TalkBack.
+ * The Task action is drawn by [task], which owns its sheet.
+ */
+@Composable
+private fun CallRowActionBar(
+    actions: List<CallRowAction>,
+    name: String,
+    onAction: (CallRowAction) -> Unit,
+    task: (@Composable () -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    val haptics = rememberHaptics()
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        actions.forEach { action ->
+            if (action == CallRowAction.TASK) {
+                task?.invoke()
+            } else {
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .clickable {
+                            haptics.tap()
+                            onAction(action)
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        callRowActionIcon(action),
+                        contentDescription = t(callRowActionLabelKey(action)) + ", " + name,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun callRowActionIcon(action: CallRowAction): ImageVector = when (action) {
+    CallRowAction.MESSAGE -> Icons.AutoMirrored.Outlined.Message
+    CallRowAction.CALL_BACK -> Icons.Outlined.Call
+    CallRowAction.CONTACT -> Icons.Outlined.Person
+    CallRowAction.ADD_CONTACT -> Icons.Outlined.PersonAdd
+    CallRowAction.TASK -> Icons.Outlined.Info
+    CallRowAction.DETAILS -> Icons.Outlined.Info
+}
+
+/** #725: the removable chip for the reason the log is narrowed to. */
+@Composable
+private fun ReasonChip(label: String, onRemove: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = modifier,
+    ) {
+        Row(
+            Modifier.padding(start = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onRemove),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.Close,
+                    contentDescription = t("inbox.removeFilterAria", "label" to label),
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
     }
 }
 
@@ -1407,7 +1517,7 @@ private fun dayLabel(iso: String, today: LocalDate, locale: String? = null): Str
  * android.media.MediaPlayer with seek + live progress.
  */
 @Composable
-private fun VoicemailPlayerRow(
+internal fun VoicemailPlayerRow(
     repo: CallsRepository,
     companyId: String,
     sessionId: String,
