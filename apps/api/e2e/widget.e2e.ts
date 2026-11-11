@@ -23,8 +23,8 @@ import { startHarness, type Harness } from "./harness";
 const OWNER_ID = "d31c0748-0001-4001-8001-000000000001";
 const COMPANY_ID = "d31c0748-0002-4002-8002-000000000002";
 const NUMBER_ID = "d31c0748-0003-4003-8003-000000000003";
-const NUMBER_E164 = "+16045550748";
-const VISITOR_E164 = "+16045550749";
+const NUMBER_E164 = "+16045550148";
+const VISITOR_E164 = "+16045550149";
 
 const WIDGET_JS = readFileSync(join(import.meta.dirname, "..", "..", "web", "public", "widget.js"));
 
@@ -142,7 +142,7 @@ describe("#748 the website widget, from a customer's page to the inbox", () => {
 
     await page.locator("button.launch").click();
     await page.locator("#lx-name").fill("Pat");
-    await page.locator("#lx-phone").fill("604 555 0749");
+    await page.locator("#lx-phone").fill("604 555 0149");
     await page.locator("#lx-msg").fill("Burst pipe in the basement");
     const textsBefore = h.telnyx.callsTo("POST", /\/v2\/messages$/).length;
     await page.locator("button.send").click();
