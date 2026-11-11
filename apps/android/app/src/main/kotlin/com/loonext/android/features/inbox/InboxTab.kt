@@ -1,5 +1,7 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.ui.common.IconSize
+import com.loonext.android.ui.common.showUndo
 import com.loonext.android.ui.common.InitialsAvatar
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.Inbox
@@ -65,10 +67,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -1456,13 +1456,12 @@ private fun InboxList(
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(controller.notice) {
         val notice = controller.notice ?: return@LaunchedEffect
-        val result = snackbar.showSnackbar(
-            message = notice.text,
-            actionLabel = notice.actionLabel,
-            duration = if (notice.actionLabel != null) SnackbarDuration.Long
-            else SnackbarDuration.Short,
-        )
-        if (result == SnackbarResult.ActionPerformed) notice.action?.invoke()
+        val undoLabel = notice.actionLabel
+        if (undoLabel != null) {
+            snackbar.showUndo(notice.text, undoLabel) { notice.action?.invoke() }
+        } else {
+            snackbar.showSnackbar(notice.text)
+        }
     }
 
     Box(modifier.fillMaxSize()) {
@@ -1685,7 +1684,7 @@ private fun PaperIconButton(
             modifier = Modifier.size(44.dp).asButton(),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(18.dp))
+                Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(IconSize.Default))
             }
         }
         if (badge) {
@@ -2139,7 +2138,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                         Icons.Outlined.AttachFile,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.size(13.dp),
+                        modifier = Modifier.size(IconSize.Small),
                     )
                 }
                 Text(
@@ -2179,7 +2178,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                             Icons.Outlined.NotificationsOff,
                             contentDescription = t("thread.mutedBadge"),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(IconSize.Small),
                         )
                     }
                     if (snoozeLabel != null) {
@@ -2472,7 +2471,7 @@ private fun FiltersSheet(
                             Icons.AutoMirrored.Outlined.ArrowForward,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onTertiary,
-                            modifier = Modifier.size(17.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                     }
                 }
@@ -2966,7 +2965,7 @@ private fun TaskRing(done: Boolean) {
                 Icons.Outlined.Check,
                 contentDescription = t("inbox.taskDone"),
                 tint = MaterialTheme.colorScheme.onTertiary,
-                modifier = Modifier.size(13.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
     } else {
@@ -3014,7 +3013,7 @@ private fun SearchContactRow(contact: ContactSummary, onClick: () -> Unit) {
                     "name" to (contact.name ?: t("inbox.contactFallback")),
                 ),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(15.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
     }

@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.clickable
 import com.loonext.android.ui.common.SegmentedSize
 import com.loonext.android.ui.common.Segment
@@ -200,11 +201,11 @@ private fun ResponseTimeBody(
                 Icons.Outlined.Schedule,
                 contentDescription = null,
                 // #540: PADDING FIRST, THEN SIZE. Compose applies modifiers
-                // outside-in, so `.size(15.dp).padding(start = 7.dp)` gave the
+                // outside-in, so `.size(IconSize.Small).padding(start = 7.dp)` gave the
                 // glyph 15 - 7 = 8dp to draw a clock face in — it rendered as an
                 // unrecognisable dot beside the number. Found by looking at a
                 // screenshot; a compile and every existing test were happy.
-                modifier = Modifier.padding(start = 7.dp, bottom = 2.dp).size(15.dp),
+                modifier = Modifier.padding(start = 7.dp, bottom = 2.dp).size(IconSize.Small),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
@@ -243,7 +244,7 @@ private fun ResponseTimeBody(
                         Icons.Outlined.TrendingUp
                     },
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(IconSize.Small),
                     // Olive for the good direction, and the theme's error tint
                     // for the wrong one. A workspace that got slower is TOLD —
                     // a metric that only reports improvement is one nobody
@@ -287,7 +288,7 @@ private fun ResponseTimeBody(
             Icon(
                 Icons.AutoMirrored.Outlined.ArrowForward,
                 contentDescription = null,
-                modifier = Modifier.size(15.dp),
+                modifier = Modifier.size(IconSize.Small),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -327,7 +328,7 @@ private fun ResponseTimeBody(
             Icons.Outlined.ExpandMore,
             contentDescription = null,
             modifier = Modifier
-                .size(16.dp)
+                .size(IconSize.Default)
                 // Points down when closed and up when open, so the glyph
                 // says which way the control goes rather than only that it
                 // is one.

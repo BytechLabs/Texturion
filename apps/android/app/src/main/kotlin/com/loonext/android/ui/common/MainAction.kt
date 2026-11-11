@@ -53,7 +53,7 @@ fun MainActionButton(
             .shadow(14.dp, CircleShape, spotColor = BrandColor.Ink.copy(alpha = 0.3f)),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(IconSize.Large))
         }
     }
 }

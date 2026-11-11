@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.ConfirmDialog
 import com.loonext.android.ui.common.RefreshBox
 import androidx.compose.material.icons.outlined.TaskAlt
 import com.loonext.android.ui.common.EmptyState
@@ -934,6 +935,7 @@ private fun TaskList(
     // cannot come to mean two different things on two screens.
     var selection by remember(companyId) { mutableStateOf(BulkSelection.EMPTY) }
     var bulkRunning by remember(companyId) { mutableStateOf(false) }
+    var confirmBulkDelete by remember(companyId) { mutableStateOf(false) }
     // NOT local state: a message nobody renders is a bulk action that looks
     // like it did nothing. This goes to the screen's snackbar, which is the
     // one place this app tells somebody what just happened.
@@ -1131,7 +1133,19 @@ private fun TaskList(
                             )
                         },
                         loadTags = { mutations.tags(companyId).data },
-                        onDelete = {
+                        onDelete = { confirmBulkDelete = true },
+                    )
+                }
+
+                if (confirmBulkDelete) {
+                    ConfirmDialog(
+                        title = t("contactsTasks.bulkDeleteTitle"),
+                        body = t("contactsTasks.bulkDeleteBody"),
+                        confirmLabel = t("common.delete"),
+                        destructive = true,
+                        onDismiss = { confirmBulkDelete = false },
+                        onConfirm = {
+                            confirmBulkDelete = false
                             runBulk(
                                 "delete",
                                 "contactsTasks.bulkDeletedOne",

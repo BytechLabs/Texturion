@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -82,7 +83,7 @@ fun PhoneList(
                 Icon(
                     Icons.Outlined.Phone,
                     contentDescription = null,
-                    modifier = Modifier.size(15.dp),
+                    modifier = Modifier.size(IconSize.Small),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
@@ -103,7 +104,7 @@ fun PhoneList(
                         "number" to entry.phone_e164,
                     ),
                     modifier = Modifier
-                        .size(15.dp)
+                        .size(IconSize.Small)
                         .minimumInteractiveComponentSize()
                         .clickable { onRemove(entry.id) },
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -167,7 +168,7 @@ fun PhoneList(
                 Icon(
                     Icons.Outlined.Add,
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(IconSize.Small),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(

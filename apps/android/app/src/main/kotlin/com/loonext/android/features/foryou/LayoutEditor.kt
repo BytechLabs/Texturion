@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.clickable
 import com.loonext.android.ui.common.EmptyStateSize
 import com.loonext.android.ui.common.EmptyState
@@ -131,7 +132,7 @@ internal fun LayoutToolbar(
                         Icon(
                             Icons.Outlined.Add,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                     }
                 }

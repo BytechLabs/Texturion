@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.IconSize
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -328,7 +329,7 @@ private fun TaskMapContent(
                 Icon(
                     Icons.Outlined.Place,
                     contentDescription = null,
-                    modifier = Modifier.size(13.dp),
+                    modifier = Modifier.size(IconSize.Small),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 // The quiet count line, web copy grammar: "N on the map · N
@@ -521,7 +522,7 @@ private fun PinPeekCard(
                     Icon(
                         Icons.Outlined.Close,
                         contentDescription = t("common.close"),
-                        modifier = Modifier.size(15.dp),
+                        modifier = Modifier.size(IconSize.Small),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

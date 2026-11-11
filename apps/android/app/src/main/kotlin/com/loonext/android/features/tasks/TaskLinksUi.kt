@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.clickable
 import com.loonext.android.ui.common.SearchField
 import androidx.compose.foundation.layout.Arrangement
@@ -180,7 +181,7 @@ private fun TaskLinkRow(
                     Icons.Outlined.Close,
                     contentDescription = removeDescription,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(IconSize.Default),
                 )
             }
         }

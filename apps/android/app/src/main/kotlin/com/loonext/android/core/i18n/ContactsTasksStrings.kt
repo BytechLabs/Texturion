@@ -180,6 +180,8 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.bulkAssignedMany" to "Assigned",
         "contactsTasks.bulkUnassignedOne" to "Unassigned",
         "contactsTasks.bulkUnassignedMany" to "Unassigned",
+        "contactsTasks.bulkDeleteTitle" to "Delete the selected tasks?",
+        "contactsTasks.bulkDeleteBody" to "They are removed for everyone. The conversations and their messages stay.",
         "contactsTasks.bulkDeletedOne" to "Deleted",
         "contactsTasks.bulkDeletedMany" to "Deleted",
 
@@ -1020,6 +1022,8 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.bulkAssignedMany" to "Assignées",
         "contactsTasks.bulkUnassignedOne" to "Désassignée",
         "contactsTasks.bulkUnassignedMany" to "Désassignées",
+        "contactsTasks.bulkDeleteTitle" to "Supprimer les tâches sélectionnées ?",
+        "contactsTasks.bulkDeleteBody" to "Elles sont retirées pour tout le monde. Les conversations et leurs textos restent.",
         "contactsTasks.bulkDeletedOne" to "Supprimée",
         "contactsTasks.bulkDeletedMany" to "Supprimées",
 

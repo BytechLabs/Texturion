@@ -1,5 +1,6 @@
 package com.loonext.android
 
+import com.loonext.android.ui.common.IconSize
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -1148,7 +1149,7 @@ private fun OverlayScaffold(
                         Icon(
                             Icons.AutoMirrored.Outlined.ArrowBack,
                             contentDescription = t("common.back"),
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                     }
                 }

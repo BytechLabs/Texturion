@@ -1,5 +1,6 @@
 package com.loonext.android.features.auth
 
+import com.loonext.android.ui.common.IconSize
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
@@ -457,7 +458,7 @@ private fun BackCircle(contentDescription: String, onClick: () -> Unit) {
             Icon(
                 Icons.AutoMirrored.Outlined.ArrowBack,
                 contentDescription = contentDescription,
-                modifier = Modifier.size(17.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
         }
     }
@@ -562,7 +563,7 @@ private fun AuthField(
                             contentDescription =
                                 if (showPassword) t("auth.hidePassword") else t("auth.showPassword"),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                     }
                 }
@@ -620,7 +621,7 @@ private fun InkPillButton(
                     Icons.AutoMirrored.Outlined.ArrowForward,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onTertiary,
-                    modifier = Modifier.size(17.dp),
+                    modifier = Modifier.size(IconSize.Default),
                 )
             }
         }
@@ -646,7 +647,7 @@ private fun SuccessBanner(text: String) {
                     Icons.Outlined.Check,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onTertiary,
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier.size(IconSize.Small),
                 )
             }
             Text(

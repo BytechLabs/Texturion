@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -69,7 +70,7 @@ fun AlertBanner(
         Icon(
             Icons.Outlined.NotificationsActive,
             contentDescription = null,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(IconSize.Default),
             tint = MaterialTheme.colorScheme.onSecondaryContainer,
         )
         Text(

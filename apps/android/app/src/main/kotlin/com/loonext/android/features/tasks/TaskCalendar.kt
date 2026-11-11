@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.outlined.CalendarMonth
 import com.loonext.android.ui.common.PaperCard
@@ -517,7 +518,7 @@ private fun MonthNavRow(
                 Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                 contentDescription = t("contactsTasks.calendarPreviousMonth"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(IconSize.Large),
             )
         }
         Text(
@@ -543,7 +544,7 @@ private fun MonthNavRow(
                 Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = t("contactsTasks.calendarNextMonth"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(IconSize.Large),
             )
         }
     }

@@ -53,7 +53,7 @@ fun UrgentBadge(modifier: Modifier = Modifier) {
             Icons.Outlined.WarningAmber,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onErrorContainer,
-            modifier = Modifier.size(11.dp),
+            modifier = Modifier.size(IconSize.Small),
         )
         Spacer(Modifier.width(3.dp))
         Text(

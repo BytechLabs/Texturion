@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.ui.common.IconSize
 import android.content.Intent
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import com.loonext.android.ui.common.EmptyStateSize
@@ -369,7 +370,7 @@ private fun FilesList(
                     Icons.AutoMirrored.Filled.InsertDriveFile,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(IconSize.Large),
                 )
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {

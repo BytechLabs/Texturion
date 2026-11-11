@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -108,7 +109,7 @@ fun ShareJobPhotos(
             Icon(
                 Icons.Outlined.Link,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
             Text(
                 if (busy) {
@@ -157,7 +158,7 @@ fun ShareJobPhotos(
                     Icon(
                         Icons.Outlined.ContentCopy,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                     Text(t("contactsTasks.copy"), modifier = Modifier.padding(start = 6.dp))
                 }

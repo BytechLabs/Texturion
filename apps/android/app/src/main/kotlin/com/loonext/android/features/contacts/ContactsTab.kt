@@ -1,5 +1,7 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.IconSize
+import com.loonext.android.ui.common.showUndo
 import com.loonext.android.ui.common.ActiveFilterChip
 import androidx.compose.material.icons.outlined.People
 import com.loonext.android.ui.common.EmptyStateSize
@@ -64,9 +66,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -836,8 +836,8 @@ private fun ContactListScreen(
                                             // the unmerge of the record that was
                                             // folded in.
                                             scope.launch {
-                                                val outcome = snackbar.showSnackbar(
-                                                    message = AppStrings.translate(
+                                                snackbar.showUndo(
+                                                    AppStrings.translate(
                                                         locale,
                                                         if (result.opted_out) {
                                                             "contactsTasks.mergedOptedOut"
@@ -845,13 +845,8 @@ private fun ContactListScreen(
                                                             "contactsTasks.merged"
                                                         },
                                                     ),
-                                                    actionLabel = AppStrings.translate(
-                                                        locale,
-                                                        "inbox.undo",
-                                                    ),
-                                                    duration = SnackbarDuration.Long,
-                                                )
-                                                if (outcome == SnackbarResult.ActionPerformed) {
+                                                    AppStrings.translate(locale, "inbox.undo"),
+                                                ) {
                                                     try {
                                                         mutations.unmerge(companyId, foldedId)
                                                         onRefresh()
@@ -1271,7 +1266,7 @@ private fun DeviceContactRowItem(
                 Icons.Outlined.PersonAdd,
                 contentDescription = t("contactsTasks.addToContacts", "name" to row.name),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(19.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
         }
     }
@@ -1348,7 +1343,7 @@ private fun ContactRow(
             Icon(
                 Icons.AutoMirrored.Outlined.Chat,
                 contentDescription = null,
-                modifier = Modifier.size(15.dp),
+                modifier = Modifier.size(IconSize.Small),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -150,7 +151,7 @@ fun AskForPayment(
             Icon(
                 Icons.Outlined.RequestQuote,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
             Spacer(Modifier.width(6.dp))
             Text(t("payments.askAction"))

@@ -1,5 +1,7 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.IconSize
+import com.loonext.android.ui.common.RecordHeader
 import android.content.Intent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
@@ -357,19 +359,6 @@ private fun DetailTopBar(
     }
 }
 
-/** The task header's action row: the labelled link to the customer, absent when there is none. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TaskOnwardLinks(
-    openContact: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    if (openContact == null) return
-    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        RecordOpenLink(t("contactsTasks.openContact"), openContact)
-    }
-}
-
 /**
  * First-fetch stand-in in the detail grammar (spec 23): done ring + title
  * stub, created line, the Assignee/Due paper card, then a details block.
@@ -621,86 +610,7 @@ private fun TaskDetailBody(
     }
 
     Column(modifier.fillMaxSize()) {
-        DetailTopBar(onBack = onBack) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Not offered without access: the server 404s a follow on a task the
-                // caller cannot see.
-                if (!noAccess) {
-                    PaperCircleButton(
-                        icon = if (following) {
-                            Icons.Outlined.Notifications
-                        } else {
-                            Icons.Outlined.NotificationsOff
-                        },
-                        contentDescription = t(
-                            if (following) "contactsTasks.unfollowTask" else "contactsTasks.followTask",
-                        ),
-                        onClick = ::toggleFollow,
-                    )
-                }
-                // #712: the task's one action list, the same one the list row, the board
-                // card and the calendar entry draw. A record with nothing allowed has no menu.
-                val taskMenuActions = taskActions(
-                    TaskActionsInput(
-                        done = detail.done,
-                        hasAccess = !noAccess,
-                        canDelete = canDelete,
-                        // It is already open.
-                        canOpen = false,
-                        canCopyLink = true,
-                    ),
-                )
-                if (taskMenuActions.visible().isNotEmpty()) Box {
-                    PaperCircleButton(
-                        icon = Icons.Outlined.MoreHoriz,
-                        contentDescription = t("contactsTasks.taskActions"),
-                        onClick = {
-                            haptics.tap()
-                            menuOpen = true
-                        },
-                    )
-                    val clipboard = LocalClipboardManager.current
-                    RecordMenu(
-                        expanded = menuOpen,
-                        onDismiss = { menuOpen = false },
-                        actions = taskMenuActions,
-                        onSelect = { actionId, subId ->
-                            when (actionId) {
-                                TaskActionId.COPY_LINK -> {
-                                    haptics.tap()
-                                    clipboard.setText(AnnotatedString(taskLink(BuildConfig.APP_ORIGIN, detail.id)))
-                                }
-                                TaskActionId.DONE -> toggleDone()
-                                TaskActionId.DUE -> {
-                                    val days = subId?.toIntOrNull() ?: return@RecordMenu
-                                    scope.launch {
-                                        onActionError(null)
-                                        try {
-                                            mutations.setDue(
-                                                companyId,
-                                                detail.id,
-                                                movedDueAt(detail.due_at, days, Instant.now(), ZoneId.systemDefault()),
-                                                scope = if (needsScopeChoice(detail.repeat)) TaskScope.This else null,
-                                            )
-                                            onChanged()
-                                        } catch (cause: Exception) {
-                                            onActionError(cause.userMessage(locale))
-                                        }
-                                    }
-                                }
-                                TaskActionId.DELETE -> {
-                                    // #89: confirm only when the task carries
-                                    // notes or files; a plain task deletes now.
-                                    // #693: a repeating job asks which ones go first.
-                                    if (needsScopeChoice(detail.repeat)) deleteScopeOpen = true
-                                    else if (hasContent) confirmDelete = true else deleteTask()
-                                }
-                            }
-                        },
-                    )
-                }
-            }
-        }
+        DetailTopBar(onBack = onBack, menu = { Spacer(Modifier.size(44.dp)) })
 
         if (actionError != null) {
             Text(
@@ -716,133 +626,208 @@ private fun TaskDetailBody(
                 .weight(1f)
                 .fillMaxWidth(),
         ) {
+            // #733: the shared record header: done circle, title, quiet meta, the
+            // follow toggle and overflow menu, then the labelled ways onward.
             item(key = "header") {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(start = 14.dp, end = 18.dp, top = 8.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    if (!noAccess) {
-                        DoneCircle(
-                            done = detail.done,
-                            onToggle = { toggleDone() },
-                            ring = 30.dp,
-                            checkSize = 16.dp,
-                            ringWidth = 2.dp,
-                            touch = 44.dp,
-                            modifier = Modifier.padding(top = 2.dp),
-                        )
-                    }
-                    if (noAccess) {
-                        Text(
-                            detail.title,
-                            fontSize = 21.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            lineHeight = 26.sp,
-                            letterSpacing = (-0.01).em,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = 8.dp, vertical = 12.dp),
-                            textDecoration =
-                            if (detail.done) TextDecoration.LineThrough else null,
-                        )
+                val creator = detail.created_by?.display_name?.ifBlank { null }
+                    ?: memberName(detail.created_by_user_id)
+                val openContact = detail.contact_id?.let { contact ->
+                    onOpenContact?.let { open -> { open(contact) } }
+                }
+                RecordHeader(
+                    modifier = Modifier.padding(start = 14.dp, end = 18.dp, top = 8.dp),
+                    leading = if (noAccess) {
+                        null
                     } else {
-                        InlineEditField(
-                            key = detail.id + detail.updated_at + ":title",
-                            initial = detail.title,
-                            maxLength = TASK_TITLE_MAX,
-                            placeholder = t("contactsTasks.taskTitlePlaceholder"),
-                            singleLine = true,
-                            growToLines = 4,
-                            allowEmpty = false,
-                            textStyle = MaterialTheme.typography.titleLarge.copy(
+                        {
+                            DoneCircle(
+                                done = detail.done,
+                                onToggle = { toggleDone() },
+                                ring = 30.dp,
+                                checkSize = 16.dp,
+                                ringWidth = 2.dp,
+                                touch = 44.dp,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                    },
+                    title = {
+                        if (noAccess) {
+                            Text(
+                                detail.title,
                                 fontSize = 21.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 lineHeight = 26.sp,
                                 letterSpacing = (-0.01).em,
-                            ),
-                            onSave = { value ->
-                                try {
-                                    val (go, picked) = chooseScope()
-                                    if (!go) return@InlineEditField notSavedLabel
-                                    applyTask(mutations.rename(companyId, detail.id, value, picked))
-                                    null
-                                } catch (cause: Exception) {
-                                    cause.userMessage(locale)
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-            }
-
-            item(key = "status-line") {
-                val creator = detail.created_by?.display_name?.ifBlank { null }
-                    ?: memberName(detail.created_by_user_id)
-                Row(
-                    Modifier.padding(start = 18.dp, end = 18.dp, top = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    detail.number?.let { number ->
-                        Text(
-                            taskNumberLabel(number),
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.semantics {
-                                contentDescription = AppStrings.translate(
-                                    locale,
-                                    "taskLinks.numberLabel",
-                                    mapOf("number" to "$number"),
-                                )
-                            },
-                        )
-                    }
-                    // AnimatedContent so the done flip morphs the chip instead
-                    // of hard-swapping it.
-                    AnimatedContent(
-                        targetState = detail.done,
-                        label = "statusChip",
-                    ) { done ->
-                        DsChip(
-                            t(
-                                if (done) {
-                                    "contactsTasks.columnDone"
-                                } else {
-                                    "contactsTasks.columnToDo"
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+                                textDecoration =
+                                if (detail.done) TextDecoration.LineThrough else null,
+                            )
+                        } else {
+                            InlineEditField(
+                                key = detail.id + detail.updated_at + ":title",
+                                initial = detail.title,
+                                maxLength = TASK_TITLE_MAX,
+                                placeholder = t("contactsTasks.taskTitlePlaceholder"),
+                                singleLine = true,
+                                growToLines = 4,
+                                allowEmpty = false,
+                                textStyle = MaterialTheme.typography.titleLarge.copy(
+                                    fontSize = 21.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    lineHeight = 26.sp,
+                                    letterSpacing = (-0.01).em,
+                                ),
+                                onSave = { value ->
+                                    try {
+                                        val (go, picked) = chooseScope()
+                                        if (!go) return@InlineEditField notSavedLabel
+                                        applyTask(mutations.rename(companyId, detail.id, value, picked))
+                                        null
+                                    } catch (cause: Exception) {
+                                        cause.userMessage(locale)
+                                    }
                                 },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    },
+                    meta = {
+                        Row(
+                            Modifier.padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        ) {
+                            detail.number?.let { number ->
+                                Text(
+                                    taskNumberLabel(number),
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.semantics {
+                                        contentDescription = AppStrings.translate(
+                                            locale,
+                                            "taskLinks.numberLabel",
+                                            mapOf("number" to "$number"),
+                                        )
+                                    },
+                                )
+                            }
+                            // AnimatedContent so the done flip morphs the chip instead
+                            // of hard-swapping it.
+                            AnimatedContent(
+                                targetState = detail.done,
+                                label = "statusChip",
+                            ) { done ->
+                                DsChip(
+                                    t(
+                                        if (done) {
+                                            "contactsTasks.columnDone"
+                                        } else {
+                                            "contactsTasks.columnToDo"
+                                        },
+                                    ),
+                                )
+                            }
+                            Text(
+                                listOfNotNull(
+                                    t(
+                                        "contactsTasks.createdWhen",
+                                        "when" to relativeTime(detail.created_at),
+                                    ),
+                                    creator?.let { t("contactsTasks.createdBy", "who" to it) },
+                                ).joinToString(" "),
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            )
+                        }
+                    },
+                    trailing = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Not offered without access: the server 404s a follow on a task the
+                        // caller cannot see.
+                        if (!noAccess) {
+                            PaperCircleButton(
+                                icon = if (following) {
+                                    Icons.Outlined.Notifications
+                                } else {
+                                    Icons.Outlined.NotificationsOff
+                                },
+                                contentDescription = t(
+                                    if (following) "contactsTasks.unfollowTask" else "contactsTasks.followTask",
+                                ),
+                                onClick = ::toggleFollow,
+                            )
+                        }
+                        // #712: the task's one action list, the same one the list row, the board
+                        // card and the calendar entry draw. A record with nothing allowed has no menu.
+                        val taskMenuActions = taskActions(
+                            TaskActionsInput(
+                                done = detail.done,
+                                hasAccess = !noAccess,
+                                canDelete = canDelete,
+                                // It is already open.
+                                canOpen = false,
+                                canCopyLink = true,
                             ),
                         )
+                        if (taskMenuActions.visible().isNotEmpty()) Box {
+                            PaperCircleButton(
+                                icon = Icons.Outlined.MoreHoriz,
+                                contentDescription = t("contactsTasks.taskActions"),
+                                onClick = {
+                                    haptics.tap()
+                                    menuOpen = true
+                                },
+                            )
+                            val clipboard = LocalClipboardManager.current
+                            RecordMenu(
+                                expanded = menuOpen,
+                                onDismiss = { menuOpen = false },
+                                actions = taskMenuActions,
+                                onSelect = { actionId, subId ->
+                                    when (actionId) {
+                                        TaskActionId.COPY_LINK -> {
+                                            haptics.tap()
+                                            clipboard.setText(AnnotatedString(taskLink(BuildConfig.APP_ORIGIN, detail.id)))
+                                        }
+                                        TaskActionId.DONE -> toggleDone()
+                                        TaskActionId.DUE -> {
+                                            val days = subId?.toIntOrNull() ?: return@RecordMenu
+                                            scope.launch {
+                                                onActionError(null)
+                                                try {
+                                                    mutations.setDue(
+                                                        companyId,
+                                                        detail.id,
+                                                        movedDueAt(detail.due_at, days, Instant.now(), ZoneId.systemDefault()),
+                                                        scope = if (needsScopeChoice(detail.repeat)) TaskScope.This else null,
+                                                    )
+                                                    onChanged()
+                                                } catch (cause: Exception) {
+                                                    onActionError(cause.userMessage(locale))
+                                                }
+                                            }
+                                        }
+                                        TaskActionId.DELETE -> {
+                                            // #89: confirm only when the task carries
+                                            // notes or files; a plain task deletes now.
+                                            // #693: a repeating job asks which ones go first.
+                                            if (needsScopeChoice(detail.repeat)) deleteScopeOpen = true
+                                            else if (hasContent) confirmDelete = true else deleteTask()
+                                        }
+                                    }
+                                },
+                            )
+                        }
                     }
-                    Text(
-                        listOfNotNull(
-                            t(
-                                "contactsTasks.createdWhen",
-                                "when" to relativeTime(detail.created_at),
-                            ),
-                            creator?.let { t("contactsTasks.createdBy", "who" to it) },
-                        ).joinToString(" "),
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    )
-                }
-            }
-
-            // #717: the header's action row. The ways onward are labelled links
-            // here, not icons in a corner.
-            item(key = "onward") {
-                val openContact = detail.contact_id?.let { contact ->
-                    onOpenContact?.let { open -> { open(contact) } }
-                }
-                if (!noAccess) {
-                    TaskOnwardLinks(
-                        openContact = openContact,
-                        modifier = Modifier.padding(start = 10.dp, end = 18.dp),
-                    )
-                }
+                    },
+                    actions = if (!noAccess && openContact != null) {
+                        { RecordOpenLink(t("contactsTasks.openContact"), openContact) }
+                    } else {
+                        null
+                    },
+                )
             }
 
             item(key = "meta") {
@@ -937,7 +922,7 @@ private fun TaskDetailBody(
                                     Icon(
                                         Icons.Outlined.Close,
                                         contentDescription = t("contactsTasks.clearDueDate"),
-                                        modifier = Modifier.size(16.dp),
+                                        modifier = Modifier.size(IconSize.Default),
                                     )
                                 }
                             }
@@ -1661,7 +1646,7 @@ private fun MetaRow(
                 Icons.Outlined.ExpandMore,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
     }
@@ -1750,7 +1735,7 @@ private fun TaskAddressSection(
                 Icons.Outlined.Place,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
             Text(
                 t("contactsTasks.address"),
@@ -1801,7 +1786,7 @@ private fun TaskAddressSection(
                 },
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
-                    .size(18.dp)
+                    .size(IconSize.Default)
                     .rotate(if (open) 180f else 0f),
             )
         }
@@ -2334,7 +2319,7 @@ private fun NoteCard(
                 Icons.Outlined.Lock,
                 contentDescription = t("contactsTasks.internalNote"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(11.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
             Text(
                 "${author.uppercase()} · ${relativeTime(createdAt).uppercase()}",
@@ -2413,7 +2398,7 @@ private fun CommentCard(
                             Icons.Outlined.MoreHoriz,
                             contentDescription = t("contactsTasks.commentActions"),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -2598,7 +2583,7 @@ private fun NoteComposer(
                                     "contactsTasks.removeNamed",
                                     "name" to file.name,
                                 ),
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(IconSize.Small),
                             )
                         },
                     )
@@ -2641,7 +2626,7 @@ private fun NoteComposer(
                         Icons.Outlined.AttachFile,
                         contentDescription = t("contactsTasks.attachFiles"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                 }
                 BasicTextField(
@@ -2765,7 +2750,7 @@ private fun NoteComposer(
                                 "contactsTasks.postNote"
                             },
                         ),
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                 }
             }

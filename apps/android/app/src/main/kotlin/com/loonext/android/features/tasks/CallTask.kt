@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.IconSize
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -117,7 +118,7 @@ fun CallTaskButton(
             Icons.Outlined.AddTask,
             contentDescription = t("thread.makeTaskFromCall"),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(IconSize.Default),
         )
     }
     if (open) {
@@ -257,7 +258,7 @@ internal fun SourceCallCard(
                             Icons.Outlined.Voicemail,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(IconSize.Small),
                         )
                         Text(
                             t("contactsTasks.callVoicemailLeft"),

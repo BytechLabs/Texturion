@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,7 +63,7 @@ internal fun PaperCircleButton(
             Icon(
                 icon,
                 contentDescription = contentDescription,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
         }
     }

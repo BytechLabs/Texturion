@@ -1,5 +1,6 @@
 package com.loonext.android.core.update
 
+import com.loonext.android.ui.common.IconSize
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -97,7 +98,7 @@ private fun UpdateCard(state: UpdateState, onUpdate: () -> Unit, onDismiss: () -
                 Icon(
                     Icons.Outlined.Download,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(IconSize.Large),
                 )
                 Column(
                     modifier = Modifier.weight(1f),
@@ -126,7 +127,7 @@ private fun UpdateCard(state: UpdateState, onUpdate: () -> Unit, onDismiss: () -
                     Icon(
                         Icons.Outlined.Close,
                         contentDescription = t("shell.updateDismiss"),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                 }
             }

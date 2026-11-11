@@ -1,5 +1,6 @@
 package com.loonext.android.features.notifications
 
+import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.InitialsAvatar
 import androidx.compose.material.icons.outlined.NotificationsNone
 import com.loonext.android.ui.common.EmptyState
@@ -628,7 +629,7 @@ private fun KindBadge(row: NotificationItem) {
                     iconFor(row.type),
                     contentDescription = null,
                     tint = content,
-                    modifier = Modifier.size(15.dp),
+                    modifier = Modifier.size(IconSize.Small),
                 )
             }
         }

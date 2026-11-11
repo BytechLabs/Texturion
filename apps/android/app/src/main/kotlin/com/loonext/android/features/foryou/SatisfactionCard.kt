@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.clickable
 import com.loonext.android.ui.common.SegmentedSize
 import com.loonext.android.ui.common.Segment
@@ -181,7 +182,7 @@ private fun SatisfactionGapBody(report: SatisfactionReport, onOpenPoor: () -> Un
                 Icon(
                     Icons.AutoMirrored.Outlined.ArrowForward,
                     contentDescription = null,
-                    modifier = Modifier.size(15.dp),
+                    modifier = Modifier.size(IconSize.Small),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -262,7 +263,7 @@ private fun SatisfactionBody(
                         Icons.Outlined.TrendingDown
                     },
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(IconSize.Small),
                     // Olive for the good direction, the theme's error tint for
                     // the wrong one. A workspace whose customers are less happy
                     // is TOLD.
@@ -305,7 +306,7 @@ private fun SatisfactionBody(
             Icon(
                 Icons.AutoMirrored.Outlined.ArrowForward,
                 contentDescription = null,
-                modifier = Modifier.size(15.dp),
+                modifier = Modifier.size(IconSize.Small),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -345,7 +346,7 @@ private fun SatisfactionBody(
             Icons.Outlined.ExpandMore,
             contentDescription = null,
             modifier = Modifier
-                .size(16.dp)
+                .size(IconSize.Default)
                 // Points down when closed and up when open, so the glyph
                 // says which way the control goes rather than only that it
                 // is one.

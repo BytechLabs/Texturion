@@ -1,5 +1,6 @@
 package com.loonext.android.features.shell
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -513,7 +514,7 @@ private fun NavSlot(
             .asTab(selected),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(IconSize.Large))
         }
     }
 }

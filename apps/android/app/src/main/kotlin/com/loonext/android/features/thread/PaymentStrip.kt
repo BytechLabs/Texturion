@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -165,7 +166,7 @@ private fun PaymentRow(row: PaymentRequest, onCancel: (() -> Unit)?, cancelling:
             tint = accent,
             modifier = Modifier
                 .padding(top = 1.dp)
-                .size(15.dp),
+                .size(IconSize.Small),
         )
         // Said before the builder rather than inside it: `t` is
         // @ReadOnlyComposable and `buildString`'s lambda is a place a reader
@@ -234,7 +235,7 @@ private fun PaymentRow(row: PaymentRequest, onCancel: (() -> Unit)?, cancelling:
                         "description" to row.description,
                     ),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(15.dp),
+                    modifier = Modifier.size(IconSize.Small),
                 )
             }
         }

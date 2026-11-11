@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -95,7 +96,7 @@ fun WhileYouWait(
                 Icon(
                     Icons.Outlined.Call,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(IconSize.Default),
                 )
                 Column {
                     Text(
@@ -137,7 +138,7 @@ private fun SetupStep(label: String, onClick: () -> Unit) {
             Icon(
                 Icons.AutoMirrored.Outlined.ArrowForward,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
         }
     }

@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -78,7 +79,7 @@ fun AddressList(
                 Icon(
                     Icons.Outlined.LocationOn,
                     contentDescription = null,
-                    modifier = Modifier.size(15.dp),
+                    modifier = Modifier.size(IconSize.Small),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
@@ -115,7 +116,7 @@ fun AddressList(
                         "name" to entry.address,
                     ),
                     modifier = Modifier
-                        .size(15.dp)
+                        .size(IconSize.Small)
                         .minimumInteractiveComponentSize()
                         .clickable { onRemove(entry.id) },
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -176,7 +177,7 @@ fun AddressList(
                 Icon(
                     Icons.Outlined.Add,
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(IconSize.Small),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(

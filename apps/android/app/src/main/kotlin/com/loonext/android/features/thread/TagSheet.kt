@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.clickable
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.LoadErrorVariant
@@ -217,7 +218,7 @@ internal fun TagManageSheet(
                                     Icons.Filled.Check,
                                     contentDescription = t("thread.attached"),
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp),
+                                    modifier = Modifier.size(IconSize.Large),
                                 )
                             }
                         }

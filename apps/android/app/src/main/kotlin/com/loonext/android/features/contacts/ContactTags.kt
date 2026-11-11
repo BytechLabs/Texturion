@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.layout.Arrangement
 import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.layout.Column
@@ -86,7 +87,7 @@ fun ContactTagsRow(
                         Icon(
                             Icons.Outlined.Close,
                             contentDescription = t("contactsTasks.tagRemove", "name" to tag.name),
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                     },
                 )
@@ -95,7 +96,7 @@ fun ContactTagsRow(
                 onClick = { picking = true },
                 label = { Text(t("contactsTasks.tagAdd")) },
                 leadingIcon = {
-                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(IconSize.Default))
                 },
             )
         }

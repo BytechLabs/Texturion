@@ -1,5 +1,6 @@
 package com.loonext.android.features.shell
 
+import com.loonext.android.ui.common.IconSize
 import android.content.ClipData
 import com.loonext.android.ui.common.SegmentedSize
 import com.loonext.android.ui.common.Segment
@@ -441,7 +442,7 @@ private fun NumberChip(numberE164: String, onCopy: (String) -> Unit) {
             Icon(
                 Icons.Outlined.ContentCopy,
                 contentDescription = t("shell.copyNumber"),
-                modifier = Modifier.size(11.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
     }
@@ -483,7 +484,7 @@ private fun SheetRow(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(IconSize.Default),
                 )
             }
             if (dot) {
@@ -522,7 +523,7 @@ private fun Chevron() {
         Icons.AutoMirrored.Outlined.KeyboardArrowRight,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.outline,
-        modifier = Modifier.size(16.dp),
+        modifier = Modifier.size(IconSize.Default),
     )
 }
 

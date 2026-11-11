@@ -1,5 +1,6 @@
 package com.loonext.android.features.calls
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -158,7 +159,7 @@ fun CallerAvatar(
                         Icons.Outlined.Call,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onTertiary,
-                        modifier = Modifier.size(12.dp),
+                        modifier = Modifier.size(IconSize.Small),
                     )
                 }
             }
@@ -206,7 +207,7 @@ fun ControlCircle(
             Box(contentAlignment = Alignment.Center) {
                 // The label below is outside the button, so the button is named
                 // from the icon (the label is hidden below to avoid saying it twice).
-                Icon(icon, contentDescription ?: label, modifier = Modifier.size(20.dp))
+                Icon(icon, contentDescription ?: label, modifier = Modifier.size(IconSize.Large))
             }
         }
         Text(
@@ -263,7 +264,7 @@ fun EndCallPill(
                 Icon(
                     Icons.Outlined.CallEnd,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(IconSize.Large),
                 )
             }
         }

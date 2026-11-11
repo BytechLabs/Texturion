@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -414,7 +415,7 @@ fun ThreadSummaryCard(
                     Icons.Filled.ChevronRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(IconSize.Default),
                 )
             }
         }
@@ -437,7 +438,7 @@ fun ThreadSummaryCard(
                     Icons.Outlined.Block,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(IconSize.Small),
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -513,7 +514,7 @@ fun ThreadSummaryCard(
                                 Icons.Filled.ChevronRight,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(IconSize.Small),
                             )
                         }
                     }

@@ -85,7 +85,7 @@ fun SearchField(
                 Icons.Outlined.Search,
                 contentDescription = null,
                 tint = hint,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
             // The field itself is the full 48dp of the pill, so the whole box is the
             // touch target and the placeholder sits centred inside it.
@@ -131,7 +131,7 @@ fun SearchField(
                         Icons.Outlined.Close,
                         contentDescription = clearLabel,
                         tint = hint,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                 }
             }

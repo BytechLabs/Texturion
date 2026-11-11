@@ -1,5 +1,6 @@
 package com.loonext.android.features.activity
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.clickable
 import com.loonext.android.ui.common.EmptyStateSize
 import com.loonext.android.ui.common.EmptyState
@@ -330,7 +331,7 @@ private fun ActivityRow(
         Icon(
             imageVector = iconFor(line.icon),
             contentDescription = null,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(IconSize.Large),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Column(Modifier.weight(1f)) {

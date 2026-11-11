@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.InitialsAvatar
 import androidx.compose.material.icons.outlined.TaskAlt
 import com.loonext.android.ui.common.EmptyStateSize
@@ -1467,7 +1468,7 @@ private fun CircleIconButton(
             .semantics { if (showDot) stateDescription = unreadLabel },
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(17.dp))
+            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(IconSize.Default))
             // Animated so the coral dot pops in and out instead of blinking.
             AnimatedContent(
                 targetState = showDot,
@@ -1500,7 +1501,7 @@ private fun RowArrow() {
         Icons.AutoMirrored.Outlined.ArrowForward,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.outline,
-        modifier = Modifier.size(15.dp),
+        modifier = Modifier.size(IconSize.Small),
     )
 }
 

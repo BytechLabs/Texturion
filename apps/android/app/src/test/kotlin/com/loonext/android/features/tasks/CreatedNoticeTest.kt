@@ -1,7 +1,7 @@
 package com.loonext.android.features.tasks
 
-import androidx.compose.material3.SnackbarDuration
 import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.ui.common.NOTICE_ACTION_WINDOW_MS
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -9,7 +9,8 @@ import org.junit.Test
 class CreatedNoticeTest {
     @Test
     fun `open stays up as long as an undo notice`() {
-        assertEquals(SnackbarDuration.Long, CreatedNoticeDuration)
+        // A phone holds an action notice 10 seconds, as iOS does (docs/UNDO-AUDIT.md §3).
+        assertEquals(10_000L, NOTICE_ACTION_WINDOW_MS)
     }
 
     @Test

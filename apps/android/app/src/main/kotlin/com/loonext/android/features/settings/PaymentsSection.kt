@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import com.loonext.android.ui.common.InlineError
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -219,7 +220,7 @@ private fun PayoutCard(
                             Icons.Outlined.OpenInNew
                         },
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                 }
             }

@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -205,7 +206,7 @@ fun MessageBubble(
                             Icons.Outlined.Lock,
                             contentDescription = t("thread.internalNote"),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(13.dp),
+                            modifier = Modifier.size(IconSize.Small),
                         )
                         Spacer(Modifier.width(5.dp))
                         Text(
@@ -345,7 +346,7 @@ private fun MessageMetaLine(
                 Icons.Outlined.PushPin,
                 contentDescription = t("thread.pinned"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(12.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
         // #217: the task indicator opens that message's task detail. The link
@@ -371,9 +372,9 @@ private fun MessageMetaLine(
                         .clip(CircleShape)
                         .clickable(onClick = openTask)
                         .padding(4.dp)
-                        .size(12.dp)
+                        .size(IconSize.Small)
                 } else {
-                    Modifier.size(12.dp)
+                    Modifier.size(IconSize.Small)
                 },
             )
         }
@@ -413,7 +414,7 @@ private fun MessageMetaLine(
                 Icons.Outlined.Check,
                 contentDescription = null,
                 tint = limeMark(),
-                modifier = Modifier.size(11.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
         if (failed) {
@@ -623,7 +624,7 @@ fun EventLine(
                 } else {
                     MaterialTheme.colorScheme.secondary
                 },
-                modifier = Modifier.size(11.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
         Spacer(Modifier.width(9.dp))
@@ -780,7 +781,7 @@ fun AttachmentFileChip(
                 kind.icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(15.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
         Spacer(Modifier.width(8.dp))
@@ -830,7 +831,7 @@ private fun NoteFilesSection(
                             Icons.Outlined.Description,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(IconSize.Small),
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(

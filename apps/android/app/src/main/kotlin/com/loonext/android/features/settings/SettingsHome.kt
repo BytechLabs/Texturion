@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.ui.common.IconSize
 import android.content.ClipData
 import com.loonext.android.ui.common.SearchField
 import com.loonext.android.ui.common.PaperCard
@@ -754,7 +755,7 @@ private fun IdentityCard(
                         Icon(
                             Icons.Outlined.ContentCopy,
                             contentDescription = t("settingsMore.copyNumber"),
-                            modifier = Modifier.size(12.dp),
+                            modifier = Modifier.size(IconSize.Small),
                         )
                     }
                 }
@@ -820,7 +821,7 @@ private fun HandOverPhoneRow(
             Icons.AutoMirrored.Outlined.Logout,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(17.dp),
+            modifier = Modifier.size(IconSize.Default),
         )
         Spacer(Modifier.width(9.dp))
         Text(
@@ -995,7 +996,7 @@ private fun SettingsIndexRow(
                 iconFor(section),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
         }
         Spacer(Modifier.width(12.dp))
@@ -1025,7 +1026,7 @@ private fun SettingsIndexRow(
             Icons.AutoMirrored.Outlined.KeyboardArrowRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(IconSize.Default),
         )
     }
 }

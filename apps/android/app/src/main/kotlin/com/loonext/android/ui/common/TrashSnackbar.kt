@@ -35,7 +35,7 @@ class TrashSnackbarVisuals(
     val trashLabel: String,
 ) : SnackbarVisuals {
     override val withDismissAction: Boolean = false
-    override val duration: SnackbarDuration = SnackbarDuration.Long
+    override val duration: SnackbarDuration = SnackbarDuration.Indefinite
 }
 
 /** The labels of the actions a snackbar shows, in order. Pure, for tests. */

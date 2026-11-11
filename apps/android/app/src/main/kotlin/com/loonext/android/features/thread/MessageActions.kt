@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -248,7 +249,7 @@ private fun ActionRow(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(IconSize.Large),
         )
         Spacer(Modifier.width(16.dp))
         Text(
@@ -269,7 +270,7 @@ private fun ActionRow(
                 } else {
                     MaterialTheme.colorScheme.outline
                 },
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
         }
     }
@@ -507,7 +508,7 @@ fun MakeTaskSheet(
                         Icons.Outlined.Close,
                         contentDescription = t("common.close"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(15.dp),
+                        modifier = Modifier.size(IconSize.Small),
                     )
                 }
             }
@@ -767,7 +768,7 @@ fun MakeTaskSheet(
                             Icons.Outlined.ExpandMore,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(IconSize.Small),
                         )
                     }
                     if (draft != null && draft.problem(dueDate) != null) {
@@ -877,7 +878,7 @@ fun MakeTaskSheet(
                         Icons.Outlined.Check,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onTertiary,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                 }
             }
@@ -1065,7 +1066,7 @@ private fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
                 Icons.Outlined.Check,
                 contentDescription = t("thread.selected"),
                 tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(13.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
     }
@@ -1117,7 +1118,7 @@ private fun DueChip(label: String, selected: Boolean, onClick: () -> Unit) {
                 Icons.Outlined.Check,
                 contentDescription = t("thread.selected"),
                 tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(13.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
         Text(
@@ -1198,7 +1199,7 @@ private fun AddressSection(
                 Icons.Outlined.Place,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
             Text(
                 t("thread.addressSection"),
@@ -1241,7 +1242,7 @@ private fun AddressSection(
                 else t("thread.showAddress"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
-                    .size(18.dp)
+                    .size(IconSize.Default)
                     .rotate(if (open) 180f else 0f),
             )
         }

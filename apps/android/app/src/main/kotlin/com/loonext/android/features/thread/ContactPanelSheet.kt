@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.TextButton
@@ -196,7 +197,7 @@ internal fun ContactPanelSheet(
                             Icon(
                                 Icons.Outlined.Phone,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(IconSize.Default),
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(t("contactsTasks.call"))
@@ -211,7 +212,7 @@ internal fun ContactPanelSheet(
                         Icon(
                             if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
@@ -406,7 +407,7 @@ private fun PreferencesSection(
                 if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
         }
         if (open) {

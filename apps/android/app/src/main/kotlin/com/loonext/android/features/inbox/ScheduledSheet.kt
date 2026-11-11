@@ -1,5 +1,6 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -171,7 +172,7 @@ private fun ScheduledSheetRow(
             tint = if (held) NoteAmber.ink() else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .padding(top = 2.dp)
-                .size(16.dp),
+                .size(IconSize.Default),
         )
         Column(Modifier.weight(1f)) {
             Row(

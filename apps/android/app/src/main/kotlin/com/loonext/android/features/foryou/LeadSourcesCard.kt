@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Box
@@ -113,7 +114,7 @@ fun LeadSourcesCard(
                     Icon(
                         Icons.AutoMirrored.Outlined.ArrowForward,
                         contentDescription = null,
-                        modifier = Modifier.padding(start = 4.dp).size(14.dp),
+                        modifier = Modifier.padding(start = 4.dp).size(IconSize.Small),
                     )
                 }
                 return@Column

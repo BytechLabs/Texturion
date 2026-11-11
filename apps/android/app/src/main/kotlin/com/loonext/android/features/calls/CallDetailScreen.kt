@@ -1,5 +1,6 @@
 package com.loonext.android.features.calls
 
+import com.loonext.android.ui.common.RecordHeader
 import androidx.compose.foundation.layout.Arrangement
 import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Column
@@ -104,40 +105,42 @@ private fun CallDetailBody(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                ScreenTitle(who)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        t(callOutcomeLineKey(call)) + " · ",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Timestamp(
-                        call.started_at,
-                        style = TimestampFormat.Style.LONG,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-        if (call.conversation_id != null || call.contact_id != null) {
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    call.conversation_id?.let { id ->
-                        OutlinedButton(
-                            onClick = { onOpenConversation(id) },
-                            modifier = Modifier.heightIn(min = 48.dp),
-                        ) { Text(t("shell.openConversation")) }
+            RecordHeader(
+                title = { ScreenTitle(who) },
+                meta = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            t(callOutcomeLineKey(call)) + " · ",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Timestamp(
+                            call.started_at,
+                            style = TimestampFormat.Style.LONG,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    call.contact_id?.let { id ->
-                        OutlinedButton(
-                            onClick = { onOpenContact(id) },
-                            modifier = Modifier.heightIn(min = 48.dp),
-                        ) { Text(t("shell.viewContact")) }
+                },
+                actions = if (call.conversation_id != null || call.contact_id != null) {
+                    {
+                        call.conversation_id?.let { id ->
+                            OutlinedButton(
+                                onClick = { onOpenConversation(id) },
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) { Text(t("shell.openConversation")) }
+                        }
+                        call.contact_id?.let { id ->
+                            OutlinedButton(
+                                onClick = { onOpenContact(id) },
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) { Text(t("shell.viewContact")) }
+                        }
                     }
-                }
-            }
+                } else {
+                    null
+                },
+            )
         }
         // The words first: see the note on the screen.
         item {

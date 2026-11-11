@@ -1,9 +1,8 @@
 package com.loonext.android.features.inbox
 
-import androidx.compose.material3.SnackbarDuration
+import com.loonext.android.ui.common.showOpen
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -91,12 +90,7 @@ fun InboundMessageToastHost(
                 attachmentCount = kinds.size,
                 locale = locale,
             )
-            val result = snackbar.showSnackbar(
-                message = line,
-                actionLabel = viewLabel,
-                duration = SnackbarDuration.Short,
-            )
-            if (result == SnackbarResult.ActionPerformed) onView(conversationId)
+            snackbar.showOpen(line, viewLabel) { onView(conversationId) }
         }
     }
 

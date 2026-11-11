@@ -1,5 +1,7 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.IconSize
+import com.loonext.android.ui.common.RecordHeader
 import android.Manifest
 import com.loonext.android.ui.common.ConfirmDialog
 import com.loonext.android.ui.common.PaperCard
@@ -473,81 +475,96 @@ private fun ContactDetailBody(
             .padding(horizontal = 18.dp),
         verticalArrangement = Arrangement.spacedBy(13.dp),
     ) {
-        // Identity header: 78dp tinted squircle, Bricolage name, muted phone.
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            InitialsAvatar(
-                displayName,
-                78.dp,
-                shape = RoundedCornerShape(26.dp),
-                glyph = 24.sp,
-                container = MaterialTheme.colorScheme.surfaceContainerHigh,
-                content = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                displayName,
-                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 24.sp),
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    formatPhone(contact.phone_e164),
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // Identity header (#733): the shared record header. Avatar, name, number and
+        // relationship on the left, the overflow menu beside them, the pills under.
+        var newTaskOpen by remember { mutableStateOf(false) }
+        RecordHeader(
+            modifier = Modifier.padding(top = 6.dp),
+            leading = {
+                InitialsAvatar(
+                    displayName,
+                    56.dp,
+                    shape = RoundedCornerShape(20.dp),
+                    glyph = 20.sp,
+                    container = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    content = MaterialTheme.colorScheme.onSurface,
                 )
-                IconButton(
-                    onClick = {
-                        haptics.tap()
-                        clipboard.setText(AnnotatedString(contact.phone_e164))
-                    },
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        Icons.Outlined.ContentCopy,
-                        contentDescription = t("contactsTasks.copyNumber"),
-                        modifier = Modifier.size(13.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            },
+            title = {
+                Text(
+                    displayName,
+                    style = MaterialTheme.typography.headlineMedium.copy(fontSize = 24.sp),
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+            },
+            meta = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        formatPhone(contact.phone_e164),
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    IconButton(
+                        onClick = {
+                            haptics.tap()
+                            clipboard.setText(AnnotatedString(contact.phone_e164))
+                        },
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.ContentCopy,
+                            contentDescription = t("contactsTasks.copyNumber"),
+                            modifier = Modifier.size(IconSize.Small),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                // #410: how long they have been a customer, and how often.
+                // Quiet metadata under the number rather than a section of its
+                // own — two facts do not earn a heading.
+                contactRelationshipLine(
+                    contact.conversation_count,
+                    contact.first_conversation_at,
+                    locale,
+                )?.let { line ->
+                    Text(
+                        line,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
-            }
-            // #410: how long they have been a customer, and how often.
-            // Quiet metadata under the number rather than a section of its
-            // own — two facts do not earn a heading.
-            contactRelationshipLine(
-                contact.conversation_count,
-                contact.first_conversation_at,
-                locale,
-            )?.let { line ->
-                Text(
-                    line,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-            if (contact.opted_out) {
-                DsChip(
-                    t("contactsTasks.optedOut"),
-                    container = MaterialTheme.colorScheme.errorContainer,
-                    content = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-
-            var newTaskOpen by remember { mutableStateOf(false) }
+                if (contact.opted_out) {
+                    DsChip(
+                        t("contactsTasks.optedOut"),
+                        container = MaterialTheme.colorScheme.errorContainer,
+                        content = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            },
+            trailing = {
+                Box {
+                    PaperCircleButton(
+                        onClick = {
+                            haptics.tap()
+                            contactMenuOpen = true
+                        },
+                        contentDescription = t("recordMenu.moreActionsFor", "name" to displayName),
+                        icon = Icons.Outlined.MoreHoriz,
+                    )
+                    RecordMenu(
+                        expanded = contactMenuOpen,
+                        onDismiss = { contactMenuOpen = false },
+                        actions = contactMenuActions,
+                        onSelect = { actionId, _ -> runContactAction(actionId) },
+                    )
+                }
+            },
             // Contextual primary pill (#82) beside Call (#165). The messaging
             // destination hides until the shell wires it — a pill that goes
             // nowhere would be a lie; Call needs no shell wiring.
-            Row(
-                Modifier.padding(top = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
+            actions = {
                 if (conversation != null && onOpenConversation != null) {
                     ActionPill(
                         label = t("contactsTasks.openConversation"),
@@ -600,34 +617,18 @@ private fun ContactDetailBody(
                         newTaskOpen = true
                     },
                 )
-                Box {
-                    PaperCircleButton(
-                        onClick = {
-                            haptics.tap()
-                            contactMenuOpen = true
-                        },
-                        contentDescription = t("recordMenu.moreActionsFor", "name" to displayName),
-                        icon = Icons.Outlined.MoreHoriz,
-                    )
-                    RecordMenu(
-                        expanded = contactMenuOpen,
-                        onDismiss = { contactMenuOpen = false },
-                        actions = contactMenuActions,
-                        onSelect = { actionId, _ -> runContactAction(actionId) },
-                    )
-                }
-            }
-            if (newTaskOpen) {
-                NewTaskSheetHost(
-                    graph = graph,
-                    companyId = companyId,
-                    conversationId = null,
-                    contactId = contact.id,
-                    contactName = contact.name?.trim().takeUnless { it.isNullOrEmpty() }
-                        ?: formatPhone(contact.phone_e164),
-                    onDismiss = { newTaskOpen = false },
-                )
-            }
+            },
+        )
+        if (newTaskOpen) {
+            NewTaskSheetHost(
+                graph = graph,
+                companyId = companyId,
+                conversationId = null,
+                contactId = contact.id,
+                contactName = contact.name?.trim().takeUnless { it.isNullOrEmpty() }
+                    ?: formatPhone(contact.phone_e164),
+                onDismiss = { newTaskOpen = false },
+            )
         }
 
         if (actionError != null) {
@@ -1012,7 +1013,7 @@ private fun ContactDetailBody(
                         Icon(
                             Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(IconSize.Default),
                             tint = MaterialTheme.colorScheme.outline,
                         )
                     }
@@ -1265,7 +1266,7 @@ private fun DestinationClockRow(
             Icon(
                 Icons.Outlined.Schedule,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(IconSize.Default),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.width(6.dp))
@@ -1378,7 +1379,7 @@ private fun ContactLanguageRow(
             Icon(
                 Icons.Outlined.Translate,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(IconSize.Default),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.width(6.dp))
@@ -1495,7 +1496,7 @@ private fun PaperCircleButton(
             Icon(
                 icon,
                 contentDescription = contentDescription,
-                modifier = Modifier.size(17.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
         }
     }
@@ -1526,7 +1527,7 @@ private fun ActionPill(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(IconSize.Small))
             AnimatedContent(targetState = label, label = "pillLabel") { text ->
                 Text(
                     text,
@@ -1569,7 +1570,7 @@ private fun ConsentStrip(hasConsent: Boolean, text: String) {
                 Icon(
                     if (hasConsent) Icons.Outlined.Check else Icons.Outlined.QuestionMark,
                     contentDescription = null,
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier.size(IconSize.Small),
                     tint = if (hasConsent) {
                         MaterialTheme.colorScheme.onTertiary
                     } else {

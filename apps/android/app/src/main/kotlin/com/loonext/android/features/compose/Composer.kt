@@ -1,5 +1,6 @@
 package com.loonext.android.features.compose
 
+import com.loonext.android.ui.common.IconSize
 import android.Manifest
 import com.loonext.android.ui.common.EmptyStateSize
 import com.loonext.android.ui.common.EmptyState
@@ -1879,7 +1880,7 @@ fun PhotoChipsRow(
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .size(18.dp)
+                            .size(IconSize.Default)
                             .background(MaterialTheme.colorScheme.surface, CircleShape)
                             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
                             .clickable { onRemove(photo.id) },
@@ -1920,7 +1921,7 @@ private fun StagedMediaChip(
             kind.icon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.size(15.dp),
+            modifier = Modifier.size(IconSize.Small),
         )
         Spacer(Modifier.width(7.dp))
         Column {
@@ -1945,7 +1946,7 @@ private fun StagedMediaChip(
             Icons.Filled.Close,
             contentDescription = t("thread.removeNamed", "name" to name),
             modifier = Modifier
-                .size(16.dp)
+                .size(IconSize.Default)
                 .clickable { onRemove(photo.id) },
         )
     }
@@ -2006,7 +2007,7 @@ fun FileChipsRow(
                     Icons.Filled.Close,
                     contentDescription = t("thread.removeNamed", "name" to file.name),
                     modifier = Modifier
-                        .size(16.dp)
+                        .size(IconSize.Default)
                         .clickable { onRemove(file.id) },
                 )
             }

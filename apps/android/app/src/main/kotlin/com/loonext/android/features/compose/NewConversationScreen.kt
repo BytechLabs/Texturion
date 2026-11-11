@@ -1,5 +1,6 @@
 package com.loonext.android.features.compose
 
+import com.loonext.android.ui.common.IconSize
 import androidx.activity.compose.BackHandler
 import com.loonext.android.ui.common.ConfirmDialog
 import com.loonext.android.ui.common.PaperCard
@@ -759,7 +760,7 @@ private fun ConsentCard(modifier: Modifier = Modifier) {
                         Icons.Outlined.Check,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onTertiary,
-                        modifier = Modifier.size(12.dp),
+                        modifier = Modifier.size(IconSize.Small),
                     )
                 }
             }
@@ -810,7 +811,7 @@ private fun PaperCircleButton(
                 tint = MaterialTheme.colorScheme.onSurface.copy(
                     alpha = if (enabled) 1f else 0.4f,
                 ),
-                modifier = Modifier.size(17.dp),
+                modifier = Modifier.size(IconSize.Default),
             )
         }
     }
@@ -900,7 +901,7 @@ private fun RecipientChip(
                 contentDescription = t("thread.clearRecipient"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
-                    .size(18.dp)
+                    .size(IconSize.Default)
                     .clickable(onClick = onClear),
             )
         }
@@ -1007,7 +1008,7 @@ private fun QuietHoursNotice(text: String) {
             tint = ink,
             modifier = Modifier
                 .padding(top = 2.dp)
-                .size(13.dp),
+                .size(IconSize.Small),
         )
         Spacer(Modifier.width(8.dp))
         Text(
@@ -1063,7 +1064,7 @@ private fun SendPill(
                         Icons.Outlined.ArrowUpward,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onTertiary.copy(alpha = alpha),
-                        modifier = Modifier.size(17.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                 }
             }

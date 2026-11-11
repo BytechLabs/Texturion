@@ -1,5 +1,7 @@
 package com.loonext.android.features.calls
 
+import com.loonext.android.ui.common.IconSize
+import com.loonext.android.ui.common.showUndo
 import com.loonext.android.ui.common.RefreshBox
 import com.loonext.android.ui.common.EmptyState
 import com.loonext.android.ui.common.Segment
@@ -7,7 +9,6 @@ import com.loonext.android.ui.common.SegmentedControl
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.TrashSnackbarHost
-import com.loonext.android.ui.common.TrashSnackbarVisuals
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import androidx.compose.animation.AnimatedContent
@@ -59,9 +60,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -390,16 +389,11 @@ fun CallsScreen(
         undo: (() -> Unit)? = null,
     ) {
         scope.launch {
-            val result = if (undoLabel != null && trashLabel != null) {
-                snackbar.showSnackbar(TrashSnackbarVisuals(text, undoLabel, trashLabel))
+            if (undoLabel != null) {
+                snackbar.showUndo(text, undoLabel, trashLabel) { undo?.invoke() }
             } else {
-                snackbar.showSnackbar(
-                    message = text,
-                    actionLabel = undoLabel,
-                    duration = if (undoLabel != null) SnackbarDuration.Long else SnackbarDuration.Short,
-                )
+                snackbar.showSnackbar(text)
             }
-            if (result == SnackbarResult.ActionPerformed) undo?.invoke()
         }
     }
     fun restore(call: Call, voicemail: Boolean) {
@@ -1178,7 +1172,7 @@ internal fun CallRow(
                                         "name" to name,
                                     ),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(IconSize.Default),
                                 )
                             }
                         }
@@ -1196,7 +1190,7 @@ internal fun CallRow(
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
-                            modifier = Modifier.size(12.dp),
+                            modifier = Modifier.size(IconSize.Small),
                         )
                         // #566: the screening pill comes BEFORE the outcome and
                         // never yields. It used to be the last child of a plain
@@ -1339,7 +1333,7 @@ private fun CallRowActionBar(
                         callRowActionIcon(action),
                         contentDescription = t(callRowActionLabelKey(action)) + ", " + name,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                 }
             }
@@ -1385,7 +1379,7 @@ private fun ReasonChip(label: String, onRemove: () -> Unit, modifier: Modifier =
                     Icons.Outlined.Close,
                     contentDescription = t("inbox.removeFilterAria", "label" to label),
                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(IconSize.Default),
                 )
             }
         }
@@ -1651,7 +1645,7 @@ internal fun VoicemailPlayerRow(
                                     } else {
                                         t("contactsTasks.playVoicemail")
                                     },
-                                    modifier = Modifier.size(14.dp),
+                                    modifier = Modifier.size(IconSize.Small),
                                 )
                             }
                         }

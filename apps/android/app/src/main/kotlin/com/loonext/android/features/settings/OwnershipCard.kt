@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.layout.Column
 import com.loonext.android.ui.common.LinkButton
 import com.loonext.android.ui.common.ConfirmDialog
@@ -405,7 +406,7 @@ private fun PendingHandoverNotice(
                 Icons.Outlined.GppMaybe,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(IconSize.Large),
             )
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {

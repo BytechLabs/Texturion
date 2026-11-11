@@ -1,5 +1,7 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.ui.common.IconSize
+import com.loonext.android.ui.common.showUndo
 import android.Manifest
 import com.loonext.android.ui.common.EmptyState
 import com.loonext.android.ui.common.ConfirmDialog
@@ -78,9 +80,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -140,7 +140,6 @@ import com.loonext.android.features.contacts.contactRepeatBadge
 import com.loonext.android.features.settings.openExternal
 import com.loonext.android.ui.common.TRASH_URL
 import com.loonext.android.ui.common.TrashSnackbarHost
-import com.loonext.android.ui.common.TrashSnackbarVisuals
 import com.loonext.android.features.settings.supportMailto
 import com.loonext.android.features.tasks.ReferenceSource
 import com.loonext.android.features.tasks.ReferenceTarget
@@ -321,17 +320,11 @@ fun ThreadScreen(
         val notice = controller.notice ?: return@LaunchedEffect
         val actionLabel = notice.actionLabel
         val trashLabel = notice.trashLabel
-        val result = if (actionLabel != null && trashLabel != null) {
-            snackbar.showSnackbar(TrashSnackbarVisuals(notice.text, actionLabel, trashLabel))
+        if (actionLabel != null) {
+            snackbar.showUndo(notice.text, actionLabel, trashLabel) { notice.action?.invoke() }
         } else {
-            snackbar.showSnackbar(
-                message = notice.text,
-                actionLabel = actionLabel,
-                duration = if (actionLabel != null) SnackbarDuration.Long
-                else SnackbarDuration.Short,
-            )
+            snackbar.showSnackbar(notice.text)
         }
-        if (result == SnackbarResult.ActionPerformed) notice.action?.invoke()
     }
 
     // "Photos & files" replaces the thread in place (state-based navigation,
@@ -1104,7 +1097,7 @@ private fun ThreadLoaded(
                             Icons.Filled.KeyboardArrowDown,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                     }
                 }
@@ -1652,7 +1645,7 @@ private fun ThreadTagsRow(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .padding(start = 2.dp)
-                        .size(16.dp)
+                        .size(IconSize.Default)
                         .clickable { onRemove(tag) },
                 )
             }
@@ -1667,7 +1660,7 @@ private fun ThreadTagsRow(
                 Icons.Filled.Sell,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
             Spacer(Modifier.width(4.dp))
             Text(
@@ -1762,7 +1755,7 @@ private fun ThreadHeader(
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = t("common.back"),
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(IconSize.Default),
                 )
             }
             Spacer(Modifier.width(6.dp))
@@ -1915,7 +1908,7 @@ private fun ThreadHeader(
                             Icons.Filled.Call,
                             contentDescription = t("thread.callContact", "name" to contactName),
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                     }
                 }
@@ -1940,7 +1933,7 @@ private fun ThreadHeader(
                         Icons.Filled.MoreHoriz,
                         contentDescription = t("thread.more"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                 }
             }
@@ -2193,7 +2186,7 @@ private fun SpamSuspectedBanner(
                 Icons.Outlined.Info,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
             Spacer(Modifier.width(8.dp))
             Text(
@@ -2254,7 +2247,7 @@ private fun SnoozedBanner(label: String, onBringBack: () -> Unit) {
             Icons.Outlined.Schedule,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(14.dp),
+            modifier = Modifier.size(IconSize.Small),
         )
         Spacer(Modifier.width(8.dp))
         Text(
@@ -2702,7 +2695,7 @@ private fun SheetActionRow(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(IconSize.Default),
         )
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) {
@@ -2835,7 +2828,7 @@ private fun SheetToggleRow(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(IconSize.Default),
         )
         Spacer(Modifier.width(13.dp))
         Text(
@@ -2857,7 +2850,7 @@ private fun SheetToggleRow(
             } else {
                 MaterialTheme.colorScheme.outline
             },
-            modifier = Modifier.size(17.dp),
+            modifier = Modifier.size(IconSize.Default),
         )
     }
 }

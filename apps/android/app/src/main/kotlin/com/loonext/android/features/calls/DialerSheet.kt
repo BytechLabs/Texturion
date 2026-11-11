@@ -1,5 +1,6 @@
 package com.loonext.android.features.calls
 
+import com.loonext.android.ui.common.IconSize
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -490,7 +491,7 @@ fun DialerSheet(
                                 Icon(
                                     Icons.Outlined.People,
                                     contentDescription = null,
-                                    modifier = Modifier.size(17.dp),
+                                    modifier = Modifier.size(IconSize.Default),
                                 )
                                 Text(
                                     t("contactsTasks.contactsTitle"),
@@ -526,7 +527,7 @@ fun DialerSheet(
                                 Icon(
                                     Icons.Outlined.PersonAdd,
                                     contentDescription = null,
-                                    modifier = Modifier.size(17.dp),
+                                    modifier = Modifier.size(IconSize.Default),
                                 )
                                 Text(
                                     t("contactsTasks.addContact"),

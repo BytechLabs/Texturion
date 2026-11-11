@@ -66,7 +66,7 @@ fun EmptyState(
                     icon,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(IconSize.Large),
                 )
             }
         }

@@ -77,7 +77,7 @@ fun RecordOpenLink(label: String, onClick: () -> Unit) {
         Icon(
             Icons.AutoMirrored.Outlined.KeyboardArrowRight,
             contentDescription = null,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(IconSize.Default),
         )
     }
 }

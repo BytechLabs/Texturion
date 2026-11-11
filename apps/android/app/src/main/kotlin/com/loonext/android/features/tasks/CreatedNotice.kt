@@ -1,9 +1,8 @@
 package com.loonext.android.features.tasks
 
-import androidx.compose.material3.SnackbarDuration
+import com.loonext.android.ui.common.showOpen
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -23,9 +22,6 @@ data class CreatedTaskNotice(
     val taskId: String,
 )
 
-/** Same length as the Undo notices, so Open can be reached as comfortably. */
-val CreatedNoticeDuration = SnackbarDuration.Long
-
 /** Shows each posted [CreatedTaskNotice]; Open calls [onOpenTask]. */
 @Composable
 fun CreatedTaskNoticeHost(
@@ -36,12 +32,7 @@ fun CreatedTaskNoticeHost(
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(graph) {
         graph.createdTaskNotices.collect { notice ->
-            val result = snackbar.showSnackbar(
-                message = notice.text,
-                actionLabel = notice.openLabel,
-                duration = CreatedNoticeDuration,
-            )
-            if (result == SnackbarResult.ActionPerformed) onOpenTask(notice.taskId)
+            snackbar.showOpen(notice.text, notice.openLabel) { onOpenTask(notice.taskId) }
         }
     }
     SnackbarHost(snackbar, modifier = modifier)

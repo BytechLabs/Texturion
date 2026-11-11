@@ -1,5 +1,6 @@
 package com.loonext.android.features.calls
 
+import com.loonext.android.ui.common.IconSize
 import android.Manifest
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.LoadErrorVariant
@@ -253,7 +254,7 @@ fun InCallScreen(
                     Icon(
                         Icons.Outlined.KeyboardArrowDown,
                         contentDescription = t("contactsTasks.hide"),
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(IconSize.Large),
                     )
                 }
             }
@@ -613,7 +614,7 @@ private fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
                     Icons.AutoMirrored.Outlined.Message,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier.size(IconSize.Small),
                 )
                 Text(
                     t("contactsTasks.callNoteEyebrow"),
@@ -756,7 +757,7 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                         Icon(
                             Icons.Outlined.Call,
                             contentDescription = null,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(IconSize.Small),
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
@@ -1095,7 +1096,7 @@ private fun InCallScreenPreview() {
                                 Icon(
                                     Icons.Outlined.KeyboardArrowDown,
                                     contentDescription = t("contactsTasks.hide"),
-                                    modifier = Modifier.size(20.dp),
+                                    modifier = Modifier.size(IconSize.Large),
                                 )
                             }
                         }

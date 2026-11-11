@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.layout.Arrangement
 import com.loonext.android.ui.common.InlineError
 import com.loonext.android.ui.common.LinkButton
@@ -293,7 +294,7 @@ fun UsageExportCard(scope: SettingsScope) {
                 Icon(
                     Icons.Outlined.Description,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(IconSize.Default),
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(t(EXPORT_USAGE_ACTION_KEY))
@@ -440,7 +441,7 @@ private fun ExportRow(row: DataExport, onDownload: (String) -> Unit) {
                 Icon(
                     Icons.Outlined.Download,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(IconSize.Default),
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(t("settingsMore.download"))

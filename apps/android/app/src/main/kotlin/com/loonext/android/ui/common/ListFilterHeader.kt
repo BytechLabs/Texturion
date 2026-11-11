@@ -145,7 +145,7 @@ fun ListFilterButton(count: Int, onClick: () -> Unit) {
             Icon(
                 Icons.Outlined.Tune,
                 contentDescription = null,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).size(18.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).size(IconSize.Default),
             )
         }
         if (count > 0) {
@@ -189,7 +189,7 @@ fun ListViewsMenu(views: ListViews) {
                 .semantics { contentDescription = name },
         ) {
             Box(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                Icon(Icons.Outlined.Bookmarks, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.Bookmarks, contentDescription = null, modifier = Modifier.size(IconSize.Default))
             }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -217,12 +217,12 @@ fun ListViewsMenu(views: ListViews) {
                         }
                     },
                     leadingIcon = if (entry.isDefault) {
-                        { Icon(Icons.Outlined.Star, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        { Icon(Icons.Outlined.Star, contentDescription = null, modifier = Modifier.size(IconSize.Default)) }
                     } else {
                         null
                     },
                     trailingIcon = if (entry.id == views.activeId) {
-                        { Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        { Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(IconSize.Default)) }
                     } else {
                         null
                     },
@@ -428,7 +428,7 @@ fun ActiveFilterChips(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(IconSize.Small))
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -100,7 +101,7 @@ internal fun PriorityMark(priority: String?, modifier: Modifier = Modifier) {
             Icons.Outlined.Flag,
             contentDescription = null,
             tint = tone,
-            modifier = Modifier.size(12.dp),
+            modifier = Modifier.size(IconSize.Small),
         )
         Text(
             t(TaskPriority.labelKey(priority)),
@@ -121,7 +122,7 @@ internal fun RepeatMark(repeat: TaskRepeat?, modifier: Modifier = Modifier) {
         Icons.Outlined.Repeat,
         contentDescription = label,
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.size(13.dp),
+        modifier = modifier.size(IconSize.Small),
     )
 }
 
@@ -221,7 +222,7 @@ internal fun PlanChip(
                 Icons.Outlined.Check,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(IconSize.Small),
             )
         }
         leading?.invoke()
@@ -322,7 +323,7 @@ internal fun OptionSheet(
                             Icons.Outlined.Check,
                             contentDescription = t("thread.selected"),
                             tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                     }
                 }
@@ -473,7 +474,7 @@ private fun Stepper(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { if (value > min) onChange(value - 1) }, enabled = value > min) {
-            Icon(Icons.Outlined.Remove, contentDescription = decreaseLabel, modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.Remove, contentDescription = decreaseLabel, modifier = Modifier.size(IconSize.Default))
         }
         Text(
             "$value",
@@ -482,7 +483,7 @@ private fun Stepper(
             modifier = Modifier.widthIn(min = 28.dp),
         )
         IconButton(onClick = { if (value < max) onChange(value + 1) }, enabled = value < max) {
-            Icon(Icons.Outlined.Add, contentDescription = increaseLabel, modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.Add, contentDescription = increaseLabel, modifier = Modifier.size(IconSize.Default))
         }
     }
 }
@@ -829,7 +830,7 @@ internal fun RepeatLine(repeat: TaskRepeat, modifier: Modifier = Modifier) {
             Icons.Outlined.Repeat,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(14.dp),
+            modifier = Modifier.size(IconSize.Small),
         )
         Text(
             summary,

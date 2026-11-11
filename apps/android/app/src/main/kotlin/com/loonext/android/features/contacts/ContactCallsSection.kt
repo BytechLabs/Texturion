@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.IconSize
 import android.media.AudioAttributes
 import com.loonext.android.ui.common.EmptyStateSize
 import com.loonext.android.ui.common.EmptyState
@@ -328,7 +329,7 @@ private fun ContactCallRow(
                     contactCallDirectionIcon(call),
                     contentDescription = null,
                     tint = if (miss) coral else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(IconSize.Default),
                 )
                 Text(
                     contactCallOutcomeLabel(call),
@@ -366,7 +367,7 @@ private fun ContactCallRow(
                             Icon(
                                 Icons.Outlined.Call,
                                 contentDescription = t("contactsTasks.callBack"),
-                                modifier = Modifier.size(15.dp),
+                                modifier = Modifier.size(IconSize.Small),
                             )
                         }
                     }
@@ -554,7 +555,7 @@ private fun ContactVoicemailPlayerRow(
                                     } else {
                                         t("contactsTasks.playVoicemail")
                                     },
-                                    modifier = Modifier.size(14.dp),
+                                    modifier = Modifier.size(IconSize.Small),
                                 )
                             }
                         }

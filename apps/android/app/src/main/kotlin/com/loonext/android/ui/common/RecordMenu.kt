@@ -78,7 +78,7 @@ internal fun ColumnScope.RecordMenuItems(
             DropdownMenuItem(
                 text = { Text(t(pending.labelKey)) },
                 leadingIcon = {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null, modifier = Modifier.size(IconSize.Default))
                 },
                 onClick = { choosing = null },
             )
@@ -143,7 +143,7 @@ internal fun ColumnScope.RecordMenuItems(
                             if (on) Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
                             contentDescription = null,
                             tint = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(IconSize.Default),
                         )
                     }
                 },

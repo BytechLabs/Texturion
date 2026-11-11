@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.ui.common.IconSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.ui.common.LinkButton
 import com.loonext.android.ui.common.ConfirmDialog
@@ -396,10 +397,10 @@ private fun DeviceRow(
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
             // #540: padding first, then size — the other instance of the same
-            // slip. `.size(20.dp).padding(top = 2.dp)` leaves the device glyph
+            // slip. `.size(IconSize.Large).padding(top = 2.dp)` leaves the device glyph
             // 18dp of height inside a 20dp box, so it draws squashed and one
             // pixel high of where the text expects it.
-            modifier = Modifier.padding(top = 2.dp).size(20.dp),
+            modifier = Modifier.padding(top = 2.dp).size(IconSize.Large),
         )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

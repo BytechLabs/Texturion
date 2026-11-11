@@ -108,7 +108,7 @@ fun <T> SegmentedControl(
                         segment.icon,
                         contentDescription = null,
                         tint = content,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(IconSize.Default),
                     )
                 }
                 if (!iconOnly) {
