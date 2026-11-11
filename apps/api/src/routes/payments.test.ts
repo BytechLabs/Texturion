@@ -120,7 +120,8 @@ function buildHarness(options: {
   rest.table("messaging_registrations");
 
   rest.insert("companies", { id: COMPANY_ID, name: "Northline Plumbing", country: "US" });
-  rest.insert("profiles", { id: OWNER_ID, email: "owner@example.com" });
+  // `profiles` has no email column; the owner's email is on the auth user.
+  rest.insert("profiles", { id: OWNER_ID });
   rest.insert("contacts", { id: CONTACT_ID, name: "Maria", address: null, timezone: null });
   rest.insert("phone_numbers", {
     id: NUMBER_ID,
@@ -205,7 +206,11 @@ function buildHarness(options: {
     url.origin === "https://api.telnyx.com"
       ? Response.json({ data: { id: "telnyx-msg-0001", parts: 2 } })
       : undefined;
-  stubFetch(stripeRoute(stripeCalls, options.accountOverrides), telnyx, rest.route());
+  const authUsers: FetchRoute = async (url) =>
+    url.pathname.startsWith("/auth/v1/admin/users/")
+      ? Response.json({ id: OWNER_ID, email: "owner@example.com" })
+      : undefined;
+  stubFetch(stripeRoute(stripeCalls, options.accountOverrides), telnyx, authUsers, rest.route());
   return {
     env,
     rest,
@@ -227,6 +232,16 @@ function post(body: unknown): RequestInit {
 }
 
 describe("#224 the account", () => {
+  it("sets up Stripe with the owner's email from their sign-in", async () => {
+    const harness = buildHarness({ account: null });
+    const response = await harness.request("/v1/payments/account/onboarding", { method: "POST" });
+    expect(response.status).toBe(200);
+    const create = harness.stripeCalls.find(
+      (call) => call.method === "POST" && call.url.pathname === "/v1/accounts",
+    );
+    expect(create?.form.get("email")).toBe("owner@example.com");
+  });
+
   it("tells a workspace with no account exactly what to do", async () => {
     const harness = buildHarness({ account: null });
     const response = await harness.request("/v1/payments/account");

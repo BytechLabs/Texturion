@@ -292,15 +292,15 @@ paymentAccountRoutes.post(
       )[0];
       if (!company) throw new ApiError("not_found", "No such workspace.");
 
-      const email = unwrap<{ email: string | null }[]>(
-        await db.from("profiles").select("email").eq("id", c.get("userId")).limit(1),
-        "profile lookup",
-      )[0];
+      // The email lives on the auth user; `profiles` has no email column, and
+      // reading one failed every Stripe setup in production.
+      const owner = await db.auth.admin.getUserById(c.get("userId"));
+      if (owner.error) throw new Error(`owner lookup failed: ${owner.error.message}`);
 
       row = await createConnectAccount(env, db, {
         companyId,
         country: connectCountryFor(company.country),
-        email: email?.email ?? null,
+        email: owner.data.user?.email ?? null,
         userId: c.get("userId"),
       });
 
