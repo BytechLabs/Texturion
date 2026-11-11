@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.20.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.19.0...shared-v0.20.0) (2026-11-11)
+
+
+### Features
+
+* **calls:** a call's page shows each step from ringing to hang-up ([b7ab8a4](https://github.com/BytechLabs/Texturion/commit/b7ab8a4943922baad255f7005112ecae70729a81))
+* **db:** a business number can only move through its real lifecycle ([94b3bd7](https://github.com/BytechLabs/Texturion/commit/94b3bd725fd8a2cc7e544e386d5efc3db4b8dd64))
+* **db:** a paid, delivered or finished record can no longer move backwards ([1e527b6](https://github.com/BytechLabs/Texturion/commit/1e527b67ae0eb56f126f7702e052e3d3bc5091ba))
+* **db:** calendar connections, links and outboxes keep their lifecycles ([bf18fce](https://github.com/BytechLabs/Texturion/commit/bf18fce9bbff76ecd2da4f46456dfc7b141c6179))
+* **web:** members arrange their own For you page without holes ([d7bcd05](https://github.com/BytechLabs/Texturion/commit/d7bcd050a8f33df59d3a7ccdd29955e55d40aacf))
+* **web:** settings can be searched by what they do, here and from ⌘K ([fbd4b5e](https://github.com/BytechLabs/Texturion/commit/fbd4b5e20425ed8997544e0715a3d28f6cc84e26))
+
+
+### Bug Fixes
+
+* **api:** scheduled texts refuse illegal moves and notify only on entry ([26e579a](https://github.com/BytechLabs/Texturion/commit/26e579a5be350ab0363abfc927ce9fac677d0173))
+* **db:** a late carrier event cannot move a registration or hosted order back ([1565869](https://github.com/BytechLabs/Texturion/commit/1565869f4762aa41e885725bed4d1715217ff7b7))
+* **messages:** a late carrier event never moves a text backwards ([f1795b1](https://github.com/BytechLabs/Texturion/commit/f1795b137b11eb4ac18750aa3cbdcc891c5b3ea6))
+* **messages:** every automated text says which automation sent it ([3a31b3d](https://github.com/BytechLabs/Texturion/commit/3a31b3df608fd1226a43bd1aa3964d91ca18d26f))
+* **web:** the thread menu itself checks a STOP before offering the undo ([6367f0f](https://github.com/BytechLabs/Texturion/commit/6367f0fea7152b2909de19fe826fad159cd07db3))
+
 ## [0.19.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.18.0...shared-v0.19.0) (2026-11-10)
 
 
