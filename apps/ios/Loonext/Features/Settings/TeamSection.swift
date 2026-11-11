@@ -238,48 +238,61 @@ private struct MemberRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        // Two lines, as on Android: a phone cannot fit a name, the role field and
+        // two links side by side, and the role was squeezed to one letter per line.
+        // Who and their role on the first line; Numbers and Deactivate under the name.
+        HStack(alignment: .top, spacing: 12) {
             InitialsAvatar(name: name, size: 36)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(isSelf ? t("settingsMore.nameYou", ["name": name]) : name)
-                    .font(.body)
-                Text(
-                    member.deactivated_at.map {
-                        t("settingsMore.deactivatedAgo", ["ago": relativeTime($0)])
-                    }
-                        ?? t(
-                            "settingsMore.joinedAgo",
-                            ["ago": relativeTime(member.created_at)]
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .center, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(isSelf ? t("settingsMore.nameYou", ["name": name]) : name)
+                            .font(.body)
+                        Text(
+                            member.deactivated_at.map {
+                                t("settingsMore.deactivatedAgo", ["ago": relativeTime($0)])
+                            }
+                                ?? t(
+                                    "settingsMore.joinedAgo",
+                                    ["ago": relativeTime(member.created_at)]
+                                )
                         )
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            }
-            Spacer()
-            // #348: the access model was complete and entirely invisible. Quiet
-            // and text-only, because it answers a question rather than being an
-            // action, and the row already carries a role menu.
-            if member.deactivated_at == nil {
-                Button(t("settingsMore.numbersLink")) { showingAccess = true }
-                    .font(.footnote)
-                    .foregroundStyle(BrandColor.muted500)
-                    .buttonStyle(.plain)
-            }
-            if member.role == MemberRole.owner {
-                StatusPill(label: t("settingsMore.roleOwner"), tone: .positive)
-            } else if canChangeRole {
-                RoleField(role: member.role, enabled: !busy, showsDetail: false) { changeRole($0) }
-            } else {
-                Text(roleLabel(member.role, appLocale))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            if canDeactivate {
-                Button(t("settingsMore.deactivate")) { confirmingDeactivate = true }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .buttonStyle(.borderless)
-                    .disabled(busy)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    if member.role == MemberRole.owner {
+                        StatusPill(label: t("settingsMore.roleOwner"), tone: .positive)
+                    } else if canChangeRole {
+                        RoleField(role: member.role, enabled: !busy, showsDetail: false) { changeRole($0) }
+                            .fixedSize()
+                    } else {
+                        Text(roleLabel(member.role, appLocale))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+                    }
+                }
+                if member.deactivated_at == nil || canDeactivate {
+                    HStack(spacing: 16) {
+                        // #348: the access model was complete and entirely invisible.
+                        // Quiet and text-only, because it answers a question rather
+                        // than being an action, and the row already carries a role menu.
+                        if member.deactivated_at == nil {
+                            Button(t("settingsMore.numbersLink")) { showingAccess = true }
+                                .font(.footnote)
+                                .foregroundStyle(BrandColor.muted500)
+                                .buttonStyle(.plain)
+                        }
+                        if canDeactivate {
+                            Button(t("settingsMore.deactivate")) { confirmingDeactivate = true }
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .buttonStyle(.borderless)
+                                .disabled(busy)
+                        }
+                    }
+                }
             }
         }
         .padding(.vertical, 10)
