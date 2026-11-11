@@ -133,7 +133,7 @@ function SelectItem({
         </SelectPrimitive.ItemIndicator>
       </span>
       {description ? (
-        <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
+        <span className="flex min-w-0 flex-col items-start! gap-0.5 py-0.5">
           <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
           <span
             data-slot="select-item-description"
