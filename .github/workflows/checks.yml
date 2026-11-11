@@ -1347,8 +1347,15 @@ jobs:
       # images are not blank. Exporting from the xcresult is the supported path
       # that preserves successful-test attachments; writing into a simulator
       # container would leave the host guessing where Xcode installed the app.
+      # Also when a test failed: a failing accessibility audit is exactly when
+      # someone needs to see the screen it measured.
       - name: Export dashboard screenshots
+        if: ${{ !cancelled() }}
         run: |
+          if [ ! -d "$RUNNER_TEMP/ios-tests.xcresult" ]; then
+            echo "No test results to export: the tests never ran."
+            exit 0
+          fi
           ATTACHMENTS="$RUNNER_TEMP/ios-dashboard-screenshots"
           xcrun xcresulttool export attachments \
             --path "$RUNNER_TEMP/ios-tests.xcresult" \
@@ -1361,6 +1368,7 @@ jobs:
           echo "Exported $COUNT dashboard screenshot pages."
 
       - name: Upload dashboard screenshots
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ios-dashboard-screenshots
