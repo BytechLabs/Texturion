@@ -2,6 +2,8 @@
 import type { Translated } from "../translated";
 
 export const whatsNewEn = {
+  statusChangesAuditedTitle: "Every status change is in the audit log",
+  statusChangesAuditedBody: "When a number transfer, a registration, an export or a payment request changes status, the audit log says when, even when nobody clicked anything.",
   calendarCreateTitle: "Make a task from the calendar",
   calendarCreateBody: "Click an empty day, or an hour in the week view, and a new task opens already due then.",
   calendarLinkBackTitle: "Calendar events open the job",
@@ -24,11 +26,11 @@ export const whatsNewEn = {
   calendarSyncBody: "Connect Google Calendar or Microsoft 365 and your scheduled jobs appear there. Move one in either place and it moves in both.",
   quotesFromConversationTitle: "Send a quote the customer accepts from a text",
   quotesFromConversationBody: "Write a quote in the conversation where they asked. They open it from a text and accept it, no account needed.",
-  calendarSubscribeTitle: "Your schedule in any calendar app",
-  calendarSubscribeBody: "Subscribe from Apple Calendar or any other calendar app and the jobs assigned to you show up there.",
 };
 
 export const whatsNewFr: Translated<typeof whatsNewEn> = {
+  statusChangesAuditedTitle: "Chaque changement de statut est au journal d'audit",
+  statusChangesAuditedBody: "Quand un transfert de numéro, un enregistrement, une exportation ou une demande de paiement change de statut, le journal d'audit indique quand, même si personne n'a rien cliqué.",
   calendarCreateTitle: "Créez une tâche depuis le calendrier",
   calendarCreateBody: "Cliquez sur une journée libre, ou sur une heure dans la vue semaine, et une nouvelle tâche s'ouvre déjà prévue à ce moment.",
   calendarLinkBackTitle: "Les événements du calendrier ouvrent la tâche",
@@ -51,6 +53,4 @@ export const whatsNewFr: Translated<typeof whatsNewEn> = {
   calendarSyncBody: "Connectez Google Agenda ou Microsoft 365 et vos tâches prévues y apparaissent. Déplacez-en une d'un côté et elle bouge des deux côtés.",
   quotesFromConversationTitle: "Envoyez un devis que le client accepte par texto",
   quotesFromConversationBody: "Rédigez un devis dans la conversation où il a été demandé. Le client l'ouvre depuis un texto et l'accepte, sans compte.",
-  calendarSubscribeTitle: "Votre horaire dans toute application de calendrier",
-  calendarSubscribeBody: "Abonnez-vous depuis Calendrier Apple ou toute autre application de calendrier et les tâches qui vous sont assignées y apparaissent.",
 };

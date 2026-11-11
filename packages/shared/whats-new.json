@@ -10,6 +10,19 @@
   ],
   "entries": [
     {
+      "id": "statusChangesAudited",
+      "date": "2026-11-11",
+      "href": "/settings/audit-log",
+      "en": {
+        "title": "Every status change is in the audit log",
+        "body": "When a number transfer, a registration, an export or a payment request changes status, the audit log says when, even when nobody clicked anything."
+      },
+      "fr": {
+        "title": "Chaque changement de statut est au journal d'audit",
+        "body": "Quand un transfert de numéro, un enregistrement, une exportation ou une demande de paiement change de statut, le journal d'audit indique quand, même si personne n'a rien cliqué."
+      }
+    },
+    {
       "id": "calendarCreate",
       "date": "2026-11-11",
       "href": "/tasks?view=calendar",

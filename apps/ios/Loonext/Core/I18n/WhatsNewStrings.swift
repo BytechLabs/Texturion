@@ -3,6 +3,8 @@ enum WhatsNewStrings {
     static let section = AppStrings.Section(
         name: "WhatsNewStrings",
         en: [
+            "whatsNew.statusChangesAuditedTitle": "Every status change is in the audit log",
+            "whatsNew.statusChangesAuditedBody": "When a number transfer, a registration, an export or a payment request changes status, the audit log says when, even when nobody clicked anything.",
             "whatsNew.calendarCreateTitle": "Make a task from the calendar",
             "whatsNew.calendarCreateBody": "Click an empty day, or an hour in the week view, and a new task opens already due then.",
             "whatsNew.calendarLinkBackTitle": "Calendar events open the job",
@@ -25,10 +27,10 @@ enum WhatsNewStrings {
             "whatsNew.calendarSyncBody": "Connect Google Calendar or Microsoft 365 and your scheduled jobs appear there. Move one in either place and it moves in both.",
             "whatsNew.quotesFromConversationTitle": "Send a quote the customer accepts from a text",
             "whatsNew.quotesFromConversationBody": "Write a quote in the conversation where they asked. They open it from a text and accept it, no account needed.",
-            "whatsNew.calendarSubscribeTitle": "Your schedule in any calendar app",
-            "whatsNew.calendarSubscribeBody": "Subscribe from Apple Calendar or any other calendar app and the jobs assigned to you show up there.",
         ],
         frCA: [
+            "whatsNew.statusChangesAuditedTitle": "Chaque changement de statut est au journal d'audit",
+            "whatsNew.statusChangesAuditedBody": "Quand un transfert de numéro, un enregistrement, une exportation ou une demande de paiement change de statut, le journal d'audit indique quand, même si personne n'a rien cliqué.",
             "whatsNew.calendarCreateTitle": "Créez une tâche depuis le calendrier",
             "whatsNew.calendarCreateBody": "Cliquez sur une journée libre, ou sur une heure dans la vue semaine, et une nouvelle tâche s'ouvre déjà prévue à ce moment.",
             "whatsNew.calendarLinkBackTitle": "Les événements du calendrier ouvrent la tâche",
@@ -51,8 +53,6 @@ enum WhatsNewStrings {
             "whatsNew.calendarSyncBody": "Connectez Google Agenda ou Microsoft 365 et vos tâches prévues y apparaissent. Déplacez-en une d'un côté et elle bouge des deux côtés.",
             "whatsNew.quotesFromConversationTitle": "Envoyez un devis que le client accepte par texto",
             "whatsNew.quotesFromConversationBody": "Rédigez un devis dans la conversation où il a été demandé. Le client l'ouvre depuis un texto et l'accepte, sans compte.",
-            "whatsNew.calendarSubscribeTitle": "Votre horaire dans toute application de calendrier",
-            "whatsNew.calendarSubscribeBody": "Abonnez-vous depuis Calendrier Apple ou toute autre application de calendrier et les tâches qui vous sont assignées y apparaissent.",
         ]
     )
 }
