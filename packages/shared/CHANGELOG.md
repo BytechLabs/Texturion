@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.22.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.21.0...shared-v0.22.0) (2026-11-11)
+
+
+### Features
+
+* calendar settings are one section that explains both ways to connect ([c51f423](https://github.com/BytechLabs/Texturion/commit/c51f423313c9a4ca7f6ef0d084359537e4ecd6b4))
+* **db:** a call never goes backwards in the database ([44a9e93](https://github.com/BytechLabs/Texturion/commit/44a9e93d75bb13197481a0d5ae1ca76724b18696))
+* **db:** the last status machines keep their lifecycles in the database ([595170f](https://github.com/BytechLabs/Texturion/commit/595170f7dbeb18aca80b16df3787c4ac4e401a0e))
+* settings that can lose a customer say who chose them and when ([720ca4e](https://github.com/BytechLabs/Texturion/commit/720ca4e81bf1e5bc55943fc9d5c44ecc19d6f5f3))
+* what's new is written once and a release cannot ship features without it ([8df06be](https://github.com/BytechLabs/Texturion/commit/8df06bede8a3684b1ef587130dc154dcb8bf87a6))
+
+
+### Bug Fixes
+
+* a button is offered only when the server will accept it ([ab50c4c](https://github.com/BytechLabs/Texturion/commit/ab50c4c8cf4184f0ee7d8daa90529babb8da4e56))
+* **clients:** a conversation is never a thread and a number is never a line ([acfe9fa](https://github.com/BytechLabs/Texturion/commit/acfe9fa1b28b9b4c19545de5e39c871884f033af))
+* **clients:** the record of every change is called the audit log ([b2c69a3](https://github.com/BytechLabs/Texturion/commit/b2c69a35237fadfe2b4ed4264351aed7610c2058))
+* **db:** a dispute may skip ahead and a refused port move keeps its credentials ([ddf3a78](https://github.com/BytechLabs/Texturion/commit/ddf3a78b62c423339bebbedb21162de981700530))
+* **shared:** each setting's reason lives in the decisions table, not in code ([d9249ba](https://github.com/BytechLabs/Texturion/commit/d9249ba8b328c393f1fc833140f355d0ffed0708))
+* **shared:** the What's new list and its release rule are exported ([7f72093](https://github.com/BytechLabs/Texturion/commit/7f720930b772d5e1a776639f7071e114e03edf1d))
+
 ## [0.21.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.20.0...shared-v0.21.0) (2026-11-11)
 
 

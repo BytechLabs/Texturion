@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.30.0](https://github.com/BytechLabs/Texturion/compare/api-v0.29.0...api-v0.30.0) (2026-11-11)
+
+
+### Features
+
+* **api:** a synced calendar event links back to its task ([d8aba73](https://github.com/BytechLabs/Texturion/commit/d8aba73ab83b5a5c3fa2aea9eb777bce523279cc))
+* calendar settings are one section that explains both ways to connect ([c51f423](https://github.com/BytechLabs/Texturion/commit/c51f423313c9a4ca7f6ef0d084359537e4ecd6b4))
+* settings that can lose a customer say who chose them and when ([720ca4e](https://github.com/BytechLabs/Texturion/commit/720ca4e81bf1e5bc55943fc9d5c44ecc19d6f5f3))
+
+
+### Bug Fixes
+
+* a button is offered only when the server will accept it ([ab50c4c](https://github.com/BytechLabs/Texturion/commit/ab50c4c8cf4184f0ee7d8daa90529babb8da4e56))
+* **clients:** a conversation is never a thread and a number is never a line ([acfe9fa](https://github.com/BytechLabs/Texturion/commit/acfe9fa1b28b9b4c19545de5e39c871884f033af))
+* **clients:** the record of every change is called the audit log ([b2c69a3](https://github.com/BytechLabs/Texturion/commit/b2c69a35237fadfe2b4ed4264351aed7610c2058))
+
 ## [0.29.0](https://github.com/BytechLabs/Texturion/compare/api-v0.28.0...api-v0.29.0) (2026-11-11)
 
 
