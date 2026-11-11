@@ -56,7 +56,8 @@ import { ApiError } from "@/lib/api/error";
 import { flattenPages } from "@/lib/api/pagination";
 import { useMembers } from "@/lib/api/team";
 import type { ContactDetail } from "@/lib/api/types";
-import { formatPhone } from "@/lib/format/phone";
+import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { cn } from "@/lib/utils";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { formatTimestamp } from "@/lib/format/time";
 import { NANP_TIMEZONES } from "@loonext/shared";
@@ -348,27 +349,34 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
     onDeleted: () => router.push("/contacts"),
   });
 
+  const named = Boolean(contact.name?.trim());
+  const copyNumber = (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label={t("appShell.contactCopyNumberAria")}
+      onClick={() => {
+        void navigator.clipboard.writeText(contact.phone_e164);
+        toast.success(t("appShell.contactNumberCopied"));
+      }}
+    >
+      <Copy strokeWidth={1.75} />
+    </Button>
+  );
+
   return (
     <div className="space-y-6">
       {/* #695: only when a record was folded into this one. */}
       <MergedFrom contact={contact} />
       <RecordHeader
         title={
+          // The name leads, as in every list and on the phones; a contact
+          // with no name is titled by its number.
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xl font-medium tabular-nums">
-              {formatPhone(contact.phone_e164)}
+            <p className={cn("text-xl font-medium", !named && "tabular-nums")}>
+              {contactDisplayName(contact, t)}
             </p>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("appShell.contactCopyNumberAria")}
-              onClick={() => {
-                void navigator.clipboard.writeText(contact.phone_e164);
-                toast.success(t("appShell.contactNumberCopied"));
-              }}
-            >
-              <Copy strokeWidth={1.75} />
-            </Button>
+            {!named && copyNumber}
             {contact.opted_out && (
               <Badge variant="outline" className="border-destructive text-foreground">
                 {t("appShell.contactOptedOutBadge")}
@@ -378,6 +386,16 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               <Badge variant="outline">{t("blockedNumbers.blockedBadge")}</Badge>
             )}
           </div>
+        }
+        meta={
+          named ? (
+            <div className="flex items-center gap-1">
+              <p className="text-sm text-app-muted tabular-nums">
+                {formatPhone(contact.phone_e164)}
+              </p>
+              {copyNumber}
+            </div>
+          ) : undefined
         }
         actions={
           <>
