@@ -956,11 +956,19 @@ export function findKotlinLiterals(source) {
     if (looksLikeProse(match[1])) found.push(match[1]);
   }
   for (const match of code.matchAll(
-    /\b(contentDescription|placeholder|label|title|supportingText)\s*=\s*"([^"]{4,})"/g,
+    /\b(contentDescription|placeholder|label|title|supportingText|onClickLabel|onLongClickLabel)\s*=\s*"([^"]{4,})"/g,
   )) {
     if (match[1] === "label" && isAnimationLabel(code, match.index)) continue;
     if (BILINGUAL_PAIR_ENGLISH.has(match[2])) continue;
     if (looksLikeProse(match[2])) found.push(match[2]);
+  }
+  // A toast or snackbar sentence is read off the screen like any Text; the
+  // voicemail transcript's "Transcript copied." went out in English this way.
+  for (const match of code.matchAll(
+    /\b(?:Toast\.makeText\s*\([^,()]+,|showSnackbar\s*\()\s*"([^"]{4,})"/g,
+  )) {
+    if (BILINGUAL_PAIR_ENGLISH.has(match[1])) continue;
+    if (looksLikeProse(match[1])) found.push(match[1]);
   }
   /*
    * A SENTENCE HELD IN A STRING LITERAL — the same rule 4 that, on web, turned
