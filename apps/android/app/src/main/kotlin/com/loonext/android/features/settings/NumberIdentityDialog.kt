@@ -26,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PhoneNumberSummary
@@ -82,14 +84,10 @@ internal fun NumberIdentityDialog(
     // list is every workspace until somebody records something, and it hides
     // the picker entirely.
     var greetings by remember { mutableStateOf(emptyList<VoicemailGreeting>()) }
-    var greetingMenuOpen by remember { mutableStateOf(false) }
     // #278: what this line does after hours. Inherit is a real value here, so
     // the menu carries it as its first entry rather than as an absence.
-    var afterHoursMenuOpen by remember { mutableStateOf(false) }
     // #278: how this line rings, and for how long. Inherit is a real value on
     // both, so each menu carries it as its first entry.
-    var ringMenuOpen by remember { mutableStateOf(false) }
-    var ringSecondsMenuOpen by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
 
@@ -306,35 +304,18 @@ internal fun NumberIdentityDialog(
                                     }
                                 }
                             }
-                            TextButton(
+                            SelectField<String?>(
+                                // The written words FIRST: the only option guaranteed to exist, what
+                                // every line does until somebody chooses otherwise, and what the runtime
+                                // falls back to anyway.
+                                options = listOf(SelectOption<String?>(null, t("settingsMore.writtenGreeting"))) +
+                                    greetings.map { SelectOption<String?>(it.id, it.name) },
+                                selected = selectedId,
                                 enabled = !pending,
-                                onClick = { greetingMenuOpen = true },
-                            ) { Text(selectedName) }
-                            DropdownMenu(
-                                expanded = greetingMenuOpen,
-                                onDismissRequest = { greetingMenuOpen = false },
-                            ) {
-                                // The written words FIRST: the only option
-                                // guaranteed to exist, what every line does
-                                // until somebody chooses otherwise, and what
-                                // the runtime falls back to anyway.
-                                DropdownMenuItem(
-                                    text = { Text(t("settingsMore.writtenGreeting")) },
-                                    onClick = {
-                                        greetingMenuOpen = false
-                                        selectGreeting(null)
-                                    },
-                                )
-                                greetings.forEach { row ->
-                                    DropdownMenuItem(
-                                        text = { Text(row.name) },
-                                        onClick = {
-                                            greetingMenuOpen = false
-                                            selectGreeting(row.id)
-                                        },
-                                    )
-                                }
-                            }
+                                placeholder = selectedName,
+                                label = t("settingsMore.voicemailVoice"),
+                                onSelect = { selectGreeting(it) },
+                            )
                             Text(
                                 t("settingsMore.recordingFallbackHint"),
                                 modifier = Modifier.padding(top = 4.dp),
@@ -390,38 +371,21 @@ internal fun NumberIdentityDialog(
                                 }
                             }
                         }
-                        TextButton(
+                        SelectField<String?>(
+                            // Inherit FIRST: it is what every line does until somebody says
+                            // otherwise, and the option that is always correct is the one that needs
+                            // no thought.
+                            options = listOf(SelectOption<String?>(null, afterHoursInherit)) +
+                                choicesBesideDefault(
+                                    AFTER_HOURS_CHOICES,
+                                    afterHoursKnown,
+                                    if (afterHoursInherited) null else state.value.after_hours_calls.value,
+                                ).map { SelectOption<String?>(it, afterHoursLabel(it)) },
+                            selected = if (afterHoursInherited) null else state.value.after_hours_calls.value,
                             enabled = !pending,
-                            onClick = { afterHoursMenuOpen = true },
-                        ) { Text(afterHoursText) }
-                        DropdownMenu(
-                            expanded = afterHoursMenuOpen,
-                            onDismissRequest = { afterHoursMenuOpen = false },
-                        ) {
-                            // Inherit FIRST: it is what every line does until
-                            // somebody says otherwise, and the option that is
-                            // always correct is the one that needs no thought.
-                            DropdownMenuItem(
-                                text = { Text(afterHoursInherit) },
-                                onClick = {
-                                    afterHoursMenuOpen = false
-                                    selectAfterHours(null)
-                                },
-                            )
-                            choicesBesideDefault(
-                                AFTER_HOURS_CHOICES,
-                                afterHoursKnown,
-                                if (afterHoursInherited) null else state.value.after_hours_calls.value,
-                            ).forEach { value ->
-                                DropdownMenuItem(
-                                    text = { Text(afterHoursLabel(value)) },
-                                    onClick = {
-                                        afterHoursMenuOpen = false
-                                        selectAfterHours(value)
-                                    },
-                                )
-                            }
-                        }
+                            label = t("settingsMore.afterHoursCalls"),
+                            onSelect = { selectAfterHours(it) },
+                        )
                         Text(
                             t("settingsMore.afterHoursHint"),
                             modifier = Modifier.padding(top = 4.dp),
@@ -464,43 +428,20 @@ internal fun NumberIdentityDialog(
                                 }
                             }
                         }
-                        TextButton(
+                        SelectField<String?>(
+                            options = listOf(SelectOption<String?>(null, ringInherit)) +
+                                choicesBesideDefault(
+                                    RING_CHOICES,
+                                    ringKnown,
+                                    if (ringInherited) null else state.value.ring_strategy.value,
+                                ).map { SelectOption<String?>(it, ringLabel(it)) },
+                            selected = if (ringInherited) null else state.value.ring_strategy.value,
                             enabled = !pending,
-                            onClick = { ringMenuOpen = true },
-                        ) {
-                            Text(
-                                if (ringInherited) {
-                                    ringInherit
-                                } else {
-                                    ringLabel(state.value.ring_strategy.value)
-                                },
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = ringMenuOpen,
-                            onDismissRequest = { ringMenuOpen = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(ringInherit) },
-                                onClick = {
-                                    ringMenuOpen = false
-                                    selectRing("ring_strategy", JsonNull)
-                                },
-                            )
-                            choicesBesideDefault(
-                                RING_CHOICES,
-                                ringKnown,
-                                if (ringInherited) null else state.value.ring_strategy.value,
-                            ).forEach { value ->
-                                DropdownMenuItem(
-                                    text = { Text(ringLabel(value)) },
-                                    onClick = {
-                                        ringMenuOpen = false
-                                        selectRing("ring_strategy", JsonPrimitive(value))
-                                    },
-                                )
-                            }
-                        }
+                            label = t("settingsMore.ringHow"),
+                            onSelect = { value ->
+                                selectRing("ring_strategy", if (value == null) JsonNull else JsonPrimitive(value))
+                            },
+                        )
 
                         val secondsInherited = state.value.ring_seconds.inherited
                         val secondsKnown = knownWorkspaceValue(
@@ -540,51 +481,22 @@ internal fun NumberIdentityDialog(
                                 }
                             }
                         }
-                        TextButton(
+                        SelectField<Int?>(
+                            options = listOf(SelectOption<Int?>(null, secondsInherit)) +
+                                choicesBesideDefault(
+                                    RING_SECOND_CHOICES,
+                                    secondsKnown,
+                                    if (secondsInherited) null else state.value.ring_seconds.value,
+                                ).map {
+                                    SelectOption<Int?>(it, t("settingsMore.ringSeconds", "seconds" to "$it"))
+                                },
+                            selected = if (secondsInherited) null else state.value.ring_seconds.value,
                             enabled = !pending,
-                            onClick = { ringSecondsMenuOpen = true },
-                        ) {
-                            val seconds = state.value.ring_seconds.value
-                            Text(
-                                if (secondsInherited || seconds == null) {
-                                    secondsInherit
-                                } else {
-                                    t("settingsMore.ringSeconds", "seconds" to "$seconds")
-                                },
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = ringSecondsMenuOpen,
-                            onDismissRequest = { ringSecondsMenuOpen = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(secondsInherit) },
-                                onClick = {
-                                    ringSecondsMenuOpen = false
-                                    selectRing("ring_seconds", JsonNull)
-                                },
-                            )
-                            choicesBesideDefault(
-                                RING_SECOND_CHOICES,
-                                secondsKnown,
-                                if (secondsInherited) null else state.value.ring_seconds.value,
-                            ).forEach { value ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            t(
-                                                "settingsMore.ringSeconds",
-                                                "seconds" to "$value",
-                                            ),
-                                        )
-                                    },
-                                    onClick = {
-                                        ringSecondsMenuOpen = false
-                                        selectRing("ring_seconds", JsonPrimitive(value))
-                                    },
-                                )
-                            }
-                        }
+                            label = t("settingsMore.ringHowLong"),
+                            onSelect = { value ->
+                                selectRing("ring_seconds", if (value == null) JsonNull else JsonPrimitive(value))
+                            },
+                        )
                         IdentityField(
                             title = t("settingsMore.lineNameTitle"),
                             hint = t("settingsMore.lineNameHint"),

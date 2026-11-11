@@ -23,6 +23,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.core.contacts.ContactFields
 import com.loonext.android.core.model.ContactFieldDef
 
@@ -105,40 +107,25 @@ fun CustomFields(
                 }
 
                 "select" -> {
-                    var open by remember { mutableStateOf(false) }
                     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Text(
                             def.label,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        TextButton(onClick = { open = true }) {
-                            Text(value.ifEmpty { CUSTOM_FIELD_UNSET })
-                        }
-                        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                            // Empty is an ANSWER and has to stay reachable:
-                            // "we asked, there is no gate code" is a fact, and
-                            // a dropdown of only real values traps the first
+                        SelectField(
+                            // Empty is an ANSWER and has to stay reachable: "we asked, there is no
+                            // gate code" is a fact, and a dropdown of only real values traps the first
                             // mis-tap forever.
-                            DropdownMenuItem(
-                                text = { Text(CUSTOM_FIELD_UNSET) },
-                                onClick = {
-                                    open = false
-                                    drafts = drafts + (def.key to "")
-                                    commit(def, "")
-                                },
-                            )
-                            for (choice in def.options.orEmpty()) {
-                                DropdownMenuItem(
-                                    text = { Text(choice) },
-                                    onClick = {
-                                        open = false
-                                        drafts = drafts + (def.key to choice)
-                                        commit(def, choice)
-                                    },
-                                )
-                            }
-                        }
+                            options = listOf(SelectOption("", CUSTOM_FIELD_UNSET)) +
+                                def.options.orEmpty().map { SelectOption(it, it) },
+                            selected = value,
+                            label = def.label,
+                            onSelect = { next ->
+                                drafts = drafts + (def.key to next)
+                                commit(def, next)
+                            },
+                        )
                     }
                 }
 

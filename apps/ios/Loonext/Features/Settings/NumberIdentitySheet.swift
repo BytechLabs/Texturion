@@ -274,22 +274,14 @@ struct NumberIdentitySheet: View {
                         .disabled(pending)
                 }
             }
-            Picker(
-                AppStrings.translate(appLocale, "settingsMore.voicemailVoice"),
-                selection: Binding(
-                    get: { identity.voicemail_greeting_id.value ?? writtenGreetingId },
-                    set: { selectGreeting($0 == writtenGreetingId ? nil : $0) }
-                )
-            ) {
-                Text(AppStrings.translate(appLocale, "settingsMore.writtenGreeting"))
-                    .tag(writtenGreetingId)
-                ForEach(greetings) { row in
-                    Text(row.name).tag(row.id)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .disabled(pending)
+            SelectField(
+                options: [SelectOption(writtenGreetingId, title: AppStrings.translate(appLocale, "settingsMore.writtenGreeting"))]
+                    + greetings.map { SelectOption($0.id, title: $0.name) },
+                selected: identity.voicemail_greeting_id.value ?? writtenGreetingId,
+                label: AppStrings.translate(appLocale, "settingsMore.voicemailVoice"),
+                enabled: !pending,
+                onSelect: { selectGreeting($0 == writtenGreetingId ? nil : $0) }
+            )
             Text(AppStrings.translate(appLocale, "settingsMore.recordingFallbackHint"))
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -313,40 +305,26 @@ struct NumberIdentitySheet: View {
                         .disabled(pending)
                 }
             }
-            Picker(
-                AppStrings.translate(appLocale, "settingsMore.afterHoursCalls"),
-                selection: Binding(
-                    get: {
-                        identity.after_hours_calls.inherited
-                            ? inheritTag
-                            : (identity.after_hours_calls.value ?? inheritTag)
-                    },
-                    set: { selectAfterHours($0 == inheritTag ? nil : $0) }
-                )
-            ) {
-                // Inherit FIRST: it is what every line does until somebody says
-                // otherwise, and the option that is always correct is the one
-                // that needs no thought.
-                //
-                // #717: it names what it inherits, and that value is not
-                // offered a second time beside it.
-                Text(inheritChoiceLabel(afterHoursKnown(identity).map(afterHoursLabel)))
-                    .tag(inheritTag)
-                ForEach(
-                    choicesBesideDefault(
+            // Inherit FIRST: it is what every line does until somebody says otherwise,
+            // and the option that is always correct is the one that needs no thought.
+            //
+            // #717: it names what it inherits, and that value is not offered a second
+            // time beside it.
+            SelectField(
+                options: [SelectOption(inheritTag, title: inheritChoiceLabel(afterHoursKnown(identity).map(afterHoursLabel)))]
+                    + choicesBesideDefault(
                         afterHoursChoices,
                         default: afterHoursKnown(identity),
                         stored: identity.after_hours_calls.inherited
                             ? nil : identity.after_hours_calls.value
-                    ),
-                    id: \.self
-                ) { value in
-                    Text(afterHoursLabel(value)).tag(value)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .disabled(pending)
+                    ).map { SelectOption($0, title: afterHoursLabel($0)) },
+                selected: identity.after_hours_calls.inherited
+                    ? inheritTag
+                    : (identity.after_hours_calls.value ?? inheritTag),
+                label: AppStrings.translate(appLocale, "settingsMore.afterHoursCalls"),
+                enabled: !pending,
+                onSelect: { selectAfterHours($0 == inheritTag ? nil : $0) }
+            )
             Text(AppStrings.translate(appLocale, "settingsMore.afterHoursHint"))
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -370,35 +348,21 @@ struct NumberIdentitySheet: View {
                         .disabled(pending)
                 }
             }
-            Picker(
-                AppStrings.translate(appLocale, "settingsMore.ringHow"),
-                selection: Binding(
-                    get: {
-                        identity.ring_strategy.inherited
-                            ? inheritTag
-                            : (identity.ring_strategy.value ?? inheritTag)
-                    },
-                    set: { setRingStrategy($0 == inheritTag ? nil : $0) }
-                )
-            ) {
-                Text(inheritChoiceLabel(ringStrategyKnown(identity).map(ringStrategyLabel)))
-                    .tag(inheritTag)
-                ForEach(
-                    choicesBesideDefault(
+            SelectField(
+                options: [SelectOption(inheritTag, title: inheritChoiceLabel(ringStrategyKnown(identity).map(ringStrategyLabel)))]
+                    + choicesBesideDefault(
                         ringStrategyChoices,
                         default: ringStrategyKnown(identity),
                         stored: identity.ring_strategy.inherited
                             ? nil : identity.ring_strategy.value
-                    ),
-                    id: \.self
-                ) { value in
-                    Text(ringStrategyLabel(value)).tag(value)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .disabled(pending)
-
+                    ).map { SelectOption($0, title: ringStrategyLabel($0)) },
+                selected: identity.ring_strategy.inherited
+                    ? inheritTag
+                    : (identity.ring_strategy.value ?? inheritTag),
+                label: AppStrings.translate(appLocale, "settingsMore.ringHow"),
+                enabled: !pending,
+                onSelect: { setRingStrategy($0 == inheritTag ? nil : $0) }
+            )
             HStack(alignment: .firstTextBaseline) {
                 Text(AppStrings.translate(appLocale, "settingsMore.ringHowLong"))
                     .font(.subheadline.weight(.medium))
@@ -413,37 +377,23 @@ struct NumberIdentitySheet: View {
                         .disabled(pending)
                 }
             }
-            Picker(
-                AppStrings.translate(appLocale, "settingsMore.ringHowLong"),
-                selection: Binding(
-                    get: {
-                        identity.ring_seconds.inherited
-                            ? -1
-                            : (identity.ring_seconds.value ?? -1)
-                    },
-                    set: { setRingSeconds($0 == -1 ? nil : $0) }
-                )
-            ) {
-                // -1 is the inherit tag here rather than a string, because the
-                // value this picker holds is a number and a mixed-type tag is
-                // how a SwiftUI Picker silently stops matching its selection.
-                Text(inheritChoiceLabel(ringSecondsKnown(identity).map(ringSecondsLabel)))
-                    .tag(-1)
-                ForEach(
-                    choicesBesideDefault(
+            // -1 is the inherit value here rather than a string, because the value this
+            // select holds is a number.
+            SelectField(
+                options: [SelectOption(-1, title: inheritChoiceLabel(ringSecondsKnown(identity).map(ringSecondsLabel)))]
+                    + choicesBesideDefault(
                         ringSecondChoices,
                         default: ringSecondsKnown(identity),
                         stored: identity.ring_seconds.inherited
                             ? nil : identity.ring_seconds.value
-                    ),
-                    id: \.self
-                ) { value in
-                    Text(ringSecondsLabel(value)).tag(value)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .disabled(pending)
+                    ).map { SelectOption($0, title: ringSecondsLabel($0)) },
+                selected: identity.ring_seconds.inherited
+                    ? -1
+                    : (identity.ring_seconds.value ?? -1),
+                label: AppStrings.translate(appLocale, "settingsMore.ringHowLong"),
+                enabled: !pending,
+                onSelect: { setRingSeconds($0 == -1 ? nil : $0) }
+            )
         }
         .padding(.top, 14)
     }

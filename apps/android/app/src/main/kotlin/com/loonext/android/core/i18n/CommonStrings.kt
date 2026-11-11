@@ -26,6 +26,8 @@ object CommonStrings : AppStrings.Section {
         "time.tomorrowAt" to "Tomorrow {time}",
         "time.exactTime" to "Exact time",
         "common.country" to "Country",
+        "common.pickerSearch" to "Search",
+        "common.pickerNoMatch" to "Nothing matches that.",
         "common.retry" to "Try again",
         "common.clearSearch" to "Clear search",
         "common.loadFailed" to
@@ -139,6 +141,8 @@ object CommonStrings : AppStrings.Section {
         "time.tomorrowAt" to "Demain {time}",
         "time.exactTime" to "Heure exacte",
         "common.country" to "Pays",
+        "common.pickerSearch" to "Rechercher",
+        "common.pickerNoMatch" to "Aucun résultat.",
         "common.retry" to "Réessayer",
         "common.clearSearch" to "Effacer la recherche",
         "common.loadFailed" to

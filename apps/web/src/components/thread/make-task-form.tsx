@@ -5,19 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { Button } from "@/components/ui/button";
 import { createdToast } from "@/components/ui/created-toast";
-import { CountryDatalist } from "@/components/ui/country-datalist";
+import { CountryPicker } from "@/components/ui/country-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { undoableToast } from "@/components/ui/optimistic-undo";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useT, type Translate } from "@/i18n/provider";
 import { enrichmentOutcome } from "@/lib/ai/outcome";
 import { enrichTaskFromMessage, useAiSettings } from "@/lib/api/ai-settings";
@@ -319,22 +313,21 @@ export function MakeTaskForm({
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="make-task-assignee">{t("thread.assigneeLabel")}</Label>
-        <Select value={assignee} onValueChange={setAssigneeOverride}>
-          <SelectTrigger id="make-task-assignee" className="w-full">
-            <SelectValue placeholder={t("thread.unassigned")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={UNASSIGNED}>{t("thread.unassigned")}</SelectItem>
-            {memberOptions.map((member) => (
-              <SelectItem key={member.id} value={member.user_id}>
-                {member.display_name}
-                {me.data?.user_id === member.user_id
-                  ? t("thread.youSuffix")
-                  : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SimpleSelect
+          id="make-task-assignee"
+          value={assignee}
+          onValueChange={setAssigneeOverride}
+          placeholder={t("thread.unassigned")}
+          options={[
+            { value: UNASSIGNED, label: t("thread.unassigned") },
+            ...memberOptions.map((member) => ({
+              value: member.user_id,
+              label:
+                member.display_name +
+                (me.data?.user_id === member.user_id ? t("thread.youSuffix") : ""),
+            })),
+          ]}
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -420,16 +413,13 @@ export function MakeTaskForm({
               value={addr.postal_code}
               onChange={(e) => editAddr("postal_code", e.target.value)}
             />
-            <Input
-              aria-label={t("thread.addrCountry")}
+            <CountryPicker
+              ariaLabel={t("thread.addrCountry")}
               className="col-span-2"
               placeholder={t("thread.addrCountry")}
-              list="make-task-countries"
-              autoComplete="country-name"
               value={addr.country}
-              onChange={(e) => editAddr("country", e.target.value)}
+              onValueChange={(next) => editAddr("country", next)}
             />
-            <CountryDatalist id="make-task-countries" />
             {/* Clear lives INSIDE the expanded panel, at the far end of the
                 fields. It used to sit in the header beside the collapse
                 chevron, where reaching to fold the section away wiped the

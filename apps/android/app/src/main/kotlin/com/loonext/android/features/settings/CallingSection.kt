@@ -1,6 +1,10 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.ui.common.Choice
+import com.loonext.android.ui.common.ChoiceCards
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.InlineError
 import com.loonext.android.ui.common.LinkButton
 import androidx.compose.foundation.layout.Row
@@ -375,57 +379,34 @@ private fun ScreeningCard(
         title = t("settings.screeningTitle"),
         description = t("settings.screeningIntro"),
     ) {
-        SCREENING_CHOICES.forEach { choice ->
-            val selected = company.call_screening == choice.value
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .selectable(
-                        selected = selected,
-                        enabled = canEdit && !saving,
-                        onClick = {
-                            if (selected) return@selectable
-                            error = null
-                            saving = true
-                            coroutines.launch {
-                                try {
-                                    val updated = scope.repo.updateCompany(
-                                        scope.companyId,
-                                        buildJsonObject {
-                                            put("call_screening", choice.value)
-                                        },
-                                    )
-                                    onCompanyUpdated(updated)
-                                    scope.showMessage(screeningUpdated)
-                                } catch (cause: Exception) {
-                                    error = cause.userMessage(locale)
-                                } finally {
-                                    saving = false
-                                }
-                            }
-                        },
-                    )
-                    .padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(
-                    selected = selected,
-                    onClick = null,
-                    enabled = canEdit && !saving,
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(t(choice.labelKey), style = MaterialTheme.typography.bodyLarge)
-                    if (choice.detailKey != null) {
-                        Text(
-                            t(choice.detailKey),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ChoiceCards(
+            choices = SCREENING_CHOICES.map { choice ->
+                Choice(choice.value, t(choice.labelKey), choice.detailKey?.let { key -> t(key) })
+            },
+            selected = company.call_screening,
+            enabled = canEdit && !saving,
+            onSelect = { value ->
+                error = null
+                saving = true
+                coroutines.launch {
+                    try {
+                        val updated = scope.repo.updateCompany(
+                            scope.companyId,
+                            buildJsonObject {
+                                put("call_screening", value)
+                            },
                         )
+                        onCompanyUpdated(updated)
+                        scope.showMessage(screeningUpdated)
+                    } catch (cause: Exception) {
+                        error = cause.userMessage(locale)
+                    } finally {
+                        saving = false
                     }
                 }
-            }
-        }
+
+            },
+        )
         InlineError(error)
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))
@@ -459,7 +440,6 @@ private fun RingCard(
     val locale = LocalAppLocale.current
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var secondsMenuOpen by remember { mutableStateOf(false) }
     val coroutines = rememberCoroutineScope()
 
     fun save(patch: JsonObject, message: String) {
@@ -485,37 +465,20 @@ private fun RingCard(
         title = t("settings.ringTitle"),
         description = t("settings.ringIntro"),
     ) {
-        RING_CHOICES.forEach { choice ->
-            val selected = company.ring_strategy == choice.value
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .selectable(
-                        selected = selected,
-                        enabled = canEdit && !saving,
-                        onClick = {
-                            if (selected) return@selectable
-                            save(
-                                buildJsonObject { put("ring_strategy", choice.value) },
-                                ringingUpdated,
-                            )
-                        },
-                    )
-                    .padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = selected, onClick = null, enabled = canEdit && !saving)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(t(choice.labelKey), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        t(choice.detailKey),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
+        ChoiceCards(
+            choices = RING_CHOICES.map { choice ->
+                Choice(choice.value, t(choice.labelKey), t(choice.detailKey))
+            },
+            selected = company.ring_strategy,
+            enabled = canEdit && !saving,
+            onSelect = { value ->
+                save(
+                    buildJsonObject { put("ring_strategy", value) },
+                    ringingUpdated,
+                )
+
+            },
+        )
 
         Row(
             Modifier.fillMaxWidth().padding(top = 10.dp),
@@ -523,33 +486,23 @@ private fun RingCard(
         ) {
             Text(t("settings.ringHowLong"), style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.weight(1f))
-            TextButton(
-                enabled = canEdit && !saving,
-                onClick = { secondsMenuOpen = true },
-            ) { Text(ringSecondsLabel(company.ring_seconds)) }
-            DropdownMenu(
-                expanded = secondsMenuOpen,
-                onDismissRequest = { secondsMenuOpen = false },
-            ) {
-                // The stored value always appears, even when it is not one of
-                // the four — a picker that silently rounds somebody's setting
-                // is a picker lying about what their line does.
-                val options = (RING_SECOND_CHOICES + company.ring_seconds)
+            SelectField(
+                // The stored value always appears, even when it is not one of the four: a
+                // picker that silently rounds somebody's setting is a picker lying about
+                // what their line does.
+                options = (RING_SECOND_CHOICES + company.ring_seconds)
                     .distinct()
                     .sorted()
-                options.forEach { value ->
-                    DropdownMenuItem(
-                        text = { Text(ringSecondsLabel(value)) },
-                        onClick = {
-                            secondsMenuOpen = false
-                            save(
-                                buildJsonObject { put("ring_seconds", value) },
-                                ringLengthUpdated,
-                            )
-                        },
+                    .map { SelectOption(it, ringSecondsLabel(it)) },
+                selected = company.ring_seconds,
+                enabled = canEdit && !saving,
+                onSelect = { value ->
+                    save(
+                        buildJsonObject { put("ring_seconds", value) },
+                        ringLengthUpdated,
                     )
-                }
-            }
+                },
+            )
         }
         Text(
             if (company.ring_strategy == "in_turn") {
@@ -660,55 +613,34 @@ private fun AfterHoursCard(
                 modifier = Modifier.padding(bottom = 8.dp),
             )
         }
-        AFTER_HOURS_CHOICES.forEach { choice ->
-            val selected = company.after_hours_calls == choice.value
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .selectable(
-                        selected = selected,
-                        enabled = canEdit && !saving,
-                        onClick = {
-                            if (selected) return@selectable
-                            error = null
-                            saving = true
-                            coroutines.launch {
-                                try {
-                                    val updated = scope.repo.updateCompany(
-                                        scope.companyId,
-                                        buildJsonObject {
-                                            put("after_hours_calls", choice.value)
-                                        },
-                                    )
-                                    onCompanyUpdated(updated)
-                                    scope.showMessage(afterHoursUpdated)
-                                } catch (cause: Exception) {
-                                    error = cause.userMessage(locale)
-                                } finally {
-                                    saving = false
-                                }
-                            }
-                        },
-                    )
-                    .padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(
-                    selected = selected,
-                    onClick = null,
-                    enabled = canEdit && !saving,
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(t(choice.labelKey), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        t(choice.detailKey),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        ChoiceCards(
+            choices = AFTER_HOURS_CHOICES.map { choice ->
+                Choice(choice.value, t(choice.labelKey), t(choice.detailKey))
+            },
+            selected = company.after_hours_calls,
+            enabled = canEdit && !saving,
+            onSelect = { value ->
+                error = null
+                saving = true
+                coroutines.launch {
+                    try {
+                        val updated = scope.repo.updateCompany(
+                            scope.companyId,
+                            buildJsonObject {
+                                put("after_hours_calls", value)
+                            },
+                        )
+                        onCompanyUpdated(updated)
+                        scope.showMessage(afterHoursUpdated)
+                    } catch (cause: Exception) {
+                        error = cause.userMessage(locale)
+                    } finally {
+                        saving = false
+                    }
                 }
-            }
-        }
+
+            },
+        )
         InlineError(error)
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))

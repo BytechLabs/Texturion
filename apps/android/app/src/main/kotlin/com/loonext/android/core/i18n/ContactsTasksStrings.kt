@@ -194,6 +194,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.calendarScheduledAndUndated" to
             "{scheduled} scheduled · {undated} without a due date",
         "contactsTasks.calendarNothingDueThisDay" to "Nothing due this day.",
+        "contactsTasks.calendarCreateOnDay" to "New task on {date}",
         "contactsTasks.calendarPreviousMonth" to "Previous month",
         "contactsTasks.calendarNextMonth" to "Next month",
         "contactsTasks.calendarDayCellOne" to "{date}, {count} task",
@@ -1036,6 +1037,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.calendarScheduledAndUndated" to
             "{scheduled} prévues · {undated} sans date d'échéance",
         "contactsTasks.calendarNothingDueThisDay" to "Rien à faire ce jour-là.",
+        "contactsTasks.calendarCreateOnDay" to "Nouvelle tâche le {date}",
         "contactsTasks.calendarPreviousMonth" to "Mois précédent",
         "contactsTasks.calendarNextMonth" to "Mois suivant",
         "contactsTasks.calendarDayCellOne" to "{date}, {count} tâche",

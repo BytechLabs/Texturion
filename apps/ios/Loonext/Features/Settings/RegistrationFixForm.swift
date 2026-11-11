@@ -389,13 +389,13 @@ struct RegistrationFixForm: View {
                 Text(t("settingsMore.industry"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Picker(t("settingsMore.industry"), selection: $form.vertical) {
-                    ForEach(tcrVerticals, id: \.self) { vertical in
-                        Text(verticalLabel(vertical)).tag(vertical)
-                    }
-                }
-                .pickerStyle(.menu)
-                .disabled(saving)
+                SelectField(
+                    options: tcrVerticals.map { SelectOption($0, title: verticalLabel($0)) },
+                    selected: form.vertical,
+                    label: t("settingsMore.industry"),
+                    enabled: !saving,
+                    onSelect: { form.vertical = $0 }
+                )
             }
             .padding(.vertical, 4)
 

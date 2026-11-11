@@ -44,6 +44,7 @@ vi.mock("@/lib/api/contacts-vcard", () => ({
 }));
 
 import { VCardImportDialog } from "./vcard-import-dialog";
+import { chooseOption, selectedValue } from "@/test/simple-select-driver";
 // #228: the attestation sentence moved into the catalogue, keyed by door.
 import { contactsEn } from "@/i18n/sections/contacts";
 
@@ -87,8 +88,8 @@ async function choose(contents: string) {
   });
 }
 
-function propertySelect(property: string): HTMLSelectElement {
-  return screen.getByLabelText(`What is ${property}?`) as HTMLSelectElement;
+function propertySelect(property: string): HTMLElement {
+  return screen.getByLabelText(`What is ${property}?`);
 }
 
 function importButton() {
@@ -128,9 +129,9 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     await choose(BOOK);
     await screen.findByText(/on these cards/);
 
-    expect(propertySelect("NOTE").value).toBe("");
-    expect(propertySelect("CATEGORIES").value).toBe("");
-    expect(propertySelect("ORG").value).toBe("");
+    expect(selectedValue(propertySelect("NOTE"))).toBe("");
+    expect(selectedValue(propertySelect("CATEGORIES"))).toBe("");
+    expect(selectedValue(propertySelect("ORG"))).toBe("");
   });
 
   it("VD-4: never asks about a property it reads", async () => {
@@ -146,21 +147,15 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     await choose(BOOK);
     await screen.findByText(/on these cards/);
 
-    fireEvent.change(propertySelect("CATEGORIES"), {
-      target: { value: "opted_out" },
-    });
-    fireEvent.change(propertySelect("NOTE"), { target: { value: "opted_out" } });
-    fireEvent.change(propertySelect("ORG"), {
-      target: { value: CONTACT_IMPORT_IGNORE },
-    });
+    chooseOption(propertySelect("CATEGORIES"), "opted_out");
+    chooseOption(propertySelect("NOTE"), "opted_out");
+    chooseOption(propertySelect("ORG"), CONTACT_IMPORT_IGNORE);
     // The parameter on the TEL lines is a question too, and it is the one this
     // client used to skip: TEL is mapped, so the line was read for its number
     // and `TYPE=CELL` — the same slot Apple writes `X-ABLabel=DO NOT CALL` in —
     // was never enumerated. The server counts it, so a declaration without it
     // is refused, and the refusal would arrive after the upload.
-    fireEvent.change(propertySelect(vcardParameterProperty("TEL", "TYPE")), {
-      target: { value: CONTACT_IMPORT_IGNORE },
-    });
+    chooseOption(propertySelect(vcardParameterProperty("TEL", "TYPE")), CONTACT_IMPORT_IGNORE);
     await waitFor(() => expect(importButton().disabled).toBe(false));
     fireEvent.click(importButton());
 
@@ -207,12 +202,8 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     expect(screen.getByText(label)).toBeTruthy();
     expect(screen.getByText(/“DO NOT CALL”/)).toBeTruthy();
 
-    fireEvent.change(propertySelect(label), {
-      target: { value: "opted_out" },
-    });
-    fireEvent.change(propertySelect(vcardParameterProperty("TEL", "TYPE")), {
-      target: { value: CONTACT_IMPORT_IGNORE },
-    });
+    chooseOption(propertySelect(label), "opted_out");
+    chooseOption(propertySelect(vcardParameterProperty("TEL", "TYPE")), CONTACT_IMPORT_IGNORE);
     await waitFor(() => expect(importButton().disabled).toBe(false));
     fireEvent.click(importButton());
 
@@ -238,15 +229,13 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     fireEvent.click(bulk);
 
     await waitFor(() => expect(importButton().disabled).toBe(false));
-    expect(propertySelect("CATEGORIES").value).toBe(CONTACT_IMPORT_IGNORE);
+    expect(selectedValue(propertySelect("CATEGORIES"))).toBe(CONTACT_IMPORT_IGNORE);
   });
 
   it("VD-7: the bulk answer never overwrites one somebody gave", async () => {
     await choose(BOOK);
     await screen.findByText(/on these cards/);
-    fireEvent.change(propertySelect("CATEGORIES"), {
-      target: { value: "opted_out" },
-    });
+    chooseOption(propertySelect("CATEGORIES"), "opted_out");
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -255,9 +244,9 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     );
 
     await waitFor(() =>
-      expect(propertySelect("ORG").value).toBe(CONTACT_IMPORT_IGNORE),
+      expect(selectedValue(propertySelect("ORG"))).toBe(CONTACT_IMPORT_IGNORE),
     );
-    expect(propertySelect("CATEGORIES").value).toBe("opted_out");
+    expect(selectedValue(propertySelect("CATEGORIES"))).toBe("opted_out");
   });
 
   it("VD-8: imports straight away when the cards carry nothing we don't read", async () => {
@@ -312,7 +301,7 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     });
 
     await screen.findByText("X-STATUS");
-    expect(propertySelect("X-STATUS").value).toBe("");
+    expect(selectedValue(propertySelect("X-STATUS"))).toBe("");
     expect(importButton().disabled).toBe(true);
     expect(vcardMutate).not.toHaveBeenCalled();
   });

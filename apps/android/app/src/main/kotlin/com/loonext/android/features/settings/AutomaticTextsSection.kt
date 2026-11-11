@@ -1,6 +1,8 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Box
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.InlineError
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -143,7 +145,6 @@ private fun AutoTextsPickerRow(
     enabled: Boolean,
     onPick: (Int) -> Unit,
 ) {
-    var open by remember { mutableStateOf(false) }
     val current = field.read(company)
     val label = t(field.labelKey)
     val currentLabel = AutoTexts.valueLabel(field, current, locale)
@@ -157,25 +158,15 @@ private fun AutoTextsPickerRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Box(Modifier.padding(top = 6.dp)) {
-            OutlinedButton(
-                onClick = { open = true },
+            SelectField(
+                options = AutoTexts.choicesWithCurrent(field, current).map {
+                    SelectOption(it, AutoTexts.valueLabel(field, it, locale))
+                },
+                selected = current,
                 enabled = enabled,
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .semantics { contentDescription = "$label: $currentLabel. $caption" },
-            ) { Text(currentLabel) }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                AutoTexts.choicesWithCurrent(field, current).forEach { choice ->
-                    DropdownMenuItem(
-                        text = { Text(AutoTexts.valueLabel(field, choice, locale)) },
-                        modifier = Modifier.heightIn(min = 48.dp),
-                        onClick = {
-                            open = false
-                            if (choice != current) onPick(choice)
-                        },
-                    )
-                }
-            }
+                label = label,
+                onSelect = onPick,
+            )
         }
     }
 }

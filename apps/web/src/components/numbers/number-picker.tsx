@@ -3,6 +3,7 @@
 import { Check, Loader2, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -222,16 +223,17 @@ export function NumberPicker({
                 aria-label={t("misc.digitsFilterAria")}
                 className="h-9 flex-1"
               />
-              <select
+              <SimpleSelect
                 value={match}
-                onChange={(e) => setMatch(e.target.value as DigitMatch)}
-                aria-label={t("misc.digitsWhereAria")}
-                className="h-9 shrink-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="anywhere">{t("misc.digitsAnywhere")}</option>
-                <option value="start">{t("misc.digitsAtStart")}</option>
-                <option value="end">{t("misc.digitsAtEnd")}</option>
-              </select>
+                onValueChange={(next) => setMatch(next as DigitMatch)}
+                ariaLabel={t("misc.digitsWhereAria")}
+                options={[
+                  { value: "anywhere", label: t("misc.digitsAnywhere") },
+                  { value: "start", label: t("misc.digitsAtStart") },
+                  { value: "end", label: t("misc.digitsAtEnd") },
+                ]}
+                className="w-40 shrink-0"
+              />
             </div>
           ) : null}
 

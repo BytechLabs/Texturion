@@ -12,6 +12,7 @@ import {
   type ContactFieldKind,
 } from "@loonext/shared";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -181,25 +182,22 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
                 <Label className="sr-only" htmlFor={`field-kind-${index}`}>
                   {t("settings.contactFieldKindLabel")}
                 </Label>
-                <select
+                <SimpleSelect
                   id={`field-kind-${index}`}
                   value={field.kind}
                   disabled={!canEdit || !field.isNew}
-                  onChange={(event) =>
+                  onValueChange={(next) =>
                     update(index, {
-                      kind: event.target.value as ContactFieldKind,
-                      options:
-                        event.target.value === "select" ? field.options ?? [] : null,
+                      kind: next as ContactFieldKind,
+                      options: next === "select" ? field.options ?? [] : null,
                     })
                   }
-                  className="h-9 rounded-app-ctrl border border-app-line bg-app-paper px-2 text-[13px] text-app-ink disabled:opacity-45"
-                >
-                  {CONTACT_FIELD_KINDS.map((kind) => (
-                    <option key={kind} value={kind}>
-                      {KIND_LABELS[kind]}
-                    </option>
-                  ))}
-                </select>
+                  options={CONTACT_FIELD_KINDS.map((kind) => ({
+                    value: kind,
+                    label: KIND_LABELS[kind],
+                  }))}
+                  className="w-40"
+                />
               </div>
               {canEdit && (
                 <button

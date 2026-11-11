@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { LOCALES, LOCALE_LABELS, isLocale, type Locale } from "@loonext/shared";
 
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SettingsCard } from "@/components/settings/section";
 import { useT } from "@/i18n/provider";
 import { useUpdateCompany } from "@/lib/api/companies";
@@ -47,7 +48,6 @@ export function LanguageCard({
   const t = useT();
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
-  const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // Optimistic selection, as the neighbouring radiogroups do it: the choice
   // moves at the click, and the radios are never disabled mid-interaction
   // (disabling the just-focused radio drops keyboard focus).
@@ -77,65 +77,21 @@ export function LanguageCard({
     );
   }
 
-  const currentIndex = LOCALES.indexOf(active);
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (!canEdit) return;
-    const from = currentIndex === -1 ? 0 : currentIndex;
-    let next = from;
-    switch (event.key) {
-      case "ArrowDown":
-      case "ArrowRight":
-        next = (from + 1) % LOCALES.length;
-        break;
-      case "ArrowUp":
-      case "ArrowLeft":
-        next = (from - 1 + LOCALES.length) % LOCALES.length;
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    radioRefs.current[next]?.focus();
-    choose(LOCALES[next]);
-  }
-
   return (
     <SettingsCard id="language"
       title={t("settings.languageTitle")}
       description={t("settings.languageDescription")}
     >
       {canEdit ? (
-        <div
-          role="radiogroup"
-          aria-label={t("settings.languageTitle")}
-          onKeyDown={onKeyDown}
-          className="flex flex-wrap gap-2"
-        >
-          {LOCALES.map((locale, i) => {
-            const selected = active === locale;
-            return (
-              <button
-                key={locale}
-                ref={(el) => {
-                  radioRefs.current[i] = el;
-                }}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                tabIndex={selected || (currentIndex === -1 && i === 0) ? 0 : -1}
-                onClick={() => choose(locale)}
-                className={
-                  "rounded-md border px-3 py-2 text-sm font-medium transition-colors duration-150 " +
-                  (selected
-                    ? "border-primary/50 bg-accent/40"
-                    : "border-border-subtle hover:bg-accent/20")
-                }
-              >
-                {LOCALE_LABELS[locale]}
-              </button>
-            );
-          })}
-        </div>
+        <SegmentedControl
+          ariaLabel={t("settings.languageTitle")}
+          value={active}
+          onChange={choose}
+          options={LOCALES.map((locale) => ({
+            value: locale,
+            label: LOCALE_LABELS[locale],
+          }))}
+        />
       ) : (
         /* Guarded like the contact control next door, rather than trusting the
            API's non-null guarantee. An unrecognised value renders an empty

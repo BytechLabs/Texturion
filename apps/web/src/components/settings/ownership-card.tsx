@@ -1,5 +1,6 @@
 "use client";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ShieldAlert } from "lucide-react";
 import { useId, useState } from "react";
@@ -8,13 +9,6 @@ import { toast } from "sonner";
 import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
@@ -228,7 +222,9 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                     run. */}
                 {t("settingsMore.ownershipBackupBody")}
               </p>
-              <Select
+              <SimpleSelect
+                id={backupId}
+                className="w-full sm:w-72"
                 value={state.backup_member_id ?? "none"}
                 disabled={act.isPending || others.length === 0}
                 onValueChange={(value) =>
@@ -241,24 +237,17 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                         }),
                   )
                 }
-              >
-                <SelectTrigger id={backupId} className="w-full sm:w-72">
-                  <SelectValue
-                    placeholder={t("settingsMore.ownershipChooseTeammate")}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    {t("settingsMore.ownershipNobody")}
-                  </SelectItem>
-                  {others.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.display_name?.trim() ||
-                        t("settingsMore.ownershipTeammateOption")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={t("settingsMore.ownershipChooseTeammate")}
+                options={[
+                  { value: "none", label: t("settingsMore.ownershipNobody") },
+                  ...others.map((member) => ({
+                    value: member.id,
+                    label:
+                      member.display_name?.trim() ||
+                      t("settingsMore.ownershipTeammateOption"),
+                  })),
+                ]}
+              />
               {others.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   {t("settingsMore.ownershipInviteFirst")}
@@ -275,25 +264,20 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                   {t("settingsMore.ownershipHandOverBody")}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Select
+                  <SimpleSelect
+                    id={handOverId}
+                    className="w-full sm:w-72"
                     value={offerTo}
                     disabled={act.isPending}
                     onValueChange={setOfferTo}
-                  >
-                    <SelectTrigger id={handOverId} className="w-full sm:w-72">
-                      <SelectValue
-                        placeholder={t("settingsMore.ownershipChooseTeammate")}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {others.map((member) => (
-                        <SelectItem key={member.id} value={member.id}>
-                          {member.display_name?.trim() ||
-                            t("settingsMore.ownershipTeammateOption")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder={t("settingsMore.ownershipChooseTeammate")}
+                    options={others.map((member) => ({
+                      value: member.id,
+                      label:
+                        member.display_name?.trim() ||
+                        t("settingsMore.ownershipTeammateOption"),
+                    }))}
+                  />
                   <Button
                     type="button"
                     variant="outline"

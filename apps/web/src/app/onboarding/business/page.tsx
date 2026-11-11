@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -20,13 +21,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useT, type Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { useCreateCompany } from "@/lib/api/companies";
@@ -623,26 +617,21 @@ export default function BusinessIdentityPage() {
                       ? t("onboarding.stateLabel")
                       : t("onboarding.provinceLabel")}
                   </FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue
-                          placeholder={
-                            country === "US"
-                              ? t("onboarding.stateLabel")
-                              : t("onboarding.provinceLabel")
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.entries(regions).map(([code, name]) => (
-                        <SelectItem key={code} value={code}>
-                          {name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <SimpleSelect
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      placeholder={
+                        country === "US"
+                          ? t("onboarding.stateLabel")
+                          : t("onboarding.provinceLabel")
+                      }
+                      options={Object.entries(regions).map(([code, name]) => ({
+                        value: code,
+                        label: name,
+                      }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -735,20 +724,13 @@ export default function BusinessIdentityPage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{t("onboarding.verticalLabel")}</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {verticalOptions(t).map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <SimpleSelect
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    options={verticalOptions(t)}
+                  />
+                </FormControl>
                 <FormDescription>
                   {t("onboarding.verticalHint")}
                 </FormDescription>

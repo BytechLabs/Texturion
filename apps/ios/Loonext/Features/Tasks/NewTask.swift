@@ -134,6 +134,7 @@ private struct NewTaskSheetContent: View {
     let onNotice: @MainActor (String, String?) -> Void
     let onCreated: @MainActor () -> Void
     let onDismiss: @MainActor () -> Void
+    var initialDue: Date?
 
     @State private var host: NewTaskHost?
     @Environment(\.appLocale) private var appLocale
@@ -146,7 +147,8 @@ private struct NewTaskSheetContent: View {
                     source: .standalone(conversationId: conversationId, contactId: contactId),
                     contactName: contactName,
                     locale: appLocale,
-                    onDismiss: onDismiss
+                    onDismiss: onDismiss,
+                    initialDue: initialDue
                 )
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -179,6 +181,7 @@ private struct NewTaskSheetModifier: ViewModifier {
     let contactId: String?
     let contactName: String
     let onCreated: @MainActor () -> Void
+    var initialDue: Date?
 
     @State private var notice: String?
     /// #724: set when the confirmation can open the task it names.
@@ -199,7 +202,8 @@ private struct NewTaskSheetModifier: ViewModifier {
                         noticeTaskId = taskId
                     },
                     onCreated: onCreated,
-                    onDismiss: { isPresented = false }
+                    onDismiss: { isPresented = false },
+                    initialDue: initialDue
                 )
             }
             .createdAlert(notice: $notice, openTaskId: $noticeTaskId)
@@ -215,7 +219,8 @@ extension View {
         conversationId: String? = nil,
         contactId: String? = nil,
         contactName: String = "",
-        onCreated: @escaping @MainActor () -> Void = {}
+        onCreated: @escaping @MainActor () -> Void = {},
+        initialDue: Date? = nil
     ) -> some View {
         modifier(
             NewTaskSheetModifier(
@@ -225,7 +230,8 @@ extension View {
                 conversationId: conversationId,
                 contactId: contactId,
                 contactName: contactName,
-                onCreated: onCreated
+                onCreated: onCreated,
+                initialDue: initialDue
             )
         )
     }

@@ -1,5 +1,7 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.showUndo
 import com.loonext.android.ui.common.ActiveFilterChip
@@ -1963,7 +1965,6 @@ private fun ColumnDeclarationCard(
     action: String?,
     onAction: (String) -> Unit,
 ) {
-    var open by remember { mutableStateOf(false) }
     // Whether this column has been asked to show everything it holds. Bounded by
     // default because thirty columns of full value lists is a sheet nobody reads;
     // complete on request because that is the reading this whole flow claims
@@ -2034,53 +2035,20 @@ private fun ColumnDeclarationCard(
             Box(Modifier.padding(top = 8.dp)) {
                 // An unanswered control is outlined and reads "Choose…", so the
                 // work left on the screen is visible without reading a word.
-                Surface(
-                    onClick = { open = true },
-                    shape = RoundedCornerShape(10.dp),
-                    color = if (action == null) {
-                        MaterialTheme.colorScheme.surface
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainerHighest
+                // ImportColumns.ACTIONS, in ITS order: `ignore` is last and `opted_out` sits
+                // immediately above it, so somebody reaching for "this says nothing" passes
+                // their eye over "do not text" on the way. The two answers are one tap apart
+                // and one of them texts everybody the column was protecting. An unanswered
+                // control reads "Choose…", so the work left on the screen is visible without
+                // reading a word.
+                SelectField(
+                    options = ImportColumns.ACTIONS.map {
+                        SelectOption(it, ContactImport.Columns.actionLabel(it, locale))
                     },
-                ) {
-                    Row(
-                        Modifier.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            action?.let { ContactImport.Columns.actionLabel(it, locale) }
-                                ?: t(ContactImport.Columns.CHOOSE),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (action == null) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                        )
-                        Icon(
-                            Icons.Outlined.ExpandMore,
-                            contentDescription = null,
-                            modifier = Modifier.padding(start = 4.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                    // ImportColumns.ACTIONS, in ITS order: `ignore` is last and
-                    // `opted_out` sits immediately above it, so somebody reaching
-                    // for "this says nothing" passes their eye over "do not text"
-                    // on the way. The two answers are one tap apart and one of
-                    // them texts everybody the column was protecting.
-                    for (option in ImportColumns.ACTIONS) {
-                        DropdownMenuItem(
-                            text = { Text(ContactImport.Columns.actionLabel(option, locale)) },
-                            onClick = {
-                                open = false
-                                onAction(option)
-                            },
-                        )
-                    }
-                }
+                    selected = action,
+                    placeholder = t(ContactImport.Columns.CHOOSE),
+                    onSelect = onAction,
+                )
             }
         }
     }
@@ -2217,7 +2185,6 @@ private fun PropertyDeclarationCard(
     action: String?,
     onAction: (String) -> Unit,
 ) {
-    var open by remember { mutableStateOf(false) }
     val locale = LocalAppLocale.current
     Surface(
         shape = RoundedCornerShape(14.dp),
@@ -2232,48 +2199,14 @@ private fun PropertyDeclarationCard(
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
             )
             Box(Modifier.padding(top = 8.dp)) {
-                Surface(
-                    onClick = { open = true },
-                    shape = RoundedCornerShape(10.dp),
-                    color = if (action == null) {
-                        MaterialTheme.colorScheme.surface
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainerHighest
+                SelectField(
+                    options = VCardProperties.ACTIONS.map {
+                        SelectOption(it, ContactImport.Properties.actionLabel(it, locale))
                     },
-                ) {
-                    Row(
-                        Modifier.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            action?.let { ContactImport.Properties.actionLabel(it, locale) }
-                                ?: t(ContactImport.Properties.CHOOSE),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (action == null) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                        )
-                        Icon(
-                            Icons.Outlined.ExpandMore,
-                            contentDescription = null,
-                            modifier = Modifier.padding(start = 4.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                    for (option in VCardProperties.ACTIONS) {
-                        DropdownMenuItem(
-                            text = { Text(ContactImport.Properties.actionLabel(option, locale)) },
-                            onClick = {
-                                open = false
-                                onAction(option)
-                            },
-                        )
-                    }
-                }
+                    selected = action,
+                    placeholder = t(ContactImport.Properties.CHOOSE),
+                    onSelect = onAction,
+                )
             }
         }
     }

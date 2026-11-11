@@ -14,6 +14,7 @@ import {
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { SearchablePicker } from "@/components/ui/searchable-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sayWith, useT, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
@@ -177,18 +178,17 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
             {t("settingsMore.onCallPutSomebody")}
           </Label>
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <SearchablePicker
               id="on-call-member"
               value={userId ?? roster[0]?.user_id ?? ""}
-              onChange={(event) => setUserId(event.target.value)}
-              className="h-9 rounded-app-input border border-app-line bg-app-paper px-2 text-[13px] text-app-ink"
-            >
-              {roster.map((member) => (
-                <option key={member.user_id} value={member.user_id}>
-                  {member.display_name}
-                </option>
-              ))}
-            </select>
+              onValueChange={setUserId}
+              options={roster.map((member) => ({
+                value: member.user_id,
+                label: member.display_name,
+              }))}
+              ariaLabel={t("settingsMore.onCallPutSomebody")}
+              className="w-52"
+            />
             {ON_CALL_PRESETS.map((preset) => (
               <Button
                 key={preset.key}

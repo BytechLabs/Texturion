@@ -22,6 +22,8 @@ struct TasksTab: View {
     @State private var refreshKey = 0
     @State private var members: [Member] = []
     @State private var newTaskOpen = false
+    /// #739: set by a long-press on a calendar day; New task opens due then.
+    @State private var newTaskDue: Date?
     // #693: priority and label filters, and the sort.
     @State private var priorityFilter: [String] = []
     @State private var tagFilter: String?
@@ -192,7 +194,11 @@ struct TasksTab: View {
                     meta: metaFilters,
                     refreshKey: refreshKey,
                     onOpenTask: { AppRouter.shared.openTaskId = $0 },
-                    onToggleDone: { task, done in toggleDone(task, done: done) }
+                    onToggleDone: { task, done in toggleDone(task, done: done) },
+                    onCreateTask: { due in
+                        newTaskDue = due
+                        newTaskOpen = true
+                    }
                 )
             case .map:
                 TaskMapView(
@@ -307,8 +313,12 @@ struct TasksTab: View {
             isPresented: $newTaskOpen,
             graph: graph,
             companyId: companyId,
-            onCreated: { refreshKey += 1 }
+            onCreated: { refreshKey += 1 },
+            initialDue: newTaskDue
         )
+        .onChange(of: newTaskOpen) { _, open in
+            if !open { newTaskDue = nil }
+        }
         .alert(
             AppStrings.translate(appLocale, "contactsTasks.taskUpdateFailed"),
             isPresented: Binding(

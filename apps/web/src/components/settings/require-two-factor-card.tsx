@@ -1,17 +1,11 @@
 "use client";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { SettingsCard } from "@/components/settings/section";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
@@ -152,27 +146,19 @@ export function RequireTwoFactorCard({
           <span className="text-sm font-medium">
             {t("settingsMore.mfaGraceLabel")}
           </span>
-          <Select value={graceDays} onValueChange={setGraceDays}>
-            <SelectTrigger className="w-full sm:w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">
-                {t("settingsMore.mfaGrace7")}
-              </SelectItem>
-              {/* Two weeks by default: long enough to catch somebody on
-                  holiday, short enough to still mean something. */}
-              <SelectItem value="14">
-                {t("settingsMore.mfaGrace14")}
-              </SelectItem>
-              <SelectItem value="30">
-                {t("settingsMore.mfaGrace30")}
-              </SelectItem>
-              <SelectItem value="0">
-                {t("settingsMore.mfaGrace0")}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          <SimpleSelect
+            className="w-full sm:w-56"
+            value={graceDays}
+            onValueChange={setGraceDays}
+            // Two weeks by default: long enough to catch somebody on holiday, short
+            // enough to still mean something.
+            options={[
+              { value: "7", label: t("settingsMore.mfaGrace7") },
+              { value: "14", label: t("settingsMore.mfaGrace14") },
+              { value: "30", label: t("settingsMore.mfaGrace30") },
+              { value: "0", label: t("settingsMore.mfaGrace0") },
+            ]}
+          />
           {graceDays === "0" && (
             <p className="text-sm text-amber-600 dark:text-amber-500">
               {t("settingsMore.mfaGrace0Warning")}

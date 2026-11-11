@@ -1,6 +1,10 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.Choice
+import com.loonext.android.ui.common.ChoiceCards
+import com.loonext.android.ui.common.SearchablePickerSheet
+import com.loonext.android.ui.common.PickerOption
 import com.loonext.android.ui.common.SearchField
 import com.loonext.android.ui.common.LoadErrorVariant
 import com.loonext.android.ui.common.LoadError
@@ -381,6 +385,10 @@ private fun TimezoneCard(
     }
 }
 
+/**
+ * #746: the timezone choice is the shared searchable picker's sheet, with each
+ * zone's current time as its description.
+ */
 @Composable
 internal fun TimezonePickerDialog(
     current: String,
@@ -388,76 +396,24 @@ internal fun TimezonePickerDialog(
     onDismiss: () -> Unit,
     onPick: (String) -> Unit,
 ) {
-    var query by remember { mutableStateOf("") }
-    val allZones = remember { ZoneId.getAvailableZoneIds().sorted() }
-    val filtered = remember(query, allZones) {
-        val needle = query.trim().replace(' ', '_')
-        if (needle.isEmpty()) allZones
-        else allZones.filter { it.contains(needle, ignoreCase = true) }
+    val options = remember {
+        ZoneId.getAvailableZoneIds().sorted().map { zoneId ->
+            PickerOption(
+                value = zoneId,
+                label = zoneId,
+                description = runCatching {
+                    TimestampFormat.clock(now.withZoneSameInstant(ZoneId.of(zoneId)))
+                }.getOrNull(),
+            )
+        }
     }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(t("settingsMore.chooseTimezone")) },
-        text = {
-            // #199: platform-positioned dialog window + debug guard on the
-            // search field.
-            Column(Modifier.assertAboveIme("dialog")) {
-                SearchField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = t("settingsMore.timezoneSearchHint"),
-                )
-                Spacer(Modifier.height(8.dp))
-                if (filtered.isEmpty()) {
-                    Text(
-                        t("settingsMore.noTimezoneMatch", "query" to query),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    LazyColumn(Modifier.heightIn(max = 340.dp)) {
-                        items(filtered, key = { it }) { zoneId ->
-                            val zoneTime = runCatching {
-                                TimestampFormat.clock(now.withZoneSameInstant(ZoneId.of(zoneId)))
-                            }.getOrNull()
-                            Column(Modifier.animateItem()) {
-                                Row(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onPick(zoneId) }
-                                        .padding(vertical = 10.dp),
-                                ) {
-                                    Text(
-                                        zoneId,
-                                        style = if (zoneId == current) {
-                                            MaterialTheme.typography.bodyMedium.copy(
-                                                color = MaterialTheme.colorScheme.primary,
-                                            )
-                                        } else {
-                                            MaterialTheme.typography.bodyMedium
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    if (zoneTime != null) {
-                                        Text(
-                                            zoneTime,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                                HorizontalDivider(
-                                    color = MaterialTheme.colorScheme.outlineVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { LinkButton(onClick = onDismiss) { Text(t("common.cancel")) } },
+    SearchablePickerSheet(
+        options = options,
+        selected = current,
+        title = t("settingsMore.chooseTimezone"),
+        searchPlaceholder = t("settingsMore.timezoneSearchHint"),
+        onPick = onPick,
+        onDismiss = onDismiss,
     )
 }
 
@@ -635,51 +591,35 @@ private fun LanguageCard(
         val options = remember(company.locale) {
             (MessageLocale.ALL + company.locale).distinct()
         }
-        options.forEach { value ->
-            val selected = company.locale == value
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .selectable(
-                        selected = selected,
-                        enabled = canEdit && !saving,
-                        onClick = {
-                            if (selected) return@selectable
-                            error = null
-                            saving = true
-                            coroutines.launch {
-                                try {
-                                    val updated = scope.repo.updateCompany(
-                                        scope.companyId,
-                                        buildJsonObject { put("locale", value) },
-                                    )
-                                    onCompanyUpdated(updated)
-                                    scope.showMessage(
-                                        AppStrings.translate(
-                                            locale,
-                                            "settingsMore.languageUpdated",
-                                        ),
-                                    )
-                                } catch (cause: Exception) {
-                                    error = cause.userMessage(locale)
-                                } finally {
-                                    saving = false
-                                }
-                            }
-                        },
-                    )
-                    .padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = selected, onClick = null, enabled = canEdit && !saving)
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    MessageLocale.label(value),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
+        ChoiceCards(
+            choices = options.map { code -> Choice(code, MessageLocale.label(code)) },
+            selected = company.locale,
+            enabled = canEdit && !saving,
+            onSelect = { value ->
+                error = null
+                saving = true
+                coroutines.launch {
+                    try {
+                        val updated = scope.repo.updateCompany(
+                            scope.companyId,
+                            buildJsonObject { put("locale", value) },
+                        )
+                        onCompanyUpdated(updated)
+                        scope.showMessage(
+                            AppStrings.translate(
+                                locale,
+                                "settingsMore.languageUpdated",
+                            ),
+                        )
+                    } catch (cause: Exception) {
+                        error = cause.userMessage(locale)
+                    } finally {
+                        saving = false
+                    }
+                }
+
+            },
+        )
         Spacer(Modifier.height(6.dp))
         ReadOnlyLine(t("settingsMore.automatedLanguageNotApp"))
         Spacer(Modifier.height(4.dp))

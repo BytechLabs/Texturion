@@ -129,31 +129,25 @@ struct DeliveryModesCard: View {
                 HStack {
                     Text(AppStrings.translate(appLocale, "inbox.deliveryGroupEvery"))
                         .font(.golos(13))
-                    Picker(
-                        AppStrings.translate(appLocale, "inbox.deliveryGroupEvery"),
-                        selection: Binding(
-                            get: {
-                                prefs.batch_window_minutes
-                                    ?? OnCall.defaultBatchWindow
-                            },
-                            set: { minutes in
-                                var updated = prefs
-                                updated.batch_window_minutes = minutes
-                                onSave(updated)
-                            }
-                        )
-                    ) {
-                        ForEach(OnCall.batchWindowChoices, id: \.self) { minutes in
-                            Text(
-                                AppStrings.translate(
+                    SelectField(
+                        options: OnCall.batchWindowChoices.map { minutes in
+                            SelectOption(
+                                minutes,
+                                title: AppStrings.translate(
                                     appLocale,
                                     "inbox.deliveryMinutes",
                                     ["minutes": String(minutes)]
                                 )
-                            ).tag(minutes)
+                            )
+                        },
+                        selected: prefs.batch_window_minutes ?? OnCall.defaultBatchWindow,
+                        label: AppStrings.translate(appLocale, "inbox.deliveryGroupEvery"),
+                        onSelect: { minutes in
+                            var updated = prefs
+                            updated.batch_window_minutes = minutes
+                            onSave(updated)
                         }
-                    }
-                    .pickerStyle(.menu)
+                    )
                 }
             }
         }

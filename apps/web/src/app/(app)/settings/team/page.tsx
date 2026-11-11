@@ -18,6 +18,12 @@ import {
   GiveUpAccessDialog,
   roleChangeNeedsConfirming,
 } from "@/components/settings/give-up-access-dialog";
+import {
+  RoleSelect,
+  roleBlurbs,
+  roleLabels,
+} from "@/components/settings/role-select";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { OwnershipCard } from "@/components/settings/ownership-card";
 import { RequireTwoFactorCard } from "@/components/settings/require-two-factor-card";
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
@@ -43,13 +49,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useT, type Translate } from "@/i18n/provider";
@@ -73,32 +72,6 @@ import {
   countPendingInvites,
   seatUsage,
 } from "@/lib/settings/seat-line";
-
-function roleLabels(t: Translate): Record<Member["role"], string> {
-  return {
-    owner: t("appShell.roleOwner"),
-    admin: t("appShell.roleAdmin"),
-    member: t("appShell.roleMember"),
-    read_only: t("appShell.roleReadOnly"),
-    bookkeeper: t("appShell.roleBookkeeper"),
-  };
-}
-
-/**
- * #315: what each role is FOR, in the words an owner picking one would use.
- * A checkbox grid is a correct model and a bad product for a crew of four, so
- * the roles ship as named presets and the picker says what each is for.
- */
-function roleBlurbs(
-  t: Translate,
-): Record<"admin" | "member" | "read_only" | "bookkeeper", string> {
-  return {
-    admin: t("appShell.roleAdminBlurb"),
-    member: t("appShell.roleMemberBlurb"),
-    read_only: t("appShell.roleReadOnlyBlurb"),
-    bookkeeper: t("appShell.roleBookkeeperBlurb"),
-  };
-}
 
 function MemberRow({
   member,
@@ -190,10 +163,14 @@ function MemberRow({
         </>
       )}
       {canManage && member.role !== "owner" && !deactivated ? (
-        <Select
+        <RoleSelect
           value={member.role}
-          onValueChange={(value) => {
-            const role = value as "admin" | "member";
+          t={t}
+          ariaLabel={t("appShell.teamRoleForAria", { name })}
+          onValueChange={(picked) => {
+            // The API types admit two roles, and always have; the cast was here
+            // when this was an inline Select.
+            const role = picked as "admin" | "member";
             // #538: TAKING POWERS OFF YOURSELF STOPS AND ASKS.
             //
             // An admin who picks "member" here loses the ability to change roles
@@ -214,25 +191,7 @@ function MemberRow({
             changeRole(role);
           }}
           disabled={updateRole.isPending}
-        >
-          <SelectTrigger
-            size="sm"
-            className="w-28"
-            aria-label={t("appShell.teamRoleForAria", { name })}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="admin">{t("appShell.roleAdmin")}</SelectItem>
-            <SelectItem value="member">{t("appShell.roleMember")}</SelectItem>
-            <SelectItem value="read_only">
-              {t("appShell.roleReadOnly")}
-            </SelectItem>
-            <SelectItem value="bookkeeper">
-              {t("appShell.roleBookkeeper")}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        />
       ) : (
         <Badge variant="secondary">{roleLabels(t)[member.role]}</Badge>
       )}
@@ -387,24 +346,20 @@ function OffboardDialog({
               </strong>
               {t("appShell.teamStillOnAfter")}
             </p>
-            <Select value={destination} onValueChange={setDestination}>
-              <SelectTrigger aria-label={t("appShell.teamHandWorkToAria")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={UNASSIGNED}>
-                  {t("appShell.teamLeaveUnassigned")}
-                </SelectItem>
-                {teammates.map((mate) => (
-                  <SelectItem key={mate.user_id} value={mate.user_id}>
-                    {t("appShell.teamHandItTo", {
-                      name:
-                        mate.display_name || t("appShell.teamATeammate"),
-                    })}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SimpleSelect
+              ariaLabel={t("appShell.teamHandWorkToAria")}
+              value={destination}
+              onValueChange={setDestination}
+              options={[
+                { value: UNASSIGNED, label: t("appShell.teamLeaveUnassigned") },
+                ...teammates.map((mate) => ({
+                  value: mate.user_id,
+                  label: t("appShell.teamHandItTo", {
+                    name: mate.display_name || t("appShell.teamATeammate"),
+                  }),
+                })),
+              ]}
+            />
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
@@ -778,34 +733,17 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t("appShell.teamRoleLabel")}</FormLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={seats.full}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full sm:w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="max-w-[min(22rem,calc(100vw-2rem))]">
-                      {/* #315: named presets, and each says what it is FOR. An
-                          owner picking a role for their accountant should not
-                          have to infer it from the word "member". */}
-                      {(
-                        ["member", "admin", "read_only", "bookkeeper"] as const
-                      ).map((value) => (
-                        <SelectItem key={value} value={value}>
-                          <span className="flex flex-col gap-0.5 py-0.5">
-                            <span>{roleLabels(t)[value]}</span>
-                            <span className="text-xs text-muted-foreground whitespace-normal">
-                              {roleBlurbs(t)[value]}
-                            </span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <RoleSelect
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      t={t}
+                      disabled={seats.full}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {roleBlurbs(t)[field.value]}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { NativeSelect } from "@/components/ui/native-select";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import {
   Table,
   TableBody,
@@ -236,37 +236,27 @@ function ColumnRow({
           )}
         </div>
         <div className="w-full sm:w-52">
-          <NativeSelect
+          <SimpleSelect
             id={id}
-            aria-label={t("contacts.columnQuestion", {
+            ariaLabel={t("contacts.columnQuestion", {
               column: columnLabel(column, t),
             })}
             value={column.answer ?? UNANSWERED}
-            onChange={(event) =>
-              onAnswer(
-                event.target.value === UNANSWERED
-                  ? null
-                  : (event.target.value as ColumnAnswer),
-              )
-            }
-          >
-            {/* Present only while unanswered. Leaving it in the list after an
-                answer would offer "un-answer" as a choice that looks like the
-                others, and there is no such column state to post. */}
-            {column.answer === null && (
-              <option value={UNANSWERED}>
-                {t("contacts.chooseWhatThisIs")}
-              </option>
-            )}
-            {IMPORT_FIELDS.map((field) => (
-              <option key={field} value={field}>
-                {t(ANSWER_LABEL_KEYS[field])}
-              </option>
-            ))}
-            <option value={CONTACT_IMPORT_IGNORE}>
-              {t(ANSWER_LABEL_KEYS.ignore)}
-            </option>
-          </NativeSelect>
+            onValueChange={(next) => onAnswer(next as ColumnAnswer)}
+            // Shown only while unanswered: there is no "un-answer" choice,
+            // because there is no such column state to post.
+            placeholder={t("contacts.chooseWhatThisIs")}
+            options={[
+              ...IMPORT_FIELDS.map((field) => ({
+                value: field,
+                label: t(ANSWER_LABEL_KEYS[field]),
+              })),
+              {
+                value: CONTACT_IMPORT_IGNORE,
+                label: t(ANSWER_LABEL_KEYS.ignore),
+              },
+            ]}
+          />
         </div>
       </div>
     </li>

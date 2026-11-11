@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { ChoiceCards } from "@/components/ui/choice-cards";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -150,33 +152,16 @@ export function NumberAccessDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div
-          className="space-y-3"
-          role="radiogroup"
-          aria-label={t("settingsMore.numberAccessGroupAria")}
-        >
-          {PRESETS.map(({ value, label, hint }) => (
-            <label
-              key={value}
-              className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-[input:checked]:border-primary"
-            >
-              <input
-                type="radio"
-                name="number-access-mode"
-                value={value}
-                checked={mode === value}
-                onChange={() => setMode(value)}
-                className="mt-1"
-              />
-              <span>
-                <span className="block text-sm font-medium">{t(label)}</span>
-                <span className="block text-xs text-muted-foreground">
-                  {t(hint)}
-                </span>
-              </span>
-            </label>
-          ))}
-        </div>
+        <ChoiceCards
+          ariaLabel={t("settingsMore.numberAccessGroupAria")}
+          value={mode}
+          onChange={setMode}
+          options={PRESETS.map(({ value, label, hint }) => ({
+            value,
+            label: t(label),
+            description: t(hint),
+          }))}
+        />
 
         {mode === "users" && (
           <div className="space-y-3 rounded-lg border p-3">
@@ -210,35 +195,17 @@ export function NumberAccessDialog({
 
             {/* Level applies only to the people picked above — admins are
                 unaffected (always full use). */}
-            <div
-              className="flex gap-2 border-t pt-3"
-              role="radiogroup"
-              aria-label={t("settingsMore.numberAccessLevelAria")}
-            >
-              {(
-                [
-                  ["text", "settingsMore.numberAccessCanText"],
-                  ["note", "settingsMore.numberAccessNoteOnly"],
-                ] as const
-              ).map(([value, label]) => (
-                <label
-                  key={value}
-                  // The radio itself is sr-only, so surface keyboard focus on
-                  // the label (has-[input:focus-visible]) — without it there was
-                  // no visible focus indicator when tabbing the group.
-                  className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border p-2 text-sm has-[input:checked]:border-primary has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2"
-                >
-                  <input
-                    type="radio"
-                    name="number-access-level"
-                    value={value}
-                    checked={level === value}
-                    onChange={() => setLevel(value)}
-                    className="sr-only"
-                  />
-                  {t(label)}
-                </label>
-              ))}
+            <div className="border-t pt-3">
+              <SegmentedControl
+                fill
+                ariaLabel={t("settingsMore.numberAccessLevelAria")}
+                value={level}
+                onChange={setLevel}
+                options={[
+                  { value: "text", label: t("settingsMore.numberAccessCanText") },
+                  { value: "note", label: t("settingsMore.numberAccessNoteOnly") },
+                ]}
+              />
             </div>
           </div>
         )}

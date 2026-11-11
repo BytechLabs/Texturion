@@ -23,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.core.contacts.ContactFields
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
@@ -172,38 +174,26 @@ fun ContactFieldsCard(scope: SettingsScope) {
                         modifier = Modifier.weight(1f),
                     )
 
-                    var kindOpen by remember { mutableStateOf(false) }
-                    TextButton(
-                        onClick = { kindOpen = true },
-                        // A saved field's TYPE cannot change: the values under
-                        // it were entered against the old one, and a text
-                        // column reinterpreted as a date is a column of errors.
+                    SelectField(
+                        options = ContactFields.KINDS.map { SelectOption(it, ContactFields.kindLabel(it)) },
+                        selected = field.kind,
+                        // A saved field's TYPE cannot change: the values under it were entered
+                        // against the old one, and a text column reinterpreted as a date is a
+                        // column of errors.
                         enabled = canEdit && isNew,
-                    ) { Text(ContactFields.kindLabel(field.kind)) }
-                    DropdownMenu(expanded = kindOpen, onDismissRequest = { kindOpen = false }) {
-                        for (kind in ContactFields.KINDS) {
-                            DropdownMenuItem(
-                                text = { Text(ContactFields.kindLabel(kind)) },
-                                onClick = {
-                                    kindOpen = false
-                                    draft = draft.mapIndexed { i, row ->
-                                        if (i == index) {
-                                            row.copy(
-                                                kind = kind,
-                                                options = if (kind == "select") {
-                                                    row.options.orEmpty()
-                                                } else {
-                                                    null
-                                                },
-                                            )
-                                        } else {
-                                            row
-                                        }
-                                    }
-                                },
-                            )
-                        }
-                    }
+                        onSelect = { kind ->
+                            draft = draft.mapIndexed { i, row ->
+                                if (i == index) {
+                                    row.copy(
+                                        kind = kind,
+                                        options = if (kind == "select") row.options.orEmpty() else null,
+                                    )
+                                } else {
+                                    row
+                                }
+                            }
+                        },
+                    )
 
                     if (canEdit) {
                         TextButton(onClick = {

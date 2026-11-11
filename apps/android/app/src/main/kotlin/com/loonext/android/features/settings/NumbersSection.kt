@@ -1,6 +1,8 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.ui.common.Choice
+import com.loonext.android.ui.common.ChoiceCards
 import com.loonext.android.ui.common.LoadErrorVariant
 import com.loonext.android.ui.common.InlineError
 import com.loonext.android.ui.common.LinkButton
@@ -825,26 +827,15 @@ private fun NumberAccessDialog(
                                     }
                                 }
                                 Spacer(Modifier.height(6.dp))
-                                listOf(
-                                    NumberAccessLevel.TEXT to t("settingsMore.levelText"),
-                                    NumberAccessLevel.NOTE to t("settingsMore.levelNote"),
-                                ).forEach { (value, label) ->
-                                    Row(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .selectable(
-                                                selected = level == value,
-                                                enabled = !pending,
-                                                onClick = { level = value },
-                                            )
-                                            .padding(vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        RadioButton(selected = level == value, onClick = null)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(label, style = MaterialTheme.typography.bodyMedium)
-                                    }
-                                }
+                                ChoiceCards(
+                                    choices = listOf(
+                                        Choice(NumberAccessLevel.TEXT, t("settingsMore.levelText")),
+                                        Choice(NumberAccessLevel.NOTE, t("settingsMore.levelNote")),
+                                    ),
+                                    selected = level,
+                                    enabled = !pending,
+                                    onSelect = { level = it },
+                                )
                             }
                         }
                     }
@@ -941,51 +932,33 @@ private fun AccessModeOptions(
     onMode: (AccessMode) -> Unit,
     enabled: Boolean,
 ) {
-    listOf(
-        Triple(
-            AccessMode.Everyone,
-            t("settingsMore.accessEveryone"),
-            t("settingsMore.accessEveryoneDetail"),
+    ChoiceCards(
+        choices = listOf(
+            Choice(
+                AccessMode.Everyone,
+                t("settingsMore.accessEveryone"),
+                t("settingsMore.accessEveryoneDetail"),
+            ),
+            Choice(
+                AccessMode.MembersView,
+                t("settingsMore.accessMembersView"),
+                t("settingsMore.accessMembersViewDetail"),
+            ),
+            Choice(
+                AccessMode.Admins,
+                t("settingsMore.accessAdmins"),
+                t("settingsMore.accessAdminsDetail"),
+            ),
+            Choice(
+                AccessMode.Users,
+                t("settingsMore.accessUsers"),
+                t("settingsMore.accessUsersDetail"),
+            ),
         ),
-        Triple(
-            AccessMode.MembersView,
-            t("settingsMore.accessMembersView"),
-            t("settingsMore.accessMembersViewDetail"),
-        ),
-        Triple(
-            AccessMode.Admins,
-            t("settingsMore.accessAdmins"),
-            t("settingsMore.accessAdminsDetail"),
-        ),
-        Triple(
-            AccessMode.Users,
-            t("settingsMore.accessUsers"),
-            t("settingsMore.accessUsersDetail"),
-        ),
-    ).forEach { (value, label, detail) ->
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .selectable(
-                    selected = mode == value,
-                    enabled = enabled,
-                    onClick = { onMode(value) },
-                )
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RadioButton(selected = mode == value, onClick = null, enabled = enabled)
-            Spacer(Modifier.width(8.dp))
-            Column {
-                Text(label, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    detail,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
+        selected = mode,
+        enabled = enabled,
+        onSelect = onMode,
+    )
 }
 
 // ---------------------------------------------------------------------------

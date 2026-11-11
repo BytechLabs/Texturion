@@ -1,5 +1,9 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.PickerOption
+import com.loonext.android.ui.common.SearchablePicker
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.RecordHeader
 import android.Manifest
@@ -1241,7 +1245,7 @@ private fun DestinationClockRow(
     val reading = remember(zone, contact.updated_at) {
         runCatching {
             java.time.ZonedDateTime.now(java.time.ZoneId.of(zone))
-                
+
                 .let { com.loonext.android.core.time.TimestampFormat.clock(it) }
         }.getOrDefault("")
     }
@@ -1293,20 +1297,12 @@ private fun DestinationClockRow(
         if (editing) {
             Spacer(Modifier.height(4.dp))
             val zones = remember { northAmericanTimeZoneIds() }
-            var expanded by remember { mutableStateOf(false) }
-            Box {
-                OutlinedButton(onClick = { expanded = true }, enabled = !saving) {
-                    Text(zone.substringAfter('/').replace('_', ' '))
-                }
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    zones.forEach { candidate ->
-                        DropdownMenuItem(
-                            text = { Text(candidate.substringAfter('/').replace('_', ' ')) },
-                            onClick = { expanded = false; apply(candidate) },
-                        )
-                    }
-                }
-            }
+            SearchablePicker(
+                options = zones.map { PickerOption(it, it.substringAfter('/').replace('_', ' ')) },
+                selected = zone,
+                enabled = !saving,
+                onSelect = { apply(it) },
+            )
             if (contact.timezone != null) {
                 TextButton(onClick = { apply(null) }, enabled = !saving) {
                     Text(t("contactsTasks.useAreaCode"))
@@ -1349,7 +1345,6 @@ private fun ContactLanguageRow(
 ) {
     var editing by remember(contact.id) { mutableStateOf(false) }
     var saving by remember(contact.id) { mutableStateOf(false) }
-    var expanded by remember(contact.id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // #228: the READER's language, which is a different question from the
@@ -1409,36 +1404,21 @@ private fun ContactLanguageRow(
 
         if (editing) {
             Spacer(Modifier.height(4.dp))
-            Box {
-                OutlinedButton(onClick = { expanded = true }, enabled = !saving) {
-                    Text(
-                        if (contact.locale == null) inheritLabel
-                        else MessageLocale.label(contact.locale),
-                    )
-                }
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    // Following the workspace is first: it is the state every
-                    // contact starts in, and the one somebody comes back here
-                    // to restore.
-                    DropdownMenuItem(
-                        text = { Text(inheritLabel) },
-                        onClick = { expanded = false; apply(null) },
-                    )
-                    // #717: the workspace's own language is the inherit choice
-                    // above, so it is offered a second time only when this
-                    // contact is already set to it.
+            SelectField<String?>(
+                // Following the workspace is first: it is the state every contact starts
+                // in, and the one somebody comes back here to restore. #717: the
+                // workspace's own language is the inherit choice, so it is offered a
+                // second time only when this contact is already set to it.
+                options = listOf(SelectOption<String?>(null, inheritLabel)) +
                     choicesBesideDefault(
                         MessageLocale.ALL,
                         companyLocale.takeIf { it in MessageLocale.ALL },
                         contact.locale,
-                    ).forEach { candidate ->
-                        DropdownMenuItem(
-                            text = { Text(MessageLocale.label(candidate)) },
-                            onClick = { expanded = false; apply(candidate) },
-                        )
-                    }
-                }
-            }
+                    ).map { SelectOption<String?>(it, MessageLocale.label(it)) },
+                selected = contact.locale,
+                enabled = !saving,
+                onSelect = { apply(it) },
+            )
             // The caveat belongs at the moment of the decision, not in a help
             // page: somebody setting a customer to French is usually imagining
             // the whole conversation changing, and it is four texts.

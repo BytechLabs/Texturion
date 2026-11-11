@@ -7,7 +7,7 @@ import type { AutomaticTextSettings } from "@loonext/shared";
 
 import { SettingsCard } from "@/components/settings/section";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { Switch } from "@/components/ui/switch";
 import { useT, type MessageKey } from "@/i18n/provider";
 import { useUpdateCompany } from "@/lib/api/companies";
@@ -113,22 +113,20 @@ function PickerRow({
         </p>
       </div>
       <div className="w-full sm:w-44">
-        <NativeSelect
+        <SimpleSelect
           id={id}
           aria-describedby={captionId}
-          className="h-11"
-          value={value}
+          className="h-11 w-full"
+          value={String(value)}
           disabled={saver.disabled}
-          onChange={(event) =>
-            saver.save(automaticTextPatch(field, Number(event.target.value)))
+          onValueChange={(next) =>
+            saver.save(automaticTextPatch(field, Number(next)))
           }
-        >
-          {choicesWithCurrent(field, value).map((choice) => (
-            <option key={choice} value={choice}>
-              {formatAutomaticTextDuration(t, field, choice)}
-            </option>
-          ))}
-        </NativeSelect>
+          options={choicesWithCurrent(field, value).map((choice) => ({
+            value: String(choice),
+            label: formatAutomaticTextDuration(t, field, choice),
+          }))}
+        />
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.ui.common.SelectField
+import com.loonext.android.ui.common.SelectOption
 import com.loonext.android.ui.common.InlineError
 import com.loonext.android.ui.common.LinkButton
 import com.loonext.android.ui.common.ConfirmDialog
@@ -14,11 +16,8 @@ import com.loonext.android.core.roles.SelfDowngrade
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -120,6 +119,31 @@ private fun roleBlurb(role: String): String = when (role) {
 }
 
 /**
+ * #746: the one role control, in the members list and in the invite form. The
+ * closed field shows the role's name; its description is in the open list.
+ */
+@Composable
+private fun RoleField(
+    role: String,
+    enabled: Boolean,
+    label: String,
+    onSelect: (String) -> Unit,
+) {
+    SelectField(
+        options = listOf(
+            MemberRole.MEMBER,
+            MemberRole.ADMIN,
+            MemberRole.READ_ONLY,
+            MemberRole.BOOKKEEPER,
+        ).map { SelectOption(it, roleLabel(it), roleBlurb(it)) },
+        selected = role,
+        onSelect = onSelect,
+        enabled = enabled,
+        label = label,
+    )
+}
+
+/**
  * Team (#157): who can see and answer your customers' texts. Members list with
  * inline role change + deactivation (admin+), the invite form gated by the
  * seat formula, and the pending-invite list with the Copy-link fallback.
@@ -215,7 +239,6 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
     val name = member.display_name.ifBlank { t("settingsMore.teammate") }
     val canChangeRole = SettingsRoleGate.canChangeRoleOf(scope.role, member)
     val canDeactivate = SettingsRoleGate.canDeactivate(scope.role, member, scope.me.user_id)
-    var roleMenuOpen by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var confirmingDeactivate by remember { mutableStateOf(false) }
     // #348: what this person actually reaches, on demand.
@@ -324,47 +347,29 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
             member.role == MemberRole.OWNER ->
                 StatusPill(t("settingsMore.roleOwner"), PillTone.Positive)
 
-            canChangeRole -> Column {
-                LinkButton(onClick = { roleMenuOpen = true }, enabled = !busy) {
-                    Text(if (busy) t("common.saving") else roleLabel(member.role))
-                }
-                DropdownMenu(
-                    expanded = roleMenuOpen,
-                    onDismissRequest = { roleMenuOpen = false },
-                ) {
-                    listOf(
-                        MemberRole.ADMIN,
-                        MemberRole.MEMBER,
-                        MemberRole.READ_ONLY,
-                        MemberRole.BOOKKEEPER,
-                    )
-                        .forEach { role ->
-                        DropdownMenuItem(
-                            text = { Text(roleLabel(role)) },
-                            onClick = {
-                                roleMenuOpen = false
-                                if (role == member.role) return@DropdownMenuItem
-                                // #538: TAKING POWERS OFF YOURSELF STOPS AND ASKS.
-                                //
-                                // Picking a lesser role for your own row loses the
-                                // ability to change roles in the same tap — the
-                                // ability that would let you change it back. The
-                                // menu gave no sign of that, so an afternoon of
-                                // chasing the owner started with two taps.
-                                //
-                                // Only for this person's own row, and only when it
-                                // takes something away: a confirmation that fires
-                                // on everything is one people learn to dismiss.
-                                if (isSelf && SelfDowngrade.isDowngrade(member.role, role)) {
-                                    givingUp = role
-                                    return@DropdownMenuItem
-                                }
-                                changeRole(role)
-                            },
-                        )
+            canChangeRole -> RoleField(
+                role = member.role,
+                enabled = !busy,
+                label = t("settingsMore.roleLabel"),
+                onSelect = { role ->
+                    // #538: TAKING POWERS OFF YOURSELF STOPS AND ASKS.
+                    //
+                    // Picking a lesser role for your own row loses the
+                    // ability to change roles in the same tap, which is the
+                    // ability that would let you change it back. The menu gave
+                    // no sign of that, so an afternoon of chasing the owner
+                    // started with two taps.
+                    //
+                    // Only for this person's own row, and only when it takes
+                    // something away: a confirmation that fires on everything
+                    // is one people learn to dismiss.
+                    if (isSelf && SelfDowngrade.isDowngrade(member.role, role)) {
+                        givingUp = role
+                    } else {
+                        changeRole(role)
                     }
-                }
-            }
+                },
+            )
 
             else -> Text(
                 roleLabel(member.role),
@@ -443,7 +448,6 @@ private fun InvitesCard(
     var email by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(MemberRole.MEMBER) }
-    var roleMenuOpen by remember { mutableStateOf(false) }
     var sending by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf<String?>(null) }
 
@@ -491,42 +495,20 @@ private fun InvitesCard(
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column {
-                OutlinedButton(
-                    onClick = { roleMenuOpen = true },
+                RoleField(
+                    role = role,
                     enabled = !seat.full && !sending,
-                ) { Text(roleLabel(role)) }
-                DropdownMenu(
-                    expanded = roleMenuOpen,
-                    onDismissRequest = { roleMenuOpen = false },
-                ) {
-                    // #315: a named preset that does not say what it is for is
-                    // just a word. An owner picking a role for their accountant
-                    // should not have to infer it from "member".
-                    listOf(
-                        MemberRole.MEMBER,
-                        MemberRole.ADMIN,
-                        MemberRole.READ_ONLY,
-                        MemberRole.BOOKKEEPER,
-                    )
-                        .forEach { option ->
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(roleLabel(option))
-                                        Text(
-                                            roleBlurb(option),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    role = option
-                                    roleMenuOpen = false
-                                },
-                            )
-                        }
-                }
+                    label = t("settingsMore.roleLabel"),
+                    onSelect = { role = it },
+                )
+                // The description of the chosen role sits under the field, where
+                // the closed field shows the name only.
+                Text(
+                    roleBlurb(role),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
             Spacer(Modifier.width(12.dp))
             Button(

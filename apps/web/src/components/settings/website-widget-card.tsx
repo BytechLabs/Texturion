@@ -3,15 +3,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useLocale, useT } from "@/i18n/provider";
 import {
   useCompany,
@@ -225,7 +219,9 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
               <p className="text-xs text-muted-foreground">
                 {t("settings.widgetLineHelp")}
               </p>
-              <Select
+              <SimpleSelect
+                id="widget-line"
+                className="w-full sm:w-80"
                 value={chosen}
                 disabled={updateCompany.isPending}
                 onValueChange={(value) => {
@@ -239,29 +235,25 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
                     },
                   );
                 }}
-              >
-                <SelectTrigger id="widget-line" className="w-full sm:w-80">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* Named, not blank. "Your first number" is what the server
-                      actually does with an unset choice, and a default that
-                      does not say what it resolves to is a setting somebody
-                      has to test to understand. *Applying: Smart Defaults.* */}
-                  <SelectItem value={DEFAULT_LINE}>
-                    {firstLine
+                options={[
+                  // Named, not blank. "Your first number" is what the server actually does
+                  // with an unset choice, and a default that does not say what it resolves
+                  // to is a setting somebody has to test to understand.
+                  // *Applying: Smart Defaults.*
+                  {
+                    value: DEFAULT_LINE,
+                    label: firstLine
                       ? t("settings.widgetLineDefaultNamed", {
                           number: formatPhone(firstLine.number_e164 ?? ""),
                         })
-                      : t("settings.widgetLineDefault")}
-                  </SelectItem>
-                  {explicitLines.map((number) => (
-                    <SelectItem key={number.id} value={number.id}>
-                      {formatPhone(number.number_e164 ?? "")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      : t("settings.widgetLineDefault"),
+                  },
+                  ...explicitLines.map((number) => ({
+                    value: number.id,
+                    label: formatPhone(number.number_e164 ?? ""),
+                  })),
+                ]}
+              />
             </div>
           )}
         </div>

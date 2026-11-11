@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { NativeSelect } from "@/components/ui/native-select";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { useT } from "@/i18n/provider";
 import { useImportVCard } from "@/lib/api/contacts-vcard";
 import { ApiError } from "@/lib/api/error";
@@ -300,37 +300,33 @@ export function VCardImportDialog({
                         )}
                       </div>
                       <div className="w-full sm:w-52">
-                        <NativeSelect
+                        <SimpleSelect
                           id={id}
-                          aria-label={t("contacts.vcardPropertyQuestion", {
+                          ariaLabel={t("contacts.vcardPropertyQuestion", {
                             property: row.property,
                           })}
                           value={row.answer ?? UNANSWERED}
-                          onChange={(event) =>
+                          onValueChange={(next) =>
                             setProperties((current) =>
                               answerProperty(
                                 current,
                                 row.property,
-                                event.target.value === UNANSWERED
-                                  ? null
-                                  : (event.target
-                                      .value as VCardPropertyAction),
+                                next as VCardPropertyAction,
                               ),
                             )
                           }
-                        >
-                          {row.answer === null && (
-                            <option value={UNANSWERED}>
-                              {t("contacts.chooseWhatThisIs")}
-                            </option>
-                          )}
-                          <option value={CONTACT_IMPORT_IGNORE}>
-                            {t(PROPERTY_LABEL_KEYS.ignore)}
-                          </option>
-                          <option value="opted_out">
-                            {t(PROPERTY_LABEL_KEYS.opted_out)}
-                          </option>
-                        </NativeSelect>
+                          placeholder={t("contacts.chooseWhatThisIs")}
+                          options={[
+                            {
+                              value: CONTACT_IMPORT_IGNORE,
+                              label: t(PROPERTY_LABEL_KEYS.ignore),
+                            },
+                            {
+                              value: "opted_out",
+                              label: t(PROPERTY_LABEL_KEYS.opted_out),
+                            },
+                          ]}
+                        />
                       </div>
                     </div>
                   </li>

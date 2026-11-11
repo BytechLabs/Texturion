@@ -5,18 +5,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useAuditLog, type AuditLogFilters } from "@/lib/api/audit-log";
@@ -139,41 +133,37 @@ export default function HistorySettingsPage() {
             <Label htmlFor="history-actor">
               {t("appShell.historyFilterPerson")}
             </Label>
-            <Select value={actor} onValueChange={setActor}>
-              <SelectTrigger id="history-actor">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ANY}>
-                  {t("appShell.historyFilterEveryone")}
-                </SelectItem>
-                {(members.data?.data ?? []).map((member) => (
-                  <SelectItem key={member.user_id} value={member.user_id}>
-                    {member.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SimpleSelect
+              id="history-actor"
+              className="w-fit"
+              value={actor}
+              onValueChange={setActor}
+              options={[
+                { value: ANY, label: t("appShell.historyFilterEveryone") },
+                ...(members.data?.data ?? []).map((member) => ({
+                  value: member.user_id,
+                  label: member.display_name,
+                })),
+              ]}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="history-action">
               {t("appShell.historyFilterChange")}
             </Label>
-            <Select value={action} onValueChange={setAction}>
-              <SelectTrigger id="history-action">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ANY}>
-                  {t("appShell.historyFilterEverything")}
-                </SelectItem>
-                {Object.entries(AUDIT_ACTION_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SimpleSelect
+              id="history-action"
+              className="w-fit"
+              value={action}
+              onValueChange={setAction}
+              options={[
+                { value: ANY, label: t("appShell.historyFilterEverything") },
+                ...Object.entries(AUDIT_ACTION_LABELS).map(([key, label]) => ({
+                  value: key,
+                  label,
+                })),
+              ]}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="history-since">

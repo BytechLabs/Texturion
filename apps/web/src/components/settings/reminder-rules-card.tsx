@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { REMINDER_RULES_CAP, reminderOffsetLabel } from "@loonext/shared";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -142,23 +143,19 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                   <Label className="sr-only" htmlFor={`offset-${index}`}>
                     {t("settingsMore.remindersOffsetLabel")}
                   </Label>
-                  <select
+                  <SimpleSelect
                     id={`offset-${index}`}
-                    value={rule.offset_minutes}
+                    value={String(rule.offset_minutes)}
                     disabled={!canEdit}
-                    onChange={(event) =>
-                      update(index, {
-                        offset_minutes: Number(event.target.value),
-                      })
+                    onValueChange={(next) =>
+                      update(index, { offset_minutes: Number(next) })
                     }
-                    className="h-8 rounded-app-ctrl border border-app-line bg-app-paper px-2 text-[13px] text-app-ink disabled:opacity-45"
-                  >
-                    {OFFSET_CHOICES.map((minutes) => (
-                      <option key={minutes} value={minutes}>
-                        {reminderOffsetLabel(minutes, t)}
-                      </option>
-                    ))}
-                  </select>
+                    options={OFFSET_CHOICES.map((minutes) => ({
+                      value: String(minutes),
+                      label: reminderOffsetLabel(minutes, t),
+                    }))}
+                    className="w-48"
+                  />
                   <Switch
                     checked={rule.enabled}
                     disabled={!canEdit}

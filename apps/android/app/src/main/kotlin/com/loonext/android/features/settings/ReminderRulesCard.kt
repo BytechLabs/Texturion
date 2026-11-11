@@ -24,6 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
@@ -210,7 +212,6 @@ private fun ReminderRuleRow(
     onChange: (ReminderRule) -> Unit,
     onRemove: () -> Unit,
 ) {
-    var menuOpen by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Row(
@@ -221,28 +222,22 @@ private fun ReminderRuleRow(
             // A fixed list rather than a free number field: "how many minutes
             // before?" is a question nobody in a van wants to answer, and the
             // ones that matter are already the industry's.
-            OutlinedButton(
-                onClick = { if (canEdit) menuOpen = true },
-                enabled = canEdit,
-            ) {
-                Text(AppointmentReminders.offsetLabel(rule.offset_minutes))
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                AppointmentReminders.OFFSET_CHOICES.forEach { minutes ->
-                    DropdownMenuItem(
-                        text = { Text(AppointmentReminders.offsetLabel(minutes)) },
-                        // Two rules at the same offset is the same reminder
-                        // arriving twice, which is the failure a customer
-                        // notices and blames the business for.
+            SelectField(
+                options = AppointmentReminders.OFFSET_CHOICES.map { minutes ->
+                    SelectOption(
+                        minutes,
+                        AppointmentReminders.offsetLabel(minutes),
+                        // Two rules at the same offset is the same reminder arriving
+                        // twice, which is the failure a customer notices and blames the
+                        // business for.
                         enabled = minutes == rule.offset_minutes ||
                             !takenOffsets.contains(minutes),
-                        onClick = {
-                            menuOpen = false
-                            onChange(rule.copy(offset_minutes = minutes))
-                        },
                     )
-                }
-            }
+                },
+                selected = rule.offset_minutes,
+                enabled = canEdit,
+                onSelect = { onChange(rule.copy(offset_minutes = it)) },
+            )
             Switch(
                 checked = rule.enabled,
                 enabled = canEdit,

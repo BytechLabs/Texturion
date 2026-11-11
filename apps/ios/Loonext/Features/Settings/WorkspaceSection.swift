@@ -355,73 +355,29 @@ private struct TimezoneCard: View {
 }
 
 /// #307 reuses this for a single line's timezone, so it is no longer private.
+/// #746: it is the shared searchable picker's sheet, with each zone's current time beside it.
 struct TimezonePickerSheet: View {
     let current: String
     let onPick: @MainActor (String) -> Void
     let onDismiss: @MainActor () -> Void
 
-    @State private var query = ""
-
     @Environment(\.appLocale) private var appLocale
 
-    private func t(_ key: String) -> String {
-        AppStrings.translate(appLocale, key)
-    }
-
-    private var filtered: [String] {
-        let all = TimeZone.knownTimeZoneIdentifiers.sorted()
-        let needle = query.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: " ", with: "_")
-        if needle.isEmpty { return all }
-        return all.filter { $0.range(of: needle, options: .caseInsensitive) != nil }
+    private var options: [PickerOption<String>] {
+        TimeZone.knownTimeZoneIdentifiers.sorted().map { zoneId in
+            PickerOption(zoneId, title: zoneId, detail: localTimeString(zoneId: zoneId, at: Date()))
+        }
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                if filtered.isEmpty {
-                    Text(
-                        AppStrings.translate(
-                            appLocale,
-                            "settingsMore.noTimezoneMatch",
-                            ["query": query]
-                        )
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                } else {
-                    ForEach(filtered, id: \.self) { zoneId in
-                        Button {
-                            onPick(zoneId)
-                        } label: {
-                            HStack {
-                                Text(zoneId)
-                                    .font(.callout)
-                                    .foregroundStyle(zoneId == current ? BrandColor.olive : Color.primary)
-                                Spacer()
-                                if let time = localTimeString(zoneId: zoneId, at: Date()) {
-                                    Text(time)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .listStyle(.plain)
-            .searchable(
-                text: $query,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: t("settingsMore.timezoneSearchHint")
-            )
-            .navigationTitle(t("settingsMore.chooseTimezone"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(t("common.cancel")) { onDismiss() }
-                }
-            }
-        }
+        SearchablePickerSheet(
+            options: options,
+            selected: current,
+            title: AppStrings.translate(appLocale, "settingsMore.chooseTimezone"),
+            searchPrompt: AppStrings.translate(appLocale, "settingsMore.timezoneSearchHint"),
+            onPick: onPick,
+            onDismiss: onDismiss
+        )
     }
 }
 
@@ -638,31 +594,17 @@ private struct LanguageCard: View {
             title: t("settingsMore.automatedLanguageTitle"), anchor: "language",
             description: t("settingsMore.automatedLanguageDesc")
         ) {
-            ForEach(MessageLocale.all, id: \.self) { locale in
-                // #228: resolve rather than compare raw. A row carrying a
-                // locale this build does not know would leave EVERY circle
-                // empty here while the contact screen falls back to English for
-                // the same row, so the two screens would disagree about one
-                // workspace and the setting would look unset.
-                let selected = MessageLocale.resolve(contact: nil, company: company.locale) == locale
-                Button {
-                    guard !selected else { return }
-                    save(locale)
-                } label: {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                            .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
-                            .padding(.top, 2)
-                        Text(MessageLocale.label(locale))
-                            .font(.body)
-                            .foregroundStyle(Color.primary)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canEdit || saving)
-            }
+            // #228: resolve rather than compare raw. A row carrying a locale this
+            // build does not know would leave EVERY circle empty here while the
+            // contact screen falls back to English for the same row, so the two
+            // screens would disagree about one workspace and the setting would
+            // look unset.
+            ChoiceCards(
+                options: MessageLocale.all.map { ChoiceOption($0, title: MessageLocale.label($0)) },
+                selected: MessageLocale.resolve(contact: nil, company: company.locale),
+                enabled: canEdit && !saving,
+                onSelect: { save($0) }
+            )
             Spacer().frame(height: 6)
             ReadOnlyLine(t("settingsMore.automatedLanguageNotApp"))
             Spacer().frame(height: 6)

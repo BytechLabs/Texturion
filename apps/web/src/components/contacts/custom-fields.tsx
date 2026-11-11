@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { contactFieldValueError, type ContactFieldKind } from "@loonext/shared";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -36,6 +37,9 @@ import type { ContactDetail } from "@/lib/api/types";
  *   why, rather than reverting to the last good value and losing the correction
  *   somebody just made.
  */
+/** The unset answer's value: a select item cannot be the empty string. */
+const NOT_SET = "__not_set__";
+
 export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
   const t = useT();
   const fields = useContactFields();
@@ -117,21 +121,22 @@ export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
                 </span>
               </div>
             ) : def.kind === "select" ? (
-              <select
+              <SimpleSelect
                 id={inputId}
-                value={value}
-                onChange={(event) => void commit(def, event.target.value)}
-                className="h-9 w-full rounded-app-input border border-app-line bg-app-paper px-2 text-[13px] text-app-ink"
-              >
-                {/* Empty is an ANSWER, and it has to stay reachable: "we asked,
-                    there is no gate code" is a fact worth recording. */}
-                <option value="">{t("contacts.notSet")}</option>
-                {(def.options ?? []).map((choice) => (
-                  <option key={choice} value={choice}>
-                    {choice}
-                  </option>
-                ))}
-              </select>
+                value={value === "" ? NOT_SET : value}
+                onValueChange={(next) =>
+                  void commit(def, next === NOT_SET ? "" : next)
+                }
+                // Empty is an ANSWER, and it has to stay reachable: "we asked,
+                // there is no gate code" is a fact worth recording.
+                options={[
+                  { value: NOT_SET, label: t("contacts.notSet") },
+                  ...(def.options ?? []).map((choice) => ({
+                    value: choice,
+                    label: choice,
+                  })),
+                ]}
+              />
             ) : (
               <Input
                 id={inputId}

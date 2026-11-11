@@ -74,21 +74,16 @@ struct CustomFields: View {
                 Text(def.label)
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
-                Picker(def.label, selection: Binding(
-                    get: { value },
-                    set: { next in commit(def, next) }
-                )) {
-                    // Empty is an ANSWER and has to stay reachable: "we asked,
-                    // there is no gate code" is a fact, and a dropdown of only
-                    // real values traps the first mis-tap forever.
-                    Text(customFieldUnset).tag("")
-                    ForEach(def.options ?? [], id: \.self) { choice in
-                        Text(choice).tag(choice)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityLabel(def.label)
-
+                // Empty is an ANSWER and has to stay reachable: "we asked, there is no gate
+                // code" is a fact, and a dropdown of only real values traps the first mis-tap
+                // forever.
+                SelectField(
+                    options: [SelectOption("", title: customFieldUnset)]
+                        + (def.options ?? []).map { SelectOption($0, title: $0) },
+                    selected: value,
+                    label: def.label,
+                    onSelect: { next in commit(def, next) }
+                )
             default:
                 Text(def.label)
                     .font(.golos(12))

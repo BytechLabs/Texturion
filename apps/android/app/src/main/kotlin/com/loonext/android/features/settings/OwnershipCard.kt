@@ -1,5 +1,7 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.ui.common.PickerOption
+import com.loonext.android.ui.common.SearchablePicker
 import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.layout.Column
 import com.loonext.android.ui.common.LinkButton
@@ -464,35 +466,16 @@ private fun MemberPicker(
     enabled: Boolean,
     onPick: (Member?) -> Unit,
 ) {
-    var open by remember { mutableStateOf(false) }
-    Column {
-        OutlinedButton(
-            onClick = { open = true },
-            enabled = enabled,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(label)
-        }
-        val fallbackName = t("settingsMore.aTeammateCapital")
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            if (includeNobody) {
-                DropdownMenuItem(
-                    text = { Text(t("settingsMore.nobody")) },
-                    onClick = {
-                        open = false
-                        onPick(null)
-                    },
-                )
-            }
-            members.forEach { member ->
-                DropdownMenuItem(
-                    text = { Text(member.display_name.ifBlank { fallbackName }) },
-                    onClick = {
-                        open = false
-                        onPick(member)
-                    },
-                )
-            }
-        }
-    }
+    val fallbackName = t("settingsMore.aTeammateCapital")
+    val nobody = t("settingsMore.nobody")
+    // "" stands for nobody: a picker value cannot be null and mean "no choice yet".
+    SearchablePicker(
+        options = (if (includeNobody) listOf(PickerOption("", nobody)) else emptyList()) +
+            members.map { PickerOption(it.user_id, it.display_name.ifBlank { fallbackName }) },
+        selected = null,
+        placeholder = label,
+        enabled = enabled,
+        fillWidth = true,
+        onSelect = { value -> onPick(members.firstOrNull { it.user_id == value }) },
+    )
 }

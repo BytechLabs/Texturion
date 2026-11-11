@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -17,13 +18,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useT, type MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
@@ -695,20 +689,16 @@ export function RegistrationFixForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("settingsMore.regVerticalLabel")}</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {TCR_VERTICALS.map((vertical) => (
-                          <SelectItem key={vertical} value={vertical}>
-                            {t(VERTICAL_LABELS[vertical])}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <SimpleSelect
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        options={TCR_VERTICALS.map((vertical) => ({
+                          value: vertical,
+                          label: t(VERTICAL_LABELS[vertical]),
+                        }))}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

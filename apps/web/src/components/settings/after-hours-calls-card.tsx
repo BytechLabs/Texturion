@@ -1,20 +1,15 @@
 "use client";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { hasBusinessHours } from "@loonext/shared";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Label } from "@/components/ui/label";
+import { ChoiceCards } from "@/components/ui/choice-cards";
 import { SettingsCard } from "@/components/settings/section";
 import { useT, type Translate } from "@/i18n/provider";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ApiError } from "@/lib/api/error";
 import { useUpdateCompany } from "@/lib/api/companies";
 import type { CompanyView } from "@/lib/api/types";
@@ -67,7 +62,6 @@ export function AfterHoursCallsCard({
   const AFTER_HOURS_CHOICES = afterHoursChoices(t);
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
-  const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // Optimistic selection, exactly as call screening does it: the choice moves
   // at the click, and the radios are never disabled mid-interaction (disabling
   // the just-focused radio drops keyboard focus).
@@ -117,31 +111,6 @@ export function AfterHoursCallsCard({
     );
   }
 
-  const currentIndex = AFTER_HOURS_CHOICES.findIndex(
-    (choice) => choice.value === active,
-  );
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (!canEdit) return;
-    const from = currentIndex === -1 ? 0 : currentIndex;
-    let next = from;
-    switch (event.key) {
-      case "ArrowDown":
-      case "ArrowRight":
-        next = (from + 1) % AFTER_HOURS_CHOICES.length;
-        break;
-      case "ArrowUp":
-      case "ArrowLeft":
-        next =
-          (from - 1 + AFTER_HOURS_CHOICES.length) % AFTER_HOURS_CHOICES.length;
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    radioRefs.current[next]?.focus();
-    choose(AFTER_HOURS_CHOICES[next].value);
-  }
-
   return (
     <SettingsCard id="after-hours-calls"
       title={t("settings.afterHoursTitle")}
@@ -156,66 +125,37 @@ export function AfterHoursCallsCard({
         </p>
       )}
 
-      <div
-        role="radiogroup"
-        aria-label={t("settings.afterHoursGroupAria")}
-        onKeyDown={onKeyDown}
-        className="space-y-2"
-      >
-        {AFTER_HOURS_CHOICES.map((choice, i) => {
-          const selected = active === choice.value;
-          return (
-            <button
-              key={choice.value}
-              ref={(el) => {
-                radioRefs.current[i] = el;
-              }}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              tabIndex={selected || (currentIndex === -1 && i === 0) ? 0 : -1}
-              disabled={!canEdit}
-              onClick={() => choose(choice.value)}
-              className={
-                "w-full rounded-md border px-3 py-2.5 text-left transition-colors duration-150 " +
-                (selected
-                  ? "border-primary/50 bg-accent/40"
-                  : "border-border-subtle hover:bg-accent/20")
-              }
-            >
-              <span className="block text-sm font-medium">{choice.label}</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                {choice.detail}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <ChoiceCards
+        ariaLabel={t("settings.afterHoursGroupAria")}
+        value={active}
+        disabled={!canEdit}
+        onChange={choose}
+        options={AFTER_HOURS_CHOICES.map((choice) => ({
+          value: choice.value,
+          label: choice.label,
+          description: choice.detail,
+        }))}
+      />
 
       {active !== "ring_everyone" && (greetings.data?.data.length ?? 0) > 0 && (
         <div className="mt-4 space-y-1.5">
           <Label htmlFor="after-hours-greeting">
             {t("settings.afterHoursVoiceLabel")}
           </Label>
-          <Select
+          <SimpleSelect
+            id="after-hours-greeting"
+            className="w-fit"
             disabled={!canEdit || update.isPending}
             value={company.after_hours_greeting_id ?? ORDINARY}
             onValueChange={chooseGreeting}
-          >
-            <SelectTrigger id="after-hours-greeting">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ORDINARY}>
-                {t("settings.afterHoursSameGreeting")}
-              </SelectItem>
-              {greetings.data?.data.map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  {row.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={[
+              { value: ORDINARY, label: t("settings.afterHoursSameGreeting") },
+              ...(greetings.data?.data ?? []).map((row) => ({
+                value: row.id,
+                label: row.name,
+              })),
+            ]}
+          />
           <p className="text-xs text-muted-foreground">
             {t("settings.afterHoursGreetingNote")}
           </p>

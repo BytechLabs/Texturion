@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  SimpleSelect,
+  type SimpleSelectOption,
+} from "@/components/ui/simple-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,15 +19,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT, type MessageKey, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { ringsIn } from "@/components/settings/ring-card";
@@ -218,28 +215,22 @@ export function NumberIdentityDialog({
                     </Button>
                   )}
                 </div>
-                <Select
+                <SimpleSelect
+                  id="identity-greeting"
                   value={identity.data.voicemail_greeting_id.value ?? WRITTEN}
                   onValueChange={(next) =>
                     void save.mutateAsync({
                       voicemail_greeting_id: next === WRITTEN ? null : next,
                     })
                   }
-                >
-                  <SelectTrigger id="identity-greeting">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={WRITTEN}>
-                      {t("settingsMore.numberIdentityWrittenGreeting")}
-                    </SelectItem>
-                    {greetings.data?.data.map((row) => (
-                      <SelectItem key={row.id} value={row.id}>
-                        {row.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={[
+                    { value: WRITTEN, label: t("settingsMore.numberIdentityWrittenGreeting") },
+                    ...(greetings.data?.data ?? []).map((row) => ({
+                      value: row.id,
+                      label: row.name,
+                    })),
+                  ]}
+                />
                 <p className="text-[12px] text-app-muted-2">
                   {t("settingsMore.numberIdentityVoiceHint")}
                 </p>
@@ -278,7 +269,8 @@ export function NumberIdentityDialog({
                   </Button>
                 )}
               </div>
-              <Select
+              <SimpleSelect
+                id="identity-after-hours"
                 value={
                   identity.data.after_hours_calls.inherited
                     ? INHERIT
@@ -292,19 +284,14 @@ export function NumberIdentityDialog({
                         : (next as NumberIdentity["after_hours_calls"]["value"]),
                   })
                 }
-              >
-                <SelectTrigger id="identity-after-hours">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <InheritableItems
-                    choices={["ring_everyone", "on_call_only", "voicemail"] as const}
-                    field={identity.data.after_hours_calls}
-                    workspace={company.data?.after_hours_calls}
-                    labelOf={(value) => t(AFTER_HOURS_LABELS[value])}
-                  />
-                </SelectContent>
-              </Select>
+                options={inheritableOptions({
+                  t,
+                  choices: ["ring_everyone", "on_call_only", "voicemail"] as const,
+                  field: identity.data.after_hours_calls,
+                  workspace: company.data?.after_hours_calls,
+                  labelOf: (value) => t(AFTER_HOURS_LABELS[value]),
+                })}
+              />
               <p className="text-[12px] text-app-muted-2">
                 {t("settingsMore.numberIdentityAfterHoursHint")}
               </p>
@@ -335,7 +322,8 @@ export function NumberIdentityDialog({
                   </Button>
                 )}
               </div>
-              <Select
+              <SimpleSelect
+                id="identity-ring"
                 value={
                   identity.data.ring_strategy.inherited
                     ? INHERIT
@@ -349,19 +337,14 @@ export function NumberIdentityDialog({
                         : (next as NumberIdentity["ring_strategy"]["value"]),
                   })
                 }
-              >
-                <SelectTrigger id="identity-ring">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <InheritableItems
-                    choices={["all", "in_turn"] as const}
-                    field={identity.data.ring_strategy}
-                    workspace={company.data?.ring_strategy}
-                    labelOf={(value) => t(RING_STRATEGY_LABELS[value])}
-                  />
-                </SelectContent>
-              </Select>
+                options={inheritableOptions({
+                  t,
+                  choices: ["all", "in_turn"] as const,
+                  field: identity.data.ring_strategy,
+                  workspace: company.data?.ring_strategy,
+                  labelOf: (value) => t(RING_STRATEGY_LABELS[value]),
+                })}
+              />
             </div>
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -384,7 +367,8 @@ export function NumberIdentityDialog({
                   </Button>
                 )}
               </div>
-              <Select
+              <SimpleSelect
+                id="identity-ring-seconds"
                 value={
                   identity.data.ring_seconds.inherited
                     ? INHERIT
@@ -395,24 +379,18 @@ export function NumberIdentityDialog({
                     ring_seconds: next === INHERIT ? null : Number(next),
                   })
                 }
-              >
-                <SelectTrigger id="identity-ring-seconds">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <InheritableItems
-                    choices={RING_SECOND_CHOICES}
-                    field={identity.data.ring_seconds}
-                    workspace={company.data?.ring_seconds}
-                    labelOf={(seconds) =>
-                      t("settingsMore.numberRingLength", {
-                        seconds,
-                        rings: ringsIn(seconds),
-                      })
-                    }
-                  />
-                </SelectContent>
-              </Select>
+                options={inheritableOptions({
+                  t,
+                  choices: RING_SECOND_CHOICES,
+                  field: identity.data.ring_seconds,
+                  workspace: company.data?.ring_seconds,
+                  labelOf: (seconds) =>
+                    t("settingsMore.numberRingLength", {
+                      seconds,
+                      rings: ringsIn(seconds),
+                    }),
+                })}
+              />
             </div>
             {/*
               #301: where calls and texts to THIS line come from.
@@ -430,28 +408,22 @@ export function NumberIdentityDialog({
                 <Label htmlFor="identity-lead-source">
                   {t("settingsMore.numberIdentityLeadSourceLabel")}
                 </Label>
-                <Select
+                <SimpleSelect
+                  id="identity-lead-source"
                   value={identity.data.lead_source_id ?? UNTRACKED}
                   onValueChange={(next) =>
                     void save.mutateAsync({
                       lead_source_id: next === UNTRACKED ? null : next,
                     })
                   }
-                >
-                  <SelectTrigger id="identity-lead-source">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={UNTRACKED}>
-                      {t("settingsMore.numberIdentityUntracked")}
-                    </SelectItem>
-                    {activeSources(sources.data?.data).map((row) => (
-                      <SelectItem key={row.id} value={row.id}>
-                        {row.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={[
+                    { value: UNTRACKED, label: t("settingsMore.numberIdentityUntracked") },
+                    ...activeSources(sources.data?.data).map((row) => ({
+                      value: row.id,
+                      label: row.name,
+                    })),
+                  ]}
+                />
                 <p className="text-[12px] text-app-muted-2">
                   {t("settingsMore.numberIdentityLeadSourceHint")}
                 </p>
@@ -578,37 +550,34 @@ const RING_STRATEGY_LABELS: Record<NumberIdentity["ring_strategy"]["value"], Mes
  * #717: a line's choices for one inherited setting. The inherit choice names
  * what it inherits, and that value is not offered a second time beside it.
  */
-function InheritableItems<T extends string | number>({
+function inheritableOptions<T extends string | number>({
+  t,
   choices,
   field,
   workspace,
   labelOf,
 }: {
+  t: Translate;
   choices: readonly T[];
   field: { value: T; inherited: boolean };
   /** From the company; a field that follows the workspace also carries it. */
   workspace: T | undefined;
   labelOf: (value: T) => string;
-}) {
-  const t = useT();
+}): SimpleSelectOption[] {
   const known = workspace ?? (field.inherited ? field.value : undefined);
   const override = field.inherited ? null : field.value;
-  return (
-    <>
-      <SelectItem value={INHERIT}>
-        {known === undefined
+  return [
+    {
+      value: INHERIT,
+      label:
+        known === undefined
           ? t("settingsMore.sameAsWorkspace")
-          : t("settingsMore.sameAsWorkspaceNamed", { value: labelOf(known) })}
-      </SelectItem>
-      {choices
-        .filter((value) => offeredBesideDefault(value, known, override))
-        .map((value) => (
-          <SelectItem key={value} value={String(value)}>
-            {labelOf(value)}
-          </SelectItem>
-        ))}
-    </>
-  );
+          : t("settingsMore.sameAsWorkspaceNamed", { value: labelOf(known) }),
+    },
+    ...choices
+      .filter((value) => offeredBesideDefault(value, known, override))
+      .map((value) => ({ value: String(value), label: labelOf(value) })),
+  ];
 }
 
 const FIELDS: {

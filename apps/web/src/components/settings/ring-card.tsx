@@ -1,18 +1,13 @@
 "use client";
 
 import { CallEffectNote } from "@/components/settings/call-effect-note";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Label } from "@/components/ui/label";
+import { ChoiceCards } from "@/components/ui/choice-cards";
 import { SettingsCard } from "@/components/settings/section";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { useT, type MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useUpdateCompany } from "@/lib/api/companies";
@@ -58,7 +53,6 @@ export function RingCard({
   const t = useT();
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
-  const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [pending, setPending] = useState<CompanyView["ring_strategy"] | null>(null);
   const active = pending ?? company.ring_strategy;
   useEffect(() => {
@@ -101,28 +95,6 @@ export function RingCard({
     );
   }
 
-  const currentIndex = RING_CHOICES.findIndex((choice) => choice.value === active);
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (!canEdit) return;
-    const from = currentIndex === -1 ? 0 : currentIndex;
-    let next = from;
-    switch (event.key) {
-      case "ArrowDown":
-      case "ArrowRight":
-        next = (from + 1) % RING_CHOICES.length;
-        break;
-      case "ArrowUp":
-      case "ArrowLeft":
-        next = (from - 1 + RING_CHOICES.length) % RING_CHOICES.length;
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    radioRefs.current[next]?.focus();
-    choose(RING_CHOICES[next].value);
-  }
-
   // The stored value always appears, even when it is not one of the four —
   // a picker that silently rounds somebody's setting is a picker that lies
   // about what their line is doing.
@@ -136,67 +108,36 @@ export function RingCard({
       title={t("settingsMore.ringCardTitle")}
       description={t("settingsMore.ringCardDescription")}
     >
-      <div
-        role="radiogroup"
-        aria-label={t("settingsMore.ringCardTitle")}
-        onKeyDown={onKeyDown}
-        className="space-y-2"
-      >
-        {RING_CHOICES.map((choice, i) => {
-          const selected = active === choice.value;
-          return (
-            <button
-              key={choice.value}
-              ref={(el) => {
-                radioRefs.current[i] = el;
-              }}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              tabIndex={selected || (currentIndex === -1 && i === 0) ? 0 : -1}
-              disabled={!canEdit}
-              onClick={() => choose(choice.value)}
-              className={
-                "w-full rounded-md border px-3 py-2.5 text-left transition-colors duration-150 " +
-                (selected
-                  ? "border-primary/50 bg-accent/40"
-                  : "border-border-subtle hover:bg-accent/20")
-              }
-            >
-              <span className="block text-sm font-medium">
-                {t(choice.label)}
-              </span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                {t(choice.detail)}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <ChoiceCards
+        ariaLabel={t("settingsMore.ringCardTitle")}
+        value={active}
+        disabled={!canEdit}
+        onChange={choose}
+        options={RING_CHOICES.map((choice) => ({
+          value: choice.value,
+          label: t(choice.label),
+          description: t(choice.detail),
+        }))}
+      />
 
       <div className="mt-4 space-y-1.5">
         <Label htmlFor="ring-seconds">
           {t("settingsMore.numberIdentityRingSecondsLabel")}
         </Label>
-        <Select
+        <SimpleSelect
+          id="ring-seconds"
+          className="w-full sm:w-64"
           disabled={!canEdit || update.isPending}
           value={String(seconds)}
           onValueChange={chooseSeconds}
-        >
-          <SelectTrigger id="ring-seconds" className="w-full sm:w-64">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((value) => (
-              <SelectItem key={value} value={String(value)}>
-                {t("settingsMore.numberRingLength", {
-                  seconds: value,
-                  rings: ringsIn(value),
-                })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={options.map((value) => ({
+            value: String(value),
+            label: t("settingsMore.numberRingLength", {
+              seconds: value,
+              rings: ringsIn(value),
+            }),
+          }))}
+        />
         <p className="text-xs text-muted-foreground">
           {active === "in_turn"
             ? phonesReached(seconds) === 1

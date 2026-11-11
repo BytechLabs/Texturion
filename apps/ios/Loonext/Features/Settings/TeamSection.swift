@@ -53,6 +53,35 @@ private func roleBlurb(_ role: String, _ locale: String? = nil) -> String {
     }
 }
 
+/// #746: the one role control, in the members list and in the invite form. The closed
+/// field shows the role's name; its one-line description is drawn under the field.
+private struct RoleField: View {
+    let role: String
+    let enabled: Bool
+    let showsDetail: Bool
+    let onSelect: @MainActor (String) -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        SelectField(
+            options: [
+                MemberRole.member,
+                MemberRole.admin,
+                MemberRole.readOnly,
+                MemberRole.bookkeeper,
+            ].map {
+                SelectOption($0, title: roleLabel($0, appLocale), detail: roleBlurb($0, appLocale))
+            },
+            selected: role,
+            label: AppStrings.translate(appLocale, "settingsMore.roleLabel"),
+            enabled: enabled,
+            showsDetail: showsDetail,
+            onSelect: onSelect
+        )
+    }
+}
+
 /// Team (#163): who can see and answer your customers' texts. Members list
 /// with inline role change + deactivation (admin+), the invite form gated by
 /// the seat formula, and the pending-invite list with the Copy-link fallback.
@@ -239,24 +268,7 @@ private struct MemberRow: View {
             if member.role == MemberRole.owner {
                 StatusPill(label: t("settingsMore.roleOwner"), tone: .positive)
             } else if canChangeRole {
-                Menu {
-                    ForEach(
-                        [
-                            MemberRole.admin,
-                            MemberRole.member,
-                            MemberRole.readOnly,
-                            MemberRole.bookkeeper,
-                        ],
-                        id: \.self
-                    ) { role in
-                        Button(roleLabel(role, appLocale)) { changeRole(role) }
-                    }
-                } label: {
-                    Text(busy ? t("common.saving") : roleLabel(member.role, appLocale))
-                        .font(.subheadline)
-                        .foregroundStyle(BrandColor.olive)
-                }
-                .disabled(busy)
+                RoleField(role: member.role, enabled: !busy, showsDetail: false) { changeRole($0) }
             } else {
                 Text(roleLabel(member.role, appLocale))
                     .font(.footnote)
@@ -522,32 +534,7 @@ private struct InvitesCard: View {
             .padding(.top, 4)
             Spacer().frame(height: 8)
             HStack(spacing: 12) {
-                Menu {
-                    ForEach(
-                        [
-                            MemberRole.member,
-                            MemberRole.admin,
-                            MemberRole.readOnly,
-                            MemberRole.bookkeeper,
-                        ],
-                        id: \.self
-                    ) { option in
-                        // #315: a named preset that does not say what it is for
-                        // is just a word. An owner picking a role for their
-                        // accountant should not have to infer it.
-                        Button {
-                            role = option
-                        } label: {
-                            Text(roleLabel(option, appLocale))
-                            Text(roleBlurb(option, appLocale))
-                        }
-                    }
-                } label: {
-                    Text(roleLabel(role, appLocale))
-                        .font(.subheadline)
-                }
-                .buttonStyle(.bordered)
-                .disabled(seat.full || sending)
+                RoleField(role: role, enabled: !(seat.full || sending), showsDetail: true) { role = $0 }
                 Button(
                     sending ? t("settingsMore.inviting") : t("settingsMore.invite")
                 ) { invite() }

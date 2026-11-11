@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,13 +39,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useT } from "@/i18n/provider";
 import { useContacts } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
@@ -293,20 +287,16 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
           )}
 
           {active.length > 1 && (
-            <Select value={fromId ?? active[0]?.id} onValueChange={setFromId}>
-              <SelectTrigger aria-label={t("shell.callFrom")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {active.map((n) => (
-                  <SelectItem key={n.id} value={n.id}>
-                    {t("shell.fromNumber", {
-                      number: formatPhone(n.number_e164),
-                    })}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SimpleSelect
+              ariaLabel={t("shell.callFrom")}
+              className="w-fit"
+              value={fromId ?? active[0]?.id ?? ""}
+              onValueChange={setFromId}
+              options={active.map((n) => ({
+                value: n.id,
+                label: t("shell.fromNumber", { number: formatPhone(n.number_e164) }),
+              }))}
+            />
           )}
 
           <div className="grid grid-cols-3 gap-2">

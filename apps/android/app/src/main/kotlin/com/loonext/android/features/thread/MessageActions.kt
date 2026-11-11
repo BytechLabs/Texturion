@@ -346,6 +346,10 @@ fun MakeTaskSheet(
     onCreateWithExtras: ((String, String?, String?, TaskAddressInput?, TaskCreateExtras) -> Unit)? = null,
     tagsLoader: (suspend () -> List<Tag>)? = null,
     linked: Boolean = false,
+    /** #739: a due (an instant) the form opens with, e.g. a tapped calendar day. */
+    initialDueIso: String? = null,
+    /** The zone due chips and labels are read in; the workspace's where it differs. */
+    zone: ZoneId = ZoneId.systemDefault(),
 ) {
     // Read in composition and held: `remember` runs outside it, and so does
     // every comparison below that has to line up with a chip's own label.
@@ -375,8 +379,13 @@ fun MakeTaskSheet(
             assigneeIds = listOf(meUserId)
         }
     }
-    var moreOpen by remember { mutableStateOf(!standalone) }
-    var due by remember { mutableStateOf<DueChoice?>(null) }
+    // A prefilled due opens More so the day it chose is on screen.
+    var moreOpen by remember { mutableStateOf(!standalone || initialDueIso != null) }
+    var due by remember {
+        mutableStateOf<DueChoice?>(
+            initialDueIso?.let { DueChoice(suggestedDueLabel(it, zone), it) },
+        )
+    }
     var priority by remember { mutableStateOf(TaskPriority.NORMAL) }
     var labels by remember { mutableStateOf<List<TaskLabel>>(emptyList()) }
     var labelsOpen by remember { mutableStateOf(false) }
@@ -384,7 +393,6 @@ fun MakeTaskSheet(
     var repeatOpen by remember { mutableStateOf(false) }
     var dueSuggested by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
-    val zone = remember { ZoneId.systemDefault() }
     val haptics = rememberHaptics()
     // #431: the outcome report rides its own coroutine so it can never delay
     // the create it describes.

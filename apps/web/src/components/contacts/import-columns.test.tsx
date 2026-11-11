@@ -85,6 +85,7 @@ vi.mock("papaparse", () => ({
 }));
 
 import { ImportWizard } from "./import-wizard";
+import { chooseOption, selectedValue } from "@/test/simple-select-driver";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -116,7 +117,7 @@ function previewButton() {
 }
 
 /** The select for one column, found the way a screen reader would. */
-function columnSelect(name: string | RegExp): HTMLSelectElement {
+function columnSelect(name: string | RegExp): HTMLElement {
   return screen.getByLabelText(
     typeof name === "string"
       ? new RegExp(`What is .${name}`)
@@ -125,7 +126,7 @@ function columnSelect(name: string | RegExp): HTMLSelectElement {
 }
 
 function answer(name: string | RegExp, value: string) {
-  fireEvent.change(columnSelect(name), { target: { value } });
+  chooseOption(columnSelect(name), value);
 }
 
 /**
@@ -165,7 +166,7 @@ describe("#248: a column nobody has answered stops the wizard", () => {
     // Nothing is pre-selected for a column we did not recognise. A dismissal
     // this product filled in on somebody's behalf is the silent drop wearing a
     // control.
-    expect(columnSelect("Marketing Status").value).toBe("");
+    expect(selectedValue(columnSelect("Marketing Status"))).toBe("");
 
     answer("Marketing Status", CONTACT_IMPORT_IGNORE);
 
@@ -179,7 +180,7 @@ describe("#248: a column nobody has answered stops the wizard", () => {
     answer("Marketing Status", CONTACT_IMPORT_IGNORE);
     await waitFor(() => expect(previewButton().disabled).toBe(false));
 
-    expect(columnSelect("Marketing Status").value).toBe(CONTACT_IMPORT_IGNORE);
+    expect(selectedValue(columnSelect("Marketing Status"))).toBe(CONTACT_IMPORT_IGNORE);
     // And changing it is what actually re-decides the import: this column reads
     // Subscribed/Unsubscribed, which the flag reader cannot read, so pointing
     // "do not text" at it has to shut the door again rather than quietly
@@ -205,7 +206,7 @@ describe("#248: a column nobody has answered stops the wizard", () => {
 
     expect(screen.queryByText(/columns? we don't recognise/)).toBeNull();
     expect(previewButton().disabled).toBe(false);
-    expect(columnSelect("Do Not Call").value).toBe("opted_out");
+    expect(selectedValue(columnSelect("Do Not Call"))).toBe("opted_out");
   });
 
   it("CL-6: asks about a cell PAST the end of the header row", async () => {
@@ -307,7 +308,7 @@ describe("#248 H1: a guess is not an answer, so a guessed column is on screen to
     // is deliberate, and it is exactly what made the hole invisible.
     expect(screen.queryByText(/columns? we don't recognise/)).toBeNull();
     expect(previewButton().disabled).toBe(false);
-    expect(columnSelect("Notes").value).toBe("notes");
+    expect(selectedValue(columnSelect("Notes"))).toBe("notes");
 
     // And the sentence is ON SCREEN while that click is available. This is the
     // whole justification for the step existing: a person who cannot see "DO
@@ -373,8 +374,8 @@ describe("#248 H1: a guess is not an answer, so a guessed column is on screen to
     );
 
     await waitFor(() => expect(previewButton().disabled).toBe(false));
-    expect(columnSelect("Job #").value).toBe(CONTACT_IMPORT_IGNORE);
-    expect(columnSelect("Notes").value).toBe("notes");
+    expect(selectedValue(columnSelect("Job #"))).toBe(CONTACT_IMPORT_IGNORE);
+    expect(selectedValue(columnSelect("Notes"))).toBe("notes");
     expect(screen.getByText(new RegExp(DO_NOT_CALL))).toBeTruthy();
 
     // Still a question, not a receipt: the guessed column can be re-answered
@@ -494,8 +495,8 @@ describe("#248: the answer travels with the file", () => {
     fireEvent.click(bulk);
 
     await waitFor(() => expect(previewButton().disabled).toBe(false));
-    expect(columnSelect("Invoice #").value).toBe(CONTACT_IMPORT_IGNORE);
-    expect(columnSelect("Marketing Status").value).toBe(CONTACT_IMPORT_IGNORE);
+    expect(selectedValue(columnSelect("Invoice #"))).toBe(CONTACT_IMPORT_IGNORE);
+    expect(selectedValue(columnSelect("Marketing Status"))).toBe(CONTACT_IMPORT_IGNORE);
   });
 
   it("CL-13: the bulk answer never overwrites one somebody gave", async () => {
@@ -511,9 +512,9 @@ describe("#248: the answer travels with the file", () => {
     );
 
     await waitFor(() =>
-      expect(columnSelect("Invoice #").value).toBe(CONTACT_IMPORT_IGNORE),
+      expect(selectedValue(columnSelect("Invoice #"))).toBe(CONTACT_IMPORT_IGNORE),
     );
-    expect(columnSelect("Marketing Status").value).toBe("opted_out");
+    expect(selectedValue(columnSelect("Marketing Status"))).toBe("opted_out");
   });
 });
 
@@ -530,7 +531,7 @@ describe("#248: the answer is the mapping", () => {
       ["416-555-0198", ""],
       ["212-555-0100", "yes"],
     ]);
-    expect(columnSelect("Description").value).toBe("notes");
+    expect(selectedValue(columnSelect("Description"))).toBe("notes");
 
     answer("Description", "opted_out");
     fireEvent.click(previewButton());
@@ -556,8 +557,8 @@ describe("#248: the answer is the mapping", () => {
     expect(alert.some((text) => text.includes("“Second Number”"))).toBe(true);
     expect(alert.some((text) => text.includes("“Phone”"))).toBe(true);
     // Neither answer was taken away to make the other work.
-    expect(columnSelect("Phone").value).toBe("phone");
-    expect(columnSelect("Second Number").value).toBe("phone");
+    expect(selectedValue(columnSelect("Phone"))).toBe("phone");
+    expect(selectedValue(columnSelect("Second Number"))).toBe("phone");
   });
 
   it("CL-16: breaking the answers behind Back shuts the way through again", async () => {
@@ -722,7 +723,7 @@ describe("#248: an answer is about one file", () => {
     });
     await screen.findByText(/in your columns/);
 
-    expect(columnSelect("Contactable").value).toBe("");
+    expect(selectedValue(columnSelect("Contactable"))).toBe("");
     expect(previewButton().disabled).toBe(true);
   });
 });

@@ -214,25 +214,21 @@ private struct ContactFieldRow: View {
                 .disabled(!canEdit)
                 .accessibilityLabel(t("settings.contactFieldsNameLabel"))
 
-                Picker(t("settings.contactFieldsTypeLabel"), selection: Binding(
-                    get: { field.kind },
-                    set: { kind in
+                // A saved field's TYPE cannot change: the values under it were entered
+                // against the old one, and a text column reinterpreted as a date is a column
+                // of errors.
+                SelectField(
+                    options: ContactFields.kinds.map { SelectOption($0, title: ContactFields.kindLabel($0)) },
+                    selected: field.kind,
+                    label: t("settings.contactFieldsTypeLabel"),
+                    enabled: canEdit && isNew,
+                    onSelect: { kind in
                         var updated = field
                         updated.kind = kind
                         updated.options = kind == "select" ? (field.options ?? []) : nil
                         onChange(updated)
                     }
-                )) {
-                    ForEach(ContactFields.kinds, id: \.self) { kind in
-                        Text(ContactFields.kindLabel(kind)).tag(kind)
-                    }
-                }
-                .pickerStyle(.menu)
-                // A saved field's TYPE cannot change: the values under it were
-                // entered against the old one, and a text column reinterpreted
-                // as a date is a column of errors.
-                .disabled(!canEdit || !isNew)
-
+                )
                 if canEdit {
                     Button(t("settings.contactFieldsRemove"), action: onRemove)
                         .buttonStyle(.plain)

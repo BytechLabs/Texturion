@@ -1,6 +1,8 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.Choice
+import com.loonext.android.ui.common.ChoiceCards
 import com.loonext.android.ui.common.InlineError
 import com.loonext.android.ui.common.LinkButton
 import androidx.compose.foundation.layout.Column
@@ -310,22 +312,12 @@ private fun MergeTagDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(8.dp))
-                others.forEach { tag ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = !merging) { into = tag }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = into?.tag_id == tag.tag_id,
-                            onClick = { into = tag },
-                            enabled = !merging,
-                        )
-                        Text(tag.name, style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
+                ChoiceCards(
+                    choices = others.map { Choice(it.tag_id, it.name) },
+                    selected = into?.tag_id,
+                    enabled = !merging,
+                    onSelect = { id -> into = others.firstOrNull { it.tag_id == id } },
+                )
                 into?.let { target ->
                     // Said back in the direction people get backwards. "Merge A
                     // into B" is ambiguous to almost everybody; a sentence

@@ -1,108 +1,59 @@
 "use client";
 
-import { Check, ChevronsUpDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { SearchablePicker } from "@/components/ui/searchable-picker";
 import {
   groupTimezones,
   supportedTimezones,
   timezoneLabel,
 } from "@/lib/settings/timezone-options";
 import { useT } from "@/i18n/provider";
-import { cn } from "@/lib/utils";
 
 /**
- * Searchable, grouped IANA timezone picker (D15 — Settings → Workspace).
- * Combobox pattern: Popover + cmdk with one group per IANA area. The stored
- * value may predate the runtime's list (server default, another browser) —
- * it is prepended to its group so the current choice is always visible.
+ * Searchable, grouped IANA timezone picker (D15, Settings > Workspace): the
+ * shared `SearchablePicker` with one group per IANA area. The stored value may
+ * predate the runtime's list (server default, another browser), so it is
+ * prepended to its group and the current choice is always visible.
  */
 export function TimezoneSelect({
   value,
   onChange,
   disabled,
+  className,
+  id,
 }: {
   value: string;
   onChange: (zone: string) => void;
   disabled?: boolean;
+  className?: string;
+  id?: string;
 }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
 
-  const groups = useMemo(() => {
+  const options = useMemo(() => {
     const zones = supportedTimezones();
-    return groupTimezones(zones.includes(value) ? zones : [value, ...zones]);
+    return groupTimezones(zones.includes(value) ? zones : [value, ...zones]).flatMap(
+      (group) =>
+        group.zones.map((zone) => ({
+          value: zone,
+          label: timezoneLabel(zone),
+          group: group.region,
+        })),
+    );
   }, [value]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          aria-label={t("settingsMore.timezoneLabel")}
-          disabled={disabled}
-          className="w-full justify-between font-normal sm:w-80"
-        >
-          {timezoneLabel(value)}
-          <ChevronsUpDown
-            className="size-4 shrink-0 opacity-50"
-            strokeWidth={1.75}
-            aria-hidden
-          />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
-        <Command>
-          <CommandInput
-            placeholder={t("settingsMore.timezoneSearchPlaceholder")}
-          />
-          <CommandList>
-            <CommandEmpty>{t("settingsMore.timezoneNoMatch")}</CommandEmpty>
-            {groups.map((group) => (
-              <CommandGroup key={group.region} heading={group.region}>
-                {group.zones.map((zone) => (
-                  <CommandItem
-                    key={zone}
-                    value={zone}
-                    // The closure zone, not cmdk's callback arg — some cmdk
-                    // versions normalize the value's casing.
-                    onSelect={() => {
-                      setOpen(false);
-                      if (zone !== value) onChange(zone);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "size-4",
-                        zone === value ? "opacity-100" : "opacity-0",
-                      )}
-                      strokeWidth={1.75}
-                      aria-hidden
-                    />
-                    {timezoneLabel(zone)}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <SearchablePicker
+      id={id}
+      value={value}
+      onValueChange={onChange}
+      options={options}
+      disabled={disabled}
+      ariaLabel={t("settingsMore.timezoneLabel")}
+      searchPlaceholder={t("settingsMore.timezoneSearchPlaceholder")}
+      emptyLabel={t("settingsMore.timezoneNoMatch")}
+      className={className ?? "sm:w-80"}
+    />
   );
 }

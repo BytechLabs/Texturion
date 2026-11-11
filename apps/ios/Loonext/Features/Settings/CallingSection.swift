@@ -409,31 +409,14 @@ private struct AfterHoursCard: View {
                     .font(.footnote)
                     .padding(.bottom, 8)
             }
-            ForEach(afterHoursChoices) { choice in
-                let selected = company.after_hours_calls == choice.value
-                Button {
-                    guard !selected else { return }
-                    save(choice.value)
-                } label: {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                            .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
-                            .padding(.top, 2)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(t(choice.labelKey))
-                                .font(.body)
-                                .foregroundStyle(Color.primary)
-                            Text(t(choice.detailKey))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canEdit || saving)
-            }
+            ChoiceCards(
+                options: afterHoursChoices.map {
+                    ChoiceOption($0.value, title: t($0.labelKey), detail: t($0.detailKey))
+                },
+                selected: company.after_hours_calls,
+                enabled: canEdit && !saving,
+                onSelect: { save($0) }
+            )
             InlineError(error)
             if !canEdit {
                 Spacer().frame(height: 4)
@@ -549,31 +532,14 @@ private struct ScreeningCard: View {
             title: t("settings.screeningTitle"), anchor: "call-screening",
             description: t("settings.screeningIntro")
         ) {
-            ForEach(screeningChoices) { choice in
-                let selected = company.call_screening == choice.value
-                Button {
-                    guard !selected else { return }
-                    save(choice.value)
-                } label: {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                            .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
-                            .padding(.top, 2)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(t(choice.labelKey))
-                                .font(.body)
-                                .foregroundStyle(Color.primary)
-                            Text(t(choice.detailKey))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
-                .disabled(!canEdit || saving)
-            }
+            ChoiceCards(
+                options: screeningChoices.map {
+                    ChoiceOption($0.value, title: t($0.labelKey), detail: t($0.detailKey))
+                },
+                selected: company.call_screening,
+                enabled: canEdit && !saving,
+                onSelect: { save($0) }
+            )
             InlineError(error)
             if !canEdit {
                 Spacer().frame(height: 4)

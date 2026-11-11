@@ -33,13 +33,7 @@ import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { useContactActions } from "@/components/contacts/contact-record-actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchablePicker } from "@/components/ui/searchable-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n/provider";
@@ -270,22 +264,17 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
 
       {editing && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Select
+          <SearchablePicker
+            id="contact-timezone"
             value={contact.timezone_resolved}
             onValueChange={(next) => save(next)}
             disabled={update.isPending}
-          >
-            <SelectTrigger id="contact-timezone" className="w-64">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {NANP_TIMEZONES.map((zone) => (
-                <SelectItem key={zone} value={zone}>
-                  {zone.split("/").slice(1).join(" / ").replaceAll("_", " ")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            className="w-64"
+            options={NANP_TIMEZONES.map((zone) => ({
+              value: zone,
+              label: zone.split("/").slice(1).join(" / ").replaceAll("_", " "),
+            }))}
+          />
           {contact.timezone && (
             <Button
               variant="ghost"

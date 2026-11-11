@@ -105,22 +105,13 @@ struct OnCallCard: View {
                 Divider().padding(.vertical, 8)
                 Text(AppStrings.translate(appLocale, "settingsMore.onCallPut"))
                     .font(.caption.weight(.medium))
-                Picker(
-                    AppStrings.translate(appLocale, "settingsMore.onCallWho"),
-                    selection: Binding(
-                        get: { chosen ?? roster.first?.user_id ?? "" },
-                        set: { chosen = $0 }
-                    )
-                ) {
-                    // `id:` explicitly — `Member` is not Identifiable, and
-                    // ForEach over it does not compile without one.
-                    ForEach(roster, id: \.user_id) { member in
-                        Text(member.display_name).tag(member.user_id)
-                    }
-                }
-                .pickerStyle(.menu)
-                .disabled(roster.isEmpty)
-
+                SearchablePicker(
+                    options: roster.map { PickerOption($0.user_id, title: $0.display_name) },
+                    selected: chosen ?? roster.first?.user_id,
+                    label: AppStrings.translate(appLocale, "settingsMore.onCallWho"),
+                    enabled: !roster.isEmpty,
+                    onSelect: { chosen = $0 }
+                )
                 HStack(spacing: 6) {
                     ForEach(OnCall.localisedPresets(appLocale), id: \.key) { preset in
                         Button(preset.label) { put(preset.key) }

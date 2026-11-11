@@ -1,6 +1,8 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.InlineError
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -329,7 +331,6 @@ fun RegistrationFixForm(
     // Keyed by the same field names the shared catalogue routes to, so the
     // vectors that pin the routing also pin what this can reach.
     val focusRequesters = remember { mutableMapOf<String, FocusRequester>() }
-    var verticalOpen by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
@@ -485,41 +486,20 @@ fun RegistrationFixForm(
                 key = "website",
             )
 
-            ExposedDropdownMenuBox(
-                expanded = verticalOpen,
-                onExpandedChange = { if (!saving) verticalOpen = it },
-                modifier = Modifier.padding(vertical = 4.dp),
-            ) {
-                OutlinedTextField(
-                    value = verticalLabel(form.vertical),
-                    onValueChange = {},
-                    readOnly = true,
-                    enabled = !saving,
-                    label = { Text(t("settingsMore.industry")) },
-                    trailingIcon = {
-                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = verticalOpen)
-                    },
-                    modifier = Modifier
-                        .menuAnchor(
-                            androidx.compose.material3.MenuAnchorType.PrimaryNotEditable,
-                        )
-                        .fillMaxWidth(),
-                )
-                ExposedDropdownMenu(
-                    expanded = verticalOpen,
-                    onDismissRequest = { verticalOpen = false },
-                ) {
-                    TCR_VERTICALS.forEach { vertical ->
-                        DropdownMenuItem(
-                            text = { Text(verticalLabel(vertical)) },
-                            onClick = {
-                                form = form.copy(vertical = vertical)
-                                verticalOpen = false
-                            },
-                        )
-                    }
-                }
-            }
+            Text(
+                t("settingsMore.industry"),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            SelectField(
+                options = TCR_VERTICALS.map { SelectOption(it, verticalLabel(it)) },
+                selected = form.vertical,
+                enabled = !saving,
+                label = t("settingsMore.industry"),
+                fillWidth = true,
+                onSelect = { form = form.copy(vertical = it) },
+            )
 
             field(
                 form.street,

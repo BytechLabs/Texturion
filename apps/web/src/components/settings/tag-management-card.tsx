@@ -3,6 +3,7 @@
 import { Merge, Pencil } from "lucide-react";
 import { useState } from "react";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,13 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -262,18 +256,12 @@ function MergeDialog({
         </DialogHeader>
 
         <div className="space-y-2">
-          <Select value={into} onValueChange={setInto}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={t("settingsMore.tagMergeKeepWhich")} />
-            </SelectTrigger>
-            <SelectContent>
-              {others.map((tag) => (
-                <SelectItem key={tag.tag_id} value={tag.tag_id}>
-                  {tag.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SimpleSelect
+            value={into}
+            onValueChange={setInto}
+            placeholder={t("settingsMore.tagMergeKeepWhich")}
+            options={others.map((tag) => ({ value: tag.tag_id, label: tag.name }))}
+          />
           {target && from && (
             // Said back in the direction people get backwards. "Merge A into B"
             // is ambiguous to almost everybody; a sentence naming what survives

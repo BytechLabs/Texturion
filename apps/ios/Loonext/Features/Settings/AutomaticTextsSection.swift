@@ -205,23 +205,17 @@ private struct AutoTextPickerRow: View {
             Text(title)
                 .font(.golos(13.5, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
-            Picker(
-                title,
-                selection: Binding(get: { current }, set: { save($0) })
-            ) {
-                ForEach(AutomaticTexts.choices(number, current: current), id: \.self) { value in
-                    Text(AutomaticTexts.label(number, value: value, locale: appLocale))
-                        .tag(value)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .tint(BrandColor.olive)
-            .frame(minHeight: 44, alignment: .leading)
-            .disabled(!canEdit || saving)
-            .accessibilityLabel(title)
-            .accessibilityValue(
-                AutomaticTexts.label(number, value: current, locale: appLocale)
+            SelectField(
+                options: AutomaticTexts.choices(number, current: current).map { value in
+                    SelectOption(
+                        value,
+                        title: AutomaticTexts.label(number, value: value, locale: appLocale)
+                    )
+                },
+                selected: current,
+                label: title,
+                enabled: canEdit && !saving,
+                onSelect: { save($0) }
             )
             .accessibilityHint(defaultCaption)
             Text(defaultCaption)

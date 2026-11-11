@@ -1,5 +1,7 @@
 package com.loonext.android.features.compose
 
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.IconSize
 import androidx.activity.compose.BackHandler
 import com.loonext.android.ui.common.ConfirmDialog
@@ -480,36 +482,19 @@ private fun NewConversationLoaded(
 
                 // From-number picker (only when there's a real choice).
                 if (numbers.size > 1) {
-                    var fromMenuOpen by remember { mutableStateOf(false) }
-                    val selected = numbers.firstOrNull { it.id == fromNumberId }
-                    Box {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            t(
-                                "thread.fromNumber",
-                                "number" to formatPhone(selected?.number_e164),
-                            ),
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                            color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier
-                                .clickable { fromMenuOpen = true }
-                                .padding(horizontal = 4.dp),
+                            t("thread.fromLabel"),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 8.dp),
                         )
-                        DropdownMenu(
-                            expanded = fromMenuOpen,
-                            onDismissRequest = { fromMenuOpen = false },
-                        ) {
-                            numbers.forEach { number ->
-                                DropdownMenuItem(
-                                    text = { Text(formatPhone(number.number_e164)) },
-                                    onClick = {
-                                        fromNumberId = number.id
-                                        fromMenuOpen = false
-                                    },
-                                )
-                            }
-                        }
+                        SelectField(
+                            options = numbers.map { SelectOption(it.id, formatPhone(it.number_e164)) },
+                            selected = fromNumberId,
+                            label = t("thread.fromLabel"),
+                            onSelect = { fromNumberId = it },
+                        )
                     }
                 }
 

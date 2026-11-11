@@ -8,6 +8,7 @@
  * screening, and caller ID (CNAM both directions). Cell forwarding is GONE
  * (D43 deleted it), so there is no cell to configure anywhere.
  */
+import { ChoiceCards } from "@/components/ui/choice-cards";
 import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { DEFAULT_MCTB_MESSAGE, resolveLocale } from "@loonext/shared";
 import { useEffect, useRef, useState } from "react";
@@ -424,7 +425,6 @@ function ScreeningCard({
   const choices = screeningChoices(t);
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
-  const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // Optimistic selection: the choice + aria-checked move at the click, and the
   // radios are never disabled mid-interaction (disabling the just-focused radio
   // dropped keyboard focus). Cleared once the saved server value catches up.
@@ -456,72 +456,22 @@ function ScreeningCard({
     );
   }
 
-  // WAI-ARIA radiogroup keyboard contract: Arrow keys move focus AND selection
-  // across the options (with roving tabindex, one Tab stop for the whole group).
-  const currentIndex = choices.findIndex(
-    (choice) => choice.value === activeScreening,
-  );
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (!canEdit) return;
-    const from = currentIndex === -1 ? 0 : currentIndex;
-    let next = from;
-    switch (event.key) {
-      case "ArrowDown":
-      case "ArrowRight":
-        next = (from + 1) % choices.length;
-        break;
-      case "ArrowUp":
-      case "ArrowLeft":
-        next = (from - 1 + choices.length) % choices.length;
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    radioRefs.current[next]?.focus();
-    choose(choices[next].value);
-  }
-
   return (
     <SettingsCard id="call-screening"
       title={t("appShell.screeningTitle")}
       description={t("appShell.screeningDescription")}
     >
-      <div
-        role="radiogroup"
-        aria-label={t("appShell.screeningTitle")}
-        onKeyDown={onKeyDown}
-        className="space-y-2"
-      >
-        {choices.map((choice, i) => {
-          const selected = activeScreening === choice.value;
-          return (
-            <button
-              key={choice.value}
-              ref={(el) => {
-                radioRefs.current[i] = el;
-              }}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              tabIndex={selected || (currentIndex === -1 && i === 0) ? 0 : -1}
-              disabled={!canEdit}
-              onClick={() => choose(choice.value)}
-              className={
-                "w-full rounded-md border px-3 py-2.5 text-left transition-colors duration-150 " +
-                (selected
-                  ? "border-primary/50 bg-accent/40"
-                  : "border-border-subtle hover:bg-accent/20")
-              }
-            >
-              <span className="block text-sm font-medium">{choice.label}</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                {choice.detail}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <ChoiceCards
+        ariaLabel={t("appShell.screeningTitle")}
+        value={activeScreening}
+        disabled={!canEdit}
+        onChange={choose}
+        options={choices.map((choice) => ({
+          value: choice.value,
+          label: choice.label,
+          description: choice.detail,
+        }))}
+      />
       {error && (
         <p role="alert" className="mt-3 text-sm text-destructive">
           {error}

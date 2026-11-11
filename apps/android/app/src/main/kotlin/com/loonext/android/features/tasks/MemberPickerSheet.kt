@@ -1,6 +1,8 @@
 package com.loonext.android.features.tasks
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.SearchablePickerSheet
+import com.loonext.android.ui.common.PickerOption
 import com.loonext.android.ui.common.SearchField
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,9 +39,9 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.ui.common.AppSheet
 
 /**
- * cmdk-style member picker: a bottom sheet with a search field over the
- * active members (GET /v1/members), a "(you)" marker, and an optional
- * Unassigned entry. Callers own the fetch — the sheet is pure UI.
+ * The teammate choice: the shared searchable picker's sheet over the active
+ * members (GET /v1/members), with an avatar, a "(you)" marker and an optional
+ * Unassigned entry. Callers own the fetch; the sheet is pure UI.
  */
 @Composable
 fun MemberPickerSheet(
@@ -50,53 +52,28 @@ fun MemberPickerSheet(
     onPick: (userId: String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var query by remember { mutableStateOf("") }
-    val active = members.filter { it.deactivated_at == null }
-    val matches = if (query.isBlank()) active
-    else active.filter { it.display_name.contains(query.trim(), ignoreCase = true) }
-
-    AppSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth()) {
-            SearchField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = t("contactsTasks.searchTeammates"),
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
-            )
-            LazyColumn(Modifier.fillMaxWidth()) {
-                if (showUnassigned && query.isBlank()) {
-                    item(key = "unassigned") {
-                        PickerRow(
-                            name = t("contactsTasks.unassigned"),
-                            avatarName = null,
-                            selected = selectedUserId == null,
-                            onClick = { onPick(null) },
-                        )
-                    }
-                }
-                items(matches, key = { it.user_id }) { member ->
-                    PickerRow(
-                        name = member.display_name.ifBlank { t("contactsTasks.teammate") } +
-                            if (member.user_id == meUserId) t("contactsTasks.youSuffix") else "",
-                        avatarName = member.display_name.ifBlank { null },
-                        selected = selectedUserId == member.user_id,
-                        onClick = { onPick(member.user_id) },
-                    )
-                }
-                if (matches.isEmpty()) {
-                    item(key = "empty") {
-                        Text(
-                            t("contactsTasks.noTeammatesMatch"),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(16.dp),
-                        )
-                    }
-                }
-                item(key = "bottom-space") { Spacer(Modifier.height(24.dp)) }
-            }
-        }
+    val unassigned = t("contactsTasks.unassigned")
+    val teammate = t("contactsTasks.teammate")
+    val you = t("contactsTasks.youSuffix")
+    // "" stands for unassigned: a picker value is never null.
+    val options = (
+        if (showUnassigned) listOf(PickerOption("", unassigned)) else emptyList()
+        ) + members.filter { it.deactivated_at == null }.map { member ->
+        val name = member.display_name.ifBlank { teammate }
+        PickerOption(
+            value = member.user_id,
+            label = name + if (member.user_id == meUserId) you else "",
+            searchText = member.display_name,
+            leading = { TaskAvatar(name, size = 32.dp, fontSize = 11.sp) },
+        )
     }
+    SearchablePickerSheet(
+        options = options,
+        selected = selectedUserId ?: if (showUnassigned) "" else null,
+        searchPlaceholder = t("contactsTasks.searchTeammates"),
+        onPick = { onPick(it.ifEmpty { null }) },
+        onDismiss = onDismiss,
+    )
 }
 
 @Composable

@@ -1,6 +1,8 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.ui.common.Choice
+import com.loonext.android.ui.common.ChoiceCards
 import com.loonext.android.ui.common.Segment
 import com.loonext.android.ui.common.SegmentedControl
 import com.loonext.android.ui.common.InlineError
@@ -214,50 +216,30 @@ private fun LanguageCard(scope: SettingsScope) {
         // every option unselected and read as though nothing were set.
         val options: List<String?> =
             (listOf<String?>(null) + MessageLocale.ALL + listOfNotNull(chosen)).distinct()
-        // ONE selectable group, so TalkBack says "2 of 3" rather than reading
-        // three unrelated switches. `role = RadioButton` on each row is the
-        // other half: without it the row announces as a button and the choice
-        // it is part of is invisible to anybody not looking at the screen.
-        Column(Modifier.selectableGroup()) {
-            options.forEach { value ->
-                val selected = chosen == value
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = selected,
-                            enabled = !saving,
-                            role = Role.RadioButton,
-                            onClick = { choose(value) },
+        ChoiceCards(
+            choices = options.map { value ->
+                Choice<String?>(
+                    value,
+                    // A language names ITSELF, never translated: the same rule
+                    // the workspace card and both other clients follow.
+                    value?.let { MessageLocale.label(it) }
+                        ?: t("shell.languageSameAsPhone"),
+                    // Tight under its own option, because it belongs to that
+                    // option and to nothing else.
+                    if (value == null) {
+                        t(
+                            "shell.languageFollowingDevice",
+                            "language" to MessageLocale.label(followed),
                         )
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = selected, onClick = null, enabled = !saving)
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            // A language names ITSELF, never translated — the
-                            // same rule the workspace card and both other
-                            // clients follow.
-                            value?.let { MessageLocale.label(it) }
-                                ?: t("shell.languageSameAsPhone"),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        // Tight under its own option, because it belongs to
-                        // that option and to nothing else.
-                        if (value == null) {
-                            ReadOnlyLine(
-                                t(
-                                    "shell.languageFollowingDevice",
-                                    "language" to MessageLocale.label(followed),
-                                ),
-                            )
-                        }
-                    }
-                }
-            }
-        }
+                    } else {
+                        null
+                    },
+                )
+            },
+            selected = chosen,
+            enabled = !saving,
+            onSelect = { choose(it) },
+        )
         InlineError(error)
         // 12dp rather than the 6dp BETWEEN options: this is a note about the
         // whole card, and at the same gap it reads as a fourth choice somebody

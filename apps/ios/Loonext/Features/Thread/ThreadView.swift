@@ -2425,7 +2425,8 @@ struct MakeTaskSheet: View {
         source: TaskDraftSource,
         contactName: String,
         locale: String,
-        onDismiss: @escaping @MainActor () -> Void
+        onDismiss: @escaping @MainActor () -> Void,
+        initialDue: Date? = nil
     ) {
         self.controller = controller
         self.source = source
@@ -2445,7 +2446,9 @@ struct MakeTaskSheet: View {
         case .standalone:
             _title = State(initialValue: "")
         }
-        _moreOpen = State(initialValue: !source.isStandalone)
+        // A prefilled due opens More so the day it chose is on screen (#739).
+        _moreOpen = State(initialValue: !source.isStandalone || initialDue != nil)
+        _due = State(initialValue: initialDue)
         _assigneeId = State(initialValue: controller.meUserId)
         _crew = State(initialValue: [controller.meUserId])
     }

@@ -172,14 +172,17 @@ describe("ContactCustomFields", () => {
       ],
     });
     renderFields({ system_type: "Combi" });
-    const select = (await screen.findByLabelText(
-      "System type",
-    )) as HTMLSelectElement;
-    // The OPTION has to exist, not just the write path. Setting a select's
-    // value to "" succeeds even when no such option is rendered, so asserting
-    // only the resulting PATCH passes on a dropdown nobody can actually clear.
-    expect([...select.options].map((option) => option.value)).toContain("");
-    fireEvent.change(select, { target: { value: "" } });
+    const select = await screen.findByLabelText("System type");
+    // The OPTION has to exist, not just the write path: a dropdown whose only
+    // options are real values cannot be cleared, whatever the PATCH would do.
+    fireEvent.keyDown(select, { key: "Enter" });
+    expect(
+      document.querySelector('[role="option"][data-value="__not_set__"]'),
+    ).not.toBeNull();
+    fireEvent.keyDown(
+      document.querySelector('[role="option"][data-value="__not_set__"]')!,
+      { key: "Enter" },
+    );
     await waitFor(() => expect(patched).toHaveBeenCalledTimes(1));
     expect(patched.mock.calls[0][0]).toEqual({ custom_fields: { system_type: "" } });
   });

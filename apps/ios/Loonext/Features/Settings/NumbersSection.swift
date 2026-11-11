@@ -762,29 +762,18 @@ private struct NumberAccessSheet: View {
     }
 
     private var modeOptions: some View {
-        ForEach(AccessMode.allCases, id: \.labelKey) { option in
-            Button {
-                mode = option
-            } label: {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: mode == option ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(mode == option ? BrandColor.olive : Color.secondary)
-                        .padding(.top, 2)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(AppStrings.translate(appLocale, option.labelKey))
-                            .font(.callout)
-                            .foregroundStyle(Color.primary)
-                        Text(AppStrings.translate(appLocale, option.detailKey))
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.vertical, 4)
-            }
-            .buttonStyle(.plain)
-            .disabled(pending)
-        }
+        ChoiceCards(
+            options: AccessMode.allCases.map {
+                ChoiceOption(
+                    $0,
+                    title: AppStrings.translate(appLocale, $0.labelKey),
+                    detail: AppStrings.translate(appLocale, $0.detailKey)
+                )
+            },
+            selected: mode,
+            enabled: !pending,
+            onSelect: { mode = $0 }
+        )
     }
 
     @ViewBuilder
@@ -821,30 +810,15 @@ private struct NumberAccessSheet: View {
                 .disabled(pending)
             }
             Spacer().frame(height: 6)
-            ForEach([NumberAccessLevel.text, NumberAccessLevel.note], id: \.self) { value in
-                Button {
-                    level = value
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: level == value ? "largecircle.fill.circle" : "circle")
-                            .foregroundStyle(level == value ? BrandColor.olive : Color.secondary)
-                        Text(
-                            AppStrings.translate(
-                                appLocale,
-                                value == NumberAccessLevel.text
-                                    ? "settingsMore.levelText"
-                                    : "settingsMore.levelNote"
-                            )
-                        )
-                            .font(.callout)
-                            .foregroundStyle(Color.primary)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.vertical, 2)
-                }
-                .buttonStyle(.plain)
-                .disabled(pending)
-            }
+            ChoiceCards(
+                options: [
+                    ChoiceOption(NumberAccessLevel.text, title: AppStrings.translate(appLocale, "settingsMore.levelText")),
+                    ChoiceOption(NumberAccessLevel.note, title: AppStrings.translate(appLocale, "settingsMore.levelNote")),
+                ],
+                selected: level,
+                enabled: !pending,
+                onSelect: { level = $0 }
+            )
         }
     }
 

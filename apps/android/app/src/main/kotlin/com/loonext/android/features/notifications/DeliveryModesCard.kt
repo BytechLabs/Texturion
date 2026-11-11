@@ -25,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.NotificationPrefs
@@ -54,7 +56,6 @@ fun DeliveryModesCard(
     prefs: NotificationPrefs,
     onSave: (NotificationPrefs) -> Unit,
 ) {
-    var pickingWindow by remember { mutableStateOf(false) }
 
     // An absent key means immediate — the SERVER's rule, restated here rather
     // than reinvented, so the two cannot drift.
@@ -163,40 +164,13 @@ fun DeliveryModesCard(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(end = 8.dp),
                 )
-                Column {
-                    OutlinedButton(
-                        onClick = { pickingWindow = true },
-                    ) {
-                        Text(
-                            t(
-                                "contactsTasks.deliveryMinutes",
-                                "minutes" to
-                                    "${prefs.batch_window_minutes ?: OnCall.DEFAULT_BATCH_WINDOW}",
-                            ),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = pickingWindow,
-                        onDismissRequest = { pickingWindow = false },
-                    ) {
-                        for (minutes in OnCall.BATCH_WINDOW_CHOICES) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        t(
-                                            "contactsTasks.deliveryMinutes",
-                                            "minutes" to "$minutes",
-                                        ),
-                                    )
-                                },
-                                onClick = {
-                                    pickingWindow = false
-                                    onSave(prefs.copy(batch_window_minutes = minutes))
-                                },
-                            )
-                        }
-                    }
-                }
+                SelectField(
+                    options = OnCall.BATCH_WINDOW_CHOICES.map {
+                        SelectOption(it, t("contactsTasks.deliveryMinutes", "minutes" to "$it"))
+                    },
+                    selected = prefs.batch_window_minutes ?: OnCall.DEFAULT_BATCH_WINDOW,
+                    onSelect = { onSave(prefs.copy(batch_window_minutes = it)) },
+                )
             }
         }
     }

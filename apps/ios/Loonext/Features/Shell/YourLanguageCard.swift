@@ -42,32 +42,30 @@ struct YourLanguageCard: View {
             title: AppStrings.translate(appLocale, "shell.languageTitle"),
             description: AppStrings.translate(appLocale, "shell.languageDescription")
         ) {
-            ForEach(MessageLocale.all, id: \.self) { locale in
-                // `MessageLocale.label` names each language in ITSELF and is
-                // never translated: somebody looking for French needs to find
-                // the word they would recognise, whatever the app is currently
-                // drawn in.
-                choiceRow(
-                    label: MessageLocale.label(locale),
-                    selected: chosen == locale,
-                    note: nil
-                ) {
-                    save(locale)
-                }
-            }
-            choiceRow(
-                label: AppStrings.translate(appLocale, "shell.languageSameAsPhone"),
-                selected: chosen == nil,
-                // Says what following the phone actually resolves to right now,
-                // so "same as my phone" is not a promise the reader has to test.
-                note: AppStrings.translate(
-                    appLocale,
-                    "shell.languageFollowingDevice",
-                    ["language": MessageLocale.label(UiLocaleStore.shared.deviceLocale)]
-                )
-            ) {
-                save(nil)
-            }
+            // `MessageLocale.label` names each language in ITSELF and is never
+            // translated: somebody looking for French needs to find the word they
+            // would recognise, whatever the app is currently drawn in.
+            ChoiceCards(
+                options: MessageLocale.all.map {
+                    ChoiceOption<String?>($0, title: MessageLocale.label($0))
+                } + [
+                    ChoiceOption<String?>(
+                        nil,
+                        title: AppStrings.translate(appLocale, "shell.languageSameAsPhone"),
+                        // Says what following the phone actually resolves to right
+                        // now, so "same as my phone" is not a promise the reader
+                        // has to test.
+                        detail: AppStrings.translate(
+                            appLocale,
+                            "shell.languageFollowingDevice",
+                            ["language": MessageLocale.label(UiLocaleStore.shared.deviceLocale)]
+                        )
+                    ),
+                ],
+                selected: .some(chosen),
+                enabled: !saving,
+                onSelect: { save($0) }
+            )
             Spacer().frame(height: 6)
             // The same caveat the workspace card carries, pointing the other
             // way. Two language settings in one app is exactly the pair somebody
@@ -75,41 +73,6 @@ struct YourLanguageCard: View {
             ReadOnlyLine(AppStrings.translate(appLocale, "shell.languageNotCustomers"))
             InlineError(error)
         }
-    }
-
-    /// One radio row — the same grammar as the workspace language card, so the
-    /// two read as two instances of one control rather than two controls.
-    private func choiceRow(
-        label: String,
-        selected: Bool,
-        note: String?,
-        action: @escaping @MainActor () -> Void
-    ) -> some View {
-        Button {
-            guard !selected else { return }
-            action()
-        } label: {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
-                    .padding(.top, 2)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(label)
-                        .font(.body)
-                        .foregroundStyle(Color.primary)
-                    if let note {
-                        Text(note)
-                            .font(.golos(12))
-                            .foregroundStyle(BrandColor.muted600)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.vertical, 6)
-        }
-        .buttonStyle(.plain)
-        .disabled(saving)
     }
 
     /// Applied to the app FIRST, then written.

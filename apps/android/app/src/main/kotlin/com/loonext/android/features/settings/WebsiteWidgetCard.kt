@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.loonext.android.ui.common.SelectOption
+import com.loonext.android.ui.common.SelectField
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
@@ -92,7 +94,6 @@ fun WebsiteWidgetCard(
     var confirming by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var lineMenuOpen by remember { mutableStateOf(false) }
 
     // Resolved in composition because an onClick lambda runs long after it, when
     // the reader's locale is no longer in scope — the same rule ClosedDatesCard
@@ -241,51 +242,24 @@ fun WebsiteWidgetCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(6.dp))
-            Column {
-                OutlinedButton(
-                    enabled = !busy,
-                    onClick = {
-                        haptics.tap()
-                        lineMenuOpen = true
-                    },
-                ) {
-                    // Named, not blank. "Your first number" is what the server
-                    // actually does with an unset choice, and a default that does
-                    // not say what it resolves to is a setting somebody has to
-                    // test to understand. *Applying: Smart Defaults.*
-                    Text(
-                        chosen?.number_e164?.let { formatPhone(it) }
-                            ?: defaultLineLabel,
+            // Named, not blank. "Your first number" is what the server actually does
+            // with an unset choice, and a default that does not say what it resolves to
+            // is a setting somebody has to test to understand.
+            // *Applying: Smart Defaults.*
+            SelectField<String?>(
+                options = listOf(SelectOption<String?>(null, defaultLineLabel)) +
+                    explicitLines.map { SelectOption<String?>(it.id, formatPhone(it.number_e164)) },
+                selected = chosen?.id,
+                enabled = !busy,
+                label = t("settings.widgetLineLabel"),
+                onSelect = { id ->
+                    haptics.tap()
+                    saveLine(
+                        scope, coroutines, id, lineSavedMessage, locale,
+                        onCompanyUpdated, { busy = it }, { error = it },
                     )
-                }
-                DropdownMenu(
-                    expanded = lineMenuOpen,
-                    onDismissRequest = { lineMenuOpen = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text(defaultLineLabel) },
-                        onClick = {
-                            lineMenuOpen = false
-                            saveLine(
-                                scope, coroutines, null, lineSavedMessage, locale,
-                                onCompanyUpdated, { busy = it }, { error = it },
-                            )
-                        },
-                    )
-                    explicitLines.forEach { number ->
-                        DropdownMenuItem(
-                            text = { Text(formatPhone(number.number_e164)) },
-                            onClick = {
-                                lineMenuOpen = false
-                                saveLine(
-                                    scope, coroutines, number.id, lineSavedMessage, locale,
-                                    onCompanyUpdated, { busy = it }, { error = it },
-                                )
-                            },
-                        )
-                    }
-                }
-            }
+                },
+            )
         }
 
         error?.let {

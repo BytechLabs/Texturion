@@ -83,6 +83,7 @@ object SettingsMoreStrings : AppStrings.Section {
             "Leave it alone and it follows your workspace.",
         "settingsMore.timezone" to "Timezone",
         "settingsMore.chooseTimezone" to "Choose a timezone",
+        "settingsMore.roleLabel" to "Role",
         "settingsMore.openHours" to "Open hours",
         "settingsMore.numberIdentityTitle" to "How this line answers",
         "settingsMore.numberIdentityIntro" to
@@ -1373,6 +1374,7 @@ object SettingsMoreStrings : AppStrings.Section {
             "Laissez-le tel quel et il suit votre espace de travail.",
         "settingsMore.timezone" to "Fuseau horaire",
         "settingsMore.chooseTimezone" to "Choisir un fuseau horaire",
+        "settingsMore.roleLabel" to "Rôle",
         "settingsMore.openHours" to "Heures d'ouverture",
         "settingsMore.numberIdentityTitle" to "Comment cette ligne répond",
         "settingsMore.numberIdentityIntro" to

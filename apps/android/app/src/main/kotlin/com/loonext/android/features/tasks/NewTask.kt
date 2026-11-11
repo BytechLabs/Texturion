@@ -29,6 +29,7 @@ import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.thread.MakeTaskSheet
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
+import java.time.ZoneId
 
 /**
  * #689: "New task", a task with no text or call behind it. The same sheet a
@@ -46,6 +47,9 @@ fun NewTaskSheetHost(
     contactName: String,
     onDismiss: () -> Unit,
     onCreated: () -> Unit = {},
+    /** #739: a due to start with (an instant), read in [zone]; from a calendar tap. */
+    initialDueIso: String? = null,
+    zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val context = LocalContext.current
     val locale = LocalAppLocale.current
@@ -67,6 +71,8 @@ fun NewTaskSheetHost(
         companyId = companyId,
         conversationId = conversationId.orEmpty(),
         standalone = true,
+        initialDueIso = initialDueIso,
+        zone = zone,
         linked = conversationId != null || contactId != null,
         tagsLoader = { TaskMutations(graph.api).tags(companyId).data },
         onCreate = { _, _, _, _ -> },

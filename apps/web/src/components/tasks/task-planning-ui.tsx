@@ -1,7 +1,8 @@
 "use client";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Check, Flag, Plus, Repeat, X } from "lucide-react";
+import { Flag, Plus, Repeat, X } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -28,13 +29,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useT } from "@/i18n/provider";
 import { useTags } from "@/lib/api/tags";
@@ -110,21 +104,15 @@ export function PrioritySelect({
 }) {
   const t = useT();
   return (
-    <Select
+    <SimpleSelect
+      id={id}
       value={normalizePriority(value)}
       onValueChange={(next) => onChange(next as TaskPriority)}
-    >
-      <SelectTrigger id={id} className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {PRIORITY_PICKER.map((p) => (
-          <SelectItem key={p} value={p}>
-            {t(priorityLabelKey(p))}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      options={PRIORITY_PICKER.map((p) => ({
+        value: p,
+        label: t(priorityLabelKey(p)),
+      }))}
+    />
   );
 }
 
@@ -459,21 +447,15 @@ function RepeatDialog({
               />
             </div>
             <div className="min-w-0 flex-1">
-              <Select
+              <SimpleSelect
+                ariaLabel={t("tasks.repeatEveryLabel")}
                 value={work.unit}
                 onValueChange={(unit) => patch({ unit: unit as RepeatUnit })}
-              >
-                <SelectTrigger aria-label={t("tasks.repeatEveryLabel")} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {allowedUnits(work.kind).map((unit) => (
-                    <SelectItem key={unit} value={unit}>
-                      {repeatUnitWord(unit, work.every, t)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={allowedUnits(work.kind).map((unit) => ({
+                  value: unit,
+                  label: repeatUnitWord(unit, work.every, t),
+                }))}
+              />
             </div>
           </div>
 
@@ -515,59 +497,39 @@ function RepeatDialog({
           )}
 
           {work.kind === "schedule" && work.unit === "month" && anchor && (
-            <div className="flex flex-col gap-1.5">
-              {(
-                [
-                  [
-                    "date",
-                    t("tasks.repeatOnDay", { date: String(anchor.getDate()) }),
-                  ],
-                  [
-                    "nth",
-                    t("tasks.repeatOnNth", {
-                      nth: nthName(nthOfMonth(anchor), t),
-                      day: weekdayName(isoWeekday(anchor), t.locale),
-                    }),
-                  ],
-                ] as const
-              ).map(([mode, text]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  role="radio"
-                  aria-checked={work.monthly === mode}
-                  onClick={() => patch({ monthly: mode })}
-                  className={cn(
-                    "flex min-h-11 items-center gap-2 rounded-md border px-3 text-left text-[13px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9",
-                    work.monthly === mode
-                      ? "border-primary bg-primary/10 text-foreground"
-                      : "border-border text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {work.monthly === mode && (
-                    <Check className="size-4 shrink-0" strokeWidth={2} aria-hidden />
-                  )}
-                  {text}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              fill
+              ariaLabel={t("misc.repeatMonthlyAria")}
+              value={work.monthly}
+              onChange={(mode) => patch({ monthly: mode })}
+              options={[
+                {
+                  value: "date" as const,
+                  label: t("tasks.repeatOnDay", { date: String(anchor.getDate()) }),
+                },
+                {
+                  value: "nth" as const,
+                  label: t("tasks.repeatOnNth", {
+                    nth: nthName(nthOfMonth(anchor), t),
+                    day: weekdayName(isoWeekday(anchor), t.locale),
+                  }),
+                },
+              ]}
+            />
           )}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="repeat-ends">{t("tasks.repeatEnds")}</Label>
-            <Select
+            <SimpleSelect
+              id="repeat-ends"
               value={work.endKind}
               onValueChange={(endKind) => patch({ endKind: endKind as RepeatEndKind })}
-            >
-              <SelectTrigger id="repeat-ends" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="never">{t("tasks.repeatEndsNever")}</SelectItem>
-                <SelectItem value="on">{t("tasks.repeatEndsOn")}</SelectItem>
-                <SelectItem value="after">{t("tasks.repeatEndsAfter")}</SelectItem>
-              </SelectContent>
-            </Select>
+              options={[
+                { value: "never", label: t("tasks.repeatEndsNever") },
+                { value: "on", label: t("tasks.repeatEndsOn") },
+                { value: "after", label: t("tasks.repeatEndsAfter") },
+              ]}
+            />
             {work.endKind === "on" && (
               <Input
                 type="date"

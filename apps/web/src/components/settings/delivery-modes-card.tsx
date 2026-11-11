@@ -13,6 +13,7 @@ import {
   type NotificationCategory,
 } from "@loonext/shared";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { SettingsCard } from "@/components/settings/section";
 import { Label } from "@/components/ui/label";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -155,21 +156,19 @@ export function DeliveryModesCard({
           <Label htmlFor="batch-window" className="text-[13px]">
             {t("settings.deliveryBatchEvery")}
           </Label>
-          <select
+          <SimpleSelect
             id="batch-window"
             disabled={saving}
-            value={prefs.batch_window_minutes ?? DEFAULT_BATCH_WINDOW}
-            onChange={(event) =>
-              save({ batch_window_minutes: Number(event.target.value) })
+            value={String(prefs.batch_window_minutes ?? DEFAULT_BATCH_WINDOW)}
+            onValueChange={(next) =>
+              save({ batch_window_minutes: Number(next) })
             }
-            className="h-9 rounded-app-input border border-app-line bg-app-paper px-2 text-[13px] tabular-nums text-app-ink"
-          >
-            {BATCH_WINDOW_CHOICES.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {t("settings.deliveryBatchMinutes", { minutes })}
-              </option>
-            ))}
-          </select>
+            options={BATCH_WINDOW_CHOICES.map((minutes) => ({
+              value: String(minutes),
+              label: t("settings.deliveryBatchMinutes", { minutes }),
+            }))}
+            className="w-40"
+          />
         </div>
       ) : null}
 

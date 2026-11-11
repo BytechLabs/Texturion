@@ -31,7 +31,6 @@ class ConfirmDialogGuardTest {
             GuardException("features/settings/TeamSection.kt", rule, 1, "A member's numbers: read-only with one Done button."),
             GuardException("features/settings/TemplatesSection.kt", rule, 1, "A template: a form."),
             GuardException("features/settings/VoiceGreetingCard.kt", rule, 2, "Calling-now steps with one Close button, and record-on-phone: a form."),
-            GuardException("features/settings/WorkspaceSection.kt", rule, 1, "Choosing a time zone: search and a list."),
             GuardException("features/tasks/TaskDetailScreen.kt", rule, 1, "The due time: a time picker."),
             GuardException("features/tasks/TaskFiltersUi.kt", rule, 1, "Save a task view: a name field and a share switch."),
             GuardException("features/tasks/TaskLinksUi.kt", rule, 1, "Add a link: a choice of relation."),

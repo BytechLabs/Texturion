@@ -116,6 +116,7 @@ enum ContactsTasksStrings {
             "contactsTasks.calendarScheduledAndUndated":
                 "{scheduled} scheduled · {undated} without a due date",
             "contactsTasks.calendarNothingDueThisDay": "Nothing due this day.",
+            "contactsTasks.calendarCreateOnDay": "New task on {date}",
             "contactsTasks.calendarPreviousMonth": "Previous month",
             "contactsTasks.calendarNextMonth": "Next month",
             "contactsTasks.calendarDayCellOne": "{date}, {count} task",
@@ -883,6 +884,7 @@ enum ContactsTasksStrings {
             "contactsTasks.calendarScheduledAndUndated":
                 "{scheduled} prévues · {undated} sans date d'échéance",
             "contactsTasks.calendarNothingDueThisDay": "Rien à faire ce jour-là.",
+            "contactsTasks.calendarCreateOnDay": "Nouvelle tâche le {date}",
             "contactsTasks.calendarPreviousMonth": "Mois précédent",
             "contactsTasks.calendarNextMonth": "Mois suivant",
             "contactsTasks.calendarDayCellOne": "{date}, {count} tâche",

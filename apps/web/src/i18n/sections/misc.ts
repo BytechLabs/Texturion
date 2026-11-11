@@ -255,6 +255,10 @@ export const miscEn = {
     "effect immediately.",
 
   /* The shared controls (components/ui) */
+  pickerSearchPlaceholder: "Search",
+  repeatMonthlyAria: "Which day of the month it repeats on",
+  pickerNoMatch: "Nothing matches that.",
+  pickerUseTyped: "Use “{value}”",
   commandPaletteTitle: "Command Palette",
   commandPaletteDescription: "Search for a command to run...",
   copy: "Copy",
@@ -614,6 +618,10 @@ export const miscFr: Translated<typeof miscEn> = {
     "Cela se termine {when} à moins que le propriétaire ne l'arrête. " +
     "L'arrêter prend effet immédiatement.",
 
+  pickerSearchPlaceholder: "Rechercher",
+  repeatMonthlyAria: "Le jour du mois où cela se répète",
+  pickerNoMatch: "Aucun résultat.",
+  pickerUseTyped: "Utiliser « {value} »",
   commandPaletteTitle: "Palette de commandes",
   commandPaletteDescription: "Cherchez une commande à exécuter…",
   copy: "Copier",

@@ -29,7 +29,7 @@ import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
 import { RecordHeader } from "@/components/ui/record-header";
 import { useIsXl } from "@/lib/use-is-xl";
-import { CountryDatalist } from "@/components/ui/country-datalist";
+import { CountryPicker } from "@/components/ui/country-picker";
 import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1232,19 +1232,27 @@ function TaskAddressSection({
             }
           }}
         >
-          {ADDR_FIELDS.map((f) => (
-            <Input
-              key={f.key}
-              aria-label={t(f.labelKey)}
-              placeholder={t(f.labelKey)}
-              className={cn(f.full && "col-span-2")}
-              list={f.key === "country" ? "task-detail-countries" : undefined}
-              autoComplete={f.key === "country" ? "country-name" : undefined}
-              value={fields[f.key]}
-              onChange={(e) => edit(f.key, e.target.value)}
-            />
-          ))}
-          <CountryDatalist id="task-detail-countries" />
+          {ADDR_FIELDS.map((f) =>
+            f.key === "country" ? (
+              <CountryPicker
+                key={f.key}
+                ariaLabel={t(f.labelKey)}
+                placeholder={t(f.labelKey)}
+                className={cn(f.full && "col-span-2")}
+                value={fields[f.key]}
+                onValueChange={(next) => edit(f.key, next)}
+              />
+            ) : (
+              <Input
+                key={f.key}
+                aria-label={t(f.labelKey)}
+                placeholder={t(f.labelKey)}
+                className={cn(f.full && "col-span-2")}
+                value={fields[f.key]}
+                onChange={(e) => edit(f.key, e.target.value)}
+              />
+            ),
+          )}
         </div>
       )}
     </section>

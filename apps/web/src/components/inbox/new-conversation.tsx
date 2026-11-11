@@ -1,5 +1,6 @@
 "use client";
 
+import { SimpleSelect } from "@/components/ui/simple-select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { pendingIdentificationSuffix } from "@loonext/shared";
 import { ArrowLeft, FileText, Paperclip, Send, X } from "lucide-react";
@@ -23,13 +24,6 @@ import { TemplatePicker } from "@/components/thread/template-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
@@ -651,21 +645,16 @@ export function NewConversation() {
         {activeNumbers.length > 1 && (
           <div className="space-y-1.5">
             <Label htmlFor="compose-from">{t("inbox.composeFromLabel")}</Label>
-            <Select
-              value={numberId ?? undefined}
+            <SimpleSelect
+              id="compose-from"
+              value={numberId ?? ""}
               onValueChange={(value) => setNumberId(value)}
-            >
-              <SelectTrigger id="compose-from" className="w-full">
-                <SelectValue placeholder={t("inbox.composeChooseNumber")} />
-              </SelectTrigger>
-              <SelectContent>
-                {activeNumbers.map((number) => (
-                  <SelectItem key={number.id} value={number.id}>
-                    {formatPhone(number.number_e164 as string)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={t("inbox.composeChooseNumber")}
+              options={activeNumbers.map((number) => ({
+                value: number.id,
+                label: formatPhone(number.number_e164 as string),
+              }))}
+            />
           </div>
         )}
         {company.isPending && <Skeleton className="h-9 w-full" />}

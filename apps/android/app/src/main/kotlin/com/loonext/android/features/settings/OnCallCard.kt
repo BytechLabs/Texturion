@@ -23,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.ui.common.PickerOption
+import com.loonext.android.ui.common.SearchablePicker
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
@@ -72,7 +74,6 @@ fun OnCallCard(scope: SettingsScope) {
     var shifts by remember { mutableStateOf<List<OnCallShift>>(emptyList()) }
     var roster by remember { mutableStateOf<List<Member>>(emptyList()) }
     var chosen by remember { mutableStateOf<String?>(null) }
-    var picking by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
 
     suspend fun reload() {
@@ -230,24 +231,12 @@ fun OnCallCard(scope: SettingsScope) {
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(bottom = 6.dp),
         )
-        Column {
-            OutlinedButton(onClick = { picking = true }, enabled = roster.isNotEmpty()) {
-                Text(
-                    nameOf(chosen ?: roster.firstOrNull()?.user_id.orEmpty()),
-                )
-            }
-            DropdownMenu(expanded = picking, onDismissRequest = { picking = false }) {
-                for (member in roster) {
-                    DropdownMenuItem(
-                        text = { Text(member.display_name) },
-                        onClick = {
-                            chosen = member.user_id
-                            picking = false
-                        },
-                    )
-                }
-            }
-        }
+        SearchablePicker(
+            options = roster.map { PickerOption(it.user_id, it.display_name) },
+            selected = chosen ?: roster.firstOrNull()?.user_id,
+            enabled = roster.isNotEmpty(),
+            onSelect = { chosen = it },
+        )
         FlowRow(
             Modifier.fillMaxWidth().padding(top = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
