@@ -80,19 +80,20 @@ const DRAG_SURFACES: Record<
     pointerAlternative: ["<RecordOverflowMenu", "useTaskRowActions(task)"],
     why: "A per-chip menu with relative moves — a day earlier, a day later, a week later.",
   },
-  "components/thread/thread-view.tsx": {
+  "components/thread/panel-width.tsx": {
     pointerAlternative: [
-      'aria-label={t("thread.panelWidthLabel")}',
+      'aria-label={t("thread.panelOptionsAria")}',
       "PANEL_WIDTH_PRESETS.map(",
-      "onSelect={() => setAndPersistPanelWidth(preset.width)}",
+      "onSelect={() => onCommit(preset.width)}",
       "{ width: PANEL_MIN_WIDTH,",
       "{ width: PANEL_DEFAULT_WIDTH,",
+      "onDoubleClick={() => onCommit(PANEL_DEFAULT_WIDTH)}",
     ],
     why:
-      "#723: an always-visible grip on the panel border opens Narrow, Default " +
-      "and Wide, each one click. The grip's label, the preset list, the click " +
-      "that applies a preset and the two fixed widths are pinned so keyboard " +
-      "arrows or a decorative grip cannot satisfy it.",
+      "#742: the panel's own ⋯ menu lists Narrow, Default and Wide under " +
+      "'Panel width', each one click, and a double-click on the border resets. " +
+      "The grip itself only drags (drag-handles-open-no-menu.test.ts), so the " +
+      "presets live on a control of their own.",
   },
 };
 
@@ -178,16 +179,14 @@ describe("#238 every draggable operation has a way out (WCAG 2.2 2.5.7)", () => 
     }
   });
 
-  it("DA-6: the panel-width record pins the grip's one-click presets", () => {
+  it("DA-6: the panel-width record pins the menu's one-click presets", () => {
     // The old record cited only `event.key`, so the test stayed green while
-    // arbitrary non-drag resizing was keyboard-only. Keep the exact failure
-    // from returning under another explanatory comment.
-    const panel = DRAG_SURFACES["components/thread/thread-view.tsx"];
-    expect(panel.pointerAlternative).toContain('aria-label={t("thread.panelWidthLabel")}');
+    // arbitrary non-drag resizing was keyboard-only. #742 moved the presets
+    // off the grip into the panel's ⋯ menu; the record must follow them.
+    const panel = DRAG_SURFACES["components/thread/panel-width.tsx"];
+    expect(panel.pointerAlternative).toContain('aria-label={t("thread.panelOptionsAria")}');
     expect(panel.pointerAlternative).toContain("PANEL_WIDTH_PRESETS.map(");
-    expect(panel.pointerAlternative).toContain(
-      "onSelect={() => setAndPersistPanelWidth(preset.width)}",
-    );
+    expect(panel.pointerAlternative).toContain("onSelect={() => onCommit(preset.width)}");
     expect(panel.pointerAlternative.join(" ")).not.toContain("event.key");
   });
 

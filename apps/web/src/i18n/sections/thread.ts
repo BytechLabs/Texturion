@@ -536,8 +536,9 @@ export const threadEn = {
   conversationInfoForAria: "Conversation info for {name}",
   resizePanelAria: "Resize contact panel",
   panelWidthLabel: "Panel width",
+  panelOptionsAria: "Panel options",
   panelWidthAria: "{pixels} pixels",
-  /** #723: the grip's one-click widths. */
+  /** #723: the preset widths, listed in the panel's ⋯ menu (#742). */
   panelWidthNarrow: "Narrow",
   panelWidthDefault: "Default",
   panelWidthWide: "Wide",
@@ -1314,6 +1315,7 @@ export const threadFr: Translated<typeof threadEn> = {
   conversationInfoForAria: "Détails de la conversation avec {name}",
   resizePanelAria: "Redimensionner le panneau du contact",
   panelWidthLabel: "Largeur du panneau",
+  panelOptionsAria: "Options du panneau",
   panelWidthAria: "{pixels} pixels",
   panelWidthNarrow: "Étroit",
   panelWidthDefault: "Par défaut",

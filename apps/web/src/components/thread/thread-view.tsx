@@ -1,20 +1,18 @@
 "use client";
 
-import { GripVertical, X } from "lucide-react";
+import { X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ContactPanel } from "@/components/contact-panel/contact-panel";
+import {
+  PanelOverflowMenu,
+  PanelResizeHandle,
+  usePanelWidth,
+} from "@/components/thread/panel-width";
 import { SpamSuspectedBanner } from "@/components/thread/spam-suspected-banner";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -79,47 +77,6 @@ function readPanelPref(): boolean {
     return window.localStorage.getItem(PANEL_PREF_KEY) === "true";
   } catch {
     return false;
-  }
-}
-
-// Persisted contact-panel width (drag the panel's left edge or use the controls
-// below it). Clamped so the thread column (min-w-0) is never crushed even at a
-// 1280px viewport.
-const PANEL_WIDTH_KEY = "loonext:contact-panel-width";
-const PANEL_MIN_WIDTH = 260;
-const PANEL_MAX_WIDTH = 560;
-const PANEL_DEFAULT_WIDTH = 300;
-const PANEL_WIDTH_NUDGE = 16;
-const PANEL_WIDTH_BIG_NUDGE = 64;
-/** #723: the one-click widths behind the border's grip, WCAG 2.5.7's no-drag path. */
-const PANEL_WIDTH_PRESETS = [
-  { width: PANEL_MIN_WIDTH, labelKey: "thread.panelWidthNarrow" },
-  { width: PANEL_DEFAULT_WIDTH, labelKey: "thread.panelWidthDefault" },
-  { width: 440, labelKey: "thread.panelWidthWide" },
-] as const;
-
-function clampPanelWidth(px: number): number {
-  // Persist whole CSS pixels so drag, range and button changes all share one
-  // stable value and the endpoint disabled states cannot hover between values.
-  return Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, Math.round(px)));
-}
-
-function readPanelWidth(): number {
-  if (typeof window === "undefined") return PANEL_DEFAULT_WIDTH;
-  try {
-    const raw = window.localStorage.getItem(PANEL_WIDTH_KEY);
-    const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
-    return Number.isFinite(parsed) ? clampPanelWidth(parsed) : PANEL_DEFAULT_WIDTH;
-  } catch {
-    return PANEL_DEFAULT_WIDTH;
-  }
-}
-
-function persistPanelWidth(px: number): void {
-  try {
-    window.localStorage.setItem(PANEL_WIDTH_KEY, String(px));
-  } catch {
-    /* preference only — losing it is harmless. */
   }
 }
 
@@ -255,17 +212,12 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   // Panel width starts at the default (so server + first client paint agree),
   // then adopts the stored value on mount — avoids a hydration mismatch on the
   // inline style. A ref mirrors it so the drag handler reads the live width.
-  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
-  useEffect(() => {
-    setPanelWidth(readPanelWidth());
-  }, []);
-  const panelWidthRef = useRef(panelWidth);
-  panelWidthRef.current = panelWidth;
-  const setAndPersistPanelWidth = useCallback((width: number) => {
-    const next = clampPanelWidth(width);
-    setPanelWidth(next);
-    persistPanelWidth(next);
-  }, []);
+  const {
+    width: panelWidth,
+    widthRef: panelWidthRef,
+    resize: resizePanel,
+    commit: setAndPersistPanelWidth,
+  } = usePanelWidth();
   // §5.2: the attachments gallery has ONE entry point (the thread-header
   // overflow); the context panel's "View all attachments" row opens this same
   // surface. State lives here so both entry points share it.
@@ -290,30 +242,6 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
       setMobilePanelOpen(true);
     }
   };
-
-  // Drag the panel's LEFT edge to resize; the final width persists on release.
-  const startResize = useCallback((event: React.PointerEvent) => {
-    event.preventDefault();
-    const startX = event.clientX;
-    const startWidth = panelWidthRef.current;
-    let latest = startWidth;
-    const onMove = (moveEvent: PointerEvent) => {
-      // The handle sits on the left edge, so dragging left (clientX ↓) widens.
-      latest = clampPanelWidth(startWidth + (startX - moveEvent.clientX));
-      setPanelWidth(latest);
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      persistPanelWidth(latest);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  }, []);
 
   // Opening a thread marks it read immediately (G4); re-mark as messages
   // arrive while viewing — inbound, a teammate's reply/note, or your own send
@@ -501,83 +429,30 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           style={{ width: panelWidth }}
           className="relative hidden shrink-0 border-l border-app-line bg-app-paper xl:flex xl:flex-col"
         >
-          {/* Left-edge resize handle. Drag to resize (persisted); double-click
-              resets to the default; arrows step, Shift steps further, Home and
-              End jump to the limits. The grip below is the click path. */}
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={t("thread.resizePanelAria")}
-            // A focusable, arrow-key-operable separator behaves like a slider —
-            // expose its current/min/max width so screen readers announce it.
-            aria-valuenow={Math.round(panelWidth)}
-            aria-valuemin={PANEL_MIN_WIDTH}
-            aria-valuemax={PANEL_MAX_WIDTH}
-            aria-valuetext={t("thread.panelWidthAria", {
-              pixels: Math.round(panelWidth),
-            })}
-            tabIndex={0}
-            onPointerDown={startResize}
-            onDoubleClick={() => setAndPersistPanelWidth(PANEL_DEFAULT_WIDTH)}
-            onKeyDown={(event) => {
-              const step = event.shiftKey ? PANEL_WIDTH_BIG_NUDGE : PANEL_WIDTH_NUDGE;
-              // The handle is the panel's left edge, so left widens.
-              const target =
-                event.key === "ArrowLeft"
-                  ? panelWidth + step
-                  : event.key === "ArrowRight"
-                    ? panelWidth - step
-                    : event.key === "Home"
-                      ? PANEL_MIN_WIDTH
-                      : event.key === "End"
-                        ? PANEL_MAX_WIDTH
-                        : null;
-              if (target === null) return;
-              event.preventDefault();
-              setAndPersistPanelWidth(target);
-            }}
-            className="absolute inset-y-0 -left-1.5 z-10 w-3 cursor-col-resize touch-none select-none transition-colors hover:bg-app-tint-line focus-visible:bg-app-olive/40 focus-visible:outline-none"
+          <PanelResizeHandle
+            width={panelWidth}
+            widthRef={panelWidthRef}
+            onResize={resizePanel}
+            onCommit={setAndPersistPanelWidth}
           />
-          {/* #723: always visible, because the people who need a way that is
-              not a drag may never hover the border. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          {/* #742: the no-drag way to pick a width lives in the panel's own
+              menu, never on the grip. The task drawer's close sits beside it. */}
+          <div className="flex shrink-0 items-center justify-end gap-1 px-2 pt-2">
+            <PanelOverflowMenu width={panelWidth} onCommit={setAndPersistPanelWidth} />
+            {taskId !== null && (
               <button
                 type="button"
-                aria-label={t("thread.panelWidthLabel")}
-                title={t("thread.panelWidthLabel")}
-                className="absolute top-1/2 -left-2 z-20 flex h-8 w-4 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-app-line bg-app-paper text-app-muted-2 transition-colors hover:border-app-olive hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={closeTask}
+                aria-label={t("common.close")}
+                className="tap-target grid size-8 place-items-center rounded-full text-app-muted-2 transition-colors hover:bg-app-hover hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <GripVertical className="size-3" strokeWidth={1.75} aria-hidden />
+                <X className="size-4" strokeWidth={1.75} aria-hidden />
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="left" align="center">
-              <DropdownMenuRadioGroup value={String(panelWidth)}>
-                {PANEL_WIDTH_PRESETS.map((preset) => (
-                  <DropdownMenuRadioItem
-                    key={preset.width}
-                    value={String(preset.width)}
-                    onSelect={() => setAndPersistPanelWidth(preset.width)}
-                  >
-                    {t(preset.labelKey)}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+          </div>
           <div className="min-h-0 flex-1">
             {taskId !== null ? (
               <div className="flex h-full min-h-0 flex-col">
-                <div className="flex shrink-0 justify-end px-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={closeTask}
-                    aria-label={t("common.close")}
-                    className="tap-target grid size-8 place-items-center rounded-full text-app-muted-2 transition-colors hover:bg-app-hover hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <X className="size-4" strokeWidth={1.75} aria-hidden />
-                  </button>
-                </div>
                 <div className="min-h-0 flex-1">
                   <TaskDetailPanel taskId={taskId} onClose={closeTask} />
                 </div>
