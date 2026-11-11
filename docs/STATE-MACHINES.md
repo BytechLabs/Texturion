@@ -72,6 +72,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Clients:** `apps/web/src/components/calls/ongoing-call-card.tsx`, `apps/android/app/src/main/kotlin/com/loonext/android/core/model/Calls.kt`, `apps/ios/Loonext/Core/Model/Calls.swift`. The web softphone has its own reducer, `apps/web/src/lib/softphone/state.ts` (not inventoried here).
 - **Production:** see "Production check". Eight terminal rows have no `ended_at`, one `ended_voicemail` row has outcome `missed`.
 - **Entry-only proof:** `apps/api/src/calls/transitions.test.ts`, "T14: a second inbound hangup after the call ended". Also `T1 replay guard` in the same file and the redelivered hangup in `session-do-capture.test.ts`.
+- **Recorded:** PostHog by `state_transition_call` and `state_entered_call` on `calls`. Activity: record_activity `call` or `voicemail` on the call, the conversation and the contact, written once the call ends (`record_activity_from_calls`, #714); the ring and answer steps in between are PostHog only.
 
 ### call_leg
 
@@ -79,6 +80,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Guards:** `api_claim_ring_answer` answers only a ringing ring leg when no other ring leg is answered; `api_ring_leg_failed` locks the session's ring legs and reports whether any is still live.
 - **Writers today:** `apps/api/src/messaging/live-call.ts:213,310,403,504,533` (direct updates for transfer and consult legs), `apps/api/src/calls/runtime.ts:541` (insert only), SQL `api_claim_ring_answer` in `supabase/migrations/20260712000500_calls_v2_hardening2.sql` and `api_ring_leg_failed` in `supabase/migrations/20260712000400_calls_v2_hardening.sql`.
 - **Enforced (phase 2):** `call_member_legs_transition_guard` (`supabase/migrations/20261111400000_the_remaining_machines_keep_their_lifecycles.sql`). A consult leg that was answered and then drops is marked `failed` by `live-call.ts`, so the definition has `answered -> failed`. The 125 ring legs once left `ringing` were all closed by 2026-11-11 (176 `failed`, 7 `answered`, none `ringing`).
+- **Recorded:** PostHog by `state_transition_call_leg` and `state_entered_call_leg` on `call_member_legs`. Activity: no activity row (one row per member per ring, and the call's own row carries the outcome).
 
 ### scheduled_message
 
@@ -92,6 +94,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Enforced (phase 2 done):** the trigger `scheduled_messages_transition_guard` (`supabase/migrations/20261111240000_scheduled_messages_enforce_their_lifecycle.sql`) refuses any status change outside the edges above, whoever writes it; `packages/shared/src/state-machines/enforced.test.ts` fails if the trigger and the shared definition differ. The reschedule in `apps/api/src/routes/scheduled-messages.ts` now also clears `held_reason_key`.
 - **Clients:** `apps/web/src/components/scheduled/scheduled-view.tsx`, `apps/android/app/src/main/kotlin/com/loonext/android/features/inbox/ScheduledSheet.kt`, `apps/ios/Loonext/Core/Model/Messaging.swift`. Reason texts are rostered by `packages/shared/src/scheduled-send.ts`.
 - **Entry-only proof:** `apps/api/src/messaging/scheduled-send.test.ts`, "tells people once, not every minute it stays held".
+- **Recorded:** PostHog by `state_transition_scheduled_message` and `state_entered_scheduled_message` on `scheduled_messages`. Activity: record_activity `scheduled_queued`, `scheduled_sent` and `scheduled_cancelled` on the conversation and the contact (`record_activity_from_scheduled_messages`, #714). `held`, `expired` and `failed` have no kind yet and are PostHog only.
 
 ### calendar_connection
 
@@ -104,6 +107,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Clients:** web only, `apps/web/src/components/settings/calendar-connections-card.tsx` (lines 180, 189, 198: `cleaningUp = status === "disconnected"`). Android and iOS do not render it.
 - **Flag:** four files to learn when Connect returns. `allowedActions(calendarConnectionMachine, state, role)` answers it: `connect` only at `revoked`.
 - **Entry-only proof:** `supabase/tests/calendar_sync.test.sql`, "CS-13 FAILED: delivered disclosure repeated same episode". The cleanup effects are state changes; the owner notice is the one that reaches a person.
+- **Recorded:** PostHog by `state_transition_calendar_connection` and `state_entered_calendar_connection` on `calendar_connections`. Activity: audit log `calendar.connection_status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system).
 
 ### calendar_outbox and calendar_reminder_replan
 
@@ -113,6 +117,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Writers (SQL only):** claim `api_claim_calendar_outbox` (`supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:4029`), `api_commit_calendar_outbox_created/sent/scrubbed`, `api_retry_calendar_outbox`, `api_cancel_calendar_outbox`, `api_apply_calendar_provider_snapshot`, `calendar_reconcile_number_access`, and for replans `api_claim_calendar_reminder_replans` (4918), `api_complete_calendar_reminder_replan`, `api_retry_calendar_reminder_replan`. Later versions are in `supabase/migrations/20261111140000_task_assignees_readers.sql`.
 - **Implicit machines on the same rows:** `lease_owner` + `lease_expires_at` + `lease_generation` (lease), `attempts` (retry counter, no cap in the table), `provider_effect_ambiguous` (an uncertain provider write that gates re-send).
 - **Entry-only proof:** stamps only. `completed` and `cancelled` stamp `completed_at` or `cancelled_at` under the lease, and no notice fires from these tables.
+- **Recorded:** PostHog by `state_transition_calendar_outbox` and `state_transition_calendar_reminder_replan` (plus the matching `state_entered_*`). Activity: no activity row (a queue row per calendar write or reminder re-plan, so a row per pass would be noise).
 
 ### calendar_link
 
@@ -122,6 +127,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Routes:** `apps/api/src/routes/calendar-connections.ts:632,729,771` (resolve). **Client:** web card only.
 - **Derived from the edge table, not from a single guard:** the edges above are what the SQL writes; no function checks the from-state against a table. Phase 2 adds that check.
 - **Entry-only proof:** stamps only. `conflict`, `event_removed` and `refused` cancel queued outbox rows and write the snapshots the card reads; nothing is sent and each write is guarded by the link's current state.
+- **Recorded:** PostHog by `state_transition_calendar_link` and `state_entered_calendar_link` on `task_calendar_links`. Activity: no activity row (a sync detail of the task's calendar event, which the task history already shows).
 
 ### calendar_push_subscription
 
@@ -130,6 +136,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Writers (SQL only):** `api_retry_calendar_webhook_renewal` (`supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:3322,3332`), `api_commit_calendar_webhook_revocation` (3425), `calendar_begin_connection_disconnect` (2191), `api_complete_calendar_connection` (`supabase/migrations/20261111140000_task_assignees_readers.sql:1138`).
 - **Name trap:** the table `webhook_subscriptions` is the calendar push channel. Our outbound webhooks are `webhook_deliveries`.
 - **Entry-only proof:** `supabase/tests/calendar_sync.test.sql`, "CS-13 FAILED: a stopped watch was claimed for a second stopWatch". `revoking` is the one that reaches the provider, and a revoked watch is never claimed again.
+- **Recorded:** PostHog by `state_transition_calendar_push_subscription` and `state_entered_calendar_push_subscription` on `webhook_subscriptions`. Activity: no activity row (provider watch channels renew on a timer).
 
 ### webhook_delivery
 
@@ -137,6 +144,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Guard:** `api_claim_webhook_deliveries` claims `pending` and `delivering` rows whose `next_attempt_at` has passed, with `for update skip locked` (`supabase/migrations/20260814060000_a_workspace_can_be_told_when_something_happens.sql:186`).
 - **Writers:** `apps/api/src/webhooks/outbound-deliver.ts:175,207,220,232,248` (direct updates; one owner file, not an RPC). Retry spacing is `webhookRetryDelaySeconds`; `attempts` is the counter.
 - **Delivery is at-least-once by design.** A re-claimed `delivering` row re-sends the POST.
+- **Recorded:** PostHog by `state_transition_webhook_delivery` and `state_entered_webhook_delivery` on `webhook_deliveries`. Activity: no activity row (a row per delivery attempt).
 
 ### subscription
 
@@ -145,6 +153,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Authority:** Stripe. `syncSubscription` (`apps/api/src/webhooks/stripe.ts:1109`) overwrites the column on every Stripe event, so every edge is accepted today; the definition is Stripe's lifecycle. `canceled` is written at `apps/api/src/webhooks/stripe.ts:1340`.
 - **Entry-only done right:** a portal cancellation notice fires once because the code compares against the status already held before the mirror overwrites it (`isNewCancellation`, called near `apps/api/src/webhooks/stripe.ts:1100`).
 - **Other writers of the company row's billing state:** `apps/api/src/routes/billing.ts:466,740,1032,1635,1754`, `apps/api/src/billing/prepay.ts:659`. Pause is the separate `paused_at` column (`workspace`).
+- **Recorded:** PostHog by `state_transition_subscription` and `state_entered_subscription` on `companies`. Activity: audit log `billing.subscription_status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system); the plan, pause and resume routes keep their own `billing.*` rows.
 
 ### conversation
 
@@ -154,12 +163,14 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Other writers:** `apps/api/src/messaging/spam-flag.ts:63` (closes on spam), `apps/api/src/messaging/inbound.ts:455`, `apps/api/src/messaging/off-ramp.ts:128`, `apps/api/src/messaging/auto-send.ts:171`, `apps/api/src/routes/compose.ts:330` (insert `open`).
 - **Clients:** `apps/web/src/components/inbox/filter-bar.tsx`, `apps/android/app/src/main/kotlin/com/loonext/android/core/model/Messaging.kt`, `apps/ios/Loonext/Core/Model/Messaging.swift`.
 - **Entry-only proof:** stamps only. `closed` stamps `closed_at` in the write that sets the status; nothing is sent.
+- **Recorded:** PostHog by `state_transition_conversation` and `state_entered_conversation` on `conversations`. Activity: record_activity `edited` (field `status`) from the `status_changed` conversation event the route writes (#714). A status change made by another writer (an inbound text reopening a thread) writes no event, so it is PostHog only.
 
 ### conversation_visibility (derived)
 
 - `live`, `spam` (`is_spam`), `trashed` (`deleted_at`). Trash remembers the status in `deleted_prior_status` so restore puts it back; trashing cancels the thread's scheduled texts and hides its tasks (`api_trash_conversations`, `supabase/migrations/20261110180000_trash_hides_tasks.sql:80`). Marking spam closes the thread.
 - Snooze and mute: there is no snooze column anywhere; mute is per member in `conversation_member_prefs.muted` and `muted_until`, a preference, not a lifecycle. Not modelled.
 - **Entry-only proof:** stamps only. `spam` closes the thread and `trashed` stamps `deleted_at`, cancels pending texts and hides tasks, all guarded by `deleted_at is null`; it stops sends and never makes one.
+- **Recorded:** PostHog by `state_transition_conversation_visibility` and `state_entered_conversation_visibility` on `conversations`, computed with `conversation_visibility()`. Activity: record_activity `deleted` and `restored` (`record_activity_from_conversations_trash`, #714); marking spam is the conversation event `spam_marked`.
 
 ### message
 
@@ -168,6 +179,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Writers:** `apps/api/src/messaging/status.ts:54` (`message.sent`, guarded by `.eq("status","queued")`), `apps/api/src/messaging/status.ts:128` (`message.finalized`, **keyed on `telnyx_message_id` with no from-state guard**: a late replay can regress `delivered` to `sent`), `apps/api/src/messaging/send.ts:604,854,875` (persist patch, interrupted sends), `apps/api/src/messaging/media.ts:319`.
 - **Effects (E):** PostHog outcome and the `message.failed` webhook fire only when the row read earlier differs from the final status (`apps/api/src/messaging/status.ts:150,163`). That is read-then-act, not a claim: two concurrent finalized deliveries can both read `queued`. Usage metering is idempotent through a unique key (`usage_events_message_uq`).
 - **Entry-only proof:** `apps/api/src/messaging/status.test.ts`, "a failed delivery applied twice is one outcome and one message.failed webhook". Also `sends nothing for a replay of the same final status` and `meters exactly once under duplicate finalized delivery`; a refused retry that loses the claim never reaches the carrier (`a concurrent duplicate retry loses the atomic claim` in `routes/messages.test.ts`).
+- **Recorded:** PostHog by `state_transition_message` and `state_entered_message` on `messages`. Activity: no activity row (delivery status of every text; the text is already `text_in` or `text_out` on the record).
 
 ### registration
 
@@ -177,17 +189,20 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Open question (see Unclassified):** `rejected` is terminal in the table, yet clients have a fix form (`apps/android/app/src/main/kotlin/com/loonext/android/features/settings/RegistrationFixForm.kt`).
 - **Writers:** `apps/api/src/telnyx/registration.ts:177,211,514,1832`, `apps/api/src/routes/registration.ts:155,161`.
 - **Entry-only proof:** `apps/api/src/telnyx/registration.test.ts`, "tells the owner, sends ops one notice". Approval is `a duplicate approval event neither re-assigns nor re-emails`.
+- **Recorded:** PostHog by `state_transition_registration` and `state_entered_registration` on `messaging_registrations`. Activity: audit log `registration.status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system).
 
 ### number_health
 
 - **Enforced (phase 2):** `number_health_transition_guard`.
 - **States:** `healthy`, `degraded`. `api_assess_number_health` returns only numbers whose state changed and the caller announces only those (`apps/api/src/messaging/number-health.ts`): the entry-only pattern already in place.
 - **Entry-only proof:** `supabase/tests/number_reputation.test.sql`, "re-assessing unchanged data reported". The caller announces only what `api_assess_number_health` returns.
+- **Recorded:** PostHog by `state_transition_number_health` and `state_entered_number_health` on `number_health`. Activity: no activity row (reassessed on a schedule for every number).
 
 ### payment_request
 
 - **States:** `requested`, `paid`, `cancelled`, `expired`. `paid` by `api_mark_payment_request_paid` (`supabase/migrations/20260813060000_a_business_can_be_paid_over_the_thread.sql:248`), `expired` by `expire_payment_requests` (386), `cancelled` by two direct updates (`apps/api/src/routes/payments.ts:654,957`; **bypass**, the route does not use an RPC). Refund and dispute are thread events, not statuses.
 - **Entry-only proof:** `apps/api/src/webhooks/stripe-connect.test.ts`, "writes one timeline row however many times the event is delivered". The cancel is `the same cancel applied twice writes one thread event and calls Stripe once` in `routes/payments.test.ts`.
+- **Recorded:** PostHog by `state_transition_payment_request` and `state_entered_payment_request` on `payment_requests`. Activity: audit log `payments.request_status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system) for `paid` and `expired`; `requested` and `cancelled` keep the `payments.request_sent` and `payments.request_cancelled` rows their routes write.
 
 ### phone_number
 
@@ -196,6 +211,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Writers (seven, no owner):** provisioning saga `apps/api/src/telnyx/provisioning.ts:446,545,756,917,1105,1201,1237`; remediation `apps/api/src/routes/numbers.ts:1506` (atomic re-arm guarded by `.eq("status","provision_failed")`); hosted number `apps/api/src/telnyx/text-enablement.ts:341,371`; port activation `apps/api/src/telnyx/porting.ts:867`; port-out `apps/api/src/telnyx/portout.ts:216`; billing suspension `apps/api/src/routes/billing.ts:2297` (**direct write**); SQL `claim_number_allowance` (`supabase/migrations/20260805120000_number_allowance_claim.sql:241`) and `close_out_dead_provisioning` (`supabase/migrations/20260805140000_close_out_dead_provisioning.sql:106`).
 - `provisioning.ts` funnels most writes through a generic `updateNumberRow(db, rowId, patch)`, so the status is not visible at the call site.
 - **Entry-only proof:** `apps/api/src/telnyx/portout.test.ts`, "marks the number gone, alerts ops and emails the customer once". The other entry effects are timestamp stamps.
+- **Recorded:** PostHog by `state_transition_phone_number` and `state_entered_phone_number` on `phone_numbers`. Activity: audit log `number.status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system).
 
 ### port and port_messaging
 
@@ -207,6 +223,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Clients:** `apps/web/src/components/porting/port-ui-state.ts`, `apps/ios/Loonext/Features/Settings/PortCards.swift`, Android in `apps/android/app/src/main/kotlin/com/loonext/android/features/foryou/ForYouTab.kt`.
 - **Entry-only proof:** `port`: `apps/api/src/telnyx/porting.test.ts`, "emails once when two deliveries of the same exception overlap".
 - **Entry-only proof:** `port_messaging`: `apps/api/src/telnyx/porting.test.ts`, "delivered twice sends one texting-delayed email". The `ported` side is `does not re-fire the completion email on a duplicate messaging_changed`.
+- **Recorded:** PostHog by `state_transition_port` on `port_requests` (status) and `phone_numbers` (porting_status), and `state_transition_port_messaging` on `port_requests` (plus the matching `state_entered_*`). Activity: port has audit log `port.status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system); port_messaging has no activity row (a sub-step the port row already reports).
 
 ### quote
 
@@ -215,34 +232,40 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Fixed (phase 2):** a send claims the draft with a lease (`quotes.sending_at`, `supabase/migrations/20261111250000_quotes_claim_a_send_with_a_lease.sql`) and writes `sent` only after the text has gone, so nothing returns to draft. A failed send releases the lease; a lease older than two minutes can be taken over.
 - **Gaps:** nothing writes `declined` or `expired` (expiry is folded in on read by `effectiveQuoteStatus`). Clients render `effective_status`, not `status`.
 - **Entry-only proof:** `apps/api/src/routes/quotes-send.test.ts`, "the same send applied twice texts the customer once". The acceptance is `the same acceptance applied twice tells the thread once` in `routes/quotes-public.test.ts`.
+- **Recorded:** PostHog by `state_transition_quote` and `state_entered_quote` on `quotes`. Activity: audit log `quote.status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system).
 
 ### text_enablement
 
 - **States:** `pending`, `action-required`, `in-progress`, `completed`, `failed`, `cancelled`. `mapHostedStatus` maps Telnyx's order status; unknown values keep the current state and are reported. `cancelled` is guarded by `.neq("status","cancelled")`.
 - **Writers:** `apps/api/src/telnyx/text-enablement.ts:123,283,311`, `apps/api/src/routes/text-enablement.ts:474,570` (resubmit reset, guarded against a double click), `apps/api/src/telnyx/provisioning.ts:1191` (cancel).
 - **Lease on the same rows:** `provisioning_lease_until` (claim/release, `claim_text_enablement_lease`); `attempts` is the poll budget, `resubmit_count` the lifetime resubmits.
+- **Recorded:** PostHog by `state_transition_text_enablement` and `state_entered_text_enablement` on `text_enablement_orders`. Activity: audit log `text_enablement.status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system).
 
 ### data_export
 
 - `pending -> running -> ready | failed`; `running -> running` on each resumable pass. All writes are in `apps/api/src/workspace/export.ts:198,220,309,335,354,382,400,419,437` (direct). `reaped_at` (bucket sweep) is a timestamp, not a state.
 - **Entry-only proof:** `apps/api/src/workspace/export.test.ts`, "a second run after the export is ready emails the person once".
+- **Recorded:** PostHog by `state_transition_data_export` and `state_entered_data_export` on `data_exports`. Activity: audit log `data_export.status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system).
 
 ### consent
 
 - **No trigger, by decision (phase 2):** the ledger is evidence, written by two triggers when a contact is created, and a raising guard could block creating a contact whose earlier opt-out is recorded first. The rule that matters, only the customer lifts a STOP, is enforced where sends happen (`runPreSendGates`, `opt_outs`). Production's 12 events follow the machine (2026-11-11).
 - The consent ledger: `implied`, `express`, `revoked`. Each row is the state a contact entered; the latest row wins. Revoked leaves only for `express`, and only the customer lifts a STOP (opt-out is carrier truth, gate in `runPreSendGates`). Written by `supabase/migrations/20260728002100_consent_ledger.sql` and its follow-ups; no client renders it.
 - **Entry-only proof:** stamps only. A `revoked` row only makes the pre-send gate refuse; it sends nothing, so a second one cannot reach anyone.
+- **Recorded:** PostHog by `state_entered_consent` on `contact_consent_events` (the ledger is append-only, so each row is a state entered and `from` is the contact's previous row). Activity: record_activity `opted_out` and `opted_in` from the conversation events (#714), and the `opt_out.recorded` and `opt_out.revoked` audit rows.
 
 ### geocode
 
 - **Enforced (phase 2):** `contacts_geocode_transition_guard` and `tasks_geocode_transition_guard`, on every update so a status moved by `tasks_geocode_status_sync` is checked too.
 - `pending -> ok | failed | no_address`; editing an address returns to `pending`, clearing sets `no_address`. Writers `apps/api/src/geocode/geocode-contacts.ts:158,174`, `apps/api/src/geocode/geocode-tasks.ts:128,137`, `apps/api/src/routes/contacts.ts:978`, SQL in `supabase/migrations/20260724020000_task_geocode.sql`.
+- **Recorded:** PostHog by `state_transition_geocode` and `state_entered_geocode` on `contacts` and `tasks`. Activity: no activity row (a lookup per address edit).
 
 ### billing_dispute
 
 - **Enforced (phase 2):** `billing_disputes_status_forward_only` keeps the old status on a move outside Stripe's lifecycle rather than failing the webhook. An inquiry may skip to any later status (a missed escalation event still arrives as `under_review`, `won` or `lost`), so only a backward move is refused.
 - Free text copied from Stripe through `record_billing_dispute` (`apps/api/src/billing/disputes.ts:76`). Seven Stripe statuses; losing a closed dispute revokes a prepaid year, once. No constraint, table empty on production.
 - **Entry-only proof:** `apps/api/src/billing/disputes.test.ts`, "a lost dispute delivered twice takes the prepaid year back once". The notice is `does not send the notice twice for the same dispute`.
+- **Recorded:** PostHog by `state_transition_billing_dispute` and `state_entered_billing_dispute` on `billing_disputes`. Activity: audit log `billing.dispute_status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system); `billing.disputed` already records the opening.
 
 ### task, invite, workspace (derived)
 
@@ -252,6 +275,9 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Entry-only proof:** `task`: `supabase/tests/task_history_and_comments.test.sql`, "TH-2 FAILED: a repeated done wrote". A repeated done writes nothing, so the reminders and the calendar removal it queues are not queued again.
 - **Entry-only proof:** `invite`: `apps/api/src/routes/team.test.ts`, "the same acceptance applied twice creates one membership and sends one note".
 - **Entry-only proof:** `workspace`: `apps/api/src/routes/workspace-closure.test.ts`, "the same close applied twice cancels billing and mails the receipt once". The erasure receipt is `a second sweep after the erasure sends no second receipt` in `workspace/purge.test.ts`; a second pause is refused (`refuses a workspace that is already paused` in `billing/pause.test.ts`).
+- **Recorded:** task: PostHog by `state_transition_task` and `state_entered_task` on `tasks`, and `state_transition_task_via_message` on `messages` (a task from a message is done when its message is), computed with `task_state()`. Activity: record_activity `completed`, `reopened`, `deleted` from `task_events`, and `restored` from `record_activity_from_tasks_restore` (added with `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql`).
+- **Recorded:** invite: PostHog by `state_transition_invite` and `state_entered_invite` on `invites`, computed with `invite_state()`; expiry by the clock is not a write, so it is not an event. Activity: audit log `member.invited`, `member.invite_revoked` and `member.joined` (`apps/api/src/routes/team.ts`).
+- **Recorded:** workspace: PostHog by `state_transition_workspace` and `state_entered_workspace` on `companies`, computed with `workspace_state()`. Activity: audit log `workspace.closed` (`apps/api/src/routes/workspace-closure.ts`), `billing.paused` and `billing.resumed`. A purge writes no audit row on purpose: it erases the log, and the audit triggers skip a closed workspace.
 
 ---
 
@@ -361,9 +387,9 @@ Expand and contract throughout: add the RPC beside the old write, move one write
 8. **`conversation`, `conversation_visibility`, `task`, `invite`, derived `workspace` states.** **Done (phase 2):** `supabase/migrations/20261111360000_derived_states_have_one_definition.sql` gives each derived machine one SQL function (`task_state`, `invite_state`, `workspace_state`, `conversation_visibility`), checked by `enforced.test.ts` to return exactly the machine's states, and adds the invariants an invite cannot be both accepted and revoked and a workspace is purged only once closed. Decided: `conversations.status` keeps its full mesh, because it is a workflow label a member moves freely.
 9. **`call` and `call_leg`.** The call machine is already enforced by the reducer. **Done (phase 2):** `supabase/migrations/20261111300000_a_finished_call_closes_its_rings.sql` closes every leg still ringing when its call ends, stamps an end time when a call turns terminal (with a CHECK that an ended call has one), and backfills the 125 legs, the 8 end times and the 7 legacy NULL states. The one `ended_voicemail` call with outcome `missed` is correct (the caller hung up in the greeting). `supabase/tests/call_lifecycle_cleanup.test.sql` pins both rules.
 
-**Phase 3, `allowedActions` on all three clients.** **Server and web done (this pass); phones still to do.** Every machine with actions now returns `allowed_actions` from its read route and refuses an action outside `allowedActions(machine, state, role)` on its performing route (the route's existing wrong-state error; `409 conflict` where it had none), and the web shows each button only when the record's list has it (the field absent falls back to the old role check). `packages/shared/src/state-machines/allowed-actions-roster.test.ts` maps every machine with actions to the API file that serves the field and the web file that reads it, and fails on a missing machine. Where a performing route is an RPC with its own state guard (bulk conversations, bulk tasks, trash and restore, invite revoke, scheduled-message cancel) the guard is the check and no extra read was added. Definitions corrected to match their routes: conversation moves widened to the full mesh the PATCH route accepts; call `call_back` applies to every ended state; subscription `incomplete_expired` and `active` gain `subscribe` and `update_payment_method`; registration `rejected` and port `exception` gain `edit`; port `cancel` covers the later states; text_enablement `pending` and `failed` gain `upload_documents`; data_export `download` needs `workspace.access`; actions with no REST route were removed (quote `edit`, payment_request `resend`, invite `resend`, workspace `reopen`). `call` `answer` and `hang_up` are performed by the softphone's WebRTC client, not a REST route. The conversation, task and call rows carry one merged `allowed_actions`, and the company view merges subscription and workspace actions. Kotlin and Swift still need ported tables with vectors in `packages/shared/vectors` and a roster test like `scheduled-send-parity.test.ts`. Earlier record: **Scheduled messages done on the server and web:** `GET /v1/scheduled-messages` returns `allowed_actions` per row from the shared machine and the caller's role, and the web shows Cancel only when it is allowed. **Quotes and payment requests done on the server and web:** every quote and payment request the API returns carries `allowed_actions`, and the thread strips show Send (quote) and Cancel (payment) only when the list has them. The API returns `allowed_actions` on each record it serves (computed from the shared definition and the caller's role) and validates a mutation against the same call. Web reads it directly. Kotlin and Swift get ported tables with vectors in `packages/shared/vectors` and a roster test like `scheduled-send-parity.test.ts`. Order: scheduled messages, calendar connection (the "when does Connect return" question), conversation actions, quote and payment, then numbers and ports. Verify each action's capability against the route's `requireCapability` before wiring, and drop any the route does not enforce.
+**Phase 3, `allowedActions` on all three clients.** **Server, web and both phones done.** Every machine with actions now returns `allowed_actions` from its read route and refuses an action outside `allowedActions(machine, state, role)` on its performing route (the route's existing wrong-state error; `409 conflict` where it had none), and the web shows each button only when the record's list has it (the field absent falls back to the old role check). `packages/shared/src/state-machines/allowed-actions-roster.test.ts` maps every machine with actions to the API file that serves the field and the web file that reads it, and fails on a missing machine. Where a performing route is an RPC with its own state guard (bulk conversations, bulk tasks, trash and restore, invite revoke, scheduled-message cancel) the guard is the check and no extra read was added. Definitions corrected to match their routes: conversation moves widened to the full mesh the PATCH route accepts; call `call_back` applies to every ended state; subscription `incomplete_expired` and `active` gain `subscribe` and `update_payment_method`; registration `rejected` and port `exception` gain `edit`; port `cancel` covers the later states; text_enablement `pending` and `failed` gain `upload_documents`; data_export `download` needs `workspace.access`; actions with no REST route were removed (quote `edit`, payment_request `resend`, invite `resend`, workspace `reopen`). `call` `answer` and `hang_up` are performed by the softphone's WebRTC client, not a REST route. The conversation, task and call rows carry one merged `allowed_actions`, and the company view merges subscription and workspace actions. The phones read the field and port no table: the server owns the list, so there is no second copy to drift. Android and iOS decode `allowed_actions` as an optional list on each record above (absent is null, and null keeps the screen's own check, so an older API or a legacy call row never hides everything), and each button, menu item or swipe on those records shows only when the list has the action: conversation close, reopen, spam and trash (inbox row menu and swipe, thread sheet and status pills), message retry (`Message.retryable`), task complete, reopen and trash (row, board, calendar, detail, checklist), call back, scheduled-message cancel, quote send, payment cancel, billing update payment, resubscribe, pause and resume, registration edit and submit, port edit, submit, fix and resubmit and cancel, text-enablement upload, resubmit and cancel, number remediate, invite revoke and export download. The local check stays alongside the list (both must allow), so no phone shows a control it did not show before. Not read on the phones: call `transfer` (the softphone acts on the live call, which carries no record list, and the live-call route checks the machine itself), conversation bulk moves (the bulk RPC is the guard), workspace `close` and `subscribe` (web only), and the calendar machines. `AllowedActionsRosterTest.kt` and `AllowedActionsRosterTests.swift` list each machine a phone renders with its model and screen file and fail when a named file lacks the field; `allowed-actions-roster.test.ts` names the same Android and iOS reader per machine (or the reason a phone has none) and holds both phone rosters to its own list. Earlier record: **Scheduled messages done on the server and web:** `GET /v1/scheduled-messages` returns `allowed_actions` per row from the shared machine and the caller's role, and the web shows Cancel only when it is allowed. **Quotes and payment requests done on the server and web:** every quote and payment request the API returns carries `allowed_actions`, and the thread strips show Send (quote) and Cancel (payment) only when the list has them. The API returns `allowed_actions` on each record it serves (computed from the shared definition and the caller's role) and validates a mutation against the same call. Web and the phones read it directly. Order: scheduled messages, calendar connection (the "when does Connect return" question), conversation actions, quote and payment, then numbers and ports. Verify each action's capability against the route's `requireCapability` before wiring, and drop any the route does not enforce.
 
-**Phase 4, observability.** The transition RPC returns `{ from, to, entered, cause }`; its caller writes one activity row through the existing audit path (#714) and one PostHog event `state_transition` with `machine`, `from`, `to`, `cause`. No new monitoring table: monitoring is PostHog only. "Why is this stuck" becomes one PostHog query on the record id, and a repeat notice shows as two events with the same `from` and `to`.
+**Phase 4, observability.** Every transition is captured in the database, so every writer (routes, webhooks, crons, RPCs, trigger cascades) is covered and none can forget. `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` adds an AFTER UPDATE trigger on each machine's state column that fires only when the state changed, and an AFTER INSERT trigger (`from` is null). Column-backed machines share one function, `state_transition_capture`; the derived ones (task, invite, workspace, conversation_visibility) and the consent ledger have one each that computes the state with the SQL function that already holds the rule. Each calls `capture_state_transition`, which reads the PostHog key from Supabase Vault (`posthog_api_key`; with no secret, as in local, CI and the rig, it returns at once) and makes one `net.http_post` through pg_net to `/capture/` with the event `state_transition`: `distinct_id` is the company id, and the properties are `machine`, `from`, `to`, `record_id`, `expected` (is the move an edge of the definition, from `state_transition_expected`, whose edge list is generated from these definitions and pinned equal by a test), `cause` (`loonext.cause`, else the PostgREST route or RPC in `request.path`, else `database`) and `environment`. The request is queued in the writer's own transaction and the capture never raises, so a failure cannot fail the business write. "Why is this stuck" is one PostHog query on the record id, a repeat notice shows as two events with the same `from` and `to`, and `expected = false` finds every move the definition does not allow, including the provider edges that are recorded and never refused. The people-facing record is separate: record_activity (#714) for contact, task, conversation and call, the audit log (#231) for workspace-level machines, and a PostHog-only `none` with a reason for the high-volume pipelines. Each machine's `Recorded:` line says which, and `packages/shared/src/state-machines/transition-records.test.ts` fails on a machine without a trigger or an activity decision. No monitoring table: monitoring is PostHog only. Proof: `supabase/tests/state_transition_capture.test.sql`.
 
 ## Unclassified
 

@@ -212,6 +212,8 @@ const SUITES = [
   "call_lifecycle_cleanup",
   // #722: a text only moves forward along the message machine.
   "message_lifecycle",
+  // #722 phase 4: every state transition is captured in the database.
+  "state_transition_capture",
 ];
 
 const args = process.argv.slice(2);
