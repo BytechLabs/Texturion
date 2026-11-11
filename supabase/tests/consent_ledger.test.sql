@@ -636,6 +636,8 @@ begin
     raise exception 'CL-14 FAILED: the row did not survive the contact detached';
   end if;
 
+  -- The purge clears the activity table before the company (purge_workspace_step).
+  delete from public.record_activity where company_id = co;
   delete from public.companies where id = co;
 
   select count(*) into n
