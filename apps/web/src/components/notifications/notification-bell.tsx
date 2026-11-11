@@ -1,5 +1,8 @@
 "use client";
 
+import { LoadError } from "@/components/ui/load-error";
+import { ListSkeleton } from "@/components/ui/list-skeleton";
+import { CountPill } from "@/components/ui/count-pill";
 import {
   AtSign,
   Bell,
@@ -19,7 +22,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type Translate } from "@/i18n/provider";
 import {
   useMarkAllNotificationsRead,
@@ -254,30 +256,14 @@ export function NotificationFeed({
       <PushOffer />
 
       {feed.isPending ? (
-        <div className="space-y-1 p-3" aria-hidden>
-          {Array.from({ length: 4 }, (_, i) => (
-            <div key={i} className="flex items-start gap-3 px-1 py-2">
-              <Skeleton className="mt-0.5 size-8 rounded-full" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-3.5 w-40" />
-                <Skeleton className="h-3 w-16" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <ListSkeleton rows={4} avatar lines={2} className="p-3" />
       ) : feed.isError ? (
-        <div className="px-6 py-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            {t("misc.notifLoadFailed")}
-          </p>
-          <button
-            type="button"
-            onClick={() => void feed.refetch()}
-            className="mt-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            {t("common.retry")}
-          </button>
-        </div>
+        <LoadError
+          variant="fill"
+          message={t("misc.notifLoadFailed")}
+          onRetry={() => void feed.refetch()}
+          className="py-10"
+        />
       ) : items.length === 0 ? (
         <div className="px-6 py-10 text-center">
           <p className="text-sm text-muted-foreground">
@@ -385,12 +371,14 @@ export function NotificationBell({
           >
             <Bell className="size-5" strokeWidth={1.75} aria-hidden />
             {count > 0 && (
-              <span
+              <CountPill
+                tone="primary"
+                size="sm"
                 aria-hidden
-                className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-4 text-primary-foreground tabular-nums"
+                className="absolute -right-0.5 -top-0.5"
               >
                 {badgeCount(count)}
-              </span>
+              </CountPill>
             )}
           </Button>
         )}

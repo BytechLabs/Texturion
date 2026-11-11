@@ -38,6 +38,8 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { MeasureCard } from "@/components/for-you/measure-card";
+import { LoadError } from "@/components/ui/load-error";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProportionRing } from "@/components/ui/proportion-ring";
 import { useT, type Translate } from "@/i18n/provider";
@@ -128,28 +130,16 @@ export function ResponseTimeCard() {
            menu, and the current window stays readable at a glance.
            *Applying: the Safety Principle — a familiar control in a
            conventional place.* */
-        <span
-          className="flex items-center gap-0.5"
-          role="group"
-          aria-label={t("inbox.responseWindowAria")}
-        >
-          {WINDOWS.map((w) => (
-            <button
-              key={w.days}
-              type="button"
-              onClick={() => setDays(w.days)}
-              aria-pressed={days === w.days}
-              className={cn(
-                "tap-target rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums transition-colors duration-150 ease-out",
-                days === w.days
-                  ? "bg-app-ink text-app-paper"
-                  : "text-app-muted-2 hover:bg-app-hover",
-              )}
-            >
-              {w.label}
-            </button>
-          ))}
-        </span>
+        <SegmentedControl
+          size="sm"
+          ariaLabel={t("inbox.responseWindowAria")}
+          value={String(days)}
+          onChange={(value) => setDays(Number(value) as ResponseTimeWindow)}
+          options={WINDOWS.map((w) => ({
+            value: String(w.days),
+            label: w.label,
+          }))}
+        />
       }
     >
       {report.isPending ? (
@@ -160,16 +150,12 @@ export function ResponseTimeCard() {
           <Skeleton className="h-4 w-48" />
         </div>
       ) : report.isError || !report.data ? (
-        <div className="px-4 py-4 text-[13px] text-app-muted-2">
-          {t("inbox.responseLoadFailed")}{" "}
-          <button
-            type="button"
-            onClick={() => report.refetch()}
-            className="underline underline-offset-2"
-          >
-            {t("common.retry")}
-          </button>
-        </div>
+        <LoadError
+          variant="inline"
+          message={t("inbox.responseLoadFailed")}
+          onRetry={() => report.refetch()}
+          className="px-4 py-4"
+        />
       ) : report.data.leads === 0 ? (
         // Not a zero. A workspace with no new leads in the window has no
         // response time, and "0 sec" would read as instant service.

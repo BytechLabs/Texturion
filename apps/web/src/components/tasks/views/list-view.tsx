@@ -1,5 +1,6 @@
 "use client";
 
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
@@ -24,7 +25,6 @@ import {
   type BulkSelection,
 } from "@/lib/inbox/bulk-selection";
 import { RecordContextMenu } from "@/components/ui/record-menu";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAllTasks, useTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
@@ -129,7 +129,7 @@ export function ListView({ state }: { state: TaskPageState }) {
     );
   }
 
-  if (isPending) return <ListSkeleton />;
+  if (isPending) return <ListSkeleton rows={6} className="py-3 px-3" />;
 
   if (isError) {
     return (
@@ -310,20 +310,5 @@ function TaskRow({
       {dialogs}
     </li>
     </RecordContextMenu>
-  );
-}
-
-function ListSkeleton() {
-  return (
-    <div className="space-y-3 py-3" aria-hidden>
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 px-3">
-          <Skeleton className="size-5 rounded-full" />
-          <Skeleton className="h-4 flex-1" />
-          <Skeleton className="hidden h-4 w-24 md:block" />
-          <Skeleton className="hidden h-4 w-16 md:block" />
-        </div>
-      ))}
-    </div>
   );
 }

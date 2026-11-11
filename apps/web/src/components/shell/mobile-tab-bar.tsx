@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
+import { CountPill } from "@/components/ui/count-pill";
 import { useT } from "@/i18n/provider";
 import { useNotificationsUnreadCount } from "@/lib/api/notifications";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -83,12 +84,13 @@ export function MobileTabBar() {
                 <span className="relative">
                   <Icon className="size-5" strokeWidth={1.75} aria-hidden />
                   {showCount && (
-                    <span
+                    <CountPill
+                      size="sm"
                       aria-hidden
-                      className="absolute -right-2 -top-1 flex min-w-3.5 items-center justify-center rounded-full bg-app-line-soft px-1 text-[9px] font-semibold leading-4 tabular-nums text-app-muted"
+                      className="absolute -right-2 -top-1"
                     >
                       {cap(count)}
-                    </span>
+                    </CountPill>
                   )}
                 </span>
               </Link>

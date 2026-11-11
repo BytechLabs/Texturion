@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { Suspense } from "react";
 
 import { InboxPane } from "@/components/inbox/inbox-pane";
-import { ListSkeleton } from "@/components/inbox/empty-states";
+import { InboxListSkeleton } from "@/components/inbox/empty-states";
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +30,7 @@ export default function InboxLayout({
           listOnly ? "flex" : "hidden",
         )}
       >
-        <Suspense fallback={<ListSkeleton />}>
+        <Suspense fallback={<InboxListSkeleton />}>
           <InboxPane />
         </Suspense>
       </section>

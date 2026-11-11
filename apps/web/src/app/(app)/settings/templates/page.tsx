@@ -1,5 +1,6 @@
 "use client";
 
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -12,7 +13,6 @@ import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { TagManagementCard } from "@/components/settings/tag-management-card";
 import { Button } from "@/components/ui/button";
 import { useActiveCompany } from "@/lib/company/provider";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useDeleteTemplate, useTemplates } from "@/lib/api/templates";
@@ -136,11 +136,12 @@ export default function TemplatesSettingsPage() {
         )}
 
         {templates.isPending ? (
-          <div className="space-y-2" aria-label={t("appShell.templatesLoading")}>
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={index} className="h-20 w-full rounded-lg" />
-            ))}
-          </div>
+          <ListSkeleton
+            rows={3}
+            lines={2}
+            label={t("appShell.templatesLoading")}
+            className="rounded-lg border bg-card p-4"
+          />
         ) : templates.isError ? (
           <LoadError onRetry={() => templates.refetch()} />
         ) : templates.data.data.length === 0 ? (

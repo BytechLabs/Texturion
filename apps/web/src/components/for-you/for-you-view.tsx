@@ -1,5 +1,6 @@
 "use client";
 
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { ArrowRight, Check, LayoutGrid, Plus, RotateCcw, Search } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -493,18 +494,7 @@ function SectionSkeleton() {
     <div>
       <Skeleton className="ml-1 mb-2 h-3 w-24" />
       <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
-        {Array.from({ length: 3 }, (_, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-3 border-b border-app-line-soft px-4 py-3 last:border-b-0"
-          >
-            <Skeleton className="size-9 rounded-full" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-3.5 w-40" />
-              <Skeleton className="h-3 w-20" />
-            </div>
-          </div>
-        ))}
+        <ListSkeleton rows={3} avatar lines={2} className="p-3" />
       </div>
     </div>
   );

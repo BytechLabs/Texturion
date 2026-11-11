@@ -1,5 +1,6 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CalendarClock, Clock } from "lucide-react";
 import { useState } from "react";
 
@@ -289,34 +290,28 @@ export function QuietHoursConfirm({
 }) {
   const t = useT();
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{t("thread.landsLateTitle")}</DialogTitle>
-          <DialogDescription>
-            {localHour === null
-              ? t("thread.quietHoursNoHour")
-              : t("thread.quietHoursAround", {
-                  hour: formatHour(localHour),
-                })}{" "}
-            {t("thread.quietHoursTail")}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            {t("thread.pickAnotherTime")}
-          </Button>
-          <Button
-            onClick={() => {
-              onOpenChange(false);
-              onConfirm();
-            }}
-          >
-            {t("thread.scheduleItAnyway")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      tone="default"
+      title={t("thread.landsLateTitle")}
+      description={
+        <>
+          {localHour === null
+            ? t("thread.quietHoursNoHour")
+            : t("thread.quietHoursAround", {
+                hour: formatHour(localHour),
+              })}{" "}
+          {t("thread.quietHoursTail")}
+        </>
+      }
+      cancelLabel={t("thread.pickAnotherTime")}
+      confirmLabel={t("thread.scheduleItAnyway")}
+      onConfirm={() => {
+        onOpenChange(false);
+        onConfirm();
+      }}
+    />
   );
 }
 

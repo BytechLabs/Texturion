@@ -1,10 +1,10 @@
 "use client";
 
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { Lock, SearchX } from "lucide-react";
 import Link from "next/link";
 import { Fragment } from "react";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useSearch } from "@/lib/api/search";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
@@ -139,14 +139,5 @@ export function SearchResults({ q }: { q: string }) {
 }
 
 function SearchSkeleton() {
-  return (
-    <div aria-hidden className="flex-1 space-y-4 p-4">
-      {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="space-y-2">
-          <Skeleton className="h-3.5 w-36" />
-          <Skeleton className="h-3 w-full" />
-        </div>
-      ))}
-    </div>
-  );
+  return <ListSkeleton rows={4} lines={2} className="flex-1 space-y-4 p-4" />;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadError } from "@/components/ui/load-error";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, X } from "lucide-react";
 import {
@@ -504,18 +505,12 @@ export function MessageList({
   // an empty thread with an error has nothing better to show.
   if (messagesQuery.isError && items.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center p-8">
-        <p className="text-sm text-muted-foreground">
-          {t("thread.conversationLoadFailed")}{" "}
-          <button
-            type="button"
-            className="font-medium text-primary underline-offset-2 hover:underline"
-            onClick={() => messagesQuery.refetch()}
-          >
-            {t("common.retry")}
-          </button>
-        </p>
-      </div>
+      <LoadError
+        variant="fill"
+        message={t("thread.conversationLoadFailed")}
+        onRetry={() => messagesQuery.refetch()}
+        className="p-8"
+      />
     );
   }
 

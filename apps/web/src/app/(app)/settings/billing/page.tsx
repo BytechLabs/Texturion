@@ -411,16 +411,11 @@ export default function BillingSettingsPage() {
                     because the badge above already says so and narrating a
                     request is not information. */}
                 {unknownNote && (
-                  <p className="text-sm text-muted-foreground">
-                    {unknownNote}{" "}
-                    <button
-                      type="button"
-                      onClick={() => void pauseQuery.refetch()}
-                      className="font-medium text-primary underline-offset-4 hover:underline"
-                    >
-                      {t("common.retry")}
-                    </button>
-                  </p>
+                  <LoadError
+                    variant="inline"
+                    message={unknownNote}
+                    onRetry={() => void pauseQuery.refetch()}
+                  />
                 )}
                 {company.data.current_period_end && (
                   <p className="text-xs text-muted-foreground">

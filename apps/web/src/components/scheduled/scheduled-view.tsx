@@ -29,6 +29,7 @@
  * visible; an edit box here would let somebody change what a customer reads
  * without seeing what they said last.
  */
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { AlertTriangle, CalendarClock, Clock, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 
@@ -40,7 +41,6 @@ import {
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { sendAtLabel } from "@/components/thread/scheduled-strip";
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { PageHeader } from "@/components/ui/page-header";
@@ -80,15 +80,7 @@ export function ScheduledView() {
 
       {scheduled.isPending ? (
         <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
-          {Array.from({ length: 3 }, (_, i) => (
-            <div
-              key={i}
-              className="space-y-2 border-b border-app-line-soft p-[11px] last:border-b-0"
-            >
-              <Skeleton className="h-3.5 w-40" />
-              <Skeleton className="h-3 w-56" />
-            </div>
-          ))}
+          <ListSkeleton rows={3} lines={2} className="p-3" />
         </div>
       ) : scheduled.isError ? (
         <EmptyState

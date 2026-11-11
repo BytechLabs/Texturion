@@ -1,12 +1,12 @@
 "use client";
 
 import { PageHeader } from "@/components/ui/page-header";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { CalendarDays, LayoutGrid, List, MapPin } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useT } from "@/i18n/provider";
-import { cn } from "@/lib/utils";
 
 import { NewTaskButton } from "./new-task";
 import { TaskFilterBar } from "./task-filter-bar";
@@ -101,72 +101,20 @@ function ViewSwitcher({
   onChange: (view: TaskView) => void;
 }) {
   const t = useT();
-  // WAI-ARIA tablist keyboard contract: Arrow/Home/End move focus AND selection
-  // with a roving tabindex (one Tab stop) — the role="tab" markup promised it
-  // but the arrows were dead.
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const currentIndex = TASK_VIEWS.findIndex((v) => v.id === view);
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const from = currentIndex === -1 ? 0 : currentIndex;
-    let next = from;
-    switch (event.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        next = (from + 1) % TASK_VIEWS.length;
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        next = (from - 1 + TASK_VIEWS.length) % TASK_VIEWS.length;
-        break;
-      case "Home":
-        next = 0;
-        break;
-      case "End":
-        next = TASK_VIEWS.length - 1;
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    onChange(TASK_VIEWS[next].id);
-    tabRefs.current[next]?.focus();
-  };
   return (
-    <div
-      role="tablist"
-      aria-label={t("tasks.viewAria")}
-      onKeyDown={onKeyDown}
-      className="flex rounded-lg bg-muted p-0.5"
-    >
-      {TASK_VIEWS.map(({ id, labelKey }, i) => {
+    <SegmentedControl
+      ariaLabel={t("tasks.viewAria")}
+      value={view}
+      onChange={onChange}
+      options={TASK_VIEWS.map(({ id, labelKey }) => {
         const Icon = VIEW_ICONS[id];
-        const selected = view === id;
-        const label = t(labelKey);
-        return (
-          <button
-            key={id}
-            ref={(el) => {
-              tabRefs.current[i] = el;
-            }}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            aria-label={label}
-            tabIndex={selected ? 0 : -1}
-            onClick={() => onChange(id)}
-            className={cn(
-              "flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1 text-[13px] font-medium transition-colors duration-150 ease-out",
-              selected
-                ? "bg-card text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Icon className="size-4" strokeWidth={1.75} aria-hidden />
-            <span className="hidden sm:inline">{label}</span>
-          </button>
-        );
+        return {
+          value: id,
+          label: t(labelKey),
+          icon: <Icon className="size-4" strokeWidth={1.75} aria-hidden />,
+        };
       })}
-    </div>
+    />
   );
 }
 

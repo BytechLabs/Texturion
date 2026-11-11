@@ -1,19 +1,12 @@
 "use client";
 
+import { LoadError } from "@/components/ui/load-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { ModuleCard } from "@/components/billing/module-card";
 import { SettingsCard } from "@/components/settings/section";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { type BillingModule, useModules, useSetModule } from "@/lib/api/billing";
@@ -119,16 +112,11 @@ export function PlanModulesCard() {
           <Skeleton className="h-16 w-full rounded-lg" />
         </div>
       ) : modules.isError ? (
-        <p className="text-sm text-muted-foreground">
-          {t("settingsMore.modulesLoadFailed")}{" "}
-          <button
-            type="button"
-            className="underline underline-offset-2"
-            onClick={() => void modules.refetch()}
-          >
-            {t("common.retry")}
-          </button>
-        </p>
+        <LoadError
+          variant="inline"
+          message={t("settingsMore.modulesLoadFailed")}
+          onRetry={() => void modules.refetch()}
+        />
       ) : (
         <div className="space-y-2">
           {visibleModules.map((mod) => (
@@ -149,27 +137,23 @@ export function PlanModulesCard() {
         </div>
       )}
 
-      <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{change?.title}</DialogTitle>
-            <DialogDescription>{change?.summary}</DialogDescription>
-          </DialogHeader>
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button disabled={setModule.isPending} onClick={confirm}>
-              {setModule.isPending ? t("common.saving") : change?.confirmLabel}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        tone="default"
+        title={change?.title}
+        description={change?.summary}
+        confirmLabel={change?.confirmLabel}
+        pendingLabel={t("common.saving")}
+        pending={setModule.isPending}
+        onConfirm={confirm}
+      >
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+      </ConfirmDialog>
     </SettingsCard>
   );
 }

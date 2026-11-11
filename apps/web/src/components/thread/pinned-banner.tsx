@@ -4,6 +4,7 @@ import { ChevronDown, Pin } from "lucide-react";
 import { useEffect, useState } from "react";
 import { mmsMediaKind } from "@loonext/shared";
 
+import { CountPill } from "@/components/ui/count-pill";
 import { useT } from "@/i18n/provider";
 import type { Message } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -121,12 +122,12 @@ export function PinnedStack({
             <span className="min-w-0 flex-1 truncate text-[13px] text-app-ink">
               {pinnedSnippet(newest)}
             </span>
-            <span
-              className="shrink-0 rounded-full bg-app-line-soft px-1.5 text-[11px] font-semibold tabular-nums text-app-muted"
+            <CountPill
+              className="shrink-0"
               aria-label={t("thread.morePinnedAria", { count: older.length })}
             >
               +{older.length}
-            </span>
+            </CountPill>
             <ChevronDown
               className={cn(
                 "size-3.5 shrink-0 text-app-muted-2 transition-transform duration-150",

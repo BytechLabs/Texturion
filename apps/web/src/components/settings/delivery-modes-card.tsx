@@ -15,10 +15,10 @@ import {
 
 import { SettingsCard } from "@/components/settings/section";
 import { Label } from "@/components/ui/label";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { sayWith, useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import type { NotificationPrefs } from "@/lib/api/types";
-import { cn } from "@/lib/utils";
 
 /**
  * #297 — how loud each kind of notification is.
@@ -129,29 +129,17 @@ export function DeliveryModesCard({
             <span className="text-[14px] text-app-ink">
               {say(CATEGORY_LABELS[category])}
             </span>
-            <span
-              className="flex items-center gap-0.5"
-              role="group"
-              aria-label={say(CATEGORY_LABELS[category])}
-            >
-              {DELIVERY_MODES.map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  disabled={saving}
-                  aria-pressed={modeOf(category) === mode}
-                  onClick={() => setMode(category, mode)}
-                  className={cn(
-                    "tap-target rounded-full px-2 py-0.5 text-[12px] font-semibold transition-colors duration-150 ease-out disabled:opacity-50",
-                    modeOf(category) === mode
-                      ? "bg-app-ink text-app-paper"
-                      : "text-app-muted-2 hover:bg-app-hover",
-                  )}
-                >
-                  {say(MODE_LABEL[mode])}
-                </button>
-              ))}
-            </span>
+            <SegmentedControl
+              size="sm"
+              ariaLabel={say(CATEGORY_LABELS[category])}
+              disabled={saving}
+              value={modeOf(category)}
+              onChange={(mode) => setMode(category, mode)}
+              options={DELIVERY_MODES.map((mode) => ({
+                value: mode,
+                label: say(MODE_LABEL[mode]),
+              }))}
+            />
           </div>
         ))}
       </div>

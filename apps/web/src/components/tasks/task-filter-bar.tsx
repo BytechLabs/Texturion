@@ -26,8 +26,8 @@ import { useTags } from "@/lib/api/tags";
 import { useMembers } from "@/lib/api/team";
 import type { TaskPriority } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
-import { cn } from "@/lib/utils";
 import { SearchField } from "@/components/ui/search-field";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 
 import { PRIORITY_PICKER, priorityLabelKey } from "./task-planning";
 import {
@@ -74,73 +74,23 @@ export function TaskFilterBar({
   // by status themselves, so Open/Done are a no-op there — show Mine | All).
   const visibleTabs = tabsForView(state.view);
   const shownTabs = TASK_TABS.filter(({ id }) => visibleTabs.includes(id));
-  // WAI-ARIA tablist keyboard contract the role promises: Arrow/Home/End move
-  // selection AND focus (roving tabindex → one Tab stop). Mirrors the inbox
-  // FilterBar so the announced `role="tab"` isn't left with dead arrow keys.
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const onTabKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const current = shownTabs.findIndex(({ id }) => id === state.tab);
-    if (current === -1) return;
-    let next = current;
-    switch (event.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        next = (current + 1) % shownTabs.length;
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        next = (current - 1 + shownTabs.length) % shownTabs.length;
-        break;
-      case "Home":
-        next = 0;
-        break;
-      case "End":
-        next = shownTabs.length - 1;
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    onChange({ ...state, tab: shownTabs[next].id });
-    tabRefs.current[next]?.focus();
-  };
   return (
     <div className="space-y-2.5">
       <TaskSearch state={state} onChange={onChange} />
       <div className="flex flex-wrap items-center gap-1.5">
-        <div
-          role="tablist"
-          aria-label={t("tasks.statusTabsAria")}
-          onKeyDown={onTabKeyDown}
-          className="flex w-full max-w-md rounded-lg bg-app-line-soft p-0.5 sm:w-auto sm:min-w-80"
-        >
-          {shownTabs.map(({ id, labelKey }, i) => {
-              const selected = state.tab === id;
-              return (
-                <button
-                  key={id}
-                  ref={(el) => {
-                    tabRefs.current[i] = el;
-                  }}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  tabIndex={selected ? 0 : -1}
-                  onClick={() => onChange({ ...state, tab: id })}
-                  className={cn(
-                    "flex min-h-11 flex-1 items-center justify-center rounded-md px-2 py-1 text-[13px] font-medium transition-colors duration-150 ease-out md:min-h-0",
-                    // T6.1: active segment is a QUIET stone pill, never petrol —
-                    // petrol is reserved for the page's primary action.
-                    selected
-                      ? "bg-app-paper text-app-ink"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {t(labelKey)}
-                </button>
-              );
-            },
-          )}
+        {/* A phone gives the tabs the whole row, so Filter and Views wrap
+            below them instead of squeezing them. */}
+        <div className="flex w-full max-w-md sm:w-auto sm:min-w-80">
+          <SegmentedControl
+            fill
+            ariaLabel={t("tasks.statusTabsAria")}
+            value={state.tab}
+            onChange={(tab) => onChange({ ...state, tab })}
+            options={shownTabs.map(({ id, labelKey }) => ({
+              value: id,
+              label: t(labelKey),
+            }))}
+          />
         </div>
         <FilterPopover state={state} onChange={onChange} />
         <SavedViewsMenu

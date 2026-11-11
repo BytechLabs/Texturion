@@ -1,5 +1,6 @@
 "use client";
 
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,7 +13,6 @@ import { LoadError } from "@/components/ui/load-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -62,11 +62,11 @@ function ContactRowMenu({
 function SkeletonRows() {
   const t = useT();
   return (
-    <div className="space-y-2 p-4" aria-label={t("contacts.loadingContacts")}>
-      {Array.from({ length: 6 }).map((_, index) => (
-        <Skeleton key={index} className="h-10 w-full" />
-      ))}
-    </div>
+    <ListSkeleton
+      rows={6}
+      label={t("contacts.loadingContacts")}
+      className="p-4"
+    />
   );
 }
 

@@ -1,19 +1,12 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useT } from "@/i18n/provider";
 import { useLeaveWorkspace } from "@/lib/api/team";
 import { ApiError } from "@/lib/api/error";
@@ -88,32 +81,18 @@ export function LeaveWorkspaceCard({ company }: { company: CompanyView }) {
         </div>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("settings.leaveWorkspaceConfirmTitle", { name: company.name })}
-            </DialogTitle>
-            <DialogDescription>
-              {t("settings.leaveWorkspaceConfirmDescription")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setOpen(false)}
-              disabled={leave.isPending}
-            >
-              {t("settings.leaveWorkspaceStay")}
-            </Button>
-            <Button onClick={confirm} disabled={leave.isPending}>
-              {leave.isPending
-                ? t("settings.leaveWorkspaceLeaving")
-                : t("settings.leaveWorkspaceAction")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        tone="default"
+        title={t("settings.leaveWorkspaceConfirmTitle", { name: company.name })}
+        description={t("settings.leaveWorkspaceConfirmDescription")}
+        cancelLabel={t("settings.leaveWorkspaceStay")}
+        confirmLabel={t("settings.leaveWorkspaceAction")}
+        pendingLabel={t("settings.leaveWorkspaceLeaving")}
+        pending={leave.isPending}
+        onConfirm={confirm}
+      />
     </SettingsCard>
   );
 }

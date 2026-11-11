@@ -1,5 +1,6 @@
 "use client";
 
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import {
   AtSign,
   Ban,
@@ -22,7 +23,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
 import { ChoiceChip } from "@/components/ui/choice-chip";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Timestamp } from "@/components/ui/timestamp";
 import { type Translate, useT } from "@/i18n/provider";
 import { flattenPages } from "@/lib/api/pagination";
@@ -161,17 +161,13 @@ export function ActivityTimeline({
   let body: React.ReactNode;
   if (activity.isPending) {
     body = (
-      <div aria-label={t("activity.loading")} className="space-y-0">
-        {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="flex items-center gap-3 p-3">
-            <Skeleton className="size-8 rounded-xl" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-3.5 w-40" />
-              <Skeleton className="h-3 w-24" />
-            </div>
-          </div>
-        ))}
-      </div>
+      <ListSkeleton
+        rows={3}
+        avatar
+        lines={2}
+        label={t("activity.loading")}
+        className="p-3"
+      />
     );
   } else if (activity.isError) {
     body = (

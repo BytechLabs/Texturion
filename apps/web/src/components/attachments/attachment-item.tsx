@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadError } from "@/components/ui/load-error";
 import {
   Download,
   FileText,
@@ -254,14 +255,12 @@ function ImageAttachmentRow({
         <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
           <ImageOff className="size-4" strokeWidth={1.75} aria-hidden />
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-        <button
-          type="button"
-          onClick={() => url.refetch()}
-          className="text-xs underline-offset-2 hover:underline"
-        >
-          {t("misc.retry")}
-        </button>
+        <LoadError
+          variant="inline"
+          message={t("misc.attachmentFileLoadFailed", { name: label })}
+          onRetry={() => url.refetch()}
+          className="min-w-0 flex-1 justify-between"
+        />
       </div>
     );
   }
@@ -351,14 +350,12 @@ function FileAttachmentRow({
         <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
           <FileText className="size-4" strokeWidth={1.75} aria-hidden />
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-        <button
-          type="button"
-          onClick={() => url.refetch()}
-          className="text-xs underline-offset-2 hover:underline"
-        >
-          {t("misc.retry")}
-        </button>
+        <LoadError
+          variant="inline"
+          message={t("misc.attachmentFileLoadFailed", { name: label })}
+          onRetry={() => url.refetch()}
+          className="min-w-0 flex-1 justify-between"
+        />
       </div>
     );
   }

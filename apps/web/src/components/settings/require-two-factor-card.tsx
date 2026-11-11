@@ -1,18 +1,10 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { SettingsCard } from "@/components/settings/section";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -146,63 +138,48 @@ export function RequireTwoFactorCard({
         )}
       </div>
 
-      <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("settingsMore.mfaConfirmTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("settingsMore.mfaConfirmBody")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <span className="text-sm font-medium">
-              {t("settingsMore.mfaGraceLabel")}
-            </span>
-            <Select value={graceDays} onValueChange={setGraceDays}>
-              <SelectTrigger className="w-full sm:w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7">
-                  {t("settingsMore.mfaGrace7")}
-                </SelectItem>
-                {/* Two weeks by default: long enough to catch somebody on
-                    holiday, short enough to still mean something. */}
-                <SelectItem value="14">
-                  {t("settingsMore.mfaGrace14")}
-                </SelectItem>
-                <SelectItem value="30">
-                  {t("settingsMore.mfaGrace30")}
-                </SelectItem>
-                <SelectItem value="0">
-                  {t("settingsMore.mfaGrace0")}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            {graceDays === "0" && (
-              <p className="text-sm text-amber-600 dark:text-amber-500">
-                {t("settingsMore.mfaGrace0Warning")}
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirming(false)}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="button"
-              disabled={setMfa.isPending}
-              onClick={() => apply(true)}
-            >
-              {t("settingsMore.mfaRequireIt")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        tone="default"
+        title={t("settingsMore.mfaConfirmTitle")}
+        description={t("settingsMore.mfaConfirmBody")}
+        confirmLabel={t("settingsMore.mfaRequireIt")}
+        pending={setMfa.isPending}
+        onConfirm={() => apply(true)}
+      >
+        <div className="space-y-1.5">
+          <span className="text-sm font-medium">
+            {t("settingsMore.mfaGraceLabel")}
+          </span>
+          <Select value={graceDays} onValueChange={setGraceDays}>
+            <SelectTrigger className="w-full sm:w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">
+                {t("settingsMore.mfaGrace7")}
+              </SelectItem>
+              {/* Two weeks by default: long enough to catch somebody on
+                  holiday, short enough to still mean something. */}
+              <SelectItem value="14">
+                {t("settingsMore.mfaGrace14")}
+              </SelectItem>
+              <SelectItem value="30">
+                {t("settingsMore.mfaGrace30")}
+              </SelectItem>
+              <SelectItem value="0">
+                {t("settingsMore.mfaGrace0")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          {graceDays === "0" && (
+            <p className="text-sm text-amber-600 dark:text-amber-500">
+              {t("settingsMore.mfaGrace0Warning")}
+            </p>
+          )}
+        </div>
+      </ConfirmDialog>
 
       {/* #537 audit: the proof the server asks for before this comes off. Never
           reached on the way on — that call is not gated. */}

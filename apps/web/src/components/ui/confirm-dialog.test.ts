@@ -30,6 +30,41 @@ const EXCEPTIONS: Record<string, string> = {
     "code entry and recovery-code steps of the 2FA enrolment wizard",
 };
 
+/**
+ * The default-tone confirms (leave a workspace, require 2FA, unmerge, claim,
+ * plan modules, US registration) are `<ConfirmDialog tone="default">` too. A
+ * footer holding a cancel-style button next to a filled one is a confirm unless
+ * the dialog has fields to fill, so these name why each is not one.
+ */
+const DEFAULT_EXCEPTIONS: Record<string, string> = {
+  "app/(app)/settings/team/page.tsx":
+    "deactivation: a reassignment picker, and a tone that depends on the member",
+  "app/(app)/settings/templates/template-dialog.tsx": "form: name and body",
+  "components/attachments/photo-markup-dialog.tsx": "editor: a drawing canvas",
+  "components/contacts/duplicate-contacts-card.tsx":
+    "merge preview: picks the survivor and shows both records",
+  "components/contacts/import-wizard.tsx": "multi-step import wizard",
+  "components/contacts/new-contact-dialog.tsx": "form: a new contact",
+  "components/contacts/phone-picker-dialog.tsx": "picker: one of a contact's numbers",
+  "components/contacts/vcard-import-dialog.tsx": "multi-step vCard import",
+  "components/ownership/handover-confirm-dialog.tsx":
+    "code entry: the footer belongs to a verification-code form",
+  "components/saved-views/saved-views-menu.tsx": "form: a view's name and sharing",
+  "components/settings/change-plan-dialog.tsx":
+    "plan change: proration notices and a prepaid-year acknowledgement",
+  "components/settings/choose-number-dialog.tsx": "picker: a business number",
+  "components/settings/number-access-dialog.tsx": "form: who may use a number",
+  "components/settings/number-hours-dialog.tsx": "form: a number's hours",
+  "components/settings/number-identity-dialog.tsx": "form: a number's name",
+  "components/settings/provision-number-dialog.tsx": "form: area code and number search",
+  "components/settings/tag-management-card.tsx": "merge picker: the tag to fold into",
+  "components/settings/two-factor-card.tsx": "enrolment wizard steps",
+  "components/settings/voice-greeting-card.tsx": "form: a phone number to call",
+  "components/tasks/task-planning-ui.tsx": "form: a repeat rule",
+  "components/thread/send-later-menu.tsx": "picker: a date and time (the quiet-hours confirm moved)",
+  "components/thread/snooze-menu.tsx": "form: a date and a note",
+};
+
 const FOOTER = /<DialogFooter\b[\s\S]*?<\/DialogFooter>/g;
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
@@ -50,6 +85,15 @@ export function handBuiltConfirm(footer: string): boolean {
   return (
     /variant="destructive"/.test(footer) &&
     /variant="(outline|ghost)"/.test(footer)
+  );
+}
+
+/** Does this footer hold a cancel-style button AND a filled default one? */
+export function handBuiltDefaultConfirm(footer: string): boolean {
+  const buttons = footer.match(/<Button\b[^>]*>/g) ?? [];
+  return (
+    buttons.some((button) => /variant="(outline|ghost)"/.test(button)) &&
+    buttons.some((button) => !/variant="(?!default")/.test(button))
   );
 }
 
@@ -92,9 +136,53 @@ describe("#733 one ConfirmDialog", () => {
     expect(stale).toEqual([]);
   });
 
+  it("recognises a hand-built default-tone confirm", () => {
+    expect(
+      handBuiltDefaultConfirm(`<DialogFooter>
+        <Button variant="outline">Cancel</Button>
+        <Button onClick={go}>Leave</Button>
+      </DialogFooter>`),
+    ).toBe(true);
+    expect(
+      handBuiltDefaultConfirm(`<DialogFooter>
+        <Button variant="ghost">Close</Button>
+      </DialogFooter>`),
+    ).toBe(false);
+    expect(
+      handBuiltDefaultConfirm(`<DialogFooter>
+        <Button variant="outline">Cancel</Button>
+        <Button variant="destructive">Delete</Button>
+      </DialogFooter>`),
+    ).toBe(false);
+  });
+
+  it("no file hand-builds a cancel + default footer", () => {
+    const offenders = files
+      .filter(({ path }) => path !== "components/ui/confirm-dialog.tsx")
+      .filter(({ path }) => !(path in DEFAULT_EXCEPTIONS))
+      .filter(({ text }) =>
+        (text.match(FOOTER) ?? []).some(handBuiltDefaultConfirm),
+      )
+      .map(({ path }) => path);
+    expect(
+      offenders,
+      'use <ConfirmDialog tone="default"> from components/ui/confirm-dialog instead',
+    ).toEqual([]);
+  });
+
+  it("every named default-tone exception still has such a footer", () => {
+    const stale = Object.keys(DEFAULT_EXCEPTIONS).filter((path) => {
+      const file = files.find((f) => f.path === path);
+      return (
+        !file || !(file.text.match(FOOTER) ?? []).some(handBuiltDefaultConfirm)
+      );
+    });
+    expect(stale).toEqual([]);
+  });
+
   it("is actually used, and the scan actually looked", () => {
     expect(files.length).toBeGreaterThan(200);
     const users = files.filter(({ text }) => text.includes("<ConfirmDialog"));
-    expect(users.length).toBeGreaterThanOrEqual(20);
+    expect(users.length).toBeGreaterThanOrEqual(30);
   });
 });

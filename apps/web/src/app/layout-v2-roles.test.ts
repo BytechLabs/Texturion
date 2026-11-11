@@ -186,9 +186,12 @@ describe("#238 APP-LAYOUT-V2 §7 roles and live regions", () => {
     // reports success forever. Asserted on the FILTERED corpus, because that
     // is what every rule above actually reads.
     expect(corpus.length).toBeGreaterThan(200);
-    // And the rules are looking at real markup rather than an empty haystack:
-    // if nothing in the app declared a tab, R-1 and R-2 would be vacuous.
-    expect(corpus.some(({ code }) => /role="tablist"/.test(code))).toBe(true);
+    // And the rules are looking at real markup rather than an empty haystack.
+    // #733: the tab-like rows are one SegmentedControl (a radiogroup, in
+    // components/ui, which this corpus skips), so R-1 and R-2 only guard a
+    // future hand-written tab set; the radio-card lists keep the group role
+    // in the corpus.
+    expect(corpus.some(({ code }) => /role="radiogroup"/.test(code))).toBe(true);
     expect(corpus.some(({ code }) => /aria-live=/.test(code))).toBe(true);
   });
 });

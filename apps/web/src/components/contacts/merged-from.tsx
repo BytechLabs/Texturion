@@ -1,18 +1,11 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Merge } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useT } from "@/i18n/provider";
 import { useUnmergeContact } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
@@ -64,42 +57,30 @@ export function MergedFrom({ contact }: { contact: ContactDetail }) {
         )}
       </div>
 
-      <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("contacts.unmergeTitle", { name })}</DialogTitle>
-            <DialogDescription>
-              {t("contacts.unmergeBody", { name })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirming(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              disabled={unmerge.isPending}
-              onClick={() =>
-                unmerge.mutate(merged.id, {
-                  onSuccess: () => {
-                    setConfirming(false);
-                    toast.success(t("contacts.unmerged", { name }));
-                  },
-                  onError: (cause) =>
-                    toast.error(
-                      cause instanceof ApiError
-                        ? cause.message
-                        : t("contacts.unmergeFailed"),
-                    ),
-                })
-              }
-            >
-              {unmerge.isPending
-                ? t("contacts.unmerging")
-                : t("contacts.unmergeConfirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        tone="default"
+        title={t("contacts.unmergeTitle", { name })}
+        description={t("contacts.unmergeBody", { name })}
+        confirmLabel={t("contacts.unmergeConfirm")}
+        pendingLabel={t("contacts.unmerging")}
+        pending={unmerge.isPending}
+        onConfirm={() =>
+          unmerge.mutate(merged.id, {
+            onSuccess: () => {
+              setConfirming(false);
+              toast.success(t("contacts.unmerged", { name }));
+            },
+            onError: (cause) =>
+              toast.error(
+                cause instanceof ApiError
+                  ? cause.message
+                  : t("contacts.unmergeFailed"),
+              ),
+          })
+        }
+      />
     </>
   );
 }

@@ -78,6 +78,7 @@ export const miscEn = {
   fileAttached: "File attached.",
   filesAttached: "{count} files attached.",
   attachmentsLoadFailed: "Couldn't load attachments.",
+  attachmentFileLoadFailed: "Couldn't load {name}.",
   attachmentsAtCap: "Up to {count} files. Remove one to add another.",
   attaching: "Attaching…",
   attachFiles: "Attach files",
@@ -429,6 +430,7 @@ export const miscFr: Translated<typeof miscEn> = {
   fileAttached: "Fichier joint.",
   filesAttached: "{count} fichiers joints.",
   attachmentsLoadFailed: "Impossible de charger les pièces jointes.",
+  attachmentFileLoadFailed: "Impossible de charger {name}.",
   attachmentsAtCap:
     "Jusqu'à {count} fichiers. Retirez-en un pour en ajouter un autre.",
   attaching: "Ajout en cours…",

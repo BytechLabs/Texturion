@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { TasksPage } from "@/components/tasks/tasks-page";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -30,11 +31,7 @@ function TasksLoading() {
         <Skeleton className="h-9 w-56" />
       </div>
       <Skeleton className="h-9 w-full max-w-md" />
-      <div className="space-y-3 pt-2" aria-hidden>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-12 w-full" />
-        ))}
-      </div>
+      <ListSkeleton rows={5} className="pt-2" />
     </div>
   );
 }

@@ -1,19 +1,12 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatMoney } from "@loonext/shared";
 import { PhoneIncoming } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { SettingsCard } from "@/components/settings/section";
 import { useT } from "@/i18n/provider";
 import {
@@ -144,71 +137,57 @@ function ReinstateDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={close}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {t("settings.heldConfirmTitle", { number: display })}
-          </DialogTitle>
-          {/* The amount and WHEN it is charged, both stated before anything is
-              pressed. The server prorates with `always_invoice`, so this lands
-              on the card today rather than surfacing on a later invoice — and a
-              charge somebody did not read first is the shape of dishonesty this
-              whole issue exists to prevent. *Applying: Ethical Friction.* */}
-          <DialogDescription>
-            {t("settings.heldConfirmBody", {
-              price: priceLabel,
-              number: display,
-            })}
-          </DialogDescription>
-        </DialogHeader>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => close(false)}>
-            {t("settings.neverMind")}
-          </Button>
-          <Button
-            disabled={reinstate.isPending}
-            onClick={() => {
-              setError(null);
-              reinstate.mutate(
-                { numberId: number.id, idempotencyKey: idempotencyKey() },
-                {
-                  onSuccess: (result) => {
-                    close(false);
-                    onDone();
-                    toast.success(
-                      // `already_active` is a double-press or an upgrade that
-                      // reinstated it while this dialog sat open. Not an error,
-                      // and emphatically not a second charge — so it gets the
-                      // same happy ending, worded so nobody goes looking for a
-                      // charge that never happened.
-                      result.already_active
-                        ? t("settings.heldAlreadyBack", { number: display })
-                        : t("settings.heldIsBack", { number: display }),
-                    );
-                  },
-                  onError: (cause) =>
-                    setError(
-                      cause instanceof ApiError
-                        ? cause.message
-                        : t("settings.heldReinstateFailed"),
-                    ),
-                },
+    <ConfirmDialog
+      open={open}
+      onOpenChange={close}
+      tone="default"
+      title={t("settings.heldConfirmTitle", { number: display })}
+      // The amount and WHEN it is charged, both stated before anything is
+      // pressed: a charge somebody did not read first is the shape of
+      // dishonesty this whole issue exists to prevent.
+      description={t("settings.heldConfirmBody", {
+        price: priceLabel,
+        number: display,
+      })}
+      cancelLabel={t("settings.neverMind")}
+      confirmLabel={t("settings.heldAddFor", { price: priceLabel })}
+      pendingLabel={t("settings.heldBringingBack")}
+      pending={reinstate.isPending}
+      onConfirm={() => {
+        setError(null);
+        reinstate.mutate(
+          { numberId: number.id, idempotencyKey: idempotencyKey() },
+          {
+            onSuccess: (result) => {
+              close(false);
+              onDone();
+              toast.success(
+                // `already_active` is a double-press or an upgrade that
+                // reinstated it while this dialog sat open. Not an error,
+                // and emphatically not a second charge — so it gets the
+                // same happy ending, worded so nobody goes looking for a
+                // charge that never happened.
+                result.already_active
+                  ? t("settings.heldAlreadyBack", { number: display })
+                  : t("settings.heldIsBack", { number: display }),
               );
-            }}
-          >
-            {reinstate.isPending
-              ? t("settings.heldBringingBack")
-              : t("settings.heldAddFor", { price: priceLabel })}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            },
+            onError: (cause) =>
+              setError(
+                cause instanceof ApiError
+                  ? cause.message
+                  : t("settings.heldReinstateFailed"),
+              ),
+          },
+        );
+      }}
+    >
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </ConfirmDialog>
   );
 }
 

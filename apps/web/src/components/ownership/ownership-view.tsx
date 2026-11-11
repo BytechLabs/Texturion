@@ -1,5 +1,6 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   handoverPromptCancelLabel,
   handoverPromptHeadline,
@@ -14,14 +15,6 @@ import { toast } from "sonner";
 import { SettingsCard } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
@@ -196,38 +189,20 @@ export function OwnershipView() {
           consequences in writing. Accepting does not — by then the owner has
           already been told, has already had their week, and a second dialog
           would only be ceremony. */}
-      <Dialog open={confirmingClaim} onOpenChange={setConfirmingClaim}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("misc.ownershipAskTitle", { workspace })}
-            </DialogTitle>
-            <DialogDescription>{t("misc.ownershipAskBody")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmingClaim(false)}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="button"
-              disabled={act.isPending}
-              onClick={() =>
-                run(
-                  { action: "claim" },
-                  t("misc.ownershipClaimAsked"),
-                  () => setConfirmingClaim(false),
-                )
-              }
-            >
-              {t("misc.ownershipAskAction")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmingClaim}
+        onOpenChange={setConfirmingClaim}
+        tone="default"
+        title={t("misc.ownershipAskTitle", { workspace })}
+        description={t("misc.ownershipAskBody")}
+        confirmLabel={t("misc.ownershipAskAction")}
+        pending={act.isPending}
+        onConfirm={() =>
+          run({ action: "claim" }, t("misc.ownershipClaimAsked"), () =>
+            setConfirmingClaim(false),
+          )
+        }
+      />
     </div>
   );
 }

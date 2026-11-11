@@ -1,5 +1,6 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   ChevronDown,
   FileText,
@@ -82,14 +83,6 @@ import {
   WRAP_UP_MAX_SECONDS,
 } from "@/lib/api/wrap-up-transcript";
 import { AiOrb } from "@/components/ui/ai-orb";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   duplicateReplyPrompt,
   duplicateReplyWarning,
@@ -1823,45 +1816,39 @@ export function Composer({
           everyone, which is right for "never miss a lead". So the fix is a
           pause at the moment the mistake becomes irreversible, not a lock.
           *Applying: Ethical Friction.* */}
-      <Dialog open={confirmCollision} onOpenChange={setConfirmCollision}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("thread.alreadyAnsweredTitle")}</DialogTitle>
-            <DialogDescription>
-              {duplicateReplyPrompt(
-                collision.byUserId
-                  ? members.data?.data.find(
-                      (m) => m.user_id === collision.byUserId,
-                    )?.display_name ?? t("thread.aTeammate")
-                  : null,
-                newestOutbound
-                  ? Math.max(
-                      0,
-                      Math.round(
-                        (Date.now() - Date.parse(newestOutbound.created_at)) / 1000,
-                      ),
-                    )
-                  : 0,
-                t,
-              )}{" "}
-              {t("thread.sendYoursAsWell")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmCollision(false)}>
-              {t("thread.letMeLook")}
-            </Button>
-            <Button
-              onClick={() => {
-                setConfirmCollision(false);
-                void doSend();
-              }}
-            >
-              {t("thread.sendAnyway")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmCollision}
+        onOpenChange={setConfirmCollision}
+        tone="default"
+        title={t("thread.alreadyAnsweredTitle")}
+        description={
+          <>
+          {duplicateReplyPrompt(
+                  collision.byUserId
+                    ? members.data?.data.find(
+                        (m) => m.user_id === collision.byUserId,
+                      )?.display_name ?? t("thread.aTeammate")
+                    : null,
+                  newestOutbound
+                    ? Math.max(
+                        0,
+                        Math.round(
+                          (Date.now() - Date.parse(newestOutbound.created_at)) / 1000,
+                        ),
+                      )
+                    : 0,
+                  t,
+                )}{" "}
+                {t("thread.sendYoursAsWell")}
+          </>
+        }
+        cancelLabel={t("thread.letMeLook")}
+        confirmLabel={t("thread.sendAnyway")}
+        onConfirm={() => {
+          setConfirmCollision(false);
+          void doSend();
+        }}
+      />
 
       {/* #233: both owned here, outside the dropdown. See the state block. */}
       <SendLaterDialog

@@ -1,5 +1,6 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { billingCurrencyOf } from "@loonext/shared";
 import { Check, CircleDashed, PauseCircle } from "lucide-react";
 import { useRef, useState } from "react";
@@ -20,14 +21,6 @@ import {
   usRegistrationTiming,
 } from "@/components/settings/us-registration-timing";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -267,75 +260,61 @@ function EnableUsCard({ company }: { company: CompanyView }) {
           <Button onClick={() => setConfirming(true)}>
             {t("settingsMore.regEnableUsAction", { fee })}
           </Button>
-          <Dialog open={confirming} onOpenChange={setConfirming}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
-                  {t("settingsMore.regEnableUsConfirmTitle")}
-                </DialogTitle>
-                {/* The terms every reader gets. `tail` is null while the pause
-                    is unread — the sentence it would otherwise add ("we email
-                    you when it's live") is the one a pause makes misleading, so
-                    it is withheld rather than guessed at. */}
-                <DialogDescription>
-                  {usRegistrationTerms(currency, t)}
-                  {tail ? ` ${tail}` : ""}
-                </DialogDescription>
-              </DialogHeader>
-              {/* #525: three facts as three lines. Only the last one changes an
-                  expectation, and a clause buried at the end of a long
-                  paragraph is the clause that gets skimmed past — at the moment
-                  somebody is agreeing to a charge. *Applying: Chunking.* */}
-              {timing === "paused" && (
-                <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3">
-                  <PauseCircle
-                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                    strokeWidth={1.75}
-                    aria-hidden
-                  />
-                  <ul className="space-y-2">
-                    {usRegistrationPausedTerms(currency, t).map((line) => (
-                      <li key={line} className="text-sm text-muted-foreground">
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {error && (
-                <p role="alert" className="text-sm text-destructive">
-                  {error}
-                </p>
-              )}
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setConfirming(false)}>
-                  {t("settingsMore.regNotNow")}
-                </Button>
-                <Button
-                  disabled={enable.isPending}
-                  onClick={() => {
-                    setError(null);
-                    enable.mutate(undefined, {
-                      onSuccess: () => {
-                        setConfirming(false);
-                        toast.success(usRegistrationStarted(timing, t));
-                      },
-                      onError: (cause) =>
-                        setError(
-                          cause instanceof ApiError
-                            ? cause.message
-                            : t("settingsMore.regEnableUsFailed"),
-                        ),
-                    });
-                  }}
-                >
-                  {enable.isPending
-                    ? t("settingsMore.regStarting")
-                    : t("settingsMore.regEnableUs")}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <ConfirmDialog
+            open={confirming}
+            onOpenChange={setConfirming}
+            tone="default"
+            title={t("settingsMore.regEnableUsConfirmTitle")}
+            // The terms every reader gets. `tail` is null while the pause is
+            // unread: the sentence it would add ("we email you when it's live")
+            // is the one a pause makes misleading, so it is withheld.
+            description={`${usRegistrationTerms(currency, t)}${tail ? ` ${tail}` : ""}`}
+            cancelLabel={t("settingsMore.regNotNow")}
+            confirmLabel={t("settingsMore.regEnableUs")}
+            pendingLabel={t("settingsMore.regStarting")}
+            pending={enable.isPending}
+            onConfirm={() => {
+              setError(null);
+              enable.mutate(undefined, {
+                onSuccess: () => {
+                  setConfirming(false);
+                  toast.success(usRegistrationStarted(timing, t));
+                },
+                onError: (cause) =>
+                  setError(
+                    cause instanceof ApiError
+                      ? cause.message
+                      : t("settingsMore.regEnableUsFailed"),
+                  ),
+              });
+            }}
+          >
+          {/* #525: three facts as three lines. Only the last one changes an
+              expectation, and a clause buried at the end of a long
+              paragraph is the clause that gets skimmed past — at the moment
+              somebody is agreeing to a charge. *Applying: Chunking.* */}
+          {timing === "paused" && (
+            <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3">
+              <PauseCircle
+                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              <ul className="space-y-2">
+                {usRegistrationPausedTerms(currency, t).map((line) => (
+                  <li key={line} className="text-sm text-muted-foreground">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          </ConfirmDialog>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">

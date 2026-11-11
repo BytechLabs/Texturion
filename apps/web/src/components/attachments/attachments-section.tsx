@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadError } from "@/components/ui/load-error";
 import { Loader2, Paperclip } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -145,16 +146,11 @@ export function AttachmentsSection({
       )}
 
       {list.isError && (
-        <p className="text-[13px] text-muted-foreground">
-          {t("misc.attachmentsLoadFailed")}{" "}
-          <button
-            type="button"
-            onClick={() => list.refetch()}
-            className="underline-offset-2 hover:underline"
-          >
-            {t("misc.retry")}
-          </button>
-        </p>
+        <LoadError
+          variant="inline"
+          message={t("misc.attachmentsLoadFailed")}
+          onRetry={() => list.refetch()}
+        />
       )}
 
       {atCap ? (

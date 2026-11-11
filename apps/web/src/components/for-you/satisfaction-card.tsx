@@ -33,6 +33,8 @@ import { useState } from "react";
 
 import { MeasureCard } from "@/components/for-you/measure-card";
 import { ProportionRing } from "@/components/ui/proportion-ring";
+import { LoadError } from "@/components/ui/load-error";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type Translate } from "@/i18n/provider";
 import {
@@ -113,28 +115,16 @@ export function SatisfactionCard() {
         /* The same control, in the same place, as the card above it.
            *Applying: the Safety Principle — two panels on one surface that
            take the same input must take it the same way.* */
-        <span
-          className="flex items-center gap-0.5"
-          role="group"
-          aria-label={t("inbox.responseWindowAria")}
-        >
-          {WINDOWS.map((w) => (
-            <button
-              key={w.days}
-              type="button"
-              onClick={() => setDays(w.days)}
-              aria-pressed={days === w.days}
-              className={cn(
-                "tap-target rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums transition-colors duration-150 ease-out",
-                days === w.days
-                  ? "bg-app-ink text-app-paper"
-                  : "text-app-muted-2 hover:bg-app-hover",
-              )}
-            >
-              {w.label}
-            </button>
-          ))}
-        </span>
+        <SegmentedControl
+          size="sm"
+          ariaLabel={t("inbox.responseWindowAria")}
+          value={String(days)}
+          onChange={(value) => setDays(Number(value) as ResponseTimeWindow)}
+          options={WINDOWS.map((w) => ({
+            value: String(w.days),
+            label: w.label,
+          }))}
+        />
       }
     >
       {report.isPending ? (
@@ -143,16 +133,12 @@ export function SatisfactionCard() {
           <Skeleton className="h-4 w-48" />
         </div>
       ) : report.isError || !report.data ? (
-        <div className="px-4 py-4 text-[13px] text-app-muted-2">
-          {t("inbox.satisfactionLoadFailed")}{" "}
-          <button
-            type="button"
-            onClick={() => report.refetch()}
-            className="underline underline-offset-2"
-          >
-            {t("common.retry")}
-          </button>
-        </div>
+        <LoadError
+          variant="inline"
+          message={t("inbox.satisfactionLoadFailed")}
+          onRetry={() => report.refetch()}
+          className="px-4 py-4"
+        />
       ) : report.data.average === null ? (
         // No number, and the reason. Note the poor count still shows if there
         // is one: two answers is too thin to average but not too thin to act

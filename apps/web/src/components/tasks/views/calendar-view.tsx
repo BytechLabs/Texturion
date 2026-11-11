@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { LoadError } from "@/components/ui/load-error";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
 import {
@@ -159,22 +160,15 @@ export function CalendarView({ state }: { state: TaskPageState }) {
             {t("tasks.today")}
           </Button>
         </div>
-        <div role="group" aria-label={t("tasks.calendarRangeAria")} className="flex rounded-lg bg-muted p-0.5">
-          {(["month", "week"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              aria-pressed={mode === m}
-              onClick={() => setMode(m)}
-              className={cn(
-                "rounded-md px-3 py-1 text-[13px] font-medium capitalize transition-colors duration-150 ease-out",
-                mode === m ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t(RANGE_KEYS[m])}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel={t("tasks.calendarRangeAria")}
+          value={mode}
+          onChange={setMode}
+          options={(["month", "week"] as const).map((m) => ({
+            value: m,
+            label: t(RANGE_KEYS[m]),
+          }))}
+        />
       </header>
 
       <div className="overflow-x-auto">

@@ -1,5 +1,6 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ShieldAlert } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -7,14 +8,6 @@ import { toast } from "sonner";
 import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -338,59 +331,39 @@ export function OwnershipCard({ members }: { members: Member[] }) {
       {/* Both of these hand a business to somebody. Neither gets a one-tap
           path — the pause is the point, and the copy is what somebody needs
           to have read before they press it. */}
-      <Dialog
+      <ConfirmDialog
         open={confirming !== null}
         onOpenChange={(open) => !open && setConfirming(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {confirming === "offer"
-                ? t("settingsMore.ownershipOfferDialogTitle", {
-                    name: nameOf(offerTo),
-                  })
-                : t("settingsMore.ownershipClaimDialogTitle")}
-            </DialogTitle>
-            <DialogDescription>
-              {confirming === "offer" ? (
-                <>{t("settingsMore.ownershipOfferDialogBody")}</>
-              ) : (
-                <>{t("settingsMore.ownershipClaimDialogBody")}</>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirming(null)}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="button"
-              disabled={act.isPending}
-              onClick={() =>
-                confirming === "offer"
-                  ? run(
-                      { action: "offer", memberId: offerTo },
-                      t("settingsMore.ownershipOfferSent", {
-                        name: nameOf(offerTo),
-                      }),
-                    )
-                  : run(
-                      { action: "claim" },
-                      t("settingsMore.ownershipClaimSent"),
-                    )
-              }
-            >
-              {confirming === "offer"
-                ? t("settingsMore.ownershipOfferIt")
-                : t("settingsMore.ownershipAskToTakeOver")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        tone="default"
+        title={
+          confirming === "offer"
+            ? t("settingsMore.ownershipOfferDialogTitle", {
+                name: nameOf(offerTo),
+              })
+            : t("settingsMore.ownershipClaimDialogTitle")
+        }
+        description={
+          confirming === "offer"
+            ? t("settingsMore.ownershipOfferDialogBody")
+            : t("settingsMore.ownershipClaimDialogBody")
+        }
+        confirmLabel={
+          confirming === "offer"
+            ? t("settingsMore.ownershipOfferIt")
+            : t("settingsMore.ownershipAskToTakeOver")
+        }
+        pending={act.isPending}
+        onConfirm={() =>
+          confirming === "offer"
+            ? run(
+                { action: "offer", memberId: offerTo },
+                t("settingsMore.ownershipOfferSent", {
+                  name: nameOf(offerTo),
+                }),
+              )
+            : run({ action: "claim" }, t("settingsMore.ownershipClaimSent"))
+        }
+      />
 
       {/* #581/#7: the proof the server asks for before the business moves. A
           sibling of the dialog above so it stacks over it — the consequences the

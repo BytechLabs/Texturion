@@ -1,5 +1,6 @@
 "use client";
 
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import Link from "next/link";
 
 import { REGISTRATION_COPY } from "@/components/registration/copy";
@@ -167,29 +168,13 @@ export function ActivationEmptyState() {
 }
 
 /** Pulsing skeleton rows — first load only, never on realtime updates (G4). */
-export function ListSkeleton() {
+export function InboxListSkeleton() {
   return (
-    <div
-      aria-hidden
-      className="flex-1 space-y-1 overflow-hidden px-2.5 pb-3 pt-1.5"
-    >
-      {Array.from({ length: 7 }, (_, i) => (
-        <div
-          key={i}
-          className="flex h-24 items-start gap-[11px] rounded-app-card border border-transparent p-[11px]"
-        >
-          <Skeleton className="size-[38px] shrink-0 rounded-xl" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-3.5 w-28" />
-              <Skeleton className="h-3 w-8" />
-            </div>
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-2/3" />
-            <Skeleton className="h-4 w-20 rounded-full" />
-          </div>
-        </div>
-      ))}
-    </div>
+    <ListSkeleton
+      rows={7}
+      avatar
+      lines={2}
+      className="flex-1 overflow-hidden px-2.5 pb-3 pt-1.5"
+    />
   );
 }

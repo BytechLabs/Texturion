@@ -1,5 +1,6 @@
 "use client";
 
+import { CountPill } from "@/components/ui/count-pill";
 import { ListFilter } from "lucide-react";
 import { forwardRef } from "react";
 
@@ -46,14 +47,12 @@ export const FilterButton = forwardRef<
       {count > 0 && (
         <>
           {!compact && " "}
-          <span
-            className={cn(
-              "grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold tabular-nums text-primary-foreground",
-              compact && "absolute -right-0.5 -top-0.5",
-            )}
+          <CountPill
+            tone="primary"
+            className={cn(compact && "absolute -right-0.5 -top-0.5")}
           >
             {count}
-          </span>
+          </CountPill>
         </>
       )}
     </Button>

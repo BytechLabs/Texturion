@@ -1,5 +1,6 @@
 "use client";
 
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { Trash2, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -10,7 +11,6 @@ import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useMembers } from "@/lib/api/team";
@@ -53,11 +53,7 @@ export function TrashList() {
   if (trash.isPending) {
     return (
       <SettingsCard>
-        <div className="space-y-3 p-4">
-          <Skeleton className="h-5 w-2/3" />
-          <Skeleton className="h-5 w-1/2" />
-          <Skeleton className="h-5 w-3/5" />
-        </div>
+        <ListSkeleton rows={3} className="p-4" />
       </SettingsCard>
     );
   }

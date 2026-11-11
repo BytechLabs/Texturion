@@ -42,7 +42,7 @@ import { ConversationRow, ROW_HEIGHT } from "./conversation-row";
 import {
   ActivationEmptyState,
   FilteredEmptyState,
-  ListSkeleton,
+  InboxListSkeleton,
 } from "./empty-states";
 
 /** Vertical gap between elevated rows (mockup .rows gap). The virtualizer slot
@@ -263,7 +263,7 @@ export function ConversationList({
   }, [lastIndex, rows.length, query]);
 
   // Skeleton on FIRST load only (G4) — realtime updates never skeleton.
-  if (query.isPending) return <ListSkeleton />;
+  if (query.isPending) return <InboxListSkeleton />;
 
   // #299: DATA OUTRANKS THE ERROR CARD. React Query keeps the last successful
   // pages when a refetch fails, and this branch threw them away — so a network

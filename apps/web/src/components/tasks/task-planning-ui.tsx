@@ -1,5 +1,6 @@
 "use client";
 
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Check, Flag, Plus, Repeat, X } from "lucide-react";
 import { useState } from "react";
 
@@ -430,34 +431,18 @@ function RepeatDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
-          <div
-            role="radiogroup"
-            aria-label={t("tasks.repeat")}
-            className="grid grid-cols-2 gap-1 rounded-lg bg-app-line-soft p-0.5"
-          >
-            {(
+          <SegmentedControl
+            fill
+            ariaLabel={t("tasks.repeat")}
+            value={work.kind}
+            onChange={setKind}
+            options={(
               [
                 ["schedule", "tasks.repeatKindSchedule"],
                 ["after_done", "tasks.repeatKindAfterDone"],
               ] as const
-            ).map(([kind, key]) => (
-              <button
-                key={kind}
-                type="button"
-                role="radio"
-                aria-checked={work.kind === kind}
-                onClick={() => setKind(kind)}
-                className={cn(
-                  "min-h-11 rounded-md px-2 py-1 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9",
-                  work.kind === kind
-                    ? "bg-app-paper text-app-ink"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t(key)}
-              </button>
-            ))}
-          </div>
+            ).map(([kind, key]) => ({ value: kind, label: t(key) }))}
+          />
 
           <div className="flex items-end gap-2">
             <div className="flex w-24 flex-col gap-1.5">

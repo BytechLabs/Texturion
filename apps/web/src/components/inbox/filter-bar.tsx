@@ -26,6 +26,7 @@ import { useMembers } from "@/lib/api/team";
 import type { ConversationStatus } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
+import { CountPill } from "@/components/ui/count-pill";
 import { SearchField } from "@/components/ui/search-field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 
@@ -102,8 +103,7 @@ export function FilterBar({
               // petrol in this region is reserved for the compose action).
               badge:
                 countLabel === "" ? undefined : (
-                  <span
-                    className="grid h-4 min-w-4 place-items-center rounded-full bg-app-line-soft px-1 text-[10.5px] font-semibold tabular-nums text-app-muted"
+                  <CountPill
                     aria-label={
                       openCount > OPEN_COUNT_CAP
                         ? t("inbox.openCountOverAria", { cap: OPEN_COUNT_CAP })
@@ -111,7 +111,7 @@ export function FilterBar({
                     }
                   >
                     {countLabel}
-                  </span>
+                  </CountPill>
                 ),
             };
           })}

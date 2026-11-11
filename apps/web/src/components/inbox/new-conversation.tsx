@@ -1,5 +1,6 @@
 "use client";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { pendingIdentificationSuffix } from "@loonext/shared";
 import { ArrowLeft, FileText, Paperclip, Send, X } from "lucide-react";
 import Link from "next/link";
@@ -20,14 +21,6 @@ import {
 } from "@/components/thread/composer";
 import { TemplatePicker } from "@/components/thread/template-picker";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -841,35 +834,24 @@ export function NewConversation() {
       </div>
 
       {/* Quiet-hours confirm (G5 / SPEC §5, driven by the API's 409). */}
-      <Dialog
+      <ConfirmDialog
         open={quietHours !== null}
         onOpenChange={(open) => !open && setQuietHours(null)}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>
-              {quietHours?.localTime
-                ? t("inbox.composeQuietTitle", { time: quietHours.localTime })
-                : t("inbox.composeQuietTitleUnknown")}
-            </DialogTitle>
-            <DialogDescription>{t("inbox.composeQuietBody")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setQuietHours(null)}>
-              {t("inbox.composeQuietWait")}
-            </Button>
-            <Button
-              onClick={() => {
-                setQuietHours(null);
-                void submit(true);
-              }}
-              disabled={start.isPending}
-            >
-              {t("inbox.composeSend")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        tone="default"
+        title={
+          quietHours?.localTime
+            ? t("inbox.composeQuietTitle", { time: quietHours.localTime })
+            : t("inbox.composeQuietTitleUnknown")
+        }
+        description={t("inbox.composeQuietBody")}
+        cancelLabel={t("inbox.composeQuietWait")}
+        confirmLabel={t("inbox.composeSend")}
+        pending={start.isPending}
+        onConfirm={() => {
+          setQuietHours(null);
+          void submit(true);
+        }}
+      />
     </div>
   );
 }

@@ -27,6 +27,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { CountPill } from "@/components/ui/count-pill";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useT } from "@/i18n/provider";
 import {
   useMarkAllNotificationsRead,
@@ -216,14 +218,9 @@ export function MobileAccountSheetBody({
               />
               <span className="min-w-0 flex-1">{t("shell.notifications")}</span>
               {count > 0 && (
-                <span
-                  aria-label={t("shell.unreadCount", { count })}
-                  // The quiet STONE count of the tab bar and filter segments —
-                  // the main UI never spends teal on counts (accent budget).
-                  className="grid h-4 min-w-4 place-items-center rounded-full bg-app-line-soft px-1 text-[10.5px] font-semibold tabular-nums text-app-muted"
-                >
+                <CountPill aria-label={t("shell.unreadCount", { count })}>
                   {cap(count)}
-                </span>
+                </CountPill>
               )}
               <ChevronDown
                 className={cn(
@@ -270,34 +267,22 @@ export function MobileAccountSheetBody({
             track with the lifted white active pill (never bordered boxes). */}
         <section aria-label={t("shell.theme")}>
           <h2 className={labelClass}>{t("shell.theme")}</h2>
-          <div
-            role="radiogroup"
-            aria-label={t("shell.theme")}
-            className="flex gap-0.5 rounded-full bg-app-line-soft p-[3px] dark:bg-white/5"
-          >
-            {THEME_OPTIONS.map((option) => {
+          <SegmentedControl
+            fill
+            ariaLabel={t("shell.theme")}
+            value={theme ?? "system"}
+            onChange={setTheme}
+            options={THEME_OPTIONS.map((option) => {
               const Icon = option.icon;
-              const selected = (theme ?? "system") === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => setTheme(option.value)}
-                  className={cn(
-                    "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    selected
-                      ? "bg-app-paper font-semibold text-app-ink"
-                      : "font-medium text-app-muted hover:text-app-ink",
-                  )}
-                >
+              return {
+                value: option.value,
+                label: t(option.labelKey),
+                icon: (
                   <Icon className="size-3.5" strokeWidth={1.75} aria-hidden />
-                  {t(option.labelKey)}
-                </button>
-              );
+                ),
+              };
             })}
-          </div>
+          />
         </section>
 
         {/* Sign out — its own quiet card, separated from the everyday rows. */}

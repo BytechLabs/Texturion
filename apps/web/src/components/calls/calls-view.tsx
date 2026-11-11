@@ -12,6 +12,7 @@
  * #134/D42: calling is included on every plan, so the old module-off banner
  * is gone — there is no module state to warn about.
  */
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { isCallEndReason, isCallRouting } from "@loonext/shared";
@@ -29,7 +30,6 @@ import {
 import { SoftphoneStatus } from "@/components/calls/softphone-status";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type MessageKey } from "@/i18n/provider";
 import { useCalls, useRingMe, type CallOutcomeFilter } from "@/lib/api/calls";
 import { callEndReason, callRoutingReason } from "@/lib/format/call";
@@ -164,20 +164,7 @@ export function CallsView() {
         </h2>
         <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
           {calls.isPending ? (
-            <div className="space-y-0">
-              {Array.from({ length: 4 }, (_, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-[11px] border-b border-app-line-soft p-[11px] last:border-b-0"
-                >
-                  <Skeleton className="size-[38px] rounded-xl" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-3.5 w-36" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ListSkeleton rows={4} avatar lines={2} className="p-3" />
           ) : calls.isError ? (
             <EmptyState
               icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
