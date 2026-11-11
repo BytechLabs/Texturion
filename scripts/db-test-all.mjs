@@ -208,6 +208,8 @@ const SUITES = [
   "record_activity",
   // #725: every automated text names its automation.
   "automated_texts",
+  // #722: an ended call closes its ring legs and has an end time.
+  "call_lifecycle_cleanup",
 ];
 
 const args = process.argv.slice(2);
