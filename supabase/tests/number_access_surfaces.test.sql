@@ -372,7 +372,7 @@ begin
   if open_n < 1 then
     raise exception 'NA-3 FAILED: baseline contact timeline has no text from the hidden line';
   end if;
-  if hidden_n <> 0 then
+  if hidden_n is distinct from 0 then
     raise exception
       'NA-3 FAILED: api_record_activity showed % rows from a denied number on a contact timeline',
       hidden_n;
