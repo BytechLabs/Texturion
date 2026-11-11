@@ -30,7 +30,7 @@ export const TECHNICIAN_NAME = "QA-W Technician";
 /** Every rig number has an Ontario area code, and the seed puts every workspace on the same clock. */
 const DESTINATION_ZONE = "America/Toronto";
 /** apps/api/src/routes/calls.ts: the dialer's refusal when the number's one line is taken. */
-export const LINE_BUSY_TEXT = "This line is on another call";
+export const NUMBER_BUSY_TEXT = "This number is on another call";
 /** The web ringing chip's label for a screen reader: how call waiting shows on a page already in a call. */
 export const CALL_WAITING_TEXT = "Incoming call from";
 
@@ -718,7 +718,7 @@ export const S09: ScenarioRunner = {
     if (typeof dialsBefore !== "number") return dialsBefore;
     const busyDial = await settle(page.dial("ROBOT-2"));
     if (busyDial) return infra("browser-lane", `dialing from the busy line: ${busyDial.message}`);
-    const busyNotice = await page.waitForText(LINE_BUSY_TEXT, 10_000);
+    const busyNotice = await page.waitForText(NUMBER_BUSY_TEXT, 10_000);
     await ctx.sleep(DIAL_SETTLE_MS);
     const dialsAfter = await readDials();
     if (typeof dialsAfter !== "number") return dialsAfter;
@@ -745,7 +745,7 @@ export const S09: ScenarioRunner = {
     ctx.evidence.busy_voicemail_ms = busyMs;
     if (busyMs > BUSY_VOICEMAIL_MS) return fail("busy_voicemail_late", `the busy line answered ROBOT-2 after ${busyMs} ms, over ${BUSY_VOICEMAIL_MS}`);
     if (busyRow?.outcome !== "voicemail") return fail("busy_row_not_voicemail", `ROBOT-2's row reads ${busyRow?.outcome ?? "nothing"}`);
-    if (!busyNotice) return fail("no_busy_notice", `the owner's page never said "${LINE_BUSY_TEXT}"`);
+    if (!busyNotice) return fail("no_busy_notice", `the owner's page never said "${NUMBER_BUSY_TEXT}"`);
     if (dialsAfter > dialsBefore) return fail("dialed_while_busy", `the app dialed ${dialsAfter - dialsBefore} time(s) from a line already on a call`);
     if (selfRow?.outcome !== "voicemail") return fail("self_dial_not_voicemail", `DEV-W1's call to itself reads ${selfRow?.outcome ?? "nothing"}`);
     return pass();

@@ -13,7 +13,7 @@ import {
   consultDirection,
   ESCALATE_AFTER_MINUTES,
   hoursClosedAt,
-  LINE_BUSY_TEXT,
+  NUMBER_BUSY_TEXT,
   OWNER_RING_MS,
   RETURN_MS,
   S03,
@@ -751,7 +751,7 @@ describe("S09, busy line, second caller and self-dial", () => {
       ["ROBOT-2", "DEV-W1"],
     ]);
     expect(world.did(OWNER, "dial").map((entry) => entry.args)).toEqual([["ROBOT-2"], ["DEV-W1"]]);
-    expect(world.did(OWNER, "waitForText").map((entry) => entry.args[0])).toEqual([LINE_BUSY_TEXT]);
+    expect(world.did(OWNER, "waitForText").map((entry) => entry.args[0])).toEqual([NUMBER_BUSY_TEXT]);
     expect(world.ctx.evidence).toMatchObject({ busy_voicemail_ms: 3_500, dials_while_busy: 0 });
   });
 
@@ -1011,7 +1011,7 @@ describe("what the runners take from the rest of the repository", () => {
   });
 
   it("waits for the words the app shows", () => {
-    expect(source("apps/api/src/routes/calls.ts")).toContain(`"${LINE_BUSY_TEXT} right now."`);
+    expect(source("apps/api/src/routes/calls.ts")).toContain(`"${NUMBER_BUSY_TEXT} right now."`);
     expect(source("apps/web/src/i18n/sections/shell.ts")).toContain(`incomingCallFrom: "${CALL_WAITING_TEXT}",`);
   });
 });
