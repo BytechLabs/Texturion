@@ -25,7 +25,7 @@
  * Usage:  pnpm check:guards
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -53,6 +53,13 @@ function guardCommands() {
     ...workflow.matchAll(/^\s*run:\s*(node scripts\/([\w-]+)\.mjs(\s+--check)?)\s*$/gm),
   ]
     .filter(([, , script, checkFlag]) => script.startsWith("check-") || checkFlag)
+    .filter(([, command, script]) => {
+      // A job with its own working directory (Android's R8 check runs in
+      // apps/android, against a release build) has its own scripts folder.
+      if (existsSync(join(REPO_ROOT, "scripts", `${script}.mjs`))) return true;
+      console.log(`  (left to its own CI job, which runs it elsewhere: ${command})`);
+      return false;
+    })
     .map(([, command]) => command);
   // De-duplicated, because a script used by more than one job would otherwise
   // run twice and report twice.
