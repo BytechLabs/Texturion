@@ -419,8 +419,8 @@ describe("S28, number buy, bind and ring", () => {
 
   it("follows the row the purchase answered with, as routes/numbers.ts returns it, past any other row", async () => {
     const source = readFileSync(resolve(REPO, "apps/api/src/routes/numbers.ts"), "utf8");
-    expect(source).toContain("return c.json(sanitizeNumber(provisioned as NumberRowFull), 201);");
-    expect(source).toMatch(/function sanitizeNumber\(row: NumberRowFull\) \{\s*return \{\s*id: row\.id,/);
+    expect(source).toContain("return c.json(sanitizeNumber(provisioned as NumberRowFull, c.get(\"role\")), 201);");
+    expect(source).toMatch(/function sanitizeNumber\(row: NumberRowFull, role: MemberRole\) \{\s*return \{\s*id: row\.id,/);
 
     const world = s28World();
     const provision = world.app.provisionNumber;
