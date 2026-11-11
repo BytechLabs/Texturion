@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 
 /**
  * #566 — a voicemail transcript, and a way to get it out.
@@ -80,6 +81,8 @@ fun VoicemailTranscript(
 ) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    val copied = t("shell.transcriptCopied")
+    val copyLabel = t("shell.copyTranscript")
     Text(
         text,
         style = MaterialTheme.typography.bodySmall.copy(
@@ -91,9 +94,9 @@ fun VoicemailTranscript(
             onClick = { onRowTap?.invoke() },
             onLongClick = {
                 clipboard.setText(AnnotatedString(text))
-                Toast.makeText(context, "Transcript copied.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, copied, Toast.LENGTH_SHORT).show()
             },
-            onLongClickLabel = "Copy transcript",
+            onLongClickLabel = copyLabel,
         ),
     )
 }
