@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.28.0](https://github.com/BytechLabs/Texturion/compare/api-v0.27.0...api-v0.28.0) (2026-11-11)
+
+
+### Features
+
+* **activity:** every record shows one timeline of what happened ([a7bb477](https://github.com/BytechLabs/Texturion/commit/a7bb477c1f391c937a4abb93d46c8b5ce7f127a4))
+* **calls:** a call's page shows each step from ringing to hang-up ([b7ab8a4](https://github.com/BytechLabs/Texturion/commit/b7ab8a4943922baad255f7005112ecae70729a81))
+* **calls:** settings that end calls say how many they ended ([0976ef0](https://github.com/BytechLabs/Texturion/commit/0976ef0347fb6b9be2b521b247debb1c2b711583))
+* **tasks:** a task's source opens the thread at the exact message ([7efd27b](https://github.com/BytechLabs/Texturion/commit/7efd27bb420f9792b7a229fb0096482b03072892))
+* **web:** members arrange their own For you page without holes ([d7bcd05](https://github.com/BytechLabs/Texturion/commit/d7bcd050a8f33df59d3a7ccdd29955e55d40aacf))
+
+
+### Bug Fixes
+
+* **api:** a quote says sent only once its text has gone ([42c918d](https://github.com/BytechLabs/Texturion/commit/42c918dc28823af583d4c8c5d8ac43cbd56b5004))
+* **api:** scheduled texts refuse illegal moves and notify only on entry ([26e579a](https://github.com/BytechLabs/Texturion/commit/26e579a5be350ab0363abfc927ce9fac677d0173))
+* **messages:** a late carrier event never moves a text backwards ([f1795b1](https://github.com/BytechLabs/Texturion/commit/f1795b137b11eb4ac18750aa3cbdcc891c5b3ea6))
+* **messages:** every automated text says which automation sent it ([3a31b3d](https://github.com/BytechLabs/Texturion/commit/3a31b3df608fd1226a43bd1aa3964d91ca18d26f))
+
 ## [0.27.0](https://github.com/BytechLabs/Texturion/compare/api-v0.26.0...api-v0.27.0) (2026-11-10)
 
 

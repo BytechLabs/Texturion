@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.24.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.23.0...ios-v0.24.0) (2026-11-11)
+
+
+### Features
+
+* **mobile:** a task's source opens the thread at the exact message ([89b546a](https://github.com/BytechLabs/Texturion/commit/89b546a2f39f745279dceebf782e60a54412b4ee))
+* **mobile:** every date shows its exact time on long-press ([bd09079](https://github.com/BytechLabs/Texturion/commit/bd09079e4a64fd188b4d65cf6ff782f9467303ee))
+* **mobile:** every record on the phones shows one activity timeline ([5bb8723](https://github.com/BytechLabs/Texturion/commit/5bb87235de3391f4d98959579ec4d0f7e86e91e4))
+* **mobile:** every record opens the same menu as on the web ([80eec44](https://github.com/BytechLabs/Texturion/commit/80eec443d70441b3666373bd756eff35f18e5b78))
+* **mobile:** lists filter and save views from one row, not stacked controls ([2f61d47](https://github.com/BytechLabs/Texturion/commit/2f61d47d05da89c6632fb6e3cf0b6e4a3f3cca69))
+* **mobile:** members arrange their own For you page on the phones ([c6fb05b](https://github.com/BytechLabs/Texturion/commit/c6fb05b08ae369581641023294a6146a2798465b))
+* **mobile:** phones match the web's call page, call row and tab actions ([b416720](https://github.com/BytechLabs/Texturion/commit/b4167205619a42b38e6d5d2b9d5403af4c4b6488))
+* **mobile:** settings can be searched by what they do ([035f674](https://github.com/BytechLabs/Texturion/commit/035f674ac26d0bc08c5bb66380afbf32d93a7834))
+
+
+### Bug Fixes
+
+* **ios:** a call row's time is no longer a tiny second touch target ([5796776](https://github.com/BytechLabs/Texturion/commit/57967765b9164e4c98bd02c508314f7249070a8f))
+* **ios:** a timestamp with no locale follows the reader's language ([d8f9474](https://github.com/BytechLabs/Texturion/commit/d8f9474973198156c2e0903dc55193cbf6918c5a))
+* **ios:** settings search and timeline tests keep their key paths ([a5e678c](https://github.com/BytechLabs/Texturion/commit/a5e678cdf98c27bf5849fc7b883a19299d9d07e0))
+* **ios:** the call page's timeline links run on the main actor ([6c5f72a](https://github.com/BytechLabs/Texturion/commit/6c5f72a4432339f8d2acb49310c65dc092d88952))
+* **ios:** the inbox fixture shows the Filter button that replaced the chips ([00dc3ca](https://github.com/BytechLabs/Texturion/commit/00dc3caf71ce6cbff3d91a1c749711b8bfa6f627))
+* **ios:** the task menu edits through the task mutations it needs ([4d71004](https://github.com/BytechLabs/Texturion/commit/4d71004c59686562599fe0bd02aacf040054f130))
+* **ios:** the task timeline opens a thread on the main actor ([2624574](https://github.com/BytechLabs/Texturion/commit/2624574621fdbbdc5ecfe9678439a5188ba07340))
+* **ios:** the thread view compiles again with the lead source action ([2066a01](https://github.com/BytechLabs/Texturion/commit/2066a01aa484d95b3432018292acece5d47a2808))
+* **mobile:** an unasked source says so, and a chosen chip looks chosen ([cc97137](https://github.com/BytechLabs/Texturion/commit/cc97137db87d93387c58c5219713c45e503734af))
+
 ## [0.23.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.22.0...ios-v0.23.0) (2026-11-10)
 
 

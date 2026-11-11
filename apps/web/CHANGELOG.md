@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.28.0](https://github.com/BytechLabs/Texturion/compare/web-v0.27.0...web-v0.28.0) (2026-11-11)
+
+
+### Features
+
+* **activity:** a job moved by the calendar or a repeat says so ([fb2a45a](https://github.com/BytechLabs/Texturion/commit/fb2a45abd8bbead2eaf40cfa5a503a00235ed13d))
+* **activity:** every record shows one timeline of what happened ([a7bb477](https://github.com/BytechLabs/Texturion/commit/a7bb477c1f391c937a4abb93d46c8b5ce7f127a4))
+* **calls:** a call's page shows each step from ringing to hang-up ([b7ab8a4](https://github.com/BytechLabs/Texturion/commit/b7ab8a4943922baad255f7005112ecae70729a81))
+* **calls:** settings that end calls say how many they ended ([0976ef0](https://github.com/BytechLabs/Texturion/commit/0976ef0347fb6b9be2b521b247debb1c2b711583))
+* **tasks:** a task's source opens the thread at the exact message ([7efd27b](https://github.com/BytechLabs/Texturion/commit/7efd27bb420f9792b7a229fb0096482b03072892))
+* **web:** a call row's actions are buttons, and the row no longer jumps away ([846aa2d](https://github.com/BytechLabs/Texturion/commit/846aa2d5f8ece2662f743691cdd2ea076e035ba3))
+* **web:** empty and failed-to-load states are drawn one way ([e8b1eda](https://github.com/BytechLabs/Texturion/commit/e8b1eda256e0ac7e135c4fedc5ffede364b7cf30))
+* **web:** every destructive confirm is the same dialog ([0b4bdc9](https://github.com/BytechLabs/Texturion/commit/0b4bdc99446e0daea05e51c4007836b29b619865))
+* **web:** every page title and main action goes through one header ([d289896](https://github.com/BytechLabs/Texturion/commit/d289896fb9ad0c0e20c26b7ac12abc1716c9ed10))
+* **web:** every page's main action sits in the same place and style ([c560137](https://github.com/BytechLabs/Texturion/commit/c56013779ba0a1c6aa4faada8a842554dc4c3323))
+* **web:** every search box is the same box with a clear button ([3fabfd4](https://github.com/BytechLabs/Texturion/commit/3fabfd4af966514fa79571d57c42830802aba039))
+* **web:** every section label in the app is drawn one way ([5bb62ec](https://github.com/BytechLabs/Texturion/commit/5bb62ec8d20fe31e7125b81879bb7144acbef85b))
+* **web:** icons come in three sizes, not a pixel or two apart ([73531bb](https://github.com/BytechLabs/Texturion/commit/73531bb09332912a0b9bbc1b91534ef5e18e2933))
+* **web:** members arrange their own For you page without holes ([d7bcd05](https://github.com/BytechLabs/Texturion/commit/d7bcd050a8f33df59d3a7ccdd29955e55d40aacf))
+* **web:** right-click and long-press open the same menu as ⋯ ([5d11504](https://github.com/BytechLabs/Texturion/commit/5d11504789336f0ceaea2007d0a82b21ccdbeeff))
+* **web:** settings can be searched by what they do, here and from ⌘K ([fbd4b5e](https://github.com/BytechLabs/Texturion/commit/fbd4b5e20425ed8997544e0715a3d28f6cc84e26))
+* **web:** the inbox and calls filters share one segmented control ([73064a9](https://github.com/BytechLabs/Texturion/commit/73064a9193a50eea4ca2d1d569404d54652fd886))
+* **web:** the Trash is one click away in the sidebar ([e486c3a](https://github.com/BytechLabs/Texturion/commit/e486c3a3424417d1b88b01600e459f8f10516ed7))
+
+
+### Bug Fixes
+
+* **messages:** every automated text says which automation sent it ([3a31b3d](https://github.com/BytechLabs/Texturion/commit/3a31b3df608fd1226a43bd1aa3964d91ca18d26f))
+* **web:** an empty task tab says it is your list that is empty ([687a667](https://github.com/BytechLabs/Texturion/commit/687a6676e4b75970f4090185a23c9c2edfbaad70))
+* **web:** settings group headings no longer look like the links under them ([c63c3d5](https://github.com/BytechLabs/Texturion/commit/c63c3d5de76bfec7423e16a946bd321e619d54f3))
+* **web:** the thread menu itself checks a STOP before offering the undo ([6367f0f](https://github.com/BytechLabs/Texturion/commit/6367f0fea7152b2909de19fe826fad159cd07db3))
+
 ## [0.27.0](https://github.com/BytechLabs/Texturion/compare/web-v0.26.0...web-v0.27.0) (2026-11-10)
 
 

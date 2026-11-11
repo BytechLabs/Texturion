@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.24.0](https://github.com/BytechLabs/Texturion/compare/android-v0.23.0...android-v0.24.0) (2026-11-11)
+
+
+### Features
+
+* **mobile:** a task's source opens the thread at the exact message ([89b546a](https://github.com/BytechLabs/Texturion/commit/89b546a2f39f745279dceebf782e60a54412b4ee))
+* **mobile:** every date shows its exact time on long-press ([bd09079](https://github.com/BytechLabs/Texturion/commit/bd09079e4a64fd188b4d65cf6ff782f9467303ee))
+* **mobile:** every record on the phones shows one activity timeline ([5bb8723](https://github.com/BytechLabs/Texturion/commit/5bb87235de3391f4d98959579ec4d0f7e86e91e4))
+* **mobile:** every record opens the same menu as on the web ([80eec44](https://github.com/BytechLabs/Texturion/commit/80eec443d70441b3666373bd756eff35f18e5b78))
+* **mobile:** lists filter and save views from one row, not stacked controls ([2f61d47](https://github.com/BytechLabs/Texturion/commit/2f61d47d05da89c6632fb6e3cf0b6e4a3f3cca69))
+* **mobile:** members arrange their own For you page on the phones ([c6fb05b](https://github.com/BytechLabs/Texturion/commit/c6fb05b08ae369581641023294a6146a2798465b))
+* **mobile:** phones match the web's call page, call row and tab actions ([b416720](https://github.com/BytechLabs/Texturion/commit/b4167205619a42b38e6d5d2b9d5403af4c4b6488))
+* **mobile:** settings can be searched by what they do ([035f674](https://github.com/BytechLabs/Texturion/commit/035f674ac26d0bc08c5bb66380afbf32d93a7834))
+
+
+### Bug Fixes
+
+* **mobile:** an unasked source says so, and a chosen chip looks chosen ([cc97137](https://github.com/BytechLabs/Texturion/commit/cc97137db87d93387c58c5219713c45e503734af))
+
 ## [0.23.0](https://github.com/BytechLabs/Texturion/compare/android-v0.22.0...android-v0.23.0) (2026-11-10)
 
 
