@@ -13,15 +13,19 @@ import { calendarLinkMachine } from "./calendar-link";
 import { calendarOutboxMachine } from "./calendar-outbox";
 import { calendarPushSubscriptionMachine } from "./calendar-push-subscription";
 import { calendarReminderReplanMachine } from "./calendar-reminder-replan";
+import { conversationVisibilityMachine } from "./conversation-visibility";
 import { dataExportMachine } from "./data-export";
+import { inviteMachine } from "./invite";
 import { messageMachine } from "./message";
 import { paymentRequestMachine } from "./payment-request";
 import { phoneNumberMachine } from "./phone-number";
 import { quoteMachine } from "./quote";
 import { registrationMachine } from "./registration";
 import { scheduledMessageMachine } from "./scheduled-message";
+import { taskMachine } from "./task";
 import { textEnablementMachine } from "./text-enablement";
 import { webhookDeliveryMachine } from "./webhook-delivery";
+import { workspaceMachine } from "./workspace";
 
 const MIGRATIONS = join(__dirname, "..", "..", "..", "..", "supabase", "migrations");
 
@@ -105,5 +109,18 @@ describe("#722 enforced machines", () => {
         .sort();
       expect(edges.get(state) ?? [], state).toEqual(defined);
     }
+  });
+  it.each([
+    ["task", taskMachine, "task_state"],
+    ["invite", inviteMachine, "invite_state"],
+    ["workspace", workspaceMachine, "workspace_state"],
+    ["conversation_visibility", conversationVisibilityMachine, "conversation_visibility"],
+  ] as const)("%s: its one SQL definition returns exactly the machine's states", (_name, machine, fn) => {
+    const sql = readFileSync(join(MIGRATIONS, "20261111360000_derived_states_have_one_definition.sql"), "utf8");
+    const start = sql.indexOf(`function public.${fn}(`);
+    expect(start, `${fn} not found`).toBeGreaterThan(-1);
+    const body = sql.slice(start, sql.indexOf("$$;", sql.indexOf("$$", start) + 2));
+    const returned = [...body.matchAll(/(?:then|else) '([\w-]+)'/g)].map((m) => m[1]!).sort();
+    expect(returned).toEqual([...(machine.states as readonly string[])].sort());
   });
 });
