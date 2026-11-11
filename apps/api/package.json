@@ -23,7 +23,7 @@
     "@supabase/supabase-js": "2.119.0",
     "hono": "^4.13.16",
     "jose": "6.2.15",
-    "posthog-node": "5.61.2",
+    "posthog-node": "5.63.1",
     "stripe": "23.1.0",
     "zod": "^4.6.6"
   },
@@ -36,6 +36,6 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^4.1.12",
-    "wrangler": "^4.157.0"
+    "wrangler": "^4.158.0"
   }
 }
