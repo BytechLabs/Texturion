@@ -25,6 +25,12 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     func testCallLog() throws { try audit("calls") }
 
+    // MARK: Tasks and contacts
+
+    func testTasks() throws { try audit("tasks") }
+
+    func testContacts() throws { try audit("contacts") }
+
     func testInCallControls() throws { try audit("inCall") }
 
     func testDialer() throws { try audit("dialer") }
@@ -48,7 +54,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     /// The same screens in the dark theme, where contrast is measured against
     /// the dark palette.
     func testDarkTheme() throws {
-        for surface in ["login", "inbox", "thread", "calls", "dialer", "settings"] {
+        for surface in ["login", "inbox", "thread", "calls", "tasks", "contacts", "dialer", "settings"] {
             try audit(surface, theme: "dark")
         }
     }

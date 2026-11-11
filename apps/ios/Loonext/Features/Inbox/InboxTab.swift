@@ -1370,38 +1370,9 @@ private struct InboxList: View {
     private func listBody(_ controller: InboxController) -> some View {
         @Bindable var controller = controller
         VStack(spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                ScreenTitle(text: AppStrings.translate(appLocale, "inbox.title"))
-                Spacer(minLength: 0)
-                // #233: self-surfacing rather than buried. The whole ask is "so
-                // nobody is surprised", and a control that only appears when
-                // something IS queued does that without costing a permanent
-                // slot on the days nothing is. *Applying: Zen of Clarity.*
-                if !controller.scheduled.isEmpty {
-                    Button {
-                        scheduledSheetOpen = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "clock")
-                                .font(.footnote.weight(.medium))
-                                .foregroundStyle(BrandColor.muted500)
-                            CountPill(controller.scheduled.count)
-                        }
-                    }
-                    .accessibilityLabel(
-                        controller.scheduled.count == 1
-                            ? AppStrings.translate(appLocale, "inbox.scheduledOneAria")
-                            : AppStrings.translate(
-                                appLocale,
-                                "inbox.scheduledManyAria",
-                                ["count": String(controller.scheduled.count)]
-                            )
-                    )
-                }
+            InboxTitleRow(scheduledCount: controller.scheduled.count) {
+                scheduledSheetOpen = true
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 8)
-            .padding(.bottom, 10)
 
             searchField(controller)
                 .padding(.horizontal, 18)
@@ -1525,28 +1496,94 @@ private struct InboxList: View {
 
     private func searchField(_ controller: InboxController) -> some View {
         @Bindable var controller = controller
-        return SearchField(
-            query: $controller.query,
-            placeholder: AppStrings.translate(appLocale, "inbox.searchPlaceholder"),
-            maxLength: 200,
-            clearLabel: AppStrings.translate(appLocale, "inbox.clearSearchAria")
-        )
+        return inboxSearchField($controller.query, locale: appLocale)
     }
 
     /// Spec 20's status tabs, drawn by the shared segmented control. Same
     /// `selectTab` mutation as before.
     private func statusTabs(_ controller: InboxController) -> some View {
-        let options: [SegmentedOption<InboxStatusTab>] = InboxStatusTab.allCases.map { item in
-            SegmentedOption(item, title: item.title(appLocale))
-        }
-        return SegmentedControl(
-            options: options,
-            selected: controller.tab,
-            size: .compact,
-            fill: false
-        ) { next in
+        InboxStatusTabs(selected: controller.tab) { next in
             controller.selectTab(next)
         }
+    }
+}
+
+/// The inbox's title row: the heading and, only while something is queued, the
+/// scheduled-sends button. A view of its own so the accessibility audit draws the
+/// same row the screen does.
+private struct InboxTitleRow: View {
+    let scheduledCount: Int
+    let onOpenScheduled: @MainActor () -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            ScreenTitle(text: AppStrings.translate(appLocale, "inbox.title"))
+            Spacer(minLength: 0)
+            // #233: self-surfacing rather than buried. The whole ask is "so
+            // nobody is surprised", and a control that only appears when
+            // something IS queued does that without costing a permanent
+            // slot on the days nothing is. *Applying: Zen of Clarity.*
+            if scheduledCount > 0 {
+                Button {
+                    onOpenScheduled()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(BrandColor.muted500)
+                        CountPill(scheduledCount)
+                    }
+                }
+                .accessibilityLabel(
+                    scheduledCount == 1
+                        ? AppStrings.translate(appLocale, "inbox.scheduledOneAria")
+                        : AppStrings.translate(
+                            appLocale,
+                            "inbox.scheduledManyAria",
+                            ["count": String(scheduledCount)]
+                        )
+                )
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+    }
+}
+
+/// The inbox's search box, shared with the audit fixture.
+private func inboxSearchField(_ query: Binding<String>, locale: String) -> some View {
+    SearchField(
+        query: query,
+        placeholder: AppStrings.translate(locale, "inbox.searchPlaceholder"),
+        maxLength: 200,
+        clearLabel: AppStrings.translate(locale, "inbox.clearSearchAria")
+    )
+}
+
+/// Open / Mine / All / Closed, drawn by the shared segmented control.
+private struct InboxStatusTabs: View {
+    let selected: InboxStatusTab
+    let onSelect: @MainActor (InboxStatusTab) -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    private var options: [SegmentedOption<InboxStatusTab>] {
+        InboxStatusTab.allCases.map { item in
+            SegmentedOption(item, title: item.title(appLocale))
+        }
+    }
+
+    var body: some View {
+        SegmentedControl(
+            options: options,
+            selected: selected,
+            size: .compact,
+            fill: false,
+            onSelect: onSelect
+        )
     }
 }
 
@@ -2410,12 +2447,37 @@ private func previewListItem(
 /// inspects exactly what the canvas draws.
 @MainActor
 func inboxRowsFixture() -> some View {
-    VStack(spacing: 0) {
-        HStack(spacing: 8) {
-            ListFilterButton(count: 2, onTap: {})
+    InboxAuditScreen()
+}
+
+/// The inbox as a person sees it, on fixture rows: the real title row, search box and
+/// status tabs, the shared filter row, the list and the compose button.
+@MainActor
+private struct InboxAuditScreen: View {
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        VStack(spacing: 0) {
+            InboxTitleRow(scheduledCount: 2, onOpenScheduled: {})
+            inboxSearchField(.constant(""), locale: appLocale)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 10)
+            ListFilterRow(filterCount: 2, onFilter: {}) {
+                InboxStatusTabs(selected: .open, onSelect: { _ in })
+            }
+            inboxFixtureList()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .background(BrandColor.canvas)
+        .mainAction(
+            systemImage: "pencil",
+            label: AppStrings.translate(appLocale, "inbox.composeAria")
+        ) {}
+    }
+}
+
+@MainActor
+private func inboxFixtureList() -> some View {
+    VStack(spacing: 0) {
         List {
             ConversationRow(
                 row: previewListItem(

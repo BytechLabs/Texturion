@@ -10,6 +10,8 @@ enum A11yAuditSurface: String, CaseIterable {
     case inbox
     case thread
     case calls
+    case tasks
+    case contacts
     case inCall
     case dialer
     case settings
@@ -57,6 +59,10 @@ struct A11yAuditHost: View {
             }
         case .calls:
             callLogFixture()
+        case .tasks:
+            tasksListFixture()
+        case .contacts:
+            contactsListFixture()
         case .inCall:
             inCallControlsFixture()
         case .dialer:

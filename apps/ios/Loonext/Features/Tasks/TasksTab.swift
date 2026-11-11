@@ -326,18 +326,9 @@ struct TasksTab: View {
     /// views now (#184/#186): List, Board, Calendar, Map — icon-only pills with
     /// spoken labels, ink-filled when selected.
     private var headerRow: some View {
-        HStack(alignment: .center, spacing: 8) {
-            ScreenTitle(text: AppStrings.translate(appLocale, "contactsTasks.tasksTitle"))
-            Spacer(minLength: 8)
-            SegmentedControl(
-                options: viewOptions,
-                selection: $view,
-                size: .compact,
-                fill: false
-            )
+        TasksTitleRow(selected: view) { next in
+            view = next
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
         .sheet(
             isPresented: $quickAddOpen,
             onDismiss: {
@@ -363,47 +354,12 @@ struct TasksTab: View {
         }
     }
 
-    private var viewOptions: [SegmentedOption<TaskViewKind>] {
-        [
-            viewOption(.list, icon: "list.bullet", labelKey: "contactsTasks.viewList"),
-            viewOption(.board, icon: "square.grid.2x2", labelKey: "contactsTasks.viewBoard"),
-            viewOption(.calendar, icon: "calendar", labelKey: "contactsTasks.viewCalendar"),
-            viewOption(.map, icon: "map", labelKey: "contactsTasks.viewMap"),
-        ]
-    }
-
-    private func viewOption(
-        _ kind: TaskViewKind,
-        icon: String,
-        labelKey: String
-    ) -> SegmentedOption<TaskViewKind> {
-        SegmentedOption(
-            kind,
-            systemImage: icon,
-            accessibilityLabel: AppStrings.translate(appLocale, labelKey)
-        )
-    }
-
     /// The status tabs: ink-filled selected pill, paper idle pills (spec 24/31). Board
     /// mode keeps the existing Mine/All reduction. They sit in the shared filter row.
-    @ViewBuilder
     private var tabPills: some View {
-        if !visibleTabs.isEmpty {
-            SegmentedControl(
-                options: tabOptions,
-                selected: tab,
-                size: .compact,
-                fill: false
-            ) { next in
-                tab = next
-                statusOnlyFilter = nil
-            }
-        }
-    }
-
-    private var tabOptions: [SegmentedOption<TasksTabKind>] {
-        visibleTabs.map { item in
-            SegmentedOption(item, title: AppStrings.translate(appLocale, item.labelKey))
+        TasksStatusTabs(tabs: visibleTabs, selected: tab) { next in
+            tab = next
+            statusOnlyFilter = nil
         }
     }
 
@@ -428,19 +384,7 @@ struct TasksTab: View {
     }
 
     private func menuChipLabel(_ label: String, selected: Bool) -> some View {
-        Text(label)
-            .font(.golos(11, weight: selected ? .semibold : .medium))
-            .foregroundStyle(selected ? BrandColor.muted900 : BrandColor.muted500)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 6)
-            .background(
-                selected
-                    ? AnyShapeStyle(BrandColor.avatarTint)
-                    : AnyShapeStyle(BrandColor.paper),
-                in: Capsule()
-            )
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+        TasksMenuChipLabel(label: label, selected: selected)
     }
 
     private var viewsModel: ListViewsModel? {
@@ -1028,6 +972,103 @@ private struct TaskListRow: View {
     }
 }
 
+/// The Tasks title row: the heading and the List / Board / Calendar / Map switcher,
+/// icon-only with spoken labels. A view of its own so the accessibility audit draws the
+/// same row the screen does.
+private struct TasksTitleRow: View {
+    let selected: TaskViewKind
+    let onSelect: @MainActor (TaskViewKind) -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    private var options: [SegmentedOption<TaskViewKind>] {
+        [
+            viewOption(.list, icon: "list.bullet", labelKey: "contactsTasks.viewList"),
+            viewOption(.board, icon: "square.grid.2x2", labelKey: "contactsTasks.viewBoard"),
+            viewOption(.calendar, icon: "calendar", labelKey: "contactsTasks.viewCalendar"),
+            viewOption(.map, icon: "map", labelKey: "contactsTasks.viewMap"),
+        ]
+    }
+
+    private func viewOption(
+        _ kind: TaskViewKind,
+        icon: String,
+        labelKey: String
+    ) -> SegmentedOption<TaskViewKind> {
+        SegmentedOption(
+            kind,
+            systemImage: icon,
+            accessibilityLabel: AppStrings.translate(appLocale, labelKey)
+        )
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            ScreenTitle(text: AppStrings.translate(appLocale, "contactsTasks.tasksTitle"))
+            Spacer(minLength: 8)
+            SegmentedControl(
+                options: options,
+                selected: selected,
+                size: .compact,
+                fill: false,
+                onSelect: onSelect
+            )
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+    }
+}
+
+/// The status tabs in the shared filter row. Board mode passes fewer tabs, and the map
+/// passes none, in which case nothing is drawn.
+private struct TasksStatusTabs: View {
+    let tabs: [TasksTabKind]
+    let selected: TasksTabKind
+    let onSelect: @MainActor (TasksTabKind) -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    private var options: [SegmentedOption<TasksTabKind>] {
+        tabs.map { item in
+            SegmentedOption(item, title: AppStrings.translate(appLocale, item.labelKey))
+        }
+    }
+
+    var body: some View {
+        if !tabs.isEmpty {
+            SegmentedControl(
+                options: options,
+                selected: selected,
+                size: .compact,
+                fill: false,
+                onSelect: onSelect
+            )
+        }
+    }
+}
+
+/// The face of a menu chip beside the tabs (Sort).
+private struct TasksMenuChipLabel: View {
+    let label: String
+    let selected: Bool
+
+    var body: some View {
+        Text(label)
+            .font(.golos(11, weight: selected ? .semibold : .medium))
+            .foregroundStyle(selected ? BrandColor.muted900 : BrandColor.muted500)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(
+                selected
+                    ? AnyShapeStyle(BrandColor.avatarTint)
+                    : AnyShapeStyle(BrandColor.paper),
+                in: Capsule()
+            )
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+    }
+}
+
 // MARK: - Previews
 
 private func previewTask(
@@ -1054,6 +1095,98 @@ private func previewTask(
         attachment_count: nil
     )
 }
+
+#if DEBUG
+/// The Tasks tab as a person sees it, on fixture rows, for the #238 accessibility audit
+/// and the #733 screenshots: the real title row, search box, status tabs and sort chip in
+/// the shared filter row, the rows and the New task button. No network, no controller.
+@MainActor
+func tasksListFixture() -> some View {
+    TasksAuditScreen()
+}
+
+/// Fixture data, not interface copy.
+private let tasksAuditTitles = [
+    "Send quote",
+    "Order tiles",
+    "Pay invoice",
+]
+
+@MainActor
+private struct TasksAuditScreen: View {
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        VStack(spacing: 0) {
+            TasksTitleRow(selected: .list, onSelect: { _ in })
+            SearchField(
+                query: .constant(""),
+                placeholder: AppStrings.translate(appLocale, "contactsTasks.searchTaskTitles"),
+                maxLength: taskSearchMax,
+                clearLabel: AppStrings.translate(appLocale, "contactsTasks.clearSearch")
+            )
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            VStack(spacing: 6) {
+                ListFilterRow(filterCount: 0, onFilter: {}) {
+                    TasksStatusTabs(
+                        tabs: TasksTabKind.allCases,
+                        selected: .open,
+                        onSelect: { _ in }
+                    )
+                    TasksMenuChipLabel(
+                        label: AppStrings.translate(appLocale, "contactsTasks.sortTitle"),
+                        selected: false
+                    )
+                }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 6)
+            ScrollView {
+                PaperCard {
+                    TaskListRow(
+                        task: previewTask(
+                            id: "t1",
+                            title: tasksAuditTitles[0],
+                            done: false,
+                            dueAt: "2099-07-20T15:00:00Z"
+                        ),
+                        faces: [
+                            AssigneeFace(id: "u1", name: "Sam Carpenter"),
+                            AssigneeFace(id: "u2", name: "Alex Mason"),
+                        ],
+                        onToggleDone: { _ in }
+                    )
+                    RowDivider()
+                    TaskListRow(
+                        task: previewTask(
+                            id: "t2",
+                            title: tasksAuditTitles[1],
+                            done: false,
+                            dueAt: "2020-07-01T15:00:00Z"
+                        ),
+                        faces: [],
+                        onToggleDone: { _ in }
+                    )
+                    RowDivider()
+                    TaskListRow(
+                        task: previewTask(id: "t3", title: tasksAuditTitles[2], done: true),
+                        faces: [AssigneeFace(id: "u2", name: "Alex Mason")],
+                        onToggleDone: { _ in }
+                    )
+                }
+                .padding(18)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BrandColor.canvas)
+        .mainAction(
+            systemImage: "plus",
+            label: AppStrings.translate(appLocale, "thread.newTask")
+        ) {}
+    }
+}
+#endif
 
 #Preview("Tasks tab") {
     TasksTab(

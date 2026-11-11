@@ -266,14 +266,13 @@ struct ContactsTab: View {
             // #711: search, and beside it the shared Filter button. Tags (#695) and the
             // workspace's own fields (#291) sit behind it, and it is absent until there
             // is something to filter on.
-            HStack(spacing: 6) {
-                searchField
-                if !workspaceTags.isEmpty || !contactFilterableFields(fieldDefs).isEmpty {
-                    ListFilterButton(count: contactFilterCount, onTap: { filterSheetOpen = true })
-                }
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 8)
+            ContactsSearchRow(
+                query: $query,
+                showsFilter: !workspaceTags.isEmpty
+                    || !contactFilterableFields(fieldDefs).isEmpty,
+                filterCount: contactFilterCount,
+                onFilter: { filterSheetOpen = true }
+            )
             .sheet(isPresented: $filterSheetOpen) {
                 ContactFilterSheet(
                     defs: fieldDefs,
@@ -474,28 +473,13 @@ struct ContactsTab: View {
     /// Spec 27 header: the display title with an honest tabular count, and
     /// the region's one ink accent — the 44pt New-contact circle.
     private var headerBar: some View {
-        HStack(alignment: .center) {
-            HStack(alignment: .firstTextBaseline, spacing: 9) {
-                ScreenTitle(text: t("contactsTasks.contactsTitle"))
-                // The spec count is the total — only honest once every page
-                // has loaded (no server-side total on the wire).
-                if case .ready = state, nextCursor == nil, !rows.isEmpty {
-                    CountPill(rows.count)
-                }
-            }
-            Spacer()
+        // The spec count is the total — only honest once every page
+        // has loaded (no server-side total on the wire).
+        var total: Int?
+        if case .ready = state, nextCursor == nil, !rows.isEmpty {
+            total = rows.count
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
-    }
-
-    private var searchField: some View {
-        SearchField(
-            query: $query,
-            placeholder: t("contactsTasks.searchNameOrNumber"),
-            maxLength: 200,
-            clearLabel: t("contactsTasks.clearSearch")
-        )
+        return ContactsHeaderBar(count: total)
     }
 
     private var contactFilterCount: Int {
@@ -1476,6 +1460,119 @@ private struct ImportRefusedSheet: View {
 }
 
 // MARK: - Previews
+
+/// The Contacts header: the title with the honest total beside it. A view of its own so
+/// the accessibility audit draws the same header the screen does.
+private struct ContactsHeaderBar: View {
+    let count: Int?
+
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        HStack(alignment: .center) {
+            HStack(alignment: .firstTextBaseline, spacing: 9) {
+                ScreenTitle(text: AppStrings.translate(appLocale, "contactsTasks.contactsTitle"))
+                if let count {
+                    CountPill(count)
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+    }
+}
+
+/// Search, and beside it the shared Filter button once there is something to filter on.
+private struct ContactsSearchRow: View {
+    @Binding var query: String
+    let showsFilter: Bool
+    let filterCount: Int
+    let onFilter: @MainActor () -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        HStack(spacing: 6) {
+            SearchField(
+                query: $query,
+                placeholder: AppStrings.translate(appLocale, "contactsTasks.searchNameOrNumber"),
+                maxLength: 200,
+                clearLabel: AppStrings.translate(appLocale, "contactsTasks.clearSearch")
+            )
+            if showsFilter {
+                ListFilterButton(count: filterCount, onTap: onFilter)
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+    }
+}
+
+#if DEBUG
+/// The Contacts tab as a person sees it, on fixture rows, for the #238 accessibility
+/// audit and the #733 screenshots: the real header, search row and rows, and the New
+/// contact button. No network, no controller.
+@MainActor
+func contactsListFixture() -> some View {
+    ContactsAuditScreen()
+}
+
+@MainActor
+private struct ContactsAuditScreen: View {
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ContactsHeaderBar(count: 3)
+            ContactsSearchRow(
+                query: .constant(""),
+                showsFilter: true,
+                filterCount: 0,
+                onFilter: {}
+            )
+            ScrollView {
+                PaperCard {
+                    ContactRow(
+                        contact: previewContact(
+                            id: "ct1",
+                            phone: "+14165550134",
+                            name: "Dana Whitcomb",
+                            lastActivityAt: "2026-07-15T18:00:00Z"
+                        )
+                    )
+                    RowDivider()
+                    ContactRow(
+                        contact: previewContact(
+                            id: "ct2",
+                            phone: "+14155550188",
+                            name: "Marta Reyes",
+                            lastActivityAt: "2026-07-12T12:00:00Z"
+                        )
+                    )
+                    RowDivider()
+                    ContactRow(
+                        contact: previewContact(
+                            id: "ct3",
+                            phone: "+14155550199",
+                            name: nil,
+                            optedOut: true,
+                            lastActivityAt: "2026-07-01T12:00:00Z"
+                        )
+                    )
+                }
+                .padding(18)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BrandColor.canvas)
+        .mainAction(
+            systemImage: "person.badge.plus",
+            label: AppStrings.translate(appLocale, "contactsTasks.newContact")
+        ) {}
+    }
+}
+#endif
 
 private func previewContact(
     id: String,

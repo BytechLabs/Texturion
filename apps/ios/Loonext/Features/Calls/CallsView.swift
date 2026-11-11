@@ -217,50 +217,15 @@ struct CallsView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 9) {
-                    ScreenTitle(text: t("contactsTasks.callsTitle"))
-                    SoftphoneStatusPill(
-                        status: manager.state.status,
-                        onRetry: manager.retryNow
-                    )
-                }
-                // Honest until the founder uploads a Telnyx VoIP push
-                // credential — without it, nothing rings a closed app.
-                Text(t("contactsTasks.callsRingWhileOpen"))
-                    .font(.golos(11))
-                    .foregroundStyle(BrandColor.muted500)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 16)
-        .padding(.bottom, 4)
+        CallsHeaderBar(
+            status: manager.state.status,
+            onRetry: manager.retryNow
+        )
     }
 
     private var filterPills: some View {
-        HStack(spacing: 7) {
-            ForEach(CallsFilter.allCases) { item in
-                let selected = filter == item
-                Button {
-                    filter = item
-                } label: {
-                    Text(t(item.labelKey))
-                        .font(.golos(12, weight: selected ? .semibold : .medium))
-                        .foregroundStyle(
-                            selected ? BrandColor.muted900 : BrandColor.muted500
-                        )
-                        .padding(.horizontal, 15)
-                        .padding(.vertical, 9)
-                        .background(
-                            selected ? BrandColor.avatarTint : BrandColor.paper,
-                            in: Capsule()
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer()
+        CallsFilterTabs(selected: filter) { next in
+            filter = next
         }
     }
 
@@ -662,6 +627,63 @@ struct CallsView: View {
             } catch {
                 // Keep what's loaded; the button stays.
             }
+        }
+    }
+}
+
+/// The Calls header: the title with the softphone status, and the line saying calls
+/// ring while the app is open. A view of its own so the accessibility audit draws the
+/// same header the screen does.
+private struct CallsHeaderBar: View {
+    let status: SoftphoneStatus
+    let onRetry: @MainActor () -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 9) {
+                    ScreenTitle(text: AppStrings.translate(appLocale, "contactsTasks.callsTitle"))
+                    SoftphoneStatusPill(status: status, onRetry: onRetry)
+                }
+                // Honest until the founder uploads a Telnyx VoIP push
+                // credential — without it, nothing rings a closed app.
+                Text(AppStrings.translate(appLocale, "contactsTasks.callsRingWhileOpen"))
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted500)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 16)
+        .padding(.bottom, 4)
+    }
+}
+
+/// The All / Missed / Voicemail tabs, drawn by the shared segmented control.
+private struct CallsFilterTabs: View {
+    let selected: CallsFilter
+    let onSelect: @MainActor (CallsFilter) -> Void
+
+    @Environment(\.appLocale) private var appLocale
+
+    private var options: [SegmentedOption<CallsFilter>] {
+        CallsFilter.allCases.map { item in
+            SegmentedOption(item, title: AppStrings.translate(appLocale, item.labelKey))
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            SegmentedControl(
+                options: options,
+                selected: selected,
+                size: .compact,
+                fill: false,
+                onSelect: onSelect
+            )
+            Spacer(minLength: 0)
         }
     }
 }
@@ -1327,6 +1349,23 @@ func callLogFixture() -> some View {
             canDelete: false
         )
     )
+    VStack(spacing: 0) {
+        CallsHeaderBar(status: .ready, onRetry: {})
+        CallsFilterTabs(selected: .all, onSelect: { _ in })
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+        callLogFixtureRows(service: service, menu: menu)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(BrandColor.canvas)
+    .mainAction(
+        systemImage: "circle.grid.3x3",
+        label: AppStrings.translate(UiLocaleStore.shared.resolved, "contactsTasks.dialANumber")
+    ) {}
+}
+
+@MainActor
+private func callLogFixtureRows(service: CallsService, menu: [RecordAction]) -> some View {
     ScrollView {
         PaperCard {
             CallRow(
