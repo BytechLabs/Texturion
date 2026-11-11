@@ -3,6 +3,7 @@
  * These mirror the §6 schema columns the pipelines read/write — not a full
  * ORM layer, just the fields this track touches.
  */
+import type { MessageAutomation } from "@loonext/shared";
 
 export interface MessageRow {
   id: string;
@@ -31,6 +32,10 @@ export interface MessageRow {
   /** #3 pin state: set/cleared together (messages_pinned_consistency). */
   pinned_at: string | null;
   pinned_by_user_id: string | null;
+  /** #388: a machine wrote this, not the person in sent_by_user_id. */
+  automated: boolean;
+  /** #725: which automation (MESSAGE_AUTOMATIONS); null for a person's text. */
+  automation: MessageAutomation | null;
   created_at: string;
   updated_at: string;
 }

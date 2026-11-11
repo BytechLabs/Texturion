@@ -150,3 +150,21 @@ describe("buildThreadItems events", () => {
     ]);
   });
 });
+
+describe("#725 an automated text is not the owner's", () => {
+  it("starts its own run, named for the automation, between the owner's texts", () => {
+    const owner = { direction: "outbound" as const, status: "sent" as const, sent_by_user_id: "owner" };
+    const items = buildThreadItems(
+      [
+        msg({ ...owner, created_at: "2026-11-10T15:00:00Z" }),
+        msg({ ...owner, created_at: "2026-11-10T15:00:30Z", automated: true, automation: "away_reply" }),
+        msg({ ...owner, created_at: "2026-11-10T15:01:00Z" }),
+      ],
+      [],
+      new Date("2026-11-10T16:00:00Z"),
+    ).filter((item) => item.kind === "cluster");
+    expect(items).toHaveLength(3);
+    expect(items.map((item) => item.kind === "cluster" && item.automated)).toEqual([false, true, false]);
+    expect(items[1].kind === "cluster" && items[1].automation).toBe("away_reply");
+  });
+});

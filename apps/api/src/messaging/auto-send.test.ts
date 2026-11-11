@@ -53,6 +53,7 @@ function run(args: {
     to: "+16135551000",
     body: "Got your message — we reply by 8am.",
     triggerBody: args.triggerBody ?? "no hot water",
+    automation: "away_reply",
     clearance: clearedFor("+16135551000"),
   });
 }
@@ -69,6 +70,7 @@ describe("guardedAutoSend — keyword short-circuit (b)", () => {
       to: "+16135551000",
       body: "away text",
       triggerBody: "STOP",
+      automation: "away_reply",
       clearance: clearedFor("+16135551000"),
     });
     expect(outcome).toEqual({ sent: false, reason: "carrier_keyword" });
@@ -126,6 +128,8 @@ describe("guardedAutoSend — successful claim reuses dispatchOutbound", () => {
         p_conversation_id: CONVERSATION_ID,
         p_segments_estimate: expect.any(Number),
         p_throttle_seconds: expect.any(Number),
+        // #725: the text it writes says which automation sent it.
+        p_automation: "away_reply",
       });
       return { message: queued };
     });

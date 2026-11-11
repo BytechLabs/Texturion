@@ -22,6 +22,7 @@ import {
 } from "@/lib/api/messages";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Message } from "@/lib/api/types";
+import { sentAutomaticallyLabel } from "@/lib/format/message-automation";
 import { contactDisplayName } from "@/lib/format/phone";
 import { reducedMotionScrollBehavior } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -678,7 +679,9 @@ export function MessageList({
                             senderName={
                               item.direction === "inbound"
                                 ? null
-                                : memberName(item.senderUserId)
+                                : item.automated
+                                  ? sentAutomaticallyLabel(item.automation, t)
+                                  : memberName(item.senderUserId)
                             }
                           />
                         </div>

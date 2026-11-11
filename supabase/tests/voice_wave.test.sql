@@ -214,6 +214,11 @@ begin
      and body like 'Sorry we missed%';
   if not found then raise exception 'VW-7 FAILED: queued outbound not written correctly'; end if;
 
+  -- #725: written by the owner's name, but by a machine, and it says which.
+  perform 1 from public.messages
+   where id=msg_id and automated and automation='missed_call_text';
+  if not found then raise exception 'VW-7 FAILED: the text-back is not marked as the missed-call automation'; end if;
+
   select last_auto_reply_at into la from public.conversations where id=conv_id;
   if la is null then raise exception 'VW-7 FAILED: last_auto_reply_at not stamped'; end if;
 

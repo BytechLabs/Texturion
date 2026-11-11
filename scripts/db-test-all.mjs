@@ -206,6 +206,8 @@ const SUITES = [
   "task_references",
   // #714: one activity model for every record.
   "record_activity",
+  // #725: every automated text names its automation.
+  "automated_texts",
 ];
 
 const args = process.argv.slice(2);

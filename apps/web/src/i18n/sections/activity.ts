@@ -33,6 +33,7 @@ export const activityEn = {
 
   textIn: "Text received",
   textOut: "Text sent",
+  textOutAutomated: "Text sent automatically",
   scheduledQueued: "Text scheduled",
   scheduledSent: "Scheduled text sent",
   scheduledCancelled: "Scheduled text cancelled",
@@ -151,6 +152,7 @@ export const activityFr: Translated<typeof activityEn> = {
 
   textIn: "Texto reçu",
   textOut: "Texto envoyé",
+  textOutAutomated: "Texto envoyé automatiquement",
   scheduledQueued: "Texto programmé",
   scheduledSent: "Texto programmé envoyé",
   scheduledCancelled: "Texto programmé annulé",

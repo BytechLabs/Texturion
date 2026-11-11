@@ -211,6 +211,8 @@ export const MESSAGE_COLUMNS =
   // re-send, so a message whose photos were cleaned up is refused rather than
   // dispatched two-thirds complete.
   "media_count," +
+  // #725: a text a machine wrote, and which machine.
+  "automated,automation," +
   "created_at,updated_at";
 
 /** SPEC §7 message object: row + attachments summary, tsv column dropped. */

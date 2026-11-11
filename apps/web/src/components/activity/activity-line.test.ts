@@ -68,3 +68,17 @@ describe("#725 call steps", () => {
     expect(say(step("call_ended", { reason: "answered", seconds: 0 }))).toBe("Call ended");
   });
 });
+
+describe("#725 an automated text on the timeline", () => {
+  const text = (payload: Record<string, unknown>): ActivityItem => ({
+    ...step("text_out", payload),
+    category: "message",
+  });
+  it("says it was sent automatically, and by which automation", () => {
+    expect(say(text({ automated: true, automation: "missed_call_text" }))).toBe(
+      "Text sent automatically · Missed-call text",
+    );
+    expect(say(text({ automated: true, automation: null }))).toBe("Text sent automatically");
+    expect(say(text({ automated: false }))).toBe("Text sent");
+  });
+});

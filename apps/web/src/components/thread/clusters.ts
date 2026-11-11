@@ -23,6 +23,9 @@ export interface ClusterItem {
   direction: Message["direction"];
   /** Outbound/note author id; null for inbound (the contact). */
   senderUserId: string | null;
+  /** #725: a machine wrote this run, so it is named for the automation, not the person. */
+  automated: boolean;
+  automation: string | null;
   messages: Message[];
 }
 
@@ -51,6 +54,8 @@ interface Entry {
 function senderKey(message: Message): string {
   // Inbound is always "the contact"; outbound and notes cluster per author.
   if (message.direction === "inbound") return "inbound";
+  // An automated text is written in the owner's name; it is still not theirs.
+  if (message.automated) return `${message.direction}:automation:${message.automation ?? ""}`;
   return `${message.direction}:${message.sent_by_user_id ?? "system"}`;
 }
 
@@ -123,6 +128,8 @@ export function buildThreadItems(
         direction: message.direction,
         senderUserId:
           message.direction === "inbound" ? null : message.sent_by_user_id,
+        automated: message.automated === true,
+        automation: message.automation ?? null,
         messages: [message],
       };
       clusterKey = senderKey(message);

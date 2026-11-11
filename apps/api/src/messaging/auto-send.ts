@@ -18,7 +18,7 @@
  * just started (an inbound reply), so it is reply-exempt — no consent
  * attestation, no quiet-hours gate. The opt-out mirror is honored regardless.
  */
-import { estimateSegments } from "@loonext/shared";
+import { estimateSegments, type MessageAutomation } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
@@ -78,6 +78,11 @@ export async function guardedAutoSend(
     to: string;
     body: string;
     triggerBody: string;
+    /** #725: which automation this is, recorded on the text it writes. */
+    automation: Extract<
+      MessageAutomation,
+      "away_reply" | "help_reply" | "off_ramp" | "emergency_ack"
+    >;
     throttleSeconds?: number;
     /**
      * #331: the caller's proof that the shared pre-send gates ran for `to`.
@@ -137,7 +142,9 @@ export async function guardedAutoSend(
     p_body: args.body,
     p_segments_estimate: segments,
     p_throttle_seconds: args.throttleSeconds ?? AUTO_REPLY_THROTTLE_SECONDS,
-    ...(args.answersEmergency ? { p_daily_cap: args.dailyCap ?? 0 } : {}),
+    ...(args.answersEmergency
+      ? { p_daily_cap: args.dailyCap ?? 0 }
+      : { p_automation: args.automation }),
   });
   if (error) throw new Error(`${claimRpc} failed: ${error.message}`);
 

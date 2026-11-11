@@ -41,6 +41,8 @@ const inbound: ClusterItem = {
   key: "c-in",
   direction: "inbound",
   senderUserId: null,
+  automated: false,
+  automation: null,
   messages: [message("1", "inbound")],
 };
 const outbound: ClusterItem = {
@@ -48,6 +50,8 @@ const outbound: ClusterItem = {
   key: "c-out",
   direction: "outbound",
   senderUserId: "u1",
+  automated: false,
+  automation: null,
   messages: [message("2", "outbound")],
 };
 const note: ClusterItem = {
@@ -55,6 +59,8 @@ const note: ClusterItem = {
   key: "c-note",
   direction: "note",
   senderUserId: "u1",
+  automated: false,
+  automation: null,
   messages: [message("3", "note")],
 };
 const event: EventItem = {

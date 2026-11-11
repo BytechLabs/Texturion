@@ -130,6 +130,7 @@ export async function maybeSendOffRamp(
       .eq("id", args.conversationId);
 
     await guardedAutoSend(env, db, {
+      automation: "off_ramp",
       companyId: args.companyId,
       conversationId: args.conversationId,
       from: args.from,

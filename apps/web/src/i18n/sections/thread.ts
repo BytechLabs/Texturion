@@ -116,6 +116,16 @@ export const threadEn = {
   openTaskAria: "Open the task: {title}",
   noteOnTask: "on: {title}",
   internalNote: "Internal note",
+  /** #725: who wrote an automated text, in place of the owner's name. */
+  sentAutomatically: "Sent automatically",
+  sentAutomaticallyBy: "Sent automatically · {automation}",
+  automationAwayReply: "Away reply",
+  automationHelpReply: "Help reply",
+  automationOffRamp: "Moved-number reply",
+  automationEmergencyAck: "Urgent reply",
+  automationMissedCallText: "Missed-call text",
+  automationJobRating: "Rating request",
+  automationReminder: "Task reminder",
 
   // --- The timeline (message-list.tsx) --------------------------------------
   conversationLoadFailed: "We couldn't load this conversation.",
@@ -889,6 +899,15 @@ export const threadFr: Translated<typeof threadEn> = {
   openTaskAria: "Ouvrir la tâche : {title}",
   noteOnTask: "sur : {title}",
   internalNote: "Note interne",
+  sentAutomatically: "Envoyé automatiquement",
+  sentAutomaticallyBy: "Envoyé automatiquement · {automation}",
+  automationAwayReply: "Réponse d’absence",
+  automationHelpReply: "Réponse d’aide",
+  automationOffRamp: "Réponse de numéro changé",
+  automationEmergencyAck: "Réponse urgente",
+  automationMissedCallText: "Texto d’appel manqué",
+  automationJobRating: "Demande d’évaluation",
+  automationReminder: "Rappel de tâche",
 
   // --- The timeline ---------------------------------------------------------
   conversationLoadFailed: "Impossible de charger cette conversation.",

@@ -153,6 +153,7 @@ export async function sendEmergencyAcknowledgment(
   );
 
   return guardedAutoSend(env, db, {
+    automation: "emergency_ack",
     companyId: args.companyId,
     conversationId: args.conversationId,
     from,

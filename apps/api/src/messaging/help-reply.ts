@@ -102,6 +102,7 @@ export async function sendHelpReply(
   });
 
   return guardedAutoSend(env, db, {
+    automation: "help_reply",
     companyId: args.companyId,
     conversationId: args.conversationId,
     from,

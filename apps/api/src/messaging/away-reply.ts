@@ -234,6 +234,7 @@ export async function maybeSendAwayReply(
   });
 
   await guardedAutoSend(env, db, {
+    automation: "away_reply",
     companyId: args.companyId,
     conversationId: args.conversationId,
     from: slice.from,

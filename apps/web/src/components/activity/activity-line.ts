@@ -3,6 +3,7 @@ import { isCallEndReason, isCallRouting, type CallEndReason } from "@loonext/sha
 import type { MessageKey, Translate } from "@/i18n/provider";
 import type { ActivityItem } from "@/lib/api/record-activity";
 import { callEndReason, callRoutingReason, formatCallDuration } from "@/lib/format/call";
+import { messageAutomationName } from "@/lib/format/message-automation";
 import { formatTimestamp } from "@/lib/format/time";
 import { threadHref } from "@/lib/inbox/thread-href";
 
@@ -262,8 +263,12 @@ export function activityLine(
   switch (item.kind) {
     case "text_in":
       return line(t("activity.textIn"), "text");
-    case "text_out":
-      return line(t("activity.textOut"), "text");
+    case "text_out": {
+      if (item.payload.automated !== true) return line(t("activity.textOut"), "text");
+      const which = messageAutomationName(item.payload.automation, t);
+      const sent = t("activity.textOutAutomated");
+      return line(which ? `${sent} · ${which}` : sent, "text");
+    }
     case "scheduled_queued":
       return line(t("activity.scheduledQueued"), "clock");
     case "scheduled_sent":
