@@ -27,6 +27,7 @@ import type { ConversationStatus } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 import { SearchField } from "@/components/ui/search-field";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 
 import {
   activeChips,
@@ -37,7 +38,6 @@ import {
   hasActiveFilters,
   INBOX_SEGMENTS,
   isSearchingInbox,
-  nextSegmentIndex,
   OPEN_COUNT_CAP,
   OPEN_COUNT_FILTERS,
   segmentOf,
@@ -75,25 +75,10 @@ export function FilterBar({
   const t = useT();
   const segment = segmentOf(filters);
   const openCount = useOpenCount();
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // #548: a search reads every conversation, so while one is running these
   // controls cannot narrow anything. They used to stay lit and pressable and
   // change nothing at all — the tab moved, the results did not.
   const searching = isSearchingInbox(filters);
-
-  // §7 / #11: the WAI-ARIA tablist keyboard contract the roles promise — Arrow
-  // keys (and Home/End) move the selection AND focus (automatic activation), so
-  // the announced `role="tab"` semantics match real behavior instead of leaving
-  // arrow keys dead. Roving tabindex keeps a single Tab stop on the control.
-  const onTablistKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (searching) return;
-    const current = INBOX_SEGMENTS.findIndex((s) => s.id === segment);
-    const next = nextSegmentIndex(event.key, current, INBOX_SEGMENTS.length);
-    if (next === current) return;
-    event.preventDefault();
-    onChange(applySegment(filters, INBOX_SEGMENTS[next].id));
-    tabRefs.current[next]?.focus();
-  };
 
   return (
     <div className="space-y-2 border-b border-app-line px-3.5 pb-2.5 pt-3">
@@ -102,45 +87,21 @@ export function FilterBar({
           lifted to a white pill. Behavior unchanged — these are the real inbox
           segments (Open/Mine/All/Closed), just crafted. */}
       <div className="flex items-center gap-1">
-        <div
-          role="tablist"
-          aria-label={t("inbox.statusTablistAria")}
-          aria-disabled={searching || undefined}
-          onKeyDown={onTablistKeyDown}
-          className={cn(
-            "flex min-w-0 flex-1 gap-0.5 rounded-full bg-app-line-soft p-[3px] transition-opacity duration-150 ease-out dark:bg-white/5",
-            searching && "opacity-45",
-          )}
-        >
-          {INBOX_SEGMENTS.map(({ id, labelKey }, index) => {
-            const selected = segment === id;
-            const countLabel =
-              id === "open" ? formatOpenCount(openCount) : "";
-            return (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                disabled={searching}
-                tabIndex={selected ? 0 : -1}
-                ref={(el) => {
-                  tabRefs.current[index] = el;
-                }}
-                onClick={() => onChange(applySegment(filters, id))}
-                className={cn(
-                  // min-h-11 below md: the ≥44px mobile hit-target bar (§7).
-                  "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-[28px]",
-                  selected
-                    ? "bg-app-paper font-semibold text-app-ink"
-                    : "font-medium text-app-muted hover:text-app-ink",
-                )}
-              >
-                {t(labelKey)}
-                {countLabel !== "" && (
-                  // Quiet stone count on Open only, shown when > 0, capped 9+
-                  // (issue #64 / APP-UI-ELEVATION §2.1: petrol in this region is
-                  // reserved for the compose action, never a count).
+        <SegmentedControl
+          fill
+          ariaLabel={t("inbox.statusTablistAria")}
+          disabled={searching}
+          value={segment}
+          onChange={(id) => onChange(applySegment(filters, id))}
+          options={INBOX_SEGMENTS.map(({ id, labelKey }) => {
+            const countLabel = id === "open" ? formatOpenCount(openCount) : "";
+            return {
+              value: id,
+              label: t(labelKey),
+              // Quiet stone count on Open only, shown when > 0, capped 9+ (#64:
+              // petrol in this region is reserved for the compose action).
+              badge:
+                countLabel === "" ? undefined : (
                   <span
                     className="grid h-4 min-w-4 place-items-center rounded-full bg-app-line-soft px-1 text-[10.5px] font-semibold tabular-nums text-app-muted"
                     aria-label={
@@ -151,11 +112,10 @@ export function FilterBar({
                   >
                     {countLabel}
                   </span>
-                )}
-              </button>
-            );
+                ),
+            };
           })}
-        </div>
+        />
         <FilterPopover filters={filters} onChange={onChange} disabled={searching} />
         <SavedViewsMenu
           compact

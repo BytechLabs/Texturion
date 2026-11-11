@@ -35,6 +35,7 @@ import { useCalls, useRingMe, type CallOutcomeFilter } from "@/lib/api/calls";
 import { callEndReason, callRoutingReason } from "@/lib/format/call";
 import { useSoftphone } from "@/lib/softphone/provider";
 import { cn } from "@/lib/utils";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 
 const FILTERS: { labelKey: MessageKey; value: CallOutcomeFilter | undefined }[] = [
   { labelKey: "shell.filterAll", value: undefined },
@@ -131,34 +132,12 @@ export function CallsView() {
         }
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* The inbox filter-bar segmented control, verbatim shape: a stone
-            track with the lifted active pill. */}
-        <div
-          role="radiogroup"
-          aria-label={t("shell.filterCalls")}
-          className="flex gap-0.5 rounded-full bg-app-line-soft p-[3px] dark:bg-white/5"
-        >
-          {FILTERS.map((filter) => {
-            const selected = outcome === filter.value;
-            return (
-              <button
-                key={filter.labelKey}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => setOutcome(filter.value)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-[12.5px] font-medium transition-colors duration-150",
-                  selected
-                    ? "bg-app-paper text-app-ink"
-                    : "text-app-muted hover:text-app-ink",
-                )}
-              >
-                {t(filter.labelKey)}
-              </button>
-            );
-          })}
-        </div>
+        <SegmentedControl<CallOutcomeFilter | "all">
+          ariaLabel={t("shell.filterCalls")}
+          value={outcome ?? "all"}
+          options={FILTERS.map((filter) => ({ value: filter.value ?? "all", label: t(filter.labelKey) }))}
+          onChange={(next) => setOutcome(next === "all" ? undefined : next)}
+        />
       </div>
       {reason && (
         <div className="flex items-center gap-1.5 pb-2">
