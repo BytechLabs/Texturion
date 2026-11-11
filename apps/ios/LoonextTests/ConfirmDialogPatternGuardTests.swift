@@ -23,8 +23,7 @@ final class ConfirmDialogPatternGuardTests: XCTestCase {
         ],
         exceptions: [
             PatternException(file: "Support/ListFilterHeader.swift", rule: "alert", reason: "A rename prompt with a text field, not a yes / no."),
-            PatternException(file: "Features/Tasks/CallTask.swift", rule: "alert", reason: "A notice with an Open button after a task is made; it asks nothing."),
-            PatternException(file: "Features/Tasks/NewTask.swift", rule: "alert", reason: "A notice with an Open button after a task is made; it asks nothing."),
+            PatternException(file: "Support/Toast.swift", rule: "alert", reason: "`.createdAlert`: the notice with an Open button after a task is made over a sheet; it asks nothing."),
             PatternException(file: "Features/Tasks/TasksTab.swift", rule: "alert", reason: "An error notice with a single OK; it asks nothing."),
             PatternException(file: "Features/Tasks/TaskDetailView.swift", rule: "confirmationDialog", reason: "Two action sheets that choose a scope (this task or all future ones), three choices rather than yes / no."),
             PatternException(file: "Features/Settings/CalendarFeedCard.swift", rule: "confirmationDialog", reason: "An action sheet with the one destructive action and no body copy to carry in a dialog."),
