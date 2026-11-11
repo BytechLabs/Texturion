@@ -883,3 +883,32 @@ describe("GET /v1/me carries the dashboard preference (#540)", () => {
   });
 });
 
+
+describe("GET /v1/me/joining-note names who it came from (#750)", () => {
+  it("reads the owner's id, then their name from profiles", async () => {
+    const OWNER_ID = "33333333-4444-4555-8666-777777777777";
+    const sb = supabaseStub(env);
+    sb.on("POST", AUTHORIZE_RPC, membershipResponder(MEMBER_ID, "member"));
+    // company_members points at the auth user, so there is no relationship to
+    // embed profiles through: the route asks for the owner's id, then the name.
+    sb.on("GET", "/rest/v1/company_members", (call) =>
+      call.url.searchParams.get("select") === "joining_note"
+        ? [{ joining_note: "Welcome aboard" }]
+        : [{ user_id: OWNER_ID }],
+    );
+    sb.on("GET", "/rest/v1/profiles", () => [{ display_name: " Casey Owner " }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/me/joining-note",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ note: "Welcome aboard", from: "Casey Owner" });
+    const profile = sb.find("GET", "/rest/v1/profiles")[0];
+    expect(profile.url.searchParams.get("user_id")).toBe(`eq.${OWNER_ID}`);
+  });
+});

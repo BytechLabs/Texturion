@@ -153,16 +153,29 @@ meRoutes.get(
     // invite came from in every case this feature covers. Best-effort - an
     // unattributed note still reads as a person's words, and failing the whole
     // orientation screen over a missing name would be the wrong trade.
-    const owners = unwrap<{ profiles: { display_name: string | null } | null }[]>(
+    // Two reads, not an embed: company_members points at the auth user, not at
+    // profiles, so PostgREST has no relationship to follow (#750).
+    const owners = unwrap<{ user_id: string }[]>(
       await db
         .from("company_members")
-        .select("profiles!inner(display_name)")
+        .select("user_id")
         .eq("company_id", c.get("companyId"))
         .eq("role", "owner")
         .limit(1),
-      "inviter name lookup",
+      "inviter lookup",
     );
-    const from = owners[0]?.profiles?.display_name?.trim() || null;
+    const ownerId = owners[0]?.user_id;
+    const names = ownerId
+      ? unwrap<{ display_name: string | null }[]>(
+          await db
+            .from("profiles")
+            .select("display_name")
+            .eq("user_id", ownerId)
+            .limit(1),
+          "inviter name lookup",
+        )
+      : [];
+    const from = names[0]?.display_name?.trim() || null;
     return c.json({ note, from });
   },
 );
