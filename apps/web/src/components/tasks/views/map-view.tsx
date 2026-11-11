@@ -52,6 +52,15 @@ export function MapView({ state }: { state: TaskPageState }) {
   // Drain every page so all located tasks are plotted, not just the first 25.
   const query = useAllTasks(filters);
   const tasks = flattenPages(query.data);
+  // Nothing is located. Ask for the same tasks without the location filter, so
+  // the page can say whether there are none at all or none with an address
+  // (#752): "No tasks yet" must never appear while tasks exist.
+  const noneLocated = query.isSuccess && tasks.length === 0;
+  const unlocatedQuery = useAllTasks(
+    { ...filters, has_location: undefined },
+    { enabled: noneLocated },
+  );
+  const unlocatedCount = flattenPages(unlocatedQuery.data).length;
 
   const [nearMe, setNearMe] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
@@ -103,6 +112,16 @@ export function MapView({ state }: { state: TaskPageState }) {
   }
 
   if (tasks.length === 0) {
+    if (unlocatedQuery.isPending) {
+      return (
+        <div className="h-[320px] overflow-hidden rounded-xl border border-border">
+          <Skeleton className="h-full w-full" />
+        </div>
+      );
+    }
+    if (unlocatedCount > 0) {
+      return <NoAddresses count={unlocatedCount} />;
+    }
     return (
       <div className="space-y-3">
         <EmptyTasks state={state} />
@@ -150,16 +169,25 @@ export function MapView({ state }: { state: TaskPageState }) {
         </p>
       )}
       {located.length === 0 ? (
-        <div className="flex h-[320px] items-center justify-center rounded-xl border border-border bg-secondary/20">
-          <EmptyState
-            size="panel"
-            icon={<MapPin strokeWidth={1.75} />}
-            title={t("tasks.mapNoMappedAddress")}
-          />
-        </div>
+        <NoAddresses count={missing} />
       ) : (
         <MapIsland tasks={located} nearMe={nearMe} />
       )}
+    </div>
+  );
+}
+
+/** The Map's own empty state: tasks exist, none has an address. */
+function NoAddresses({ count }: { count: number }) {
+  const t = useT();
+  return (
+    <div className="flex h-[320px] items-center justify-center rounded-xl border border-border bg-secondary/20">
+      <EmptyState
+        size="panel"
+        icon={<MapPin strokeWidth={1.75} />}
+        title={t("tasks.mapNoMappedAddress")}
+        description={`${t(count === 1 ? "tasks.mapUnlocatedOne" : "tasks.mapUnlocatedMany", { count })} ${t("tasks.mapAddAddressHow")}`}
+      />
     </div>
   );
 }

@@ -18,6 +18,12 @@ import type { Translate } from "@/i18n/provider";
  * our side to record it — and it arrives exactly when the feature is being used
  * most.
  *
+ * D160 (2026-11-11) SUPERSEDES THE BLANKET REFUSAL OF `tile.openstreetmap.org`:
+ * the policy does not ban commercial use, it forbids prefetching, offline
+ * archives and scanning, and it gives no SLA. Production now serves the standard
+ * tiles as a bridge, configured in ship.yml with the required credit and link,
+ * with the limits recorded in docs/DECISIONS.md. The rule below still stands.
+ *
  * THE RULE: WE FAIL TOWARD NO BASEMAP, NEVER TOWARD SOMEBODY ELSE'S GOODWILL.
  * With no commercial tile provider configured, the map renders pins on an empty
  * ground and says why. That is a worse map and an honest one. Quietly keeping the
@@ -72,12 +78,6 @@ export function readBasemap(env: {
   const attribution = env.NEXT_PUBLIC_MAP_TILE_ATTRIBUTION?.trim();
   if (!url || !attribution) return null;
 
-  // A provider we are NOT licensed to use cannot be configured back in by
-  // accident — a copied .env, a tutorial, a well-meant "restore the map" fix.
-  // This is the whole point of the module: the violation has to be impossible to
-  // reintroduce quietly, not merely removed once.
-  if (isUnlicensedTileHost(url)) return null;
-
   const parsedMaxZoom = Number(env.NEXT_PUBLIC_MAP_TILE_MAX_ZOOM);
   return {
     url,
@@ -87,20 +87,6 @@ export function readBasemap(env: {
         ? Math.floor(parsedMaxZoom)
         : DEFAULT_MAX_ZOOM,
   };
-}
-
-/**
- * Hosts we must not serve tiles from, whatever the config says.
- *
- * `tile.openstreetmap.org` and its subdomains are the OSMF's donated
- * infrastructure. Nothing else belongs on this list yet: it is not a general
- * blocklist, it is the specific mistake #428 documents, made unrepeatable.
- */
-export function isUnlicensedTileHost(url: string): boolean {
-  // Matches the bare host and the {s}. / a. / b. / c. subdomain forms Leaflet
-  // templates use, without being fooled by a lookalike domain that merely
-  // CONTAINS the string (evil-tile.openstreetmap.org.example.com).
-  return /(^|\/\/)([^/]*\.)?tile\.openstreetmap\.org(\/|$)/i.test(url);
 }
 
 /**

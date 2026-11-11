@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  isUnlicensedTileHost,
   NO_BASEMAP_NOTICE,
   readBasemap,
 } from "./basemap";
@@ -75,49 +74,23 @@ describe("readBasemap — every unconfigured shape is NO basemap", () => {
   });
 });
 
-describe("readBasemap — the OSM host cannot be configured back in", () => {
-  it("refuses tile.openstreetmap.org even with perfect attribution", () => {
-    // This is the point of the module. The violation has to be impossible to
-    // reintroduce quietly — by a copied .env, a tutorial, or a well-meant
-    // "restore the map" fix — not merely removed once.
+describe("readBasemap — the OSM standard tiles (D160)", () => {
+  it("serves them when configured with the credit and its link", () => {
+    const basemap = readBasemap({
+      NEXT_PUBLIC_MAP_TILE_URL: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      NEXT_PUBLIC_MAP_TILE_ATTRIBUTION:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    });
+    expect(basemap?.url).toContain("tile.openstreetmap.org");
+    expect(basemap?.attribution).toContain("openstreetmap.org/copyright");
+  });
+
+  it("still refuses them without the credit", () => {
     expect(
       readBasemap({
         NEXT_PUBLIC_MAP_TILE_URL: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        NEXT_PUBLIC_MAP_TILE_ATTRIBUTION: "© OpenStreetMap contributors",
       }),
     ).toBeNull();
-  });
-
-  it("refuses every subdomain form a Leaflet template uses", () => {
-    for (const url of [
-      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      "https://b.tile.openstreetmap.org/1/2/3.png",
-      "http://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      "https://TILE.OPENSTREETMAP.ORG/{z}/{x}/{y}.png",
-    ]) {
-      expect(isUnlicensedTileHost(url), url).toBe(true);
-    }
-  });
-
-  it("does not refuse a lookalike domain that merely contains the string", () => {
-    // Over-blocking would be its own bug: a provider whose hostname happens to
-    // contain the phrase is licensed and must work.
-    for (const url of [
-      "https://tiles.example.com/tile.openstreetmap.org.png",
-      "https://tile.openstreetmap.org.evil.example.com/{z}/{x}/{y}.png",
-      "https://my-tile-openstreetmap-org.example.com/{z}/{x}/{y}.png",
-    ]) {
-      expect(isUnlicensedTileHost(url), url).toBe(false);
-    }
-  });
-
-  it("still permits a provider that SERVES OSM data under its own terms", () => {
-    // OSM *data* is fine and widely resold; it is OSM's donated *tile servers*
-    // that are not ours to use. Blocking the data would be the wrong lesson.
-    expect(
-      isUnlicensedTileHost("https://api.maptiler.com/maps/streets/{z}/{x}/{y}.png?key=k"),
-    ).toBe(false);
   });
 });
 

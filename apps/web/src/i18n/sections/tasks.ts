@@ -205,9 +205,11 @@ export const tasksEn = {
     "take a few hours to finish plotting.",
   mapLocating: "Locating…",
   mapNearMe: "Near me",
-  mapNoMappedAddress:
-    "None of these tasks have a mapped address yet. Add an address to a " +
-    "contact and it appears here once geocoded.",
+  mapNoMappedAddress: "None of these tasks has an address yet",
+  mapUnlocatedOne: "1 task has no address.",
+  mapUnlocatedMany: "{count} tasks have no address.",
+  mapAddAddressHow:
+    "Open a task and add an address, or add one to its contact. It appears here once located.",
   mapYouAreHere: "You are here",
   mapTilesFailing:
     "The street background isn't loading right now. Job pins are still exact, " +
@@ -824,9 +826,11 @@ export const tasksFr: Translated<typeof tasksEn> = {
     "entièrement affichée.",
   mapLocating: "Localisation…",
   mapNearMe: "Près de moi",
-  mapNoMappedAddress:
-    "Aucune de ces tâches n'a encore d'adresse cartographiée. Ajoutez une " +
-    "adresse à un client et elle apparaît ici une fois géocodée.",
+  mapNoMappedAddress: "Aucune de ces tâches n'a encore d'adresse",
+  mapUnlocatedOne: "1 tâche n'a pas d'adresse.",
+  mapUnlocatedMany: "{count} tâches n'ont pas d'adresse.",
+  mapAddAddressHow:
+    "Ouvrez une tâche et ajoutez-lui une adresse, ou ajoutez-en une à son client. Elle apparaît ici une fois localisée.",
   mapYouAreHere: "Vous êtes ici",
   mapTilesFailing:
     "Le fond de carte ne se charge pas en ce moment. Les repères des tâches " +
