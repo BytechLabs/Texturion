@@ -105,7 +105,8 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertFalse(company.cancel_at_period_end)
         XCTAssertTrue(company.business_hours.isEmpty)
         XCTAssertFalse(company.away_enabled)
-        XCTAssertEqual(company.call_screening, "off")
+        // #749: the server's own default, held to vectors/setting-defaults.json.
+        XCTAssertEqual(company.call_screening, "flag")
         // #278's deploy-day guarantee, on the client side. A payload from a
         // server that predates the field must read as the product as it was —
         // an app that defaulted to any other value would silently re-route

@@ -383,8 +383,9 @@ struct HoursException: Codable, Sendable, Equatable {
     var note: String?
 }
 
-enum DefaultScreeningOff: DefaultCodableProvider {
-    static var defaultValue: String { "off" }
+/// #749: the server marks likely spam and never sends a caller away.
+enum DefaultScreeningFlag: DefaultCodableProvider {
+    static var defaultValue: String { "flag" }
 }
 
 /// #228: a business always works in SOME language, so there is no unset state
@@ -603,9 +604,9 @@ struct CompanyView: Codable, Sendable {
     @Default<DefaultRingAll> var ring_strategy: String
     /// #278: how long they ring. 45 is the ceiling — the legs end there.
     @Default<DefaultRingSeconds> var ring_seconds: Int
-    @Default<DefaultScreeningOff> var call_screening: String
+    @Default<DefaultScreeningFlag> var call_screening: String
     let cnam_display_name: String?
-    @Default<DefaultFalse> var caller_id_lookup: Bool
+    @Default<DefaultTrue> var caller_id_lookup: Bool
     /// #193: the outbound caller ID actually in effect (server-resolved: the
     /// explicit override, else the company name in the carrier alphabet). Nil
     /// only when neither yields a listable name.
