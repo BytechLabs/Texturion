@@ -56,6 +56,13 @@ afterEach(() => {
 });
 
 describe("#739 month", () => {
+  it("names each weekday once above the grid, not once per week row", () => {
+    render(<CalendarView state={STATE} />);
+    expect(screen.getAllByText("Sun")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("radio", { name: "Week" }));
+    expect(screen.getAllByText("Sun")).toHaveLength(1);
+  });
+
   it("Enter on a focused day opens New task on that day in the workspace zone", () => {
     render(<CalendarView state={STATE} />);
     const cell = screen.getByRole("button", { name: "New task on Thursday, November 12" });

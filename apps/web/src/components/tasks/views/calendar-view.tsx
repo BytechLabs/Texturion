@@ -249,9 +249,10 @@ export function CalendarView({ state }: { state: TaskPageState }) {
             )}
           >
             {mode === "week" && <div aria-hidden />}
-            {days.map((day) => (
+            {/* One header per weekday: the first week of a month grid, or the week itself. */}
+            {days.slice(0, 7).map((day) => (
               <div
-                key={day.getDay()}
+                key={dayKey(day)}
                 className={cn(SECTION_LABEL_CLASS, "flex items-center gap-1.5 px-2 py-1.5")}
               >
                 {t(DOW_KEYS[day.getDay()]!)}
