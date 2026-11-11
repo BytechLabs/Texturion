@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.2](https://github.com/BytechLabs/Texturion/compare/web-v0.30.1...web-v0.30.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** the search shortcut ignores a key event that has no key ([9c8d72f](https://github.com/BytechLabs/Texturion/commit/9c8d72f1153ee71dc624facbbe96a5fb7eb2a1c9))
+
 ## [0.30.1](https://github.com/BytechLabs/Texturion/compare/web-v0.30.0...web-v0.30.1) (2026-11-11)
 
 
