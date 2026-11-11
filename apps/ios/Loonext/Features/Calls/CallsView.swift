@@ -1321,6 +1321,17 @@ private func previewCall(
 @ViewBuilder
 func callLogFixture() -> some View {
     let service = CallsService(api: AppGraph().api)
+    // Rows in the real list always carry their record menu (#712), which is what
+    // takes the time's long-press, so the audit sees the row as people do.
+    let menu = callActions(
+        CallActionsInput(
+            hasConversation: true,
+            hasContact: false,
+            callerE164: "+14155550188",
+            hasVoicemail: false,
+            canDelete: false
+        )
+    )
     ScrollView {
         PaperCard {
             CallRow(
@@ -1330,7 +1341,8 @@ func callLogFixture() -> some View {
                     contactName: "Dana Whitcomb"
                 ),
                 service: service,
-                companyId: "company-1"
+                companyId: "company-1",
+                actions: menu
             )
             RowDivider().padding(.leading, 64)
             CallRow(
@@ -1342,7 +1354,8 @@ func callLogFixture() -> some View {
                     forwardSeconds: 272
                 ),
                 service: service,
-                companyId: "company-1"
+                companyId: "company-1",
+                actions: menu
             )
             RowDivider().padding(.leading, 64)
             CallRow(
@@ -1354,7 +1367,8 @@ func callLogFixture() -> some View {
                     forwardSeconds: 58
                 ),
                 service: service,
-                companyId: "company-1"
+                companyId: "company-1",
+                actions: menu
             )
             RowDivider().padding(.leading, 64)
             CallRow(
@@ -1365,7 +1379,8 @@ func callLogFixture() -> some View {
                     voicemailSeconds: 42
                 ),
                 service: service,
-                companyId: "company-1"
+                companyId: "company-1",
+                actions: menu
             )
             RowDivider().padding(.leading, 64)
             CallRow(
@@ -1376,7 +1391,8 @@ func callLogFixture() -> some View {
                     screening: "spam_likely"
                 ),
                 service: service,
-                companyId: "company-1"
+                companyId: "company-1",
+                actions: menu
             )
         }
         .padding(18)
