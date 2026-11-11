@@ -530,7 +530,7 @@ fun ForYouTab(
 }
 
 @Composable
-private fun ForYouList(
+internal fun ForYouList(
     forYou: ForYou,
     spamReview: List<SpamReviewItem>,
     onAnswerSpamReview: (conversationId: String, notSpam: Boolean) -> Unit,
@@ -838,6 +838,9 @@ private fun ForYouList(
                             onMove = { moveBy(entry.id, it) },
                             onResize = { cycleSize(entry.id) },
                             onRemove = { takeOff(entry.id) },
+                            // A panel with content carries its own heading, so the
+                            // chrome names it only when the panel is empty.
+                            showName = !hasContent,
                             modifier = Modifier.padding(top = 14.dp),
                         )
                     }

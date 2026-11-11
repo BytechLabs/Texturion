@@ -152,6 +152,8 @@ internal fun PanelEditBar(
     onMove: (Int) -> Unit,
     onResize: () -> Unit,
     onRemove: () -> Unit,
+    /** False when the panel below shows its own heading; the name then lives in the descriptions only. */
+    showName: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val locale = LocalAppLocale.current
@@ -167,17 +169,19 @@ internal fun PanelEditBar(
         modifier = modifier.fillMaxWidth().padding(bottom = 6.dp),
     ) {
         Column(Modifier.padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    label,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                IconButton(onClick = onRemove) {
-                    Icon(Icons.Outlined.Close, contentDescription = remove)
+            if (showName) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        label,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    IconButton(onClick = onRemove) {
+                        Icon(Icons.Outlined.Close, contentDescription = remove)
+                    }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -194,6 +198,11 @@ internal fun PanelEditBar(
                         .heightIn(min = 48.dp)
                         .semantics { contentDescription = resize },
                 ) { Text(sizeName) }
+                if (!showName) {
+                    IconButton(onClick = onRemove) {
+                        Icon(Icons.Outlined.Close, contentDescription = remove)
+                    }
+                }
             }
         }
     }
