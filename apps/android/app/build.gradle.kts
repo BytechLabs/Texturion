@@ -30,7 +30,7 @@ plugins {
 val loonextVersionCode = providers.gradleProperty("loonextVersionCode")
     .orNull?.toIntOrNull() ?: 1
 val loonextVersionName = providers.gradleProperty("loonextVersionName")
-    .orNull ?: "0.24.0" // x-release-please-version
+    .orNull ?: "0.25.0" // x-release-please-version
 
 /**
  * D146: the PostHog project key, public like the Supabase key below but passed

@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.25.0](https://github.com/BytechLabs/Texturion/compare/android-v0.24.0...android-v0.25.0) (2026-11-11)
+
+
+### Features
+
+* **android:** every screen draws its common controls from one shared set ([255e1d4](https://github.com/BytechLabs/Texturion/commit/255e1d4d38cc8babb015beeeff7aff2282375db7))
+* **android:** record headers, notices and icons follow one shared set ([64bf9f0](https://github.com/BytechLabs/Texturion/commit/64bf9f0d97746f88e3870f005cbd648692337078))
+* **android:** the trash opens in the app with restore and delete forever ([8ca6289](https://github.com/BytechLabs/Texturion/commit/8ca6289f1866c8118438943f2255bf90a93e3724))
+* **clients:** a call row shows one action, with the rest in its menu ([f6d5e64](https://github.com/BytechLabs/Texturion/commit/f6d5e644c86f52d74d6ea1a548e083d243319a71))
+
+
+### Bug Fixes
+
+* **android:** a call's ending reads in full in the call log ([b5695bb](https://github.com/BytechLabs/Texturion/commit/b5695bbfc0433186a407b2ab3f844e6794e76298))
+* **android:** a long task title wraps instead of being cut off ([c895aee](https://github.com/BytechLabs/Texturion/commit/c895aee61601081be1eeebd48f169d3d5ac51c2d))
+* **android:** arranging For you names each panel once ([a133190](https://github.com/BytechLabs/Texturion/commit/a133190db1c91685b5bdca2f27710656a763ab01))
+* **android:** copying a voicemail transcript speaks the reader's language ([65ff1ed](https://github.com/BytechLabs/Texturion/commit/65ff1ed5b74f266a7e95724905507300d327c9c1))
+* **android:** segmented choices stay tappable and unclipped at large text sizes ([7e44dcd](https://github.com/BytechLabs/Texturion/commit/7e44dcd5bd93739b3281f55dddd0d079579a2998))
+* **clients:** record menus say Message, the same word as the call row ([5582fac](https://github.com/BytechLabs/Texturion/commit/5582fac7bb5e40fa024c3126c84f39055ae60309))
+* **clients:** tags are called tags everywhere, never labels ([60bfc22](https://github.com/BytechLabs/Texturion/commit/60bfc222980291822360849975db21aa24fa2881))
+
 ## [0.24.0](https://github.com/BytechLabs/Texturion/compare/android-v0.23.0...android-v0.24.0) (2026-11-11)
 
 

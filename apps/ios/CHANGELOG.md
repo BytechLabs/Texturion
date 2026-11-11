@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.25.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.24.0...ios-v0.25.0) (2026-11-11)
+
+
+### Features
+
+* **clients:** a call row shows one action, with the rest in its menu ([f6d5e64](https://github.com/BytechLabs/Texturion/commit/f6d5e644c86f52d74d6ea1a548e083d243319a71))
+* **ios:** every screen draws its common controls from one shared set ([76e93dd](https://github.com/BytechLabs/Texturion/commit/76e93ddebbf7adb9fc60ef88b6555e99715173b5))
+* **ios:** record headers, toasts and icons follow one shared set ([093d9b6](https://github.com/BytechLabs/Texturion/commit/093d9b68aa66e31f97404dce701e6c7d143db54b))
+* **ios:** the trash opens in the app with restore and delete forever ([143fa6d](https://github.com/BytechLabs/Texturion/commit/143fa6d68e708e16a659a83228d9866b88b3aba7))
+
+
+### Bug Fixes
+
+* **clients:** record menus say Message, the same word as the call row ([5582fac](https://github.com/BytechLabs/Texturion/commit/5582fac7bb5e40fa024c3126c84f39055ae60309))
+* **clients:** tags are called tags everywhere, never labels ([60bfc22](https://github.com/BytechLabs/Texturion/commit/60bfc222980291822360849975db21aa24fa2881))
+* **ios:** a call's ending reads in full in the call log ([1e36825](https://github.com/BytechLabs/Texturion/commit/1e3682510698e5f9665c1b10e010f41fca6b388e))
+* **ios:** a long task title wraps instead of running out of sight ([b584a6e](https://github.com/BytechLabs/Texturion/commit/b584a6e34c0af96896dc103f2793465d90a539be))
+* **ios:** arranging For you names each panel once ([23e8f2f](https://github.com/BytechLabs/Texturion/commit/23e8f2fe387adfc3efa126473e8a5cede244f5b8))
+* **ios:** search boxes and trash buttons have full-size tap areas ([6e65af0](https://github.com/BytechLabs/Texturion/commit/6e65af031448c7dac1041ef5e1420621c3a19593))
+* **ios:** the calls filter is the same segmented control as inbox and tasks ([5021b3e](https://github.com/BytechLabs/Texturion/commit/5021b3e4b02f3b80167d128dded259ee27e96681))
+* **ios:** the scheduled and unread counts use the shared count pill ([0fccdee](https://github.com/BytechLabs/Texturion/commit/0fccdee5c147b5b9a01c2f239c088c1621725cdf))
+* **ios:** the scheduled count and the calls status are easy to tap ([9eaaec0](https://github.com/BytechLabs/Texturion/commit/9eaaec068fdb6c376a5e6b880ff1f0d385665136))
+* **ios:** the whole search box is the field you tap ([559d77c](https://github.com/BytechLabs/Texturion/commit/559d77c7bb64ac0a20ca165389a3ddf067325022))
+
 ## [0.24.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.23.0...ios-v0.24.0) (2026-11-11)
 
 

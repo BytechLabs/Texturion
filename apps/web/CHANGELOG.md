@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.29.0](https://github.com/BytechLabs/Texturion/compare/web-v0.28.0...web-v0.29.0) (2026-11-11)
+
+
+### Features
+
+* **clients:** a call row shows one action, with the rest in its menu ([f6d5e64](https://github.com/BytechLabs/Texturion/commit/f6d5e644c86f52d74d6ea1a548e083d243319a71))
+* **web:** a scheduled text offers Cancel only to someone who can cancel it ([e12b364](https://github.com/BytechLabs/Texturion/commit/e12b364e9d735c49efb73f5bb3601b5a1598ce5f))
+* **web:** a thread offers only the status moves the server allows ([eef32a9](https://github.com/BytechLabs/Texturion/commit/eef32a9df85a5b9413e80b902bdabb9215bd03ed))
+* **web:** every screen draws its common controls from one shared set ([b60007d](https://github.com/BytechLabs/Texturion/commit/b60007d995cd57e02636c328d670bc17e030d6b3))
+* **web:** quote and payment controls follow what the server allows ([0ef3342](https://github.com/BytechLabs/Texturion/commit/0ef3342bb18bf8d13f99e50f3361c66548f9f148))
+
+
+### Bug Fixes
+
+* **clients:** record menus say Message, the same word as the call row ([5582fac](https://github.com/BytechLabs/Texturion/commit/5582fac7bb5e40fa024c3126c84f39055ae60309))
+* **clients:** tags are called tags everywhere, never labels ([60bfc22](https://github.com/BytechLabs/Texturion/commit/60bfc222980291822360849975db21aa24fa2881))
+* exporting tasks downloads the list instead of queueing an export ([da9cb84](https://github.com/BytechLabs/Texturion/commit/da9cb8483b90f95f7a92db59f1e69bf51251f05d))
+* **web:** a contact's page is titled with their name, not their number ([56d328e](https://github.com/BytechLabs/Texturion/commit/56d328edb6bbcf9971f50830aa75a21f64d123fe))
+* **web:** a long task title wraps in the task panel instead of being cut off ([982b203](https://github.com/BytechLabs/Texturion/commit/982b203e4a1e9483ff1896e6b121da85306a2e7e))
+* **web:** a task row has one checkbox and its status is the control ([f49dbc4](https://github.com/BytechLabs/Texturion/commit/f49dbc4a57d81f05520e9a69cfdbabfde2ecebce))
+* **web:** a task's link to its message shows that message on a phone ([daac34f](https://github.com/BytechLabs/Texturion/commit/daac34fd70ee4f9122f392ad99502c201c6a1aa9))
+* **web:** arranging For you names each panel once ([21d6ba3](https://github.com/BytechLabs/Texturion/commit/21d6ba30286b57bd222a47fc30362631d4268728))
+* **web:** clearing a task's address gives the full five seconds to undo ([7eed820](https://github.com/BytechLabs/Texturion/commit/7eed820000b81a9363316df9634f2df8654250fc))
+* **web:** dragging the thread panel's border pill resizes the panel ([53f73d4](https://github.com/BytechLabs/Texturion/commit/53f73d4b5c6872a9212739a3b85de6a748241310))
+* **web:** on-call shortcuts show their names instead of catalogue keys ([b0d0a31](https://github.com/BytechLabs/Texturion/commit/b0d0a3161144684ed4e546c1e353bd814bc73020))
+* **web:** restore the shared select and country list a test commit removed ([d65ad41](https://github.com/BytechLabs/Texturion/commit/d65ad41a631946b80bacb8a9343b1badf0952a60))
+* **web:** shared copy keys are translated before they reach the page ([0eb98cf](https://github.com/BytechLabs/Texturion/commit/0eb98cf874eec5e03b55951af223296e6e4702fc))
+* **web:** the small 7d, 30d and 90d choices are easy to tap on a phone ([104b5d0](https://github.com/BytechLabs/Texturion/commit/104b5d0951ac5540ca6637916fa57ac8fc73c300))
+* **web:** the website button preview shows the button in Settings ([23505fd](https://github.com/BytechLabs/Texturion/commit/23505fd5d3652bc6862c5f01fe98b93ad7d56faa))
+
 ## [0.28.0](https://github.com/BytechLabs/Texturion/compare/web-v0.27.0...web-v0.28.0) (2026-11-11)
 
 
