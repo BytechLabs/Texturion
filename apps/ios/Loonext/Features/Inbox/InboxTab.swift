@@ -2463,17 +2463,15 @@ private func previewListItem(
     inboxRowsFixture()
 }
 
-/// The inbox as a screen reader meets it: filter chips (one selected, one
-/// clearable) above an unread, tagged, assigned row and a closed, unnamed one.
+/// The inbox as a screen reader meets it: the Filter button with two filters
+/// on, above an unread, tagged, assigned row and a closed, unnamed one.
 /// Shared by the preview and the #238 accessibility audit, so the audit
 /// inspects exactly what the canvas draws.
 @MainActor
 func inboxRowsFixture() -> some View {
     VStack(spacing: 0) {
         HStack(spacing: 8) {
-            FilterChip(label: "Open", selected: true, onTap: {}, onClear: nil)
-            FilterChip(label: "Assigned: Dana", selected: true, onTap: {}, onClear: {})
-            FilterChip(label: "Tag", selected: false, onTap: {}, onClear: nil)
+            ListFilterButton(count: 2, onTap: {})
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
