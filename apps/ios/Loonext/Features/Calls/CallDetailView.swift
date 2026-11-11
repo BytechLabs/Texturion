@@ -199,10 +199,21 @@ struct CallDetailView: View {
                 companyId: companyId,
                 recordType: .call,
                 recordId: call.id,
-                onOpenConversation: { conversationId, _ in onOpenConversation(conversationId) },
-                onOpenContact: onOpenContact
+                onOpenConversation: activityOpenConversation,
+                onOpenContact: activityOpenContact
             )
         }
+    }
+
+    /// The timeline calls back on the main actor; this screen's links are plain closures.
+    private var activityOpenConversation: @MainActor (String, String?) -> Void {
+        let go = onOpenConversation
+        return { conversationId, _ in go(conversationId) }
+    }
+
+    private var activityOpenContact: @MainActor (String) -> Void {
+        let go = onOpenContact
+        return { contactId in go(contactId) }
     }
 
     private func factsCard(_ call: Call) -> some View {
