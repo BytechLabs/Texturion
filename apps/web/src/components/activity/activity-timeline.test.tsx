@@ -199,6 +199,28 @@ describe("ActivityTimeline (#714)", () => {
     expect(hook).toHaveBeenCalledWith("contact", "c1", null);
   });
 
+  it("#725: names the automation behind a change instead of a person", () => {
+    const automated = (origin: string | undefined) =>
+      item({
+        kind: "edited",
+        actor: { type: "automation", user_id: null, display_name: null },
+        payload: { field: "due", ...(origin ? { origin } : {}) },
+      });
+    for (const [origin, who] of [
+      ["calendar", "Calendar sync"],
+      ["repeat", "Repeat schedule"],
+      [undefined, "Automation"],
+    ] as const) {
+      hook.mockReturnValue({
+        ...base,
+        data: { pages: [{ data: [automated(origin)], next_cursor: null }] },
+      });
+      const html = renderToStaticMarkup(<ActivityTimeline recordType="task" recordId="t1" />);
+      expect(html, String(origin)).toContain(who);
+      expect(html).not.toContain("Sam Ortiz");
+    }
+  });
+
   it("folds a surface's own rows in by time, oldest first when asked", () => {
     hook.mockReturnValue({
       ...base,

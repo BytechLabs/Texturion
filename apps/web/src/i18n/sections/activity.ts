@@ -28,6 +28,9 @@ export const activityEn = {
   actorTeammate: "A teammate",
   actorCustomer: "The customer",
   actorAutomation: "Automation",
+  /** #725: the automation behind a task change. */
+  originCalendar: "Calendar sync",
+  originRepeat: "Repeat schedule",
   actorSystem: "Loonext",
   someone: "someone",
 
@@ -147,6 +150,8 @@ export const activityFr: Translated<typeof activityEn> = {
   actorTeammate: "Un collègue",
   actorCustomer: "Le client",
   actorAutomation: "Automatisation",
+  originCalendar: "Synchronisation du calendrier",
+  originRepeat: "Répétition planifiée",
   actorSystem: "Loonext",
   someone: "quelqu’un",
 

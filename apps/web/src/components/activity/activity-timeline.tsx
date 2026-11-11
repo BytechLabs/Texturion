@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { ChoiceChip } from "@/components/ui/choice-chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Timestamp } from "@/components/ui/timestamp";
-import { useT } from "@/i18n/provider";
+import { type Translate, useT } from "@/i18n/provider";
 import { flattenPages } from "@/lib/api/pagination";
 import {
   useRecordActivity,
@@ -79,6 +79,13 @@ const ICONS: Record<ActivityIcon, React.ComponentType<{ className?: string; stro
   mention: AtSign,
   clock: Clock,
 };
+
+/** #725: who stands behind an automated change: the calendar sync, the repeat schedule, or just "Automation". */
+function automationName(origin: unknown, t: Translate): string {
+  if (origin === "calendar") return t("activity.originCalendar");
+  if (origin === "repeat") return t("activity.originRepeat");
+  return t("activity.actorAutomation");
+}
 
 type Entry =
   | { type: "event"; at: string; key: string; item: ActivityItem }
@@ -277,7 +284,7 @@ function ActivityRow({
       : item.actor.type === "customer"
         ? t("activity.actorCustomer")
         : item.actor.type === "automation"
-          ? t("activity.actorAutomation")
+          ? automationName(item.payload.origin, t)
           : t("activity.actorSystem");
 
   const content = (

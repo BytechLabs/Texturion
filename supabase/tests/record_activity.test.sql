@@ -472,4 +472,27 @@ begin
   raise notice 'RA-12 PASSED: call steps';
 end $$;
 
+-- RA-13 (#725): a change the calendar sync made is the automation's, and says so.
+select set_config('loonext.calendar_provider_apply', 'on', true);
+update public.tasks set title = 'Fix the tap, moved by the calendar'
+ where id = 'a7000000-0000-4000-8000-000000000e01';
+select set_config('loonext.calendar_provider_apply', '', true);
+do $$
+begin
+  if not exists (
+    select 1 from public.record_activity
+     where record_type = 'task' and record_id = 'a7000000-0000-4000-8000-000000000e01'
+       and kind = 'edited' and actor_type = 'automation' and actor_id is null
+       and payload->>'origin' = 'calendar') then
+    raise exception 'RA-13 FAILED: a calendar change is not recorded as the calendar''s';
+  end if;
+  if exists (
+    select 1 from public.task_events
+     where task_id = 'a7000000-0000-4000-8000-000000000e01'
+       and kind = 'created' and origin is not null) then
+    raise exception 'RA-13 FAILED: a task a person created is marked as an automation''s';
+  end if;
+  raise notice 'RA-13 PASSED: automated task changes say which automation';
+end $$;
+
 rollback;
