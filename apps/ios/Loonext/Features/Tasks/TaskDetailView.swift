@@ -1472,15 +1472,19 @@ private struct InlineEditField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            TextField(
-                placeholder,
-                text: $value,
-                axis: multiline ? .vertical : .horizontal
-            )
+            // A one-line field still wraps, so a long title is read whole
+            // instead of scrolling out of sight; Return saves rather than
+            // breaking the line.
+            TextField(placeholder, text: $value, axis: .vertical)
             .font(font)
-            .lineLimit(multiline ? 2 ... 6 : 1 ... 1)
+            .lineLimit(multiline ? 2 ... 6 : 1 ... 4)
             .focused($focused)
             .onChange(of: value) { previous, next in
+                if !multiline, next.contains("\n") {
+                    value = next.replacingOccurrences(of: "\n", with: "")
+                    focused = false
+                    return
+                }
                 error = nil
                 if next.count > maxLength {
                     value = String(next.prefix(maxLength))
