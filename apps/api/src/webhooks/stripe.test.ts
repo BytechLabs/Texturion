@@ -1104,6 +1104,33 @@ describe("§9 event → state table", () => {
     },
   );
 
+  it("#722: reports Stripe's own move once, as a state_transition", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ status: "past_due" }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [{ id: COMPANY_ID, name: "Acme Plumbing" }]),
+      endpoint("POST", /us\.i\.posthog\.com\/capture/, () => ({ status: 1 })),
+    ]);
+    const event = eventOf("customer.subscription.updated", subscriptionFixture({ status: "past_due" }));
+    (event.data as Record<string, unknown>).previous_attributes = { status: "active" };
+    await deliver(event, harness, { env: { ...env, POSTHOG_API_KEY: "phc_test_key" } });
+
+    const moves = harness
+      .callsTo("POST", /posthog/)
+      .map((call) => call.json() as { event: string; properties: Record<string, unknown> })
+      .filter((body) => body.event === "state_transition");
+    expect(moves).toHaveLength(1);
+    expect(moves[0].properties).toMatchObject({
+      machine: "subscription",
+      from: "active",
+      to: "past_due",
+      cause: "stripe",
+      expected: true,
+    });
+  });
+
   // #327 — D12's week-4 retention target needs a cohort anchor, and no column
   // held one: created_at is signup rather than payment, current_period_start
   // advances monthly, and the funnel events live in PostHog where they cannot

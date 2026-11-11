@@ -1,8 +1,9 @@
-import type { Locale } from "@loonext/shared";
+import { stateMachines, type Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 
 import { capture } from "../analytics/posthog";
+import { stateTransitionProperties } from "../analytics/state-transition";
 import {
   applyModuleReconcile,
   planModuleReconcile,
@@ -220,9 +221,11 @@ export async function processStripeEvent(
     case "checkout.session.completed":
       return handleCheckoutCompleted(env, event.data.object);
     case "customer.subscription.created":
-    case "customer.subscription.updated":
-      await syncSubscription(env, event.data.object.id);
+    case "customer.subscription.updated": {
+      const synced = await syncSubscription(env, event.data.object.id);
+      reportSubscriptionMove(env, event, synced);
       return;
+    }
     case "customer.subscription.deleted":
       return handleSubscriptionDeleted(env, event.data.object, event.created);
     case "invoice.paid":
@@ -1328,6 +1331,32 @@ async function startCancellationLifecycle(
  * delivery after a reconcile-claimed cancellation converges on the one
  * stored value instead of re-keying the grace ledger.
  */
+/**
+ * #722: Stripe's own account of the move, from the event's
+ * `previous_attributes`, so reporting it costs no read. One `state_transition`
+ * per workspace; a move outside the shared machine is sent with
+ * `expected: false`, which is how an odd Stripe lifecycle shows up.
+ */
+function reportSubscriptionMove(
+  env: Env,
+  event: Stripe.Event,
+  synced: readonly { id: string; status: string }[],
+): void {
+  const previous = (event.data as { previous_attributes?: { status?: unknown } })
+    .previous_attributes?.status;
+  if (typeof previous !== "string") return;
+  const from = mirrorSubscriptionStatus(previous as Stripe.Subscription.Status);
+  for (const company of synced) {
+    if (from === null || from === company.status) continue;
+    void capture(
+      env,
+      "state_transition",
+      company.id,
+      stateTransitionProperties(stateMachines.subscriptionMachine, from, company.status, "stripe"),
+    );
+  }
+}
+
 async function handleSubscriptionDeleted(
   env: Env,
   subscription: Stripe.Subscription,
