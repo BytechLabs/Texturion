@@ -113,7 +113,7 @@ export function SegmentedControl<T extends string>({
               "flex items-center justify-center gap-1.5 rounded-full transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               size === "md"
                 ? "min-h-11 px-3 py-1 text-[12.5px] md:min-h-[28px]"
-                : "px-2 py-0.5 text-[11px]",
+                : "tap-target px-2 py-0.5 text-[11px]",
               fill && "flex-1",
               chosen
                 ? "bg-app-paper font-semibold text-app-ink"
