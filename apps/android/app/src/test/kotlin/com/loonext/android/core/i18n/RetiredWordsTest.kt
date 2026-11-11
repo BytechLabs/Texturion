@@ -114,4 +114,16 @@ class RetiredWordsTest {
             .map { (key, value) -> "$key: $value" }
         assertEquals("the audit log is called something else", emptyList<String>(), offenders)
     }
+
+    /** French names it "Journal d'audit"; "Historique" alone was the nav name. */
+    private val auditLogOldNamesFr = Regex("""^\s*historique\s*$|\bjournal d['’]activité\b""", RegexOption.IGNORE_CASE)
+
+    @Test
+    fun `no French value names the audit log Historique or Journal d'activité`() {
+        assertTrue("the French catalogue is empty", AppStrings.frCA.isNotEmpty())
+        val offenders = AppStrings.frCA
+            .filter { (_, value) -> auditLogOldNamesFr.containsMatchIn(readable(value)) }
+            .map { (key, value) -> "$key: $value" }
+        assertEquals("the audit log is called something else", emptyList<String>(), offenders)
+    }
 }

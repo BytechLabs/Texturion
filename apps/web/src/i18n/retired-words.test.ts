@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EN } from "./catalog";
+import { EN, FR_CA } from "./catalog";
 
 /**
  * One word per thing. A task's labels and a conversation's tags are the same
@@ -27,9 +27,9 @@ function readable(value: string): string {
   return value.replace(/\{[A-Za-z0-9_]+\}/g, "");
 }
 
-function entries(): Array<[string, string]> {
+function entries(catalog: object = EN): Array<[string, string]> {
   const out: Array<[string, string]> = [];
-  for (const [section, keys] of Object.entries(EN)) {
+  for (const [section, keys] of Object.entries(catalog)) {
     for (const [key, value] of Object.entries(keys as Record<string, unknown>)) {
       if (typeof value === "string") out.push([`${section}.${key}`, value]);
     }
@@ -128,6 +128,20 @@ describe("English calls the audit log the audit log", () => {
   it("no value names it History or Activity log", () => {
     const offenders = entries()
       .filter(([, value]) => AUDIT_LOG_OLD_NAMES.test(readable(value)))
+      .map(([key, value]) => `${key}: ${value}`);
+    expect(offenders).toEqual([]);
+  });
+});
+
+// French names it "Journal d'audit"; "Historique" alone was the nav name.
+const AUDIT_LOG_OLD_NAMES_FR = /^\s*historique\s*$|\bjournal d['’]activité\b/i;
+
+describe("French calls the audit log the journal d'audit", () => {
+  it("no value names it Historique or Journal d'activité", () => {
+    const all = entries(FR_CA);
+    expect(all.length, "the French catalogue is empty").toBeGreaterThan(0);
+    const offenders = all
+      .filter(([, value]) => AUDIT_LOG_OLD_NAMES_FR.test(readable(value)))
       .map(([key, value]) => `${key}: ${value}`);
     expect(offenders).toEqual([]);
   });

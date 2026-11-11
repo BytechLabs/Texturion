@@ -133,4 +133,17 @@ final class RetiredWordsTests: XCTestCase {
             .sorted()
         XCTAssertEqual(offenders, [], "the audit log is called something else")
     }
+
+    /// French names it "Journal d'audit"; "Historique" alone was the nav name.
+    func testNoFrenchValueNamesTheAuditLogHistoriqueOrJournalDActivite() {
+        XCTAssertFalse(AppStrings.frCA.isEmpty, "the French catalogue is empty")
+        let offenders = AppStrings.frCA
+            .filter { entry in
+                let all = words(in: entry.value)
+                return all == ["historique"] || all.joined(separator: " ").contains("journal d activité")
+            }
+            .map { "\($0.key): \($0.value)" }
+            .sorted()
+        XCTAssertEqual(offenders, [], "the audit log is called something else")
+    }
 }
