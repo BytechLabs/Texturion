@@ -629,14 +629,14 @@ final class TaskPriorityRepeatTests: XCTestCase {
                 event("label_added", to: ["tag_id": "t1", "name": "Warranty"]),
                 by: "Sam", locale: en
             ),
-            "Sam added the label Warranty"
+            "Sam added the tag Warranty"
         )
         XCTAssertEqual(
             taskHistorySentence(
                 event("label_removed", from: ["tag_id": "t1", "name": "Warranty"]),
                 by: "Sam", locale: en
             ),
-            "Sam removed the label Warranty"
+            "Sam removed the tag Warranty"
         )
         XCTAssertEqual(
             taskHistorySentence(
