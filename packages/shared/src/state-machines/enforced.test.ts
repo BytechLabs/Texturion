@@ -14,6 +14,7 @@ import { calendarLinkMachine } from "./calendar-link";
 import { calendarOutboxMachine } from "./calendar-outbox";
 import { calendarPushSubscriptionMachine } from "./calendar-push-subscription";
 import { calendarReminderReplanMachine } from "./calendar-reminder-replan";
+import { callMachine } from "./call";
 import { callLegMachine } from "./call-leg";
 import { conversationVisibilityMachine } from "./conversation-visibility";
 import { dataExportMachine } from "./data-export";
@@ -115,6 +116,7 @@ describe("#722 enforced machines", () => {
     ["geocode (contacts)", geocodeMachine, "contacts_geocode_transition_guard"],
     ["geocode (tasks)", geocodeMachine, "tasks_geocode_transition_guard"],
     ["call_leg", callLegMachine, "call_member_legs_transition_guard"],
+    ["call", callMachine, "calls_transition_guard"],
     ["billing_dispute", billingDisputeMachine, "billing_disputes_status_forward_only"],
     ["port", portMachine, "port_requests_status_forward_only"],
     ["port (number mirror)", portMachine, "phone_numbers_porting_status_forward_only"],
@@ -122,7 +124,9 @@ describe("#722 enforced machines", () => {
     ["subscription", subscriptionMachine, "companies_subscription_status_forward_only"],
   ] as const)("%s: the trigger allows exactly the defined moves", (_name, machine, fn) => {
     const edges = triggerEdges(
-      REMAINING_GUARDS.has(fn)
+      fn === "calls_transition_guard"
+        ? "20261111410000_a_call_never_goes_backwards.sql"
+        : REMAINING_GUARDS.has(fn)
         ? "20261111400000_the_remaining_machines_keep_their_lifecycles.sql"
         : fn === "phone_numbers_transition_guard"
         ? "20261111330000_a_number_keeps_its_lifecycle.sql"

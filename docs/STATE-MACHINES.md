@@ -23,7 +23,7 @@
 
 | Id | Column(s) | States | Authority | Pinned by | Clients that render it |
 | --- | --- | --- | --- | --- | --- |
-| `call` | `calls.state` | 9 | internal | check (nullable) | web, Android, iOS |
+| `call` | `calls.state` | 9 | internal | check (nullable) + transition trigger | web, Android, iOS |
 | `call_leg` | `call_member_legs.state` | 3 | internal | check + transition trigger | server only (audit) |
 | `scheduled_message` | `scheduled_messages.status` | 6 | internal | check | web, Android, iOS |
 | `calendar_connection` | `calendar_connections.status` | 4 | internal | check | web only |
@@ -63,6 +63,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 ### call
 
 - **States:** `dialing` (outbound only), `ringing`, `answered`, `voicemail_greeting`, `voicemail_recording`, and four terminals `ended_answered`, `ended_voicemail`, `ended_missed`, `ended_rejected`. NULL is a pre-v3 row.
+- **Enforced (phase 2):** `calls_transition_guard` (`supabase/migrations/20261111410000_a_call_never_goes_backwards.sql`). Reading every `terminalize()` call in the reducer showed a live call can end in any terminal state (a voicemail greeting refused for a capped workspace ends `ended_rejected`; an outbound call whose member leg is known dead ends `ended_missed` after the customer answered; a T17 hangup ends the call from wherever it stood; so does `api_sweep_stale_calls`), so the definition now says so. What the trigger refuses is going backwards. A refused mirror write is reported and retried from the session's own state (`doMirror` in `session-do.ts`), so it never blocks a call.
 - **Events and edges:** the full diagram is section 3.1 of `docs/CALLS-V3.md`. Two upgrade edges leave a terminal: `ended_missed -> ended_voicemail` (late recording saved) and `ended_missed -> ended_answered` (late bri-tagged hangup). Every inbound-leg hangup is terminal from every non-terminal state (T17).
 - **Guards:** replay guard at T1, leg-status guards at T2/T3, ring-me never cancels a live leg, VM-entry only on the listed conditions.
 - **Effects (E):** ringing: push, ring alarm, dials; answered: bridge, cancel siblings, thread; voicemail_greeting: vmi answer, speak, cancel legs; terminal merge (text-back, crew alert, billing anchor) once per terminal.

@@ -10,7 +10,13 @@ import { capabilityActions, defineMachine } from "./define-machine";
  * reducer. NULL is a legacy row written before the column existed (the
  * constraint admits it); the machine has no state for it.
  *
- * Phase 1 of #722: definition only, no runtime behaviour. See docs/STATE-MACHINES.md.
+ * Every live state may end in any terminal state: terminalize() in the reducer
+ * picks the ending from the event, and a hangup that arrives after the machine
+ * lost a transition (T17) ends the call from wherever it stood, as does the
+ * stale-call sweeper (api_sweep_stale_calls). What the edges rule out is going
+ * backwards: a live call returning to ringing, or an ended one coming back,
+ * except the two late upgrades out of ended_missed. The trigger
+ * calls_transition_guard enforces them (#722).
  */
 export type CallState = "dialing" | "ringing" | "answered" | "voicemail_greeting" | "voicemail_recording" | "ended_answered" | "ended_voicemail" | "ended_missed" | "ended_rejected";
 
@@ -26,11 +32,11 @@ export const callMachine = defineMachine<CallState>({
   states: ["dialing", "ringing", "answered", "voicemail_greeting", "voicemail_recording", "ended_answered", "ended_voicemail", "ended_missed", "ended_rejected"],
   initial: ["dialing", "ringing", "voicemail_greeting"],
   transitions: {
-    dialing: ["answered", "ended_missed"],
-    ringing: ["answered", "voicemail_greeting", "ended_missed", "ended_answered", "ended_rejected"],
-    answered: ["ended_answered"],
-    voicemail_greeting: ["voicemail_recording", "ended_missed"],
-    voicemail_recording: ["ended_voicemail", "ended_missed"],
+    dialing: ["answered", "ended_answered", "ended_voicemail", "ended_missed", "ended_rejected"],
+    ringing: ["answered", "voicemail_greeting", "ended_answered", "ended_voicemail", "ended_missed", "ended_rejected"],
+    answered: ["ended_answered", "ended_voicemail", "ended_missed", "ended_rejected"],
+    voicemail_greeting: ["voicemail_recording", "ended_answered", "ended_voicemail", "ended_missed", "ended_rejected"],
+    voicemail_recording: ["ended_answered", "ended_voicemail", "ended_missed", "ended_rejected"],
     ended_answered: [],
     ended_voicemail: [],
     ended_missed: ["ended_voicemail", "ended_answered"],
