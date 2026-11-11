@@ -355,6 +355,20 @@ values
    now() - interval '5 hours', now() - interval '5 hours' + interval '20 seconds')
 on conflict (id) do nothing;
 
+-- #725: how each seeded call ended. An update rather than insert columns, so a
+-- database seeded before the column existed gains them on the next run.
+update public.calls c
+   set ended_reason = v.reason
+  from (values
+    ('88888888-0000-4000-8000-000000000001'::uuid, 'caller_hung_up'),
+    ('88888888-0000-4000-8000-000000000002'::uuid, 'answered'),
+    ('88888888-0000-4000-8000-000000000003'::uuid, 'left_voicemail'),
+    ('88888888-0000-4000-8000-000000000004'::uuid, 'answered'),
+    ('88888888-0000-4000-8000-000000000005'::uuid, 'customer_hung_up'),
+    ('88888888-0000-4000-8000-000000000006'::uuid, 'no_answer')
+  ) as v(id, reason)
+ where c.id = v.id and c.ended_reason is null;
+
 insert into public.conversation_events
   (id, company_id, conversation_id, actor_user_id, type, payload, created_at)
 values

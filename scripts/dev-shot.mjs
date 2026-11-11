@@ -22,6 +22,7 @@
  *                         the conversation info panel)
  *   --fill <selector> <text>  after the clicks, type this into the field
  *                         (repeatable; e.g. a search box)
+ *   --hover <selector>    last, rest the pointer on this (e.g. a tooltip)
  *   --el <selector>       capture just this element instead of the page
  *   --wait <ms>           settle delay after load/clicks (default 600)
  *   --out <dir>           output directory (default .dev-shots)
@@ -45,6 +46,7 @@ const args = process.argv.slice(2);
 const paths = [];
 const clicks = [];
 const fills = [];
+let hover = null;
 let mobile = false;
 let dark = false;
 let fullPage = false;
@@ -62,6 +64,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === "--fresh") fresh = true;
   else if (a === "--click") clicks.push(args[++i]);
   else if (a === "--fill") fills.push([args[++i], args[++i]]);
+  else if (a === "--hover") hover = args[++i];
   else if (a === "--el") element = args[++i];
   else if (a === "--wait") settle = Number(args[++i]);
   else if (a === "--out") outDir = args[++i];
@@ -171,6 +174,7 @@ async function shoot(page, path) {
   for (const [selector, text] of fills) {
     await page.fill(selector, text, { timeout: 10_000 });
   }
+  if (hover) await page.locator(hover).first().hover({ timeout: 10_000 });
   await page.waitForTimeout(settle);
   const slug = path.replaceAll("/", "_").replaceAll(/[^\w-]/g, "") || "root";
   const file = join(outDir, `${slug}${mobile ? ".mobile" : ""}${dark ? ".dark" : ""}.png`);
