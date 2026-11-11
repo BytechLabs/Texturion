@@ -55,7 +55,9 @@ calendarRoutes.post(
       "calendar feed mint",
     );
 
-    return c.json({ url: feedUrl(env.APP_ORIGIN, token) }, 201);
+    // The feed is served by this Worker (routes/calendar-feed.ts), so the link
+    // names the API host. On the app host it was a page that does not exist.
+    return c.json({ url: feedUrl(env.API_ORIGIN, token) }, 201);
   },
 );
 
