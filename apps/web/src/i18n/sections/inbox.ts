@@ -190,7 +190,7 @@ export const inboxEn = {
   // guard reports web as the client that lost the line. Prettier does not break
   // string literals, so leaving them long is stable.
   startedMemberReplyHint:
-    "Open a thread and reply. It goes out from the business number, and the whole crew can see it.",
+    "Open a conversation and reply. It goes out from the business number, and the whole crew can see it.",
   startedMemberNoteLabel: "Leave a note for the crew",
   startedMemberNoteHint:
     "Switch the composer to Note. Notes stay inside the app — the customer never sees them.",
@@ -360,7 +360,7 @@ export const inboxEn = {
   forYouPanelEmpty: "Nothing here right now",
   forYouHiddenQueue: "{panel}: {count} waiting, not on your page",
   forYouShowPanel: "Put it back",
-  forYouPanelNoteFollowUps: "Quotes and threads you asked to be reminded about.",
+  forYouPanelNoteFollowUps: "Quotes and conversations you asked to be reminded about.",
   forYouPanelNoteUnassigned: "New conversations and tasks nobody has claimed.",
   forYouPanelNoteWaiting: "Your conversations where the customer spoke last.",
   forYouPanelNoteTasks: "Open tasks assigned to you.",

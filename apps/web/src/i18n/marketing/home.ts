@@ -32,7 +32,7 @@ import type { MarketingLocale } from "./footer";
  * shared with surfaces beyond this page.
  */
 export const homeEn = {
-  metaTitle: "Loonext: the shared line for service crews",
+  metaTitle: "Loonext: the shared inbox for service crews",
   metaDescription:
     "One business number for texts and calls, in an inbox the whole crew works from any phone. Reply, answer, assign, turn it into a job, close it.",
 
@@ -150,9 +150,9 @@ export const homeEn = {
     "Our assistant writes a reply for you to edit, puts voicemails in writing, and fills in a job's address and due date from the customer's own words. A person always reads it before it goes. Every part of it can be switched off.",
   bentoDoneTitle: "Mark it done.",
   bentoDoneBody:
-    "Tap any message to check it off, right in the thread. The whole crew sees what's handled. No separate to-do app.",
+    "Tap any message to check it off, right in the conversation. The whole crew sees what's handled. No separate to-do app.",
   bentoTwoNumbersBody:
-    "Two locations, or an office line and a field line? Pro gives you two separate numbers, each with its own inbox.",
+    "Two locations, or an office number and a field number? Pro gives you two separate numbers, each with its own inbox.",
   bentoPhoneBody:
     "Works on every phone your crew already carries. No download, no app store, no IT day. Open the link, add it to your home screen, and it behaves like an app: push notifications when a customer texts or calls, one-handed replies from the job site, calls you can take or place straight from the conversation, and a dark mode that doesn't blind you at 6am.",
 

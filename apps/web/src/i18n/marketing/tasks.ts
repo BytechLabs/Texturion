@@ -47,7 +47,7 @@ export const tasksEn = {
   coreBodyTwo:
     "It works from a call too. Somebody describes a job on the phone, hangs up, and the person who answered turns that call into a task without opening anything else. The task carries the call the way it carries a text.",
   coreBodyThree:
-    "And it goes both ways. Task activity shows up inside the conversation, so a teammate reading the thread sees the job was created, assigned, and scheduled without leaving it.",
+    "And it goes both ways. Task activity shows up inside the conversation, so a teammate reading the conversation sees the job was created, assigned, and scheduled without leaving it.",
 
   viewsEyebrow: "Four ways to look at the same work",
   viewsTitle: "Whichever view matches the question you are asking.",
@@ -61,7 +61,7 @@ export const tasksEn = {
     "Every job with an address, plotted. Two calls on the same street stop being two separate trips, which is the one view that saves fuel rather than time.",
   viewThreadTitle: "In the conversation",
   viewThreadBody:
-    "Open a customer's thread and the jobs attached to it are right there as a checklist. You never have to remember whether you promised them something; the thread tells you.",
+    "Open a customer's conversation and the jobs attached to it are right there as a checklist. You never have to remember whether you promised them something; the conversation tells you.",
 
   factsEyebrow: "The plain facts",
   factsOne:

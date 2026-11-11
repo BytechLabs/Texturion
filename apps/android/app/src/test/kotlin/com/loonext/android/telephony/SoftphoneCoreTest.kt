@@ -472,7 +472,7 @@ class SoftphoneCoreTest {
 
         assertTrue("the timed-out Calling… chip is dropped", h.core.state.value.calls.isEmpty())
         assertEquals(
-            "Couldn't reach the line. Please try again.",
+            "Couldn't reach that number. Please try again.",
             h.core.state.value.error,
         )
         h.scope.cancel()

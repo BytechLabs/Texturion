@@ -46,27 +46,27 @@ export const sharedInboxEn = {
   coreEyebrow: "The core idea",
   coreTitle: "A text stops being one person's problem.",
   coreBodyOne:
-    "When a customer texts your business number, Loonext turns that text into a conversation everyone can see. Priya sees it. Dale sees it. Marcus sees it. Whoever is free picks it up, and because the whole crew is looking at the same thread, two people never reply to the same customer, and nobody assumes someone else already did.",
+    "When a customer texts your business number, Loonext turns that text into a conversation everyone can see. Priya sees it. Dale sees it. Marcus sees it. Whoever is free picks it up, and because the whole crew is looking at the same conversation, two people never reply to the same customer, and nobody assumes someone else already did.",
   coreBodyTwo:
     "Every conversation carries one owner and one status: new, open, waiting, or closed. Filter to Open and you're looking at exactly the work that still needs a human. Filter to Mine and you're looking at your own. It's the difference between a phone that buzzes at random and a queue you can actually clear.",
   coreBodyThree:
-    "And the inbox is live. When Dale replies, the conversation updates on every other phone: the status changes, the snippet updates, the thread re-sorts. Nobody refreshes, nobody wonders, nobody replies twice.",
+    "And the inbox is live. When Dale replies, the conversation updates on every other phone: the status changes, the snippet updates, the conversation re-sorts. Nobody refreshes, nobody wonders, nobody replies twice.",
 
   useEyebrow: "Use it like this",
   useTitle: "Three jobs the inbox does every day.",
   useTriageTitle: "Morning triage",
   useTriageBody:
     "Open the inbox with your first coffee. Everything that came in overnight is sitting in one list: assign the urgent one to whoever's closest, reply to the easy ones, and the day starts sorted instead of scattered across three personal phones.",
-  useOwnerTitle: "One owner per thread",
+  useOwnerTitle: "One owner per conversation",
   useOwnerBody:
-    "Assign a conversation and it shows on every phone: an owner chip on the row, a line in the thread. One owner means no double replies and no silent gaps, and anyone can still step in when they're needed.",
+    "Assign a conversation and it shows on every phone: an owner chip on the row, a line in the conversation. One owner means no double replies and no silent gaps, and anyone can still step in when they're needed.",
   useSearchTitle: "Search as memory",
   useSearchBody:
-    'Every message and contact is searchable. "What did we quote the Nguyens in March?" takes five seconds, not a phone poll around the crew. The answer is in the thread, with the matching text highlighted.',
+    'Every message and contact is searchable. "What did we quote the Nguyens in March?" takes five seconds, not a phone poll around the crew. The answer is in the conversation, with the matching text highlighted.',
   useNotesTitle: "Notes stay internal",
   useNotesBody: "Talk about the job without texting the customer.",
   notesBody:
-    'Some of what a crew needs to say should never leave the building: gate codes, "quote high, last visit ran long", the quirks of a property. Internal notes live right inside the conversation, drawn in an unmistakable marked card with a lock, and they are never sent to the customer. The next person who opens the thread has the context exactly where they need it.',
+    'Some of what a crew needs to say should never leave the building: gate codes, "quote high, last visit ran long", the quirks of a property. Internal notes live right inside the conversation, drawn in an unmistakable marked card with a lock, and they are never sent to the customer. The next person who opens the conversation has the context exactly where they need it.',
 
   factsEyebrow: "The plain facts",
   factsReceiving:

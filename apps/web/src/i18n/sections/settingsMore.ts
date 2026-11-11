@@ -63,7 +63,7 @@ export const settingsMoreEn = {
   whatsNewBadge: "New",
   whatsNewCallsBody: "Calls to your business number ring your whole crew right here. Pick up, put someone on hold, or hand the call to a teammate.",
   whatsNewCallsTitle: "Answer calls in the app",
-  whatsNewDraftsBody: "Lou reads the thread and offers a reply you can edit before it goes. You send it, or you ignore it; nothing is sent on your behalf.",
+  whatsNewDraftsBody: "Lou reads the conversation and offers a reply you can edit before it goes. You send it, or you ignore it; nothing is sent on your behalf.",
   whatsNewDraftsTitle: "Lou drafts the reply for you",
   whatsNewFooter: "Smaller repairs ship most days and are not listed. If you reported something and want to know where it got to, ask us on the Help page.",
   whatsNewIntro: "Everything here has already shipped and is in the product now.",
@@ -127,11 +127,11 @@ export const settingsMoreEn = {
   numberReleasedOn: "Released {date}.",
   numberChooseAction: "Choose a number",
   numberWhoCanUseAction: "Who can use this number…",
-  numberHowItAnswersAction: "How this line answers…",
-  numberWhenOpenAction: "When this line is open…",
+  numberHowItAnswersAction: "How this number answers…",
+  numberWhenOpenAction: "When this number is open…",
   numberReleaseAction: "Release this number…",
 
-  /* A carrier is filtering this line (#235) */
+  /* A carrier is filtering this number (#235) */
   numberHealthTitle: "Messages from this number aren't arriving reliably",
   numberHealthBody:
     "Carriers sometimes start filtering a number — often one that was reused " +
@@ -175,23 +175,23 @@ export const settingsMoreEn = {
   saveFailedGeneric: "That could not be saved.",
   changeFailedGeneric: "That could not be changed.",
 
-  /* When this line is open (#307) */
-  numberHoursTitle: "When this line is open",
+  /* When this number is open (#307) */
+  numberHoursTitle: "When this number is open",
   numberHoursDescription:
     "The after-hours reply on this number follows this clock. Leave it alone " +
     "and it follows your workspace.",
   timezoneLabel: "Timezone",
   numberOpenHoursLabel: "Open hours",
-  numberHoursSaved: "Saved. This line keeps these hours from now on.",
+  numberHoursSaved: "Saved. This number keeps these hours from now on.",
 
-  /* How this line answers (#307) */
-  numberIdentityTitle: "How this line answers",
+  /* How this number answers (#307) */
+  numberIdentityTitle: "How this number answers",
   numberIdentityDescription:
     "Anything you leave alone follows your workspace. Change one here and it " +
     "only affects this number.",
   numberIdentitySaved: "Saved. New callers hear this straight away.",
   numberIdentityMctbLabel: "Text back a missed caller",
-  numberIdentityMctbHint: "Sent from this line when a call goes unanswered.",
+  numberIdentityMctbHint: "Sent from this number when a call goes unanswered.",
   numberIdentityVoiceLabel: "Voicemail voice",
   numberIdentityWrittenGreeting: "The written greeting, read aloud",
   numberIdentityVoiceHint:
@@ -202,28 +202,28 @@ export const settingsMoreEn = {
   numberIdentityOnCallOnly: "Ring only whoever's on call",
   numberIdentityTakeMessage: "Take a message",
   numberIdentityAfterHoursHint:
-    "Outside this line's hours. With nobody on call, the last two still " +
+    "Outside this number's hours. With nobody on call, the last two still " +
     "differ — one rings the crew anyway, the other takes a message.",
   numberIdentityRingLabel: "How the phones ring",
   numberIdentityRingAll: "All at once",
   numberIdentityRingInTurn: "One at a time",
   numberIdentityRingSecondsLabel: "How long they ring",
   numberRingLength: "{seconds} seconds · about {rings} rings",
-  numberIdentityLeadSourceLabel: "Where this line is advertised",
+  numberIdentityLeadSourceLabel: "Where this number is advertised",
   numberIdentityUntracked: "Not advertised anywhere",
   numberIdentityLeadSourceHint:
-    "Every new conversation on this line is counted here, with nobody tapping " +
+    "Every new conversation on this number is counted here, with nobody tapping " +
     "anything. Changing it later does not relabel the customers you already " +
     "have.",
-  numberIdentityNameLabel: "Name for this line",
+  numberIdentityNameLabel: "Name for this number",
   numberIdentityNameHint:
-    "Used in the greeting, on missed-call texts, and wherever this line " +
+    "Used in the greeting, on missed-call texts, and wherever this number " +
     "introduces itself.",
   numberIdentityVoicemailLabel: "Voicemail greeting",
   numberIdentityVoicemailHint: "What a caller hears when nobody picks up.",
   numberIdentityAwayLabel: "After-hours reply",
   numberIdentityAwayHint:
-    "The text sent when somebody messages this line outside your hours.",
+    "The text sent when somebody messages this number outside your hours.",
   numberIdentityMctbTextLabel: "Missed-call text",
   numberIdentityMctbTextHint:
     "What a caller gets when nobody picks up and they hang up.",
@@ -690,10 +690,10 @@ export const settingsMoreEn = {
     "off mid-reach.",
   ringWindowOnePhone:
     "Then the caller gets your greeting. In {seconds} seconds, 1 phone gets a " +
-    "turn — anyone after that never rings on this line.",
+    "turn — anyone after that never rings on this number.",
   ringWindowManyPhones:
     "Then the caller gets your greeting. In {seconds} seconds, {phones} " +
-    "phones get a turn — anyone after that never rings on this line.",
+    "phones get a turn — anyone after that never rings on this number.",
   ringWindowAll:
     "Then the caller gets your greeting. Longer than 45 seconds isn't " +
     "offered: the call legs themselves end there, so it would be ringing " +
@@ -786,7 +786,7 @@ export const settingsMoreEn = {
   navBilling: "Billing",
   navBillingDesc: "Plan, payment method, and invoices",
   navPayments: "Getting paid",
-  navPaymentsDesc: "Take a deposit or a final payment over the thread",
+  navPaymentsDesc: "Take a deposit or a final payment over the conversation",
   navNotifications: "Notifications",
   navNotificationsDesc: "Email and push, per person",
   navProfile: "Profile",
@@ -1052,8 +1052,8 @@ export const settingsMoreEn = {
     "What the crew has been tagging, and how often. The quiet ones at the " +
     "bottom are usually duplicates of something above.",
   tagNeverUsed: "never used",
-  tagUsesOne: "{count} thread",
-  tagUsesMany: "{count} threads",
+  tagUsesOne: "{count} conversation",
+  tagUsesMany: "{count} conversations",
   tagLastUsed: " · last {when}",
   tagDescribeAria: "Describe {name}",
   tagEditDescriptionAria: "Edit the description for {name}",
@@ -1066,9 +1066,9 @@ export const settingsMoreEn = {
     "pick, and this one goes away. Nothing is untagged.",
   tagMergeKeepWhich: "Keep which tag?",
   tagMergeOutcomeOne:
-    "{count} thread moves to “{into}”. “{name}” stops existing.",
+    "{count} conversation moves to “{into}”. “{name}” stops existing.",
   tagMergeOutcomeMany:
-    "{count} threads move to “{into}”. “{name}” stops existing.",
+    "{count} conversations move to “{into}”. “{name}” stops existing.",
   tagMergeFailed: "Could not merge those. Try again in a moment.",
   tagLockTitle: "Who can create tags",
   tagLockDescription:
@@ -1079,7 +1079,7 @@ export const settingsMoreEn = {
     "Everyone can still use every tag you already have. This only stops new " +
     "ones being invented mid-job.",
   tagLockedNote:
-    "A tech who needs a category you do not have will leave the thread " +
+    "A tech who needs a category you do not have will leave the conversation " +
     "untagged rather than ask. Check the list below now and then.",
 
   /* One hosted-SMS order, and the section that lists them */
@@ -1209,7 +1209,7 @@ export const settingsMoreEn = {
   tfaCodesBody:
     "This is the only time you will see these. If you lose your phone, one of " +
     "these codes is how you get back in — without them, getting back into " +
-    "your business line takes us weeks.",
+    "your business number takes us weeks.",
   tfaCopy: "Copy",
   tfaCopied: "Copied.",
   tfaDownload: "Download",

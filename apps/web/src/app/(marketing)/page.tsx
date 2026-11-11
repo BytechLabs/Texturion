@@ -74,7 +74,7 @@ export const metadata: Metadata = {
     // #491: was "the shared text inbox for service crews". Calling has been
     // included on every plan since D36-D43, and the SERP title is the single
     // line most buyers ever read about what this is.
-    title: "Loonext: the shared line for service crews",
+    title: "Loonext: the shared inbox for service crews",
     description:
       "One business number for texts and calls, in an inbox the whole crew works from any phone. Reply, answer, assign, turn it into a job, close it. " +
       `${STARTER_USD} a month flat for the team, not per user.`,

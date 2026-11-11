@@ -41,7 +41,7 @@ enum TaskReferencesStrings {
             "taskRefs.linkedTitle": "Linked tasks",
             "taskRefs.linkedEmpty": "No linked tasks yet.",
             "taskRefs.linkedLoadFailed": "Couldn't load the linked tasks.",
-            "taskRefs.howAnchored": "On this thread",
+            "taskRefs.howAnchored": "On this conversation",
             "taskRefs.howMentioned": "Mentioned here",
             "taskRefs.howPointsAt": "Points here",
 

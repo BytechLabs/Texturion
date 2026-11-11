@@ -79,7 +79,7 @@ enum ThreadStrings {
             "quotes.needAmount":
                 "Put a number in, and make it more than zero.",
             "quotes.needDescription":
-                "Say what the work is. The customer sees this line.",
+                "Say what the work is. The customer sees this number.",
             // --- The thread itself ---------------------------------------
             "thread.notFound": "This conversation doesn't exist or was removed.",
             "thread.backToInbox": "Back to inbox",
@@ -264,7 +264,7 @@ enum ThreadStrings {
 
             // --- Make a task (#214) -----------------------------------------------
             "thread.newTask": "New task",
-            "thread.newTaskFrom": "From {name}'s message · posts to the thread",
+            "thread.newTaskFrom": "From {name}'s message · posts to the conversation",
             "thread.taskTitle": "Title",
             "thread.taskTitlePlaceholder": "Task title",
             "thread.taskTitleFallback": "Follow up",
@@ -285,7 +285,7 @@ enum ThreadStrings {
             "thread.addrCity": "City",
             "thread.addrState": "State / province",
             "thread.addrPostal": "Postal code",
-            "thread.taskLineNote": "The thread shows the task line",
+            "thread.taskLineNote": "The conversation shows the task line",
 
             // --- Contact panel (#165 / #301) ---------------------------------------
             "thread.openContact": "Open contact",
@@ -305,7 +305,7 @@ enum ThreadStrings {
             "thread.notesPlaceholder":
                 "Gate code, dog's name, preferred arrival window…",
             "thread.saveFailed": "Couldn't save. Check your connection.",
-            "thread.leadFromLine": "{name} · the line they called",
+            "thread.leadFromLine": "{name} · the number they called",
             "thread.leadSaidSo": "{name} · somebody said so",
             "thread.leadAsk": "Not asked yet. Ask them how they heard about you.",
             "thread.addLeadSource": "Add a source",
@@ -317,16 +317,16 @@ enum ThreadStrings {
                 "No other conversations with this contact.",
 
             // --- The catch-up card (#247) --------------------------------------------
-            "thread.summaryReading": "Reading the thread…",
+            "thread.summaryReading": "Reading the conversation…",
             "thread.summaryReady": "Lou's catch-up",
             "thread.summaryOffer": "Catch me up",
-            "thread.catchUpHint": "Catch up on this thread?",
+            "thread.catchUpHint": "Catch up on this conversation?",
             "thread.catchUpRecap": "Recap",
             "thread.notNow": "Not now",
             "thread.morePinnedAria": "{count} more pinned",
-            "thread.summaryOfferAria": "Catch me up on this thread",
+            "thread.summaryOfferAria": "Catch me up on this conversation",
             "thread.summaryOfferHint":
-                "Lou reads the thread and shows what they asked, what you said, and "
+                "Lou reads the conversation and shows what they asked, what you said, and "
                 + "what's still open.",
             "thread.summaryHide": "Hide",
             "thread.summaryLineHint": "Opens the message this came from.",
@@ -592,7 +592,7 @@ enum ThreadStrings {
                 + "number won't ring you either. Ask them if you need it.",
             "thread.bannerOptOutHintTitle": "They asked not to be contacted",
             "thread.bannerOptOutHintBody":
-                "Someone on this thread asked to be left alone. That request is "
+                "Someone on this conversation asked to be left alone. That request is "
                 + "binding however it's worded, so don't reply unless you're sure it "
                 + "wasn't one. To stop texts for good, they need to text STOP.",
             "thread.signedOut": "You're signed out.",
@@ -613,7 +613,7 @@ enum ThreadStrings {
             "thread.alreadyHasCallTask": "This call is already a task.",
             "thread.makeTaskFromCall": "Make a task from this call",
             "thread.callTaskTitle": "Call from {name}",
-            "thread.newTaskFromCall": "From {name}'s call · posts to the thread",
+            "thread.newTaskFromCall": "From {name}'s call · posts to the conversation",
             "thread.newTaskFor": "For {name}",
             "thread.newTaskMore": "More",
             "thread.taskCreatedStandalone": "Task created.",
@@ -709,7 +709,7 @@ enum ThreadStrings {
             "domain.catchUpSectionWeSaid": "What we said",
             "domain.catchUpSectionOpen": "Still open",
             "domain.catchUpAttribution":
-                "Lou read this thread. Tap any line to see the message it came "
+                "Lou read this conversation. Tap any line to see the message it came "
                 + "from.",
             "domain.catchUpDisabled":
                 "Catch-ups are turned off for this workspace. Settings, AI turns "
@@ -721,32 +721,32 @@ enum ThreadStrings {
             "thread.summaryOfferQuietDay": "quiet for a day",
             "thread.summaryOfferQuietDays": "quiet for {count} days",
             "thread.summarySpam":
-                "This thread is marked as spam, so Lou skips it. Unmark it to ask "
+                "This conversation is marked as spam, so Lou skips it. Unmark it to ask "
                 + "for a catch-up.",
             "thread.summaryTooShort":
-                "There isn't much here yet — reading the thread is quicker than a "
+                "There isn't much here yet — reading the conversation is quicker than a "
                 + "catch-up.",
             "thread.summaryOverCap":
                 "This month's catch-ups are used up. They start again next month. "
-                + "Read the thread.",
+                + "Read the conversation.",
             "thread.summaryUnreachable":
-                "Couldn't reach Lou just now. Try again, or read the thread.",
+                "Couldn't reach Lou just now. Try again, or read the conversation.",
             "thread.summaryUnusable":
-                "Nothing Lou wrote checked out against the thread, so it said "
-                + "nothing. Read the thread.",
+                "Nothing Lou wrote checked out against the conversation, so it said "
+                + "nothing. Read the conversation.",
             "thread.summaryForbidden":
                 "Your role can't ask for catch-ups — they spend the workspace's "
                 + "shared AI budget. An owner or admin can change that, and the "
-                + "thread is all here.",
+                + "conversation is all here.",
             "thread.summaryNotFound":
-                "This thread isn't there any more. Close it and open it again.",
+                "This conversation isn't there any more. Close it and open it again.",
             "thread.summaryNetwork":
                 "Can't reach Loonext. Check your connection, then try again.",
             "thread.summaryPaused":
                 "Catch-ups are paused right now. Try again shortly, or read the "
-                + "thread.",
+                + "conversation.",
             "thread.summaryNone":
-                "No catch-up this time. Try again, or read the thread.",
+                "No catch-up this time. Try again, or read the conversation.",
             "thread.summaryStopNotice":
                 "This contact texted STOP. Nothing can be sent to them, whatever "
                 + "this says.",
@@ -754,10 +754,10 @@ enum ThreadStrings {
                 "This contact is opted out. Nothing can be sent to them, whatever "
                 + "this says.",
             "thread.summaryLeftAloneNotice":
-                "Somebody here asked to be left alone. Check the thread before "
+                "Somebody here asked to be left alone. Check the conversation before "
                 + "replying.",
             "thread.summaryRecentStretch":
-                "This is the recent stretch of the thread, not all of it.",
+                "This is the recent stretch of the conversation, not all of it.",
             "thread.wrapUpFailTooLong":
                 "That was longer than two minutes. Say the short version and Lou "
                 + "will write it down.",

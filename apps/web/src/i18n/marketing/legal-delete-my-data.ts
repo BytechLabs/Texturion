@@ -48,7 +48,7 @@ export const legalDeleteMyDataEn = {
   boundaryItem:
     "If you sent us a message through the contact form on our website, that is held outside any workspace, so closing one does not remove it. It is deleted on its own schedule after a year, and you can ask us to remove it sooner.",
   recordsOne:
-    "Owners and admins can delete a single message, a whole conversation, a call or a voicemail from the thread or the call log, and a contact from its page. Deleted items go to the **Trash**, in the main menu of the web app and the phone apps, and disappear from the inbox, search, the call log, exports and integrations at once. Anyone with that permission can restore them for 30 days.",
+    "Owners and admins can delete a single message, a whole conversation, a call or a voicemail from the conversation or the call log, and a contact from its page. Deleted items go to the **Trash**, in the main menu of the web app and the phone apps, and disappear from the inbox, search, the call log, exports and integrations at once. Anyone with that permission can restore them for 30 days.",
   recordsTwo:
     "After 30 days, or when someone chooses **Delete forever**, the item is erased for good: the message text, photos and files, voicemail recordings and their transcripts, and any summaries made from them. A text you already sent cannot be taken back from the customer's phone; deleting it removes it from Loonext only. What stays: a STOP and the proof of consent behind it, and the counts we bill from (message segments, call minutes and usage records), which hold no message content.",
   helpUser:

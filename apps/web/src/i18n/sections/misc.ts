@@ -32,7 +32,7 @@ export const miscEn = {
   aiVoicemailIntakeSends: "the voicemail transcript, to pull out what the caller said the problem was and the address they gave",
   aiCallWrapupLabel: "Call wrap-ups",
   aiCallWrapupSends: "the crew member's own dictation after a call has ended, to write it down as a note. Never the call itself and never the customer's voice",
-  aiThreadSummaryLabel: "Thread catch-ups",
+  aiThreadSummaryLabel: "Conversation catch-ups",
   aiThreadSummarySends: "up to the 40 most recent messages in that conversation, to write a short catch-up for somebody on the crew who has not read it. Internal notes are never included",
   // The job-photo page a homeowner opens (#294), drawn in the crew's language.
   photoLinkUnavailableTitle: "This link isn't available",
@@ -352,10 +352,10 @@ export const miscEn = {
   callInProgress: "In progress",
   /** #721: why no phone rang, after the outcome of a missed call or voicemail. */
   callRoutingBlocked: "Blocked number",
-  callRoutingLineBusy: "Line busy",
+  callRoutingLineBusy: "Number busy",
   callRoutingScreened: "Screened as spam",
   callRoutingAfterHours: "After hours, nobody on call",
-  callRoutingPaused: "Line paused",
+  callRoutingPaused: "Number paused",
   callRoutingOverCap: "Calling limit reached",
   callRoutingNobodyReachable: "Nobody could be rung",
   /** #725: why a call ended, when the outcome alone does not say. */
@@ -365,7 +365,7 @@ export const miscEn = {
   callEndedNobodyReachable: "Nobody could be rung",
   callEndedRejectedBlocked: "Blocked number",
   callEndedRejectedOverLimit: "Calling limit reached",
-  callEndedLinePaused: "Line paused",
+  callEndedLinePaused: "Number paused",
   callEndedStuckCallCleanedUp: "The call stopped responding and was ended",
   callEndedIntentExpired: "The transfer timed out",
   callEndedVoicemailFailed: "The voicemail could not record",

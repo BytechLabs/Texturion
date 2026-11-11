@@ -190,7 +190,7 @@ export function coverageNote(report: LeadSourceReport): string | null {
   return (
     `You know where ${pct}% of these customers came from. The other ` +
     `${report.unknown} could change this order completely, so treat it as a ` +
-    `hint rather than an answer — put a source on the lines you advertise, ` +
+    `hint rather than an answer — put a source on the numbers you advertise, ` +
     `and the rest fills itself in.`
   );
 }

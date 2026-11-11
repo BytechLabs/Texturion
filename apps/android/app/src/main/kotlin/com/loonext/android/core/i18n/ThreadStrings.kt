@@ -62,7 +62,7 @@ object ThreadStrings : AppStrings.Section {
         "quotes.needAmount" to
             "Put a number in, and make it more than zero.",
         "quotes.needDescription" to
-            "Say what the work is. The customer sees this line.",
+            "Say what the work is. The customer sees this number.",
         // --- The thread itself -------------------------------------------
         "thread.notFound" to "This conversation doesn't exist or was removed.",
         "thread.backToInbox" to "Back to inbox",
@@ -257,7 +257,7 @@ object ThreadStrings : AppStrings.Section {
 
         // --- Make a task (#214) ------------------------------------------------
         "thread.newTask" to "New task",
-        "thread.newTaskFrom" to "From {name}'s message · posts to the thread",
+        "thread.newTaskFrom" to "From {name}'s message · posts to the conversation",
         "thread.taskTitle" to "Title",
         "thread.taskTitleFallback" to "Follow up",
         "thread.due" to "Due",
@@ -295,7 +295,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.fieldNotes" to "Notes",
         "thread.notesPlaceholder" to
             "Gate code, dog's name, preferred arrival window…",
-        "thread.leadFromLine" to "{name} · the line they called",
+        "thread.leadFromLine" to "{name} · the number they called",
         "thread.leadSaidSo" to "{name} · somebody said so",
         "thread.leadAsk" to "Not asked yet. Ask them how they heard about you.",
         "thread.addLeadSource" to "Add a source",
@@ -306,17 +306,17 @@ object ThreadStrings : AppStrings.Section {
         "thread.noOtherConversations" to "No other conversations with this contact.",
 
         // --- The catch-up card (#247) ----------------------------------------------
-        "thread.summaryReading" to "Reading the thread…",
+        "thread.summaryReading" to "Reading the conversation…",
         "thread.summaryReady" to "Lou's catch-up",
         "thread.summaryRetry" to "Try the catch-up again",
         "thread.summaryOffer" to "Catch me up",
         // #716: the one-line offer above the composer, and the pins' count label.
-        "thread.catchUpHint" to "Catch up on this thread?",
+        "thread.catchUpHint" to "Catch up on this conversation?",
         "thread.catchUpRecap" to "Recap",
         "thread.notNow" to "Not now",
         "thread.morePinnedAria" to "{count} more pinned",
         "thread.summaryTruncated" to
-            "The thread is longer than this — Lou read the most recent part.",
+            "The conversation is longer than this — Lou read the most recent part.",
         "thread.summaryLineAria" to "{text}. Open the message this came from.",
 
         // --- Scheduled strip (#233) ---------------------------------------------
@@ -529,7 +529,7 @@ object ThreadStrings : AppStrings.Section {
             "over. Internal notes still work.",
         "thread.bannerOptOutHintTitle" to "They asked not to be contacted",
         "thread.bannerOptOutHintBody" to
-            "Someone on this thread asked to be left alone. That request is " +
+            "Someone on this conversation asked to be left alone. That request is " +
             "binding however it's worded, so don't reply unless you're sure it " +
             "wasn't one. To stop texts for good, they need to text STOP.",
 
@@ -648,7 +648,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.alreadyHasCallTask" to "This call is already a task.",
         "thread.makeTaskFromCall" to "Make a task from this call",
         "thread.callTaskTitle" to "Call from {name}",
-        "thread.newTaskFromCall" to "From {name}'s call · posts to the thread",
+        "thread.newTaskFromCall" to "From {name}'s call · posts to the conversation",
         "thread.newTaskFor" to "For {name}",
         "thread.newTaskMore" to "More",
         "thread.taskCreatedStandalone" to "Task created.",
@@ -674,7 +674,7 @@ object ThreadStrings : AppStrings.Section {
             "Someone marked this customer opted out, so texts are blocked. " +
             "Internal notes still work.",
         "thread.summaryOptOutHint" to
-            "Someone on this thread asked to be left alone. That request is " +
+            "Someone on this conversation asked to be left alone. That request is " +
             "binding however it's worded.",
 
         // --- The timeline's audit lines (Timeline.kt `eventLine`) ---------------

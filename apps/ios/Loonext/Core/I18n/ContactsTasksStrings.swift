@@ -250,10 +250,10 @@ enum ContactsTasksStrings {
             "contactsTasks.noteFileTooBig": "Files must be 25 MB or less.",
             "contactsTasks.noteUploadFailedOne":
                 "The note posted, but {count} file didn't upload. Retry from the note "
-                + "in the thread.",
+                + "in the conversation.",
             "contactsTasks.noteUploadFailedMany":
                 "The note posted, but {count} files didn't upload. Retry from the note "
-                + "in the thread.",
+                + "in the conversation.",
 
             // The visit a strip of photos arrived on (#294)
             "contactsTasks.photosFromCustomer": "From the customer",
@@ -394,7 +394,7 @@ enum ContactsTasksStrings {
             "contactsTasks.phonePlaceholder": "Another number they answer",
             "contactsTasks.phoneMatchNote":
                 "Texts and calls from this number will show up under this customer, in "
-                + "their own thread.",
+                + "their own conversation.",
             "contactsTasks.phoneRemove": "Remove {number}",
             "contactsTasks.addressPrimary": "Where the van goes",
             "contactsTasks.addressMakePrimary": "Make it the main one",
@@ -571,7 +571,7 @@ enum ContactsTasksStrings {
             "contactsTasks.unmergeBody":
                 "{name} comes back as its own customer, with its own number. Their "
                 + "conversations stay under this contact, because there is no telling "
-                + "which thread came from which record. If either number was opted "
+                + "which conversation came from which record. If either number was opted "
                 + "out, it stays opted out.",
             "contactsTasks.unmergeConfirm": "Unmerge",
             "contactsTasks.tagsHeading": "Tags",
@@ -615,7 +615,7 @@ enum ContactsTasksStrings {
             "contactsTasks.showAll": "Show all ({count})",
             "contactsTasks.noConversationsYet": "No conversations yet",
             "contactsTasks.noFilesYet": "No files yet",
-            "contactsTasks.noFilesYetDetail": "Photos and files shared in this contact's thread are collected here.",
+            "contactsTasks.noFilesYetDetail": "Photos and files shared in this contact's conversation are collected here.",
             "contactsTasks.showEarlier": "Show earlier",
             "contactsTasks.playVoicemail": "Play voicemail",
             "contactsTasks.pauseVoicemail": "Pause voicemail",

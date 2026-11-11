@@ -24,10 +24,10 @@ export const developersEn = {
   routeContactsGet: "The customer list, newest first.",
   routeContactsPost:
     "Add a customer. Re-sending one you already sent updates it rather than duplicating.",
-  routeConversations: "The thread list.",
-  routeMessagesGet: "One thread's messages.",
+  routeConversations: "The conversation list.",
+  routeMessagesGet: "One conversation's messages.",
   routeMessagesPost:
-    "Send a text into an existing thread. Requires an Idempotency-Key header.",
+    "Send a text into an existing conversation. Requires an Idempotency-Key header.",
   routeTasksGet: "The job list.",
   routeTasksPost: "Turn a message into a job.",
   routeWebhooksPost:

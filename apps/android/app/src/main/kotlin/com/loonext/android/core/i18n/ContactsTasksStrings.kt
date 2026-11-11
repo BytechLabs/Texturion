@@ -27,7 +27,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.phonePlaceholder" to
             "Another number they answer",
         "contactsTasks.phoneMatchNote" to
-            "Texts and calls from this number will show up under this customer, in their own thread.",
+            "Texts and calls from this number will show up under this customer, in their own conversation.",
         "contactsTasks.phoneRemove" to
             "Remove {number}",
         // #228/#291 — the address list. Named the same as iOS so the two
@@ -324,10 +324,10 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.noteFileTooBig" to "Files must be 25 MB or less.",
         "contactsTasks.noteUploadFailedOne" to
             "The note posted, but {count} file didn't upload. Retry from the note " +
-            "in the thread.",
+            "in the conversation.",
         "contactsTasks.noteUploadFailedMany" to
             "The note posted, but {count} files didn't upload. Retry from the note " +
-            "in the thread.",
+            "in the conversation.",
         "contactsTasks.removeNamed" to "Remove {name}",
 
         // The task's job address
@@ -503,7 +503,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.unmergeBody" to
             "{name} comes back as its own customer, with its own number. Their " +
             "conversations stay under this contact, because there is no telling " +
-            "which thread came from which record. If either number was opted " +
+            "which conversation came from which record. If either number was opted " +
             "out, it stays opted out.",
         "contactsTasks.unmergeConfirm" to "Unmerge",
         "contactsTasks.tagsHeading" to "Tags",
@@ -531,7 +531,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.showAll" to "Show all ({count})",
         "contactsTasks.noConversationsYet" to "No conversations yet",
         "contactsTasks.noFilesYet" to "No files yet",
-        "contactsTasks.noFilesYetDetail" to "Photos and files shared in this contact's thread are collected here.",
+        "contactsTasks.noFilesYetDetail" to "Photos and files shared in this contact's conversation are collected here.",
         "contactsTasks.showEarlier" to "Show earlier",
         "contactsTasks.callBack" to "Call back",
         "contactsTasks.deleteCall" to "Delete call",
@@ -577,7 +577,7 @@ object ContactsTasksStrings : AppStrings.Section {
 
         // The keypad
         "contactsTasks.fromNumber" to "From {number}",
-        "contactsTasks.lineReady" to "Line ready · {number}",
+        "contactsTasks.lineReady" to "Number ready · {number}",
         "contactsTasks.enterANumber" to "Enter a number",
         "contactsTasks.matchNamesFromContacts" to "Match names from your contacts",
         "contactsTasks.sendMessageInstead" to "Send a message instead",
@@ -599,7 +599,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.endCall" to "End call",
         "contactsTasks.allowMicToAnswer" to
             "Allow microphone access to answer this call.",
-        "contactsTasks.callNoteEyebrow" to "CALL NOTE · SAVES TO THE THREAD",
+        "contactsTasks.callNoteEyebrow" to "CALL NOTE · SAVES TO THE CONVERSATION",
         "contactsTasks.addNoteAction" to "Add a note in the conversation",
         "contactsTasks.addNotePlaceholder" to "Add a note in the conversation…",
         "contactsTasks.transferThisCall" to "Transfer this call",
@@ -612,7 +612,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.ringing" to "Ringing…",
         "contactsTasks.leavingVoicemail" to "Leaving a voicemail",
         "contactsTasks.withMember" to "With {who}",
-        "contactsTasks.onTheLine" to "On the line",
+        "contactsTasks.onTheLine" to "On a call",
 
         // Who added this record, and who last changed it (#191)
         "contactsTasks.addedBy" to "Added by {who}",

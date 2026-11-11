@@ -240,7 +240,7 @@ enum InboxStrings {
             // which this file uses everywhere else — splits the sentence in the
             // source and the guard reports iOS as the client that lost the line.
             "inbox.startedMemberReplyHint":
-                "Open a thread and reply. It goes out from the business number, and the whole crew can see it.",
+                "Open a conversation and reply. It goes out from the business number, and the whole crew can see it.",
             "inbox.startedMemberNoteLabel": "Leave a note for the crew",
             "inbox.startedMemberNoteHint":
                 "Switch the composer to Note. Notes stay inside the app — the customer never sees them.",
@@ -309,7 +309,7 @@ enum InboxStrings {
             "inbox.forYouLayoutSaveFailed":
                 "We couldn't save that — it's back the way it was. Try again in a moment.",
             "inbox.forYouPanelNoteFollowUps":
-                "Quotes and threads you asked to be reminded about.",
+                "Quotes and conversations you asked to be reminded about.",
             "inbox.forYouPanelNoteUnassigned":
                 "New conversations and tasks nobody has claimed.",
             "inbox.forYouPanelNoteWaiting":

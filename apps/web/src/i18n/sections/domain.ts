@@ -70,7 +70,7 @@ export const domainEn = {
   catchUpSectionAsked: "What they asked",
   catchUpSectionWeSaid: "What we said",
   catchUpSectionOpen: "Still open",
-  catchUpAttribution: "Lou read this thread. Tap any line to see the message it came from.",
+  catchUpAttribution: "Lou read this conversation. Tap any line to see the message it came from.",
   /* #228 — a member's quiet hours. `quietHoursLine` is a TEMPLATE and not
      the label plus " to ": French joins the window with a different
      preposition than it introduces it with. */
@@ -193,7 +193,7 @@ export const domainEn = {
   referralCopy: "Copy",
   referralDraftLabel: "Your message",
   referralLinkNote: "Your link goes on the end automatically.",
-  referralNote: "We run our business line through Loonext — calls and texts land in one inbox and whoever's free answers. Flat price, no per-seat fee. Sign up with my link and we both get a free month.",
+  referralNote: "We run our business number through Loonext — calls and texts land in one inbox and whoever's free answers. Flat price, no per-seat fee. Sign up with my link and we both get a free month.",
   referralRewardLine: "Send this to another business. When they sign up and a customer texts them back, you both get a month free",
   referralStageActive: "Still going after 30 days",
   referralStageInvited: "Signed up, no replies yet",
@@ -357,8 +357,8 @@ export const domainEn = {
   rejectPortEntityWhat: "The account holder name does not match your current provider's records.",
   rejectPortEntityFix: "Use the name exactly as it appears on the bill, including any Ltd, Inc or LLC.",
   rejectPortAddressWhat: "The service address does not match the one your current provider has on file.",
-  rejectPortAddressFix: "Use the address on the bill for this line, even if the business has since moved.",
-  rejectPortPendingWhat: "Your current provider has another change in progress on this line.",
+  rejectPortAddressFix: "Use the address on the bill for this number, even if the business has since moved.",
+  rejectPortPendingWhat: "Your current provider has another change in progress on this number.",
   rejectPortPendingFix: "Ask them to cancel or finish it, then tell us and we will resubmit.",
   rejectPortInactiveWhat: "Your current provider says this number is not active on the account we asked about.",
   rejectPortInactiveFix: "Check the number is still in service and on the account you gave us — a number already cancelled cannot be moved.",

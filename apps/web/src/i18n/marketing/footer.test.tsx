@@ -49,7 +49,7 @@ describe("the marketing footer, in English", () => {
 
   it("still says the brand line and the sign-off", () => {
     render(<Footer />);
-    expect(screen.getByText("The shared line for your crew.")).toBeTruthy();
+    expect(screen.getByText("The shared inbox for your crew.")).toBeTruthy();
     expect(screen.getByText("Month to month. No sales calls, ever.")).toBeTruthy();
   });
 

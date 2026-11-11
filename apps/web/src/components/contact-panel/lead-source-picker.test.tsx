@@ -81,7 +81,7 @@ describe("#301 how did you hear about us", () => {
       />,
     );
     expect(screen.queryByText(/how did you hear about us/i)).toBeNull();
-    expect(screen.getByText(/the line they called/i)).toBeTruthy();
+    expect(screen.getByText(/the number they called/i)).toBeTruthy();
   });
 
   it("LP-3: a person's answer reads as a person's answer", () => {
@@ -96,7 +96,7 @@ describe("#301 how did you hear about us", () => {
       />,
     );
     expect(screen.getByText(/somebody said so/i)).toBeTruthy();
-    expect(screen.queryByText(/the line they called/i)).toBeNull();
+    expect(screen.queryByText(/the number they called/i)).toBeNull();
   });
 
   it("LP-4: one tap sends the source, and never anything else", () => {

@@ -37,6 +37,65 @@ function entries(): Array<[string, string]> {
   return out;
 }
 
+/**
+ * "Thread" is retired for "conversation" (the same record the menus call a
+ * conversation), and "line" meaning a phone line is retired for "number".
+ * "Line" keeps its other meanings (a line of text, "Line of work", `{line}`), so
+ * the bare word is NOT banned: the phone-line check matches the phrases a phone
+ * line turns up in. Same closed roster as the label check above.
+ */
+const THREAD_WORD = /\bthreads?\b/i;
+const PHONE_LINE =
+  /\b(?:(?:this|that|each|every)\s+line\b|(?:business|phone|shop|office|field|shared)\s+lines?\b|(?:this|that|a|the)\s+line's|the\s+line\s+(?:you|they)\b|line\s+(?:busy|paused|ready)\b|on\s+the\s+line\b)/i;
+
+/** `section.key` to why "thread" is the right word there. */
+const THREAD_OTHER_MEANINGS: Record<string, string> = {};
+
+/** `section.key` to why "line" is not a phone line there. */
+const LINE_OTHER_MEANINGS: Record<string, string> = {
+  "appShell.aiCatchupBoundary": "every line of a catch-up is a line of text quoting a message",
+};
+
+describe("English says conversation, not thread", () => {
+  const all = entries();
+
+  it("no value calls a conversation a thread", () => {
+    const offenders = all
+      .filter(([key, value]) => THREAD_WORD.test(readable(value)) && !(key in THREAD_OTHER_MEANINGS))
+      .map(([key, value]) => `${key}: ${value}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it("every named exception still says thread", () => {
+    const byKey = new Map(all);
+    const stale = Object.keys(THREAD_OTHER_MEANINGS).filter((key) => {
+      const value = byKey.get(key);
+      return value === undefined || !THREAD_WORD.test(readable(value));
+    });
+    expect(stale).toEqual([]);
+  });
+});
+
+describe("English says number, not line, for a phone line", () => {
+  const all = entries();
+
+  it("no value calls a phone number a line", () => {
+    const offenders = all
+      .filter(([key, value]) => PHONE_LINE.test(readable(value)) && !(key in LINE_OTHER_MEANINGS))
+      .map(([key, value]) => `${key}: ${value}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it("every named exception still matches", () => {
+    const byKey = new Map(all);
+    const stale = Object.keys(LINE_OTHER_MEANINGS).filter((key) => {
+      const value = byKey.get(key);
+      return value === undefined || !PHONE_LINE.test(readable(value));
+    });
+    expect(stale).toEqual([]);
+  });
+});
+
 describe("English says tag, not label", () => {
   const all = entries();
 

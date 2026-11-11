@@ -155,10 +155,10 @@ class CallStateMachineTest {
     fun `placementFailed drops the Calling chip and surfaces an error`() {
         val placementId = SoftphoneCore.placementId("S")
         var state = CallStateMachine.placing(SoftphoneSnapshot(), placement("S"))
-        state = CallStateMachine.placementFailed(state, placementId, "Couldn't reach the line.")
+        state = CallStateMachine.placementFailed(state, placementId, "Couldn't reach that number.")
 
         assertTrue(state.calls.isEmpty())
         assertNull(state.activeId)
-        assertEquals("Couldn't reach the line.", state.error)
+        assertEquals("Couldn't reach that number.", state.error)
     }
 }

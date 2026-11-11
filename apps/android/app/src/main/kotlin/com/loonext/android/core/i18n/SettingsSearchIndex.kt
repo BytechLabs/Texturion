@@ -170,7 +170,7 @@ internal val SETTINGS_INDEX: List<SettingsIndexEntry> = listOf(
         listOf("After a call ends", "call summary", "wrap up", "call notes", "ai notes"),
         listOf("Après la fin d'un appel", "résumé d'appel", "notes d'appel", "conclusion")),
     SettingsIndexEntry("ai", "ai-catchup", null,
-        listOf("When you come back to a long thread", "catch up", "thread summary", "summarize", "recap"),
+        listOf("When you come back to a long conversation", "catch up", "thread summary", "summarize", "recap"),
         listOf("Quand vous revenez à une longue conversation", "rattrapage", "résumé de conversation", "résumer")),
     SettingsIndexEntry("usage", "usage-this-period", null,
         listOf("This period", "usage", "messages used", "fair use", "allowance", "how many texts", "minutes"),

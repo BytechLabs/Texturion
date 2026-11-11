@@ -135,11 +135,11 @@ describe("#213 placement reconcile (server-dialed outbound)", () => {
     const state = run([
       { type: "ready" },
       { type: "placing", id: PLACEMENT, sessionId: S, peer: PEER_A },
-      { type: "placement_failed", placementId: PLACEMENT, message: "Couldn't reach the line." },
+      { type: "placement_failed", placementId: PLACEMENT, message: "Couldn't reach that number." },
     ]);
     expect(state.calls).toHaveLength(0);
     expect(state.activeId).toBeNull();
-    expect(state.error).toBe("Couldn't reach the line.");
+    expect(state.error).toBe("Couldn't reach that number.");
   });
 });
 

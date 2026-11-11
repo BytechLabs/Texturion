@@ -44,7 +44,7 @@ enum ShellStrings {
             // #228 — the Wi-Fi-only photo setting, named by packages/shared.
             "shell.meteredHint": "You're on mobile data. Tap to load the full-size photo.",
             "shell.wifiOnlyLabel": "Full-size photos on Wi-Fi only",
-            "shell.wifiOnlyDescription": "Threads and galleries always load. Only full-size photos and downloads wait for Wi-Fi — tap one to load it anyway.",
+            "shell.wifiOnlyDescription": "Conversations and galleries always load. Only full-size photos and downloads wait for Wi-Fi — tap one to load it anyway.",
             // ── The front door (#166) ─────────────────────────────────────────
             "shell.authLoginTitle": "The whole crew,\none business number.",
             "shell.authLoginSub":
@@ -353,10 +353,10 @@ enum ShellStrings {
             "shell.ringing": "Ringing…",
             // #721: why no phone rang, after a missed call or voicemail.
             "shell.callRoutingBlocked": "Blocked number",
-            "shell.callRoutingLineBusy": "Line busy",
+            "shell.callRoutingLineBusy": "Number busy",
             "shell.callRoutingScreened": "Screened as spam",
             "shell.callRoutingAfterHours": "After hours, nobody on call",
-            "shell.callRoutingPaused": "Line paused",
+            "shell.callRoutingPaused": "Number paused",
             "shell.callRoutingOverCap": "Calling limit reached",
             "shell.callRoutingNobodyReachable": "Nobody could be rung",
             "shell.navTrash": "Trash",
@@ -439,7 +439,7 @@ enum ShellStrings {
             "shell.callEndedNobodyReachable": "Nobody could be rung",
             "shell.callEndedRejectedBlocked": "Blocked number",
             "shell.callEndedRejectedOverLimit": "Calling limit reached",
-            "shell.callEndedLinePaused": "Line paused",
+            "shell.callEndedLinePaused": "Number paused",
             "shell.callEndedStuckCallCleanedUp": "The call stopped responding and was ended",
             "shell.callEndedIntentExpired": "The transfer timed out",
             "shell.callEndedVoicemailFailed": "The voicemail could not record",
@@ -447,13 +447,13 @@ enum ShellStrings {
             "shell.callEndedPlacerHungUp": "Hung up on our side",
             "shell.callEndedCustomerHungUp": "The customer hung up",
             "shell.withMember": "With {who}",
-            "shell.onTheLine": "On the line",
+            "shell.onTheLine": "On a call",
             "shell.leavingVoicemail": "Leaving a voicemail",
             "shell.callingTemporarilyUnavailable": "Calling is temporarily unavailable.",
             "shell.callingNotReady": "Calling isn't ready yet. Try again in a moment.",
             "shell.tooManyCalls": "You're already on two calls.",
             "shell.callStartFailedPleaseRetry": "Couldn't start the call. Please try again.",
-            "shell.lineUnreachable": "Couldn't reach the line. Please try again.",
+            "shell.lineUnreachable": "Couldn't reach that number. Please try again.",
             "shell.phoneConnectFailed":
                 "Couldn't connect your phone. Check your connection and try again.",
 

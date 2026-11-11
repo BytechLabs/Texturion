@@ -232,10 +232,10 @@ object DomainStrings : AppStrings.Section {
             "The service address does not match the one your current provider " +
             "has on file.",
         "domain.rejectPortAddressFix" to
-            "Use the address on the bill for this line, even if the business has " +
+            "Use the address on the bill for this number, even if the business has " +
             "since moved.",
         "domain.rejectPortPendingWhat" to
-            "Your current provider has another change in progress on this line.",
+            "Your current provider has another change in progress on this number.",
         "domain.rejectPortPendingFix" to
             "Ask them to cancel or finish it, then tell us and we will resubmit.",
         "domain.rejectPortInactiveWhat" to
@@ -287,7 +287,7 @@ object DomainStrings : AppStrings.Section {
         "domain.draftsDisabled" to
             "Drafting is turned off for this workspace. Settings, AI turns it back on.",
         "domain.draftsSpam" to
-            "This thread is marked as spam, so Lou skips it. Unmark it to draft a reply.",
+            "This conversation is marked as spam, so Lou skips it. Unmark it to draft a reply.",
         "domain.draftsNothingToReply" to
             "Nothing to draft from yet. Type a few words and try again.",
         "domain.draftsOverCap" to
@@ -312,24 +312,24 @@ object DomainStrings : AppStrings.Section {
         "domain.catchUpSectionWeSaid" to "What we said",
         "domain.catchUpSectionOpen" to "Still open",
         "domain.catchUpAttribution" to
-            "Lou read this thread. Tap any line to see the message it came from.",
+            "Lou read this conversation. Tap any line to see the message it came from.",
         "domain.catchUpDisabled" to
             "Catch-ups are turned off for this workspace. Settings, AI turns them " +
             "back on.",
         "domain.catchUpSpam" to
-            "This thread is marked as spam, so Lou skips it. Unmark it to catch up.",
+            "This conversation is marked as spam, so Lou skips it. Unmark it to catch up.",
         "domain.catchUpTooShort" to
-            "This thread is short enough to read. Lou saves catch-ups for the long ones.",
+            "This conversation is short enough to read. Lou saves catch-ups for the long ones.",
         "domain.catchUpOverCap" to
             "This month's catch-ups are used up. They start again next month.",
         "domain.catchUpRateLimited" to
             "That was a lot of catch-ups at once. Try again in a moment.",
         // The reader's ROLE, not our weather — so it never says "try again".
         "domain.catchUpNotAllowed" to
-            "You can read this thread but not ask Lou to catch you up. " +
+            "You can read this conversation but not ask Lou to catch you up. " +
             "An owner or admin can change your access.",
         "domain.catchUpUnusable" to
-            "Nothing came back that Lou could point at in the thread, so there's " +
+            "Nothing came back that Lou could point at in the conversation, so there's " +
             "nothing to show.",
         "domain.catchUpNone" to "No catch-up this time. Try again.",
 
@@ -504,7 +504,7 @@ object DomainStrings : AppStrings.Section {
         // First person and plain: a contractor writing to another contractor,
         // not us writing on their behalf. "One inbox" — never "one number".
         "domain.referralNote" to
-            "We run our business line through Loonext — calls and texts land in one " +
+            "We run our business number through Loonext — calls and texts land in one " +
             "inbox and whoever's free answers. Flat price, no per-seat fee. Sign up " +
             "with my link and we both get a free month.",
         "domain.referralTitle" to "Refer another crew",

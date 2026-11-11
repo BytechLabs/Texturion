@@ -141,7 +141,7 @@ export const settingsEn = {
   supportSituationUsageCap: "sending is paused at the spending cap",
   supportSituationSubscription: "the subscription is not active",
   supportSituationOptedOut: "this customer is opted out",
-  supportSituationOptOutHint: "an opt-out was detected in the thread",
+  supportSituationOptOutHint: "an opt-out was detected in the conversation",
   supportSituationNumberAccess: "I do not have texting access to this number",
   supportSituationReadOnly: "I have view-only access",
   helpFaqUsSendQ: "Why won't my text to a US number send?",
@@ -503,7 +503,7 @@ export const settingsEn = {
   emergencyReplyLabel: "Automatic reply",
   emergencyReplySwitch: "Text the customer back",
   emergencyReplySwitchHelp:
-    "Off means we still alert the crew and flag the thread — we just don't " +
+    "Off means we still alert the crew and flag the conversation — we just don't " +
     "message the customer for you.",
   emergencyReplyHelp:
     "Sent once per hour, at most, to a customer who texts one of these words. " +
@@ -641,7 +641,7 @@ export const settingsEn = {
   leadSourcesTitle: "Where customers come from",
   leadSourcesDescription:
     "Your own list — the truck, the yard sign, the ad, a neighbour. Put one on " +
-    "a number and every call and text to that line is counted automatically.",
+    "a number and every call and text to that number is counted automatically.",
   leadSourcesEmpty:
     'Nothing yet, so every conversation reads as "don\'t know". The cheapest ' +
     "way to start is to name the number you advertise — attribution then costs " +
@@ -817,7 +817,7 @@ export const settingsEn = {
   /** #232 phase 3: which of the workspace's lines the website rings. */
   widgetLineLabel: "Which number website messages land on",
   widgetLineHelp:
-    "Replies from your crew come from this number, so pick the line you watch.",
+    "Replies from your crew come from this number, so pick the number you watch.",
   widgetLineDefault: "Your first number",
   widgetLineDefaultNamed: "Your first number ({number})",
   widgetLineSaved: "Website messages will land on that number.",

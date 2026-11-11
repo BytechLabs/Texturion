@@ -208,7 +208,7 @@ export const SETTINGS_INDEX: readonly SettingsIndexEntry[] = [
     ["After a call ends", "call summary", "wrap up", "call notes", "ai notes"],
     ["Après la fin d'un appel", "résumé d'appel", "notes d'appel", "conclusion"]),
   entry("ai", "ai-catchup",
-    ["When you come back to a long thread", "catch up", "thread summary", "summarize", "recap"],
+    ["When you come back to a long conversation", "catch up", "thread summary", "summarize", "recap"],
     ["Quand vous revenez à une longue conversation", "rattrapage", "résumé de conversation", "résumer"]),
 
   // Usage

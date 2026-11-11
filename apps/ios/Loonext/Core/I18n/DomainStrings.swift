@@ -220,10 +220,10 @@ enum DomainStrings {
                 "The service address does not match the one your current provider has "
                 + "on file.",
             "domain.rejectPortAddressFix":
-                "Use the address on the bill for this line, even if the business has "
+                "Use the address on the bill for this number, even if the business has "
                 + "since moved.",
             "domain.rejectPortPendingWhat":
-                "Your current provider has another change in progress on this line.",
+                "Your current provider has another change in progress on this number.",
             "domain.rejectPortPendingFix":
                 "Ask them to cancel or finish it, then tell us and we will resubmit.",
             "domain.rejectPortInactiveWhat":
@@ -264,7 +264,7 @@ enum DomainStrings {
                 "Drafting is turned off for this workspace. Settings, AI turns it "
                 + "back on.",
             "domain.draftsSpam":
-                "This thread is marked as spam, so Lou skips it. Unmark it to draft a "
+                "This conversation is marked as spam, so Lou skips it. Unmark it to draft a "
                 + "reply.",
             "domain.draftsNothingToReply":
                 "Nothing to draft from yet. Type a few words and try again.",
@@ -436,7 +436,7 @@ enum DomainStrings {
             "domain.scheduledPresetCustom": "Pick a time",
             // ── Recommending us to another crew (#288) — ReferralShare.swift ────────
             "domain.referralNote":
-                "We run our business line through Loonext — calls and texts land in "
+                "We run our business number through Loonext — calls and texts land in "
                 + "one inbox and whoever's free answers. Flat price, no per-seat fee. "
                 + "Sign up with my link and we both get a free month.",
             "domain.referralTitle": "Refer another crew",

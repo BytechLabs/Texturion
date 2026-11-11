@@ -29,7 +29,7 @@ import type { MarketingLocale } from "./footer";
 export const templatesEn = {
   metaTitle: "Saved replies and tags that match how you sell",
   metaDescription:
-    "Write your on-my-way and quote-follow-up texts once, send them in two taps with the / shortcut. Tag conversations quote sent, scheduled, won. Mark texts done in the thread.",
+    "Write your on-my-way and quote-follow-up texts once, send them in two taps with the / shortcut. Tag conversations quote sent, scheduled, won. Mark texts done in the conversation.",
 
   breadcrumbHome: "Home",
   breadcrumbSelf: "Templates and tags",
@@ -37,7 +37,7 @@ export const templatesEn = {
   dateline: "TYPE / · TAP · SENT",
   h1: "Stop retyping the same five texts.",
   heroSub:
-    "The texts a crew sends all day, on my way, here's your quote, you're booked, get written once and sent in two taps. Then tag conversations the way you actually sell, mark the little things done right in the thread, and find any old message in seconds.",
+    "The texts a crew sends all day, on my way, here's your quote, you're booked, get written once and sent in two taps. Then tag conversations the way you actually sell, mark the little things done right in the conversation, and find any old message in seconds.",
   repliesCaption:
     "Type / in the composer and the saved replies open, with the preview showing what actually ships.",
   repliesAria:
@@ -53,12 +53,12 @@ export const templatesEn = {
   tagsEyebrow: "Tags and done-marks",
   tagsTitle: "Tag it the way you sell. Check off what's handled.",
   tagsCaption:
-    "A conversation tagged Scheduled, and a question checked off right in the thread.",
+    "A conversation tagged Scheduled, and a question checked off right in the conversation.",
   tagsAria: "Loonext pipeline tags on a conversation and a message marked done",
   tagsBodyOne:
-    'A conversation carries a status for its state (new, open, waiting, closed) and tags for how it fits your pipeline. Loonext ships with a sell-ready set, quote sent, scheduled, won, lost, and every one is editable to match the words your shop actually uses. Tag a thread "Quote sent" and Monday morning you can pull up your open quotes and follow up, instead of losing the job to whoever replied first.',
+    'A conversation carries a status for its state (new, open, waiting, closed) and tags for how it fits your pipeline. Loonext ships with a sell-ready set, quote sent, scheduled, won, lost, and every one is editable to match the words your shop actually uses. Tag a conversation "Quote sent" and Monday morning you can pull up your open quotes and follow up, instead of losing the job to whoever replied first.',
   tagsBodyTwo:
-    'And inside a long thread, some messages are little tasks: "can you send someone this week?" Tap the message to mark it done. It draws a strikethrough and a check, notes who checked it off and when, and the whole crew sees it\'s handled. No separate to-do app.',
+    'And inside a long conversation, some messages are little tasks: "can you send someone this week?" Tap the message to mark it done. It draws a strikethrough and a check, notes who checked it off and when, and the whole crew sees it\'s handled. No separate to-do app.',
 
   importEyebrow: "Contacts and search",
   importTitle: "Your customer list, imported and searchable.",
@@ -75,9 +75,9 @@ export const templatesEn = {
   useQuotesTitle: "Monday's open quotes",
   useQuotesBody:
     "Every quote you sent last week is tagged Quote sent. Open that list Monday morning, send the saved follow-up to each one, and the quiet jobs come back to life before lunch.",
-  useThreadTitle: "The tidy long thread",
+  useThreadTitle: "The tidy long conversation",
   useThreadBody:
-    "A three-week renovation thread piles up questions. Mark each one done as it's handled and the thread reads like a checklist the whole crew can trust, right where the conversation lives.",
+    "A three-week renovation conversation piles up questions. Mark each one done as it's handled and the conversation reads like a checklist the whole crew can trust, right where the conversation lives.",
 
   factsEyebrow: "The plain facts",
   factsEditable:
@@ -95,7 +95,7 @@ export const templatesEn = {
     "A template is a text you send with one tap; it never sends on its own, and there are no drip campaigns or scheduled sends. Two things do send by themselves, both in words you wrote: your after-hours auto-reply and your missed-call text back. Everything else is one tap away because it is a shortcut, not because the app is texting customers for you.",
   edgesDoneTitle: "Done-marks are on messages, not jobs.",
   edgesDoneBody:
-    "Marking a text done checks off a single message inside a thread, with a record of who did it and when. It keeps a conversation tidy; it isn't a task list, a job board, or a scheduler, and it won't pretend to be.",
+    "Marking a text done checks off a single message inside a conversation, with a record of who did it and when. It keeps a conversation tidy; it isn't a task list, a job board, or a scheduler, and it won't pretend to be.",
   edgesImportTitle: "Import is your list, with consent.",
   edgesImportBody:
     "CSV import is for customers you already have permission to text. Purchased or scraped lists are banned by our acceptable use policy, and the import preview surfaces opt-out status so you don't message someone who's already out.",
@@ -140,10 +140,10 @@ export const templatesEn = {
     "Yes. Quote sent, Scheduled, Won, and Lost ship ready to use, and you can rename them, add your own, or remove ones you don't need, so the tags match how your shop actually talks about a job.",
   faqAutoQ: "Do templates send automatically?",
   faqAutoA:
-    "No. A saved reply is a text you send with one tap; it never sends on its own, and there is no drip sequencing or scheduled sending. Two automatic messages do exist and both are yours: the after-hours auto-reply and the missed-call text back, sent in words you wrote yourself. Separately, you can ask to be reminded to chase a thread, which nudges YOU rather than texting the customer.",
+    "No. A saved reply is a text you send with one tap; it never sends on its own, and there is no drip sequencing or scheduled sending. Two automatic messages do exist and both are yours: the after-hours auto-reply and the missed-call text back, sent in words you wrote yourself. Separately, you can ask to be reminded to chase a conversation, which nudges YOU rather than texting the customer.",
   faqDoneQ: "What exactly does marking a text done do?",
   faqDoneA:
-    "It checks off a single message in a thread, drawing a strikethrough and a check, with a note of who did it and when. It keeps a long conversation tidy and lets the crew see what's been handled. It's not a job, a task, or a to-do list; it's a message-level done-mark.",
+    "It checks off a single message in a conversation, drawing a strikethrough and a check, with a note of who did it and when. It keeps a long conversation tidy and lets the crew see what's been handled. It's not a job, a task, or a to-do list; it's a message-level done-mark.",
   faqImportQ: "How does CSV import work?",
   faqImportA:
     "Upload your file, map the columns (we auto-detect the obvious ones), and review a dry-run preview showing exactly what will import and what will be skipped, including opt-out status, before anything is written. It's built to bring in customers you already have consent to text.",
@@ -182,7 +182,7 @@ export const templatesEn = {
   doneVisualMessage:
     "Can you send someone to look at the water heater this week?",
   doneVisualStamp: "Done · Priya · 2:14 PM",
-  doneVisualNote: "Checked off right in the thread. The whole crew sees it's handled.",
+  doneVisualNote: "Checked off right in the conversation. The whole crew sees it's handled.",
 } as const;
 
 export const templatesFr: Translated<typeof templatesEn> = {

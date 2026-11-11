@@ -211,7 +211,7 @@ export function buildLlmsTxt(): string {
  */
 const PROSE = `# Loonext
 
-Loonext is the shared line for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors, from a solo owner to a whole crew. A business gets its own local phone number, either a new one or the number it already has, ported in free. Texts AND calls to that number reach the whole crew: a text becomes a conversation anyone can see, reply to, assign, tag, note and close, and a call rings every teammate in the app so whoever is free answers. Missed calls go to voicemail, get written down, and text the caller back. From there a message or a call becomes a task with a due date, and every customer's texts, calls, voicemails and files sit on one timeline. It replaces running the business off one person's personal cell.
+Loonext is the shared inbox for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors, from a solo owner to a whole crew. A business gets its own local phone number, either a new one or the number it already has, ported in free. Texts AND calls to that number reach the whole crew: a text becomes a conversation anyone can see, reply to, assign, tag, note and close, and a call rings every teammate in the app so whoever is free answers. Missed calls go to voicemail, get written down, and text the caller back. From there a message or a call becomes a task with a due date, and every customer's texts, calls, voicemails and files sit on one timeline. It replaces running the business off one person's personal cell.
 
 Website: https://loonext.com
 

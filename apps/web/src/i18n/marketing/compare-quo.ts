@@ -12,7 +12,7 @@ export const compareQuoEn = {
   dateline: "$19/USER/MO + $5/EXTRA NUMBER",
   title: "Loonext vs Quo: flat beats per-user.",
   lead:
-    "Quo (formerly OpenPhone) is a full business phone system: calling included, priced per user at $19 a month on monthly billing, with texting unlimited under their fair-usage policy and extra numbers at $5 each. Loonext is one line for texts and calls, $29 a month flat for the whole crew, both included. Here is the arithmetic, dated and sourced, {month}.",
+    "Quo (formerly OpenPhone) is a full business phone system: calling included, priced per user at $19 a month on monthly billing, with texting unlimited under their fair-usage policy and extra numbers at $5 each. Loonext is one inbox for texts and calls, $29 a month flat for the whole crew, both included. Here is the arithmetic, dated and sourced, {month}.",
   ledgerTitle: "A 3-person crew, side by side.",
   ledgerLead:
     "Same crew, same workload of 500 texts a month, at published prices. Quo's texting cell states what its pricing page states, unlimited under fair use with only automated texts metered, and the row where Quo flatly beats us is in the table too. On Loonext, texting is included under an automated fair-use policy that covers this workload comfortably; the concrete numbers live in our",
@@ -36,10 +36,10 @@ export const compareQuoEn = {
   rivalBody:
     "Your business lives on phone calls. Quo makes and receives them, with unlimited US and Canada calling on every tier, voicemail, and an AI agent. Loonext answers calls too, on every plan: they ring your whole crew in the app, unanswered ones take a voicemail we write down, you call customers back on your business number, and the ones you miss get a text back. What it is not is a call center: no phone menus, no queues, no desk phones.",
   rivalBodyTwo:
-    "You want desktop and mobile apps for a distributed team that treats the phone line, not the text thread, as home base.",
+    "You want desktop and mobile apps for a distributed team that treats the phone number, not the text conversation, as home base.",
   pointCallingTitle: "Calling is the honest headline.",
   pointCallingBody:
-    "Unlimited US/Canada calling ships on every Quo tier. If your customers expect to reach you by voice all day, Quo is genuinely the better tool and a shared line does not replace a phone system.",
+    "Unlimited US/Canada calling ships on every Quo tier. If your customers expect to reach you by voice all day, Quo is genuinely the better tool and a shared inbox does not replace a phone system.",
   pointFeesTitle: "Their fee disclosure sets a high bar.",
   pointFeesBody:
     "Quo prints its $19.50 one-time registration and its $1.50 to $3 monthly carrier maintenance right on the pricing page, and even reminds you before a trial ends. Credit where due; we aim to beat it, not match it, with one $29 fee, once, and no recurring carrier line at all.",
@@ -47,7 +47,7 @@ export const compareQuoEn = {
   pointAppsBody:
     "Quo ships iOS, Android, macOS, Windows, and web apps plus integrations and an API. Loonext is a fast web app you add to your home screen, deliberately smaller.",
   recommendation:
-    "Plainly: if the phone ringing is your front door, buy Quo. If the text thread is your front door and you're tired of it living on one person's cell, Loonext gives the whole crew one inbox for $29 flat, and the texts are already in the price.",
+    "Plainly: if the phone ringing is your front door, buy Quo. If the text conversation is your front door and you're tired of it living on one person's cell, Loonext gives the whole crew one inbox for $29 flat, and the texts are already in the price.",
   switchTitle: "Switching from a per-user bill is quick math.",
   switchLead:
     "Count your seats, add the carrier fees and any extra numbers, and put the total next to $29 or $79 flat. If the flat line wins, moving is painless.",
@@ -109,7 +109,7 @@ export const compareQuoEn = {
   voicemailLabel: "Voicemail you can read",
   voicemailOursValue: "Every one, written down",
   voicemailOursNote:
-    "A missed call takes a voicemail and we write it out into the thread, so you read it in the inbox instead of dialling in to listen. Included under fair use, not an add-on.",
+    "A missed call takes a voicemail and we write it out into the conversation, so you read it in the inbox instead of dialling in to listen. Included under fair use, not an add-on.",
   voicemailRivalValue: "Included on every plan",
   voicemailRivalNote:
     "Their pricing page lists voicemail transcripts as included on all plans, with no separate charge.",

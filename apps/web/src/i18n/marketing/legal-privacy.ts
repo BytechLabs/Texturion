@@ -103,7 +103,7 @@ export const legalPrivacyEn = {
   aiTwo:
     "Cloudflare’s published Workers AI policy states: {training} We do not use message content or voicemail audio to train anything either. What comes back is stored in your workspace like any other message data and is deleted with it.",
   aiThree:
-    "Some of this content belongs to the people your business texts and calls, not to you or to us. A voicemail is somebody’s voice and a thread is somebody’s words. That is why every one of these features can be switched off for your whole workspace, and why a drafted reply is never sent automatically. A person reads it, edits it, and decides.",
+    "Some of this content belongs to the people your business texts and calls, not to you or to us. A voicemail is somebody’s voice and a conversation is somebody’s words. That is why every one of these features can be switched off for your whole workspace, and why a drafted reply is never sent automatically. A person reads it, edits it, and decides.",
   retentionOne:
     "We keep account and message data while your subscription is active and for a reasonable period afterward to meet legal, tax, and carrier record-keeping duties, then delete or anonymize it. Opt-out records are kept as long as needed to keep honoring the opt-out.",
   retentionTwo:

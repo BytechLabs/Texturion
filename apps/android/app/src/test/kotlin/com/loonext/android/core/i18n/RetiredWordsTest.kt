@@ -26,8 +26,63 @@ class RetiredWordsTest {
         "settings.screeningFlag" to "call screening flags a call with a caller-ID label",
     )
 
+    /** "Thread" is retired for "conversation", the record the menus already name. */
+    private val threadWord = Regex("""\bthreads?\b""", RegexOption.IGNORE_CASE)
+
+    /**
+     * "Line" meaning a phone line is retired for "number". "Line" keeps its other
+     * meanings (a line of text, "Line of work", `{line}`), so the bare word is not
+     * banned: this matches the phrases a phone line turns up in.
+     */
+    private val phoneLine = Regex(
+        """\b(?:(?:this|that|each|every)\s+line\b|(?:business|phone|shop|office|field|shared)\s+lines?\b|(?:this|that|a|the)\s+line's|the\s+line\s+(?:you|they)\b|line\s+(?:busy|paused|ready)\b|on\s+the\s+line\b)""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /** Key to why "thread" is the right word there. */
+    private val threadOtherMeanings = emptyMap<String, String>()
+
+    /** Key to why "line" is not a phone line there. */
+    private val lineOtherMeanings = mapOf(
+        "settings.aiCatchUpHelp" to "every line of a catch-up is a line of text quoting a message",
+    )
+
     /** Placeholders such as `{label}` name a variable, not a word the reader sees. */
     private fun readable(value: String) = placeholder.replace(value, "")
+
+    @Test
+    fun `no English value calls a conversation a thread`() {
+        val offenders = AppStrings.en
+            .filter { (key, value) -> threadWord.containsMatchIn(readable(value)) && key !in threadOtherMeanings }
+            .map { (key, value) -> "$key: $value" }
+        assertEquals("a conversation is called a thread", emptyList<String>(), offenders)
+    }
+
+    @Test
+    fun `every thread exception still says thread`() {
+        val stale = threadOtherMeanings.keys.filter { key ->
+            val value = AppStrings.en[key]
+            value == null || !threadWord.containsMatchIn(readable(value))
+        }
+        assertEquals("exceptions that no longer match", emptyList<String>(), stale)
+    }
+
+    @Test
+    fun `no English value calls a phone number a line`() {
+        val offenders = AppStrings.en
+            .filter { (key, value) -> phoneLine.containsMatchIn(readable(value)) && key !in lineOtherMeanings }
+            .map { (key, value) -> "$key: $value" }
+        assertEquals("a phone number is called a line", emptyList<String>(), offenders)
+    }
+
+    @Test
+    fun `every line exception still matches`() {
+        val stale = lineOtherMeanings.keys.filter { key ->
+            val value = AppStrings.en[key]
+            value == null || !phoneLine.containsMatchIn(readable(value))
+        }
+        assertEquals("exceptions that no longer match", emptyList<String>(), stale)
+    }
 
     @Test
     fun `no English value calls a tag a label`() {

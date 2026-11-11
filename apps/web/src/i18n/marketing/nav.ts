@@ -51,7 +51,7 @@ export const navEn = {
   hvac: "HVAC",
   hvacDesc: "Triage the no-heat rush without missing a booking.",
   landscapers: "Landscapers",
-  landscapersDesc: "Gate codes, reschedules, and add-on asks in one thread.",
+  landscapersDesc: "Gate codes, reschedules, and add-on asks in one conversation.",
   cleaners: "Cleaners",
   cleanersDesc: "Access notes, confirmations, and reschedules.",
   salons: "Salons",

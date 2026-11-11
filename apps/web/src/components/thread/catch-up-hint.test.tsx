@@ -22,7 +22,7 @@ describe("CatchUpHint", () => {
   it("is announced, and its two answers are real buttons", () => {
     renderHint();
     const status = screen.getByRole("status");
-    expect(status.textContent).toContain("Catch up on this thread?");
+    expect(status.textContent).toContain("Catch up on this conversation?");
     expect(screen.getByRole("button", { name: "Recap" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Not now" })).toBeTruthy();
   });

@@ -84,7 +84,7 @@ const paymentsEn = {
   amountNotWhole: "Enter an amount in dollars and cents.",
   settingsTitle: "Getting paid",
   settingsDescription:
-    "Ask a customer for a deposit or a final payment, right in the thread.",
+    "Ask a customer for a deposit or a final payment, right in the conversation.",
   askAction: "Ask for payment",
   amountLabel: "Amount",
   descriptionLabel: "What for",
@@ -128,7 +128,7 @@ const paymentsEn = {
    * means "ask the device", and only the client knows what the device says.
    */
   payoutNotConnectedTitle: "Not set up yet",
-  payoutNotConnectedDetail: "Connect a Stripe account and you can ask a customer for a deposit or a final payment straight from the thread. Money goes to your bank account — we never hold it, and we take nothing on top.",
+  payoutNotConnectedDetail: "Connect a Stripe account and you can ask a customer for a deposit or a final payment straight from the conversation. Money goes to your bank account — we never hold it, and we take nothing on top.",
   payoutIncompleteTitle: "Nearly there",
   payoutIncompleteDetail: "Stripe still needs a few details about your business before it can take a payment. Picking up where you left off takes a couple of minutes.",
   payoutPendingTitle: "Stripe is checking your details",
@@ -136,7 +136,7 @@ const paymentsEn = {
   payoutRestrictedTitle: "Payments are paused",
   payoutRestrictedDetail: "Stripe has paused payments on your account and needs something from you before it can take another one. Your Stripe dashboard says what.",
   payoutReadyTitle: "Ready to take payments",
-  payoutReadyDetail: "Ask for a deposit or a final payment from any thread. It arrives as an ordinary text with a link, and the money goes to your bank account.",
+  payoutReadyDetail: "Ask for a deposit or a final payment from any conversation. It arrives as an ordinary text with a link, and the money goes to your bank account.",
   payoutActionSetUp: "Set up payments",
 
   /*

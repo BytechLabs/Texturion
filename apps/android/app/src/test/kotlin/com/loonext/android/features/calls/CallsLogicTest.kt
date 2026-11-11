@@ -583,8 +583,8 @@ class CallsLogicTest {
         assertEquals("With Dana", ongoingStatusLabel(OngoingPhase.ANSWERED, "Dana"))
         // Answered but the roster can't name the member: the line is still
         // honestly taken, not blank.
-        assertEquals("On the line", ongoingStatusLabel(OngoingPhase.ANSWERED, null))
-        assertEquals("On the line", ongoingStatusLabel(OngoingPhase.ANSWERED, "  "))
+        assertEquals("On a call", ongoingStatusLabel(OngoingPhase.ANSWERED, null))
+        assertEquals("On a call", ongoingStatusLabel(OngoingPhase.ANSWERED, "  "))
         assertEquals("Calling…", ongoingStatusLabel(OngoingPhase.DIALING, null))
         assertEquals("Leaving a voicemail", ongoingStatusLabel(OngoingPhase.VOICEMAIL, null))
     }

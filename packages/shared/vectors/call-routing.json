@@ -5,7 +5,7 @@
   },
   {
     "routing": "line_busy",
-    "reason": "Line busy"
+    "reason": "Number busy"
   },
   {
     "routing": "screened",
@@ -17,7 +17,7 @@
   },
   {
     "routing": "paused",
-    "reason": "Line paused"
+    "reason": "Number paused"
   },
   {
     "routing": "over_cap",

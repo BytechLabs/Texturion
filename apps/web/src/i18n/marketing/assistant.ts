@@ -53,7 +53,7 @@ export const assistantEn = {
   doesTitle: "Four jobs, five switches.",
   doesDraftTitle: "Drafts the reply",
   doesDraftBody:
-    "Lou reads the thread and writes a reply in your voice, grounded in one sentence you wrote about what your business does. You edit it or bin it. It never sends. If you have told Lou nothing about the business, it will not invent a description of it.",
+    "Lou reads the conversation and writes a reply in your voice, grounded in one sentence you wrote about what your business does. You edit it or bin it. It never sends. If you have told Lou nothing about the business, it will not invent a description of it.",
   doesVoicemailTitle: "Writes the voicemail down",
   doesVoicemailBody:
     "A voicemail arrives as text you can read between jobs and search months later, instead of a badge you have to find somewhere quiet to listen to. The recording is still there.",

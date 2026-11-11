@@ -157,7 +157,7 @@ export async function reportHighPriorityCeilingReached(
     action:
       "High-priority push is rationed by Google and Apple, and overuse is penalised " +
       "app-wide. Check whether this is a busy crew (raise companies.high_priority_push_limit) " +
-      "or an inbound flood (look for spam threads). Last 7 days by company: " +
+      "or an inbound flood (look for spam conversations). Last 7 days by company: " +
       "select api_high_priority_push_report(7);",
   });
 }

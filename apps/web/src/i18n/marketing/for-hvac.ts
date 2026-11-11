@@ -14,14 +14,14 @@ import type { MarketingLocale } from "./footer";
 export const hvacEn = {
   metaTitle: "Texting software for HVAC companies",
   metaDescription:
-    "One business line for your HVAC crew: triage the cold-snap surge, read the fault before you dispatch, and keep install quotes from going cold. Texts, calls and voicemail, one flat monthly price, {claim}.",
+    "A business number for your HVAC crew: triage the cold-snap surge, read the fault before you dispatch, and keep install quotes from going cold. Texts, calls and voicemail, one flat monthly price, {claim}.",
 
   breadcrumbHome: "Home",
   breadcrumbSelf: "HVAC",
   displayName: "HVAC",
 
   dateline: "6:48 AM · NO HEAT",
-  h1: "One line for the whole HVAC crew.",
+  h1: "One inbox for the whole HVAC crew.",
   heroSubBefore:
     "It's 6:48 in the morning, the house is cold, and the customer used the only number they had. Whether they texted it or rang it, whoever is up answers, the right part rides the van, and the no-heat call is booked before the shop opens. A local business number for texts and calls,",
   heroSubAfter: "a month for the whole crew.",
@@ -60,7 +60,7 @@ export const hvacEn = {
     "When the cold-snap texts pile up, the shared inbox is a queue: read the fault, note the likely part, assign the tech whose van has it, send a window. Nothing sits in a voicemail box while a house freezes.",
   useCaseFaultTitle: "Read the fault before you dispatch.",
   useCaseFaultBody:
-    "Ask for a photo of the thermostat error or the model plate. E4 versus a flashing light changes what part rides on the truck, and a photo in the thread means the tech rolls up with the capacitor already loaded.",
+    "Ask for a photo of the thermostat error or the model plate. E4 versus a flashing light changes what part rides on the truck, and a photo in the conversation means the tech rolls up with the capacitor already loaded.",
   useCaseQuoteTitle: "Follow up on install quotes before they go cold.",
   useCaseQuoteBody:
     "A furnace or AC swap rarely closes the same day. Tag it “Quote sent” and it stays on the list until someone checks back in, instead of the job quietly going to whoever called them back first.",
@@ -108,7 +108,7 @@ export const hvacEn = {
 
   pricingH2After: "a month, flat. Cold snap or slow week.",
   pricingBodyBefore:
-    "Starter covers 3 people, 1 local number, and texting sized for a small service shop on a fair-use basis, not a hard cap. A surge week is fine: past your included texting, extra texts bill at a small per-text rate up to a cap you set, and the composer shows the count before you send. Want to split the service line from the install line? Pro is",
+    "Starter covers 3 people, 1 local number, and texting sized for a small service shop on a fair-use basis, not a hard cap. A surge week is fine: past your included texting, extra texts bill at a small per-text rate up to a cap you set, and the composer shows the count before you send. Want to split the service number from the install number? Pro is",
   pricingBodyAfter:
     ", covers up to 15 people, and includes a second number for exactly that.",
 

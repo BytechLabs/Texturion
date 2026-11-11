@@ -263,14 +263,14 @@ object ShellStrings : AppStrings.Section {
         "shell.meteredLoad" to "Load",
         "shell.wifiOnlyLabel" to "Full-size photos on Wi-Fi only",
         "shell.wifiOnlyDescription" to
-            "Threads and galleries always load. Only full-size photos and downloads " +
+            "Conversations and galleries always load. Only full-size photos and downloads " +
             "wait for Wi-Fi — tap one to load it anyway.",
         // #721: why no phone rang, after a missed call or voicemail.
         "shell.callRoutingBlocked" to "Blocked number",
-        "shell.callRoutingLineBusy" to "Line busy",
+        "shell.callRoutingLineBusy" to "Number busy",
         "shell.callRoutingScreened" to "Screened as spam",
         "shell.callRoutingAfterHours" to "After hours, nobody on call",
-        "shell.callRoutingPaused" to "Line paused",
+        "shell.callRoutingPaused" to "Number paused",
         "shell.callRoutingOverCap" to "Calling limit reached",
         "shell.callRoutingNobodyReachable" to "Nobody could be rung",
         "shell.navTrash" to "Trash",
@@ -318,7 +318,7 @@ object ShellStrings : AppStrings.Section {
         "shell.callEndedNobodyReachable" to "Nobody could be rung",
         "shell.callEndedRejectedBlocked" to "Blocked number",
         "shell.callEndedRejectedOverLimit" to "Calling limit reached",
-        "shell.callEndedLinePaused" to "Line paused",
+        "shell.callEndedLinePaused" to "Number paused",
         "shell.callEndedStuckCallCleanedUp" to "The call stopped responding and was ended",
         "shell.callEndedIntentExpired" to "The transfer timed out",
         "shell.callEndedVoicemailFailed" to "The voicemail could not record",

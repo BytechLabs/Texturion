@@ -58,7 +58,7 @@ export const metadata: Metadata = {
   // title; every other marketing page supplies just the "%s" half.
   metadataBase: new URL("https://loonext.com"),
   title: {
-    default: "Loonext: the shared line for your crew",
+    default: "Loonext: the shared inbox for your crew",
     template: "%s · Loonext",
   },
   // #491: the fallback description for every route that sets none of its own,

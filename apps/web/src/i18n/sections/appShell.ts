@@ -65,13 +65,13 @@ export const appShellEn = {
   contactAddDetails: "Add details",
   contactShowAll: "Show all ({count})",
   contactNoConversations: "No conversations yet",
-  contactNoConversationsDetail: "Text this contact and the thread shows up here.",
+  contactNoConversationsDetail: "Text this contact and the conversation shows up here.",
   contactNoCalls: "No calls yet",
   contactNoCallsDetail: "Calls to and from this number are listed here.",
   contactNoTasks: "No tasks yet",
   contactNoTasksDetail: "Tasks made from this contact's texts or notes show up here.",
   contactNoFiles: "No files yet",
-  contactNoFilesDetail: "Photos and files shared in this contact's thread are collected here.",
+  contactNoFilesDetail: "Photos and files shared in this contact's conversation are collected here.",
   contactName: "Name",
   contactNamePlaceholder: "Add a name",
   contactBusiness: "Business",
@@ -314,10 +314,10 @@ export const appShellEn = {
     "voice, after the call has ended. The call itself is never recorded — " +
     "voicemail a caller leaves at the beep is a separate thing, covered in " +
     "Privacy.",
-  aiCatchupCardTitle: "When you come back to a long thread",
+  aiCatchupCardTitle: "When you come back to a long conversation",
   aiCatchupLabel: "Let Lou catch you up",
   aiCatchupBody:
-    "On a long or long-quiet thread, Lou will read the recent messages and " +
+    "On a long or long-quiet conversation, Lou will read the recent messages and " +
     "show what the customer asked, what your crew said, and what's still " +
     "open. Only when someone asks for it — nothing runs on its own.",
   aiCatchupBoundary:
@@ -352,7 +352,7 @@ export const appShellEn = {
   awayEnabledLabel: "Send an away reply after hours",
   awayEnabledBody:
     "Fires once per conversation when a customer first texts outside your " +
-    "hours. Replies to their ongoing thread are never gated.",
+    "hours. Replies to their ongoing conversation are never gated.",
   awayUsTextingOff:
     "Customers with US numbers won't get this reply: US texting isn't on for " +
     "this workspace. Canadian numbers get it now.",
@@ -1064,7 +1064,7 @@ export const appShellEn = {
   auditSettingTranscribeVoicemail: "voicemail transcripts",
   auditSettingVoicemailIntake: "asking callers what the job is",
   auditSettingCallWrapup: "dictating a wrap-up after a call",
-  auditSettingSummarizeThreads: "thread catch-ups",
+  auditSettingSummarizeThreads: "conversation catch-ups",
   /** Joining that list: "a, b and c". The comma-joined head, then the last. */
   auditListAnd: "{items} and {last}",
 } as const;

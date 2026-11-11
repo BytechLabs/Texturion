@@ -90,7 +90,7 @@ object CommonStrings : AppStrings.Section {
          * the Android client itself owns.
          */
         "telephony.placementUnreachable" to
-            "Couldn't reach the line. Please try again.",
+            "Couldn't reach that number. Please try again.",
         "telephony.placementNoSession" to
             "Couldn't start the call. Please try again.",
         "telephony.temporarilyUnavailable" to

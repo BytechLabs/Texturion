@@ -283,12 +283,26 @@ Left-nav settings layout (mobile: stacked list → detail pages). Sections:
   `label` in them; only the words people read changed.
 - "Label" stays for what it names elsewhere: a custom field's label, a vCard property's
   label, a caller-ID label on a screened call. Each is a named exception in the guard.
+- **Conversation**, never "thread". The menus already say "Delete conversation" and
+  "View in conversation", and it is the same record, so English says Conversation on every
+  client, in the catalogues, the marketing pages, push and email copy. French already says
+  *conversation*. The catalogue key names keep `thread` in them (`thread.*` is the screen's
+  namespace); only the words people read changed.
+- **Number**, never "line", for a phone number: "How this number answers", "this number's
+  hours", "our business number", "Number busy". A number is what the customer dials and
+  what the plan sells, so one word covers both. "Line" keeps its other meanings: a line of
+  text ("one per line", "Copy the line below", "the first line of what they said", "Tap any
+  line"), a line item, "Line of work", and the `{line}` placeholders. The bare word is not
+  banned; the guard matches the phrases a phone line turns up in (this/that/each/every line,
+  business/phone/shop/office/field/shared line, the line you watch, a line's, Line busy).
+- **Contact** and **customer** both stay, with defined meanings. A Contact is the saved
+  record (the Contacts list, a contact's page). "Customer" is the person in a sentence ("the
+  customer sees this"). Nothing is renamed and no guard covers the pair.
 - The guard: `apps/web/src/i18n/retired-words.test.ts`, `RetiredWordsTest.kt` (Android) and
   `RetiredWordsTests.swift` (iOS) read each client's English catalogue and fail when a
-  value says "label" without a named exception, or when an exception stops matching. A
-  new retired word goes in the same three tests.
-- Other pairs (conversation and thread, contact and customer, number and line) are not
-  settled yet; when one is, add its word here and its retired word to the three guards.
+  value says "label" (a tag), "thread" (a conversation) or a phone line without a named
+  exception, or when an exception stops matching. A new retired word goes in the same
+  three tests.
 
 ## G11. Accessibility & quality bar
 

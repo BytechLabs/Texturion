@@ -120,8 +120,8 @@ final class OngoingCallTests: XCTestCase {
         XCTAssertEqual("With Dana", ongoingStatusLabel(.answered, memberName: "Dana"))
         // Answered but the roster can't name the member: the line is still
         // honestly taken, not blank.
-        XCTAssertEqual("On the line", ongoingStatusLabel(.answered, memberName: nil))
-        XCTAssertEqual("On the line", ongoingStatusLabel(.answered, memberName: "  "))
+        XCTAssertEqual("On a call", ongoingStatusLabel(.answered, memberName: nil))
+        XCTAssertEqual("On a call", ongoingStatusLabel(.answered, memberName: "  "))
         XCTAssertEqual("Calling…", ongoingStatusLabel(.dialing, memberName: nil))
         XCTAssertEqual("Leaving a voicemail", ongoingStatusLabel(.voicemail, memberName: nil))
     }

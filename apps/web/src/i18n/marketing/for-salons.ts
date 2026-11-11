@@ -17,7 +17,7 @@ import type { MarketingLocale } from "./footer";
 export const salonsEn = {
   metaTitle: "Texting software for salons",
   metaDescription:
-    "One business line for the whole floor: confirm appointments, fill cancellations from the waitlist, and follow up after the big color. Texts, calls and voicemail, one flat monthly price, {claim}.",
+    "A business number for the whole floor: confirm appointments, fill cancellations from the waitlist, and follow up after the big color. Texts, calls and voicemail, one flat monthly price, {claim}.",
 
   breadcrumbHome: "Home",
   breadcrumbSelf: "Salons",
@@ -26,7 +26,7 @@ export const salonsEn = {
   dateline: "11:20 AM · RUNNING LATE",
   h1: "A front desk, even if you don't have one.",
   heroSubBefore:
-    "A running-late text only helps if somebody sees it before the chair sits empty, and a booking call only helps if somebody picks it up. Loonext gives the whole floor one line, so confirmations, reschedules and waitlist fills get handled by whoever is free, not whoever's phone it landed on.",
+    "A running-late text only helps if somebody sees it before the chair sits empty, and a booking call only helps if somebody picks it up. Loonext gives the whole floor one inbox, so confirmations, reschedules and waitlist fills get handled by whoever is free, not whoever's phone it landed on.",
   heroSubAfter: "a month for the whole salon.",
   heroTruth: "One inbox for the whole floor · {chip} · Month to month",
 
@@ -66,7 +66,7 @@ export const salonsEn = {
     "Two days after a big color, a quick “how's it feeling? remember the sulfate-free wash” keeps the result good and the client loyal, and it's two taps with a saved reply.",
   useCaseConsultTitle: "Talk through the look before the appointment.",
   useCaseConsultBody:
-    "Clients text inspo photos ahead of a color or cut. The stylist sees them in the thread, blocks the right amount of time, and sets the price expectation up front. No sticker shock at the chair.",
+    "Clients text inspo photos ahead of a color or cut. The stylist sees them in the conversation, blocks the right amount of time, and sets the price expectation up front. No sticker shock at the chair.",
 
   savedRepliesH2: "Six texts every salon sends. Steal these.",
   savedRepliesIntro:

@@ -77,7 +77,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.inheritSame" to "Same as your workspace",
         "settingsMore.inheritSameNamed" to "Same as your workspace ({value})",
         "settingsMore.inheritUse" to "Use the workspace's",
-        "settingsMore.numberHoursTitle" to "When this line is open",
+        "settingsMore.numberHoursTitle" to "When this number is open",
         "settingsMore.numberHoursIntro" to
             "The after-hours reply on this number follows this clock. " +
             "Leave it alone and it follows your workspace.",
@@ -85,7 +85,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.chooseTimezone" to "Choose a timezone",
         "settingsMore.roleLabel" to "Role",
         "settingsMore.openHours" to "Open hours",
-        "settingsMore.numberIdentityTitle" to "How this line answers",
+        "settingsMore.numberIdentityTitle" to "How this number answers",
         "settingsMore.numberIdentityIntro" to
             "Anything you leave alone follows your workspace. Change one " +
             "here and it only affects this number.",
@@ -99,7 +99,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.afterHoursOnCallOnly" to "Ring only whoever's on call",
         "settingsMore.afterHoursVoicemail" to "Take a message",
         "settingsMore.afterHoursHint" to
-            "Outside this line's hours. With nobody on call, the " +
+            "Outside this number's hours. With nobody on call, the " +
             "last two still differ — one rings the crew anyway, " +
             "the other takes a message.",
         "settingsMore.ringHow" to "How the phones ring",
@@ -107,19 +107,19 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.ringInTurn" to "One at a time",
         "settingsMore.ringHowLong" to "How long they ring",
         "settingsMore.ringSeconds" to "{seconds} seconds",
-        "settingsMore.lineNameTitle" to "Name for this line",
+        "settingsMore.lineNameTitle" to "Name for this number",
         "settingsMore.lineNameHint" to
             "Used in the greeting, on missed-call texts, and " +
-            "wherever this line introduces itself.",
+            "wherever this number introduces itself.",
         "settingsMore.voicemailGreetingTitle" to "Voicemail greeting",
         "settingsMore.voicemailGreetingHint" to
             "What a caller hears when nobody picks up.",
         "settingsMore.afterHoursReplyTitle" to "After-hours reply",
         "settingsMore.afterHoursReplyHint" to
-            "The text sent when somebody messages this line outside your hours.",
+            "The text sent when somebody messages this number outside your hours.",
         "settingsMore.missedCallBackTitle" to "Text back a missed caller",
         "settingsMore.missedCallBackHint" to
-            "Sent from this line when a call goes unanswered.",
+            "Sent from this number when a call goes unanswered.",
         "settingsMore.missedCallTextTitle" to "Missed-call text",
         "settingsMore.missedCallTextHint" to
             "What a caller gets when nobody picks up and they hang up.",
@@ -613,7 +613,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.sectionBillingBlurb" to "Plan, payment, and invoices",
         "settingsMore.sectionPayments" to "Getting paid",
         "settingsMore.sectionPaymentsBlurb" to
-            "Take a deposit or a final payment straight from a thread",
+            "Take a deposit or a final payment straight from a conversation",
         "settingsMore.sectionNotifications" to "Notifications",
         "settingsMore.sectionNotificationsBlurb" to "Email and push for new conversations",
         // Lou is the assistant's name and Loonext is the product's — neither is
@@ -669,8 +669,8 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.tagDescribePlaceholder" to "What does this one mean?",
         // "never used" reads as a verdict; "0 threads" reads as a loading state.
         "settingsMore.tagNeverUsed" to "never used",
-        "settingsMore.tagOneThread" to "1 thread",
-        "settingsMore.tagThreads" to "{count} threads",
+        "settingsMore.tagOneThread" to "1 conversation",
+        "settingsMore.tagThreads" to "{count} conversations",
         "settingsMore.tagLastUsed" to " · last {ago}",
         "settingsMore.mergeTitle" to "Merge \"{tag}\" into another tag",
         "settingsMore.mergeBody" to
@@ -690,7 +690,7 @@ object SettingsMoreStrings : AppStrings.Section {
             "Everyone can still use every tag you already have. This only " +
             "stops new ones being invented mid-job.",
         "settingsMore.tagLockedNote" to
-            "A tech who needs a category you do not have will leave the thread " +
+            "A tech who needs a category you do not have will leave the conversation " +
             "untagged rather than ask. Check the list below now and then.",
 
         // -- The team --------------------------------------------------------
@@ -905,7 +905,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.saveRecoveryCodesBody" to
             "This is the only time you will see these. If you lose your phone, one " +
             "of these codes is how you get back in — without them, getting back into " +
-            "your business line takes us weeks.",
+            "your business number takes us weeks.",
         "settingsMore.savedThem" to "I've saved them",
         "settingsMore.twoFactorOn" to "Two-factor authentication is on.",
         "settingsMore.recoveryCodesClipLabel" to "Recovery codes",
@@ -1131,7 +1131,7 @@ object SettingsMoreStrings : AppStrings.Section {
             "listening to it. It is searchable like any other message.",
         "settingsMore.whatsNewDraftsTitle" to "Lou drafts the reply for you",
         "settingsMore.whatsNewDraftsBody" to
-            "Lou reads the thread and offers a reply you can edit before it goes. " +
+            "Lou reads the conversation and offers a reply you can edit before it goes. " +
             "You send it, or you ignore it; nothing is sent on your behalf.",
         "settingsMore.whatsNewCallsTitle" to "Answer calls in the app",
         "settingsMore.whatsNewCallsBody" to
@@ -1277,7 +1277,7 @@ object SettingsMoreStrings : AppStrings.Section {
         // can be looked up by.
         "settingsMore.somethingWentWrongStatus" to "Something went wrong ({status}).",
 
-        // -- A carrier is filtering this line (#235) --------------------------
+        // -- A carrier is filtering this number (#235) --------------------------
         // It never says "spam" or "flagged": we know delivery fell, we do not
         // know which vendor labelled it or whether one did.
         "settingsMore.numberHealthRate" to

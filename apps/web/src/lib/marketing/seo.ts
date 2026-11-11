@@ -129,7 +129,7 @@ export function organizationJsonLd() {
     // structured-data sentence describing what the product is, so it was the
     // machine-readable version of the whole issue.
     description:
-      "A shared business line for small service businesses in the US and Canada: texts and calls on one number, worked by the whole crew, with the jobs and customer history that come out of them.",
+      "A shared business number for small service businesses in the US and Canada: texts and calls on one number, worked by the whole crew, with the jobs and customer history that come out of them.",
   } as const;
 }
 

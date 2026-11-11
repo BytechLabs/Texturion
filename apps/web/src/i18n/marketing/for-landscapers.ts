@@ -14,16 +14,16 @@ import type { MarketingLocale } from "./footer";
 export const landscapersEn = {
   metaTitle: "Texting software for landscapers",
   metaDescription:
-    "One business line for your landscaping crew: quote from a photo, send weather reschedules down a whole route, and keep every gate code where the crew can see it. Texts, calls and voicemail, one flat monthly price, {claim}.",
+    "A business number for your landscaping crew: quote from a photo, send weather reschedules down a whole route, and keep every gate code where the crew can see it. Texts, calls and voicemail, one flat monthly price, {claim}.",
 
   breadcrumbHome: "Home",
   breadcrumbSelf: "Landscapers",
   displayName: "Landscapers",
 
   dateline: "7:15 AM · GATE LOCKED",
-  h1: "One line for the whole landscaping crew.",
+  h1: "One inbox for the whole landscaping crew.",
   heroSubBefore:
-    "The crew is at the gate, the gate is locked, and the code is in a thread on somebody's day off. Loonext puts every gate code, reschedule, and add-on ask on one business number the whole company works from, calls included.",
+    "The crew is at the gate, the gate is locked, and the code is in a conversation on somebody's day off. Loonext puts every gate code, reschedule, and add-on ask on one business number the whole company works from, calls included.",
   heroSubAfter: "a month.",
   heroTruth: "One inbox for every property · {chip} · No busy-season lock-in",
 
@@ -31,7 +31,7 @@ export const landscapersEn = {
   painBodyOne:
     "Landscaping runs in waves. The first warm week, everyone wants a spring cleanup, a mulch estimate, and a mowing quote, all at once, all by text, all to the number on the truck. If that number is the owner's cell, the owner spends the busiest month of the year as a receptionist instead of running crews.",
   painBodyTwo:
-    "And the work is spread out. One crew's on the Alvarez lawn, another's across town, and the gate codes, addresses, and “which corner did they want re-mulched” live in a hundred separate threads on separate phones. Loonext puts every property's conversation in one inbox, so the person quoting and the crew doing the work see the same photos, the same code, the same notes.",
+    "And the work is spread out. One crew's on the Alvarez lawn, another's across town, and the gate codes, addresses, and “which corner did they want re-mulched” live in a hundred separate conversations on separate phones. Loonext puts every property's conversation in one inbox, so the person quoting and the crew doing the work see the same photos, the same code, the same notes.",
 
   threadH2: "A locked gate, turned into next week's job.",
   threadLede:
@@ -55,7 +55,7 @@ export const landscapersEn = {
   useCaseWeatherTitle: "Weather reschedules, in two taps.",
   useCaseWeatherBody:
     "Rain moves the route. Pull up the day's conversations and text each customer the new time with a saved reply. It's a few taps per stop, and everyone knows before they wonder where the crew is.",
-  useCasePhotosTitle: "Before-and-after photos, in the thread.",
+  useCasePhotosTitle: "Before-and-after photos, in the conversation.",
   useCasePhotosBody:
     "Customers text the overgrown before; you text back the finished after. Every photo sits in the conversation, free to receive, so the quote, the work, and the proof live in one place.",
   useCaseSpringTitle: "Spring-list follow-ups that book the season.",
@@ -120,7 +120,7 @@ export const landscapersEn = {
     "for up to 15. Drop back down between seasons, since it's month to month.",
   faqCodeQ: "Can the whole crew see a property's address and gate code?",
   faqCodeA:
-    "Yes. Save it once to the contact or drop it as an internal note in the thread, and every crew member sees it on their own phone. No more texting the code around before every visit.",
+    "Yes. Save it once to the contact or drop it as an internal note in the conversation, and every crew member sees it on their own phone. No more texting the code around before every visit.",
   faqWeatherQ:
     "The weather changes our schedule constantly. Does texting help?",
   faqWeatherA:

@@ -1035,7 +1035,7 @@ callsRoutes.post("/calls/browser", requireCapability("conversations.send"), asyn
     return errorResponse(
       c,
       "conflict",
-      "This line is on another call right now.",
+      "This number is on another call right now.",
     );
   }
 

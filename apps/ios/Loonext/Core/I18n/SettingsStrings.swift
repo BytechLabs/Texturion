@@ -164,15 +164,15 @@ private let settingsAiEn: [String: String] = [
     "settings.aiBusinessPlaceholder":
         "We paint houses and do small renovations in Calgary.",
     "settings.aiBusinessCount": "{count} / {max}",
-    "settings.aiThreadCard": "When you open a long thread",
+    "settings.aiThreadCard": "When you open a long conversation",
     "settings.aiCatchUp": "Let Lou catch you up",
     "settings.aiCatchUpHelp":
-        "On a thread of {messages} messages or more — or a shorter one nobody has "
+        "On a conversation of {messages} messages or more — or a shorter one nobody has "
         + "touched in {days} days — offer a short catch-up: what they asked, what "
         + "you said, what is still open. Lou reads the conversation to write it, "
         + "and every line quotes a real message you can tap straight to. It is only "
         + "ever offered, never automatic, and it changes nothing about which "
-        + "threads you see or the order they come in.",
+        + "conversations you see or the order they come in.",
     "settings.aiReplyCard": "When you reply to a customer",
     "settings.aiDraftReplies": "Let Lou draft replies",
     "settings.aiDraftRepliesHelp":
@@ -289,7 +289,7 @@ private let settingsClosedDatesEn: [String: String] = [
     "settings.widgetRotateConfirm": "Replace it",
     "settings.widgetRotated": "Replaced. Paste the new snippet on your site.",
     "settings.widgetLineLabel": "Which number website messages land on",
-    "settings.widgetLineHelp": "Replies from your crew come from this number, so pick the line you watch.",
+    "settings.widgetLineHelp": "Replies from your crew come from this number, so pick the number you watch.",
     "settings.widgetLineDefault": "Your first number",
     "settings.widgetLineDefaultNamed": "Your first number ({number})",
     "settings.widgetLineSaved": "Website messages will land on that number.",
@@ -672,7 +672,7 @@ private let settingsEmergencyEn: [String: String] = [
     "settings.emergencyReplyHeading": "Automatic reply",
     "settings.emergencyTextBack": "Text the customer back",
     "settings.emergencyTextBackHelp":
-        "Off means we still alert the crew and flag the thread — we just don't "
+        "Off means we still alert the crew and flag the conversation — we just don't "
         + "message the customer for you.",
     "settings.emergencyReplyHelp":
         "Sent once per hour, at most, to a customer who texts one of these words. "
@@ -1962,7 +1962,7 @@ private let settingsCoreEn: [String: String] = [
             + "— is left out rather than guessed. Nothing about your plan has "
             + "changed.",
     "settings.planChecking": "Checking whether this plan is paused…",
-    "settings.portedHoldLead": "The transfer finished — it's the line that's on hold.",
+    "settings.portedHoldLead": "The transfer finished — it's the number that's on hold.",
     "settings.prepaidConsentCredited": "End my prepaid year and credit me {credit}",
     "settings.prepaidConsentPlain": "End my prepaid year",
     "settings.prepaidEndsCredited":

@@ -65,7 +65,7 @@ function Thread({ conversationId = "c-1" }: { conversationId?: string }) {
   );
 }
 
-const hint = () => screen.queryByText("Catch up on this thread?");
+const hint = () => screen.queryByText("Catch up on this conversation?");
 const token = () => screen.getByTestId("token").textContent;
 
 beforeEach(() => {
@@ -79,7 +79,7 @@ describe("useCatchUp — when the hint shows", () => {
     render(<Thread />);
     expect(hint()).toBeTruthy();
     // Announced, not just drawn.
-    expect(screen.getByRole("status").textContent).toContain("Catch up on this thread?");
+    expect(screen.getByRole("status").textContent).toContain("Catch up on this conversation?");
   });
 
   it("does not show on a thread too short to be worth one", () => {

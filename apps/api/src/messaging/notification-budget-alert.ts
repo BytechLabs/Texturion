@@ -136,7 +136,7 @@ export function budgetAlertCopy(args: BudgetCopyArgs): {
         `crew's phones keep buzzing either way — push notifications run on a ` +
         `separate, much higher limit and are not affected.\n\n${inboxHolds}` +
         `\n\nThere is nothing you need to fix. If you are not expecting this ` +
-        `much volume, open the inbox and check for spam threads. ${raiseIt}` +
+        `much volume, open the inbox and check for spam conversations. ${raiseIt}` +
         `\n\nOpen your inbox: ${inboxUrl}\n\nLoonext`,
     };
   }
@@ -179,6 +179,6 @@ export function budgetAlertCopy(args: BudgetCopyArgs): {
       `rest of today — that is the reliable place to see everything, and it ` +
       `is complete.\n\nA day this busy is unusual. If it is not a surprise, ` +
       `reply to this email and we will raise your limit; if it is, check the ` +
-      `inbox for spam threads.\n\nOpen your inbox: ${inboxUrl}\n\nLoonext`,
+      `inbox for spam conversations.\n\nOpen your inbox: ${inboxUrl}\n\nLoonext`,
   };
 }

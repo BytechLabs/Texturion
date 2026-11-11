@@ -86,7 +86,7 @@ const SENTENCES: readonly string[] = [
   "Landline, the wife, the shop…",
   "Another number they answer",
   "Texts and calls from this number will show up under this customer, in ",
-  "their own thread.",
+  "their own conversation.",
 ];
 
 describe("#291 the other-numbers list reads the same everywhere", () => {

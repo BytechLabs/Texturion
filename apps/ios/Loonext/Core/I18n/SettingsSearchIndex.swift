@@ -169,7 +169,7 @@ enum SettingsSearchIndex {
             en: ["After a call ends", "call summary", "wrap up", "call notes", "ai notes"],
             fr: ["Après la fin d'un appel", "résumé d'appel", "notes d'appel", "conclusion"]),
         SettingsIndexEntry(section: "ai", anchor: "ai-catchup", page: nil,
-            en: ["When you come back to a long thread", "catch up", "thread summary", "summarize", "recap"],
+            en: ["When you come back to a long conversation", "catch up", "thread summary", "summarize", "recap"],
             fr: ["Quand vous revenez à une longue conversation", "rattrapage", "résumé de conversation", "résumer"]),
         SettingsIndexEntry(section: "usage", anchor: "usage-this-period", page: nil,
             en: ["This period", "usage", "messages used", "fair use", "allowance", "how many texts", "minutes"],

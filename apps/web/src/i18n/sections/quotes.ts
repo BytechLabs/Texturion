@@ -71,8 +71,8 @@ export const quotesEn = {
   descriptionPlaceholder: "Replace the water heater",
   expiresInDays: "The price holds for {days} days. You can send it as soon as it is saved.",
   needAmount: "Put a number in, and make it more than zero.",
-  needDescription: "Say what the work is. The customer sees this line.",
-  needContact: "This thread has no contact yet, so there is nobody to quote.",
+  needDescription: "Say what the work is. The customer sees this number.",
+  needContact: "This conversation has no contact yet, so there is nobody to quote.",
   createFailed: "That did not save. Try again.",
 } as const;
 

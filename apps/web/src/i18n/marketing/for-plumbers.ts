@@ -28,14 +28,14 @@ import type { MarketingLocale } from "./footer";
 export const plumbersEn = {
   metaTitle: "Texting software for plumbers",
   metaDescription:
-    "One business line for your plumbing crew: customers text photos or call, anyone on the team answers, nothing gets missed. Texts, calls and voicemail, one flat monthly price for the whole crew, {claim}.",
+    "A business number for your plumbing crew: customers text photos or call, anyone on the team answers, nothing gets missed. Texts, calls and voicemail, one flat monthly price for the whole crew, {claim}.",
 
   breadcrumbHome: "Home",
   breadcrumbSelf: "Plumbers",
   displayName: "Plumbers",
 
   dateline: "9:04 PM · BASEMENT DRAIN",
-  h1: "One line for the whole plumbing crew.",
+  h1: "One inbox for the whole plumbing crew.",
   heroSubBefore:
     "Customers text a photo of the leak, or they call. Either way it reaches every tech at once and whoever is free answers, and the calls nobody can take leave a voicemail you can read between jobs. The owner's personal cell goes back to being a personal cell. A local business number, one shared inbox,",
   heroSubAfter: "a month for the whole crew.",
@@ -116,7 +116,7 @@ export const plumbersEn = {
     "Every conversation has one owner, so two techs never book the same drain and no customer waits on “I thought you had it.”",
   featureNotesTitle: "Notes the customer never sees.",
   featureNotesBody:
-    "“Gate code 4482, dog is friendly, quote high, last visit ran long.” Right in the thread, marked internal, never sent.",
+    "“Gate code 4482, dog is friendly, quote high, last visit ran long.” Right in the conversation, marked internal, never sent.",
   featureCrawlspaceTitle: "Works from the crawlspace.",
   featureCrawlspaceBody:
     "Any phone, no app to install, one-handed. Dark mode for the 6am starts, push notifications when a customer texts.",

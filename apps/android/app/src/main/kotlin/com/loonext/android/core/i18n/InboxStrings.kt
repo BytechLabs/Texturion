@@ -246,7 +246,7 @@ object InboxStrings : AppStrings.Section {
         // file uses everywhere else — splits the sentence in the source and the
         // guard reports Android as the client that lost the line.
         "inbox.startedMemberReplyHint" to
-            "Open a thread and reply. It goes out from the business number, and the whole crew can see it.",
+            "Open a conversation and reply. It goes out from the business number, and the whole crew can see it.",
         "inbox.startedMemberNoteLabel" to "Leave a note for the crew",
         "inbox.startedMemberNoteHint" to
             "Switch the composer to Note. Notes stay inside the app — the customer never sees them.",
@@ -313,7 +313,7 @@ object InboxStrings : AppStrings.Section {
         "inbox.forYouShowPanel" to "Put it back",
         "inbox.forYouLayoutSaveFailed" to
             "We couldn't save that — it's back the way it was. Try again in a moment.",
-        "inbox.forYouPanelNoteFollowUps" to "Quotes and threads you asked to be reminded about.",
+        "inbox.forYouPanelNoteFollowUps" to "Quotes and conversations you asked to be reminded about.",
         "inbox.forYouPanelNoteUnassigned" to "New conversations and tasks nobody has claimed.",
         "inbox.forYouPanelNoteWaiting" to "Your conversations where the customer spoke last.",
         "inbox.forYouPanelNoteTasks" to "Open tasks assigned to you.",

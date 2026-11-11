@@ -76,9 +76,9 @@ export const threadDemoEn = {
   frameNext: "Next",
 
   stepVoicemail:
-    "A call you can't take texts them back on its own, and the voicemail lands in the thread, written out.",
+    "A call you can't take texts them back on its own, and the voicemail lands in the conversation, written out.",
   stepText:
-    "Their text joins the same conversation. One customer, one thread, calls and texts together.",
+    "Their text joins the same conversation. One customer, one conversation, calls and texts together.",
   stepNote: "Leave a note for the team. Customers never see notes.",
   stepAssign: "Assign it to whoever's closest. One owner, no double replies.",
   stepReply: "Reply from any phone. Delivery is confirmed, in writing.",

@@ -277,7 +277,7 @@ export function payoutReadinessCopy(readiness: PayoutReadiness): {
         title: "Not set up yet",
         detail:
           "Connect a Stripe account and you can ask a customer for a deposit " +
-          "or a final payment straight from the thread. Money goes to your " +
+          "or a final payment straight from the conversation. Money goes to your " +
           "bank account — we never hold it, and we take nothing on top.",
         action: "Set up payments",
       };
@@ -310,7 +310,7 @@ export function payoutReadinessCopy(readiness: PayoutReadiness): {
       return {
         title: "Ready to take payments",
         detail:
-          "Ask for a deposit or a final payment from any thread. It arrives as " +
+          "Ask for a deposit or a final payment from any conversation. It arrives as " +
           "an ordinary text with a link, and the money goes to your bank account.",
         action: "Open Stripe",
       };

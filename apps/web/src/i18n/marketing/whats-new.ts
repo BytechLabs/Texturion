@@ -12,7 +12,7 @@ export const whatsNewEn = {
   intro:
     "Everything here has already shipped and is in the product now. We do not list what we are planning: a roadmap dressed up as news is how a page like this stops being worth reading.",
   closing:
-    "Smaller repairs ship most days and are not listed here. If you reported something and want to know where it got to, reply to the thread you reported it on and we will tell you.",
+    "Smaller repairs ship most days and are not listed here. If you reported something and want to know where it got to, reply to the conversation you reported it on and we will tell you.",
 } as const;
 
 export const whatsNewFr: Translated<typeof whatsNewEn> = {

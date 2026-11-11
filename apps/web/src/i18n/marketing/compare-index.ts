@@ -34,7 +34,7 @@ export const compareIndexEn = {
   cardAction: "See the comparison",
   omissionsTitle: "What Loonext doesn't do, on purpose.",
   omissionsLead:
-    "Loonext is one shared line at a flat price, and holding that line means leaving real capabilities to the bigger platforms. If one of these is the job, the head-to-head pages name the tool that does it.",
+    "Loonext is one shared inbox at a flat price, and holding that price means leaving real capabilities to the bigger platforms. If one of these is the job, the head-to-head pages name the tool that does it.",
   blastsTitle: "No mass text blasts.",
   blastsBody:
     "Loonext is for conversations with your customers, not campaigns at them. If you need list broadcasts, Heymarket and the marketing-texting tools do that.",

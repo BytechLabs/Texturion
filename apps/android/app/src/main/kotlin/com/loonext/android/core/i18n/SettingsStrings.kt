@@ -76,15 +76,15 @@ private val AI_EN = mapOf(
     "settings.aiBusinessPlaceholder" to
         "We paint houses and do small renovations in Calgary.",
     "settings.aiBusinessCount" to "{count} / {max}",
-    "settings.aiThreadCard" to "When you open a long thread",
+    "settings.aiThreadCard" to "When you open a long conversation",
     "settings.aiCatchUp" to "Let Lou catch you up",
     "settings.aiCatchUpHelp" to
-        "On a thread of {messages} messages or more — or a shorter one nobody has " +
+        "On a conversation of {messages} messages or more — or a shorter one nobody has " +
         "touched in {days} days — offer a short catch-up: what they asked, what " +
         "you said, what is still open. Lou reads the conversation to write it, " +
         "and every line quotes a real message you can tap straight to. It is only " +
         "ever offered, never automatic, and it changes nothing about which " +
-        "threads you see or the order they come in.",
+        "conversations you see or the order they come in.",
     "settings.aiReplyCard" to "When you reply to a customer",
     "settings.aiDraftReplies" to "Let Lou draft replies",
     "settings.aiDraftRepliesHelp" to
@@ -201,7 +201,7 @@ private val CLOSED_DATES_EN = mapOf(
     "settings.widgetRotateConfirm" to "Replace it",
     "settings.widgetRotated" to "Replaced. Paste the new snippet on your site.",
     "settings.widgetLineLabel" to "Which number website messages land on",
-    "settings.widgetLineHelp" to "Replies from your crew come from this number, so pick the line you watch.",
+    "settings.widgetLineHelp" to "Replies from your crew come from this number, so pick the number you watch.",
     "settings.widgetLineDefault" to "Your first number",
     "settings.widgetLineDefaultNamed" to "Your first number ({number})",
     "settings.widgetLineSaved" to "Website messages will land on that number.",
@@ -588,7 +588,7 @@ private val EMERGENCY_EN = mapOf(
     "settings.emergencyReplyHeading" to "Automatic reply",
     "settings.emergencyTextBack" to "Text the customer back",
     "settings.emergencyTextBackHelp" to
-        "Off means we still alert the crew and flag the thread — we just don't " +
+        "Off means we still alert the crew and flag the conversation — we just don't " +
         "message the customer for you.",
     "settings.emergencyReplyHelp" to
         "Sent once per hour, at most, to a customer who texts one of these words. " +
@@ -993,10 +993,10 @@ private val CALLING_EN = mapOf(
     "settings.ringSecondsLabel" to "{seconds} seconds · about {rings} rings",
     "settings.ringInTurnNoteOne" to
         "Then the caller gets your greeting. In {seconds} seconds, 1 phone gets a " +
-        "turn — anyone after that never rings on this line.",
+        "turn — anyone after that never rings on this number.",
     "settings.ringInTurnNote" to
         "Then the caller gets your greeting. In {seconds} seconds, {phones} phones " +
-        "get a turn — anyone after that never rings on this line.",
+        "get a turn — anyone after that never rings on this number.",
     "settings.ringAllNote" to
         "Then the caller gets your greeting. Longer than 45 seconds isn't offered: " +
         "the call legs themselves end there, so it would be ringing nobody could hear.",
@@ -1369,7 +1369,7 @@ private val BILLING_EN = mapOf(
      */
     "settings.pauseStops" to
         "You can't send texts or take calls while you're paused, and anyone who " +
-        "rings hears that the line isn't taking calls.",
+        "rings hears that the number isn't taking calls.",
     "settings.pauseKeeps" to
         "Every text a customer sends still arrives, anything you've scheduled is " +
         "held rather than dropped and goes out when you're back, and your number " +
@@ -2112,7 +2112,7 @@ private val SUPPORT_EN = mapOf(
     "settings.supportSituationUsageCap" to "sending is paused at the spending cap",
     "settings.supportSituationSubscription" to "the subscription is not active",
     "settings.supportSituationOptedOut" to "this customer is opted out",
-    "settings.supportSituationOptOutHint" to "an opt-out was detected in the thread",
+    "settings.supportSituationOptOutHint" to "an opt-out was detected in the conversation",
     "settings.supportSituationNumberAccess" to "I do not have texting access to this number",
     "settings.supportSituationReadOnly" to "I have view-only access",
 

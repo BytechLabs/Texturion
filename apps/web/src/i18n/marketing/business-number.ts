@@ -36,7 +36,7 @@ export const businessNumberEn = {
   heroSub:
     "Pick a local number in the area code you choose, usually live in a minute or two, and give your customers one place to text. Your personal cell goes back to being personal, and the number, the contacts, and every conversation stay with the company when a tech moves on.",
   visualCaption:
-    "Two numbers on Pro: an office line and a field line, each with its own inbox.",
+    "Two numbers on Pro: an office number and a field number, each with its own inbox.",
   visualAria:
     "The Loonext numbers settings showing two active business numbers with their unread counts",
 
@@ -64,7 +64,7 @@ export const businessNumberEn = {
     "When a number lives on someone's personal phone, their conversations, their contacts, and sometimes their customers leave with them. A company-owned number keeps the history where it belongs.",
   fixesTwoTitle: "Two front doors, on Pro",
   fixesTwoBody:
-    "Pro includes 2 local numbers, each with its own inbox: two locations, or an office line the front desk watches and a field line for the trucks. One crew, one workspace, no bleed between them.",
+    "Pro includes 2 local numbers, each with its own inbox: two locations, or an office number the front desk watches and a field number for the trucks. One crew, one workspace, no bleed between them.",
 
   weekUsTitle: "The first week, stated plainly",
   weekUsDayOne: "Your number is live and receiving texts on day one.",
@@ -128,7 +128,7 @@ export const businessNumberEn = {
     "Yes. Porting is free and self-serve: choose 'Bring my number' at signup or start it later from settings, answer a few questions, and we handle the carrier paperwork and show you where the transfer is the whole way. Your number keeps working on your old carrier while it moves, usually a few days to two weeks for US numbers and often faster in Canada, then switches to Loonext on a scheduled date. Nothing on your trucks or your listing has to change.",
   faqTwoQ: "What do the two numbers on Pro actually get me?",
   faqTwoA:
-    "Two separate local numbers, each with its own inbox thread inside the same shared workspace. Common setups are an office line and a field line, or one number per location. Your whole team still works from one inbox; the conversations stay grouped by which number they came in on.",
+    "Two separate local numbers, each with its own inbox conversation inside the same shared workspace. Common setups are an office number and a field number, or one number per location. Your whole team still works from one inbox; the conversations stay grouped by which number they came in on.",
   faqOwnQ: "Is the number really the business's, not mine personally?",
   faqOwnA:
     "Yes. The number is owned by the company account and shared by the crew. Teammates open a link to join and reply from their own phones, but the number, the contacts, and every conversation stay with the business when someone leaves.",
@@ -142,8 +142,8 @@ export const businessNumberEn = {
 
   visualOfficeHint: "(416) · Toronto",
   visualFieldHint: "(647) · Toronto",
-  visualOfficeLine: "Office line",
-  visualFieldLine: "Field line",
+  visualOfficeLine: "Office number",
+  visualFieldLine: "Field number",
   visualHeading: "Your business numbers",
   visualActive: "Active",
   ctaSubBefore:

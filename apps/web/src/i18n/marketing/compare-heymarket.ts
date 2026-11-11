@@ -40,7 +40,7 @@ export const compareHeymarketEn = {
     "Heymarket lists SOC 2 Type 2 on every plan and HIPAA support on Pro and Enterprise. Loonext doesn't hold those certifications yet and won't claim them. For healthcare or security-reviewed procurement, that's a real gap on our side.",
   pointEmailTitle: "Text and email in one shared inbox.",
   pointEmailBody:
-    "Heymarket handles both channels together, with email on its Plus plan and up. Loonext has no email channel at all: our shared line is texts and calls, and email is not part of it. If your team needs to work email and texts from a single place, Heymarket does something we simply don't.",
+    "Heymarket handles both channels together, with email on its Plus plan and up. Loonext has no email channel at all: our shared inbox is texts and calls, and email is not part of it. If your team needs to work email and texts from a single place, Heymarket does something we simply don't.",
   pointCrmTitle: "Deep CRM integrations and automations.",
   pointCrmBody:
     "Heymarket integrates tightly with Salesforce and HubSpot and offers broadcasts, campaigns, and AI-assisted flows. Loonext keeps a deliberately small surface. If your workflow lives inside a CRM, Heymarket meets it where it is.",
@@ -107,7 +107,7 @@ export const compareHeymarketEn = {
   voicemailLabel: "Voicemail you can read",
   voicemailOursValue: "Every one, written down",
   voicemailOursNote:
-    "A missed call takes a voicemail and we write it out into the thread, so you read it in the inbox instead of dialling in to listen. Included under fair use, not an add-on.",
+    "A missed call takes a voicemail and we write it out into the conversation, so you read it in the inbox instead of dialling in to listen. Included under fair use, not an add-on.",
   voicemailRivalValue: "Not a priced line",
   voicemailRivalNote:
     "Their published pricing covers seats, message segments and AI Agent messages. Voicemail transcription is not one of the things it prices.",

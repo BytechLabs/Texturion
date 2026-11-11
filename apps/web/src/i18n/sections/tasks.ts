@@ -283,10 +283,10 @@ export const tasksEn = {
   notePost: "Post",
   noteFilesAllFailed:
     "The note posted, but its files didn't upload. Re-attach them from the " +
-    "note's Files section in the thread.",
+    "note's Files section in the conversation.",
   noteFilesSomeFailed:
     "The note posted, but {failed} of {total} files didn't upload. Re-attach " +
-    "them from the note's Files section in the thread.",
+    "them from the note's Files section in the conversation.",
   address: "Address",
   addrStreet: "Street",
   addrUnit: "Unit / suite",
@@ -335,7 +335,7 @@ export const tasksEn = {
   // Sharing a job's photos with the customer (#294).
   // -------------------------------------------------------------------------
   shareLinkFailed: "Couldn't make that link. Try again.",
-  shareLinkCopied: "Link copied. Paste it into the thread.",
+  shareLinkCopied: "Link copied. Paste it into the conversation.",
   shareLinkSelectToCopy: "Select the link and copy it.",
   shareLinkOff: "That link no longer opens.",
   shareLinkOffFailed: "Couldn't turn that link off. Try again.",

@@ -31,7 +31,7 @@ import type { Translated } from "../translated";
  * Quebec reader expects on a legal footer.
  */
 export const footerEn = {
-  brandLine: "The shared line for your crew.",
+  brandLine: "The shared inbox for your crew.",
   homeAria: "Loonext home",
 
   headingProduct: "Product",

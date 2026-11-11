@@ -99,7 +99,7 @@ const OWNER_COPY = [
 /** The member list. */
 const MEMBER_COPY = [
   "Answer a customer",
-  "Open a thread and reply. It goes out from the business number, and the whole crew can see it.",
+  "Open a conversation and reply. It goes out from the business number, and the whole crew can see it.",
   "Leave a note for the crew",
   // The em dash is deliberate and load-bearing to this test: it is the exact
   // character that drifted to a comma during the first port.

@@ -384,19 +384,19 @@ private let settingsMorePortFr: [String: String] = [
 private let settingsMoreIdentityEn: [String: String] = [
     "settingsMore.afterHoursCalls": "After-hours calls",
     "settingsMore.afterHoursHint":
-        "Outside this line's hours. With nobody on call, the last two still "
+        "Outside this number's hours. With nobody on call, the last two still "
         + "differ — one rings the crew anyway, the other takes a message.",
     "settingsMore.afterHoursOnCallOnly": "Ring only whoever's on call",
     "settingsMore.afterHoursReplyHint":
-        "The text sent when somebody messages this line outside your hours.",
+        "The text sent when somebody messages this number outside your hours.",
     "settingsMore.afterHoursReplyTitle": "After-hours reply",
     "settingsMore.afterHoursRingEveryone": "Ring everyone, day or night",
     "settingsMore.afterHoursVoicemail": "Take a message",
     "settingsMore.lineNameHint":
-        "Used in the greeting, on missed-call texts, and wherever this line "
+        "Used in the greeting, on missed-call texts, and wherever this number "
         + "introduces itself.",
-    "settingsMore.lineNameTitle": "Name for this line",
-    "settingsMore.missedCallBackHint": "Sent from this line when a call goes unanswered.",
+    "settingsMore.lineNameTitle": "Name for this number",
+    "settingsMore.missedCallBackHint": "Sent from this number when a call goes unanswered.",
     "settingsMore.missedCallBackTitle": "Text back a missed caller",
     "settingsMore.missedCallTextHint":
         "What a caller gets when nobody picks up and they hang up.",
@@ -404,7 +404,7 @@ private let settingsMoreIdentityEn: [String: String] = [
     "settingsMore.numberIdentityIntro":
         "Anything you leave alone follows your workspace. Change one here and "
         + "it only affects this number.",
-    "settingsMore.numberIdentityTitle": "How this line answers",
+    "settingsMore.numberIdentityTitle": "How this number answers",
     "settingsMore.recordingFallbackHint":
         "A recording that will not play falls back to the words below, so a "
         + "caller never hears silence.",
@@ -474,7 +474,7 @@ private let settingsMoreHoursEn: [String: String] = [
     "settingsMore.numberHoursIntro":
         "The after-hours reply on this number follows this clock. Leave it "
         + "alone and it follows your workspace.",
-    "settingsMore.numberHoursTitle": "When this line is open",
+    "settingsMore.numberHoursTitle": "When this number is open",
     "settingsMore.openHours": "Open hours",
     "settingsMore.timezone": "Timezone",
 ]
@@ -1134,7 +1134,7 @@ private let settingsMoreIosHelpEn: [String: String] = [
     "settings.supportBodyUnnamed": "(unnamed)",
     "settings.supportBodyWorkspace": "Workspace: {name} ({id})",
     "settings.supportSituationNumberAccess": "I do not have texting access to this number",
-    "settings.supportSituationOptOutHint": "an opt-out was detected in the thread",
+    "settings.supportSituationOptOutHint": "an opt-out was detected in the conversation",
     "settings.supportSituationOptedOut": "this customer is opted out",
     "settings.supportSituationReadOnly": "I have view-only access",
     "settings.supportSituationRegistrationPending": "US registration is pending approval",
@@ -1245,7 +1245,7 @@ private let settingsMoreIosHomeEn: [String: String] = [
     "settingsMore.sectionNumbersBlurb": "Your numbers, ports, text-enablement, registration",
     "settingsMore.sectionPayments": "Getting paid",
     "settingsMore.sectionPaymentsBlurb":
-        "Take a deposit or a final payment straight from a thread",
+        "Take a deposit or a final payment straight from a conversation",
     "settingsMore.sectionProfile": "Profile & account",
     "settingsMore.sectionProfileBlurb": "Your name, theme, email, and password",
     "settingsMore.sectionTeam": "Team",
@@ -1351,7 +1351,7 @@ private let settingsMoreIosWhatsNewEn: [String: String] = [
         + "Pick up, put someone on hold, or hand the call to a teammate.",
     "settingsMore.whatsNewCallsTitle": "Answer calls in the app",
     "settingsMore.whatsNewDraftsBody":
-        "Lou reads the thread and offers a reply you can edit before it "
+        "Lou reads the conversation and offers a reply you can edit before it "
         + "goes. You send it, or you ignore it; nothing is sent on your "
         + "behalf.",
     "settingsMore.whatsNewDraftsTitle": "Lou drafts the reply for you",
@@ -1453,7 +1453,7 @@ private let settingsMoreIosTwoFactorEn: [String: String] = [
     "settingsMore.saveRecoveryCodesBody":
         "This is the only time you will see these. If you lose your phone, "
         + "one of these codes is how you get back in — without them, getting "
-        + "back into your business line takes us weeks.",
+        + "back into your business number takes us weeks.",
     "settingsMore.savedThem": "I've saved them",
     "settingsMore.setUpTwoFactor": "Set up two-factor",
     "settingsMore.sixDigitCode": "Six-digit code",
@@ -1719,11 +1719,11 @@ private let settingsMoreIosTagsEn: [String: String] = [
         + "new ones being invented mid-job.",
     "settingsMore.tagLockTitle": "Who can create tags",
     "settingsMore.tagLockedNote":
-        "A tech who needs a category you do not have will leave the thread "
+        "A tech who needs a category you do not have will leave the conversation "
         + "untagged rather than ask. Check the list below now and then.",
     "settingsMore.tagNeverUsed": "never used",
-    "settingsMore.tagOneThread": "1 thread",
-    "settingsMore.tagThreads": "{count} threads",
+    "settingsMore.tagOneThread": "1 conversation",
+    "settingsMore.tagThreads": "{count} conversations",
     "settingsMore.tagsDesc":
         "What the crew has been tagging, and how often. The quiet ones at "
         + "the bottom are usually duplicates of something above.",

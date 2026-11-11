@@ -347,11 +347,11 @@ final class CallStateMachineTests: XCTestCase {
         var state = CallStateMachine.ready(SoftphoneSnapshot())
         state = CallStateMachine.placing(state, placement(s))
         state = CallStateMachine.placementFailed(
-            state, placementId: s, message: "Couldn't reach the line."
+            state, placementId: s, message: "Couldn't reach that number."
         )
         XCTAssertTrue(state.calls.isEmpty)
         XCTAssertNil(state.activeId)
-        XCTAssertEqual("Couldn't reach the line.", state.error)
+        XCTAssertEqual("Couldn't reach that number.", state.error)
     }
 
     func testPlacementConnectedPrefersTheHeaderCustomerNumber() {
@@ -690,7 +690,7 @@ final class TelephonyMappingTests: XCTestCase {
         try await waitFor("placement timeout") {
             core.state.calls.isEmpty && core.state.error != nil
         }
-        XCTAssertEqual("Couldn't reach the line. Please try again.", core.state.error)
+        XCTAssertEqual("Couldn't reach that number. Please try again.", core.state.error)
     }
 
     // MARK: inbound + answer mapping (CXAnswerCallAction's core half)

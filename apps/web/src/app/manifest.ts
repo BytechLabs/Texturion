@@ -19,7 +19,7 @@ export default function manifest(): MetadataRoute.Manifest {
     // #491: the install-prompt copy on the platform this product is actually
     // delivered as ("add it to your home screen"), and it said texting only.
     description:
-      "Your business line, shared. Texts and calls land in one inbox the whole crew can answer, assign, turn into a job, and close.",
+      "Your business number, shared. Texts and calls land in one inbox the whole crew can answer, assign, turn into a job, and close.",
     id: "/inbox",
     start_url: "/inbox",
     display: "standalone",

@@ -23,7 +23,7 @@ export const legalMessagingEn = {
   sectionContact: "Contact",
 
   program:
-    "Loonext is a shared business line that local service businesses in the United States and Canada use to text **their own customers**: appointment questions, quotes, photos of the job, on-my-way updates, and replies to messages those customers sent. Every message relayed through Loonext is a conversation between one business and a customer of that business. Loonext is not a bulk-marketing platform and does not offer blast tools, see our {aup}. \"Loonext,\" \"we,\" and \"us\" mean the company that operates Loonext, as defined in our {terms}.",
+    "Loonext is a shared business number that local service businesses in the United States and Canada use to text **their own customers**: appointment questions, quotes, photos of the job, on-my-way updates, and replies to messages those customers sent. Every message relayed through Loonext is a conversation between one business and a customer of that business. Loonext is not a bulk-marketing platform and does not offer blast tools, see our {aup}. \"Loonext,\" \"we,\" and \"us\" mean the company that operates Loonext, as defined in our {terms}.",
   aupLink: "acceptable use policy",
   termsLink: "terms of service",
   optInOne:

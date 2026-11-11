@@ -37,6 +37,71 @@ final class RetiredWordsTests: XCTestCase {
         words(in: value).contains { $0 == "label" || $0 == "labels" }
     }
 
+    /// "Thread" is retired for "conversation", the record the menus already
+    /// name. Key to why "thread" is the right word there.
+    private let threadOtherMeanings: [String: String] = [:]
+
+    /// "Line" meaning a phone line is retired for "number". "Line" keeps its
+    /// other meanings (a line of text, "Line of work", `{line}`), so the bare
+    /// word is not banned: this matches the phrases a phone line turns up in.
+    /// Key to why "line" is not a phone line there.
+    private let lineOtherMeanings: [String: String] = [
+        "settings.aiCatchUpHelp": "every line of a catch-up is a line of text quoting a message",
+    ]
+
+    private func saysThread(_ value: String) -> Bool {
+        words(in: value).contains { $0 == "thread" || $0 == "threads" }
+    }
+
+    private func saysPhoneLine(_ value: String) -> Bool {
+        let all = words(in: value)
+        for index in all.indices where all[index] == "line" || all[index] == "lines" {
+            let before = index > 0 ? all[index - 1] : ""
+            let beforeThat = index > 1 ? all[index - 2] : ""
+            let after = index + 1 < all.count ? all[index + 1] : ""
+            if ["business", "phone", "shop", "office", "field", "shared"].contains(before) { return true }
+            if all[index] == "lines" { continue }
+            if ["this", "that", "each", "every"].contains(before) { return true }
+            if ["a", "the", "this", "that"].contains(before) && after == "s" { return true }
+            if before == "the" && (after == "you" || after == "they") { return true }
+            if after == "busy" || after == "paused" || after == "ready" { return true }
+            if before == "the" && beforeThat == "on" { return true }
+        }
+        return false
+    }
+
+    func testNoEnglishValueCallsAConversationAThread() {
+        let offenders = AppStrings.en
+            .filter { saysThread($0.value) && threadOtherMeanings[$0.key] == nil }
+            .map { "\($0.key): \($0.value)" }
+            .sorted()
+        XCTAssertEqual(offenders, [], "a conversation is called a thread")
+    }
+
+    func testEveryNamedThreadExceptionStillSaysThread() {
+        let stale = threadOtherMeanings.keys.filter { key in
+            guard let value = AppStrings.en[key] else { return true }
+            return !saysThread(value)
+        }
+        XCTAssertEqual(stale.sorted(), [], "exceptions that no longer match")
+    }
+
+    func testNoEnglishValueCallsAPhoneNumberALine() {
+        let offenders = AppStrings.en
+            .filter { saysPhoneLine($0.value) && lineOtherMeanings[$0.key] == nil }
+            .map { "\($0.key): \($0.value)" }
+            .sorted()
+        XCTAssertEqual(offenders, [], "a phone number is called a line")
+    }
+
+    func testEveryNamedLineExceptionStillMatches() {
+        let stale = lineOtherMeanings.keys.filter { key in
+            guard let value = AppStrings.en[key] else { return true }
+            return !saysPhoneLine(value)
+        }
+        XCTAssertEqual(stale.sorted(), [], "exceptions that no longer match")
+    }
+
     func testNoEnglishValueCallsATagALabel() {
         let all = AppStrings.en
         XCTAssertGreaterThan(all.count, 1000, "read only \(all.count) English values")

@@ -57,7 +57,7 @@ enum PaymentsStrings {
              * Stripe is a product name and is never translated.
              */
             "payments.payoutNotConnectedTitle": "Not set up yet",
-            "payments.payoutNotConnectedDetail": "Connect a Stripe account and you can ask a customer for a deposit or a final payment straight from the thread. Money goes to your bank account — we never hold it, and we take nothing on top.",
+            "payments.payoutNotConnectedDetail": "Connect a Stripe account and you can ask a customer for a deposit or a final payment straight from the conversation. Money goes to your bank account — we never hold it, and we take nothing on top.",
             "payments.payoutIncompleteTitle": "Nearly there",
             "payments.payoutIncompleteDetail": "Stripe still needs a few details about your business before it can take a payment. Picking up where you left off takes a couple of minutes.",
             "payments.payoutPendingTitle": "Stripe is checking your details",
@@ -65,7 +65,7 @@ enum PaymentsStrings {
             "payments.payoutRestrictedTitle": "Payments are paused",
             "payments.payoutRestrictedDetail": "Stripe has paused payments on your account and needs something from you before it can take another one. Your Stripe dashboard says what.",
             "payments.payoutReadyTitle": "Ready to take payments",
-            "payments.payoutReadyDetail": "Ask for a deposit or a final payment from any thread. It arrives as an ordinary text with a link, and the money goes to your bank account.",
+            "payments.payoutReadyDetail": "Ask for a deposit or a final payment from any conversation. It arrives as an ordinary text with a link, and the money goes to your bank account.",
             "payments.payoutActionSetUp": "Set up payments",
             // #228 — the six states of a payment request, one word each.
             // Masculine singular: the badge sits beside the amount, so what it

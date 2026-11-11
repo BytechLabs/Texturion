@@ -15,28 +15,28 @@ import type { MarketingLocale } from "./footer";
 export const contractorsEn = {
   metaTitle: "Texting software for contractors",
   metaDescription:
-    "One business line for the client, the GC and the subs: change orders approved in writing, decisions on the record, and the job off your personal cell. Texts, calls and voicemail, one flat monthly price, {claim}.",
+    "A business number for the client, the GC and the subs: change orders approved in writing, decisions on the record, and the job off your personal cell. Texts, calls and voicemail, one flat monthly price, {claim}.",
 
   breadcrumbHome: "Home",
   breadcrumbSelf: "Contractors",
   displayName: "Contractors",
 
   dateline: "8:02 AM · CHANGE ORDER",
-  h1: "One line for the whole contracting crew.",
+  h1: "One inbox for the whole contracting crew.",
   heroSubBefore:
     "The homeowner's change request is worth real money, if it lands where the crew can see it and gets approved in writing. Loonext gives the client, the GC and the subs one business number to text or call, and the crew one shared inbox, so every decision is on the record and every job that comes out of it has an owner.",
   heroSubAfter: "a month.",
   heroTruth: "Job texts off your personal cell · {chip} · Month to month",
 
-  painH2: "The change order is in a text thread on your estimator's phone.",
+  painH2: "The change order is in a text conversation on your estimator's phone.",
   painBodyOne:
     "On a job site, everything runs through whoever's number is on the estimate. The homeowner texts a change, the electrician texts a question, the supplier texts that the tile's in, all to one personal cell, in between the family group chat. Miss one and you're redoing an island in the wrong material or holding up a sub for a day.",
   painBodyTwo:
-    "The stakes outlast the day, too. When it's time to invoice a change, the “proof” is a text thread on a phone that walks off the job if that person does. Loonext makes the number the business's and the conversation the crew's: the change request gets filed against the job, priced, and approved in writing, where everyone can see it.",
+    "The stakes outlast the day, too. When it's time to invoice a change, the “proof” is a text conversation on a phone that walks off the job if that person does. Loonext makes the number the business's and the conversation the crew's: the change request gets filed against the job, priced, and approved in writing, where everyone can see it.",
 
   threadH2: "A change order, approved in writing before the template.",
   threadLede:
-    "The homeowner calls at 7:59 AM, before anyone is off the site, and her voicemail arrives written out. The thread texts her back on its own, and she puts the change of heart in writing at 8:02. The office files it against the job, checks the counter schedule, assigns it, and texts back a price. “Approved” lands thirteen minutes later, on the record, and the request is marked done.",
+    "The homeowner calls at 7:59 AM, before anyone is off the site, and her voicemail arrives written out. The conversation texts her back on its own, and she puts the change of heart in writing at 8:02. The office files it against the job, checks the counter schedule, assigns it, and texts back a price. “Approved” lands thirteen minutes later, on the record, and the request is marked done.",
   threadAriaLabel:
     "A contracting conversation: a 7:59 AM voicemail about a homeowner's island change, texted back automatically and confirmed at 8:02 AM, priced at $840 and approved in writing before Thursday's counter template",
 
@@ -59,10 +59,10 @@ export const contractorsEn = {
   useCasesH2: "Where a shared inbox earns its keep on a job site.",
   useCaseDecisionsTitle: "Decisions in writing.",
   useCaseDecisionsBody:
-    "“Walnut butcher block adds $840. Reply approved and I'll write it up.” The request, the price, and the yes all sit in the thread with names and times. When you invoice the change, the conversation is the record behind it.",
+    "“Walnut butcher block adds $840. Reply approved and I'll write it up.” The request, the price, and the yes all sit in the conversation with names and times. When you invoice the change, the conversation is the record behind it.",
   useCaseSubsTitle: "Sub coordination on the business number.",
   useCaseSubsBody:
-    "The electrician's question gets assigned to whoever owns that trade, answered in the thread, and marked done. Nothing waits on you personally, and nothing gets answered twice.",
+    "The electrician's question gets assigned to whoever owns that trade, answered in the conversation, and marked done. Nothing waits on you personally, and nothing gets answered twice.",
   useCasePhotosTitle: "Photo documentation, job by job.",
   useCasePhotosBody:
     "Progress shots, the finished cut-in, the thing the client needs to approve before you proceed. All in the conversation, free to receive, visible to whoever picks the job up tomorrow.",
@@ -97,10 +97,10 @@ export const contractorsEn = {
   featuresH2: "Built for how a contractor actually works.",
   featureDoneTitle: "Mark any message done.",
   featureDoneBody:
-    "The address text, the paint spec, the “need a decision.” Tap it done in the thread when it's handled: strikethrough, a check with who and when, synced to the crew. No jobs board, no second app.",
+    "The address text, the paint spec, the “need a decision.” Tap it done in the conversation when it's handled: strikethrough, a check with who and when, synced to the crew. No jobs board, no second app.",
   featureHandoffTitle: "Hand off without dropping the ball.",
   featureHandoffBody:
-    "Assign a conversation to whoever's covering that trade or that day. One owner per thread, so a sub's question never sits on “I thought you had it.”",
+    "Assign a conversation to whoever's covering that trade or that day. One owner per conversation, so a sub's question never sits on “I thought you had it.”",
   featureNotesTitle: "Notes the client never sees.",
   featureNotesBody:
     "“Change orders through me, not the client” or “this sub runs late.” Internal notes on the conversation, visible to the crew, never sent.",
@@ -110,7 +110,7 @@ export const contractorsEn = {
 
   pricingH2After: "a month for the whole crew.",
   pricingBodyBefore:
-    "Starter covers 3 people, 1 local number, and texting sized for a small crew running a couple of jobs on a fair-use basis, not a hard cap, and the composer shows the count before you send. Running a bigger crew with subs, or want the office and the field on separate lines? Pro is",
+    "Starter covers 3 people, 1 local number, and texting sized for a small crew running a couple of jobs on a fair-use basis, not a hard cap, and the composer shows the count before you send. Running a bigger crew with subs, or want the office and the field on separate numbers? Pro is",
   pricingBodyAfter: "for up to 15 people and 2 numbers.",
 
   truthSuiteBefore:
@@ -131,10 +131,10 @@ export const contractorsEn = {
     "Yes. The business number handles all the job comms in the shared inbox; your personal cell goes back to being personal. Assign conversations so the right person owns each one, and use internal notes for the “this stays between us” details the client never needs to see.",
   faqProofQ: "Where's the proof if a client disputes a change order?",
   faqProofA:
-    "In the thread. The request, your price, and their approval are all there in writing, with names and timestamps, and because it's the business's inbox, not one person's phone, it doesn't walk off the job if someone leaves. Loonext doesn't generate the change-order paperwork, but the conversation is the record behind it.",
+    "In the conversation. The request, your price, and their approval are all there in writing, with names and timestamps, and because it's the business's inbox, not one person's phone, it doesn't walk off the job if someone leaves. Loonext doesn't generate the change-order paperwork, but the conversation is the record behind it.",
   faqOutQ: "If I'm out for a day, does the whole job stall?",
   faqOutA:
-    "Not when the conversations live in a shared inbox. Hand off the active threads by assigning them, and whoever's covering sees the full history on their own phone: the address, the spec, the open items still marked not done. The job doesn't wait on one person's texts.",
+    "Not when the conversations live in a shared inbox. Hand off the active conversations by assigning them, and whoever's covering sees the full history on their own phone: the address, the spec, the open items still marked not done. The job doesn't wait on one person's texts.",
   faqRegisterQ:
     "What do you need from our company to get the number registered?",
   faqRegisterUs:

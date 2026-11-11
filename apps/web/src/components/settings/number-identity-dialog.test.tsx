@@ -122,7 +122,7 @@ describe("#307 how this line answers", () => {
     // today, and showing that before it changes is this screen's whole job.
     open();
     expect(
-      (screen.getByLabelText("Name for this line") as HTMLInputElement).value,
+      (screen.getByLabelText("Name for this number") as HTMLInputElement).value,
     ).toBe("Reed Roofing");
     expect(
       (screen.getByLabelText("Voicemail greeting") as HTMLTextAreaElement)
@@ -198,7 +198,7 @@ describe("#307 how this line answers", () => {
 
   it("NI-5: saving sends only the edited field", async () => {
     open();
-    fireEvent.change(screen.getByLabelText("Name for this line"), {
+    fireEvent.change(screen.getByLabelText("Name for this number"), {
       target: { value: "Reed Roofing Sales" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -236,7 +236,7 @@ describe("#307 how this line answers", () => {
 
   it("NI-7: says the change is live, because a caller hears it immediately", async () => {
     open();
-    fireEvent.change(screen.getByLabelText("Name for this line"), {
+    fireEvent.change(screen.getByLabelText("Name for this number"), {
       target: { value: "Reed Roofing Sales" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));

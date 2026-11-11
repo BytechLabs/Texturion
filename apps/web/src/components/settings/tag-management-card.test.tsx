@@ -60,20 +60,20 @@ function render(
 }
 
 describe("#298 the usage list", () => {
-  it("counts in threads, so the near-duplicate is visible next to the real one", () => {
+  it("counts in conversations, so the near-duplicate is visible next to the real one", () => {
     // The names alone say nothing — every one of them looked reasonable to
     // whoever made it. "Warranty 12" beside "Wrnty 1" is the entire insight.
     const html = render();
-    expect(html).toContain("12 threads");
-    expect(html).toContain("1 thread");
-    expect(html).not.toContain("1 threads");
+    expect(html).toContain("12 conversations");
+    expect(html).toContain("1 conversation");
+    expect(html).not.toContain("1 conversations");
   });
 
-  it("calls a zero 'never used' rather than '0 threads'", () => {
-    // "0 threads" reads as a value still loading. "never used" reads as the
+  it("calls a zero 'never used' rather than '0 conversations'", () => {
+    // "0 conversations" reads as a value still loading. "never used" reads as the
     // verdict it is, which is what makes the tail of the list actionable.
     expect(render()).toContain("never used");
-    expect(render()).not.toContain("0 threads");
+    expect(render()).not.toContain("0 conversations");
   });
 
   it("renders nothing at all when the workspace has no tags", () => {
@@ -115,7 +115,7 @@ describe("#298 the usage list", () => {
 describe("#298 the creation lock", () => {
   it("is offered to a curator and says the crew keeps using what exists", () => {
     // The line that stops this becoming a taxonomy nobody follows: a tech who
-    // cannot categorise a thread leaves it uncategorised, so the restriction
+    // cannot categorise a conversation leaves it uncategorised, so the restriction
     // has to be on INVENTING a tag and the copy has to say so up front.
     const html = render();
     expect(html).toContain("Only owners and admins can create tags");
@@ -131,7 +131,7 @@ describe("#298 the creation lock", () => {
   it("names the cost once it is on", () => {
     // Loss Aversion, inverted: the cost of a locked list is invisible from
     // this screen, because it lands on a tech mid-job and never reports back.
-    expect(render({ locked: true })).toContain("leave the thread");
-    expect(render({ locked: false })).not.toContain("leave the thread");
+    expect(render({ locked: true })).toContain("leave the conversation");
+    expect(render({ locked: false })).not.toContain("leave the conversation");
   });
 });

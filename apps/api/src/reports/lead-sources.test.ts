@@ -85,7 +85,7 @@ describe("#301 conversations by source", () => {
     expect(note).toContain("3%");
     expect(note).toContain("97");
     // It names the fix, because "your data is bad" without one is just blame.
-    expect(note).toMatch(/put a source on the lines you advertise/i);
+    expect(note).toMatch(/put a source on the numbers you advertise/i);
   });
 
   it("LR-3b: good coverage says nothing, or the warning becomes furniture", () => {

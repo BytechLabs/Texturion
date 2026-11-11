@@ -155,25 +155,25 @@ export const threadEn = {
   catchMeUp: "Catch me up",
   catchMeUpAgain: "Catch me up again",
   louReadsRecent: "Lou reads the recent messages",
-  readingThread: "Reading the thread…",
-  readingThreadAria: "Reading the thread",
+  readingThread: "Reading the conversation…",
+  readingThreadAria: "Reading the conversation",
   dismiss: "Dismiss",
   newMessagesSinceCatchUp:
     "New messages have come in since this catch-up. Read the newest ones " +
     "below, or ask again.",
   openMessageBehindAria: "Open the message behind: {text}",
   threadLongerThanRead:
-    "This thread is longer than the stretch Lou read, so anything older " +
+    "This conversation is longer than the stretch Lou read, so anything older " +
     "isn’t in here.",
   optOutStripCarrier:
     "This customer texted STOP. Their carrier is blocking your texts and " +
     "only they can undo it.",
   optOutHintShort:
-    "Someone on this thread asked not to be contacted. That request is " +
+    "Someone on this conversation asked not to be contacted. That request is " +
     "binding however it is worded.",
 
   // --- The catch-up offer beside the Lou orb (catch-up-hint.tsx) ------------
-  catchUpHint: "Catch up on this thread?",
+  catchUpHint: "Catch up on this conversation?",
   catchUpRecap: "Recap",
   notNow: "Not now",
 
@@ -190,7 +190,7 @@ export const threadEn = {
   /**
    * The TAIL of the banner's one line, after a "·". Its LEAD is
    * `ALERT_BANNER_COPY.waiting` in @loonext/shared, which the phones hand-port
-   * and which no catalogue owns yet — so until that copy moves, this line
+   * and which no catalogue owns yet — so until that copy moves, this number
    * reads half-translated for a French crew. Recorded rather than hidden: the
    * sentence still belongs here, and the day the shared strings land it needs
    * no second pass.
@@ -239,7 +239,7 @@ export const threadEn = {
   raiseCap: "Raise cap",
   raising: "Raising…",
   bannerOptOutHint:
-    "Someone on this thread asked not to be contacted. That request is " +
+    "Someone on this conversation asked not to be contacted. That request is " +
     "binding however it is worded, so don't reply unless you are sure it " +
     "wasn't one. To stop texts for good, they need to text STOP.",
   reportThis: "Report this",
@@ -284,7 +284,7 @@ export const threadEn = {
     "One of the teammates you named can't see this conversation. Remove them " +
     "and save again.",
   mentionCap:
-    "A note can name up to {count} teammates. Assign the thread if the whole " +
+    "A note can name up to {count} teammates. Assign the conversation if the whole " +
     "crew needs it.",
   draftReplyFailed: "Couldn't draft a reply. Try again.",
   wrapUpSendFailed:
@@ -713,10 +713,10 @@ export const threadEn = {
     "The recording stopped unexpectedly. Try again, or type the note.",
 
   /* ── Lou's refusals, written where they are built ─────────────────────────
-     `lib/api/thread-summary.ts`, `lib/api/reply-suggestions.ts` and
+     `lib/api/conversation-summary.ts`, `lib/api/reply-suggestions.ts` and
      `lib/api/wrap-up-transcript.ts` each turn a `reason` from the shared AI
      gate into ONE sentence. Every branch says what happened AND leaves the
-     reader holding the thing that always works — the thread itself, or a
+     reader holding the thing that always works — the conversation itself, or a
      keyboard. Lou is a name and is never translated. */
 
   /** Said by all three features, deliberately in the same words (#581). */
@@ -731,37 +731,37 @@ export const threadEn = {
     "Catch-ups are turned off for this workspace. Settings, Lou turns them " +
     "back on.",
   catchUpSpam:
-    "This thread is marked as spam, so Lou skips it. Unmark it to get a " +
+    "This conversation is marked as spam, so Lou skips it. Unmark it to get a " +
     "catch-up.",
   catchUpTooShort:
-    "There isn't enough here to catch up on yet — the thread is quicker to " +
+    "There isn't enough here to catch up on yet — the conversation is quicker to " +
     "read.",
   catchUpRateLimited: "That was a lot of catch-ups at once. Try again in a moment.",
   catchUpOverCap:
     "This month's catch-ups are used up. They start again next month — the " +
-    "thread is all still here.",
+    "conversation is all still here.",
   catchUpUnusable:
     "Lou couldn't point at the messages behind what it read, so there's " +
-    "nothing to show. The thread is still the record.",
+    "nothing to show. The conversation is still the record.",
   catchUpNone: "No catch-up this time. Try again.",
   // …and what to say when the REQUEST never landed, which is a different event.
   catchUpOffline:
     "That didn't get through. Check your connection and try again — the " +
-    "thread is all still here.",
+    "conversation is all still here.",
   catchUpForbidden:
     "Catch-ups aren't part of what your role can do here. An owner can change " +
-    "that, and the thread is all still here to read.",
+    "that, and the conversation is all still here to read.",
   catchUpGone:
-    "Lou can't open this thread any more. Reload the inbox to see what's " +
+    "Lou can't open this conversation any more. Reload the inbox to see what's " +
     "still there.",
   catchUpPaused: "Catch-ups are paused for a moment. Try again shortly.",
-  catchUpFailed: "Lou couldn't do that just now. The thread is all still here.",
+  catchUpFailed: "Lou couldn't do that just now. The conversation is all still here.",
 
   // Reply drafts (reply-suggestions.ts).
   draftsDisabled:
     "Drafting is turned off for this workspace. Settings, AI turns it back on.",
   draftsSpam:
-    "This thread is marked as spam, so Lou skips it. Unmark it to draft a " +
+    "This conversation is marked as spam, so Lou skips it. Unmark it to draft a " +
     "reply.",
   draftsNothingToReply: "Nothing to reply to yet. Type a few words and try again.",
   draftsOverCap: "This month's drafting is used up. It starts again next month.",

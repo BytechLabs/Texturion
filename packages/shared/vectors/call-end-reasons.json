@@ -33,7 +33,7 @@
   },
   {
     "reason": "line_paused",
-    "words": "Line paused"
+    "words": "Number paused"
   },
   {
     "reason": "stuck_call_cleaned_up",

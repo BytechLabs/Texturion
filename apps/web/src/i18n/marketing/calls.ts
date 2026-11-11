@@ -36,7 +36,7 @@ export const callsEn = {
   heroSub:
     "A customer calls the number on your van. Every teammate's Loonext rings at once and whoever is free takes it. Nobody picks up because you're all under a sink? They leave a voicemail, we write it down so you can read it between jobs, and they get a text back before they call the next business. Calling is included on every plan, with nothing to switch on.",
   visualCaption:
-    "Karen calls the shop line at 4:40, and the 8:52 voicemail nobody could take.",
+    "Karen calls the shop number at 4:40, and the 8:52 voicemail nobody could take.",
   visualAria:
     "An incoming call in Loonext ringing three teammates, above a voicemail with its transcript",
 
@@ -47,7 +47,7 @@ export const callsEn = {
   coreBodyTwo:
     "When you call a customer back, it goes out from your business number, never from the phone in your hand. They see the same number they called, they can call it again, and no tech ever hands out a personal mobile to get a job done.",
   coreBodyThree:
-    "A call is a first-class part of the conversation, not a separate log. It sits in the customer's thread beside their texts, so the person who picks up next reads what was said last time instead of starting over.",
+    "A call is a first-class part of the conversation, not a separate log. It sits in the customer's conversation beside their texts, so the person who picks up next reads what was said last time instead of starting over.",
 
   useEyebrow: "Use it like this",
   useTitle: "Three calls a week that used to go somewhere else.",
@@ -62,7 +62,7 @@ export const callsEn = {
     'The customer describes a job on the phone. Turn that call into a task with an owner, an address and a due date, linked back to the call it came from, so "book the Hendersons for Tuesday" stops living in the head of whoever answered.',
 
   notEyebrow: "What it is not",
-  notTitle: "A shared line, not a call center.",
+  notTitle: "A shared inbox, not a call center.",
   notBodyOne:
     "There are no phone menus, no press-one-for-service, no hold queues, and no agent scoring. A caller does not meet a robot; they meet whoever on your crew is free. That is a deliberate limit, and it is the right one for a business where the person who answers is often the person who does the work.",
   notBodyTwo:
@@ -83,7 +83,7 @@ export const callsEn = {
   pricingBefore: "Calling costs nothing extra:",
   fairUseLink: "fair use policy",
 
-  relatedEyebrow: "The rest of the line",
+  relatedEyebrow: "The rest of your number",
   relatedTitle:
     "Calls are one half of what arrives on your business number. Here is the other half, and where the flat price stands next to the per-user tools.",
   relatedInboxTitle: "Shared inbox",
@@ -93,7 +93,7 @@ export const callsEn = {
   relatedMissedTitle: "Missed calls, lost jobs",
   relatedMissedBody: "What a good text-back actually says, with lines to steal.",
   relatedCompareTitle: "Loonext vs Quo",
-  relatedCompareBody: "Where a full phone system genuinely beats a shared line.",
+  relatedCompareBody: "Where a full phone system genuinely beats a shared inbox.",
 
   faqTitle: "Call questions, straight answers.",
   faqCellQ: "Does the call ring my actual cell phone?",

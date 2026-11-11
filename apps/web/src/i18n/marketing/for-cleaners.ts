@@ -16,14 +16,14 @@ import type { MarketingLocale } from "./footer";
 export const cleanersEn = {
   metaTitle: "Texting software for cleaning companies",
   metaDescription:
-    "One business line for your cleaning team: access notes, reschedules and add-ons on one timeline the whole crew can see. Texts, calls and voicemail, one flat monthly price, {claim}.",
+    "A business number for your cleaning team: access notes, reschedules and add-ons on one timeline the whole crew can see. Texts, calls and voicemail, one flat monthly price, {claim}.",
 
   breadcrumbHome: "Home",
   breadcrumbSelf: "Cleaners",
   displayName: "Cleaners",
 
   dateline: "5:56 PM · KEY UNDER MAT?",
-  h1: "One line for the whole cleaning crew.",
+  h1: "One inbox for the whole cleaning crew.",
   heroSubBefore:
     "Key under the mat, dog in the crate, oven this time, and Friday moved to Monday. Half of cleaning is what the client told you last week, and it can't live on one phone. Loonext keeps every access note, reschedule and add-on on one timeline the whole team can see, whether the client texted it or said it on the phone.",
   heroSubAfter: "a month.",
@@ -61,10 +61,10 @@ export const cleanersEn = {
     "The night before, send your regulars a quick “we're on for tomorrow between 10 and noon” with a saved reply. Fewer surprised clients, fewer wasted trips to a house nobody's home at.",
   useCaseAddOnTitle: "Add-on requests, on the record.",
   useCaseAddOnBody:
-    "“Just the oven if you have time” lands in the thread, where the team doing the visit actually sees it, and where you can price the deep clean in writing before you show up.",
+    "“Just the oven if you have time” lands in the conversation, where the team doing the visit actually sees it, and where you can price the deep clean in writing before you show up.",
   useCaseRescheduleTitle: "Reschedules everyone can see.",
   useCaseRescheduleBody:
-    "A client moves Friday to Monday and the whole team sees the change in one thread. No double-coverage, no gap, and the history shows which week you skipped.",
+    "A client moves Friday to Monday and the whole team sees the change in one conversation. No double-coverage, no gap, and the history shows which week you skipped.",
 
   savedRepliesH2: "Six texts every cleaning team sends. Steal these.",
   savedRepliesIntro:
@@ -99,14 +99,14 @@ export const cleanersEn = {
     "Assign each visit to the cleaners covering it, so there's one owner and no double-coverage on a reschedule.",
   featureHistoryTitle: "One history per client.",
   featureHistoryBody:
-    "Every visit, every add-on, every note in one thread, so a fill-in cleaner is never starting from zero.",
+    "Every visit, every add-on, every note in one conversation, so a fill-in cleaner is never starting from zero.",
   featureApronTitle: "Works on the phone in their apron.",
   featureApronBody:
     "No app to install, one-handed replies between houses, push notifications when a client texts. If they can text, they can use it.",
 
   pricingH2After: "a month for the whole team.",
   pricingBodyBefore:
-    "Starter is 3 people, 1 local number, and texting sized for confirming a route of recurring clients on a fair-use basis, not a hard cap; a plain confirmation counts as one text, and the composer shows the count before you send. Growing past three cleaners, or running residential and commercial lines separately? Pro is",
+    "Starter is 3 people, 1 local number, and texting sized for confirming a route of recurring clients on a fair-use basis, not a hard cap; a plain confirmation counts as one text, and the composer shows the count before you send. Growing past three cleaners, or running residential and commercial numbers separately? Pro is",
   pricingBodyAfter: "for up to 15 people and a second number.",
 
   faqH2: "Cleaner questions, straight answers.",
@@ -117,11 +117,11 @@ export const cleanersEn = {
   faqRescheduleQ:
     "We reschedule a lot. Will two cleaners end up covering the same house?",
   faqRescheduleA:
-    "Not when the reschedule is in one shared inbox. Assign the visit to one owner and the whole team sees who's got it and when. No double-coverage, no gap. Loonext doesn't move appointments for you, but everyone's looking at the same thread instead of separate phones.",
+    "Not when the reschedule is in one shared inbox. Assign the visit to one owner and the whole team sees who's got it and when. No double-coverage, no gap. Loonext doesn't move appointments for you, but everyone's looking at the same conversation instead of separate phones.",
   faqRegularsQ:
     "Most of our clients are weekly or biweekly regulars. Does texting help?",
   faqRegularsA:
-    "That's exactly where it shines. The full history of a recurring client, with the access notes, the add-ons, and that one thing they always want done, sits in one thread, so any cleaner you send is up to speed, and confirming the next visit is a two-tap saved reply.",
+    "That's exactly where it shines. The full history of a recurring client, with the access notes, the add-ons, and that one thing they always want done, sits in one conversation, so any cleaner you send is up to speed, and confirming the next visit is a two-tap saved reply.",
   faqOfficeQ: "Our cleaners aren't office people. Is this hard to use?",
   faqOfficeA:
     "It looks and works like texting, on the phone they already have. They open a link, and they're in. Nothing to install, no training day. Access notes and assignments just appear in the conversation.",

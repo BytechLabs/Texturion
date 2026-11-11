@@ -161,7 +161,7 @@ describe("footer (deck §F: the Dispatch Ink band)", () => {
     // only half the line. Calls have been included on every plan since
     // D36-D43. The PRIMARY tagline is untouched: it says number and inbox,
     // which was right before the product caught up to it.
-    expect(html).toContain("The shared line for your crew.");
+    expect(html).toContain("The shared inbox for your crew.");
     expect(html).toContain("Month to month. No sales calls, ever.");
     expect(html).toMatch(/© \d{4} Loonext\. All rights reserved\./);
   });

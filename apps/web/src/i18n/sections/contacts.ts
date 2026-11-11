@@ -106,7 +106,7 @@ export const contactsEn = {
 
   // ── Where this customer came from ───────────────────────────────────────
   leadSourceGroup: "Where they came from",
-  sourceFromLine: "· the line they called",
+  sourceFromLine: "· the number they called",
   sourceSaidSo: "· somebody said so",
   /** #726: the source's own value while nobody has asked. */
   sourceNotAsked: "Not asked yet. Ask them how they heard about you.",
@@ -165,7 +165,7 @@ export const contactsEn = {
   phoneAddLabel: "Add another number",
   phoneMatchNote:
     "Texts and calls from this number will show up under this customer, in " +
-    "their own thread.",
+    "their own conversation.",
   phoneRemove: "Remove {number}",
   phoneAddFailed: "Couldn't add that number.",
 
@@ -241,7 +241,7 @@ export const contactsEn = {
   unmergeBody:
     "{name} comes back as its own customer, with its own number. Their " +
     "conversations stay under this contact, because there is no telling which " +
-    "thread came from which record. If either number was opted out, it stays " +
+    "conversation came from which record. If either number was opted out, it stays " +
     "opted out.",
   unmergeConfirm: "Unmerge",
   unmerging: "Unmerging…",
