@@ -63,6 +63,8 @@ struct PortRequest: Codable, Sendable {
     let ported_at: String?
     let cancelled_at: String?
     let created_at: String?
+    /// #722: What this member may do to the port now (edit, submit, fix_and_resubmit, cancel). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 }
 
 // MARK: - Text-enablement (routes/text-enablement.ts sanitize)
@@ -87,6 +89,8 @@ struct TextEnablementOrder: Codable, Sendable {
     let completed_at: String?
     let cancelled_at: String?
     let created_at: String?
+    /// #722: What this member may do to the order now (upload_documents, resubmit, cancel). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 }
 
 // MARK: - Number picker (GET /v1/available-numbers → telnyx/inventory.ts)
@@ -149,6 +153,8 @@ struct RegistrationDetail: Codable, Sendable {
     let deactivated_at: String?
     /// Wizard draft (carries EIN/BN) — present for owner/admin only.
     let data: JSONValue?
+    /// #722: What this member may do to the row now (edit, submit). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 }
 
 /// POST /v1/registration/enable-us. `invoice_id` is null when the one-time
@@ -402,6 +408,8 @@ struct DataExport: Codable, Sendable, Identifiable {
     let expires_at: String?
     /// Empty unless the export is ready and its objects have not expired.
     @Default<DefaultEmptyList<DataExportFile>> var files: [DataExportFile]
+    /// #722: What this member may do to the export now (download). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 }
 
 /// POST /v1/exports/usage (#595) — the period, as two ISO-8601 instants.

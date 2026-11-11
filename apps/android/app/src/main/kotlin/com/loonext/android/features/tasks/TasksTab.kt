@@ -92,6 +92,7 @@ import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
+import com.loonext.android.core.model.doneToggleAllowed
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Task
@@ -1299,19 +1300,24 @@ private fun LazyListScope.taskSection(
             // shortcut: the detail screen's date+time dialogs live inline
             // there, so this opens the task detail where Due is one tap away.
             SwipeActionRow(
-                startAction = SwipeAction(
-                    icon = if (task.done) Icons.Outlined.Undo else Icons.Outlined.Check,
-                    label = if (task.done) {
-                        t("contactsTasks.swipeNotDone")
-                    } else {
-                        t("contactsTasks.columnDone")
-                    },
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    container = MaterialTheme.colorScheme.primaryContainer,
-                    // onToggleDone plays the commit haptic itself (confirm on
-                    // done, tap on undo) — same as the ring, no double-play.
-                    onCommit = { onToggleDone(task, !task.done) },
-                ),
+                // #722: no done swipe where the server will not take the flip.
+                startAction = if (task.doneToggleAllowed()) {
+                    SwipeAction(
+                        icon = if (task.done) Icons.Outlined.Undo else Icons.Outlined.Check,
+                        label = if (task.done) {
+                            t("contactsTasks.swipeNotDone")
+                        } else {
+                            t("contactsTasks.columnDone")
+                        },
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        container = MaterialTheme.colorScheme.primaryContainer,
+                        // onToggleDone plays the commit haptic itself (confirm on
+                        // done, tap on undo) — same as the ring, no double-play.
+                        onCommit = { onToggleDone(task, !task.done) },
+                    )
+                } else {
+                    null
+                },
                 endAction = SwipeAction(
                     icon = Icons.Outlined.Event,
                     label = t("contactsTasks.dueDate"),
@@ -1404,7 +1410,7 @@ internal fun TaskListRow(
             .alpha(doneAlpha),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DoneCircle(done = task.done, onToggle = onToggleDone)
+        DoneCircle(done = task.done, onToggle = onToggleDone, enabled = task.doneToggleAllowed())
         Spacer(Modifier.width(6.dp))
         Column(Modifier.weight(1f)) {
             Text(

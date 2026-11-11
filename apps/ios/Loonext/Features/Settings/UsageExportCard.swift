@@ -607,7 +607,8 @@ private struct UsageExportRow: View {
                     .foregroundStyle(BrandColor.destructive)
             }
 
-            ForEach(export.files) { file in
+            // #722: a download is offered only where the server lists it.
+            ForEach(export.allowed_actions.allows("download") ? export.files : []) { file in
                 Button {
                     // The signed link is minted for one hour and carries a
                     // download disposition, so the browser saves the file rather

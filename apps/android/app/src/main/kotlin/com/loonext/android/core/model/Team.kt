@@ -34,6 +34,8 @@ data class Invite(
     val email_sent: Boolean? = null,
     /** GET /v1/invites/mine only: inviting company's name for the banner. */
     val company_name: String? = null,
+    /** #722: what this member may do to the invite now (revoke); null from an older API. */
+    val allowed_actions: List<String>? = null,
 )
 
 /** POST /v1/invites/accept response (member row + company_id). */

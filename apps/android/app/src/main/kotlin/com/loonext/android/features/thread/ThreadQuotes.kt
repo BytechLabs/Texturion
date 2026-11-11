@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.model.allows
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.AppStrings
@@ -191,7 +192,7 @@ fun ThreadQuotes(
             QuoteRow(
                 quote = quote,
                 now = now,
-                canSend = canAct,
+                canSend = canAct && quote.allowed_actions.allows("send"),
                 sending = sendingId == quote.id,
                 onSend = { send(quote.id) },
             )

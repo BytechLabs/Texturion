@@ -675,13 +675,16 @@ private struct PendingInviteRow: View {
                 .font(.subheadline)
                 .buttonStyle(.borderless)
             }
-            Button(
-                revoking ? t("settingsMore.revoking") : t("settingsMore.revoke")
-            ) { revoke() }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .buttonStyle(.borderless)
-                .disabled(revoking)
+            // #722: no revoke where the server will not take it.
+            if invite.allowed_actions.allows("revoke") {
+                Button(
+                    revoking ? t("settingsMore.revoking") : t("settingsMore.revoke")
+                ) { revoke() }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .buttonStyle(.borderless)
+                    .disabled(revoking)
+            }
         }
         .padding(.vertical, 8)
     }

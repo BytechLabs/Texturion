@@ -57,6 +57,8 @@ internal fun DoneCircle(
     checkSize: Dp = 13.dp,
     ringWidth: Dp = 1.8.dp,
     touch: Dp = 36.dp,
+    /** #722: false draws the state only, for a task the server will not let this member flip. */
+    enabled: Boolean = true,
 ) {
     // Read here rather than inside the semantics lambda, which is not composition.
     val label = t(
@@ -67,8 +69,15 @@ internal fun DoneCircle(
             .touchTarget()
             .size(touch)
             .clip(CircleShape)
-            .clickable(role = Role.Checkbox) { onToggle(!done) }
-            .semantics { contentDescription = label },
+            .then(
+                if (enabled) {
+                    Modifier
+                        .clickable(role = Role.Checkbox) { onToggle(!done) }
+                        .semantics { contentDescription = label }
+                } else {
+                    Modifier
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         if (done) {

@@ -319,7 +319,8 @@ struct CallsView: View {
                 canDelete: canDeleteRecords,
                 canMakeTask: call.outcome == CallOutcome.answered
                     && call.conversation_id != nil,
-                canOpenDetails: true
+                canOpenDetails: true,
+                allowedActions: call.allowed_actions
             )
         )
     }

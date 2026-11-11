@@ -133,7 +133,8 @@ func callCanMessage(_ call: Call) -> Bool {
 
 /// Call back goes through the dialer, so it needs a number.
 func callCanCallBack(_ call: Call) -> Bool {
-    call.caller_e164.map { !$0.isBlank } ?? false
+    // #722: and the server's list, when the row carries one, must offer it.
+    (call.caller_e164.map { !$0.isBlank } ?? false) && call.allowed_actions.allows("call_back")
 }
 
 func callPrimaryAction(_ call: Call) -> CallRowAction? {

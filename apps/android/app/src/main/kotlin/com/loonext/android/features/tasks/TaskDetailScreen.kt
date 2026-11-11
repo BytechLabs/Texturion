@@ -89,6 +89,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.loonext.android.core.model.doneToggleAllowed
 import com.loonext.android.core.model.TaskFeedItem
 import kotlin.coroutines.cancellation.CancellationException
 import androidx.compose.ui.Alignment
@@ -648,6 +649,7 @@ private fun TaskDetailBody(
                                 checkSize = 16.dp,
                                 ringWidth = 2.dp,
                                 touch = 44.dp,
+                                enabled = detail.doneToggleAllowed(),
                                 modifier = Modifier.padding(top = 2.dp),
                             )
                         }
@@ -770,6 +772,7 @@ private fun TaskDetailBody(
                                 // It is already open.
                                 canOpen = false,
                                 canCopyLink = true,
+                                allowedActions = detail.allowed_actions,
                             ),
                         )
                         if (taskMenuActions.visible().isNotEmpty()) Box {

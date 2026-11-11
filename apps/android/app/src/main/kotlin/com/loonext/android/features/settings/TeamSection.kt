@@ -2,6 +2,7 @@ package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.core.model.allows
 import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.SelectOption
 import com.loonext.android.ui.common.InlineError
@@ -658,7 +659,8 @@ private fun InvitesCard(
                             )
                         }) { Text(t("settingsMore.copyLink")) }
                     }
-                    LinkButton(
+                    // #722: no revoke where the server will not take it.
+                    if (invite.allowed_actions.allows("revoke")) LinkButton(
                         onClick = {
                             haptics.reject()
                             revoking = true

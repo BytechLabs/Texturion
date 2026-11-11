@@ -531,7 +531,8 @@ struct TaskDetailView: View {
                 canDelete: canDelete && !deleting,
                 // It is already open.
                 canOpen: false,
-                canCopyLink: true
+                canCopyLink: true,
+                allowedActions: detail.allowed_actions
             )
         )
     }
@@ -711,6 +712,8 @@ struct TaskDetailView: View {
                     .padding(.top, 3)
                 }
                 .buttonStyle(.borderless)
+                // #722: the ring is inert where the server will not take the flip.
+                .disabled(!detail.doneToggleAllowed)
                 .accessibilityLabel(
                     AppStrings.translate(
                         appLocale,

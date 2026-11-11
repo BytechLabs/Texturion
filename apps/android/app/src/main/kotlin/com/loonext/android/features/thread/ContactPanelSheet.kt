@@ -14,6 +14,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.features.activity.ActivityRecordType
 import com.loonext.android.features.activity.ActivityTimeline
 import com.loonext.android.core.i18n.t
+import com.loonext.android.core.model.doneToggleAllowed
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.LeadSource
 import com.loonext.android.core.model.MessageLocale
@@ -615,6 +616,7 @@ private fun TasksChecklist(
                         Checkbox(
                             checked = task.done,
                             onCheckedChange = { onToggle(task) },
+                            enabled = task.doneToggleAllowed(),
                         )
                         Text(
                             task.title,

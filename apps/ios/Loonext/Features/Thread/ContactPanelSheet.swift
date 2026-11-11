@@ -468,6 +468,8 @@ private struct TasksChecklistSection: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            // #722: the checkbox is inert where the server will not take the flip.
+            .disabled(!task.doneToggleAllowed)
             .accessibilityLabel(
                 AppStrings.translate(
                     appLocale,

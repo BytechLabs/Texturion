@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.core.model.allows
 import com.loonext.android.ui.common.SelectOption
 import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.InlineError
@@ -89,11 +90,15 @@ private fun str(data: JsonObject?, key: String): String =
 private val kotlinx.serialization.json.JsonPrimitive.contentOrNull: String?
     get() = if (isString) content else null
 
-/** Draft and rejected rows are editable; anything submitted is frozen. */
+/**
+ * Draft and rejected rows are editable; anything submitted is frozen. #722: and
+ * the server's list, when the row carries one, must offer the edit.
+ */
 fun registrationEditable(detail: RegistrationDetail?): Boolean =
     detail != null &&
         (detail.status == RegistrationStatus.DRAFT ||
-            detail.status == RegistrationStatus.REJECTED)
+            detail.status == RegistrationStatus.REJECTED) &&
+        detail.allowed_actions.allows("edit")
 
 private const val CONTACT_PHONE_PATTERN = """^\+?[0-9()\-. ]{10,20}$"""
 private const val EMAIL_PATTERN = """^[^\s@]+@[^\s@]+\.[^\s@]+$"""

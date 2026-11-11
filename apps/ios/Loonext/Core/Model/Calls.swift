@@ -66,6 +66,8 @@ struct Call: Codable, Sendable {
     var ended_at: String? = nil
     var has_voicemail: Bool? = nil
     var voicemail_transcript_attempted_at: String? = nil
+    /// #722: What this member may do to the call now (call_back, transfer); nil on a legacy row. Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 
     /// Display resolution order: contact > CNAM dip > raw number.
     var displayName: String? {

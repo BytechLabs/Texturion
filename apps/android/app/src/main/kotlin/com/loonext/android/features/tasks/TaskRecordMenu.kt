@@ -92,6 +92,7 @@ internal fun TaskRecordMenu(
                 canDelete = canDelete,
                 canOpen = onOpen != null,
                 canCopyLink = true,
+                allowedActions = task.allowed_actions,
             ),
         ),
         onSelect = { actionId, subId ->

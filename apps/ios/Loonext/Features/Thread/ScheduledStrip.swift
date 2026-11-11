@@ -81,25 +81,28 @@ private struct ScheduledStripRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button {
-                // Calling off a queued message is a refusal, not a tap: it is
-                // the one press on this strip that destroys something somebody
-                // wrote.
-                Haptics.reject()
-                onCancel()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption)
-                    .foregroundStyle(BrandColor.muted500)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(
-                AppStrings.translate(
-                    appLocale,
-                    "thread.cancelScheduledAria",
-                    ["when": sendAtSpokenOf(row, locale: appLocale)]
+            // #722: no cancel where the server will not take it.
+            if row.allowed_actions.allows("cancel") {
+                Button {
+                    // Calling off a queued message is a refusal, not a tap: it is
+                    // the one press on this strip that destroys something somebody
+                    // wrote.
+                    Haptics.reject()
+                    onCancel()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption)
+                        .foregroundStyle(BrandColor.muted500)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(
+                    AppStrings.translate(
+                        appLocale,
+                        "thread.cancelScheduledAria",
+                        ["when": sendAtSpokenOf(row, locale: appLocale)]
+                    )
                 )
-            )
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

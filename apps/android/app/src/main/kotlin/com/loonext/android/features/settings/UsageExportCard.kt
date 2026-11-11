@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.core.model.allows
 import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.layout.Arrangement
 import com.loonext.android.ui.common.InlineError
@@ -436,7 +437,7 @@ private fun ExportRow(row: DataExport, onDownload: (String) -> Unit) {
         // export whose files have expired lists none, and the server says so by
         // sending an empty list rather than a link that 404s.
         val file = row.files.firstOrNull()
-        if (file != null) {
+        if (file != null && row.allowed_actions.allows("download")) {
             TextButton(onClick = { onDownload(file.url) }) {
                 Icon(
                     Icons.Outlined.Download,

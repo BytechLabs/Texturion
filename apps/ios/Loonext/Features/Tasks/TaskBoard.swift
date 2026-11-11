@@ -128,10 +128,12 @@ struct TaskBoardView: View {
         let toggles = boardDropToggles(
             droppedIds: ids, targetDone: targetDone, todo: todo, done: done
         )
-        for task in toggles {
+        // #722: a card the server will not flip stays where it is.
+        let allowed = toggles.filter { $0.doneToggleAllowed }
+        for task in allowed {
             onToggleDone(task, targetDone)
         }
-        return !toggles.isEmpty
+        return !allowed.isEmpty
     }
 
     /// Both columns rebuild on any filter change (a cursor never crosses
@@ -310,14 +312,17 @@ private struct BoardCard: View {
                 Spacer()
                 // #689 C: the crew, from the names the payload carries.
                 AssigneeStack(faces: task.assigneeFaces(roster: { _ in nil }), size: 22)
-                Button {
-                    onMove()
-                } label: {
-                    Image(systemName: moveIcon)
-                        .foregroundStyle(BrandColor.muted400)
+                // #722: the move is a done flip, so it needs the server's complete or reopen.
+                if task.doneToggleAllowed {
+                    Button {
+                        onMove()
+                    } label: {
+                        Image(systemName: moveIcon)
+                            .foregroundStyle(BrandColor.muted400)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(moveLabel)
                 }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(moveLabel)
             }
         }
         .padding(.horizontal, 14)

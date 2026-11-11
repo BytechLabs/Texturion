@@ -1330,6 +1330,8 @@ class ThreadController(
             pinned_by_user_id = row.pinned_by_user_id,
             closed_at = row.closed_at,
             updated_at = row.updated_at,
+            // The list was computed for the state before this move; a stale one would hide the way back.
+            allowed_actions = row.allowed_actions,
         )
         persistSnapshot()
     }
@@ -1668,7 +1670,8 @@ class ThreadController(
         val ready = conversationTasks as? LoadState.Ready ?: return
         val turningOn = !task.done
         fun swap(rows: List<Task>, value: Boolean) = rows.map {
-            if (it.id == task.id) it.copy(done = value, status = if (value) "done" else "open")
+            // The list was for the old state; null keeps the screen's own check until a refetch.
+            if (it.id == task.id) it.copy(done = value, status = if (value) "done" else "open", allowed_actions = null)
             else it
         }
         conversationTasks = LoadState.Ready(swap(ready.value, turningOn))

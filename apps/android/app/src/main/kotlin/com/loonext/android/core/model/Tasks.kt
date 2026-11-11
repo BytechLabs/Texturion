@@ -100,6 +100,8 @@ data class Task(
     val assignees: List<TaskProfile> = emptyList(),
     /** #690: the workspace-wide task number, shown as "T-142". Null on an older server. */
     val number: Int? = null,
+    /** #722: what this member may do to the task now (complete, reopen, trash); null from an older API. */
+    val allowed_actions: List<String>? = null,
 )
 
 /** #693: a workspace tag as it appears on a task. */
@@ -387,6 +389,8 @@ data class TaskDetail(
     val assignees: List<TaskProfile> = emptyList(),
     /** #690: the workspace-wide task number, shown as "T-142". Null on an older server. */
     val number: Int? = null,
+    /** #722: what this member may do to the task now (complete, reopen, trash); null from an older API. */
+    val allowed_actions: List<String>? = null,
 )
 
 // ---------------------------------------------------------------------------

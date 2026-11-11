@@ -162,6 +162,8 @@ struct PaymentRequest: Codable, Sendable, Identifiable {
     @Default<DefaultEmptyString> var expires_at: String
     @Default<DefaultEmptyString> var created_at: String
     var created_by: String?
+    /// #722: What this member may do to the request now (cancel). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 
     var facts: PaymentRequestFacts {
         PaymentRequestFacts(

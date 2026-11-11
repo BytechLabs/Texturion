@@ -479,7 +479,8 @@ private struct NumberCard: View {
             Text(failedNumberCopy(number, locale: appLocale))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            if canManage && needsNumberChoice(number) {
+            // #722: and the server's list must offer the remediation.
+            if canManage && needsNumberChoice(number) && number.allowed_actions.allows("remediate") {
                 Button(AppStrings.translate(appLocale, "settingsMore.chooseNumber")) {
                     choosing = true
                 }

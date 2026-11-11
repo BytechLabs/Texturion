@@ -114,7 +114,8 @@ final class TaskMenuController {
                 hasAccess: true,
                 canDelete: canDelete,
                 canOpen: true,
-                canCopyLink: true
+                canCopyLink: true,
+                allowedActions: task.allowed_actions
             )
         )
     }

@@ -1917,7 +1917,11 @@ extension ConversationDetail {
             viewer_level: viewer_level,
             destination_clock: destination_clock,
             spam_suspected_at: spam_suspected_at,
-            spam_signals: spam_signals
+            spam_signals: spam_signals,
+            // The list was computed for the state before this move; the bare
+            // PATCH row carries none, so nil keeps the screen's own check
+            // rather than a stale list hiding the way back.
+            allowed_actions: row.allowed_actions
         )
     }
 }

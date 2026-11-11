@@ -111,6 +111,8 @@ data class Quote(
     val viewed_at: String? = null,
     val decided_at: String? = null,
     val created_at: String? = null,
+    /** #722: what this member may do to the quote now (send); null from an older API. */
+    val allowed_actions: List<String>? = null,
 ) {
     fun shownStatus(nowMillis: Long): String =
         Quotes.effectiveStatus(status, expires_at, nowMillis)

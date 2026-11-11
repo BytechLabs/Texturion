@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.background
+import com.loonext.android.core.model.allows
 import com.loonext.android.ui.common.InlineError
 import com.loonext.android.ui.common.LinkButton
 import com.loonext.android.ui.common.ConfirmDialog
@@ -399,14 +400,19 @@ private fun PortCard(
         }
 
         // Documents: needed while draft (first submit) or exception (resubmit).
-        if (canManage && (port.status == PortStatus.DRAFT || port.status == PortStatus.EXCEPTION)) {
+        // #722: each control below also needs the server's list to offer its action.
+        if (canManage && (port.status == PortStatus.DRAFT || port.status == PortStatus.EXCEPTION) &&
+            port.allowed_actions.allows("edit")
+        ) {
             Spacer(Modifier.height(8.dp))
             PortDocumentsRow(scope, port, onChanged)
         }
 
         InlineError(actionError)
         Row(modifier = Modifier.padding(top = 6.dp)) {
-            if (canManage && port.status == PortStatus.DRAFT && port.has_loa && port.has_invoice) {
+            if (canManage && port.status == PortStatus.DRAFT && port.has_loa && port.has_invoice &&
+                port.allowed_actions.allows("submit")
+            ) {
                 Button(
                     onClick = {
                         busy = true
@@ -440,7 +446,7 @@ private fun PortCard(
                 }
                 Spacer(Modifier.width(8.dp))
             }
-            if (canManage && port.status == PortStatus.EXCEPTION) {
+            if (canManage && port.status == PortStatus.EXCEPTION && port.allowed_actions.allows("fix_and_resubmit")) {
                 Button(
                     onClick = { fixing = true },
                     enabled = !busy,
@@ -449,7 +455,8 @@ private fun PortCard(
             }
             if (canCancel &&
                 port.status != PortStatus.PORTED &&
-                port.status != PortStatus.CANCEL_PENDING
+                port.status != PortStatus.CANCEL_PENDING &&
+                port.allowed_actions.allows("cancel")
             ) {
                 LinkButton(onClick = { cancelling = true }, enabled = !busy) {
                     Text(

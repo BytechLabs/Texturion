@@ -449,7 +449,7 @@ private struct PaymentStripRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if canCancel {
+            if canCancel && request.allowed_actions.allows("cancel") {
                 Button(action: onCancel) {
                     Image(systemName: "xmark")
                         .font(.scaled(IconSize.small))

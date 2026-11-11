@@ -119,6 +119,8 @@ struct Quote: Codable, Sendable, Identifiable {
     var viewed_at: String?
     var decided_at: String?
     var created_at: String?
+    /// #722: What this member may do to the quote now (send). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 
     func shownStatus(now: Date = Date()) -> String {
         Quotes.effectiveStatus(status: status, expiresAt: expires_at, now: now)

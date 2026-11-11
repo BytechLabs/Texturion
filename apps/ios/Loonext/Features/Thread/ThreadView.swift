@@ -1829,7 +1829,14 @@ private struct ConversationSheet: View {
     }
 
     private var statusControl: some View {
-        let options = statuses.map { status in
+        // #722: a move the server would refuse is not offered.
+        let offered = statuses.filter { status in
+            status == detail.status
+                || detail.allowed_actions.allows(
+                    ConversationAllowed.statusMove(from: detail.status, to: status)
+                )
+        }
+        let options = offered.map { status in
             SegmentedOption(status, title: statusLabel(status, locale: appLocale))
         }
         return SegmentedControl(
@@ -1869,7 +1876,8 @@ private struct ConversationSheet: View {
                     hasGallery: true,
                     hasCatchUp: onCatchUp != nil,
                     hasNewTask: true
-                )
+                ),
+                allowedActions: detail.allowed_actions
             )
         )
     }

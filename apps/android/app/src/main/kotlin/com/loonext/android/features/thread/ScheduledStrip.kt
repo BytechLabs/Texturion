@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TwoClocks
+import com.loonext.android.core.model.allows
 import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.features.compose.NoteAmber
@@ -147,7 +148,8 @@ private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
                 )
             }
         }
-        IconButton(onClick = {
+        // #722: no cancel where the server will not take it.
+        if (row.allowed_actions.allows("cancel")) IconButton(onClick = {
             haptics.tap()
             onCancel()
         }) {

@@ -370,7 +370,8 @@ private struct StatusNotices: View {
                 Text(notice.0)
                     .font(.callout)
                     .foregroundStyle(BrandColor.ink)
-                if canManage {
+                // #722: the card update is offered only where the server lists it.
+                if canManage && company.allowed_actions.allows("update_payment_method") {
                     PortalButton(scope: scope, label: notice.1, solid: true)
                 }
             }
@@ -483,7 +484,8 @@ private struct PlanCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 12)
                 InlineError(error)
-                if canManage {
+                // #722: resubscribe is offered only where the server lists it.
+                if canManage && company.allowed_actions.allows("resubscribe") {
                     // Unchanged, and still the loud one: "come back on exactly
                     // what you had". The win-back's own control is quieter,
                     // because steering somebody who has already left toward the
@@ -728,7 +730,8 @@ private struct PlanCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.vertical, 1)
             }
-            if canManage {
+            // #722: resume is offered only where the server lists it.
+            if canManage && company.allowed_actions.allows("resume") {
                 Button(
                     resuming
                         ? t("settings.pauseResuming")
@@ -1626,7 +1629,11 @@ private struct CancelCard: View {
             // box, with the same one outline control under it. The exit above is
             // untouched by either: same position, same enabledness, and nothing
             // new between the consequence copy and the button.
-            if let price = pauseAnswerPrice(reason: chosen, pause: read.answer) {
+            // #722: and the workspace's own list must offer the pause.
+            if let price = pauseAnswerPrice(
+                reason: chosen,
+                pause: company.allowed_actions.allows("pause") ? read.answer : nil
+            ) {
                 PauseOfferNote(
                     scope: scope,
                     price: price,
@@ -2201,11 +2208,14 @@ private struct WinbackNote: View {
         // leave the win-back with nothing to press at the one moment it is
         // worth anything.
         case .resubscribeStarter:
-            Button(opening ? t("settings.billingOpening") : label) {
-                comeBack(on: "starter")
+            // #722: resubscribe is offered only where the server lists it.
+            if company.allowed_actions.allows("resubscribe") {
+                Button(opening ? t("settings.billingOpening") : label) {
+                    comeBack(on: "starter")
+                }
+                .buttonStyle(.bordered)
+                .disabled(opening)
             }
-            .buttonStyle(.bordered)
-            .disabled(opening)
         case .openHelp:
             NavigationLink(label, value: SettingsSection.help)
                 .buttonStyle(.bordered)

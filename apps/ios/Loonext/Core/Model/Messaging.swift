@@ -111,6 +111,8 @@ struct Conversation: Codable, Sendable {
     var lead_source_origin: String? = nil
     let created_at: String
     let updated_at: String
+    /// #722: A PATCH answers with the bare row, so this is nil there; the screens refetch the list. Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 }
 
 /// Newest-message snippet embedded on every GET /v1/conversations row.
@@ -166,6 +168,8 @@ struct ConversationListItem: Codable, Sendable {
     var muted: Bool? = nil
     var muted_until: String? = nil
     var followed: Bool? = nil
+    /// #722: The status moves, spam and trash this member may make now. Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 }
 
 /// The answer to PUT on a thread's mute (#694).
@@ -229,11 +233,15 @@ struct Message: Codable, Sendable {
     /// #725: which automation (one of `messageAutomations`); nil on a text sent
     /// before it was recorded.
     var automation: String? = nil
+    /// #722: What this member may do to the message now (retry). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 
     /// The one retry affordance rule: API-level failure only (no carrier id),
-    /// and never a carrier opt-out block.
+    /// and never a carrier opt-out block. #722: and the server's list, when the
+    /// row carries one, must offer it.
     var retryable: Bool {
-        direction == MessageDirection.outbound &&
+        (allowed_actions?.contains("retry") ?? true) &&
+            direction == MessageDirection.outbound &&
             status == MessageStatus.failed &&
             telnyx_message_id == nil &&
             // #241: OUR reason, not the vendor's code. This used to compare
@@ -377,6 +385,8 @@ struct ConversationDetail: Codable, Sendable {
      */
     var lead_source_id: String? = nil
     var lead_source_origin: String? = nil
+    /// #722: The status moves, spam and trash this member may make now. Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 }
 
 /// #250 — one reason the classifier scored a thread.
@@ -448,6 +458,8 @@ struct ScheduledMessage: Codable, Sendable, Identifiable {
     /// DIFFERENT people, and a list of bodies with no names is the surprise
     /// #233 asks us to prevent rather than the answer to it.
     var conversations: ScheduledConversation? = nil
+    /// #722: What this member may do to the text now (edit, cancel). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 
     var rung: String { clock_source ?? "company" }
     var isHeld: Bool { status == "held" }

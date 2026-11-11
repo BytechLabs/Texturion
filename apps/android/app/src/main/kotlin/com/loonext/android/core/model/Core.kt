@@ -347,6 +347,8 @@ data class PhoneNumberSummary(
     val failure_reason: String? = null,
     val provision_attempts: Int? = null,
     val retrying: Boolean? = null,
+    /** #722: GET /v1/numbers only. What this member may do now (remediate); null elsewhere. */
+    val allowed_actions: List<String>? = null,
 )
 
 @Serializable
@@ -666,6 +668,12 @@ data class CompanyView(
     val numbers: List<PhoneNumberSummary> = emptyList(),
     val enabled_modules: List<String> = emptyList(),
     val registration: RegistrationPair = RegistrationPair(),
+    /**
+     * #722: what this member may do to the subscription and workspace now
+     * (subscribe, update_payment_method, resubscribe, pause, resume, close);
+     * null from an older API.
+     */
+    val allowed_actions: List<String>? = null,
 ) {
     val subscriptionActive: Boolean get() = subscription_status == SubscriptionStatus.ACTIVE
 

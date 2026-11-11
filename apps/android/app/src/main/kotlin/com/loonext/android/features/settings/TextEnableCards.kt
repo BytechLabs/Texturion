@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.core.model.allows
 import com.loonext.android.ui.common.InlineError
 import com.loonext.android.ui.common.LinkButton
 import com.loonext.android.ui.common.ConfirmDialog
@@ -140,15 +141,18 @@ private fun TextEnableCard(
         )
 
         if (canManage && open) {
-            Spacer(Modifier.height(8.dp))
-            TextEnableDocumentsRow(scope, order, onChanged)
+            // #722: each control also needs the server's list to offer its action.
+            if (order.allowed_actions.allows("upload_documents")) {
+                Spacer(Modifier.height(8.dp))
+                TextEnableDocumentsRow(scope, order, onChanged)
+            }
             Spacer(Modifier.height(8.dp))
             VerificationRow(scope, order, onChanged)
         }
 
         InlineError(actionError)
         Row(modifier = Modifier.padding(top = 6.dp)) {
-            if (canManage && order.status == TextEnablementStatus.FAILED) {
+            if (canManage && order.status == TextEnablementStatus.FAILED && order.allowed_actions.allows("resubmit")) {
                 Button(
                     onClick = {
                         busy = true
@@ -182,7 +186,7 @@ private fun TextEnableCard(
                 }
                 Spacer(Modifier.width(8.dp))
             }
-            if (canCancel && open) {
+            if (canCancel && open && order.allowed_actions.allows("cancel")) {
                 LinkButton(onClick = { cancelling = true }, enabled = !busy) {
                     Text(
                         t("settingsMore.cancelOrder"),

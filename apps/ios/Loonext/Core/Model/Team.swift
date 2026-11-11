@@ -27,6 +27,8 @@ struct Invite: Codable, Sendable {
     /// once, when the invite is sent, and readable afterwards because there is
     /// no edit path: the only way to check what you said is to see it.
     let note: String?
+    /// #722: What this member may do to the invite now (revoke). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 }
 
 /// GET /v1/me/joining-note (#521): what this member was told about why they

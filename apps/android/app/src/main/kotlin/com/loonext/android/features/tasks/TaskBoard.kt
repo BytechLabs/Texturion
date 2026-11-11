@@ -47,6 +47,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
+import com.loonext.android.core.model.doneToggleAllowed
 import com.loonext.android.core.model.Task
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
@@ -435,12 +436,15 @@ private fun BoardCard(
                     taskAssigneeNames(task.assigneeIdList, task.assignees) { null },
                     size = 24.dp,
                 )
-                IconButton(onClick = onMove) {
-                    Icon(
-                        moveIcon,
-                        contentDescription = moveLabel,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                // #722: the move is a done flip, so it needs the server's complete or reopen.
+                if (task.doneToggleAllowed()) {
+                    IconButton(onClick = onMove) {
+                        Icon(
+                            moveIcon,
+                            contentDescription = moveLabel,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
