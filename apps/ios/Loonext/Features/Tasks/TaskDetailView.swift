@@ -1349,6 +1349,12 @@ struct TaskDetailView: View {
         }
     }
 
+    /// The timeline calls back on the main actor; this screen's own link is a plain closure.
+    private var activityOpenConversation: (@MainActor (String, String?) -> Void)? {
+        guard let go = onOpenConversation else { return nil }
+        return { conversationId, messageId in go(conversationId, messageId) }
+    }
+
     private func activitySection(_ detail: TaskDetail) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel(AppStrings.translate(appLocale, "contactsTasks.activity"))
@@ -1360,7 +1366,7 @@ struct TaskDetailView: View {
                 companyId: companyId,
                 recordType: .task,
                 recordId: detail.id,
-                onOpenConversation: onOpenConversation,
+                onOpenConversation: activityOpenConversation,
                 onOpenTask: { AppRouter.shared.openTaskId = $0 },
                 onOpenContact: { AppRouter.shared.openContactId = $0 },
                 reloadKey: refreshKey
