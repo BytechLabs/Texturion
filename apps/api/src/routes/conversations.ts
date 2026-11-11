@@ -43,6 +43,7 @@
  */
 import type { BusinessHours, HoursException } from "@loonext/shared";
 import {
+  stateMachines,
   TAGS_PER_WORKSPACE,
   WORK_PHASES,
   hasBusinessHours,
@@ -872,6 +873,12 @@ conversationsRoutes.get(
     return c.json({
       ...conversation,
       viewer_level: viewerLevel,
+      // #722: the status moves this member may make now, from the shared machine.
+      allowed_actions: stateMachines.allowedActions(
+        stateMachines.conversationMachine,
+        (conversation as { status: stateMachines.ConversationState }).status,
+        c.get("role"),
+      ),
       // Null is the answer on nearly every thread, which is why it is a small
       // object rather than a nested list.
       open_alert: openAlerts[0]
