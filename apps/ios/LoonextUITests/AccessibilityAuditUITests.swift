@@ -90,7 +90,21 @@ final class AccessibilityAuditUITests: XCTestCase {
             evidenceTeam(theme)
             evidenceTaskMap(theme)
             evidenceCallingSettings(theme)
+            evidenceWhatsNewMarker(theme)
         }
+    }
+
+    /// #756: the last settings group, with the What's new marker lit for an entry not yet opened.
+    private func evidenceWhatsNewMarker(_ theme: String) {
+        let app = launchEvidence("settings", theme)
+        defer { app.terminate() }
+        let row = element(app, labelContains: "What's new")
+        _ = row.waitForExistence(timeout: 20)
+        for _ in 0..<14 where !(row.exists && row.isHittable) {
+            app.swipeUp()
+            sleep(1)
+        }
+        attach(app, "settings whatsNew", theme)
     }
 
     /// #739: tap an empty day, then New task on that day opens with the date filled in.
