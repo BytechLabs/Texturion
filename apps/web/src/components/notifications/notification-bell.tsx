@@ -364,7 +364,7 @@ export function NotificationBell({
             }
             className="relative grid size-[38px] place-items-center rounded-app-ctrl border border-app-line bg-app-paper text-app-ink shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[border-color,background,box-shadow] duration-150 ease-out hover:border-app-tint-line hover:bg-app-hover hover:app-shadow-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Bell className="size-[18px]" strokeWidth={1.7} aria-hidden />
+            <Bell className="size-5" strokeWidth={1.75} aria-hidden />
             {count > 0 && (
               <span
                 aria-hidden
@@ -383,7 +383,7 @@ export function NotificationBell({
                 : t("misc.notifications")
             }
           >
-            <Bell className="size-[18px]" strokeWidth={1.75} aria-hidden />
+            <Bell className="size-5" strokeWidth={1.75} aria-hidden />
             {count > 0 && (
               <span
                 aria-hidden

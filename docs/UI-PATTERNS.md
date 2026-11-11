@@ -29,7 +29,7 @@ the public job-photo page keep their own type scale and are out of scope).
 | Dates | `Timestamp` / `formatTimestamp` (#720) | `Timestamp` | `Timestamp` | `timestamp-guard.test.ts`, `TimestampGuardTest(s)` | done |
 | Filter row | `ListFilterHeader` (#711) | `ListFilterHeader.kt` | `ListFilterHeader.swift` | | done |
 | Activity timeline | `ActivityTimeline` (#714) | `ActivityTimeline.kt` | `ActivityTimelineView.swift` | `activity-line.test.ts`, `ActivityLineTest(s)` | done |
-| Icon size | three sizes: 14px (`size-3.5`), 16px (`size-4`), 20px (`size-5`); stroke 1.75 | | | none yet | **open**: arbitrary `size-[15px]`, `[17px]`, `[18px]` icons in the sidebar, the bell and For you |
+| Icon size | three sizes: 14px (`size-3.5`), 16px (`size-4`), 20px (`size-5`); stroke 1.75 | | | `icon-size.test.ts` | done on web: the sidebar, the bell and the composer moved onto the three sizes, stroke 1.75 |
 | Toasts | `undoableToast` for anything reversible, `createdToast` for something made elsewhere, plain success or error otherwise | | | none yet | **open**: contact and template deletes report with no Undo |
 
 ## Rules that hold everywhere

@@ -169,10 +169,10 @@ function NavItem({
           >
             <Icon
               className={cn(
-                "size-[18px] shrink-0",
+                "size-5 shrink-0",
                 active ? "text-app-olive-deep" : "text-app-muted",
               )}
-              strokeWidth={1.8}
+              strokeWidth={1.75}
               aria-hidden
             />
             {showCount && (
@@ -204,10 +204,10 @@ function NavItem({
     >
       <Icon
         className={cn(
-          "size-[17px] shrink-0",
+          "size-4 shrink-0",
           active ? "text-app-olive-deep" : "text-app-muted",
         )}
-        strokeWidth={1.8}
+        strokeWidth={1.75}
         aria-hidden
       />
       <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -280,7 +280,7 @@ export function Sidebar({
       </span>
       {multi && (
         <ChevronsUpDown
-          className="size-[15px] shrink-0 text-app-muted-2"
+          className="size-3.5 shrink-0 text-app-muted-2"
           strokeWidth={1.75}
           aria-hidden
         />
@@ -323,7 +323,7 @@ export function Sidebar({
       aria-pressed={collapsed}
       className="grid size-8 shrink-0 place-items-center rounded-[8px] text-app-muted outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <PanelLeft className="size-[17px]" strokeWidth={1.8} aria-hidden />
+      <PanelLeft className="size-4" strokeWidth={1.75} aria-hidden />
     </button>
   );
 
@@ -421,7 +421,7 @@ export function Sidebar({
                   aria-keyshortcuts="Meta+K Control+K"
                   className="mb-1 flex h-9 items-center justify-center rounded-[9px] text-app-muted outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <Search className="size-[18px]" strokeWidth={1.8} aria-hidden />
+                  <Search className="size-5" strokeWidth={1.75} aria-hidden />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">
@@ -437,7 +437,7 @@ export function Sidebar({
               aria-keyshortcuts="Meta+K Control+K"
               className="mb-1 flex h-9 items-center gap-[11px] rounded-[9px] px-[11px] text-[13.5px] font-medium text-app-muted outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Search className="size-[17px] shrink-0" strokeWidth={1.8} aria-hidden />
+              <Search className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-left">
                 {t("shell.search")}
               </span>

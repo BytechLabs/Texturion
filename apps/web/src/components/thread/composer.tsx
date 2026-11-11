@@ -1748,7 +1748,7 @@ export function Composer({
               <span className="hidden sm:inline">
                 {isNote ? t("common.save") : t("thread.send")}
               </span>
-              <SendIcon className="size-[15px]" />
+              <SendIcon className="size-4" />
             </button>
             {!isNote && (
               <DropdownMenu>
@@ -1759,7 +1759,7 @@ export function Composer({
                     aria-label={t("thread.sendLaterAria")}
                     className="inline-flex items-center border-l border-white/25 px-1.5 hover:bg-app-olive-deep active:translate-y-px"
                   >
-                    <ChevronDown className="size-[15px]" />
+                    <ChevronDown className="size-4" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64">
