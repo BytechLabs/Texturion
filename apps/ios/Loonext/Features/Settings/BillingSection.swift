@@ -1630,10 +1630,8 @@ private struct CancelCard: View {
             // untouched by either: same position, same enabledness, and nothing
             // new between the consequence copy and the button.
             // #722: and the workspace's own list must offer the pause.
-            if let price = pauseAnswerPrice(
-                reason: chosen,
-                pause: company.allowed_actions.allows("pause") ? read.answer : nil
-            ) {
+            if company.allowed_actions.allows("pause"),
+               let price = pauseAnswerPrice(reason: chosen, pause: read.answer) {
                 PauseOfferNote(
                     scope: scope,
                     price: price,
