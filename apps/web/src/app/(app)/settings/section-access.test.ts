@@ -303,6 +303,14 @@ describe("path resolution", () => {
   });
 });
 
+describe("#755 the audit log's old address", () => {
+  it("still finds the audit log behind it, so the redirect runs instead of a refusal", () => {
+    expect(settingsSectionForPath("/settings/audit-log")?.id).toBe("history");
+    expect(settingsSectionForPath("/settings/history")?.id).toBe("history");
+    expect(settingsSectionForPath("/settings/history/trash")?.id).toBe("history");
+  });
+});
+
 describe("the gate cannot silently fall behind the app", () => {
   it("has a section behind every page under /settings", () => {
     // The failure this whole module exists to prevent, checked against the file

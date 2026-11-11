@@ -515,7 +515,6 @@ object ContactsTasksStrings : AppStrings.Section {
 
         // The contact's calls and history sections
         "contactsTasks.callsSection" to "Calls",
-        "contactsTasks.historySection" to "History",
         "contactsTasks.noCallsYet" to "No calls with this contact yet.",
         "contactsTasks.timelineEmpty" to
             "Texts, calls and jobs for this customer will collect here.",
@@ -1376,7 +1375,6 @@ object ContactsTasksStrings : AppStrings.Section {
 
         // Les sections Appels et Historique de la fiche
         "contactsTasks.callsSection" to "Appels",
-        "contactsTasks.historySection" to "Historique",
         "contactsTasks.noCallsYet" to "Aucun appel avec ce client pour l'instant.",
         "contactsTasks.timelineEmpty" to
             "Les textos, les appels et les travaux de ce client s'accumuleront ici.",

@@ -271,10 +271,10 @@ export const SETTINGS_INDEX: readonly SettingsIndexEntry[] = [
     ["Get paid by text", "payments", "stripe", "text to pay", "payment link", "collect money", "bank account", "invoices", "card payments"],
     ["Se faire payer par texto", "paiements", "stripe", "lien de paiement", "encaisser", "compte bancaire", "factures"]),
 
-  // History
-  entry("history", "activity-log",
-    ["Activity log", "history", "audit", "who changed", "log", "trash", "deleted", "restore"],
-    ["Journal d'activité", "historique", "audit", "qui a modifié", "journal", "corbeille", "supprimé", "restaurer"]),
+  // Audit log (#755: "History" and "Activity log" before)
+  entry("history", "audit-log",
+    ["Audit log", "history", "activity log", "audit", "who changed", "log", "trash", "deleted", "restore"],
+    ["Journal d'audit", "historique", "journal d'activité", "audit", "qui a modifié", "journal", "corbeille", "supprimé", "restaurer"]),
 
   // Notifications
   entry("notifications", "notification-types",

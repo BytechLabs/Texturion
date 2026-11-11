@@ -51,6 +51,12 @@ export interface SettingsSection {
    */
   id: SettingsSectionId;
   slug: string;
+  /**
+   * Addresses this section used to have. Their pages only redirect to the
+   * current one, and the access gate still finds the section behind them, so
+   * an old bookmark is redirected instead of refused (#755).
+   */
+  formerSlugs?: string[];
   /** #228: a catalogue key, resolved at render — see `SettingsNav` below. */
   label: MessageKey;
   description: MessageKey;
@@ -236,7 +242,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = inSettingsGroupOrder<Setting
     // #231 — the workspace audit log. Last in the list on purpose: it is the
     // page you go looking for, not one you pass through.
     id: "history",
-    slug: "history",
+    slug: "audit-log",
+    formerSlugs: ["history"],
     label: "settingsMore.navHistory",
     description: "settingsMore.navHistoryDesc",
     icon: ScrollText,

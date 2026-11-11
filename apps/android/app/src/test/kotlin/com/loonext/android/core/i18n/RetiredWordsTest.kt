@@ -103,4 +103,15 @@ class RetiredWordsTest {
         }
         assertEquals("exceptions that no longer match", emptyList<String>(), stale)
     }
+
+    /** #755: the audit log was "History" in the nav and "Activity log" in search. */
+    private val auditLogOldNames = Regex("""^\s*history\s*$|\bactivity log\b""", RegexOption.IGNORE_CASE)
+
+    @Test
+    fun `no English value names the audit log History or Activity log`() {
+        val offenders = AppStrings.en
+            .filter { (_, value) -> auditLogOldNames.containsMatchIn(readable(value)) }
+            .map { (key, value) -> "$key: $value" }
+        assertEquals("the audit log is called something else", emptyList<String>(), offenders)
+    }
 }

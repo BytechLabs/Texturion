@@ -120,4 +120,17 @@ final class RetiredWordsTests: XCTestCase {
         }
         XCTAssertEqual(stale.sorted(), [], "exceptions that no longer match")
     }
+
+    /// #755: the audit log was "History" in the nav and "Activity log" in search.
+    func testNoEnglishValueNamesTheAuditLogHistoryOrActivityLog() {
+        let offenders = AppStrings.en
+            .filter { entry in
+                let all = words(in: entry.value)
+                let saysActivityLog = zip(all, all.dropFirst()).contains { $0 == "activity" && $1 == "log" }
+                return all == ["history"] || saysActivityLog
+            }
+            .map { "\($0.key): \($0.value)" }
+            .sorted()
+        XCTAssertEqual(offenders, [], "the audit log is called something else")
+    }
 }

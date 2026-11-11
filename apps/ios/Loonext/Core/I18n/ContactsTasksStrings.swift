@@ -583,7 +583,6 @@ enum ContactsTasksStrings {
 
             // The contact's calls and history sections
             "contactsTasks.callsSection": "Calls",
-            "contactsTasks.historySection": "History",
             "contactsTasks.noCallsYet": "No calls with this contact yet.",
             "contactsTasks.timelineEmpty":
                 "Texts, calls and jobs for this customer will collect here.",
@@ -1363,7 +1362,6 @@ enum ContactsTasksStrings {
 
             // Les sections Appels et Historique de la fiche
             "contactsTasks.callsSection": "Appels",
-            "contactsTasks.historySection": "Historique",
             "contactsTasks.noCallsYet": "Aucun appel avec ce client pour l'instant.",
             "contactsTasks.timelineEmpty":
                 "Les textos, les appels et les travaux de ce client s'accumuleront ici.",

@@ -1410,13 +1410,14 @@
    ]
   },
   {
-   "id": "history:activity-log",
+   "id": "history:audit-log",
    "section": "history",
-   "anchor": "activity-log",
+   "anchor": "audit-log",
    "page": null,
    "en": [
-    "Activity log",
+    "Audit log",
     "history",
+    "activity log",
     "audit",
     "who changed",
     "log",
@@ -1425,8 +1426,9 @@
     "restore"
    ],
    "fr": [
-    "Journal d'activité",
+    "Journal d'audit",
     "historique",
+    "journal d'activité",
     "audit",
     "qui a modifié",
     "journal",
@@ -2018,7 +2020,7 @@
    "locale": "en",
    "visible": "all",
    "ids": [
-    "history:activity-log",
+    "history:audit-log",
     "workspace:workspace-name",
     "profile:sign-out",
     "account:sign-in-methods",

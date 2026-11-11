@@ -119,3 +119,16 @@ describe("English says tag, not label", () => {
     expect(stale).toEqual([]);
   });
 });
+
+// #755: the record of every change is the audit log. "History" was its nav name
+// and "Activity log" its search name; Activity is the timeline on a record (#714).
+const AUDIT_LOG_OLD_NAMES = /^\s*history\s*$|\bactivity log\b/i;
+
+describe("English calls the audit log the audit log", () => {
+  it("no value names it History or Activity log", () => {
+    const offenders = entries()
+      .filter(([, value]) => AUDIT_LOG_OLD_NAMES.test(readable(value)))
+      .map(([key, value]) => `${key}: ${value}`);
+    expect(offenders).toEqual([]);
+  });
+});

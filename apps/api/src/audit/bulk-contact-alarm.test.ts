@@ -93,7 +93,7 @@ describe("who gets told", () => {
     expect(email.text).toContain("tech@acme.test");
     expect(email.subject).toContain("400");
     // Where to look, not just that something happened.
-    expect(email.text).toContain("/settings/history");
+    expect(email.text).toContain("/settings/audit-log");
   });
 
   it("says nothing when the owner exports their own contacts", async () => {

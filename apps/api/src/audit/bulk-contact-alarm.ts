@@ -8,7 +8,7 @@
  * waits to be read by somebody who already suspects something.
  *
  * That asymmetry is the point. An audit log answers questions; it does not raise
- * them. A workspace owner is not reading /settings/history on an ordinary
+ * them. A workspace owner is not reading /settings/audit-log on an ordinary
  * Tuesday, and the whole customer list leaving on an ordinary Tuesday is exactly
  * the case worth knowing about within the hour rather than during an
  * investigation three weeks later.
@@ -155,7 +155,7 @@ async function deliver(
       `${actor} just ${what} in ${company.name}.\n\n` +
       `If that was expected, nothing needs doing. If it was not, the full ` +
       `record — who, when, and from where — is at ` +
-      `${env.APP_ORIGIN}/settings/history.\n\n` +
+      `${env.APP_ORIGIN}/settings/audit-log.\n\n` +
       `You are getting this because you own this workspace. It is sent for ` +
       `bulk actions only, and never for your own.`;
 

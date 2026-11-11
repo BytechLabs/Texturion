@@ -143,6 +143,6 @@ describe("#286 — the crew list is open to every role", () => {
   it("is one page, not a spare key", () => {
     expect(render("/settings/billing", "member")).not.toContain(PAGE);
     expect(render("/settings/numbers", "member")).not.toContain(PAGE);
-    expect(render("/settings/history", "member")).not.toContain(PAGE);
+    expect(render("/settings/audit-log", "member")).not.toContain(PAGE);
   });
 });

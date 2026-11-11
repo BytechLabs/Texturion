@@ -473,8 +473,8 @@ export const appShellEn = {
   devicesTheyHadNothing: "They had nothing signed in.",
   devicesSignThemOutFailed: "Couldn't sign them out. Try again.",
 
-  // ── Settings › History ────────────────────────────────────────────────────
-  historyTitle: "History",
+  // ── Settings › Audit log ──────────────────────────────────────────────────
+  historyTitle: "Audit log",
   historyDescription: "Every change to your workspace — who made it, and when.",
   historyFilterPerson: "Person",
   historyFilterEveryone: "Everyone",
@@ -1539,8 +1539,8 @@ export const appShellFr: Translated<typeof appShellEn> = {
   devicesTheyHadNothing: "Cette personne n'avait rien de connecté.",
   devicesSignThemOutFailed: "Impossible de la déconnecter. Réessayez.",
 
-  // ── Paramètres › Historique ───────────────────────────────────────────────
-  historyTitle: "Historique",
+  // ── Paramètres › Journal d'audit ──────────────────────────────────────────
+  historyTitle: "Journal d'audit",
   historyDescription:
     "Chaque changement dans votre espace de travail — qui l'a fait, et quand.",
   historyFilterPerson: "Personne",
@@ -2089,7 +2089,7 @@ export const appShellFr: Translated<typeof appShellEn> = {
   workspaceNightOwnersOnly:
     "Seuls les propriétaires et les administrateurs peuvent modifier ceci.",
 
-  // ── Paramètres › Historique : une entrée du journal, en une phrase ────────
+  // ── Paramètres › Journal d'audit : une entrée, en une phrase ─────────────
   auditActionInvited: "A invité quelqu'un",
   auditActionInviteRevoked: "A annulé une invitation",
   auditActionJoined: "S'est joint à l'espace de travail",

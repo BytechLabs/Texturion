@@ -298,11 +298,16 @@ Left-nav settings layout (mobile: stacked list → detail pages). Sections:
 - **Contact** and **customer** both stay, with defined meanings. A Contact is the saved
   record (the Contacts list, a contact's page). "Customer" is the person in a sentence ("the
   customer sees this"). Nothing is renamed and no guard covers the pair.
+- **Audit log**, never "History" or "Activity log", for the tamper-proof record of every
+  change to a workspace (#755). French says *Journal d'audit*. Its page is
+  `/settings/audit-log`, and `/settings/history` redirects there. "Activity" is the timeline
+  on a contact, task, conversation or call (#714), a different thing. "History" keeps its
+  other meanings, such as a customer's message history.
 - The guard: `apps/web/src/i18n/retired-words.test.ts`, `RetiredWordsTest.kt` (Android) and
   `RetiredWordsTests.swift` (iOS) read each client's English catalogue and fail when a
-  value says "label" (a tag), "thread" (a conversation) or a phone line without a named
-  exception, or when an exception stops matching. A new retired word goes in the same
-  three tests.
+  value says "label" (a tag), "thread" (a conversation), a phone line, "History" as a name or
+  "Activity log" without a named exception, or when an exception stops matching. A new
+  retired word goes in the same three tests.
 
 ## G11. Accessibility & quality bar
 

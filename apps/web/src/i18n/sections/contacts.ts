@@ -311,7 +311,6 @@ export const contactsEn = {
   showMore: "Show more",
 
   // ── The whole relationship, in one stream ───────────────────────────────
-  historyHeading: "History",
   historyLoading: "Loading their history",
   historyLoadFailed: "Couldn't load their history.",
   historyLoadFailedDetail: "Try again in a moment.",
@@ -793,7 +792,6 @@ export const contactsFr: Translated<typeof contactsEn> = {
   showMore: "Afficher plus",
 
   // ── Toute la relation, en un seul fil ───────────────────────────────────
-  historyHeading: "Historique",
   historyLoading: "Chargement de son historique",
   historyLoadFailed: "Impossible de charger son historique.",
   historyLoadFailedDetail: "Réessayez dans un moment.",

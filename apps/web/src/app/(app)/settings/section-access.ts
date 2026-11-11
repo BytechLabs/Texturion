@@ -92,7 +92,11 @@ export function settingsSectionForPath(
   const rest = pathname.replace(/^\/settings\/?/, "");
   const slug = rest.split("/")[0];
   if (!slug) return null;
-  return SETTINGS_SECTIONS.find((section) => section.slug === slug) ?? null;
+  return (
+    SETTINGS_SECTIONS.find(
+      (section) => section.slug === slug || section.formerSlugs?.includes(slug),
+    ) ?? null
+  );
 }
 
 export type SettingsAccess =
