@@ -146,4 +146,17 @@ final class RetiredWordsTests: XCTestCase {
             .sorted()
         XCTAssertEqual(offenders, [], "the audit log is called something else")
     }
+
+    /// A settings heading names its sections, and the one that read "Help and
+    /// history" held the audit log, so no heading or nav label says history.
+    func testNoSettingsHeadingSaysHistoryInEnglishOrFrench() {
+        let headings = (Array(AppStrings.en) + Array(AppStrings.frCA))
+            .filter { $0.key.hasPrefix("settingsMore.group") || $0.key.hasPrefix("settingsMore.nav") }
+        XCTAssertFalse(headings.isEmpty, "no settings headings were found")
+        let offenders = headings
+            .filter { entry in words(in: entry.value).contains { $0 == "history" || $0 == "historique" } }
+            .map { "\($0.key): \($0.value)" }
+            .sorted()
+        XCTAssertEqual(offenders, [], "a settings heading says history")
+    }
 }

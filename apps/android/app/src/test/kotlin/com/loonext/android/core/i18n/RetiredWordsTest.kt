@@ -126,4 +126,20 @@ class RetiredWordsTest {
             .map { (key, value) -> "$key: $value" }
         assertEquals("the audit log is called something else", emptyList<String>(), offenders)
     }
+
+    /**
+     * A settings heading names its sections, and the one that read "Help and
+     * history" held the audit log, so no heading or nav label says history.
+     */
+    @Test
+    fun `no settings heading says history in English or French`() {
+        val historyWord = Regex("""\bhistor(?:y|ique)\b""", RegexOption.IGNORE_CASE)
+        val headings = (AppStrings.en.entries + AppStrings.frCA.entries)
+            .filter { it.key.startsWith("settingsMore.group") || it.key.startsWith("settingsMore.nav") }
+        assertTrue("no settings headings were found", headings.isNotEmpty())
+        val offenders = headings
+            .filter { historyWord.containsMatchIn(readable(it.value)) }
+            .map { "${it.key}: ${it.value}" }
+        assertEquals("a settings heading says history", emptyList<String>(), offenders)
+    }
 }

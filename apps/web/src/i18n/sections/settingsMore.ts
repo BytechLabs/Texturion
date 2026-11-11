@@ -748,7 +748,7 @@ export const settingsMoreEn = {
   navGroupBilling: "Billing and payments",
   navGroupYou: "Your account",
   navGroupDevelopers: "Developers",
-  navGroupSupport: "Help and history",
+  navGroupSupport: "Help and audit log",
   navSomethingNew: "Something new",
   /** #719: the settings search. */
   settingsSearchLabel: "Search settings",
@@ -2021,7 +2021,7 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
   navGroupBilling: "Facturation et paiements",
   navGroupYou: "Votre compte",
   navGroupDevelopers: "Développeurs",
-  navGroupSupport: "Aide et historique",
+  navGroupSupport: "Aide et journal d'audit",
   navSomethingNew: "Quelque chose de nouveau",
   settingsSearchLabel: "Rechercher dans les paramètres",
   settingsSearchPlaceholder: "Rechercher un paramètre",

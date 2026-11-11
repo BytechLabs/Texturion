@@ -146,3 +146,20 @@ describe("French calls the audit log the journal d'audit", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// A settings heading names its sections, and the one that read "Help and
+// history" held the audit log, so no heading or nav label says history.
+const HISTORY_WORD = /\bhistor(?:y|ique)\b/i;
+
+describe("no settings heading calls the audit log history", () => {
+  it("in English or French", () => {
+    const headings = [...entries(EN), ...entries(FR_CA)].filter(([key]) =>
+      key.startsWith("settingsMore.nav"),
+    );
+    expect(headings.length, "no settings headings were found").toBeGreaterThan(0);
+    const offenders = headings
+      .filter(([, value]) => HISTORY_WORD.test(readable(value)))
+      .map(([key, value]) => `${key}: ${value}`);
+    expect(offenders).toEqual([]);
+  });
+});
