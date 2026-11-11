@@ -195,10 +195,10 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
                 variant="secondary"
                 size="sm"
                 disabled={create.isPending || roster.length === 0}
-                title={preset.detail}
+                title={say(preset.detail)}
                 onClick={() => put(preset.key)}
               >
-                {preset.label}
+                {say(preset.label)}
               </Button>
             ))}
           </div>
