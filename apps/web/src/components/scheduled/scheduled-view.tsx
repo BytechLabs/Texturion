@@ -47,6 +47,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { useT, type Translate } from "@/i18n/provider";
 import {
   scheduledRecipient,
+  scheduledActionAllowed,
   useCancelScheduledMessage,
   useScheduledMessages,
   type ScheduledMessage,
@@ -177,6 +178,8 @@ function ScheduledGroup({
 export function buildScheduledActions(input: {
   t: Translate;
   cancelling: boolean;
+  /** #722: whether the server lets this member cancel it. */
+  canCancel?: boolean;
   run: { open: () => void; cancel: () => void };
 }): RecordAction[] {
   const { t, run } = input;
@@ -194,7 +197,7 @@ export function buildScheduledActions(input: {
       label: t("recordMenu.cancelScheduled"),
       icon: X,
       group: "danger",
-      allowed: true,
+      allowed: input.canCancel ?? true,
       destructive: true,
       disabled: input.cancelling,
       onSelect: run.cancel,
@@ -213,9 +216,11 @@ function ScheduledListRow({
 }) {
   const t = useT();
   const navigate = useNavigate();
+  const canCancel = scheduledActionAllowed(row, "cancel");
   const actions = buildScheduledActions({
     t,
     cancelling,
+    canCancel,
     run: {
       open: () => navigate(`/inbox/${row.conversation_id}`),
       cancel: onCancel,
@@ -275,14 +280,16 @@ function ScheduledListRow({
           </p>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onCancel}
-        disabled={cancelling}
-        className="tap-target shrink-0 rounded-app-ctrl px-2 py-1 text-[12px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-line-soft hover:text-app-ink disabled:opacity-45"
-      >
-        {t("common.cancel")}
-      </button>
+      {canCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={cancelling}
+          className="tap-target shrink-0 rounded-app-ctrl px-2 py-1 text-[12px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-line-soft hover:text-app-ink disabled:opacity-45"
+        >
+          {t("common.cancel")}
+        </button>
+      )}
     </li>
     </RecordContextMenu>
   );

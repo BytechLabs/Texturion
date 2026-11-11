@@ -40,6 +40,11 @@ export interface ScheduledMessage {
   created_by: string;
   created_at: string;
   /**
+   * #722: what this member may do to it in its state (`edit`, `cancel`), from
+   * the shared machine. Absent from an older server, which allowed both.
+   */
+  allowed_actions?: readonly string[];
+  /**
    * Who it is going to, embedded by the list route.
    *
    * The thread strip does not need this — the customer's name is already in
@@ -172,4 +177,9 @@ export function useCancelScheduledMessage(conversationId?: string) {
       toast.success(t("thread.scheduledCancelled"));
     },
   });
+}
+
+/** #722: whether the server lets this member take `action` on the text now. */
+export function scheduledActionAllowed(row: ScheduledMessage, action: "edit" | "cancel"): boolean {
+  return row.allowed_actions?.includes(action) ?? true;
 }

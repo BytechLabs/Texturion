@@ -34,6 +34,7 @@ import {
   SCHEDULED_BODY_MAX,
   SCHEDULED_HORIZON_DAYS,
   isScheduledMessageLive,
+  stateMachines,
 } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -246,7 +247,19 @@ scheduledMessageRoutes.get(
       await query,
       "scheduled message list",
     );
-    return c.json({ scheduled_messages: rows });
+    // #722: what this member may do to each text in its state, from the shared
+    // machine, so every client shows Edit and Cancel exactly when they work.
+    const role = c.get("role");
+    return c.json({
+      scheduled_messages: rows.map((row) => ({
+        ...row,
+        allowed_actions: stateMachines.allowedActions(
+          stateMachines.scheduledMessageMachine,
+          row.status as stateMachines.ScheduledMessageState,
+          role,
+        ),
+      })),
+    });
   },
 );
 

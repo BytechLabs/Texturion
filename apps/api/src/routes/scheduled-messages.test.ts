@@ -65,3 +65,32 @@ describe("POST /v1/scheduled-messages expiry", () => {
     expect(await schedule({ scheduled_text_expiry_hours: 72 })).toBe(72 * 3_600_000);
   });
 });
+
+describe("GET /v1/scheduled-messages allowed actions (#722)", () => {
+  async function listAs(role: string) {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, role));
+    sb.on("GET", "/rest/v1/scheduled_messages", () => [
+      { id: "s1", status: "pending" },
+      { id: "s2", status: "held" },
+      { id: "s3", status: "sent" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/scheduled-messages?status=all", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      scheduled_messages: { id: string; allowed_actions: string[] }[];
+    };
+    return Object.fromEntries(body.scheduled_messages.map((row) => [row.id, row.allowed_actions]));
+  }
+
+  it("lets a member edit and cancel a live text, and nothing on a sent one", async () => {
+    expect(await listAs("member")).toEqual({ s1: ["edit", "cancel"], s2: ["edit", "cancel"], s3: [] });
+  });
+
+  it("offers a view-only member nothing", async () => {
+    expect(await listAs("read_only")).toEqual({ s1: [], s2: [], s3: [] });
+  });
+});

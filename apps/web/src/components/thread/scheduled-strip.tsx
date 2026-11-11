@@ -7,6 +7,7 @@ import { scheduledClockProvenance, scheduledHoldText } from "@loonext/shared";
 import { useT, type Translate } from "@/i18n/provider";
 
 import {
+  scheduledActionAllowed,
   useCancelScheduledMessage,
   useScheduledMessages,
   type ScheduledMessage,
@@ -37,11 +38,7 @@ import { cn } from "@/lib/utils";
  *   reversible in the only sense that counts — you can schedule it again — so
  *   it is one click and a toast, not a dialog.
  */
-export function ScheduledStrip({
-  conversationId,
-}: {
-  conversationId: string;
-}) {
+export function ScheduledStrip({ conversationId }: { conversationId: string }) {
   const scheduled = useScheduledMessages(conversationId);
   const cancel = useCancelScheduledMessage(conversationId);
 
@@ -97,7 +94,11 @@ function ScheduledRow({
           aria-hidden
         />
       ) : (
-        <Clock className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+        <Clock
+          className="mt-0.5 size-3.5 shrink-0"
+          strokeWidth={1.75}
+          aria-hidden
+        />
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate">
@@ -107,7 +108,7 @@ function ScheduledRow({
           {" — "}
           {row.body}
         </p>
-{/* The reason, in ONE sentence chosen by the shared module. Not
+        {/* The reason, in ONE sentence chosen by the shared module. Not
             paraphrased here: three clients paraphrasing one sentence is how one
             of them ends up saying nothing at all.
 
@@ -122,17 +123,19 @@ function ScheduledRow({
           </p>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onCancel}
-        disabled={cancelling}
-        aria-label={t("thread.scheduledCancelAria", {
-          when: sendAtSpoken(row, t),
-        })}
-        className="tap-target -mr-1 flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground disabled:opacity-45"
-      >
-        <X className="size-3.5" strokeWidth={1.75} />
-      </button>
+      {scheduledActionAllowed(row, "cancel") && (
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={cancelling}
+          aria-label={t("thread.scheduledCancelAria", {
+            when: sendAtSpoken(row, t),
+          })}
+          className="tap-target -mr-1 flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground disabled:opacity-45"
+        >
+          <X className="size-3.5" strokeWidth={1.75} />
+        </button>
+      )}
     </li>
   );
 }
