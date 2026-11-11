@@ -12,17 +12,15 @@ import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import com.loonext.android.BuildConfig
-import com.loonext.android.features.settings.openExternal
 
 /**
- * #710/#735: where "View Trash" goes, and the Trash row in the account sheet. The
- * phones hold no Trash screen (managing it is web-only), so both open the web
- * Trash in the browser.
+ * #710/#735: where "View Trash" goes. The route host provides the action that
+ * pushes the native Trash screen; a screen shown outside the host (a preview,
+ * a test) has nothing to open, so the default does nothing.
  */
-val TRASH_URL = "${BuildConfig.APP_ORIGIN}/trash"
+val LocalOpenTrash = staticCompositionLocalOf<() -> Unit> { {} }
 
 /**
  * A delete notice: the Undo, plus a second "View Trash" action. Material's
@@ -47,7 +45,7 @@ fun snackbarActionLabels(visuals: SnackbarVisuals): List<String> = listOfNotNull
 /** A [SnackbarHost] that also draws the "View Trash" action of a delete notice. */
 @Composable
 fun TrashSnackbarHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
+    val openTrash = LocalOpenTrash.current
     SnackbarHost(state, modifier) { data: SnackbarData ->
         val visuals = data.visuals
         if (visuals is TrashSnackbarVisuals) {
@@ -64,7 +62,7 @@ fun TrashSnackbarHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
                         TextButton(
                             onClick = {
                                 data.dismiss()
-                                openExternal(context, TRASH_URL)
+                                openTrash()
                             },
                             colors = ButtonDefaults.textButtonColors(
                                 contentColor = SnackbarDefaults.actionColor,

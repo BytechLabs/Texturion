@@ -138,7 +138,7 @@ import com.loonext.android.features.attachments.openOriginal
 import com.loonext.android.features.compose.bannerKind
 import com.loonext.android.features.contacts.contactRepeatBadge
 import com.loonext.android.features.settings.openExternal
-import com.loonext.android.ui.common.TRASH_URL
+import com.loonext.android.ui.common.LocalOpenTrash
 import com.loonext.android.ui.common.TrashSnackbarHost
 import com.loonext.android.features.settings.supportMailto
 import com.loonext.android.features.tasks.ReferenceSource
@@ -234,6 +234,7 @@ fun ThreadScreen(
     onAddLeadSource: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val openTrash = LocalOpenTrash.current
     // #289: this phone's own answer about its own data plan. Device-scoped,
     // not workspace-scoped — the same person on a laptop has a different one.
     val wifiOnlyOriginals by graph.prefs.wifiOnlyOriginals
@@ -379,7 +380,7 @@ fun ThreadScreen(
                         TextButton(onClick = { controller.restoreConversation() }) {
                             Text(t("thread.undo"))
                         }
-                        TextButton(onClick = { openExternal(context, TRASH_URL) }) {
+                        TextButton(onClick = openTrash) {
                             Text(t("trash.viewTrash"))
                         }
                         TextButton(onClick = onBack) { Text(t("thread.backToInbox")) }

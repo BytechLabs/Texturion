@@ -78,6 +78,7 @@ object AppStrings {
         ShellStrings,
         TaskLinksStrings,
         ThreadStrings,
+        TrashStrings,
         WebhooksStrings,
     )
 

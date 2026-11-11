@@ -94,6 +94,8 @@ import com.loonext.android.features.onboarding.NotificationPrimer
 import com.loonext.android.features.onboarding.shouldShowOrientation
 import com.loonext.android.features.settings.SettingsHome
 import com.loonext.android.features.settings.SettingsSection
+import com.loonext.android.features.settings.TrashScreen
+import com.loonext.android.ui.common.LocalOpenTrash
 import com.loonext.android.features.shell.AccountSheet
 import com.loonext.android.features.shell.MainShell
 import com.loonext.android.features.auth.MfaGate
@@ -547,6 +549,9 @@ private sealed interface Overlay {
     ) : Overlay
     data object Notifications : Overlay
 
+    /** #735: the workspace Trash, with Restore and Delete forever. */
+    data object Trash : Overlay
+
     /** [section] opens straight at one section, for a surface that is offering
      *  a specific setting as the fix for what the reader is looking at. */
     data class Settings(val section: SettingsSection? = null) : Overlay
@@ -566,6 +571,7 @@ private fun ReadyShell(
     val routeStack = remember { androidx.compose.runtime.mutableStateListOf<Overlay>() }
     fun push(route: Overlay) = routeStack.add(route)
     fun pop() { routeStack.removeLastOrNull() }
+    fun openTrash() { if (routeStack.lastOrNull() !is Overlay.Trash) push(Overlay.Trash) }
     var counts by remember { mutableStateOf(ShellCounts()) }
     var countsKey by remember { mutableIntStateOf(0) }
     // #508: the filter another surface has asked the inbox to land on, held
@@ -765,6 +771,7 @@ private fun ReadyShell(
         }
     }
 
+    CompositionLocalProvider(LocalOpenTrash provides { openTrash() }) {
     Box(Modifier.fillMaxSize()) {
         if (hasInbox) {
             MainShell(
@@ -1014,6 +1021,18 @@ private fun ReadyShell(
                         )
                     }
 
+                    Overlay.Trash -> OverlayScaffold(
+                        t("shell.navTrash"),
+                        onBack = { pop() },
+                    ) {
+                        TrashScreen(
+                            graph = graph,
+                            companyId = companyId,
+                            meUserId = me.user_id,
+                            modifier = it,
+                        )
+                    }
+
                     is Overlay.Settings -> {
                         // #200: the section state lives HERE so the host's ONE
                         // header slot can carry the section title. SettingsHome
@@ -1091,6 +1110,7 @@ private fun ReadyShell(
                 .padding(bottom = 24.dp),
         )
     }
+    }
 
     if (sheetOpen) {
         AccountSheet(
@@ -1101,6 +1121,7 @@ private fun ReadyShell(
             onOpenContacts = { tab = ShellTab.Contacts },
             onOpenNotifications = { push(Overlay.Notifications) },
             onOpenSettings = { push(Overlay.Settings()) },
+            onOpenTrash = { openTrash() },
             onSwitchWorkspace = root::switchWorkspace,
             onSignOut = root::signOut,
             onDismiss = { sheetOpen = false },

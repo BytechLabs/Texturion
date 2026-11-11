@@ -49,7 +49,13 @@ import com.loonext.android.core.model.PipelineReport
 import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.core.model.SatisfactionReport
+import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.Tag
+import com.loonext.android.core.model.TrashCallDetail
+import com.loonext.android.core.model.TrashConversationDetail
+import com.loonext.android.core.model.TrashItem
+import com.loonext.android.core.model.TrashMessageDetail
+import com.loonext.android.core.model.TrashVoicemailDetail
 import com.loonext.android.core.model.TaskContactLocation
 import com.loonext.android.core.model.TaskDetail
 import com.loonext.android.core.model.TaskProfile
@@ -63,6 +69,7 @@ import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.features.foryou.ForYouList
 import com.loonext.android.features.inbox.InboxAuditBody
 import com.loonext.android.features.settings.SettingsIndex
+import com.loonext.android.features.settings.TrashScreen
 import com.loonext.android.features.shell.AccountSheetContent
 import com.loonext.android.features.tasks.CallTaskButton
 import com.loonext.android.features.tasks.TaskDetailScreen
@@ -458,6 +465,42 @@ class IssueEvidenceScreenshotTest {
         onSignOut = {},
         onDismiss = {},
     )
+
+    // --- 11. trash ----------------------------------------------------------------------
+
+    @Test fun `trash light`() = shoot("trash", dark = false, settle = true) { trash() }
+    @Test fun `trash dark`() = shoot("trash", dark = true, settle = true) { trash() }
+
+    @Composable
+    private fun trash() {
+        val now = java.time.Instant.now()
+        fun row(kind: String, id: String, deletedDaysAgo: Long, build: (TrashItem) -> TrashItem) = build(
+            TrashItem(
+                id = id,
+                kind = kind,
+                deleted_at = now.minus(java.time.Duration.ofDays(deletedDaysAgo)).toString(),
+                deleted_by_user_id = if (id == "cv1") "usr_1" else null,
+                purge_after = now.plus(java.time.Duration.ofDays(30 - deletedDaysAgo)).toString(),
+            ),
+        )
+        graph.storeCache.flowOf<Page<TrashItem>>(CacheKeys.trash("co_1")).value = Page(
+            data = listOf(
+                row("conversation", "cv1", 1) {
+                    it.copy(conversation = TrashConversationDetail("Dana Whitcomb", "+14165550134", 12))
+                },
+                row("message", "m1", 3) {
+                    it.copy(message = TrashMessageDetail(null, "+14165550188", "cv2", "outbound", "See you Tuesday at 9, bring the long ladder."))
+                },
+                row("call", "call1", 9) {
+                    it.copy(call = TrashCallDetail("Sam Okafor", null, "answered", now.toString(), true))
+                },
+                row("voicemail", "call2", 29) {
+                    it.copy(voicemail = TrashVoicemailDetail("Priya Nair", null, now.toString(), 42))
+                },
+            ),
+        )
+        TrashScreen(graph = graph, companyId = "co_1", meUserId = "usr_1")
+    }
 
     // --- harness --------------------------------------------------------------------------
 

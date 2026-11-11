@@ -75,8 +75,6 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.canDeleteRecords
-import com.loonext.android.features.settings.openExternal
-import com.loonext.android.ui.common.TRASH_URL
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.DsChip
@@ -108,6 +106,7 @@ fun AccountSheet(
     onOpenContacts: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenTrash: () -> Unit = {},
     onSwitchWorkspace: (String) -> Unit,
     onSignOut: () -> Unit,
     onDismiss: () -> Unit,
@@ -132,6 +131,7 @@ fun AccountSheet(
             onOpenContacts = onOpenContacts,
             onOpenNotifications = onOpenNotifications,
             onOpenSettings = onOpenSettings,
+            onOpenTrash = onOpenTrash,
             onSwitchWorkspace = onSwitchWorkspace,
             onSignOut = onSignOut,
             onDismiss = onDismiss,
@@ -156,6 +156,7 @@ internal fun AccountSheetContent(
     onOpenContacts: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenTrash: () -> Unit = {},
     onSwitchWorkspace: (String) -> Unit,
     onSignOut: () -> Unit,
     onDismiss: () -> Unit,
@@ -321,15 +322,14 @@ internal fun AccountSheetContent(
                     },
                 )
                 // #735: the Trash sits with the other destinations, for the roles
-                // that can delete (and so restore). The phones hold no Trash
-                // screen, so this opens the web one.
+                // that can delete (and so restore).
                 if (canDeleteRecords(membership?.role)) {
                     RowDivider()
                     SheetRow(
                         icon = Icons.Outlined.Delete,
                         label = t("shell.navTrash"),
                         onClick = {
-                            openExternal(context, TRASH_URL)
+                            onOpenTrash()
                             onDismiss()
                         },
                     )

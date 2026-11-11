@@ -166,7 +166,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.conversationDeleted" to "Conversation deleted",
         "thread.conversationDeletedHint" to
             "It is in the Trash for 30 days. You can restore it there on the web.",
-        "thread.restoreFailed" to "Couldn't restore it. Try again, or check the Trash on the web.",
+        "thread.restoreFailed" to "Couldn't restore it. Try again, or open Trash from your account.",
         // --- Mute and follow (#694) ------------------------------------------
         "thread.muteMenu" to "Mute notifications",
         "thread.muteHint" to "Keeps it in your inbox, without alerts",
@@ -926,7 +926,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.conversationDeleted" to "Conversation supprimée",
         "thread.conversationDeletedHint" to
             "Elle reste 30 jours dans la corbeille. Vous pouvez l'y restaurer sur le web.",
-        "thread.restoreFailed" to "Impossible de la restaurer. Réessayez, ou vérifiez la corbeille sur le web.",
+        "thread.restoreFailed" to "Impossible de la restaurer. Réessayez, ou ouvrez la corbeille depuis votre compte.",
         "thread.muteMenu" to "Mettre les notifications en sourdine",
         "thread.muteHint" to "Le garde dans votre boîte, sans alertes",
         "thread.mute1h" to "Pendant 1 heure",

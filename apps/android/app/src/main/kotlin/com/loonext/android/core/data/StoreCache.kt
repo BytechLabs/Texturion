@@ -46,6 +46,9 @@ object CacheKeys {
     fun contactCalls(companyId: String, contactId: String) = "contactCalls/$companyId/$contactId"
     fun calls(companyId: String, filterKey: String = "default") = "calls/$companyId/$filterKey"
 
+    /** #735: the Trash list, first page plus any older pages loaded. */
+    fun trash(companyId: String) = "trash/$companyId"
+
     /** #734: one call's own page, by carrier session id. */
     /** #725: 30-day call counts per reason, one read for every settings note. */
     fun callEffects(companyId: String) = "callEffects/$companyId"
