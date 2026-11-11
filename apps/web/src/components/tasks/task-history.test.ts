@@ -127,14 +127,14 @@ describe("taskHistorySentence", () => {
         "Sam",
         t,
       ),
-    ).toBe("Sam added the label Warranty");
+    ).toBe("Sam added the tag Warranty");
     expect(
       taskHistorySentence(
         event({ event: "label_removed", from: { tag_id: "t1", name: "Warranty" } }),
         "Sam",
         t,
       ),
-    ).toBe("Sam removed the label Warranty");
+    ).toBe("Sam removed the tag Warranty");
     expect(
       taskHistorySentence(
         event({

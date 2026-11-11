@@ -389,14 +389,14 @@ class TaskPlanningTest {
             taskHistorySentence(event("priority", to = JsonPrimitive("urgent")), "Sam", locale = "en"),
         )
         assertEquals(
-            "Sam added the label Warranty",
+            "Sam added the tag Warranty",
             taskHistorySentence(
                 event("label_added", to = buildJsonObject { put("tag_id", "g1"); put("name", "Warranty") }),
                 "Sam", locale = "en",
             ),
         )
         assertEquals(
-            "Sam removed the label VIP",
+            "Sam removed the tag VIP",
             taskHistorySentence(
                 event("label_removed", from = buildJsonObject { put("tag_id", "g2"); put("name", "VIP") }),
                 "Sam", locale = "en",

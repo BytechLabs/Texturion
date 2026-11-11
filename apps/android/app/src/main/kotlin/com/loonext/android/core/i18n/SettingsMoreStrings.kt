@@ -599,7 +599,7 @@ object SettingsMoreStrings : AppStrings.Section {
             "Missed-call text-back, voicemail, screening, caller ID",
         "settingsMore.sectionTemplates" to "Templates & tags",
         "settingsMore.sectionTemplatesBlurb" to
-            "Saved replies, and the labels you file conversations under",
+            "Saved replies, and the tags you file conversations under",
         "settingsMore.sectionTeam" to "Team",
         "settingsMore.sectionTeamBlurb" to
             "Who can see and answer your customers' texts",

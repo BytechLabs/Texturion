@@ -1250,7 +1250,7 @@ private let settingsMoreIosHomeEn: [String: String] = [
     "settingsMore.sectionTeamBlurb": "Who can see and answer your customers' texts",
     "settingsMore.sectionTemplates": "Templates & tags",
     "settingsMore.sectionTemplatesBlurb":
-        "Saved replies, and the labels you file conversations under",
+        "Saved replies, and the tags you file conversations under",
     "settingsMore.sectionUsage": "Usage",
     "settingsMore.sectionUsageBlurb": "Fair use, your spending cap, and the numbers",
     "settingsMore.searchPlaceholder": "Search settings",

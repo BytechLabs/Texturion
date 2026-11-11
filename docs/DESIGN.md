@@ -275,6 +275,21 @@ Left-nav settings layout (mobile: stacked list → detail pages). Sections:
   7 days, absolute after. Numbers formatted `(416) 555-0182` for display, E.164 under the
   hood, always.
 
+### Glossary: one word per thing (#747)
+
+- **Tag**, never "label". A task's tags and a conversation's tags are one workspace
+  vocabulary (`task_tags` draws from it), so English says Tag, Tags, Add tag, No tags yet
+  on web, Android and iOS. French says *étiquette* for both. The catalogue key names keep
+  `label` in them; only the words people read changed.
+- "Label" stays for what it names elsewhere: a custom field's label, a vCard property's
+  label, a caller-ID label on a screened call. Each is a named exception in the guard.
+- The guard: `apps/web/src/i18n/retired-words.test.ts`, `RetiredWordsTest.kt` (Android) and
+  `RetiredWordsTests.swift` (iOS) read each client's English catalogue and fail when a
+  value says "label" without a named exception, or when an exception stops matching. A
+  new retired word goes in the same three tests.
+- Other pairs (conversation and thread, contact and customer, number and line) are not
+  settled yet; when one is, add its word here and its retired word to the three guards.
+
 ## G11. Accessibility & quality bar
 
 - **Canonical accessibility contract:** `docs/APP-LAYOUT-V2.md` §7 owns the WCAG 2.2

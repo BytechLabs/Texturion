@@ -128,8 +128,8 @@ describe("TaskBulkBar priority and labels (#693)", () => {
 
   it("#713: offers the workspace tags as one Labels control", () => {
     openMore();
-    expect(screen.getAllByText("Labels")).toHaveLength(1);
-    expect(screen.queryByText("Add label")).toBeNull();
+    expect(screen.getAllByText("Tags")).toHaveLength(1);
+    expect(screen.queryByText("Add tag")).toBeNull();
     expect(screen.queryByText("Remove label")).toBeNull();
   });
 });

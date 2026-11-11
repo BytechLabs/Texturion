@@ -160,7 +160,7 @@ describe("#689 New task", () => {
     openWith();
     typeTitle("Fix the boiler");
     fireEvent.click(screen.getByRole("button", { name: "More" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add label" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add tag" }));
     fireEvent.click(await screen.findByText("Warranty"));
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());

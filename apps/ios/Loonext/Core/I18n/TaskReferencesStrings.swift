@@ -93,7 +93,7 @@ enum TaskReferencesStrings {
             "taskRefs.sourceNone": "Added by hand",
             "taskRefs.filterHasAttachments": "Has files",
             "taskRefs.filterHasReferences": "Has references",
-            "taskRefs.filterAnyLabel": "Any label",
+            "taskRefs.filterAnyLabel": "Any tag",
             "taskRefs.filterLayout": "Layout",
             "taskRefs.groupTitle": "Group by",
             "taskRefs.groupStatus": "Status",
@@ -118,7 +118,7 @@ enum TaskReferencesStrings {
             "taskRefs.quickAddPlaceholder": "Fix furnace @rehman tomorrow 9am #urgent",
             "taskRefs.quickAddHint":
                 "Write it the way you would say it. Add @name for who, a day and time for "
-                + "when, #urgent for how much it matters, #label for a label.",
+                + "when, #urgent for how much it matters, #name for a tag.",
             "taskRefs.quickAddPreview": "What I understood",
             "taskRefs.quickAddTitle": "Task",
             "taskRefs.quickAddNoTitle": "Add a few words for the title",
