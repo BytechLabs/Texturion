@@ -1522,6 +1522,9 @@ private struct InboxTitleRow: View {
                             .foregroundStyle(BrandColor.muted500)
                         CountPill(scheduledCount)
                     }
+                    // The clock and pill are small; the tap area is not.
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .accessibilityLabel(
                     scheduledCount == 1

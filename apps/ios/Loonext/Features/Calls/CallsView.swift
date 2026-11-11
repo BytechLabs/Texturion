@@ -699,20 +699,32 @@ private struct SoftphoneStatusPill: View {
         }
     }
 
+    // Only "offline, retry" does anything when tapped, so only it is a button,
+    // with a full-size target; ready and connecting are status text.
     var body: some View {
-        Button {
-            if status == .disconnected { onRetry() }
-        } label: {
-            HStack(spacing: 5) {
-                Circle()
-                    .fill(dotColor)
-                    .frame(width: 6, height: 6)
-                Text(label)
-                    .font(.golos(11, weight: .semibold))
-                    .foregroundStyle(textColor)
+        if status == .disconnected {
+            Button {
+                onRetry()
+            } label: {
+                pill
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+        } else {
+            pill
         }
-        .buttonStyle(.plain)
+    }
+
+    private var pill: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(dotColor)
+                .frame(width: 6, height: 6)
+            Text(label)
+                .font(.golos(11, weight: .semibold))
+                .foregroundStyle(textColor)
+        }
     }
 }
 
