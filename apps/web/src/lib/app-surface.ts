@@ -35,6 +35,10 @@ const EXTRA_APP_PREFIXES = [
   // pick up an hour of shared-cache TTL on a page that has to stop opening the
   // moment the bill is paid.
   "/pay",
+  // The website button's live preview, framed by Settings on the app host. On
+  // neither list it was 308ed to the marketing apex, which only lets itself
+  // frame its pages, so Settings showed "loonext.com refused to connect".
+  "/widget-preview",
 ] as const;
 
 function matchesPrefix(pathname: string, prefix: string): boolean {

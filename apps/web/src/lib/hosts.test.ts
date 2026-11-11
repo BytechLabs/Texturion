@@ -4,6 +4,10 @@
  * origin serves ONLY the product; unset appOrigin (dev/CI) or an unknown host
  * (previews) disables the split entirely.
  */
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { isAppSurfacePath } from "./app-surface";
@@ -199,5 +203,32 @@ describe("decideBlogRoute — blog subdomain (#130)", () => {
         blogOrigin: "not-a-url",
       }),
     ).toBeNull();
+  });
+});
+
+describe("pages the app frames", () => {
+  // A relative iframe src is fetched from the app host. If that path is not an
+  // app-surface path it is 308ed to the marketing apex, which only lets itself
+  // frame its pages, and the frame says "refused to connect". The website
+  // button's preview did exactly that.
+  it("are all served on the app host", () => {
+    const root = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.tsx$/.test(entry.name) && !/\.test\.tsx$/.test(entry.name)) files.push(full);
+      }
+    };
+    walk(root);
+    const framed = files.flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(/<iframe[\s\S]*?src=\{?[`"'](\/[^`"'?$]*)/g)].map(
+        (match) => match[1],
+      ),
+    );
+    expect(framed).toContain("/widget-preview");
+    expect(framed.filter((path) => !isAppSurfacePath(path))).toEqual([]);
+    expect(decide("app.loonext.com", "/widget-preview")).toBeNull();
   });
 });
