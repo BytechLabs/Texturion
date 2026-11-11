@@ -36,6 +36,23 @@ final class MainActionWiringTests: XCTestCase {
         text.components(separatedBy: needle).count - 1
     }
 
+    /// The source without its #238 audit fixtures (`…AuditScreen` types and
+    /// `…Fixture()` functions), which draw the real header, main action
+    /// included, a second time for the accessibility audit.
+    private func withoutAuditFixtures(_ text: String) -> String {
+        let fixtureStart = #"^(private |fileprivate )?(struct \w+AuditScreen\b|func \w+Fixture\()"#
+        var kept: [Substring] = []
+        var skipping = false
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            if !skipping, line.range(of: fixtureStart, options: .regularExpression) != nil {
+                skipping = true
+            }
+            if !skipping { kept.append(line) }
+            if skipping, line == "}" { skipping = false }
+        }
+        return kept.joined(separator: "\n")
+    }
+
     /// A `plus` symbol with a 38pt frame within the few lines after it.
     private func drawsPlusIn38ptCircle(_ text: String) -> Bool {
         text.components(separatedBy: "systemName: \"plus\"").dropFirst().contains { after in
@@ -47,7 +64,7 @@ final class MainActionWiringTests: XCTestCase {
         for tab in tabs {
             let text = try source(tab.path)
             XCTAssertEqual(
-                count(of: ".mainAction(", in: text), 1,
+                count(of: ".mainAction(", in: withoutAuditFixtures(text)), 1,
                 "\(tab.path) must draw its main action with .mainAction(, once"
             )
             XCTAssertTrue(
