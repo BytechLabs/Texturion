@@ -3,6 +3,11 @@
 let whatsNewGeneratedEntries: [WhatsNewEntry] = [
     WhatsNewEntry(
         date: "2026-11-11",
+        title: "whatsNew.statusChangesAuditedTitle",
+        body: "whatsNew.statusChangesAuditedBody"
+    ),
+    WhatsNewEntry(
+        date: "2026-11-11",
         title: "whatsNew.calendarCreateTitle",
         body: "whatsNew.calendarCreateBody"
     ),
@@ -55,10 +60,5 @@ let whatsNewGeneratedEntries: [WhatsNewEntry] = [
         date: "2026-08-17",
         title: "whatsNew.quotesFromConversationTitle",
         body: "whatsNew.quotesFromConversationBody"
-    ),
-    WhatsNewEntry(
-        date: "2026-08-17",
-        title: "whatsNew.calendarSubscribeTitle",
-        body: "whatsNew.calendarSubscribeBody"
     ),
 ]

@@ -3,6 +3,7 @@ package com.loonext.android.features.settings
 
 /** Newest first, the newest 12. */
 val WHATS_NEW_ENTRIES: List<WhatsNewEntry> = listOf(
+    WhatsNewEntry("2026-11-11", "whatsNew.statusChangesAuditedTitle", "whatsNew.statusChangesAuditedBody"),
     WhatsNewEntry("2026-11-11", "whatsNew.calendarCreateTitle", "whatsNew.calendarCreateBody"),
     WhatsNewEntry("2026-11-11", "whatsNew.calendarLinkBackTitle", "whatsNew.calendarLinkBackBody"),
     WhatsNewEntry("2026-11-11", "whatsNew.settingChoicesTitle", "whatsNew.settingChoicesBody"),
@@ -14,5 +15,4 @@ val WHATS_NEW_ENTRIES: List<WhatsNewEntry> = listOf(
     WhatsNewEntry("2026-11-10", "whatsNew.menusTitle", "whatsNew.menusBody"),
     WhatsNewEntry("2026-10-29", "whatsNew.calendarSyncTitle", "whatsNew.calendarSyncBody"),
     WhatsNewEntry("2026-08-17", "whatsNew.quotesFromConversationTitle", "whatsNew.quotesFromConversationBody"),
-    WhatsNewEntry("2026-08-17", "whatsNew.calendarSubscribeTitle", "whatsNew.calendarSubscribeBody"),
 )
