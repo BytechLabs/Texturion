@@ -536,7 +536,7 @@ private fun ThreadLoaded(
     // Call button (#165): authorize + place through the softphone. The mic is
     // preflighted BEFORE authorizing (a denial never reserves the line or
     // bills); gate refusals arrive coded (usage_cap_reached,
-    // subscription_inactive, conflict "line on another call") with honest
+    // subscription_inactive, conflict "number on another call") with honest
     // server copy — surfaced verbatim on the snackbar. Stays enabled for
     // opted-out contacts: voice consent ≠ SMS consent.
     val softphone = remember(graph) { SoftphoneManager.get(context, graph.api) }

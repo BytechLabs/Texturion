@@ -441,7 +441,7 @@ struct DialerSheet: View {
                 dismiss()
             } catch {
                 // Gate refusals arrive coded (usage_cap_reached,
-                // subscription_inactive, conflict "line on another call",
+                // subscription_inactive, conflict "number on another call",
                 // validation_failed) with honest server copy — show it.
                 errorText = error.userMessage
             }

@@ -202,7 +202,7 @@ fun DialerSheet(
                 onDismiss()
             } catch (cause: ApiException) {
                 // Gate refusals arrive coded (usage_cap_reached,
-                // subscription_inactive, conflict "line on another call",
+                // subscription_inactive, conflict "number on another call",
                 // validation_failed) with honest server copy — show it.
                 error = cause.userMessage(locale)
             } catch (cause: Exception) {

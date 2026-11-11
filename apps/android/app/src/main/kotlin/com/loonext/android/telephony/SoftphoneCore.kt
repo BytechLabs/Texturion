@@ -1044,7 +1044,7 @@ class SoftphoneCore(
      * Place an outbound call. Exactly one origin: an existing thread, a
      * contact (no thread yet), or raw dialed digits. Gate refusals surface as
      * [ApiException] BY CODE (usage_cap_reached, subscription_inactive,
-     * conflict "line on another call", validation_failed).
+     * conflict "number on another call", validation_failed).
      *
      * #213: the client NO LONGER dials the customer. Dialing the customer from
      * here produced only the PLACER's own WebRTC leg, so customer_call_control_id
