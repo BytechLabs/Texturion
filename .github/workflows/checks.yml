@@ -57,10 +57,14 @@ permissions:
 # supersedes the in-flight checks for that branch, so the old run is wasted
 # work and just delays the queue.
 #
-# main is NOT cancelled — but that is main.yml's concurrency group, not this
-# one, because a run called through `workflow_call` inherits the caller's.
+# On main the group is per COMMIT. A run called through `workflow_call` does
+# not inherit main.yml's group: it is held by this one as well, and GitHub keeps
+# one PENDING run per group. Keyed on the ref, every main run shared a group, so
+# a third push replaced a gate still waiting for the runner. That is how the
+# rerun of release 0.28.0's gates (run 42944874459) ended cancelled with no
+# step run, and with them the release (the #532 failure, through this file).
 concurrency:
-  group: checks-${{ github.workflow }}-${{ github.ref }}
+  group: checks-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -630,6 +634,11 @@ jobs:
       # half of #581 and is invisible to every other check here.
       - name: Guard workflow pins and trust conditions
         run: node scripts/check-action-pins.mjs
+
+      # A release's gate waiting for a runner must not be replaced by the next
+      # push's: every workflow on the release path keys its group on the commit.
+      - name: Guard release-path concurrency
+        run: node scripts/check-workflow-concurrency.mjs
 
       # feat/fix/perf subjects are published verbatim in the release notes, so
       # they are checked like changelog copy. The commit-msg hook catches this
