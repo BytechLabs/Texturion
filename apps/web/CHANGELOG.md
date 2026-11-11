@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.1](https://github.com/BytechLabs/Texturion/compare/web-v0.30.0...web-v0.30.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **clients:** a timestamp reads as when it happened, never Jul 14 ago ([4d70607](https://github.com/BytechLabs/Texturion/commit/4d70607c42bde30de8c78bb3b184486ebbcab0db))
+
 ## [0.30.0](https://github.com/BytechLabs/Texturion/compare/web-v0.29.0...web-v0.30.0) (2026-11-11)
 
 
