@@ -869,7 +869,7 @@ begin
    where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1';
   select * into r from public.port_requests
   where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1';
-  if r.status <> 'draft' or r.account_number is null then
+  if r.status is distinct from 'draft' or r.account_number is null then
     raise exception 'PT24 FAILED: a refused jump to ported left status % with account number set=%',
       r.status, r.account_number is not null;
   end if;
@@ -1008,7 +1008,7 @@ begin
   where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c3';
   select * into r from public.port_requests
   where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c3';
-  if r.status <> 'cancelled' or r.account_number is not null then
+  if r.status is distinct from 'cancelled' or r.account_number is not null then
     raise exception 'PT26 FAILED: a cancelled port was revived (status %, account number set=%)',
       r.status, r.account_number is not null;
   end if;
