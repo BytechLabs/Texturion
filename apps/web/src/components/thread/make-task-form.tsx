@@ -10,6 +10,7 @@ import { createdToast } from "@/components/ui/created-toast";
 import { CountryDatalist } from "@/components/ui/country-datalist";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { undoableToast } from "@/components/ui/optimistic-undo";
 import {
   Select,
   SelectContent,
@@ -223,13 +224,12 @@ export function MakeTaskForm({
     const previousProvenance = addrProvenance;
     setAddr(EMPTY_ADDRESS);
     setAddrProvenance(null);
-    toast(t("thread.addressCleared"), {
-      action: {
-        label: t("thread.undo"),
-        onClick: () => {
-          setAddr(previousAddr);
-          setAddrProvenance(previousProvenance);
-        },
+    undoableToast({
+      message: t("thread.addressCleared"),
+      undoLabel: t("thread.undo"),
+      onUndo: () => {
+        setAddr(previousAddr);
+        setAddrProvenance(previousProvenance);
       },
     });
   }

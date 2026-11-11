@@ -30,7 +30,7 @@ the public job-photo page keep their own type scale and are out of scope).
 | Filter row | `ListFilterHeader` (#711) | `ListFilterHeader.kt` | `ListFilterHeader.swift` | | done |
 | Activity timeline | `ActivityTimeline` (#714) | `ActivityTimeline.kt` | `ActivityTimelineView.swift` | `activity-line.test.ts`, `ActivityLineTest(s)` | done |
 | Icon size | three sizes: 14px (`size-3.5`), 16px (`size-4`), 20px (`size-5`); stroke 1.75 | | | `icon-size.test.ts` | done on web: the sidebar, the bell and the composer moved onto the three sizes, stroke 1.75 |
-| Toasts | `undoableToast` for anything reversible, `createdToast` for something made elsewhere, plain success or error otherwise | | | none yet | **open**: contact, template and file deletes report with no Undo because no restore exists. Trash restores only conversations, messages, calls and voicemails (`POST /v1/trash/restore` refuses a contact), and templates and attachments have no restore call. Wiring an Undo needs a server restore first |
+| Toasts | `undoableToast` (five seconds, one Undo) for anything the product can put back, `createdToast` for something made elsewhere, plain success or error otherwise. A delete the product cannot put back asks first through `ConfirmDialog` and then reports with a plain toast | | | `optimistic-undo.test.ts` fails on an Undo action built outside `undoableToast`, and on a plain "deleted" or "removed" toast in a file with no `ConfirmDialog` (one named exception: removing texting asks the owner to type the number) | done on web: the task form's "Address cleared" moved onto `undoableToast`. Contact, template and file deletes have no restore in the product, so they confirm first and report plainly |
 
 ## Rules that hold everywhere
 
