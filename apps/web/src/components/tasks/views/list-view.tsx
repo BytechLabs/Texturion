@@ -35,6 +35,7 @@ import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
 import { EmptyTasks } from "../task-empty";
 import { InlineAssignee, InlineDue } from "../task-inline-edit";
 import { useTaskRowActions } from "../task-actions";
+import { useIsXl } from "@/lib/use-is-xl";
 import { useTaskDrawer } from "../use-task-drawer";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
 import { taskSourceLink } from "../task-format";
@@ -239,7 +240,8 @@ function TaskRow({
 }) {
   const t = useT();
   const { openTask } = useTaskDrawer();
-  const source = taskSourceLink(task, t);
+  const wide = useIsXl();
+  const source = taskSourceLink(task, t, { besideTask: wide });
   // #712: right-click, long-press or the menu key opens the task's one action list.
   const { actions, dialogs } = useTaskRowActions(task);
   return (

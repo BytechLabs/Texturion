@@ -93,12 +93,18 @@ export interface TaskSourceLink {
  * standalone task has none, so no view can print "Open conversation" for a
  * conversation that is not there. A message source lands on the message, a call
  * source on the call's line in the thread, and both open this task beside it.
+ *
+ * `besideTask: false` leaves the task out, for a screen too narrow to dock it:
+ * there the task opens as a drawer over the thread and would hide the very
+ * message the link was followed to see.
  */
 export function taskSourceLink(
   task: SourceLinkTask,
   t: Translate,
+  { besideTask = true }: { besideTask?: boolean } = {},
 ): TaskSourceLink | null {
   const conversationId = task.conversation_id;
+  const taskId = besideTask ? task.id : null;
   if (conversationId === null) return null;
 
   const call = task.source_call ?? task.call ?? null;
@@ -109,7 +115,7 @@ export function taskSourceLink(
       label: t("tasks.linkFromCall", { name: name ?? t("shell.unknownCaller") }),
       href: threadHref(conversationId, {
         callSessionId: call?.call_session_id ?? null,
-        taskId: task.id,
+        taskId,
       }),
     };
   }
@@ -117,7 +123,7 @@ export function taskSourceLink(
   if (task.message_id === null) return null;
   const href = threadHref(conversationId, {
     messageId: task.message_id,
-    taskId: task.id,
+    taskId,
   });
   if (task.source_message?.direction === "note" || task.source?.direction === "note") {
     return { kind: "note", label: t("tasks.linkNote"), href };

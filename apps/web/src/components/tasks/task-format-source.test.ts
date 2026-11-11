@@ -47,6 +47,16 @@ describe("#718 a source link names a source that exists, and only then", () => {
     });
   });
 
+  it("on a narrow screen opens the message without the task drawer covering it", () => {
+    expect(
+      taskSourceLink(
+        { id: "t1", conversation_id: "c1", message_id: "m1", contact: null },
+        t,
+        { besideTask: false },
+      )?.href,
+    ).toBe("/inbox/c1?message=m1");
+  });
+
   it("does not invent a name it does not have", () => {
     expect(
       taskSourceLink(

@@ -28,6 +28,7 @@ import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
 import { RecordHeader } from "@/components/ui/record-header";
+import { useIsXl } from "@/lib/use-is-xl";
 import { CountryDatalist } from "@/components/ui/country-datalist";
 import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { Input } from "@/components/ui/input";
@@ -177,7 +178,9 @@ function TaskDetailLoaded({
   const { role } = useActiveCompany();
   const conversationId = taskThreadId(task);
   // #718: the named link to where this task came from; null for a standalone one.
-  const sourceLink = taskSourceLink(task, t);
+  // A narrow screen cannot dock the task beside the thread, so the link drops it.
+  const wide = useIsXl();
+  const sourceLink = taskSourceLink(task, t, { besideTask: wide });
 
   // #107: the task is global (always shown), but its source conversation is on
   // a number this viewer can't access — the server withheld the message, files,
