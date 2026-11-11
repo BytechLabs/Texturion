@@ -51,6 +51,7 @@ import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.Tag
+import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.TrashCallDetail
 import com.loonext.android.core.model.TrashConversationDetail
 import com.loonext.android.core.model.TrashItem
@@ -66,6 +67,8 @@ import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.calls.callRowActions
 import com.loonext.android.features.contacts.ContactDetailScreen
 import com.loonext.android.features.contacts.ContactMutations
+import com.loonext.android.features.contacts.ContactsSnapshot
+import com.loonext.android.features.contacts.ContactsTab
 import com.loonext.android.features.foryou.ForYouList
 import com.loonext.android.features.inbox.InboxAuditBody
 import com.loonext.android.features.settings.SettingsIndex
@@ -73,7 +76,10 @@ import com.loonext.android.features.settings.TrashScreen
 import com.loonext.android.features.shell.AccountSheetContent
 import com.loonext.android.features.tasks.CallTaskButton
 import com.loonext.android.features.tasks.TaskDetailScreen
+import com.loonext.android.features.tasks.TaskListLoader
+import com.loonext.android.features.tasks.TaskListSnapshot
 import com.loonext.android.features.tasks.TaskMutations
+import com.loonext.android.features.tasks.TasksTab
 import com.loonext.android.ui.theme.LoonextTheme
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -124,6 +130,7 @@ class IssueEvidenceScreenshotTest {
                 return when {
                     path == "/v1/contacts/p1/activity" -> MockResponse(body = ACTIVITY_JSON)
                     path == "/v1/members" -> MockResponse(body = MEMBERS_JSON)
+                    path == "/v1/tags" -> MockResponse(body = TAGS_JSON)
                     path == "/v1/calls" -> MockResponse(body = CALLS_JSON)
                     else -> MockResponse(code = 404, body = """{"error":"not in this test"}""")
                 }
@@ -502,6 +509,66 @@ class IssueEvidenceScreenshotTest {
         TrashScreen(graph = graph, companyId = "co_1", meUserId = "usr_1")
     }
 
+    // --- 12. tasks ----------------------------------------------------------------------
+    // The real Tasks tab, painted from the cache entry the app itself reads first; the
+    // mock server answers 404 to the revalidation, which keeps what is cached.
+
+    @Test fun `tasks light`() = shoot("tasks", dark = false, settle = true) { tasks() }
+    @Test fun `tasks dark`() = shoot("tasks", dark = true, settle = true) { tasks() }
+
+    @Composable
+    private fun tasks() {
+        val now = java.time.Instant.now()
+        fun task(id: String, title: String, dueHours: Long?, assignee: String?, done: Boolean = false) = Task(
+            id = id,
+            company_id = "co_1",
+            title = title,
+            assigned_user_id = assignee,
+            due_at = dueHours?.let { now.plus(java.time.Duration.ofHours(it)).toString() },
+            created_by_user_id = "usr_1",
+            created_at = now.minus(java.time.Duration.ofDays(2)).toString(),
+            updated_at = now.minus(java.time.Duration.ofDays(1)).toString(),
+            done = done,
+            status = if (done) "done" else "open",
+        )
+        val rows = listOf(
+            task("t1", "Replace the kitchen faucet at 14 Alder St", -5, "usr_1"),
+            task("t2", "Quote the water heater swap for Priya", 3, "usr_1"),
+            task("t3", "Call back about the permit", 26, null),
+            task("t4", "Order shutoff valves", 74, "usr_1"),
+        )
+        graph.storeCache.flowOf<TaskListSnapshot>(CacheKeys.tasks("co_1", "default")).value =
+            TaskListSnapshot(rows, false, TaskListLoader(TaskMutations(graph.api), "co_1", emptyList()))
+        TasksTab(graph = graph, companyId = "co_1", me = previewMe(), onOpenTask = {})
+    }
+
+    // --- 13. contacts -------------------------------------------------------------------
+
+    @Test fun `contacts light`() = shoot("contacts", dark = false, settle = true) { contacts() }
+    @Test fun `contacts dark`() = shoot("contacts", dark = true, settle = true) { contacts() }
+
+    @Composable
+    private fun contacts() {
+        val now = java.time.Instant.now()
+        fun person(id: String, name: String?, phone: String, hoursAgo: Long, optedOut: Boolean = false) = CONTACT.copy(
+            id = id,
+            name = name,
+            phone_e164 = phone,
+            last_activity_at = now.minus(java.time.Duration.ofHours(hoursAgo)).toString(),
+            opted_out = optedOut,
+        )
+        val rows = listOf(
+            person("p1", "Dana Whitcomb", "+14155550134", 2),
+            person("p2", "Priya Nair", "+14155550177", 30),
+            person("p3", "Sam Okafor", "+14155550188", 80, optedOut = true),
+            person("p4", null, "+14155550199", 400),
+            person("p5", "Marcus Bell", "+14155550142", 900),
+        )
+        graph.storeCache.flowOf<ContactsSnapshot>(CacheKeys.contacts("co_1")).value =
+            ContactsSnapshot(rows, null)
+        ContactsTab(graph = graph, companyId = "co_1", me = previewMe())
+    }
+
     // --- harness --------------------------------------------------------------------------
 
     private fun shoot(
@@ -642,6 +709,8 @@ class IssueEvidenceScreenshotTest {
             created_at = "2026-06-02T12:00:00Z",
             updated_at = "2026-07-15T12:00:00Z",
         )
+
+        const val TAGS_JSON = """{"data":[{"id":"tg1","name":"Repeat customer"},{"id":"tg2","name":"Landlord"}],"next_cursor":null}"""
 
         const val MEMBERS_JSON = """{"data":[{"id":"mem_1","user_id":"usr_1","role":"owner","created_at":"2026-01-01T00:00:00Z","display_name":"Jordan Lee"}],"next_cursor":null}"""
 
