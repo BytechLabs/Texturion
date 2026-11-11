@@ -78,23 +78,6 @@ export function TaskNumber({
   );
 }
 
-/** The derived-status pill (T6.1): quiet stone for open, success tint for done. */
-export function TaskStatusPill({ task }: { task: Task }) {
-  const t = useT();
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-4",
-        task.done
-          ? "bg-success/10 text-emerald-700 dark:bg-success/15 dark:text-success"
-          : "bg-secondary text-stone-600 dark:text-muted-foreground",
-      )}
-    >
-      {task.done ? t("tasks.statusDone") : t("tasks.statusOpen")}
-    </span>
-  );
-}
-
 /**
  * The due cell/chip (T6.1): tabular stone-400, amber ONLY when overdue and
  * not-done (never a red scare). Renders nothing for a task with no due date.

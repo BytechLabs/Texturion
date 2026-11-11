@@ -130,6 +130,9 @@ export const tasksEn = {
   columnTask: "Task",
   columnStatus: "Status",
   selectRowAria: "Select {title}",
+  statusChangeAria: "Status of {title}: {status}. Change status",
+  statusChangedDone: "Task marked done",
+  statusChangedOpen: "Task reopened",
   loadingMore: "Loading…",
   loadMore: "Load more",
 
@@ -743,6 +746,9 @@ export const tasksFr: Translated<typeof tasksEn> = {
   columnTask: "Tâche",
   columnStatus: "Statut",
   selectRowAria: "Sélectionner {title}",
+  statusChangeAria: "Statut de {title} : {status}. Changer le statut",
+  statusChangedDone: "Tâche marquée comme terminée",
+  statusChangedOpen: "Tâche rouverte",
   loadingMore: "Chargement…",
   loadMore: "Afficher plus",
 

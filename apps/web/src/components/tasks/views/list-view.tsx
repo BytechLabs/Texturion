@@ -30,7 +30,8 @@ import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
-import { TaskDoneCheckbox, TaskNumber, TaskStatusPill } from "../task-atoms";
+import { TaskNumber } from "../task-atoms";
+import { TaskStatusPicker } from "../task-status-picker";
 import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
 import { EmptyTasks } from "../task-empty";
 import { InlineAssignee, InlineDue } from "../task-inline-edit";
@@ -44,8 +45,8 @@ import { taskSourceLink } from "../task-format";
  * The List view (T6.1, default) — a calm flat table over GET /v1/tasks. Roomy
  * rows, `--border-subtle` hairlines, one calm column: title (near-black), the
  * linked conversation hint, assignee, derived status, due. The row deep-links
- * back to the source message + conversation; the done checkbox is the one
- * petrol state mark.
+ * back to the source message + conversation; the Status cell is the
+ * one control for changing status (#743).
  */
 export function ListView({ state }: { state: TaskPageState }) {
   const t = useT();
@@ -249,11 +250,9 @@ function TaskRow({
     <li className="group border-b border-border-subtle">
       <div className="flex items-center gap-3 px-3 py-3 transition-colors duration-150 ease-out hover:bg-app-hover md:grid md:min-w-[640px] md:grid-cols-[minmax(0,1fr)_160px_128px_96px] md:gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3 md:items-center">
-          {/* #478: the SELECTION box, distinct from the done box beside it. Two
-              checkboxes in a row is a real risk of confusion, so this one is
-              only offered on hover or once a selection exists — until then the
-              row looks exactly as it did, and the done box keeps its place as
-              the one people reach for. */}
+          {/* #743: the row's one checkbox selects. Status changes from the
+              Status cell, so there is no second look-alike box to mistake for
+              it. Shown on hover or once a selection exists. */}
           <input
             type="checkbox"
             checked={selected}
@@ -263,7 +262,6 @@ function TaskRow({
               selected ? "" : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
             }`}
           />
-          <TaskDoneCheckbox task={task} className="mt-0.5 md:mt-0" />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-baseline gap-2">
               <TaskNumber task={task} />
@@ -296,6 +294,7 @@ function TaskRow({
             <div className="mt-1.5 flex items-center gap-2 md:hidden">
               <InlineAssignee task={task} />
               <InlineDue task={task} />
+              <TaskStatusPicker task={task} />
             </div>
           </div>
         </div>
@@ -306,7 +305,7 @@ function TaskRow({
           <InlineDue task={task} />
         </div>
         <div className="hidden md:block">
-          <TaskStatusPill task={task} />
+          <TaskStatusPicker task={task} />
         </div>
       </div>
       {dialogs}
