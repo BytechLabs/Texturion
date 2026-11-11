@@ -1302,7 +1302,8 @@ private func previewCall(
     startedAt: String = "2026-07-16T09:05:00Z",
     state: String? = nil,
     answeredBy: String? = nil,
-    answeredAt: String? = nil
+    answeredAt: String? = nil,
+    endedReason: String? = nil
 ) -> Call {
     Call(
         id: id,
@@ -1323,7 +1324,8 @@ private func previewCall(
         answered_by_name: nil,
         started_at: startedAt,
         state: state,
-        answered_at: answeredAt
+        answered_at: answeredAt,
+        ended_reason: endedReason
     )
 }
 
@@ -1366,68 +1368,60 @@ func callLogFixture() -> some View {
 
 @MainActor
 private func callLogFixtureRows(service: CallsService, menu: [RecordAction]) -> some View {
-    ScrollView {
+    // Built like the real list: each row gets its visible actions and its
+    // ending, so the audit and its screenshots see what a person sees.
+    let calls = [
+        previewCall(
+            id: "c1",
+            outcome: CallOutcome.missed,
+            contactName: "Dana Whitcomb",
+            endedReason: "caller_hung_up"
+        ),
+        previewCall(
+            id: "c2",
+            outcome: CallOutcome.answered,
+            callerName: "ARI B",
+            callerE164: "+14155550188",
+            forwardSeconds: 272,
+            endedReason: "answered"
+        ),
+        previewCall(
+            id: "c3",
+            outcome: CallOutcome.answered,
+            direction: "outbound",
+            contactName: "Marta Reyes",
+            forwardSeconds: 58,
+            endedReason: "customer_hung_up"
+        ),
+        previewCall(
+            id: "c4",
+            outcome: CallOutcome.voicemail,
+            callerE164: "+14155550134",
+            voicemailSeconds: 42,
+            endedReason: "left_voicemail"
+        ),
+        previewCall(
+            id: "c5",
+            outcome: CallOutcome.missed,
+            callerE164: "+18005550100",
+            screening: "spam_likely",
+            endedReason: "no_answer_in_time"
+        ),
+    ]
+    return ScrollView {
         PaperCard {
-            CallRow(
-                call: previewCall(
-                    id: "c1",
-                    outcome: CallOutcome.missed,
-                    contactName: "Dana Whitcomb"
-                ),
-                service: service,
-                companyId: "company-1",
-                actions: menu
-            )
-            RowDivider().padding(.leading, 64)
-            CallRow(
-                call: previewCall(
-                    id: "c2",
-                    outcome: CallOutcome.answered,
-                    callerName: "ARI B",
-                    callerE164: "+14155550188",
-                    forwardSeconds: 272
-                ),
-                service: service,
-                companyId: "company-1",
-                actions: menu
-            )
-            RowDivider().padding(.leading, 64)
-            CallRow(
-                call: previewCall(
-                    id: "c3",
-                    outcome: CallOutcome.answered,
-                    direction: "outbound",
-                    contactName: "Marta Reyes",
-                    forwardSeconds: 58
-                ),
-                service: service,
-                companyId: "company-1",
-                actions: menu
-            )
-            RowDivider().padding(.leading, 64)
-            CallRow(
-                call: previewCall(
-                    id: "c4",
-                    outcome: CallOutcome.voicemail,
-                    callerE164: "+14155550134",
-                    voicemailSeconds: 42
-                ),
-                service: service,
-                companyId: "company-1",
-                actions: menu
-            )
-            RowDivider().padding(.leading, 64)
-            CallRow(
-                call: previewCall(
-                    id: "c5",
-                    outcome: CallOutcome.missed,
-                    callerE164: "+18005550100",
-                    screening: "spam_likely"
-                ),
-                service: service,
-                companyId: "company-1",
-                actions: menu
-            )
+            ForEach(calls, id: \.id) { call in
+                CallRow(
+                    call: call,
+                    service: service,
+                    companyId: "company-1",
+                    rowActions: callRowActions(call),
+                    actions: menu
+                )
+                if call.id != calls.last?.id {
+                    RowDivider().padding(.leading, 64)
+                }
+            }
         }
         .padding(18)
     }

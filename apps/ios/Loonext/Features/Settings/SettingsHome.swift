@@ -711,12 +711,19 @@ private struct SettingsIndexPreview: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 13) {
                 ScreenTitle(text: AppStrings.translate(nil, "shell.settings"))
-                PaperCard {
-                    ForEach(Array(SettingsSection.allCases.enumerated()), id: \.element.id) { index, section in
-                        if index > 0 { RowDivider() }
-                        // A button, as the real rows are links: one element per row.
-                        Button {} label: { SettingsSectionRow(section: section) }
-                            .buttonStyle(.plain)
+                // Under the same group headings as the real index (#727).
+                ForEach(groupSettingsSections(Array(SettingsSection.allCases))) { entry in
+                    VStack(alignment: .leading, spacing: 0) {
+                        SectionHeader(label: AppStrings.translate(nil, entry.group.titleKey))
+                            .accessibilityAddTraits(.isHeader)
+                        PaperCard {
+                            ForEach(Array(entry.sections.enumerated()), id: \.element.id) { index, section in
+                                if index > 0 { RowDivider() }
+                                // A button, as the real rows are links: one element per row.
+                                Button {} label: { SettingsSectionRow(section: section) }
+                                    .buttonStyle(.plain)
+                            }
+                        }
                     }
                 }
             }
