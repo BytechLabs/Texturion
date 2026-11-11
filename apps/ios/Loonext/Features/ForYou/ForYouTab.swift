@@ -745,7 +745,8 @@ struct ForYouList: View {
                     onEarlier: { moveBy(entry.id, -1) },
                     onLater: { moveBy(entry.id, 1) },
                     onResize: { cycleSize(entry.id) },
-                    onRemove: { takeOff(entry.id) }
+                    onRemove: { takeOff(entry.id) },
+                    showsName: !hasContent(entry.id)
                 )
                 if hasContent(entry.id) {
                     panelContent(entry.id)

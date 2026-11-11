@@ -28,17 +28,24 @@ struct PanelEditBar: View {
     let onLater: @MainActor () -> Void
     let onResize: @MainActor () -> Void
     let onRemove: @MainActor () -> Void
+    /// A panel with content shows its own heading; only an empty one needs
+    /// naming here. The controls' spoken names carry it either way.
+    var showsName: Bool = true
 
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Text(label)
-                    .font(.golos(14, weight: .semibold))
-                    .foregroundStyle(BrandColor.muted700)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if showsName {
+                    Text(label)
+                        .font(.golos(14, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted700)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Spacer(minLength: 0)
+                }
                 iconButton("xmark", name: removeName, action: onRemove)
             }
             HStack(spacing: 4) {
