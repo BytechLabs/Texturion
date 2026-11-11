@@ -1036,7 +1036,7 @@ private fun OngoingTicker(anchorIso: String, color: Color, modifier: Modifier = 
 
 
 @Composable
-private fun CallRow(
+internal fun CallRow(
     call: Call,
     repo: CallsRepository,
     companyId: String,
@@ -1125,19 +1125,64 @@ private fun CallRow(
             },
         ) {
             Row(
-                Modifier.padding(start = 15.dp, end = 15.dp, top = 11.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier.padding(start = 15.dp, end = 4.dp, top = 2.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.spacedBy(11.dp),
             ) {
-                InitialsAvatar(name, size = 38.dp)
+                // Level with the name line, which the 44dp menu button makes tall.
+                InitialsAvatar(name, size = 38.dp, modifier = Modifier.padding(top = 5.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        name,
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    // Name left; the date and the menu trail on the same line, as on
+                    // the web, so the outcome line below runs the full width.
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            name,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Timestamp(
+                            call.started_at,
+                            pressable = !hasMenu,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            // #566: one line, never wrapped. `relativeTime` emits
+                            // "now"/"5m"/"3h"/"3d" and, past a week, "Jul 16" or
+                            // "Jul 16 2025", and none of those reads better broken in two.
+                            // It sits on the name line, trailing, so the outcome line
+                            // below keeps the full width.
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                        if (hasMenu) {
+                            Box(
+                                Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        haptics.tap()
+                                        menuOpen = true
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Outlined.MoreHoriz,
+                                    contentDescription = t(
+                                        "contactsTasks.callMoreActions",
+                                        "name" to name,
+                                    ),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
                     Row(
                         Modifier.padding(top = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -1199,52 +1244,17 @@ private fun CallRow(
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
                             // #566: THE one element allowed to yield, and the only
-                            // one that can be long — this renders "Answered by
-                            // <display_name> · 4m 32s" and display_name is capped
-                            // at 80 characters (routes/me.ts), so it reaches ~100.
-                            // Unbounded it wrapped to three lines, grew the row and
-                            // starved the pill above.
-                            maxLines = 1,
+                            // one that can be long — "Answered by <display_name> ·
+                            // 4m 32s" reaches ~100 characters. Unbounded it wrapped to
+                            // three lines and starved the pill above, so it is capped.
+                            // #725: the cap is two lines, not one, because this line now
+                            // carries WHY the call ended ("Nobody answered in time"),
+                            // and a reason cut to "Nobody answe…" is no reason. The date
+                            // moved up to the name line, so the line has the full width
+                            // and two lines is rarely needed; the row stays compact.
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
-                        )
-                    }
-                }
-                Timestamp(
-                    call.started_at,
-                    pressable = !hasMenu,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    // #566: a non-weighted sibling is measured BEFORE the
-                    // weighted Column beside it, so at a large OS font scale this
-                    // took its full intrinsic width and crushed the name and
-                    // outcome. One line, never wrapped — `relativeTime` emits
-                    // "now"/"5m"/"3h"/"3d" and, past a week, "Jul 16" or
-                    // "Jul 16 2025", and none of those reads better broken in two.
-                    // The dated forms are the widest at ~11 characters, which is
-                    // what this reserves from the name beside it.
-                    maxLines = 1,
-                    softWrap = false,
-                )
-                if (hasMenu) {
-                    Box(
-                        Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .clickable {
-                                haptics.tap()
-                                menuOpen = true
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            Icons.Outlined.MoreHoriz,
-                            contentDescription = t(
-                                "contactsTasks.callMoreActions",
-                                "name" to name,
-                            ),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
                         )
                     }
                 }
