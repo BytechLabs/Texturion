@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.ConfirmDialog
 import com.loonext.android.ui.common.RefreshBox
 import androidx.compose.material.icons.outlined.TaskAlt
@@ -451,7 +452,7 @@ private fun TaskListScreen(
             ) {
                 ScreenTitle(t("contactsTasks.tasksTitle"), Modifier.weight(1f))
                 if (view != TaskViewKind.Map) {
-                    PaperCircleButton(
+                    PaperIconButton(
                         icon = Icons.Outlined.Search,
                         contentDescription = if (searchOpen) {
                             t("contactsTasks.hideSearch")
@@ -459,7 +460,6 @@ private fun TaskListScreen(
                             t("contactsTasks.searchTaskTitles")
                         },
                         onClick = {
-                            haptics.tap()
                             searchOpen = !searchOpen
                         },
                     )

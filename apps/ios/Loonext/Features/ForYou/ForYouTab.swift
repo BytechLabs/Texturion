@@ -663,15 +663,12 @@ struct ForYouList: View {
             .foregroundStyle(BrandColor.olive)
             .frame(minWidth: 44, minHeight: 44)
         } else {
-            Button(action: onToggleEditing) {
-                Image(systemName: "slider.horizontal.3")
-                    // Scaled, so the glyph grows with the reader's font setting.
-                    .font(.scaled(IconSize.standard, weight: .medium))
-                    .foregroundStyle(BrandColor.muted700)
-                    .frame(width: 44, height: 44)
-                    .background(BrandColor.paper, in: Circle())
-            }
-            .accessibilityLabel(AppStrings.translate(appLocale, "inbox.forYouEditLayout"))
+            PaperIconButton(
+                systemImage: "slider.horizontal.3",
+                label: AppStrings.translate(appLocale, "inbox.forYouEditLayout"),
+                foreground: BrandColor.muted700,
+                action: onToggleEditing
+            )
         }
     }
 

@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
+import com.loonext.android.ui.common.SectionLabel
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
@@ -170,15 +171,7 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
     // narrower than every card around it.
     PaperCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 15.dp)) {
-            Text(
-                t("settingsMore.ownershipCaption"),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.12.em,
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SectionLabel(t("settingsMore.ownershipCaption"))
             Spacer(Modifier.height(8.dp))
             Text(
                 handoverPromptHeadline(kind, locale),

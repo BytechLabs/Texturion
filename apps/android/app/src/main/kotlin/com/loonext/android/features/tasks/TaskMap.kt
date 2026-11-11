@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.IconSize
 import android.Manifest
 import android.content.Context
@@ -409,11 +410,10 @@ private fun TaskMapContent(
                 }
             }
 
-            PaperCircleButton(
+            PaperIconButton(
                 icon = Icons.Outlined.MyLocation,
                 contentDescription = t("contactsTasks.mapMyLocation"),
                 onClick = {
-                    haptics.tap()
                     val granted = context.checkSelfPermission(
                         Manifest.permission.ACCESS_COARSE_LOCATION,
                     ) == PackageManager.PERMISSION_GRANTED

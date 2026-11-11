@@ -1,5 +1,6 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.showUndo
 import com.loonext.android.ui.common.InitialsAvatar
@@ -1656,45 +1657,6 @@ private fun InboxHeader(
             contentDescription = t("inbox.searchAria"),
             onClick = onSearch,
         )
-    }
-}
-
-/** 44dp paper circle with a 17dp stroke icon (design grammar). */
-@Composable
-private fun PaperIconButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    badge: Boolean = false,
-) {
-    val haptics = rememberHaptics()
-    val pressSource = remember { MutableInteractionSource() }
-    // pressScale on the wrapper so the badge dot gives with the circle.
-    Box(Modifier.pressScale(pressSource)) {
-        Surface(
-            onClick = {
-                haptics.tap()
-                onClick()
-            },
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shadowElevation = 1.dp,
-            interactionSource = pressSource,
-            modifier = Modifier.size(44.dp).asButton(),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(IconSize.Default))
-            }
-        }
-        if (badge) {
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .size(9.dp)
-                    .background(MaterialTheme.colorScheme.secondary, CircleShape),
-            )
-        }
     }
 }
 

@@ -169,18 +169,14 @@ struct MfaGateView: View {
 
     private var codeField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(
+            SectionLabel(
                 AppStrings.translate(
                     appLocale,
                     step == .recovery
                         ? "shell.mfaRecoveryCodeLabel"
                         : "shell.mfaSixDigitLabel"
                 )
-                .uppercased()
             )
-            .font(.golos(10.5, weight: .bold))
-            .kerning(1.0)
-            .foregroundStyle(BrandColor.muted500)
             .padding(.horizontal, 4)
             Group {
                 if step == .recovery {

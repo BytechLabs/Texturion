@@ -3,6 +3,7 @@ package com.loonext.android.features.settings
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -307,7 +308,7 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
         title = t("settings.helpIdeaTitle"),
         description = t("settings.helpIdeaIntro"),
     ) {
-        Button(
+        OutlinedButton(
             onClick = {
                 openExternal(
                     context,

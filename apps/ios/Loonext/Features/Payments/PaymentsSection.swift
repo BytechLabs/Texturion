@@ -281,10 +281,7 @@ private struct Fact: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(label.uppercased())
-                .font(.golos(10.5, weight: .bold))
-                .kerning(0.8)
-                .foregroundStyle(BrandColor.muted500)
+            SectionLabel(label)
             Text(value)
                 .font(.golos(13.5))
                 .foregroundStyle(BrandColor.ink)

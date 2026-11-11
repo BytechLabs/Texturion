@@ -4,6 +4,7 @@ import com.loonext.android.ui.common.IconSize
 import android.content.ClipData
 import com.loonext.android.ui.common.SearchField
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SectionLabel
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.ConfirmDialog
 import android.content.ClipboardManager
@@ -888,16 +889,7 @@ private fun UsageStatusCard(usage: Usage, onOpen: () -> Unit) {
     ) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 15.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    caption,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.12.em,
-                    ),
-                    color = captionColor,
-                    modifier = Modifier.weight(1f),
-                )
+                SectionLabel(caption, modifier = Modifier.weight(1f), color = captionColor)
                 resetsIn(usage.period_end)?.let {
                     Text(
                         it,

@@ -21,6 +21,7 @@ import com.loonext.android.features.contacts.contactRelationshipLine
 import com.loonext.android.ui.common.RecordHeader
 import com.loonext.android.ui.common.RecordOpenLink
 import com.loonext.android.ui.common.RecordSection
+import com.loonext.android.ui.common.SectionLabel
 import com.loonext.android.ui.common.choicesBesideDefault
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
@@ -389,11 +390,7 @@ private fun PreferencesSection(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                t("thread.sectionPreferences").uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SectionLabel(t("thread.sectionPreferences"))
             Text(
                 summary,
                 style = MaterialTheme.typography.bodySmall,

@@ -326,13 +326,7 @@ private struct PreferencesSection: View {
                 open.toggle()
             } label: {
                 HStack(spacing: 8) {
-                    Text(
-                        AppStrings.translate(appLocale, "thread.sectionPreferences")
-                            .uppercased()
-                    )
-                    .font(.golos(10.5, weight: .bold))
-                    .kerning(1.2)
-                    .foregroundStyle(BrandColor.muted500)
+                    SectionLabel(AppStrings.translate(appLocale, "thread.sectionPreferences"))
                     Text(summary)
                         .font(.golos(12))
                         .foregroundStyle(BrandColor.muted500)

@@ -1,6 +1,7 @@
 package com.loonext.android.features.thread
 
 import com.loonext.android.ui.common.IconSize
+import com.loonext.android.ui.common.SectionLabel
 import com.loonext.android.ui.common.showUndo
 import android.Manifest
 import com.loonext.android.ui.common.EmptyState
@@ -2470,19 +2471,7 @@ private fun StatusPills(
     onDismiss: () -> Unit,
 ) {
     Column {
-        Text(
-            t("thread.statusHeading"),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = androidx.compose.ui.unit.TextUnit(
-                    0.12f,
-                    androidx.compose.ui.unit.TextUnitType.Em,
-                ),
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 6.dp, bottom = 7.dp),
-        )
+        SectionLabel(t("thread.statusHeading"), modifier = Modifier.padding(start = 6.dp, bottom = 7.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             listOf(
                 ConversationStatus.NEW,

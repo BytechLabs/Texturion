@@ -6,6 +6,7 @@ import androidx.compose.material.icons.outlined.TaskAlt
 import com.loonext.android.ui.common.EmptyStateSize
 import com.loonext.android.ui.common.EmptyState
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SectionLabel
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.RefreshBox
 import androidx.compose.animation.AnimatedContent
@@ -1167,16 +1168,7 @@ private fun RecentCallsHeader(onOpenCalls: (() -> Unit)?) {
         Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            t("inbox.forYouRecentCalls"),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.12.em,
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-            modifier = Modifier.weight(1f),
-        )
+        SectionLabel(t("inbox.forYouRecentCalls"), modifier = Modifier.weight(1f))
         if (onOpenCalls != null) {
             Text(
                 t("inbox.forYouViewAllCalls"),

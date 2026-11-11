@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.RecordHeader
 import android.content.Intent
@@ -342,7 +343,7 @@ private fun DetailTopBar(
             .padding(start = 18.dp, end = 18.dp, top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PaperCircleButton(
+        PaperIconButton(
             icon = Icons.AutoMirrored.Outlined.ArrowBack,
             contentDescription = t("contactsTasks.backToTasks"),
             onClick = onBack,
@@ -747,7 +748,7 @@ private fun TaskDetailBody(
                         // Not offered without access: the server 404s a follow on a task the
                         // caller cannot see.
                         if (!noAccess) {
-                            PaperCircleButton(
+                            PaperIconButton(
                                 icon = if (following) {
                                     Icons.Outlined.Notifications
                                 } else {
@@ -772,11 +773,10 @@ private fun TaskDetailBody(
                             ),
                         )
                         if (taskMenuActions.visible().isNotEmpty()) Box {
-                            PaperCircleButton(
+                            PaperIconButton(
                                 icon = Icons.Outlined.MoreHoriz,
                                 contentDescription = t("contactsTasks.taskActions"),
                                 onClick = {
-                                    haptics.tap()
                                     menuOpen = true
                                 },
                             )

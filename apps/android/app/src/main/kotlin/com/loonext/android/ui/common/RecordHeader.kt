@@ -86,12 +86,7 @@ fun RecordOpenLink(label: String, onClick: () -> Unit) {
 @Composable
 fun RecordSection(label: String, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth()) {
-        Text(
-            label.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
+        SectionLabel(label, modifier = Modifier.padding(bottom = 6.dp))
         content()
     }
 }

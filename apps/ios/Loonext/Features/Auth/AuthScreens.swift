@@ -635,10 +635,7 @@ private struct AuthField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased())
-                .font(.golos(10.5, weight: .bold))
-                .kerning(1.0)
-                .foregroundStyle(BrandColor.muted500)
+            SectionLabel(title)
                 .padding(.horizontal, 4)
             Group {
                 switch kind {

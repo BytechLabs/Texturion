@@ -1,5 +1,7 @@
 package com.loonext.android.features.compose
 
+import com.loonext.android.ui.common.PaperIconButton
+import com.loonext.android.ui.common.SectionLabel
 import com.loonext.android.ui.common.SelectOption
 import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.IconSize
@@ -359,7 +361,7 @@ private fun NewConversationLoaded(
                     .fillMaxWidth()
                     .padding(start = 18.dp, end = 18.dp, top = 8.dp),
             ) {
-                PaperCircleButton(
+                PaperIconButton(
                     icon = Icons.Outlined.Close,
                     contentDescription = t("common.back"),
                     onClick = onBack,
@@ -604,7 +606,7 @@ private fun NewConversationLoaded(
                         info = composer.mediaInfo,
                     )
                 }
-                PaperCircleButton(
+                PaperIconButton(
                     icon = Icons.Outlined.AttachFile,
                     contentDescription = t("thread.addToMessage"),
                     onClick = { mediaPicker.launch(MMS_PICKER_MIME_TYPES) },
@@ -705,16 +707,7 @@ private fun NewConversationLoaded(
 /** Tracked uppercase micro-label above a field group ("TO", "MESSAGE"). */
 @Composable
 private fun MicroLabel(text: String) {
-    Text(
-        text.uppercase(),
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontSize = 10.5.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.1.em,
-        ),
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
-    )
+    SectionLabel(text, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
 }
 
 /**
@@ -768,36 +761,6 @@ private fun ConsentCard(modifier: Modifier = Modifier) {
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
-        }
-    }
-}
-
-/** 44dp paper circle icon button — the design's header/action affordance. */
-@Composable
-private fun PaperCircleButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 1.dp,
-        modifier = modifier.size(44.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                icon,
-                contentDescription = contentDescription,
-                tint = MaterialTheme.colorScheme.onSurface.copy(
-                    alpha = if (enabled) 1f else 0.4f,
-                ),
-                modifier = Modifier.size(IconSize.Default),
-            )
         }
     }
 }

@@ -184,6 +184,26 @@ enum SectionHeadingStyle {
     static func text(_ label: String) -> String { label.uppercased() }
 }
 
+/// #733: the small uppercase label over a group, a field or a list. Every such
+/// label on the phone is this view; `SectionLabelPatternGuardTests` fails a
+/// screen that draws its own. `color` is for the few that carry a state.
+struct SectionLabel: View {
+    let label: String
+    let color: Color
+
+    init(_ label: String, color: Color = BrandColor.muted500) {
+        self.label = label
+        self.color = color
+    }
+
+    var body: some View {
+        Text(SectionHeadingStyle.text(label))
+            .font(.golos(SectionHeadingStyle.size, weight: SectionHeadingStyle.weight))
+            .kerning(SectionHeadingStyle.kerning)
+            .foregroundStyle(color)
+    }
+}
+
 /// Tracked uppercase micro-label + olive tabular count.
 struct SectionHeader: View {
     let label: String
@@ -191,10 +211,7 @@ struct SectionHeader: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(SectionHeadingStyle.text(label))
-                .font(.golos(SectionHeadingStyle.size, weight: SectionHeadingStyle.weight))
-                .kerning(SectionHeadingStyle.kerning)
-                .foregroundStyle(BrandColor.muted500)
+            SectionLabel(label)
             if let count, count > 0 {
                 CountPill(count)
             }

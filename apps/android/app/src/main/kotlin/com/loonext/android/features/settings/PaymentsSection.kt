@@ -42,6 +42,7 @@ import com.loonext.android.features.payments.PaymentsRepository
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
+import com.loonext.android.ui.common.SectionLabel
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
@@ -296,11 +297,7 @@ private fun OutstandingRequirements(requirements: List<String>) {
 @Composable
 private fun Fact(label: String, value: String) {
     Column(Modifier.fillMaxWidth()) {
-        Text(
-            label.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        SectionLabel(label)
         Text(
             value,
             style = MaterialTheme.typography.bodyMedium,

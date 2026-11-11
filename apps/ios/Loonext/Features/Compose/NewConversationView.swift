@@ -262,15 +262,11 @@ private struct NewConversationLoaded: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Button(action: onBack) {
-                Image(systemName: "xmark")
-                    .font(.scaled(IconSize.standard, weight: .medium))
-                    .foregroundStyle(BrandColor.ink)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(BrandColor.paper))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(t("common.back"))
+            PaperIconButton(
+                systemImage: "xmark",
+                label: t("common.back"),
+                action: onBack
+            )
             Spacer()
             Text(t("thread.newTextTitle"))
                 .font(.golos(13, weight: .semibold))
@@ -350,34 +346,24 @@ private struct NewConversationLoaded: View {
                 }
 
                 HStack(spacing: 10) {
-                    Button {
+                    PaperIconButton(
+                        systemImage: "photo",
+                        label: t("thread.attachPhoto")
+                    ) {
                         photosPickerOpen = true
-                    } label: {
-                        Image(systemName: "photo")
-                            .font(.scaled(IconSize.standard, weight: .regular))
-                            .foregroundStyle(BrandColor.ink)
-                            .frame(width: 44, height: 44)
-                            .background(Circle().fill(BrandColor.paper))
                     }
-                    .buttonStyle(.plain)
                     .disabled(composer.photos.count >= maxPhotos)
-                    .accessibilityLabel(t("thread.attachPhoto"))
 
                     // A text carries more than photos. This screen could only
                     // send those, so an audio clip or a PDF meant starting the
                     // conversation somewhere else.
-                    Button {
+                    PaperIconButton(
+                        systemImage: "paperclip",
+                        label: t("thread.attachFile")
+                    ) {
                         fileImporterOpen = true
-                    } label: {
-                        Image(systemName: "paperclip")
-                            .font(.scaled(IconSize.standard, weight: .regular))
-                            .foregroundStyle(BrandColor.ink)
-                            .frame(width: 44, height: 44)
-                            .background(Circle().fill(BrandColor.paper))
                     }
-                    .buttonStyle(.plain)
                     .disabled(composer.photos.count >= maxPhotos)
-                    .accessibilityLabel(t("thread.attachFile"))
 
                     Spacer()
 

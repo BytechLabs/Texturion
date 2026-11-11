@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.PickerOption
 import com.loonext.android.ui.common.SearchablePicker
 import com.loonext.android.ui.common.SelectOption
@@ -252,7 +253,8 @@ internal fun ContactDetailScreen(
                 .padding(horizontal = 18.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PaperCircleButton(
+            PaperIconButton(
+                icon = Icons.AutoMirrored.Outlined.ArrowBack,
                 onClick = onBack,
                 contentDescription = t("contactsTasks.backToContacts"),
             )
@@ -566,9 +568,8 @@ private fun ContactDetailBody(
             },
             trailing = {
                 Box {
-                    PaperCircleButton(
+                    PaperIconButton(
                         onClick = {
-                            haptics.tap()
                             contactMenuOpen = true
                         },
                         contentDescription = t("recordMenu.moreActionsFor", "name" to displayName),
@@ -1524,35 +1525,6 @@ private fun ContactDetailSkeleton() {
         Spacer(Modifier.height(24.dp))
         PaperCard(Modifier.fillMaxWidth()) {
             SkeletonList(rows = 3, avatar = false)
-        }
-    }
-}
-
-/** 44dp paper circle with a 17dp stroke back arrow. */
-@Composable
-private fun PaperCircleButton(
-    onClick: () -> Unit,
-    contentDescription: String,
-    modifier: Modifier = Modifier,
-    icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 1.dp,
-        interactionSource = interaction,
-        modifier = modifier
-            .size(44.dp)
-            .pressScale(interaction),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(IconSize.Default),
-            )
         }
     }
 }

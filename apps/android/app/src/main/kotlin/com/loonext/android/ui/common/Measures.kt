@@ -247,16 +247,7 @@ fun MeasureHeader(
         modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            label.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.12.em,
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-            modifier = Modifier.weight(1f).semantics { heading() },
-        )
+        SectionLabel(label, modifier = Modifier.weight(1f).semantics { heading() })
         trailing?.invoke()
     }
 }

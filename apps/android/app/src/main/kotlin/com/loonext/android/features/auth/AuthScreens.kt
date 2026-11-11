@@ -1,5 +1,6 @@
 package com.loonext.android.features.auth
 
+import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.IconSize
 import android.content.Intent
 import android.content.res.Configuration
@@ -70,6 +71,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
+import com.loonext.android.ui.common.SectionLabel
 import com.loonext.android.ui.common.contentMaxWidth
 import com.loonext.android.ui.common.isCompactHeight
 import com.loonext.android.ui.common.loonextWordmark
@@ -447,21 +449,11 @@ private fun Headline(title: String, body: String?) {
 /** 44dp paper circle back button (auth sub-screens). */
 @Composable
 private fun BackCircle(contentDescription: String, onClick: () -> Unit) {
-    Surface(
+    PaperIconButton(
+        icon = Icons.AutoMirrored.Outlined.ArrowBack,
+        contentDescription = contentDescription,
         onClick = onClick,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 1.dp,
-        modifier = Modifier.size(44.dp).asButton(),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(IconSize.Default),
-            )
-        }
-    }
+    )
 }
 
 /** SSO above the email form (mirrors the web's §1.7 front-door layout). */
@@ -499,14 +491,8 @@ private fun AuthField(
 ) {
     var showPassword by rememberSaveable { mutableStateOf(false) }
     Column(modifier.fillMaxWidth()) {
-        Text(
-            label.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.1.em,
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        SectionLabel(
+            label,
             modifier = Modifier
                 .padding(start = 4.dp, end = 4.dp, bottom = 6.dp)
                 // The field below carries this word as its own name, so the screen

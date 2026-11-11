@@ -65,6 +65,29 @@ object SectionHeadingStyle {
     fun text(label: String): String = label.uppercase()
 }
 
+/**
+ * #733: the small uppercase label over a group, a field or a list. Every such
+ * label on the phone is this one; `SectionLabelGuardTest` fails a screen that
+ * draws its own. [color] is for the few that carry a state (a cap, a pacing warning).
+ */
+@Composable
+fun SectionLabel(
+    label: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    Text(
+        SectionHeadingStyle.text(label),
+        modifier = modifier,
+        style = MaterialTheme.typography.labelSmall.copy(
+            fontSize = SectionHeadingStyle.fontSize,
+            fontWeight = SectionHeadingStyle.weight,
+            letterSpacing = SectionHeadingStyle.tracking,
+        ),
+        color = color,
+    )
+}
+
 @Composable
 fun SectionHeader(
     label: String,
@@ -77,15 +100,7 @@ fun SectionHeader(
             .semantics(mergeDescendants = true) { heading() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            SectionHeadingStyle.text(label),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = SectionHeadingStyle.fontSize,
-                fontWeight = SectionHeadingStyle.weight,
-                letterSpacing = SectionHeadingStyle.tracking,
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        SectionLabel(label)
         if (count != null && count > 0) {
             CountPill(count, modifier = Modifier.padding(start = 8.dp))
         }

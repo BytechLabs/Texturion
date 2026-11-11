@@ -102,6 +102,7 @@ import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.MessageActionId
 import com.loonext.android.ui.common.RecordViewer
+import com.loonext.android.ui.common.SectionLabel
 import com.loonext.android.ui.common.messageActions
 import com.loonext.android.ui.common.visible
 import com.loonext.android.ui.common.pressScale
@@ -1030,16 +1031,7 @@ private fun QuotedMessageWell(message: Message, contactName: String, zone: ZoneI
 /** Tracked-uppercase micro field label ("TITLE", "ASSIGN TO", "DUE"). */
 @Composable
 private fun TaskFieldLabel(text: String) {
-    Text(
-        text.uppercase(),
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontSize = 10.5.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.1.em,
-        ),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
-    )
+    SectionLabel(text, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
 }
 
 /** One member chip: 26dp avatar + name; selected = ink ring + olive check. */

@@ -1,5 +1,6 @@
 package com.loonext.android.features.calls
 
+import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.IconSize
 import android.Manifest
 import com.loonext.android.ui.common.PaperCard
@@ -235,29 +236,11 @@ fun InCallScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
         Row(Modifier.fillMaxWidth()) {
-            val hideInteraction = remember { MutableInteractionSource() }
-            Surface(
-                onClick = {
-                    haptics.tap()
-                    onClose()
-                },
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                shadowElevation = 1.dp,
-                interactionSource = hideInteraction,
-                modifier = Modifier
-                    .size(44.dp)
-                    .pressScale(hideInteraction),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Outlined.KeyboardArrowDown,
-                        contentDescription = t("contactsTasks.hide"),
-                        modifier = Modifier.size(IconSize.Large),
-                    )
-                }
-            }
+            PaperIconButton(
+                icon = Icons.Outlined.KeyboardArrowDown,
+                contentDescription = t("contactsTasks.hide"),
+                onClick = onClose,
+            )
             Spacer(Modifier.weight(1f))
         }
 
@@ -1085,21 +1068,11 @@ private fun InCallScreenPreview() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Row(Modifier.fillMaxWidth()) {
-                        Surface(
+                        PaperIconButton(
+                            icon = Icons.Outlined.KeyboardArrowDown,
+                            contentDescription = t("contactsTasks.hide"),
                             onClick = {},
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surface,
-                            shadowElevation = 1.dp,
-                            modifier = Modifier.size(44.dp),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Outlined.KeyboardArrowDown,
-                                    contentDescription = t("contactsTasks.hide"),
-                                    modifier = Modifier.size(IconSize.Large),
-                                )
-                            }
-                        }
+                        )
                         Spacer(Modifier.weight(1f))
                     }
                     CallerAvatar(

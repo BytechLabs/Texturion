@@ -1822,10 +1822,7 @@ private struct ConversationSheet: View {
 
     private var statusSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(AppStrings.translate(appLocale, "thread.statusHeading"))
-                .font(.golos(10.5, weight: .bold))
-                .kerning(0.6)
-                .foregroundStyle(BrandColor.muted500)
+            SectionLabel(AppStrings.translate(appLocale, "thread.statusHeading"))
                 .padding(.leading, 6)
             statusControl
         }

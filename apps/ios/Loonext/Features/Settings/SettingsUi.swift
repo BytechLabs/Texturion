@@ -209,10 +209,7 @@ struct PreviewBubble: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.golos(10.5, weight: .bold))
-                .kerning(1.0)
-                .foregroundStyle(BrandColor.muted500)
+            SectionLabel(label)
             Text(text)
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.ink)

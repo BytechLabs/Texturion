@@ -1,5 +1,6 @@
 package com.loonext.android
 
+import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.IconSize
 import android.content.Intent
 import android.net.Uri
@@ -1156,24 +1157,12 @@ private fun OverlayScaffold(
                     .fillMaxWidth()
                     .padding(horizontal = 18.dp, vertical = 8.dp),
             ) {
-                Surface(
+                PaperIconButton(
+                    icon = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = t("common.back"),
                     onClick = onBack,
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = 1.dp,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .align(Alignment.CenterStart)
-                        .asButton(),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = t("common.back"),
-                            modifier = Modifier.size(IconSize.Default),
-                        )
-                    }
-                }
+                    modifier = Modifier.align(Alignment.CenterStart),
+                )
                 OverlayTitle(title, Modifier.align(Alignment.Center))
                 actions?.let { slot ->
                     Box(Modifier.align(Alignment.CenterEnd)) { slot() }

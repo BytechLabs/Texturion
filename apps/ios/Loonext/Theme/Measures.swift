@@ -179,10 +179,7 @@ struct MeasureHeader<Trailing: View>: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(label.uppercased())
-                .font(.golos(10.5, weight: .bold))
-                .kerning(1.2)
-                .foregroundStyle(BrandColor.muted500)
+            SectionLabel(label)
             Spacer(minLength: 8)
             trailing()
         }

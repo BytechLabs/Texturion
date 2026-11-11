@@ -110,10 +110,7 @@ struct QuickAddSheet: View {
                 .foregroundStyle(BrandColor.muted500)
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                Text(t("taskRefs.quickAddPreview").uppercased())
-                    .font(.golos(10.5, weight: .bold))
-                    .kerning(1.2)
-                    .foregroundStyle(BrandColor.muted600)
+                SectionLabel(t("taskRefs.quickAddPreview"), color: BrandColor.muted600)
                     .padding(.bottom, 8)
                 PaperCard {
                     previewRow(

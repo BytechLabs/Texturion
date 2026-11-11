@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,32 +43,6 @@ import com.loonext.android.ui.common.asTab
  * paper icon circles, the derived-done ring, pill filters/views, and the
  * 28dp assignee avatar on the secondaryContainer tint.
  */
-
-/** 44dp paper circle with a 17–18dp stroke icon (screen-corner buttons). */
-@Composable
-internal fun PaperCircleButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        shadowElevation = 1.dp,
-        modifier = modifier.size(44.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(IconSize.Default),
-            )
-        }
-    }
-}
 
 /**
  * The round derived-done toggle: hollow 1.8dp muted ring → lime fill with an
