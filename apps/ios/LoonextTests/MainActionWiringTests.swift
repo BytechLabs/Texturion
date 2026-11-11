@@ -36,6 +36,13 @@ final class MainActionWiringTests: XCTestCase {
         text.components(separatedBy: needle).count - 1
     }
 
+    /// A `plus` symbol with a 38pt frame within the few lines after it.
+    private func drawsPlusIn38ptCircle(_ text: String) -> Bool {
+        text.components(separatedBy: "systemName: \"plus\"").dropFirst().contains { after in
+            after.prefix(240).contains("frame(width: 38, height: 38)")
+        }
+    }
+
     func testEachOfTheFourTabsUsesTheSharedMainActionExactlyOnce() throws {
         for tab in tabs {
             let text = try source(tab.path)
@@ -59,8 +66,10 @@ final class MainActionWiringTests: XCTestCase {
                 text.contains(headerCircle),
                 "\(tab.path) still draws its own ink circle in the header"
             )
+            // An add circle is a plus in a 38pt frame. Tasks' list and board switcher
+            // also uses 38pt circles, and is not an add button.
             XCTAssertFalse(
-                text.contains("frame(width: 38, height: 38)"),
+                drawsPlusIn38ptCircle(text),
                 "\(tab.path) still draws its own 38pt add circle"
             )
         }

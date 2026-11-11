@@ -912,6 +912,7 @@ private struct CallRow: View {
                                 container: BrandColor.inset,
                                 content: BrandColor.muted600
                             )
+                            .fixedSize()
                             .layoutPriority(1)
                         }
                         // #566: THE one element allowed to yield. This renders

@@ -16,22 +16,28 @@ private struct ExactTimeModifier: ViewModifier {
     @Environment(\.recordMenuOwnsLongPress) private var menuOwnsLongPress
     @State private var showsExact = false
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
-            .accessibilityLabel(TimestampFormat.spoken(iso, locale: appLocale))
-            .simultaneousGesture(
-                // #712: inside a record that opens a menu on long-press, the menu wins and
-                // leads with this same exact time, so one press never means two things.
-                LongPressGesture(minimumDuration: 0.45).onEnded { _ in
-                    if !menuOwnsLongPress { showsExact = true }
+        let labelled = content.accessibilityLabel(TimestampFormat.spoken(iso, locale: appLocale))
+        // #712: inside a record that opens a menu on long-press, the menu wins and leads
+        // with this same exact time. The time then carries no gesture at all, so it is
+        // not a second, tiny touch target inside the row.
+        if menuOwnsLongPress {
+            labelled
+        } else {
+            labelled
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.45).onEnded { _ in
+                        showsExact = true
+                    }
+                )
+                .popover(isPresented: $showsExact) {
+                    Text(TimestampFormat.exact(iso, locale: appLocale))
+                        .font(.footnote)
+                        .padding(12)
+                        .presentationCompactAdaptation(.popover)
                 }
-            )
-            .popover(isPresented: $showsExact) {
-                Text(TimestampFormat.exact(iso, locale: appLocale))
-                    .font(.footnote)
-                    .padding(12)
-                    .presentationCompactAdaptation(.popover)
-            }
+        }
     }
 }
 
