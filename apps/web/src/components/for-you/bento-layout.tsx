@@ -220,7 +220,11 @@ function PanelFrame({
           >
             <GripVertical className="size-4" strokeWidth={1.75} aria-hidden />
           </span>
-          <span className="mr-auto min-w-0 truncate text-[12.5px] font-medium text-app-ink">{panel}</span>
+          {/* A panel with content shows its own heading; only an empty one
+              needs naming here. */}
+          <span className="mr-auto min-w-0 truncate text-[12.5px] font-medium text-app-ink">
+            {contentHeight === 0 ? panel : null}
+          </span>
           <EditButton
             label={t("inbox.forYouMoveEarlier", { panel })}
             disabled={position === 0}
