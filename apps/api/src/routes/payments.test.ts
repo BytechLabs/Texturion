@@ -97,6 +97,8 @@ function buildHarness(options: {
   account?: Record<string, unknown> | null;
   accountOverrides?: Record<string, unknown>;
   optedOut?: boolean;
+  /** Stripe's answer to creating a connected account, when it refuses. */
+  refuseAccountCreate?: string;
   requests?: Record<string, unknown>[];
   role?: "owner" | "admin" | "member" | "read_only" | "bookkeeper";
 } = {}) {
@@ -210,7 +212,17 @@ function buildHarness(options: {
     url.pathname.startsWith("/auth/v1/admin/users/")
       ? Response.json({ id: OWNER_ID, email: "owner@example.com" })
       : undefined;
-  stubFetch(stripeRoute(stripeCalls, options.accountOverrides), telnyx, authUsers, rest.route());
+  const refuseCreate: FetchRoute = async (url, request) =>
+    options.refuseAccountCreate &&
+    url.origin === "https://api.stripe.com" &&
+    url.pathname === "/v1/accounts" &&
+    request.method === "POST"
+      ? Response.json(
+          { error: { type: "invalid_request_error", message: options.refuseAccountCreate } },
+          { status: 400 },
+        )
+      : undefined;
+  stubFetch(refuseCreate, stripeRoute(stripeCalls, options.accountOverrides), telnyx, authUsers, rest.route());
   return {
     env,
     rest,
@@ -240,6 +252,25 @@ describe("#224 the account", () => {
       (call) => call.method === "POST" && call.url.pathname === "/v1/accounts",
     );
     expect(create?.form.get("email")).toBe("owner@example.com");
+  });
+
+  it("says payments are not open yet when Stripe's platform profile is unfinished", async () => {
+    const harness = buildHarness({
+      account: null,
+      refuseAccountCreate:
+        "You must complete your platform profile to use Connect and create live connected accounts.",
+    });
+    const response = await harness.request("/v1/payments/account/onboarding", { method: "POST" });
+    expect(response.status).toBe(503);
+    const body = (await response.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("service_unavailable");
+    expect(body.error.message).toMatch(/isn't open yet/);
+  });
+
+  it("still reports any other Stripe refusal as an error", async () => {
+    const harness = buildHarness({ account: null, refuseAccountCreate: "Invalid email address." });
+    const response = await harness.request("/v1/payments/account/onboarding", { method: "POST" });
+    expect(response.status).toBe(500);
   });
 
   it("tells a workspace with no account exactly what to do", async () => {

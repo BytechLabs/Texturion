@@ -57,6 +57,7 @@ import {
   createDashboardLink,
   createOnboardingLink,
   connectCountryFor,
+  isConnectPlatformNotReady,
   loadConnectAccount,
   readinessOf,
   refreshConnectAccount,
@@ -68,6 +69,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
+import { captureException } from "../observability/capture";
 import {
   dispatchOutbound,
   gateOutboundSend,
@@ -298,12 +300,22 @@ paymentAccountRoutes.post(
       const owner = await db.auth.admin.getUserById(c.get("userId"));
       if (owner.error) throw new Error(`owner lookup failed: ${owner.error.message}`);
 
-      row = await createConnectAccount(env, db, {
-        companyId,
-        country: connectCountryFor(company.country),
-        email: owner.data.user?.email ?? null,
-        userId: c.get("userId"),
-      });
+      try {
+        row = await createConnectAccount(env, db, {
+          companyId,
+          country: connectCountryFor(company.country),
+          email: owner.data.user?.email ?? null,
+          userId: c.get("userId"),
+        });
+      } catch (cause) {
+        if (!isConnectPlatformNotReady(cause)) throw cause;
+        // Ours to fix in Stripe, so it is still reported; the owner gets a plain answer.
+        void captureException(env, cause, { source: "api" });
+        throw new ApiError(
+          "service_unavailable",
+          "Getting paid by card isn't open yet. We're finishing our setup with Stripe and have been told. Try again later.",
+        );
+      }
 
       await recordAuditFromRequest(db, c, {
         companyId,

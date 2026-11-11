@@ -196,6 +196,26 @@ export function connectCountryFor(companyCountry: string | null | undefined): "U
  * — or a retry after a timeout — cannot leave a workspace with two connected
  * accounts, which is a state Stripe will happily create and nobody can merge.
  */
+/**
+ * #750: Stripe refuses every new connected account until the PLATFORM's Connect
+ * profile is complete ("You must complete your platform profile to use Connect").
+ * Nothing a workspace does fixes that, so it is a service problem, not theirs.
+ * Stripe gives it no code; this matches the error class and the message.
+ */
+export function isConnectPlatformNotReady(cause: unknown): boolean {
+  if (typeof cause !== "object" || cause === null) return false;
+  const { type, rawType, message } = cause as {
+    type?: unknown;
+    rawType?: unknown;
+    message?: unknown;
+  };
+  return (
+    (type === "StripeInvalidRequestError" || rawType === "invalid_request_error") &&
+    typeof message === "string" &&
+    /platform profile/i.test(message)
+  );
+}
+
 export async function createConnectAccount(
   env: Env,
   db: SupabaseClient,
