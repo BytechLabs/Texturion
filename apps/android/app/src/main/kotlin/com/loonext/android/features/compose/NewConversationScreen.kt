@@ -1,6 +1,8 @@
 package com.loonext.android.features.compose
 
 import androidx.activity.compose.BackHandler
+import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.PaperCard
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -70,11 +72,10 @@ import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.features.thread.ComposeBody
 import com.loonext.android.features.thread.MessagingRepository
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.userMessage
@@ -159,7 +160,7 @@ fun NewConversationScreen(
         }
 
         is LoadState.Failed -> {
-            CenteredError(boot.message, onRetry = { bootKey++ }, modifier)
+            LoadError(boot.message, onRetry = { bootKey++ }, modifier)
             return
         }
 
@@ -693,29 +694,24 @@ private fun NewConversationLoaded(
     }
 
     quietHoursPrompt?.let { pendingBody ->
-        AlertDialog(
-            onDismissRequest = { quietHoursPrompt = null },
-            title = { Text(t("thread.lateThereTitle")) },
-            text = {
-                Text(
-                    t(
+        ConfirmDialog(
+            title = t("thread.lateThereTitle"),
+            body = t(
                         "thread.lateThereBody",
                         "time" to (
                             localTime?.clockLabel()
                                 ?: t("thread.lateThereUnknown")
                             ),
                     ),
-                )
+            confirmLabel = t("thread.sendAnyway"),
+            onConfirm = {
+                quietHoursPrompt = null
+                send(confirmedQuietHours = true, resend = pendingBody)
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    quietHoursPrompt = null
-                    send(confirmedQuietHours = true, resend = pendingBody)
-                }) { Text(t("thread.sendAnyway")) }
+            onDismiss = {
+                quietHoursPrompt = null
             },
-            dismissButton = {
-                TextButton(onClick = { quietHoursPrompt = null }) { Text(t("thread.wait")) }
-            },
+            dismissLabel = t("thread.wait"),
         )
     }
 }

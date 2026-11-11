@@ -1,6 +1,7 @@
 package com.loonext.android.features.auth
 
 import android.annotation.SuppressLint
+import com.loonext.android.ui.common.LoadError
 import android.graphics.Bitmap
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
@@ -114,25 +115,14 @@ fun CaptchaSheet(onResult: (String?) -> Unit) {
             val checkHeight = min(360.dp, maxHeight)
             Box(Modifier.fillMaxWidth().height(checkHeight)) {
                 if (loadFailed) {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            t("auth.captchaLoadFailed"),
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center,
-                        )
-                        Button(
-                            onClick = {
-                                loadFailed = false
-                                loading = true
-                                retryKey++
-                            },
-                            modifier = Modifier.padding(top = 16.dp),
-                        ) { Text(t("auth.tryAgain")) }
-                    }
+                    LoadError(
+                        message = t("auth.captchaLoadFailed"),
+                        onRetry = {
+                            loadFailed = false
+                            loading = true
+                            retryKey++
+                        },
+                    )
                 } else {
                     // retryKey remounts the WebView for a clean reload after an error.
                     androidx.compose.runtime.key(retryKey) {

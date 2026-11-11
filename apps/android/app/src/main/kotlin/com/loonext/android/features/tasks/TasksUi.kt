@@ -140,32 +140,6 @@ internal fun TaskAvatar(
     InitialsAvatar(name, size, modifier = modifier, glyph = fontSize)
 }
 
-/** View-switcher pill: ink when active, paper when idle (spec 24). */
-@Composable
-internal fun ViewPill(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = if (selected) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.surface,
-        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
-        else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.asTab(selected),
-    ) {
-        Text(
-            text,
-            modifier = Modifier.padding(horizontal = 15.dp, vertical = 10.dp),
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1,
-        )
-    }
-}
 
 /** Small filter pill: avatar-tint fill when selected, paper when idle. */
 @Composable

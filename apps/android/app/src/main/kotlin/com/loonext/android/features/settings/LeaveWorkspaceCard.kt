@@ -1,6 +1,9 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Spacer
+import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.InlineError
+import com.loonext.android.ui.common.LinkButton
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
@@ -64,40 +67,28 @@ fun LeaveWorkspaceCard(
     }
 
     if (confirming) {
-        AlertDialog(
-            onDismissRequest = { if (!leaving) confirming = false },
-            title = { Text(t("settings.leaveConfirmTitle", "workspace" to company.name)) },
-            text = { Text(t("settings.leaveConfirmBody")) },
-            confirmButton = {
-                LinkButton(
-                    onClick = {
-                        error = null
-                        leaving = true
-                        coroutines.launch {
-                            try {
-                                scope.repo.leaveWorkspace(scope.companyId)
-                                confirming = false
-                                onLeft()
-                            } catch (cause: Exception) {
-                                error = cause.userMessage(locale)
-                                confirming = false
-                            } finally {
-                                leaving = false
-                            }
-                        }
-                    },
-                    enabled = !leaving,
-                ) {
-                    Text(
-                        if (leaving) t("settings.leavePending") else t("settings.leaveAction"),
-                    )
+        ConfirmDialog(
+            title = t("settings.leaveConfirmTitle", "workspace" to company.name),
+            body = t("settings.leaveConfirmBody"),
+            confirmLabel = t("settings.leaveAction"),
+            pending = leaving,
+            dismissLabel = t("settings.leaveStay"),
+            onDismiss = { confirming = false },
+            onConfirm = {
+                error = null
+                leaving = true
+                coroutines.launch {
+                    try {
+                        scope.repo.leaveWorkspace(scope.companyId)
+                        confirming = false
+                        onLeft()
+                    } catch (cause: Exception) {
+                        error = cause.userMessage(locale)
+                        confirming = false
+                    } finally {
+                        leaving = false
+                    }
                 }
-            },
-            dismissButton = {
-                LinkButton(
-                    onClick = { confirming = false },
-                    enabled = !leaving,
-                ) { Text(t("settings.leaveStay")) }
             },
         )
     }

@@ -1,6 +1,7 @@
 package com.loonext.android.features.tasks
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.SearchField
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,15 +57,11 @@ fun MemberPickerSheet(
 
     AppSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth()) {
-            OutlinedTextField(
+            SearchField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text(t("contactsTasks.searchTeammates")) },
-                singleLine = true,
-                shape = CircleShape,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
+                placeholder = t("contactsTasks.searchTeammates"),
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
             )
             LazyColumn(Modifier.fillMaxWidth()) {
                 if (showUnassigned && query.isBlank()) {
@@ -166,15 +163,11 @@ fun MultiMemberPickerSheet(
 
     AppSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth()) {
-            OutlinedTextField(
+            SearchField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text(t("contactsTasks.searchTeammates")) },
-                singleLine = true,
-                shape = CircleShape,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
+                placeholder = t("contactsTasks.searchTeammates"),
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
             )
             LazyColumn(Modifier.weight(1f, fill = false)) {
                 items(matches, key = { it.user_id }) { member ->

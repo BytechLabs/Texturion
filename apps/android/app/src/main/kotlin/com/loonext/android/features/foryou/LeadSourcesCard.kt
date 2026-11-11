@@ -1,6 +1,7 @@
 package com.loonext.android.features.foryou
 
 import androidx.compose.foundation.background
+import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,7 +32,6 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.LeadSourceReport
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.MeasureHeader
 

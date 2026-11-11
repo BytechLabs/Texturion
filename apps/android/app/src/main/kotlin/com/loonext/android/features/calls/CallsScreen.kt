@@ -1,6 +1,11 @@
 package com.loonext.android.features.calls
 
 import com.loonext.android.ui.common.RefreshBox
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.Segment
+import com.loonext.android.ui.common.SegmentedControl
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.TrashSnackbarHost
 import com.loonext.android.ui.common.TrashSnackbarVisuals
 import android.media.AudioAttributes
@@ -119,17 +124,15 @@ import com.loonext.android.ui.common.AiOrb
 import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.AttentionDot
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.VoicemailTranscript
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
-import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.SwipeAction
 import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.MainActionButton
@@ -499,23 +502,13 @@ fun CallsScreen(
                 )
             }
 
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
-                CallsFilter.entries.forEach { item ->
-                    FilterPill(
-                        label = t(item.labelKey),
-                        selected = filter == item,
-                        onClick = {
-                            haptics.tap()
-                            filter = item
-                        },
-                    )
-                }
-            }
+            SegmentedControl(
+                segments = CallsFilter.entries.map { Segment(it, t(it.labelKey)) },
+                selected = filter,
+                onSelect = { filter = it },
+                fill = true,
+                modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 4.dp),
+            )
             reason?.let { active ->
                 ReasonChip(
                     label = callReasonLabel(active, logLocale),
@@ -538,7 +531,7 @@ fun CallsScreen(
             ) {
             when (val current = state) {
                 is LoadState.Loading -> CallLogSkeleton()
-                is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ })
+                is LoadState.Failed -> LoadError(current.message, onRetry = { refreshKey++ })
                 is LoadState.Ready -> {
                     // #210: in-flight rows live in the pinned Ongoing card,
                     // not the log; each drops back in here the moment its
@@ -555,8 +548,8 @@ fun CallsScreen(
                             // With an ongoing call pinned above, "No calls
                             // yet" would contradict the screen — stay quiet.
                             if (ongoing.isEmpty()) {
-                                Text(
-                                    when (filter) {
+                                EmptyState(
+                                    title = when (filter) {
                                         CallsFilter.Missed ->
                                             t("contactsTasks.noMissedCalls")
 
@@ -566,9 +559,7 @@ fun CallsScreen(
                                         CallsFilter.All ->
                                             t("contactsTasks.noCallsYetLog")
                                     },
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 32.dp),
+                                    icon = Icons.Outlined.Call,
                                 )
                             }
                         }
@@ -1043,34 +1034,6 @@ private fun OngoingTicker(anchorIso: String, color: Color, modifier: Modifier = 
     )
 }
 
-/** Segmented pill: avatar-tint fill selected, quiet paper otherwise (spec 25). */
-@Composable
-private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        // Selected is a colour change and nothing else; this is what tells a
-        // screen reader which filter is on.
-        modifier = Modifier.asToggleButton(selected),
-        shape = CircleShape,
-        color = if (selected) {
-            MaterialTheme.colorScheme.secondaryContainer
-        } else {
-            MaterialTheme.colorScheme.surface
-        },
-        contentColor = if (selected) {
-            MaterialTheme.colorScheme.onSecondaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
-    ) {
-        Text(
-            label,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 15.dp, vertical = 10.dp),
-        )
-    }
-}
 
 @Composable
 private fun CallRow(

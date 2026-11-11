@@ -1,6 +1,7 @@
 package com.loonext.android.features.calls
 
 import androidx.compose.foundation.layout.Arrangement
+import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -26,10 +27,9 @@ import com.loonext.android.core.model.Call
 import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.LocalAppLocale
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
@@ -69,7 +69,7 @@ fun CallDetailScreen(
 
     when (val current = state) {
         is LoadState.Loading -> CenteredLoading()
-        is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ })
+        is LoadState.Failed -> LoadError(current.message, onRetry = { refreshKey++ })
         is LoadState.Ready -> CallDetailBody(
             graph = graph,
             call = current.value,

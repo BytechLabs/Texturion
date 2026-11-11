@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,7 +40,7 @@ import com.loonext.android.core.model.UpdateWebhookEndpointBody
 import com.loonext.android.core.model.WebhookDelivery
 import com.loonext.android.core.model.WebhookEndpoint
 import com.loonext.android.core.model.WebhookEndpointList
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.userMessage
@@ -103,7 +104,7 @@ fun WebhooksSection(scope: SettingsScope) {
 
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 1)
-        is LoadState.Failed -> CenteredError(
+        is LoadState.Failed -> LoadError(
             current.message,
             onRetry = { refreshKey++ },
             modifier = Modifier.padding(vertical = 48.dp),
@@ -570,59 +571,53 @@ private fun EndpointCard(
 
     // Ethical Friction: both of these break something that is working.
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(t("webhooks.deleteTitle")) },
-            text = { Text(t("webhooks.deleteBody").replace("{url}", endpoint.url)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    coroutineScope.launch {
-                        try {
-                            scope.repo.deleteWebhookEndpoint(scope.companyId, endpoint.id)
-                            onChanged()
-                        } catch (cause: CancellationException) {
-                            throw cause
-                        } catch (cause: Exception) {
-                            scope.showMessage(webhookErrorText(cause, locale))
-                        }
+        ConfirmDialog(
+            title = t("webhooks.deleteTitle"),
+            body = t("webhooks.deleteBody").replace("{url}", endpoint.url),
+            confirmLabel = t("webhooks.deleteConfirm"),
+            onConfirm = {
+                confirmDelete = false
+                coroutineScope.launch {
+                    try {
+                        scope.repo.deleteWebhookEndpoint(scope.companyId, endpoint.id)
+                        onChanged()
+                    } catch (cause: CancellationException) {
+                        throw cause
+                    } catch (cause: Exception) {
+                        scope.showMessage(webhookErrorText(cause, locale))
                     }
-                }) { Text(t("webhooks.deleteConfirm")) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) {
-                    Text(t("webhooks.keepIt"))
                 }
             },
+            onDismiss = {
+                confirmDelete = false
+            },
+            dismissLabel = t("webhooks.keepIt"),
         )
     }
 
     if (confirmRotate) {
-        AlertDialog(
-            onDismissRequest = { confirmRotate = false },
-            title = { Text(t("webhooks.rotateTitle")) },
-            text = { Text(t("webhooks.rotateBody")) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmRotate = false
-                    coroutineScope.launch {
-                        try {
-                            val minted = scope.repo
-                                .rotateWebhookSecret(scope.companyId, endpoint.id)
-                            onRotated(minted.secretOnce)
-                        } catch (cause: CancellationException) {
-                            throw cause
-                        } catch (cause: Exception) {
-                            scope.showMessage(webhookErrorText(cause, locale))
-                        }
+        ConfirmDialog(
+            title = t("webhooks.rotateTitle"),
+            body = t("webhooks.rotateBody"),
+            confirmLabel = t("webhooks.rotateConfirm"),
+            onConfirm = {
+                confirmRotate = false
+                coroutineScope.launch {
+                    try {
+                        val minted = scope.repo
+                            .rotateWebhookSecret(scope.companyId, endpoint.id)
+                        onRotated(minted.secretOnce)
+                    } catch (cause: CancellationException) {
+                        throw cause
+                    } catch (cause: Exception) {
+                        scope.showMessage(webhookErrorText(cause, locale))
                     }
-                }) { Text(t("webhooks.rotateConfirm")) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmRotate = false }) {
-                    Text(t("webhooks.cancelAction"))
                 }
             },
+            onDismiss = {
+                confirmRotate = false
+            },
+            dismissLabel = t("webhooks.cancelAction"),
         )
     }
 }

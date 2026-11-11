@@ -1,6 +1,10 @@
 package com.loonext.android.features.settings
 
 import kotlinx.coroutines.delay
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadError
+import com.loonext.android.ui.common.InlineError
+import com.loonext.android.ui.common.LinkButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -157,17 +161,11 @@ fun NumberPickerDialog(
                         contentAlignment = Alignment.Center,
                     ) { LoadingIndicator() }
 
-                    is LoadState.Failed -> Column {
-                        Text(
-                            current.message,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        OutlinedButton(
-                            onClick = { fetchKey++ },
-                            modifier = Modifier.padding(top = 8.dp),
-                        ) { Text(t("common.retry")) }
-                    }
+                    is LoadState.Failed -> LoadError(
+                        current.message,
+                        onRetry = { fetchKey++ },
+                        variant = LoadErrorVariant.Inline,
+                    )
 
                     is LoadState.Ready -> PickerResults(
                         result = current.value,

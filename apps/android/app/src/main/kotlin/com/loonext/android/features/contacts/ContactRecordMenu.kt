@@ -1,6 +1,7 @@
 package com.loonext.android.features.contacts
 
 import android.Manifest
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
@@ -124,60 +125,51 @@ internal fun ContactRecordMenu(
     )
 
     if (confirmOptOut) {
-        AlertDialog(
-            onDismissRequest = { confirmOptOut = false },
-            title = { Text(t("contactsTasks.optOutTitle")) },
-            text = {
-                Text(t("contactsTasks.optOutBody", "number" to formatPhone(contact.phone_e164)))
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    haptics.reject()
-                    confirmOptOut = false
-                    scope.launch {
-                        try {
-                            mutations.optOut(companyId, contact.id)
-                            onChanged()
-                        } catch (cause: Exception) {
-                            onMessage(cause.userMessage(locale))
-                        }
+        ConfirmDialog(
+            title = t("contactsTasks.optOutTitle"),
+            body = t("contactsTasks.optOutBody", "number" to formatPhone(contact.phone_e164)),
+            confirmLabel = t("contactsTasks.optOut"),
+            onConfirm = {
+                haptics.reject()
+                confirmOptOut = false
+                scope.launch {
+                    try {
+                        mutations.optOut(companyId, contact.id)
+                        onChanged()
+                    } catch (cause: Exception) {
+                        onMessage(cause.userMessage(locale))
                     }
-                }) {
-                    Text(t("contactsTasks.optOut"), color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { confirmOptOut = false }) { Text(t("common.cancel")) }
+            onDismiss = {
+                confirmOptOut = false
             },
+            destructive = true,
         )
     }
 
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(t("contactsTasks.deleteContactTitle")) },
-            text = { Text(t("contactsTasks.deleteContactBody")) },
-            confirmButton = {
-                TextButton(onClick = {
-                    haptics.reject()
-                    confirmDelete = false
-                    scope.launch {
-                        try {
-                            mutations.delete(companyId, contact.id)
-                            onChanged()
-                        } catch (cause: Exception) {
-                            onMessage(cause.userMessage(locale))
-                        }
+        ConfirmDialog(
+            title = t("contactsTasks.deleteContactTitle"),
+            body = t("contactsTasks.deleteContactBody"),
+            confirmLabel = t("common.delete"),
+            onConfirm = {
+                haptics.reject()
+                confirmDelete = false
+                scope.launch {
+                    try {
+                        mutations.delete(companyId, contact.id)
+                        onChanged()
+                    } catch (cause: Exception) {
+                        onMessage(cause.userMessage(locale))
                     }
-                }) {
-                    Text(t("common.delete"), color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) {
-                    Text(t("contactsTasks.keepContact"))
-                }
+            onDismiss = {
+                confirmDelete = false
             },
+            destructive = true,
+            dismissLabel = t("contactsTasks.keepContact"),
         )
     }
 }

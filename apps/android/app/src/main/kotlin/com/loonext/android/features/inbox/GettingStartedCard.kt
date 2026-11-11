@@ -1,6 +1,7 @@
 package com.loonext.android.features.inbox
 
 import android.content.Context
+import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,7 +37,6 @@ import com.loonext.android.core.data.MeRepository
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.features.thread.MessagingRepository
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.rememberHaptics
 import kotlinx.coroutines.CancellationException
 

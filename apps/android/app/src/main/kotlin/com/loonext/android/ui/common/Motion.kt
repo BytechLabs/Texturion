@@ -33,6 +33,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 /**
@@ -85,11 +88,12 @@ fun SkeletonBlock(
     )
 }
 
-/** A list-row skeleton in the app's row grammar: avatar circle + two lines. */
+/** A list-row skeleton in the app's row grammar: avatar circle + one or two lines. */
 @Composable
-fun SkeletonListRow(
+private fun SkeletonListRow(
     modifier: Modifier = Modifier,
     avatar: Boolean = true,
+    lines: Int = 2,
 ) {
     Row(
         modifier
@@ -102,25 +106,45 @@ fun SkeletonListRow(
         }
         Column {
             SkeletonBlock(148.dp, 13.dp)
-            Spacer(Modifier.height(8.dp))
-            SkeletonBlock(216.dp, 11.dp)
+            if (lines > 1) {
+                Spacer(Modifier.height(8.dp))
+                SkeletonBlock(216.dp, 11.dp)
+            }
         }
     }
 }
 
 /**
- * The first-fetch stand-in for a list screen: [rows] shimmering rows inside
- * nothing (callers wrap in their own PaperCard when the real list is carded).
+ * #733: the one loading skeleton for a list. [rows] shimmering rows of an
+ * optional avatar and one or two [lines], pulsing where the content will land
+ * so the page does not reflow. First load only, never on a realtime update.
+ * Pass [label] when the loading state should be announced; otherwise it is
+ * hidden from assistive tech. Callers wrap it in their own PaperCard when the
+ * real list is carded. The web twin is
+ * `apps/web/src/components/ui/list-skeleton.tsx`.
+ *
+ * A skeleton shaped like a board, a calendar, a map or a thread is not a list
+ * and keeps its own markup, each named in `ListSkeletonGuardTest`.
  */
 @Composable
 fun SkeletonList(
     modifier: Modifier = Modifier,
     rows: Int = 8,
     avatar: Boolean = true,
+    lines: Int = 2,
+    label: String? = null,
 ) {
-    Column(modifier) {
+    Column(
+        modifier.then(
+            if (label != null) {
+                Modifier.semantics { contentDescription = label }
+            } else {
+                Modifier.clearAndSetSemantics { }
+            },
+        ),
+    ) {
         repeat(rows) {
-            SkeletonListRow(avatar = avatar)
+            SkeletonListRow(avatar = avatar, lines = lines)
         }
     }
 }

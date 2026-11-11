@@ -1,6 +1,8 @@
 package com.loonext.android.features.thread
 
 import android.Manifest
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.ConfirmDialog
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
@@ -178,7 +180,7 @@ import com.loonext.android.ui.common.OptOutState
 import com.loonext.android.ui.common.RecordAction
 import com.loonext.android.ui.common.RecordViewer
 import com.loonext.android.ui.common.conversationActions
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
@@ -358,7 +360,7 @@ fun ThreadScreen(
                         TextButton(onClick = onBack) { Text(t("thread.backToInbox")) }
                     }
                 } else {
-                    CenteredError(load.message, onRetry = { controller.retryInitialLoad() })
+                    LoadError(load.message, onRetry = { controller.retryInitialLoad() })
                 }
             }
 
@@ -895,13 +897,10 @@ private fun ThreadLoaded(
 
         Box(Modifier.weight(1f)) {
             if (timeline.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        t("thread.noMessages"),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                EmptyState(
+                    title = t("thread.noMessages"),
+                    icon = Icons.Outlined.ChatBubbleOutline,
+                )
             } else {
                 LazyColumn(
                     state = listState,
@@ -1506,25 +1505,19 @@ private fun ThreadLoaded(
         )
     }
     confirmDeleteText?.let { message ->
-        AlertDialog(
-            onDismissRequest = { confirmDeleteText = null },
-            title = { Text(t("thread.deleteTextTitle")) },
-            text = { Text(t("thread.deleteTextBody", "name" to contactName)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    haptics.reject()
-                    confirmDeleteText = null
-                    controller.deleteMessage(message)
-                }) {
-                    Text(
-                        t("thread.deleteConfirm"),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+        ConfirmDialog(
+            title = t("thread.deleteTextTitle"),
+            body = t("thread.deleteTextBody", "name" to contactName),
+            confirmLabel = t("thread.deleteConfirm"),
+            onConfirm = {
+                haptics.reject()
+                confirmDeleteText = null
+                controller.deleteMessage(message)
             },
-            dismissButton = {
-                TextButton(onClick = { confirmDeleteText = null }) { Text(t("common.cancel")) }
+            onDismiss = {
+                confirmDeleteText = null
             },
+            destructive = true,
         )
     }
     makeTaskFor?.let { message ->
@@ -1605,29 +1598,19 @@ private fun ThreadLoaded(
     }
 
     confirmDiscardQueued?.let { pending ->
-        AlertDialog(
-            onDismissRequest = { confirmDiscardQueued = null },
-            title = { Text(t("thread.deleteQueuedTitle")) },
-            text = {
-                // Quoting it back is the point: a queued row shows a couple of
-                // lines, and the person is about to lose whichever ones they
-                // cannot see.
-                Text(
-                    t("thread.deleteQueuedBody") + "\n\n“${pending.body}”",
-                )
+        ConfirmDialog(
+            title = t("thread.deleteQueuedTitle"),
+            body = t("thread.deleteQueuedBody") + "\n\n“${pending.body}”",
+            confirmLabel = t("common.delete"),
+            onConfirm = {
+                haptics.reject()
+                controller.discardQueued(pending.localId)
+                confirmDiscardQueued = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    haptics.reject()
-                    controller.discardQueued(pending.localId)
-                    confirmDiscardQueued = null
-                }) { Text(t("common.delete")) }
+            onDismiss = {
+                confirmDiscardQueued = null
             },
-            dismissButton = {
-                TextButton(onClick = { confirmDiscardQueued = null }) {
-                    Text(t("thread.keepIt"))
-                }
-            },
+            dismissLabel = t("thread.keepIt"),
         )
     }
 }
@@ -2051,77 +2034,63 @@ private fun ThreadHeader(
     }
 
     if (confirmOptOut) {
-        AlertDialog(
-            onDismissRequest = { confirmOptOut = false },
-            title = { Text(t("thread.optOutTitle")) },
-            text = { Text(t("thread.optOutBody")) },
-            confirmButton = {
-                TextButton(onClick = {
-                    haptics.reject()
-                    confirmOptOut = false
-                    controller.optOutContact()
-                }) { Text(t("thread.optOut")) }
+        ConfirmDialog(
+            title = t("thread.optOutTitle"),
+            body = t("thread.optOutBody"),
+            confirmLabel = t("thread.optOut"),
+            onConfirm = {
+                haptics.reject()
+                confirmOptOut = false
+                controller.optOutContact()
             },
-            dismissButton = {
-                TextButton(onClick = { confirmOptOut = false }) { Text(t("common.cancel")) }
+            onDismiss = {
+                confirmOptOut = false
             },
         )
     }
     if (confirmBlock) {
-        AlertDialog(
-            onDismissRequest = { confirmBlock = false },
-            title = { Text(t("thread.blockTitle")) },
-            text = { Text(t("thread.blockBody")) },
-            confirmButton = {
-                TextButton(onClick = {
-                    haptics.reject()
-                    confirmBlock = false
-                    controller.blockNumber()
-                }) { Text(t("thread.blockConfirm")) }
+        ConfirmDialog(
+            title = t("thread.blockTitle"),
+            body = t("thread.blockBody"),
+            confirmLabel = t("thread.blockConfirm"),
+            onConfirm = {
+                haptics.reject()
+                confirmBlock = false
+                controller.blockNumber()
             },
-            dismissButton = {
-                TextButton(onClick = { confirmBlock = false }) { Text(t("common.cancel")) }
+            onDismiss = {
+                confirmBlock = false
             },
         )
     }
     if (confirmDeleteConversation) {
-        AlertDialog(
-            onDismissRequest = { confirmDeleteConversation = false },
-            title = { Text(t("thread.deleteConversationTitle")) },
-            text = { Text(t("thread.deleteConversationBody", "name" to contactName)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    haptics.reject()
-                    confirmDeleteConversation = false
-                    controller.deleteConversation()
-                }) {
-                    Text(
-                        t("thread.deleteConfirm"),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+        ConfirmDialog(
+            title = t("thread.deleteConversationTitle"),
+            body = t("thread.deleteConversationBody", "name" to contactName),
+            confirmLabel = t("thread.deleteConfirm"),
+            onConfirm = {
+                haptics.reject()
+                confirmDeleteConversation = false
+                controller.deleteConversation()
             },
-            dismissButton = {
-                TextButton(onClick = { confirmDeleteConversation = false }) {
-                    Text(t("common.cancel"))
-                }
+            onDismiss = {
+                confirmDeleteConversation = false
             },
+            destructive = true,
         )
     }
     if (confirmRevoke) {
-        AlertDialog(
-            onDismissRequest = { confirmRevoke = false },
-            title = { Text(t("thread.revokeTitle")) },
-            text = { Text(t("thread.revokeBody")) },
-            confirmButton = {
-                TextButton(onClick = {
-                    haptics.confirm()
-                    confirmRevoke = false
-                    controller.revokeOptOut()
-                }) { Text(t("thread.removeOptOut")) }
+        ConfirmDialog(
+            title = t("thread.revokeTitle"),
+            body = t("thread.revokeBody"),
+            confirmLabel = t("thread.removeOptOut"),
+            onConfirm = {
+                haptics.confirm()
+                confirmRevoke = false
+                controller.revokeOptOut()
             },
-            dismissButton = {
-                TextButton(onClick = { confirmRevoke = false }) { Text(t("common.cancel")) }
+            onDismiss = {
+                confirmRevoke = false
             },
         )
     }

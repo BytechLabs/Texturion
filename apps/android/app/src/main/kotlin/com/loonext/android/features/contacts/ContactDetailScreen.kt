@@ -1,6 +1,9 @@
 package com.loonext.android.features.contacts
 
 import android.Manifest
+import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SkeletonList
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -97,16 +100,14 @@ import com.loonext.android.core.model.Tag
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.telephony.SoftphoneManager
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.choicesBesideDefault
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
-import com.loonext.android.ui.common.SkeletonListRow
 import com.loonext.android.features.tasks.NewTaskSheetHost
 import com.loonext.android.features.tasks.LinkedOwner
 import com.loonext.android.features.tasks.LinkedTasksList
@@ -266,7 +267,7 @@ internal fun ContactDetailScreen(
                         modifier = Modifier.padding(24.dp),
                     )
                 } else {
-                    CenteredError(current.message, onRetry = { refreshKey++ })
+                    LoadError(current.message, onRetry = { refreshKey++ })
                 }
 
             is LoadState.Ready -> ContactDetailBody(
@@ -1144,92 +1145,68 @@ private fun ContactDetailBody(
     }
 
     if (confirmOptOut) {
-        AlertDialog(
-            onDismissRequest = { confirmOptOut = false },
-            title = { Text(t("contactsTasks.optOutTitle")) },
-            text = {
-                Text(
-                    t(
+        ConfirmDialog(
+            title = t("contactsTasks.optOutTitle"),
+            body = t(
                         "contactsTasks.optOutBody",
                         "number" to formatPhone(contact.phone_e164),
                     ),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !working,
-                    onClick = {
-                        haptics.reject()
-                        confirmOptOut = false
-                        runAction {
-                            mutations.optOut(companyId, contact.id)
-                            onChanged()
-                        }
-                    },
-                ) {
-                    Text(t("contactsTasks.optOut"), color = MaterialTheme.colorScheme.error)
+            confirmLabel = t("contactsTasks.optOut"),
+            onConfirm = {
+                haptics.reject()
+                confirmOptOut = false
+                runAction {
+                    mutations.optOut(companyId, contact.id)
+                    onChanged()
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { confirmOptOut = false }) { Text(t("common.cancel")) }
+            onDismiss = {
+                confirmOptOut = false
             },
+            destructive = true,
+            confirmEnabled = !working,
         )
     }
 
     if (confirmBlock) {
-        AlertDialog(
-            onDismissRequest = { confirmBlock = false },
-            title = { Text(t("thread.blockTitle")) },
-            text = { Text(t("thread.blockBody")) },
-            confirmButton = {
-                TextButton(
-                    enabled = !working,
-                    onClick = {
-                        haptics.reject()
-                        confirmBlock = false
-                        runAction {
-                            blockedSender = messaging.blockSender(companyId, contact.phone_e164)
-                        }
-                    },
-                ) {
-                    Text(t("thread.blockConfirm"), color = MaterialTheme.colorScheme.error)
+        ConfirmDialog(
+            title = t("thread.blockTitle"),
+            body = t("thread.blockBody"),
+            confirmLabel = t("thread.blockConfirm"),
+            onConfirm = {
+                haptics.reject()
+                confirmBlock = false
+                runAction {
+                    blockedSender = messaging.blockSender(companyId, contact.phone_e164)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { confirmBlock = false }) { Text(t("common.cancel")) }
+            onDismiss = {
+                confirmBlock = false
             },
+            destructive = true,
+            confirmEnabled = !working,
         )
     }
 
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(t("contactsTasks.deleteContactTitle")) },
-            text = {
-                Text(
-                    t("contactsTasks.deleteContactBody"),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !working,
-                    onClick = {
-                        haptics.reject()
-                        confirmDelete = false
-                        runAction {
-                            mutations.delete(companyId, contact.id)
-                            onDeleted()
-                        }
-                    },
-                ) {
-                    Text(t("common.delete"), color = MaterialTheme.colorScheme.error)
+        ConfirmDialog(
+            title = t("contactsTasks.deleteContactTitle"),
+            body = t("contactsTasks.deleteContactBody"),
+            confirmLabel = t("common.delete"),
+            onConfirm = {
+                haptics.reject()
+                confirmDelete = false
+                runAction {
+                    mutations.delete(companyId, contact.id)
+                    onDeleted()
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) {
-                    Text(t("contactsTasks.keepContact"))
-                }
+            onDismiss = {
+                confirmDelete = false
             },
+            destructive = true,
+            confirmEnabled = !working,
+            dismissLabel = t("contactsTasks.keepContact"),
         )
     }
 }
@@ -1490,10 +1467,7 @@ private fun ContactDetailSkeleton() {
         SkeletonBlock(110.dp, 12.dp)
         Spacer(Modifier.height(24.dp))
         PaperCard(Modifier.fillMaxWidth()) {
-            repeat(3) { index ->
-                if (index > 0) RowDivider(Modifier.padding(horizontal = 15.dp))
-                SkeletonListRow(avatar = false)
-            }
+            SkeletonList(rows = 3, avatar = false)
         }
     }
 }

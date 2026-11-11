@@ -1,6 +1,9 @@
 package com.loonext.android.features.notifications
 
 import com.loonext.android.ui.common.InitialsAvatar
+import androidx.compose.material.icons.outlined.NotificationsNone
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.RefreshBox
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
@@ -66,11 +69,10 @@ import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.NotificationType
 import com.loonext.android.core.model.Page
 import com.loonext.android.ui.common.AttentionDot
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
-import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.relativeTime
@@ -379,7 +381,7 @@ fun NotificationsScreen(
                     }
                 }
 
-            is LoadState.Failed -> CenteredError(
+            is LoadState.Failed -> LoadError(
                 current.message,
                 onRetry = { refreshKey++ },
             )
@@ -443,13 +445,10 @@ fun NotificationsScreen(
                     NotificationPauseNotice(alertPause)
 
                     if (items.isEmpty()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                t("contactsTasks.notifCaughtUp"),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        EmptyState(
+                            title = t("contactsTasks.notifCaughtUp"),
+                            icon = Icons.Outlined.NotificationsNone,
+                        )
                     } else {
                         Surface(
                             shape = MaterialTheme.shapes.large,

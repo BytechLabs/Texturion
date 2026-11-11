@@ -136,25 +136,6 @@ fun CenteredLoading(modifier: Modifier = Modifier) {
     }
 }
 
-/** Calm inline error: one sentence what happened + retry. */
-@Composable
-fun CenteredError(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 32.dp),
-            )
-            Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
-                Text(t("auth.tryAgain"))
-            }
-        }
-    }
-}
-
 /**
  * Flat single-tone avatar: avatar-tint fill, SemiBold initials (G11).
  *

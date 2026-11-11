@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.background
+import com.loonext.android.ui.common.InlineError
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -37,7 +38,7 @@ import com.loonext.android.features.payments.PayoutAccount
 import com.loonext.android.features.payments.PayoutReadiness
 import com.loonext.android.features.payments.Payments
 import com.loonext.android.features.payments.PaymentsRepository
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.rememberCacheFirst
@@ -114,7 +115,7 @@ fun PaymentsSection(scope: SettingsScope) {
 
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 1)
-        is LoadState.Failed -> CenteredError(
+        is LoadState.Failed -> LoadError(
             current.message,
             onRetry = { refreshKey++ },
             modifier = Modifier.padding(vertical = 48.dp),

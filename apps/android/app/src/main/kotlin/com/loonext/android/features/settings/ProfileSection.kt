@@ -1,6 +1,9 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.ui.common.Segment
+import com.loonext.android.ui.common.SegmentedControl
+import com.loonext.android.ui.common.InlineError
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,9 +17,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -287,18 +287,12 @@ private fun ThemeCard(scope: SettingsScope) {
     val coroutines = rememberCoroutineScope()
 
     SettingsCard(title = t("settingsMore.theme"), anchor = "theme") {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            THEME_VALUES.forEachIndexed { index, value ->
-                SegmentedButton(
-                    selected = theme == value,
-                    onClick = { coroutines.launch { scope.graph.prefs.setTheme(value) } },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = THEME_VALUES.size,
-                    ),
-                ) { Text(themeLabel(value)) }
-            }
-        }
+        SegmentedControl(
+            segments = THEME_VALUES.map { Segment(it, themeLabel(it)) },
+            selected = theme,
+            onSelect = { value -> coroutines.launch { scope.graph.prefs.setTheme(value) } },
+            fill = true,
+        )
     }
 }
 

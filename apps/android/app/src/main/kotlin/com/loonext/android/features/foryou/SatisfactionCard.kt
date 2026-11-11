@@ -1,6 +1,10 @@
 package com.loonext.android.features.foryou
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.SegmentedSize
+import com.loonext.android.ui.common.Segment
+import com.loonext.android.ui.common.SegmentedControl
+import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,7 +42,6 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.MeasureHeader
 import com.loonext.android.core.model.SatisfactionReport
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ProportionRing
 import com.loonext.android.ui.common.asToggleButton
 
@@ -118,28 +121,12 @@ fun SatisfactionCard(
         // card above it" was the comment below, and the way to guarantee that
         // is to use the same component rather than to copy its styling.
         MeasureHeader(t("inbox.satisfactionTitle")) {
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                for (option in listOf(7, 30, 90)) {
-                    val selected = option == days
-                    Text(
-                        "${option}d",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.secondary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        },
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .clickable { onWindow(option) }
-                            .asToggleButton(selected)
-                            .padding(4.dp),
-                    )
-                }
-            }
+            SegmentedControl(
+                segments = listOf(7, 30, 90).map { Segment(it, "${it}d") },
+                selected = days,
+                onSelect = onWindow,
+                size = SegmentedSize.Sm,
+            )
         }
 
         PaperCard(Modifier.fillMaxWidth()) {

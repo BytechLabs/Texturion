@@ -1,6 +1,8 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.background
+import com.loonext.android.ui.common.LinkButton
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -45,7 +47,7 @@ import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.model.UsageMonth
 import com.loonext.android.core.model.UsageStatus
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
@@ -111,7 +113,7 @@ fun UsageSection(
 
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 3)
-        is LoadState.Failed -> CenteredError(
+        is LoadState.Failed -> LoadError(
             current.message,
             onRetry = { refreshKey++ },
             modifier = Modifier.padding(vertical = 48.dp),

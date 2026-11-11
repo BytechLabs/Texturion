@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,57 +21,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 
 /** #719: the longest search a person is offered a field for. */
 internal const val SETTINGS_SEARCH_MAX = 60
 
-/** The search field at the top of the settings home. */
-@Composable
-internal fun SettingsSearchField(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = { onQueryChange(it.take(SETTINGS_SEARCH_MAX)) },
-        placeholder = {
-            Text(
-                t("settingsMore.searchPlaceholder"),
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        leadingIcon = {
-            Icon(
-                Icons.Outlined.Search,
-                contentDescription = null,
-                modifier = Modifier.padding(start = 2.dp),
-            )
-        },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
-                    Icon(
-                        Icons.Outlined.Close,
-                        contentDescription = t("settingsMore.searchClear"),
-                    )
-                }
-            }
-        },
-        singleLine = true,
-        shape = CircleShape,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-            focusedBorderColor = MaterialTheme.colorScheme.outline,
-            unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-        ),
-        modifier = modifier.fillMaxWidth(),
-    )
-}
 
 /**
  * What the search found: each setting with where it lives, "Group › Section".

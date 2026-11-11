@@ -1,6 +1,9 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import com.loonext.android.ui.common.InlineError
+import com.loonext.android.ui.common.LinkButton
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -38,7 +41,7 @@ import com.loonext.android.core.model.Template
 import com.loonext.android.features.compose.MergeFields
 import com.loonext.android.features.compose.estimateSegments
 import com.loonext.android.features.thread.MessagingRepository
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.common.relativeTime
@@ -128,7 +131,7 @@ fun TemplatesSection(
 
         when (val current = state) {
             is LoadState.Loading -> SettingsSectionSkeleton(cards = 1)
-            is LoadState.Failed -> CenteredError(
+            is LoadState.Failed -> LoadError(
                 current.message,
                 onRetry = { refreshKey++ },
                 modifier = Modifier.padding(vertical = 48.dp),

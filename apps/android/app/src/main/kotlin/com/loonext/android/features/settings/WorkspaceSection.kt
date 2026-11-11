@@ -1,6 +1,11 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.SearchField
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadError
+import com.loonext.android.ui.common.InlineError
+import com.loonext.android.ui.common.LinkButton
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
@@ -186,17 +191,11 @@ private fun BusinessIdentificationCard(scope: SettingsScope, company: CompanyVie
                 SkeletonBlock(176.dp, 11.dp)
             }
 
-            is LoadState.Failed -> Column {
-                Text(
-                    current.message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedButton(
-                    onClick = { refreshKey++ },
-                    modifier = Modifier.padding(top = 8.dp),
-                ) { Text(t("common.retry")) }
-            }
+            is LoadState.Failed -> LoadError(
+                current.message,
+                onRetry = { refreshKey++ },
+                variant = LoadErrorVariant.Inline,
+            )
 
             is LoadState.Ready -> {
                 val brand = current.value.brand
@@ -404,12 +403,10 @@ internal fun TimezonePickerDialog(
             // #199: platform-positioned dialog window + debug guard on the
             // search field.
             Column(Modifier.assertAboveIme("dialog")) {
-                OutlinedTextField(
+                SearchField(
                     value = query,
                     onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    placeholder = { Text(t("settingsMore.timezoneSearchHint")) },
+                    placeholder = t("settingsMore.timezoneSearchHint"),
                 )
                 Spacer(Modifier.height(8.dp))
                 if (filtered.isEmpty()) {

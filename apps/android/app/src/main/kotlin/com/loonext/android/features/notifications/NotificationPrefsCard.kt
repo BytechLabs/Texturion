@@ -1,6 +1,9 @@
 package com.loonext.android.features.notifications
 
 import android.app.Activity
+import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadError
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
@@ -162,17 +165,15 @@ fun NotificationPrefsCard(
                 contentAlignment = Alignment.Center,
             ) { LoadingIndicator() }
 
-            is LoadState.Failed -> Column(Modifier.padding(top = 8.dp)) {
-                Text(
-                    current.message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = {
+            is LoadState.Failed -> LoadError(
+                current.message,
+                onRetry = {
                     state = LoadState.Loading
                     retryKey++
-                }) { Text(t("common.retry")) }
-            }
+                },
+                modifier = Modifier.padding(top = 8.dp),
+                variant = LoadErrorVariant.Inline,
+            )
 
             is LoadState.Ready -> {
                 val prefs = current.value
@@ -200,30 +201,25 @@ fun NotificationPrefsCard(
                 )
 
                 silencing?.let { channel ->
-                    AlertDialog(
-                        onDismissRequest = { silencing = null },
-                        title = { Text(t("contactsTasks.notifOnCallTitle")) },
-                        text = {
-                            Text(OnCallSilence.warning(true, true, channel, locale) ?: "")
+                    ConfirmDialog(
+                        title = t("contactsTasks.notifOnCallTitle"),
+                        body = OnCallSilence.warning(true, true, channel, locale) ?: "",
+                        confirmLabel = t(OnCallSilence.CONFIRM_KEY),
+                        onConfirm = {
+                            silencing = null
+                            save(
+                                if (channel == "push") {
+                                    prefs.copy(push_enabled = false)
+                                } else {
+                                    prefs.copy(email_enabled = false)
+                                },
+                                prefs,
+                            )
                         },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                silencing = null
-                                save(
-                                    if (channel == "push") {
-                                        prefs.copy(push_enabled = false)
-                                    } else {
-                                        prefs.copy(email_enabled = false)
-                                    },
-                                    prefs,
-                                )
-                            }) { Text(t(OnCallSilence.CONFIRM_KEY)) }
+                        onDismiss = {
+                            silencing = null
                         },
-                        dismissButton = {
-                            TextButton(onClick = { silencing = null }) {
-                                Text(t(OnCallSilence.CANCEL_KEY))
-                            }
-                        },
+                        dismissLabel = t(OnCallSilence.CANCEL_KEY),
                     )
                 }
                 // #244: with the other per-member switches, because it IS one.

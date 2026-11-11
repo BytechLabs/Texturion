@@ -1,6 +1,10 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.InlineError
+import com.loonext.android.ui.common.LinkButton
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -60,7 +64,7 @@ import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.ownership.HandoverConfirmation
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.model.Capability
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.formatPhone
@@ -194,7 +198,7 @@ fun NumbersSection(
 
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 3)
-        is LoadState.Failed -> CenteredError(
+        is LoadState.Failed -> LoadError(
             current.message,
             onRetry = { refreshKey++ },
             modifier = Modifier.padding(vertical = 48.dp),
@@ -770,17 +774,11 @@ private fun NumberAccessDialog(
                 Spacer(Modifier.height(8.dp))
                 when (val current = loaded) {
                     is LoadState.Loading -> LoadingIndicator()
-                    is LoadState.Failed -> Column {
-                        Text(
-                            current.message,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        OutlinedButton(
-                            onClick = { retryKey++ },
-                            modifier = Modifier.padding(top = 8.dp),
-                        ) { Text(t("common.retry")) }
-                    }
+                    is LoadState.Failed -> LoadError(
+                        current.message,
+                        onRetry = { retryKey++ },
+                        variant = LoadErrorVariant.Inline,
+                    )
 
                     is LoadState.Ready -> {
                         val members = current.value.second

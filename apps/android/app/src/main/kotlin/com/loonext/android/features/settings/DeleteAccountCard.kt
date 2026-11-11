@@ -1,6 +1,9 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.InlineError
+import com.loonext.android.ui.common.LinkButton
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -165,58 +168,42 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
     }
 
     if (confirming) {
-        AlertDialog(
-            onDismissRequest = { if (!deleting) { confirming = false; typed = "" } },
-            title = { Text(t("settings.deleteConfirmTitle")) },
-            text = {
-                Column {
-                    Text(
-                        t("settings.deleteConfirmBody"),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = typed,
-                        onValueChange = { typed = it },
-                        singleLine = true,
-                        enabled = !deleting,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(t("settings.deleteTypeToConfirm", "word" to CONFIRM_WORD)) },
-                    )
-                }
-            },
-            confirmButton = {
-                LinkButton(
-                    enabled = !deleting && typed.trim().equals(CONFIRM_WORD, ignoreCase = true),
-                    onClick = {
-                        deleting = true
-                        coroutines.launch {
-                            runCatching { scope.repo.deleteAccount() }
-                                .onSuccess {
-                                    confirming = false
-                                    onDeleted()
-                                }
-                                .onFailure { cause ->
-                                    deleting = false
-                                    confirming = false
-                                    typed = ""
-                                    scope.showMessage(cause.message ?: deleteFailed)
-                                }
+        ConfirmDialog(
+            title = t("settings.deleteConfirmTitle"),
+            body = t("settings.deleteConfirmBody"),
+            confirmLabel = t("settings.deleteAction"),
+            destructive = true,
+            pending = deleting,
+            confirmEnabled = typed.trim().equals(CONFIRM_WORD, ignoreCase = true),
+            dismissLabel = t("settings.deleteKeep"),
+            onDismiss = { confirming = false; typed = "" },
+            onConfirm = {
+                deleting = true
+                coroutines.launch {
+                    runCatching { scope.repo.deleteAccount() }
+                        .onSuccess {
+                            confirming = false
+                            onDeleted()
                         }
-                    },
-                ) {
-                    Text(
-                        if (deleting) t("settings.deletePending") else t("settings.deleteAction"),
-                    )
+                        .onFailure { cause ->
+                            deleting = false
+                            confirming = false
+                            typed = ""
+                            scope.showMessage(cause.message ?: deleteFailed)
+                        }
                 }
             },
-            dismissButton = {
-                LinkButton(
+            extraContent = {
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = typed,
+                    onValueChange = { typed = it },
+                    singleLine = true,
                     enabled = !deleting,
-                    onClick = { confirming = false; typed = "" },
-                ) { Text(t("settings.deleteKeep")) }
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(t("settings.deleteTypeToConfirm", "word" to CONFIRM_WORD)) },
+                )
             },
-            modifier = Modifier.padding(0.dp),
         )
     }
 }

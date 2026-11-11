@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import com.loonext.android.core.scheduled.ScheduledSend
+import com.loonext.android.ui.common.ConfirmDialog
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull

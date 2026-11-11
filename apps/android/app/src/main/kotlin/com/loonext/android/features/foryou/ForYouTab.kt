@@ -1,6 +1,11 @@
 package com.loonext.android.features.foryou
 
 import com.loonext.android.ui.common.InitialsAvatar
+import androidx.compose.material.icons.outlined.TaskAlt
+import com.loonext.android.ui.common.EmptyStateSize
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.RefreshBox
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.LocalIndication
@@ -93,16 +98,14 @@ import com.loonext.android.features.calls.isActionableMiss
 import com.loonext.android.features.settings.SettingsSection
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.ui.common.AttentionDot
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
-import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.Timestamp
@@ -410,7 +413,7 @@ fun ForYouTab(
         // First fetch only (#176 keeps every revisit cached): shimmer in the
         // queue-card grammar, not a spinner.
         is LoadState.Loading -> ForYouSkeleton(modifier)
-        is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ }, modifier)
+        is LoadState.Failed -> LoadError(current.message, onRetry = { refreshKey++ }, modifier)
         is LoadState.Ready -> RefreshBox(
             isRefreshing = pullRefreshing,
             onRefresh = {
@@ -1382,30 +1385,12 @@ private fun CaughtUpWell(modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = modifier.fillMaxWidth().padding(top = 15.dp),
     ) {
-        Column(
-            Modifier.padding(horizontal = 22.dp, vertical = 26.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                t("inbox.forYouCaughtUpHeading"),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.12.em,
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                t("inbox.forYouCaughtUpBody"),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 12.dp),
-            )
-        }
+        EmptyState(
+            title = t("inbox.forYouCaughtUpHeading"),
+            description = t("inbox.forYouCaughtUpBody"),
+            icon = Icons.Outlined.TaskAlt,
+            size = EmptyStateSize.Panel,
+        )
     }
 }
 

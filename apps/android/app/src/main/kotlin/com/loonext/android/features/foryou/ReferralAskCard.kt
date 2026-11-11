@@ -1,6 +1,7 @@
 package com.loonext.android.features.foryou
 
 import androidx.compose.foundation.layout.Arrangement
+import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,7 +22,6 @@ import com.loonext.android.core.model.ReferralMoment
 import com.loonext.android.core.model.ReferralsView
 import com.loonext.android.core.referral.ReferralShare
 import com.loonext.android.features.settings.ReferralShareBlock
-import com.loonext.android.ui.common.PaperCard
 
 /**
  * #288 — the ask, at the moment it has been earned.

@@ -1,6 +1,9 @@
 package com.loonext.android.features.calls
 
 import android.Manifest
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadError
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -73,7 +76,6 @@ import com.loonext.android.telephony.CallWakePolicy
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.InitialsAvatar
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.RowDivider
@@ -938,21 +940,11 @@ private fun TransferSheet(
                     horizontalArrangement = Arrangement.Center,
                 ) { LoadingIndicator() }
 
-                error != null -> Column(
-                    Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        error ?: t("common.somethingWentWrong"),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                    OutlinedButton(
-                        onClick = { reloadKey++ },
-                        modifier = Modifier.padding(vertical = 12.dp),
-                    ) { Text(t("common.retry")) }
-                }
+                error != null -> LoadError(
+                    message = error ?: t("common.somethingWentWrong"),
+                    onRetry = { reloadKey++ },
+                    variant = LoadErrorVariant.Inline,
+                )
 
                 rows.isEmpty() -> Text(
                     t("contactsTasks.noTeammatesAvailable"),

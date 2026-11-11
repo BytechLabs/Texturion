@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import android.content.Context
+import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.i18n.t
-import com.loonext.android.ui.common.PaperCard
 
 /**
  * #321 — what shipped, in the app.

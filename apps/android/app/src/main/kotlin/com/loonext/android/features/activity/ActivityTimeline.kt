@@ -1,6 +1,12 @@
 package com.loonext.android.features.activity
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.EmptyStateSize
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadError
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,10 +62,8 @@ import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.features.thread.memberNames
 import com.loonext.android.ui.common.ChoiceChip
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
-import com.loonext.android.ui.common.SkeletonListRow
 import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.rememberHaptics
 import kotlinx.coroutines.CancellationException
@@ -192,47 +196,26 @@ fun ActivityTimeline(
 
         when (val current = state) {
             is ActivityState.Loading -> PaperCard(Modifier.fillMaxWidth()) {
-                SkeletonListRow(avatar = false)
-                RowDivider()
-                SkeletonListRow(avatar = false)
+                SkeletonList(rows = 2, avatar = false)
             }
 
-            is ActivityState.Failed -> Column(Modifier.padding(start = 6.dp)) {
-                Text(
-                    t("activity.loadFailed"),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(
-                    t("activity.loadFailedDetail"),
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(
-                    onClick = {
-                        haptics.tap()
-                        state = ActivityState.Loading
-                        refreshKey++
-                    },
-                    contentPadding = PaddingValues(0.dp),
-                    modifier = Modifier.heightIn(min = 48.dp),
-                ) { Text(t("common.retry")) }
-            }
+            is ActivityState.Failed -> LoadError(
+                message = t("activity.loadFailed") + ". " + t("activity.loadFailedDetail"),
+                onRetry = {
+                    haptics.tap()
+                    state = ActivityState.Loading
+                    refreshKey++
+                },
+                variant = LoadErrorVariant.Inline,
+            )
 
             is ActivityState.Ready -> {
                 if (current.items.isEmpty()) {
-                    Column(Modifier.padding(start = 6.dp)) {
-                        Text(
-                            t(if (category == null) "activity.empty" else "activity.emptyFiltered"),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        if (category == null) {
-                            Text(
-                                t("activity.emptyDetail"),
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+                    EmptyState(
+                        title = t(if (category == null) "activity.empty" else "activity.emptyFiltered"),
+                        description = if (category == null) t("activity.emptyDetail") else null,
+                        size = EmptyStateSize.Panel,
+                    )
                 } else {
                     val groups = remember(current.items) {
                         groupActivityByDay(current.items, ActivityItem::occurred_at)

@@ -1,6 +1,12 @@
 package com.loonext.android.features.contacts
 
 import android.media.AudioAttributes
+import com.loonext.android.ui.common.EmptyStateSize
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadError
 import android.media.MediaPlayer
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
@@ -59,11 +65,9 @@ import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.features.tasks.CallTaskButton
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
-import com.loonext.android.ui.common.SkeletonListRow
 import com.loonext.android.ui.common.SwipeAction
 import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.pressScale
@@ -147,33 +151,23 @@ internal fun ContactCallsSection(
     ContactSection(t("contactsTasks.callsSection"), modifier) {
         when (val current = state) {
             is LoadState.Loading -> PaperCard(Modifier.fillMaxWidth()) {
-                SkeletonListRow(avatar = false)
-                RowDivider()
-                SkeletonListRow(avatar = false)
+                SkeletonList(rows = 2, avatar = false)
             }
 
-            is LoadState.Failed -> Column(Modifier.padding(start = 6.dp)) {
-                Text(
-                    current.message,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(
-                    onClick = {
-                        haptics.tap()
-                        refreshKey++
-                    },
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                ) { Text(t("common.retry")) }
-            }
+            is LoadState.Failed -> LoadError(
+                current.message,
+                onRetry = {
+                    haptics.tap()
+                    refreshKey++
+                },
+                variant = LoadErrorVariant.Inline,
+            )
 
             is LoadState.Ready -> {
                 if (current.value.calls.isEmpty()) {
-                    Text(
-                        t("contactsTasks.noCallsYet"),
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 6.dp),
+                    EmptyState(
+                        title = t("contactsTasks.noCallsYet"),
+                        size = EmptyStateSize.Panel,
                     )
                 } else {
                     val groups = remember(current.value.calls) {

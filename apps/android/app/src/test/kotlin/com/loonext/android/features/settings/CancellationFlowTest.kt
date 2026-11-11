@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.ui.common.ConfirmDialog
 import com.loonext.android.core.model.MemberRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

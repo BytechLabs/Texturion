@@ -1,6 +1,10 @@
 package com.loonext.android.features.tasks
 
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.outlined.CalendarMonth
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.EmptyStateSize
+import com.loonext.android.ui.common.EmptyState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +52,7 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Task
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
@@ -311,7 +315,7 @@ internal fun TaskCalendarView(
 
     when (val current = state) {
         is LoadState.Loading -> TaskCalendarSkeleton(modifier)
-        is LoadState.Failed -> CenteredError(
+        is LoadState.Failed -> LoadError(
             current.message,
             onRetry = { localRefresh++ },
             modifier = modifier,
@@ -394,21 +398,15 @@ internal fun TaskCalendarView(
                     // Teach the calendar rather than leave it reading as
                     // broken (the web's empty-range card).
                     item(key = "cal-teach") {
-                        Column(
+                        PaperCard(
                             Modifier
                                 .padding(start = 18.dp, end = 18.dp, top = 10.dp)
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(22.dp))
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                                .fillMaxWidth(),
                         ) {
-                            Text(
-                                t("contactsTasks.calendarEmptyRange"),
-                                fontSize = 12.5.sp,
-                                lineHeight = 18.sp,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.fillMaxWidth(),
+                            EmptyState(
+                                title = t("contactsTasks.calendarEmptyRange"),
+                                icon = Icons.Outlined.CalendarMonth,
+                                size = EmptyStateSize.Panel,
                             )
                         }
                     }
@@ -455,11 +453,9 @@ internal fun TaskCalendarView(
                     }
                     if (dayTasks.isEmpty()) {
                         item(key = "day-empty") {
-                            Text(
-                                t("contactsTasks.calendarNothingDueThisDay"),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 24.dp),
+                            EmptyState(
+                                title = t("contactsTasks.calendarNothingDueThisDay"),
+                                size = EmptyStateSize.Panel,
                             )
                         }
                     } else {

@@ -1,6 +1,10 @@
 package com.loonext.android.features.compose
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.SegmentedSize
+import com.loonext.android.ui.common.Segment
+import com.loonext.android.ui.common.SegmentedControl
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,9 +22,6 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TwoClocks
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
@@ -233,18 +234,15 @@ fun SendLaterPicker(
                             // has is "did I mean 8am here or 8am there"; offering
                             // 400 IANA zones to answer it would be a worse version
                             // of the same confusion.
-                            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                                TwoClocks.Choice.entries.forEachIndexed { index, option ->
-                                    SegmentedButton(
-                                        selected = choice == option,
-                                        onClick = { choice = option },
-                                        shape = SegmentedButtonDefaults.itemShape(
-                                            index = index,
-                                            count = TwoClocks.Choice.entries.size,
-                                        ),
-                                    ) { Text(option.labelFor(LocalAppLocale.current)) }
-                                }
-                            }
+                            SegmentedControl(
+                                segments = TwoClocks.Choice.entries.map {
+                                    Segment(it, it.labelFor(LocalAppLocale.current))
+                                },
+                                selected = choice,
+                                onSelect = { choice = it },
+                                fill = true,
+                                size = SegmentedSize.Sm,
+                            )
                         }
                         Text(
                             pickerClockNote(
@@ -303,24 +301,17 @@ fun QuietHoursScheduleDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(t("thread.quietHoursTitle")) },
-        text = {
-            Text(
-                if (localHour == null) {
-                    ScheduledSend.copy("quiet_hours_unknown", LocalAppLocale.current)
-                } else {
-                    t("thread.quietHoursAround", "hour" to formatHour(localHour))
-                } + " " + ScheduledSend.copy("quiet_hours_choice", LocalAppLocale.current),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) { Text(t("thread.scheduleAnyway")) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(t("thread.pickAnotherTime")) }
-        },
+    ConfirmDialog(
+        title = t("thread.quietHoursTitle"),
+        body = if (localHour == null) {
+            ScheduledSend.copy("quiet_hours_unknown", LocalAppLocale.current)
+        } else {
+            t("thread.quietHoursAround", "hour" to formatHour(localHour))
+        } + " " + ScheduledSend.copy("quiet_hours_choice", LocalAppLocale.current),
+        confirmLabel = t("thread.scheduleAnyway"),
+        dismissLabel = t("thread.pickAnotherTime"),
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
     )
 }
 

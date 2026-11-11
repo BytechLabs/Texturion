@@ -1,6 +1,10 @@
 package com.loonext.android.features.shell
 
 import android.content.ClipData
+import com.loonext.android.ui.common.SegmentedSize
+import com.loonext.android.ui.common.Segment
+import com.loonext.android.ui.common.SegmentedControl
+import com.loonext.android.ui.common.PaperCard
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.AnimatedContent
@@ -76,7 +80,6 @@ import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.InitialsAvatar
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.RowDivider
@@ -260,93 +263,16 @@ internal fun AccountSheetContent(
                         style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp),
                         modifier = Modifier.weight(1f),
                     )
-                    // Segmented track per the design grammar: inset track, INK
-                    // pill for the selected segment (paper-on-inset was nearly
-                    // invisible), equal-size segments. The ink pill GLIDES to
-                    // the picked segment (#194); labels only cross-fade.
-                    val segmentBounds =
-                        remember { mutableStateMapOf<String, Pair<Float, IntSize>>() }
-                    Box(
-                        Modifier
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-                            .padding(3.dp),
-                    ) {
-                        segmentBounds[theme]?.let { (segmentX, segmentSize) ->
-                            val density = LocalDensity.current
-                            val pillX by animateFloatAsState(
-                                targetValue = segmentX,
-                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                                // #228: an animation label is an IDENTIFIER for
-                                // the Animation Preview tool, never something a
-                                // person reads, so it is spelled like one — the
-                                // same kebab-case AiOrb, Composer, ThreadScreen
-                                // and MessageBubbles already use. Written as a
-                                // word it is indistinguishable from a one-word
-                                // UI label ("Spam", "Waiting") to any guard, and
-                                // to anybody skim-reading the file.
-                                label = "theme-pill-x",
-                            )
-                            val pillWidth by animateFloatAsState(
-                                targetValue = segmentSize.width.toFloat(),
-                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                                label = "theme-pill-width",
-                            )
-                            Box(
-                                Modifier
-                                    .align(Alignment.CenterStart)
-                                    .offset { IntOffset(pillX.roundToInt(), 0) }
-                                    .size(
-                                        width = with(density) { pillWidth.toDp() },
-                                        height = with(density) { segmentSize.height.toDp() },
-                                    )
-                                    .background(MaterialTheme.colorScheme.primary, CircleShape),
-                            )
-                        }
-                        Row {
-                            // The VALUE is the stored preference and never
-                            // translated; only the label beside it is.
-                            listOf(
-                                "system" to t("shell.themeSystem"),
-                                "light" to t("shell.themeLight"),
-                                "dark" to t("shell.themeDark"),
-                            )
-                                .forEach { (value, label) ->
-                                    val selected = theme == value
-                                    val labelColor by animateColorAsState(
-                                        targetValue = if (selected) {
-                                            MaterialTheme.colorScheme.onPrimary
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                        label = "theme-label",
-                                    )
-                                    Surface(
-                                        onClick = { if (!selected) onSelectTheme(value) },
-                                        shape = CircleShape,
-                                        color = Color.Transparent,
-                                        modifier = Modifier
-                                            .onGloballyPositioned {
-                                                segmentBounds[value] =
-                                                    it.positionInParent().x to it.size
-                                            }
-                                            .asToggleButton(selected),
-                                    ) {
-                                        Text(
-                                            label,
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                            ),
-                                            color = labelColor,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier
-                                                .widthIn(min = 58.dp)
-                                                .padding(horizontal = 10.dp, vertical = 7.dp),
-                                        )
-                                    }
-                                }
-                        }
-                    }
+                    SegmentedControl(
+                        segments = listOf(
+                            Segment("system", t("shell.themeSystem")),
+                            Segment("light", t("shell.themeLight")),
+                            Segment("dark", t("shell.themeDark")),
+                        ),
+                        selected = theme,
+                        onSelect = onSelectTheme,
+                        size = SegmentedSize.Sm,
+                    )
                 }
             }
 

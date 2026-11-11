@@ -87,14 +87,7 @@ fun SectionHeader(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (count != null && count > 0) {
-            Text(
-                "  $count",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-                color = MaterialTheme.colorScheme.secondary,
-            )
+            CountPill(count, modifier = Modifier.padding(start = 8.dp))
         }
     }
 }

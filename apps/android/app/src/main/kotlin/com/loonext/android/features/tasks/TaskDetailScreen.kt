@@ -1,6 +1,8 @@
 package com.loonext.android.features.tasks
 
 import android.content.Intent
+import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.PaperCard
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
@@ -134,11 +136,10 @@ import com.loonext.android.features.contacts.MultipartClient
 import com.loonext.android.features.contacts.uploadNoteFile
 import com.loonext.android.ui.common.AiOrb
 import com.loonext.android.ui.common.AiOrbState
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RecordOpenLink
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
@@ -294,7 +295,7 @@ internal fun TaskDetailScreen(
                     modifier = Modifier.padding(24.dp),
                 )
             } else {
-                CenteredError(current.message, onRetry = { refreshKey++ })
+                LoadError(current.message, onRetry = { refreshKey++ })
             }
         }
 
@@ -1494,12 +1495,9 @@ private fun TaskDetailBody(
     }
 
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(t("contactsTasks.deleteTaskTitle")) },
-            text = {
-                Text(
-                    t(
+        ConfirmDialog(
+            title = t("contactsTasks.deleteTaskTitle"),
+            body = t(
                         "contactsTasks.deleteTaskBody",
                         "what" to listOfNotNull(
                             if (hasNotes) t("contactsTasks.discussionNotes") else null,
@@ -1510,22 +1508,17 @@ private fun TaskDetailBody(
                             },
                         ).joinToString(t("contactsTasks.andJoiner")),
                     ),
-                )
+            confirmLabel = t("common.delete"),
+            onConfirm = {
+                confirmDelete = false
+                deleteTask()
             },
-            confirmButton = {
-                TextButton(
-                    enabled = !deleting,
-                    onClick = {
-                        confirmDelete = false
-                        deleteTask()
-                    },
-                ) { Text(t("common.delete"), color = MaterialTheme.colorScheme.error) }
+            onDismiss = {
+                confirmDelete = false
             },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) {
-                    Text(t("contactsTasks.keepTask"))
-                }
-            },
+            destructive = true,
+            confirmEnabled = !deleting,
+            dismissLabel = t("contactsTasks.keepTask"),
         )
     }
 
@@ -2201,13 +2194,7 @@ private fun AttachmentCell(
                         },
                 )
 
-                failed -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        t("contactsTasks.couldntLoad"),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                failed -> LoadError(t("contactsTasks.couldntLoad"))
 
                 else -> Box(Modifier.fillMaxSize())
             }

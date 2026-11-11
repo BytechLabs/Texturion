@@ -1,6 +1,12 @@
 package com.loonext.android.features.thread
 
 import android.content.Intent
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import com.loonext.android.ui.common.EmptyStateSize
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.Segment
+import com.loonext.android.ui.common.SegmentedControl
+import com.loonext.android.ui.common.ConfirmDialog
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -35,9 +41,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -62,7 +65,7 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.GalleryItem
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.relativeTime
@@ -189,26 +192,17 @@ internal fun AttachmentsGalleryScreen(
             }
         }
 
-        SingleChoiceSegmentedButtonRow(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-        ) {
-            GalleryView.entries.forEachIndexed { index, item ->
-                SegmentedButton(
-                    selected = view == item,
-                    onClick = { view = item },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = GalleryView.entries.size,
-                    ),
-                ) { Text(t(item.labelKey)) }
-            }
-        }
+        SegmentedControl(
+            segments = GalleryView.entries.map { Segment(it, t(it.labelKey)) },
+            selected = view,
+            onSelect = { view = it },
+            fill = true,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        )
 
         when (val current = state) {
             is LoadState.Loading -> CenteredLoading()
-            is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ })
+            is LoadState.Failed -> LoadError(current.message, onRetry = { refreshKey++ })
             is LoadState.Ready -> {
                 val nextCursor = current.value.nextCursor
                 val rows = galleryItemsFor(view, current.value.items)
@@ -220,8 +214,8 @@ internal fun AttachmentsGalleryScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        Text(
-                            when {
+                        EmptyState(
+                            title = when {
                                 view == GalleryView.Images && nextCursor != null ->
                                     t("thread.noPhotosLoaded")
 
@@ -231,9 +225,8 @@ internal fun AttachmentsGalleryScreen(
                                 nextCursor != null -> t("thread.noFilesLoaded")
                                 else -> t("thread.noFilesYet")
                             },
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 32.dp),
+                            icon = Icons.Outlined.PhotoLibrary,
+                            size = EmptyStateSize.Panel,
                         )
                         if (nextCursor != null) LoadMoreRow(loadingMore, ::loadMore)
                     }
@@ -267,50 +260,38 @@ internal fun AttachmentsGalleryScreen(
     // person hesitates, and hesitating is how somebody opens the file instead
     // of flagging it.
     reporting?.let { target ->
-        AlertDialog(
-            onDismissRequest = { reporting = null },
-            title = { Text(t("thread.reportFileTitle")) },
-            text = {
-                Text(
-                    t(
+        ConfirmDialog(
+            title = t("thread.reportFileTitle"),
+            body = t(
                         "thread.reportFileBody",
                         "name" to galleryFileName(target),
                     ),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !reportInFlight,
-                    onClick = {
-                        reportInFlight = true
-                        scope.launch {
-                            runCatching { repo.reportAttachment(companyId, target.id) }
-                                .onSuccess {
-                                    reportInFlight = false
-                                    reporting = null
-                                    refreshKey++
-                                }
-                                .onFailure {
-                                    reportInFlight = false
-                                    reporting = null
-                                    Toast.makeText(
-                                        context,
-                                        reportFailed,
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                                }
-                        }
-                    },
-                ) {
-                    Text(
-                        if (reportInFlight) t("thread.reporting")
+            confirmLabel = if (reportInFlight) t("thread.reporting")
                         else t("thread.reportFile"),
-                    )
+            onConfirm = {
+                reportInFlight = true
+                scope.launch {
+                    runCatching { repo.reportAttachment(companyId, target.id) }
+                        .onSuccess {
+                            reportInFlight = false
+                            reporting = null
+                            refreshKey++
+                        }
+                        .onFailure {
+                            reportInFlight = false
+                            reporting = null
+                            Toast.makeText(
+                                context,
+                                reportFailed,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { reporting = null }) { Text(t("common.cancel")) }
+            onDismiss = {
+                reporting = null
             },
+            confirmEnabled = !reportInFlight,
         )
     }
 }

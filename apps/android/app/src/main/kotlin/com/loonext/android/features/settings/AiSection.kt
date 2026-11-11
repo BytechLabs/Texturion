@@ -22,7 +22,7 @@ import com.loonext.android.core.model.CompanyAiSettings
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.THREAD_SUMMARY_IDLE_DAYS
 import com.loonext.android.core.model.THREAD_SUMMARY_MIN_MESSAGES
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.rememberCacheFirst
@@ -98,7 +98,7 @@ fun AiSection(scope: SettingsScope) {
 
         when (val current = state) {
             is LoadState.Loading -> SettingsSectionSkeleton(cards = 1)
-            is LoadState.Failed -> CenteredError(
+            is LoadState.Failed -> LoadError(
                 current.message,
                 onRetry = { refreshKey++ },
                 modifier = Modifier.padding(vertical = 48.dp),

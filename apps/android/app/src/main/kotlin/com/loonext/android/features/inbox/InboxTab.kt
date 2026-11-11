@@ -1,6 +1,14 @@
 package com.loonext.android.features.inbox
 
 import com.loonext.android.ui.common.InitialsAvatar
+import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material.icons.outlined.Inbox
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.Segment
+import com.loonext.android.ui.common.SegmentedControl
+import com.loonext.android.ui.common.SearchField
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.RefreshBox
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -138,7 +146,7 @@ import com.loonext.android.features.thread.dropVanishedFromFirstWindow
 import com.loonext.android.features.thread.mergeFirstPage
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.AttentionDot
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.ActiveFilterChip
@@ -147,13 +155,11 @@ import com.loonext.android.ui.common.ListFilterRow
 import com.loonext.android.ui.common.ListViews
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ViewsMenuEntry
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.UrgentBadge
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
-import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.SwipeAction
 import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.formatPhone
@@ -1535,7 +1541,7 @@ private fun InboxList(
                             SkeletonList(rows = 8)
                         }
 
-                        is LoadState.Failed -> CenteredError(
+                        is LoadState.Failed -> LoadError(
                             current.message,
                             onRetry = { controller.reload(showLoading = true) },
                         )
@@ -1843,23 +1849,20 @@ private fun ConversationListPane(
 
     val empty = controller.rows.isEmpty() && controller.pinnedRows.isEmpty()
     if (empty) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                when {
-                    // #508: an empty Unanswered list is the best news this
-                    // screen can give, and "nothing matches these filters"
-                    // reports it as an absence. Said as the result it is.
-                    controller.awaitingOnly -> t("inbox.emptyEveryoneAnswered")
-                    controller.hasSecondaryFilters -> t("inbox.emptyNoFilterMatch")
-                    controller.tab == InboxStatusTab.Open -> t("inbox.emptyNothingWaiting")
-                    controller.tab == InboxStatusTab.Mine -> t("inbox.emptyNothingAssigned")
-                    controller.tab == InboxStatusTab.Closed -> t("inbox.emptyNoClosed")
-                    else -> t("inbox.emptyNoConversations")
-                },
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        EmptyState(
+            title = when {
+                // #508: an empty Unanswered list is the best news this
+                // screen can give, and "nothing matches these filters"
+                // reports it as an absence. Said as the result it is.
+                controller.awaitingOnly -> t("inbox.emptyEveryoneAnswered")
+                controller.hasSecondaryFilters -> t("inbox.emptyNoFilterMatch")
+                controller.tab == InboxStatusTab.Open -> t("inbox.emptyNothingWaiting")
+                controller.tab == InboxStatusTab.Mine -> t("inbox.emptyNothingAssigned")
+                controller.tab == InboxStatusTab.Closed -> t("inbox.emptyNoClosed")
+                else -> t("inbox.emptyNoConversations")
+            },
+            icon = Icons.Outlined.Inbox,
+        )
         return
     }
 
@@ -2586,60 +2589,15 @@ private fun SearchSurface(
     ) {
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // The paper search pill with the ink focus ring (spec 00).
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+            SearchField(
+                value = controller.query,
+                onValueChange = { controller.query = it },
+                placeholder = t("inbox.searchPlaceholder"),
+                clearLabel = t("inbox.clearSearchAria"),
+                focusRequester = focusRequester,
+                bold = true,
                 modifier = Modifier.weight(1f),
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    Icon(
-                        Icons.Outlined.Search,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Box(Modifier.weight(1f)) {
-                        if (controller.query.isEmpty()) {
-                            Text(
-                                t("inbox.searchPlaceholder"),
-                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                maxLines = 1,
-                            )
-                        }
-                        BasicTextField(
-                            value = controller.query,
-                            onValueChange = { controller.query = it.take(200) },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequester),
-                        )
-                    }
-                    if (controller.query.isNotEmpty()) {
-                        Icon(
-                            Icons.Outlined.Close,
-                            contentDescription = t("inbox.clearSearchAria"),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .size(16.dp)
-                                .clickable { controller.query = "" },
-                        )
-                    }
-                }
-            }
+            )
             Text(
                 t("common.cancel"),
                 style = MaterialTheme.typography.labelLarge.copy(
@@ -2654,31 +2612,25 @@ private fun SearchSurface(
             )
         }
         Spacer(Modifier.height(13.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SearchScope.entries.forEach { item ->
-                FilterPill(
-                    text = t(item.labelKey),
-                    selected = scope == item,
-                    onClick = { scope = item },
-                )
-            }
-        }
+        SegmentedControl(
+            segments = SearchScope.entries.map { Segment(it, t(it.labelKey)) },
+            selected = scope,
+            onSelect = { scope = it },
+        )
         Spacer(Modifier.height(13.dp))
 
         if (!controller.searching) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(
-                    t("inbox.searchIdle"),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            EmptyState(
+                title = t("inbox.searchIdle"),
+                modifier = Modifier.weight(1f),
+                icon = Icons.Outlined.Search,
+            )
             return
         }
 
         when (val current = controller.searchState) {
             null, is LoadState.Loading -> CenteredLoading(Modifier.weight(1f))
-            is LoadState.Failed -> CenteredError(
+            is LoadState.Failed -> LoadError(
                 current.message,
                 onRetry = { controller.runSearch() },
                 modifier = Modifier.weight(1f),
@@ -2720,13 +2672,11 @@ private fun SearchResultsPane(
         (!showExtras || (result.attachments.isEmpty() && result.templates.isEmpty() &&
             result.voicemails.isEmpty()))
     if (empty) {
-        Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Text(
-                t("inbox.searchNoMatches", "query" to controller.query.trim()),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        EmptyState(
+            title = t("inbox.searchNoMatches", "query" to controller.query.trim()),
+            modifier = modifier,
+            icon = Icons.Outlined.SearchOff,
+        )
         return
     }
 
@@ -3292,13 +3242,11 @@ private fun InboxFilterRow(controller: InboxController, canShare: Boolean, onFil
             onDelete = controller::deleteView,
         ),
     ) {
-        InboxStatusTab.entries.forEach { item ->
-            FilterPill(
-                text = t(item.labelKey),
-                selected = controller.tab == item,
-                onClick = { controller.selectTab(item) },
-            )
-        }
+        SegmentedControl(
+            segments = InboxStatusTab.entries.map { Segment(it, t(it.labelKey)) },
+            selected = controller.tab,
+            onSelect = controller::selectTab,
+        )
     }
     if (saveOpen) {
         SaveViewSheet(

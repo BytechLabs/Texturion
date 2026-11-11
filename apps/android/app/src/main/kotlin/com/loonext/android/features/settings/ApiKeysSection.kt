@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,7 +33,7 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ApiKey
 import com.loonext.android.core.model.ApiKeyList
 import com.loonext.android.core.model.CreateApiKeyBody
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.userMessage
@@ -95,7 +96,7 @@ fun ApiKeysSection(scope: SettingsScope) {
 
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 1)
-        is LoadState.Failed -> CenteredError(
+        is LoadState.Failed -> LoadError(
             current.message,
             onRetry = { refreshKey++ },
             modifier = Modifier.padding(vertical = 48.dp),
@@ -368,30 +369,27 @@ private fun ApiKeyCard(
                 )
             }
         }
-        AlertDialog(
-            onDismissRequest = { confirming = false },
-            title = { Text(t("apiKeys.revokeTitle")) },
-            text = { Text(body) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirming = false
-                    coroutineScope.launch {
-                        try {
-                            scope.repo.revokeApiKey(scope.companyId, apiKey.id)
-                            onChanged()
-                        } catch (cause: CancellationException) {
-                            throw cause
-                        } catch (cause: Exception) {
-                            scope.showMessage(cause.userMessage(locale))
-                        }
+        ConfirmDialog(
+            title = t("apiKeys.revokeTitle"),
+            body = body,
+            confirmLabel = t("apiKeys.revokeConfirm"),
+            onConfirm = {
+                confirming = false
+                coroutineScope.launch {
+                    try {
+                        scope.repo.revokeApiKey(scope.companyId, apiKey.id)
+                        onChanged()
+                    } catch (cause: CancellationException) {
+                        throw cause
+                    } catch (cause: Exception) {
+                        scope.showMessage(cause.userMessage(locale))
                     }
-                }) { Text(t("apiKeys.revokeConfirm")) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirming = false }) {
-                    Text(t("apiKeys.keepIt"))
                 }
             },
+            onDismiss = {
+                confirming = false
+            },
+            dismissLabel = t("apiKeys.keepIt"),
         )
     }
 }

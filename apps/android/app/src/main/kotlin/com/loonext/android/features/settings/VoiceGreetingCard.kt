@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import android.Manifest
+import com.loonext.android.ui.common.ConfirmDialog
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -395,43 +396,36 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
     }
 
     confirmDelete?.let { target ->
-        AlertDialog(
-            onDismissRequest = { confirmDelete = null },
-            title = {
-                Text(t("settingsMore.deleteGreetingTitle", "name" to target.name))
-            },
-            text = { Text(t("settingsMore.deleteGreetingBody")) },
-            confirmButton = {
-                TextButton(
-                    enabled = !pending,
-                    onClick = {
-                        confirmDelete = null
-                        coroutines.launch {
-                            pending = true
-                            error = null
-                            try {
-                                scope.repo.deleteGreeting(scope.companyId, target.id)
-                                refresh()
-                                scope.showMessage(
-                                    AppStrings.translate(
-                                        locale,
-                                        "settingsMore.deletedToast",
-                                    ),
-                                )
-                            } catch (cause: Exception) {
-                                error = cause.userMessage(locale)
-                            } finally {
-                                pending = false
-                            }
-                        }
-                    },
-                ) { Text(t("common.delete")) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = null }) {
-                    Text(t("settingsMore.keepIt"))
+        ConfirmDialog(
+            title = t("settingsMore.deleteGreetingTitle", "name" to target.name),
+            body = t("settingsMore.deleteGreetingBody"),
+            confirmLabel = t("common.delete"),
+            onConfirm = {
+                confirmDelete = null
+                coroutines.launch {
+                    pending = true
+                    error = null
+                    try {
+                        scope.repo.deleteGreeting(scope.companyId, target.id)
+                        refresh()
+                        scope.showMessage(
+                            AppStrings.translate(
+                                locale,
+                                "settingsMore.deletedToast",
+                            ),
+                        )
+                    } catch (cause: Exception) {
+                        error = cause.userMessage(locale)
+                    } finally {
+                        pending = false
+                    }
                 }
             },
+            onDismiss = {
+                confirmDelete = null
+            },
+            confirmEnabled = !pending,
+            dismissLabel = t("settingsMore.keepIt"),
         )
     }
 

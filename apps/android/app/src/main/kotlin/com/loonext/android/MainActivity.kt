@@ -108,7 +108,7 @@ import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.features.thread.canAddLeadSource
 import com.loonext.android.push.APP_ORIGIN
 import com.loonext.android.telephony.SoftphoneManager
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LocalWindowSizeClass
 import com.loonext.android.ui.common.MainActionButton
@@ -485,7 +485,7 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
         }
 
         is RootState.Failed -> PreShellHost {
-            CenteredError(current.message, onRetry = root::retry)
+            LoadError(current.message, onRetry = root::retry)
         }
 
         is RootState.Ready -> ReadyShell(graph, current.me, current.companyId, root, deepLinks)

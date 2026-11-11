@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import android.graphics.Bitmap
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box

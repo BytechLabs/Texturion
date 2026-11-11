@@ -1,6 +1,9 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import com.loonext.android.ui.common.InlineError
+import com.loonext.android.ui.common.LinkButton
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +30,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.MemberRole
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberHaptics
@@ -114,7 +117,7 @@ fun CalendarFeedCard(scope: SettingsScope) {
 
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 1)
-        is LoadState.Failed -> CenteredError(
+        is LoadState.Failed -> LoadError(
             current.message,
             onRetry = { refreshKey++ },
             modifier = Modifier.padding(vertical = 32.dp),

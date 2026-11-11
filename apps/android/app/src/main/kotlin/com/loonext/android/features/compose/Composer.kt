@@ -1,6 +1,14 @@
 package com.loonext.android.features.compose
 
 import android.Manifest
+import com.loonext.android.ui.common.EmptyStateSize
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.SearchField
+import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadError
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -116,7 +124,6 @@ import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
-import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.touchTarget
 import com.loonext.android.ui.common.userMessage
@@ -863,29 +870,22 @@ fun ThreadComposer(
                 }.getOrDefault(0L)
             }
             ?.coerceAtLeast(0L) ?: 0L
-        AlertDialog(
-            onDismissRequest = { confirmCollision = false },
-            title = { Text(t("thread.collisionTitle")) },
-            text = {
-                Text(
-                    duplicateReplyPrompt(
+        ConfirmDialog(
+            title = t("thread.collisionTitle"),
+            body = duplicateReplyPrompt(
                         lastOutbound?.sent_by_user_id?.let(memberName),
                         secondsAgo,
                         locale,
                     ) + t("thread.collisionAsk"),
-                )
+            confirmLabel = t("thread.sendAnyway"),
+            onConfirm = {
+                confirmCollision = false
+                send()
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmCollision = false
-                    send()
-                }) { Text(t("thread.sendAnyway")) }
+            onDismiss = {
+                confirmCollision = false
             },
-            dismissButton = {
-                TextButton(onClick = { confirmCollision = false }) {
-                    Text(t("thread.letMeLook"))
-                }
-            },
+            dismissLabel = t("thread.letMeLook"),
         )
     }
 
@@ -1499,11 +1499,9 @@ private fun MentionPickerSheet(
                     avatar = false,
                 )
 
-                current.isEmpty() -> Text(
-                    t("thread.noMentionable"),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 16.dp),
+                current.isEmpty() -> EmptyState(
+                    title = t("thread.noMentionable"),
+                    size = EmptyStateSize.Panel,
                 )
 
                 else -> Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) {
@@ -2072,39 +2070,24 @@ fun TemplatePickerSheet(
                     avatar = false,
                 )
 
-                is LoadState.Failed -> Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        current.message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        t("common.retry"),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .clickable { retryKey++ },
-                    )
-                }
+                is LoadState.Failed -> LoadError(
+                    current.message,
+                    onRetry = { retryKey++ },
+                    modifier = Modifier.padding(top = 10.dp),
+                    variant = LoadErrorVariant.Card,
+                )
 
                 is LoadState.Ready -> {
                     if (current.value.isEmpty()) {
-                        Text(
-                            t("thread.noTemplates"),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 16.dp),
+                        EmptyState(
+                            title = t("thread.noTemplates"),
+                            size = EmptyStateSize.Panel,
                         )
                     } else {
-                        TemplateSearchPill(
-                            query = query,
-                            onQueryChange = { query = it },
+                        SearchField(
+                            value = query,
+                            onValueChange = { query = it },
+                            placeholder = t("thread.searchTemplates"),
                             modifier = Modifier.padding(top = 14.dp, bottom = 14.dp),
                         )
                         val matches = current.value.filter {
@@ -2133,11 +2116,9 @@ fun TemplatePickerSheet(
                                 }
                                 if (matches.isEmpty()) {
                                     item {
-                                        Text(
-                                            t("thread.nothingMatches"),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(16.dp),
+                                        EmptyState(
+                                            title = t("thread.nothingMatches"),
+                                            size = EmptyStateSize.Panel,
                                         )
                                     }
                                 }
@@ -2161,60 +2142,6 @@ fun TemplatePickerSheet(
     }
 }
 
-/** Paper search pill with a muted stroke search glyph. */
-@Composable
-private fun TemplateSearchPill(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface,
-        modifier = modifier
-            .fillMaxWidth()
-            .border(1.5.dp, MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
-    ) {
-        Row(
-            Modifier.padding(horizontal = 15.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Outlined.Search,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.size(15.dp),
-            )
-            Spacer(Modifier.width(9.dp))
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier.weight(1f),
-                decorationBox = { inner ->
-                    Box {
-                        if (query.isEmpty()) {
-                            Text(
-                                t("thread.searchTemplates"),
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 13.sp,
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    .copy(alpha = 0.7f),
-                            )
-                        }
-                        inner()
-                    }
-                },
-            )
-        }
-    }
-}
 
 /** One saved reply: bold title, two-line muted preview, Insert pill. */
 @Composable

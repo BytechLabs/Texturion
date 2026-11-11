@@ -1,6 +1,10 @@
 package com.loonext.android.features.settings
 
 import android.content.ClipData
+import com.loonext.android.ui.common.SearchField
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.ConfirmDialog
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.AnimatedContent
@@ -88,10 +92,9 @@ import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.model.UsageStatus
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.ResyncOnResume
@@ -103,7 +106,6 @@ import com.loonext.android.ui.common.previewCompany
 import com.loonext.android.ui.common.previewMe
 import com.loonext.android.ui.common.previewUsage
 import com.loonext.android.ui.common.SkeletonBlock
-import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.loonextWordmark
 import com.loonext.android.ui.common.pressScale
@@ -383,7 +385,7 @@ fun SettingsHome(
     Box(modifier.fillMaxSize()) {
         when (val current = companyState) {
             is LoadState.Loading -> SettingsHubSkeleton()
-            is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ })
+            is LoadState.Failed -> LoadError(current.message, onRetry = { refreshKey++ })
             is LoadState.Ready -> {
                 val company = current.value
                 val onCompanyUpdated: (CompanyView) -> Unit = { patched ->
@@ -569,7 +571,13 @@ internal fun SettingsIndex(
         ownershipPrompt()
         // #719: finds a setting by what it does ("time zone"), not by guessing
         // which section holds it. Results replace the list while there is a query.
-        SettingsSearchField(query, onQueryChange = { query = it })
+        SearchField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = t("settingsMore.searchPlaceholder"),
+            clearLabel = t("settingsMore.searchClear"),
+            maxLength = SETTINGS_SEARCH_MAX,
+        )
         if (query.isNotBlank()) {
             SettingsSearchResults(query, role, onOpen = onOpenSetting)
             return@Column

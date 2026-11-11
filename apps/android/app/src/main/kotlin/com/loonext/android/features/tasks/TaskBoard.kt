@@ -48,7 +48,7 @@ import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Task
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
@@ -184,7 +184,7 @@ internal fun TaskBoard(
 
     when (val current = state) {
         is LoadState.Loading -> BoardSkeleton()
-        is LoadState.Failed -> CenteredError(current.message, onRetry = { localRefresh++ })
+        is LoadState.Failed -> LoadError(current.message, onRetry = { localRefresh++ })
 
         is LoadState.Ready -> {
             val snapshot = current.value

@@ -1,6 +1,7 @@
 package com.loonext.android.features.tasks
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.SearchField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -374,12 +375,12 @@ internal fun ContactPickerSheet(
     AppSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
             Text(t("taskViews.pickCustomer"), style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
+            SearchField(
                 value = query,
-                onValueChange = { query = it.take(80) },
-                label = { Text(t("taskViews.searchCustomers")) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                onValueChange = { query = it },
+                placeholder = t("taskViews.searchCustomers"),
+                maxLength = 80,
+                modifier = Modifier.padding(vertical = 10.dp),
             )
             Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
                 TextButton(onClick = { onPick(null) }, modifier = Modifier.heightIn(min = 48.dp)) {

@@ -1,6 +1,7 @@
 package com.loonext.android.features.tasks
 
 import androidx.compose.material3.AlertDialog
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -120,30 +121,28 @@ internal fun TaskRecordMenu(
     )
 
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text(t("contactsTasks.deleteTaskTitle")) },
-            text = { Text(t("contactsTasks.deleteTaskBody")) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    haptics.reject()
-                    scope.launch {
-                        try {
-                            mutations.delete(
-                                companyId,
-                                task.id,
-                                scope = if (needsScopeChoice(task.repeat)) TaskScope.This else null,
-                            )
-                            onChanged()
-                        } catch (cause: Exception) {
-                            onMessage(cause.userMessage(locale))
-                        }
+        ConfirmDialog(
+            title = t("contactsTasks.deleteTaskTitle"),
+            body = t("contactsTasks.deleteTaskBody"),
+            confirmLabel = t("contactsTasks.deleteTask"),
+            onConfirm = {
+                confirmDelete = false
+                haptics.reject()
+                scope.launch {
+                    try {
+                        mutations.delete(
+                            companyId,
+                            task.id,
+                            scope = if (needsScopeChoice(task.repeat)) TaskScope.This else null,
+                        )
+                        onChanged()
+                    } catch (cause: Exception) {
+                        onMessage(cause.userMessage(locale))
                     }
-                }) { Text(t("contactsTasks.deleteTask")) }
+                }
             },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text(t("common.cancel")) }
+            onDismiss = {
+                confirmDelete = false
             },
         )
     }

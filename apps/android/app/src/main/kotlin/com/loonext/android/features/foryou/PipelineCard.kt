@@ -1,6 +1,7 @@
 package com.loonext.android.features.foryou
 
 import androidx.compose.foundation.layout.Arrangement
+import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +20,6 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PipelineReportResponse
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.MeasureHeader
 import com.loonext.android.ui.common.ShareBar
 import com.loonext.android.ui.common.ShareSegment

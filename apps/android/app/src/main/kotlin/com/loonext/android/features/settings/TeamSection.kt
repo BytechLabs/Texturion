@@ -1,6 +1,9 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.ui.common.InlineError
+import com.loonext.android.ui.common.LinkButton
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,7 +50,7 @@ import com.loonext.android.core.model.numberAccessIsRestricted
 import com.loonext.android.core.model.numberAccessLevelLabel
 import com.loonext.android.core.model.numberAccessReason
 import com.loonext.android.core.model.sortedForOwner
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
@@ -142,7 +145,7 @@ fun TeamSection(scope: SettingsScope, company: CompanyView) {
 
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 2)
-        is LoadState.Failed -> CenteredError(
+        is LoadState.Failed -> LoadError(
             current.message,
             onRetry = { refreshKey++ },
             modifier = Modifier.padding(vertical = 48.dp),
@@ -265,31 +268,22 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
     // workspace name would be theatre, and theatre is what teaches people to
     // dismiss the dialogs that matter.
     givingUp?.let { role ->
-        AlertDialog(
-            onDismissRequest = { givingUp = null },
-            title = { Text(t("settingsMore.giveUpAccessTitle")) },
+        ConfirmDialog(
+            title = t("settingsMore.giveUpAccessTitle"),
             // The sentence comes from the shared rule, so the phone, the laptop
             // and the server agree about what a role costs.
-            text = { Text(SelfDowngrade.warning(member.role, role) ?: "") },
-            confirmButton = {
-                // Says what happens rather than "OK", so somebody skimming the
-                // buttons still reads the decision.
-                TextButton(onClick = {
-                    givingUp = null
-                    changeRole(role, acknowledged = true)
-                }) {
-                    Text(
-                        t(
-                            "settingsMore.makeMeRole",
-                            "role" to roleLabel(role).lowercase(),
-                        ),
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { givingUp = null }) {
-                    Text(t("settingsMore.keepMyAccess"))
-                }
+            body = SelfDowngrade.warning(member.role, role) ?: "",
+            // Says what happens rather than "OK", so somebody skimming the
+            // buttons still reads the decision.
+            confirmLabel = t(
+                "settingsMore.makeMeRole",
+                "role" to roleLabel(role).lowercase(),
+            ),
+            dismissLabel = t("settingsMore.keepMyAccess"),
+            onDismiss = { givingUp = null },
+            onConfirm = {
+                givingUp = null
+                changeRole(role, acknowledged = true)
             },
         )
     }

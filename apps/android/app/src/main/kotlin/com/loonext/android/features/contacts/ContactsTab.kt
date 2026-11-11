@@ -1,6 +1,11 @@
 package com.loonext.android.features.contacts
 
 import com.loonext.android.ui.common.ActiveFilterChip
+import androidx.compose.material.icons.outlined.People
+import com.loonext.android.ui.common.EmptyStateSize
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.SearchField
+import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.ActiveFilterChips
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.ListFilterButton
@@ -108,13 +113,12 @@ import com.loonext.android.core.model.Tag
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.ui.common.AppSheet
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.MainActionButton
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
-import com.loonext.android.ui.common.SkeletonList
 import androidx.core.content.ContextCompat
 import com.loonext.android.features.contacts.device.ContentResolverDeviceContacts
 import com.loonext.android.features.contacts.device.DeviceContactListRow
@@ -721,9 +725,11 @@ private fun ContactListScreen(
             val filterCount = (if (fieldFilter != null) 1 else 0) + (if (tagFilter != null) 1 else 0)
             val canFilter = workspaceTags.isNotEmpty() || filterableFields(fieldDefs).isNotEmpty()
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SearchPill(
-                    query,
-                    onValueChange = { query = it.take(200) },
+                SearchField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = t("contactsTasks.searchNameOrNumberHint"),
+                    fieldLabel = t("contactsTasks.searchNameOrNumber"),
                     modifier = Modifier.weight(1f),
                 )
                 if (canFilter) {
@@ -761,7 +767,7 @@ private fun ContactListScreen(
                     }
 
                 is LoadState.Failed ->
-                    CenteredError(current.message, onRetry = onRefresh)
+                    LoadError(current.message, onRetry = onRefresh)
 
                 is LoadState.Ready -> {
                     if (rows.isEmpty()) {
@@ -770,8 +776,8 @@ private fun ContactListScreen(
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text(
-                                when {
+                            EmptyState(
+                                title = when {
                                     debouncedQ.isNotBlank() ->
                                         t("contactsTasks.noMatchesFor", "query" to debouncedQ)
                                     // #291: NOT the no-contacts-yet line. Under
@@ -783,12 +789,9 @@ private fun ContactListScreen(
                                             t(CONTACT_FILTER_EMPTY_BODY)
                                     else -> t("contactsTasks.noContactsYet")
                                 },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 14.dp),
+                                icon = Icons.Outlined.People,
+                                size = EmptyStateSize.Panel,
                             )
-                            Spacer(Modifier.height(14.dp))
                             ListFooter(
                                 canImport = canImport,
                                 importing = importing,
@@ -1274,57 +1277,6 @@ private fun DeviceContactRowItem(
     }
 }
 
-/** The paper search pill: 16dp muted glass icon + 13.5sp field. */
-@Composable
-private fun SearchPill(
-    value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier.fillMaxWidth(),
-) {
-    val hint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
-    // Read outside the semantics lambda, which is not composition.
-    val searchLabel = t("contactsTasks.searchNameOrNumber")
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface,
-        modifier = modifier,
-    ) {
-        Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
-            Icon(
-                Icons.Outlined.Search,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = hint,
-            )
-            Box(Modifier.weight(1f)) {
-                if (value.isEmpty()) {
-                    Text(
-                        t("contactsTasks.searchNameOrNumberHint"),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
-                        color = hint,
-                    )
-                }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 13.5.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    ),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.secondary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .semantics { contentDescription = searchLabel },
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun ContactRow(

@@ -1,6 +1,9 @@
 package com.loonext.android.features.thread
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadError
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,7 +37,6 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Tag
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 
@@ -99,14 +101,12 @@ internal fun TagManageSheet(
                 // First-fetch shimmer in the sheet's own row grammar.
                 is LoadState.Loading -> SkeletonList(rows = 4, avatar = false)
 
-                is LoadState.Failed -> Column(Modifier.padding(horizontal = 20.dp)) {
-                    Text(
-                        current.message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    TextButton(onClick = { retryKey++ }) { Text(t("common.retry")) }
-                }
+                is LoadState.Failed -> LoadError(
+                    current.message,
+                    onRetry = { retryKey++ },
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    variant = LoadErrorVariant.Inline,
+                )
 
                 is LoadState.Ready -> {
                     val plan = resolveTagInput(input, current.value)

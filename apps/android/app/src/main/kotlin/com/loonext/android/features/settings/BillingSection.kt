@@ -1,6 +1,11 @@
 package com.loonext.android.features.settings
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import com.loonext.android.ui.common.LoadErrorVariant
+import com.loonext.android.ui.common.LoadError
+import com.loonext.android.ui.common.InlineError
+import com.loonext.android.ui.common.LinkButton
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -1486,8 +1491,7 @@ private fun PlanCard(
         // again; nothing at all while it is still in flight, because the pill
         // above already says so and narrating a request is not information.
         planStateUnknownNote(pause, locale)?.let { note ->
-            ReadOnlyLine(note)
-            LinkButton(onClick = onRetryPause) { Text(t("common.retry")) }
+            LoadError(note, onRetry = onRetryPause, variant = LoadErrorVariant.Inline)
         }
         fullDate(company.current_period_end)?.let { date ->
             Text(

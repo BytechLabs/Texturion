@@ -130,39 +130,6 @@ fun SettingsCard(
     }
 }
 
-/**
- * A text button that LOOKS like one.
- *
- * #462: "Some buttons dont look like they are clickable in the settings even
- * though they are." Material's `TextButton` draws its label in
- * `colorScheme.primary`, and this theme maps primary to Ink — the same colour
- * as body text (`onSurface`). So every text button in settings rendered as a
- * line of ordinary prose: same colour, no fill, no border, nothing to say it
- * could be tapped. True in both themes; 17.05:1 on paper either way, which is
- * exactly the contrast of the paragraph next to it.
- *
- * Olive is what MOBILE-DESIGN.md reserves for "counts, LINKS, emphasis", and
- * it is what iOS has always tinted these with (`.tint(BrandColor.olive)`).
- * 4.41:1 light, 9.33:1 dark — legible on its own, and unmistakably not prose.
- */
-@Composable
-fun LinkButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    content: @Composable RowScope.() -> Unit,
-) {
-    TextButton(
-        onClick = onClick,
-        modifier = modifier,
-        enabled = enabled,
-        colors = ButtonDefaults.textButtonColors(
-            contentColor = MaterialTheme.colorScheme.secondary,
-        ),
-        content = content,
-    )
-}
-
 /** Honest read-only line for members ("Only owners and admins can…"). */
 @Composable
 fun ReadOnlyLine(text: String, modifier: Modifier = Modifier) {
@@ -172,19 +139,6 @@ fun ReadOnlyLine(text: String, modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier,
     )
-}
-
-/** Calm one-sentence inline error under a form control. */
-@Composable
-fun InlineError(message: String?, modifier: Modifier = Modifier) {
-    if (message != null) {
-        Text(
-            message,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-            modifier = modifier.padding(top = 6.dp),
-        )
-    }
 }
 
 @Composable
@@ -249,64 +203,6 @@ fun StatusPill(label: String, tone: PillTone, modifier: Modifier = Modifier) {
         modifier = modifier
             .background(bg, RoundedCornerShape(percent = 50))
             .padding(horizontal = 8.dp, vertical = 3.dp),
-    )
-}
-
-/**
- * Shared confirmation dialog: calm body copy, optional destructive confirm,
- * inline error, and a pending state that disables both buttons.
- */
-@Composable
-fun ConfirmDialog(
-    title: String,
-    body: String,
-    confirmLabel: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-    destructive: Boolean = false,
-    pending: Boolean = false,
-    error: String? = null,
-    /**
-     * Null hides the dismiss button AND the back/outside gesture, for the one
-     * dialog that must not be closeable by accident: #314 shows recovery
-     * codes exactly once, and a person who backs out of that screen has armed
-     * a lock and thrown away the spare key. Everywhere else, leave it.
-     */
-    dismissLabel: String? = t("common.cancel"),
-    confirmEnabled: Boolean = true,
-    extraContent: (@Composable ColumnScope.() -> Unit)? = null,
-) {
-    AlertDialog(
-        onDismissRequest = { if (!pending && dismissLabel != null) onDismiss() },
-        title = { Text(title) },
-        text = {
-            // #199 host type 4: the PLATFORM window keeps a floating dialog
-            // above the keyboard (default DialogProperties). The debug guard
-            // watches extraContent text fields (release-confirm, start-order)
-            // in case that ever stops being true.
-            Column(Modifier.assertAboveIme("dialog")) {
-                Text(body, style = MaterialTheme.typography.bodyMedium)
-                extraContent?.invoke(this)
-                InlineError(error)
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                enabled = confirmEnabled && !pending,
-                colors = if (destructive) {
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    )
-                } else {
-                    ButtonDefaults.buttonColors()
-                },
-            ) { Text(if (pending) t("settingsMore.working") else confirmLabel) }
-        },
-        dismissButton = dismissLabel?.let { label ->
-            { LinkButton(onClick = onDismiss, enabled = !pending) { Text(label) } }
-        },
     )
 }
 

@@ -27,6 +27,7 @@ object CommonStrings : AppStrings.Section {
         "time.exactTime" to "Exact time",
         "common.country" to "Country",
         "common.retry" to "Try again",
+        "common.clearSearch" to "Clear search",
         "common.loadFailed" to
             "Couldn't load this. Check your connection and try again.",
         "common.somethingWentWrong" to "Something went wrong. Try again.",
@@ -139,6 +140,7 @@ object CommonStrings : AppStrings.Section {
         "time.exactTime" to "Heure exacte",
         "common.country" to "Pays",
         "common.retry" to "Réessayer",
+        "common.clearSearch" to "Effacer la recherche",
         "common.loadFailed" to
             "Impossible de charger. Vérifiez votre connexion et réessayez.",
         "common.somethingWentWrong" to "Une erreur s'est produite. Réessayez.",

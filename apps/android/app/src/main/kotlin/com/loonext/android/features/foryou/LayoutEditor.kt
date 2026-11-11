@@ -1,6 +1,9 @@
 package com.loonext.android.features.foryou
 
 import androidx.compose.foundation.clickable
+import com.loonext.android.ui.common.EmptyStateSize
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.PaperCard
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,7 +39,6 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.core.dashboard.DashboardLayouts
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.asButton
@@ -201,11 +203,9 @@ internal fun PanelEditBar(
 @Composable
 internal fun PanelEmptyStub() {
     PaperCard(Modifier.fillMaxWidth()) {
-        Text(
-            t("inbox.forYouPanelEmpty"),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(12.dp),
+        EmptyState(
+            title = t("inbox.forYouPanelEmpty"),
+            size = EmptyStateSize.Panel,
         )
     }
 }

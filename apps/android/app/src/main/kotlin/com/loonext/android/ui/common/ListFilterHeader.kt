@@ -1,6 +1,7 @@
 package com.loonext.android.ui.common
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -134,33 +135,26 @@ fun ListFilterButton(count: Int, onClick: () -> Unit) {
                 onClick()
             },
             shape = CircleShape,
-            color = if (count > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-            contentColor = if (count > 0) {
-                MaterialTheme.colorScheme.onPrimary
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
+            color = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
                 .touchTarget()
                 .asButton()
                 .semantics { contentDescription = name },
         ) {
-            Row(
-                Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Icon(Icons.Outlined.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
-                if (count > 0) {
-                    Text(
-                        count.toString(),
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        ),
-                    )
-                }
-            }
+            Icon(
+                Icons.Outlined.Tune,
+                contentDescription = null,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).size(18.dp),
+            )
+        }
+        if (count > 0) {
+            CountPill(
+                count,
+                tone = CountPillTone.Primary,
+                size = CountPillSize.Small,
+                modifier = Modifier.align(Alignment.TopEnd).offset(x = (-2).dp, y = 4.dp),
+            )
         }
     }
 }
@@ -218,11 +212,7 @@ fun ListViewsMenu(views: ListViews) {
                             )
                             if (entry.count != null && entry.count > 0) {
                                 Spacer(Modifier.width(8.dp))
-                                Text(
-                                    entry.count.toString(),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                                CountPill(entry.count)
                             }
                         }
                     },
@@ -373,17 +363,18 @@ private fun ManageViewsSheet(views: ListViews, onDismiss: () -> Unit) {
         )
     }
     deleting?.let { entry ->
-        AlertDialog(
-            onDismissRequest = { deleting = null },
-            title = { Text(t("inbox.viewDeleteTitle")) },
-            text = { Text(t("inbox.viewDeleteBody", "name" to entry.name)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    views.onDelete(entry.id)
-                    deleting = null
-                }) { Text(t("inbox.viewDeleteConfirm")) }
+        ConfirmDialog(
+            title = t("inbox.viewDeleteTitle"),
+            body = t("inbox.viewDeleteBody", "name" to entry.name),
+            confirmLabel = t("inbox.viewDeleteConfirm"),
+            onConfirm = {
+                views.onDelete(entry.id)
+                deleting = null
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text(t("inbox.viewDeleteKeep")) } },
+            onDismiss = {
+                deleting = null
+            },
+            dismissLabel = t("inbox.viewDeleteKeep"),
         )
     }
 }

@@ -1,6 +1,7 @@
 package com.loonext.android.features.contacts
 
 import androidx.compose.foundation.layout.Arrangement
+import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -190,23 +191,17 @@ fun MergedFromRow(
     }
 
     if (confirming) {
-        AlertDialog(
-            onDismissRequest = { confirming = false },
-            title = { Text(t("contactsTasks.unmergeTitle", "name" to name)) },
-            text = { Text(t("contactsTasks.unmergeBody", "name" to name)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        haptics.confirm()
-                        confirming = false
-                        onUnmerge()
-                    },
-                ) {
-                    Text(t("contactsTasks.unmergeConfirm"))
-                }
+        ConfirmDialog(
+            title = t("contactsTasks.unmergeTitle", "name" to name),
+            body = t("contactsTasks.unmergeBody", "name" to name),
+            confirmLabel = t("contactsTasks.unmergeConfirm"),
+            onConfirm = {
+                haptics.confirm()
+                confirming = false
+                onUnmerge()
             },
-            dismissButton = {
-                TextButton(onClick = { confirming = false }) { Text(t("common.cancel")) }
+            onDismiss = {
+                confirming = false
             },
         )
     }

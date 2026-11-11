@@ -1,6 +1,13 @@
 package com.loonext.android.features.tasks
 
 import com.loonext.android.ui.common.RefreshBox
+import androidx.compose.material.icons.outlined.TaskAlt
+import com.loonext.android.ui.common.EmptyState
+import com.loonext.android.ui.common.Segment
+import com.loonext.android.ui.common.SegmentedControl
+import com.loonext.android.ui.common.SearchField
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.SkeletonList
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -106,7 +113,7 @@ import com.loonext.android.features.inbox.label
 import com.loonext.android.features.inbox.selectLoaded
 import com.loonext.android.features.inbox.toggleRow
 import com.loonext.android.features.shell.LocalShellPagerBlocker
-import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
@@ -451,82 +458,29 @@ private fun TaskListScreen(
             // paper idle; the press/checked shape morph carries the motion.
             // Four views now (#184), so the pills go icon-only with spoken
             // labels rather than crowding the rail.
-            Row(
-                Modifier.padding(horizontal = 18.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                ViewToggle(
-                    icon = Icons.AutoMirrored.Outlined.ViewList,
-                    contentDescription = t("contactsTasks.viewList"),
-                    checked = view == TaskViewKind.List,
-                ) {
-                    haptics.tap()
-                    viewName = TaskViewKind.List.name
-                }
-                ViewToggle(
-                    icon = Icons.Outlined.ViewKanban,
-                    contentDescription = t("contactsTasks.viewBoard"),
-                    checked = view == TaskViewKind.Board,
-                ) {
-                    haptics.tap()
-                    viewName = TaskViewKind.Board.name
-                }
-                ViewToggle(
-                    icon = Icons.Outlined.CalendarMonth,
-                    contentDescription = t("contactsTasks.viewCalendar"),
-                    checked = view == TaskViewKind.Calendar,
-                ) {
-                    haptics.tap()
-                    viewName = TaskViewKind.Calendar.name
-                }
-                ViewToggle(
-                    icon = Icons.Outlined.Map,
-                    contentDescription = t("contactsTasks.viewMap"),
-                    checked = view == TaskViewKind.Map,
-                ) {
-                    haptics.tap()
-                    viewName = TaskViewKind.Map.name
-                }
-            }
+            SegmentedControl(
+                segments = listOf(
+                    Segment(TaskViewKind.List, t("contactsTasks.viewList"), Icons.AutoMirrored.Outlined.ViewList),
+                    Segment(TaskViewKind.Board, t("contactsTasks.viewBoard"), Icons.Outlined.ViewKanban),
+                    Segment(TaskViewKind.Calendar, t("contactsTasks.viewCalendar"), Icons.Outlined.CalendarMonth),
+                    Segment(TaskViewKind.Map, t("contactsTasks.viewMap"), Icons.Outlined.Map),
+                ),
+                selected = view,
+                onSelect = { viewName = it.name },
+                iconOnly = true,
+                modifier = Modifier.padding(horizontal = 18.dp),
+            )
 
             AnimatedVisibility(
                 visible = view != TaskViewKind.Map && (searchOpen || search.isNotEmpty()),
             ) {
-                OutlinedTextField(
+                SearchField(
                     value = search,
-                    onValueChange = { search = it.take(TASK_SEARCH_MAX) },
-                    placeholder = {
-                        Text(
-                            t("contactsTasks.searchTaskTitles"),
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    singleLine = true,
-                    shape = CircleShape,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        focusedBorderColor = MaterialTheme.colorScheme.outline,
-                        unfocusedBorderColor = Color.Transparent,
-                    ),
-                    trailingIcon = {
-                        if (search.isNotEmpty()) {
-                            IconButton(onClick = {
-                                haptics.tap()
-                                search = ""
-                            }) {
-                                Icon(
-                                    Icons.Outlined.Close,
-                                    contentDescription = t("contactsTasks.clearSearch"),
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 18.dp, end = 18.dp, top = 12.dp),
+                    onValueChange = { search = it },
+                    placeholder = t("contactsTasks.searchTaskTitles"),
+                    clearLabel = t("contactsTasks.clearSearch"),
+                    maxLength = TASK_SEARCH_MAX,
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 12.dp),
                 )
             }
 
@@ -605,14 +559,11 @@ private fun TaskListScreen(
                     TaskViewKind.Map -> emptyList()
                     else -> TasksTabKind.entries.toList()
                 }
-                tabs.forEach { item ->
-                    FilterPill(
-                        text = t(item.labelKey),
-                        selected = tab == item,
-                        onClick = {
-                            haptics.tap()
-                            tab = item
-                        },
+                if (tabs.isNotEmpty()) {
+                    SegmentedControl(
+                        segments = tabs.map { Segment(it, t(it.labelKey)) },
+                        selected = tab,
+                        onSelect = { tab = it },
                     )
                 }
                 if (view == TaskViewKind.List) {
@@ -883,43 +834,6 @@ private fun TaskListScreen(
  */
 enum class TaskViewKind { List, Board, Calendar, Map }
 
-/**
- * View-switcher toggle (spec 24 pills, expressive build): M3 ToggleButton in
- * our skin — ink container when active, paper when idle — so the checked and
- * pressed shape morphs come from the component while the colors stay ours.
- * Icon-only with a spoken [contentDescription] since four views crowd a text
- * rail. [onSelect] fires only on an actual switch, never on re-tapping the
- * active view.
- */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun ViewToggle(
-    icon: ImageVector,
-    contentDescription: String,
-    checked: Boolean,
-    onSelect: () -> Unit,
-) {
-    ToggleButton(
-        checked = checked,
-        onCheckedChange = { if (!checked) onSelect() },
-        colors = ToggleButtonDefaults.toggleButtonColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            checkedContainerColor = MaterialTheme.colorScheme.primary,
-            checkedContentColor = MaterialTheme.colorScheme.onPrimary,
-        ),
-        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 10.dp),
-        // A view switcher is one of four, not four checkboxes: it read "checked, List
-        // view, check box".
-        modifier = Modifier.asTab(checked),
-    ) {
-        Icon(
-            icon,
-            contentDescription = contentDescription,
-            modifier = Modifier.size(18.dp),
-        )
-    }
-}
 
 /**
  * The cached tasks-list aggregate (#176): the ACCUMULATED open+done rows plus
@@ -1047,22 +961,18 @@ private fun TaskList(
 
     when (val current = state) {
         is LoadState.Loading -> TaskListSkeleton()
-        is LoadState.Failed -> CenteredError(current.message, onRetry = onRetry)
+        is LoadState.Failed -> LoadError(current.message, onRetry = onRetry)
         is LoadState.Ready -> {
             val rows = current.value.rows
             if (rows.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        if (filtersActive || tab != TasksTabKind.Open) {
-                            t("contactsTasks.listEmptyFiltered")
-                        } else {
-                            t("contactsTasks.listEmpty")
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 32.dp),
-                    )
-                }
+                EmptyState(
+                    title = if (filtersActive || tab != TasksTabKind.Open) {
+                        t("contactsTasks.listEmptyFiltered")
+                    } else {
+                        t("contactsTasks.listEmpty")
+                    },
+                    icon = Icons.Outlined.TaskAlt,
+                )
             } else {
                 // Rows arrive open-first (the loader drains the open arm
                 // before done), so the status partition preserves order. #689 G:
@@ -1552,32 +1462,8 @@ private fun TaskListSkeleton() {
             10.dp,
             Modifier.padding(start = 6.dp, top = 10.dp, bottom = 9.dp),
         )
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(MaterialTheme.colorScheme.surface),
-        ) {
-            repeat(7) { index ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(start = 15.dp, end = 15.dp, top = 11.dp, bottom = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SkeletonBlock(23.dp, 23.dp, shape = CircleShape)
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        SkeletonBlock(if (index % 2 == 0) 172.dp else 124.dp, 12.dp)
-                        Spacer(Modifier.height(7.dp))
-                        SkeletonBlock(92.dp, 10.dp)
-                    }
-                    if (index % 3 == 0) {
-                        Spacer(Modifier.width(12.dp))
-                        SkeletonBlock(28.dp, 28.dp, shape = CircleShape)
-                    }
-                }
-            }
+        PaperCard(Modifier.fillMaxWidth()) {
+            SkeletonList(rows = 7)
         }
     }
 }
