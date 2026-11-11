@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.1](https://github.com/BytechLabs/Texturion/compare/api-v0.30.0...api-v0.30.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **api:** setting up payments says plainly when it isn't open yet ([8be74c2](https://github.com/BytechLabs/Texturion/commit/8be74c215cf5238d9a8a73b8f41c1329e29ffebb))
+
 ## [0.30.0](https://github.com/BytechLabs/Texturion/compare/api-v0.29.0...api-v0.30.0) (2026-11-11)
 
 
