@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.2](https://github.com/BytechLabs/Texturion/compare/android-v0.26.1...android-v0.26.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **mobile:** a screen reader says every time in words, never 5m ([d1a94de](https://github.com/BytechLabs/Texturion/commit/d1a94de3f0af9f25debffd5e7af653f106fd9c7f))
+
 ## [0.26.1](https://github.com/BytechLabs/Texturion/compare/android-v0.26.0...android-v0.26.1) (2026-11-11)
 
 
