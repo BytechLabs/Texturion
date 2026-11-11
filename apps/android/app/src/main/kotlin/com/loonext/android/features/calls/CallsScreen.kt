@@ -612,6 +612,7 @@ fun CallsScreen(
                                                             canMakeTask = call.outcome == CallOutcome.ANSWERED &&
                                                                 call.conversation_id != null,
                                                             canOpenDetails = true,
+                                                            allowedActions = call.allowed_actions,
                                                         ),
                                                     ),
                                                     onAction = { actionId ->

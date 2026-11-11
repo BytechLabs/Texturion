@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.core.model.allows
 import com.loonext.android.ui.common.Choice
 import com.loonext.android.ui.common.ChoiceCards
 import com.loonext.android.ui.common.LoadErrorVariant
@@ -425,7 +426,8 @@ private fun NumberCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (canManage && needsNumberChoice(number)) {
+                // #722: and the server's list must offer the remediation.
+                if (canManage && needsNumberChoice(number) && number.allowed_actions.allows("remediate")) {
                     OutlinedButton(
                         onClick = { choosing = true },
                         modifier = Modifier.padding(top = 8.dp),

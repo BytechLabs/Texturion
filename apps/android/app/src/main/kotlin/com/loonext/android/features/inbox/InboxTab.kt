@@ -131,6 +131,7 @@ import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.core.model.ContactSummary
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ConversationStatus
+import com.loonext.android.core.model.statusToggleAllowed
 import com.loonext.android.core.model.isConversationFlaggedUrgent
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
@@ -1220,6 +1221,7 @@ private class InboxController(
                 blocked = null,
                 optOut = null,
                 viewer = viewer,
+                allowedActions = row.allowed_actions,
                 hasMembers = people.isNotEmpty(),
                 surface = ConversationSurface(
                     canOpen = true,
@@ -1937,6 +1939,7 @@ private fun conversationRowActions(
         statusLabel = statusAction,
         onToggleRead = { controller.toggleRead(row) },
         onToggleStatus = { controller.toggleStatus(row) },
+        statusAllowed = row.statusToggleAllowed(),
     )
 }
 
@@ -1945,10 +1948,11 @@ internal fun rowActionsModifier(
     statusLabel: String,
     onToggleRead: () -> Unit,
     onToggleStatus: () -> Unit,
+    statusAllowed: Boolean = true,
 ): Modifier = Modifier.semantics {
-    customActions = listOf(
+    customActions = listOfNotNull(
         CustomAccessibilityAction(readLabel) { onToggleRead(); true },
-        CustomAccessibilityAction(statusLabel) { onToggleStatus(); true },
+        if (statusAllowed) CustomAccessibilityAction(statusLabel) { onToggleStatus(); true } else null,
     )
 }
 
@@ -1987,16 +1991,20 @@ private fun SwipeableConversationRow(
                 controller.toggleRead(row)
             },
         ),
-        endAction = SwipeAction(
-            icon = if (closed) Icons.AutoMirrored.Outlined.Undo else Icons.Outlined.Check,
-            label = if (closed) t("inbox.swipeReopen") else t("inbox.swipeClose"),
-            tint = MaterialTheme.colorScheme.onTertiaryContainer,
-            container = MaterialTheme.colorScheme.tertiaryContainer,
-            onCommit = {
-                haptics.confirm()
-                controller.toggleStatus(row)
-            },
-        ),
+        endAction = if (row.statusToggleAllowed()) {
+            SwipeAction(
+                icon = if (closed) Icons.AutoMirrored.Outlined.Undo else Icons.Outlined.Check,
+                label = if (closed) t("inbox.swipeReopen") else t("inbox.swipeClose"),
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                container = MaterialTheme.colorScheme.tertiaryContainer,
+                onCommit = {
+                    haptics.confirm()
+                    controller.toggleStatus(row)
+                },
+            )
+        } else {
+            null
+        },
     ) { ConversationRow(row, assigneeName) }
 }
 

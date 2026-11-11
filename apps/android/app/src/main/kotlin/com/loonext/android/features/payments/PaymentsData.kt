@@ -135,6 +135,8 @@ data class PaymentRequest(
     val expires_at: String? = null,
     val created_at: String? = null,
     val created_by: String? = null,
+    /** #722: what this member may do to the request now (cancel); null from an older API. */
+    val allowed_actions: List<String>? = null,
 ) {
     val state: PaymentState
         get() = Payments.state(status, paid_at, refunded_at, disputed_at)

@@ -361,14 +361,17 @@ private struct PortCard: View {
             }
 
             // Documents: needed while draft (first submit) or exception (resubmit).
-            if canManage && (port.status == PortStatus.draft || port.status == PortStatus.exception) {
+            // #722: each control below also needs the server's list to offer its action.
+            if canManage && (port.status == PortStatus.draft || port.status == PortStatus.exception)
+                && port.allowed_actions.allows("edit") {
                 Spacer().frame(height: 8)
                 PortDocumentsRow(scope: scope, port: port, onChanged: onChanged)
             }
 
             InlineError(actionError)
             HStack(spacing: 8) {
-                if canManage && port.status == PortStatus.draft && port.has_loa && port.has_invoice {
+                if canManage && port.status == PortStatus.draft && port.has_loa && port.has_invoice
+                    && port.allowed_actions.allows("submit") {
                     Button(
                         AppStrings.translate(
                             appLocale,
@@ -379,7 +382,8 @@ private struct PortCard: View {
                         .tint(BrandColor.olive)
                         .disabled(busy)
                 }
-                if canManage && port.status == PortStatus.exception {
+                if canManage && port.status == PortStatus.exception
+                    && port.allowed_actions.allows("fix_and_resubmit") {
                     Button(AppStrings.translate(appLocale, "settingsMore.fixResubmit")) {
                         focusField = nil
                         fixing = true
@@ -388,7 +392,8 @@ private struct PortCard: View {
                         .tint(BrandColor.olive)
                         .disabled(busy)
                 }
-                if canCancel && port.status != PortStatus.ported && port.status != PortStatus.cancelPending {
+                if canCancel && port.status != PortStatus.ported && port.status != PortStatus.cancelPending
+                    && port.allowed_actions.allows("cancel") {
                     Button(AppStrings.translate(appLocale, "settingsMore.cancelTransfer")) {
                         cancelling = true
                     }

@@ -158,7 +158,7 @@ private struct ScheduledSheetRow: View {
         // #712: the scheduled text's one action list. The swipe's Cancel and the
         // long-press menu both run it.
         .recordContextMenu(
-            scheduledActions(),
+            scheduledActions(allowedActions: row.allowed_actions),
             exactTime: TimestampFormat.exact(row.send_at, locale: appLocale)
         ) { actionId, _ in
             switch actionId {
@@ -173,10 +173,13 @@ private struct ScheduledSheetRow: View {
             }
         }
         .swipeActions(edge: .trailing) {
-            Button(
-                AppStrings.translate(appLocale, "common.cancel"),
-                role: .destructive
-            ) { onCancel(row.id) }
+            // #722: no cancel where the server will not take it.
+            if row.allowed_actions.allows("cancel") {
+                Button(
+                    AppStrings.translate(appLocale, "common.cancel"),
+                    role: .destructive
+                ) { onCancel(row.id) }
+            }
         }
     }
 }

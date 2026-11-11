@@ -1,6 +1,8 @@
 package com.loonext.android.ui.common
 
 import com.loonext.android.core.model.Capability
+import com.loonext.android.core.model.ConversationAllowed
+import com.loonext.android.core.model.allows
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
@@ -145,6 +147,8 @@ data class ConversationActionsInput(
     val snoozeChoices: List<RecordSubAction> = emptyList(),
     val followUpChoices: List<RecordSubAction> = emptyList(),
     val muteChoices: List<RecordSubAction> = emptyList(),
+    /** #722: the server's status, spam and trash actions for this member; null keeps the viewer checks alone. */
+    val allowedActions: List<String>? = null,
 )
 
 /** The mute durations the server takes, in the order the web menu lists them. */
@@ -176,9 +180,15 @@ fun conversationActions(input: ConversationActionsInput): List<RecordAction> {
             submenu = input.assignChoices,
         ),
         if (input.closed) {
-            RecordAction(ConversationActionId.REOPEN, "recordMenu.reopen", ActionGroup.STATE, allowed = viewer.canWrite)
+            RecordAction(
+                ConversationActionId.REOPEN, "recordMenu.reopen", ActionGroup.STATE,
+                allowed = viewer.canWrite && input.allowedActions.allows(ConversationAllowed.REOPEN),
+            )
         } else {
-            RecordAction(ConversationActionId.CLOSE, "recordMenu.close", ActionGroup.STATE, allowed = viewer.canWrite)
+            RecordAction(
+                ConversationActionId.CLOSE, "recordMenu.close", ActionGroup.STATE,
+                allowed = viewer.canWrite && input.allowedActions.allows(ConversationAllowed.CLOSE),
+            )
         },
         RecordAction(
             ConversationActionId.PIN, "recordMenu.pin", ActionGroup.STATE,
@@ -222,7 +232,10 @@ fun conversationActions(input: ConversationActionsInput): List<RecordAction> {
 
         RecordAction(
             ConversationActionId.SPAM, "recordMenu.spam", ActionGroup.DANGER,
-            allowed = viewer.canWrite, checked = input.spam,
+            allowed = viewer.canWrite && input.allowedActions.allows(
+                if (input.spam) ConversationAllowed.UNMARK_SPAM else ConversationAllowed.MARK_SPAM,
+            ),
+            checked = input.spam,
         ),
         if (input.blocked == true) {
             RecordAction(ConversationActionId.UNBLOCK, "recordMenu.unblock", ActionGroup.DANGER, allowed = viewer.canWrite)
@@ -234,7 +247,8 @@ fun conversationActions(input: ConversationActionsInput): List<RecordAction> {
         },
         RecordAction(
             ConversationActionId.DELETE, "recordMenu.deleteConversation", ActionGroup.DANGER,
-            allowed = viewer.canDelete, destructive = true,
+            allowed = viewer.canDelete && input.allowedActions.allows(ConversationAllowed.TRASH),
+            destructive = true,
         ),
         RecordAction(
             ConversationActionId.OPT_IN, "recordMenu.optIn", ActionGroup.DANGER,
@@ -325,12 +339,15 @@ data class CallActionsInput(
     val canMakeTask: Boolean = false,
     /** The call's own page; false where that page is already open. */
     val canOpenDetails: Boolean = false,
+    /** #722: the server's call_back for this member; null keeps the checks above alone. */
+    val allowedActions: List<String>? = null,
 )
 
 fun callActions(input: CallActionsInput): List<RecordAction> = listOf(
     RecordAction(
         CallActionId.CALL_BACK, "recordMenu.callBack", ActionGroup.PRIMARY,
-        allowed = input.hasConversation || input.hasContact || !input.callerE164.isNullOrBlank(),
+        allowed = (input.hasConversation || input.hasContact || !input.callerE164.isNullOrBlank()) &&
+            input.allowedActions.allows("call_back"),
     ),
     RecordAction(
         CallActionId.TEXT, "recordMenu.text", ActionGroup.PRIMARY,
@@ -397,6 +414,8 @@ data class TaskActionsInput(
     /** False on the task's own screen, where it is already open. */
     val canOpen: Boolean,
     val canCopyLink: Boolean,
+    /** #722: the server's complete, reopen and trash for this member; null keeps the checks above alone. */
+    val allowedActions: List<String>? = null,
 )
 
 fun taskActions(input: TaskActionsInput): List<RecordAction> = listOf(
@@ -404,7 +423,9 @@ fun taskActions(input: TaskActionsInput): List<RecordAction> = listOf(
     RecordAction(TaskActionId.COPY_LINK, "recordMenu.copyLink", ActionGroup.PRIMARY, allowed = input.canCopyLink),
     RecordAction(
         TaskActionId.DONE, "recordMenu.done", ActionGroup.STATE,
-        allowed = input.hasAccess, checked = input.done,
+        allowed = input.hasAccess &&
+            input.allowedActions.allows(if (input.done) "reopen" else "complete"),
+        checked = input.done,
     ),
     RecordAction(
         TaskActionId.DUE, "recordMenu.moveDue", ActionGroup.STATE,
@@ -412,7 +433,7 @@ fun taskActions(input: TaskActionsInput): List<RecordAction> = listOf(
     ),
     RecordAction(
         TaskActionId.DELETE, "recordMenu.deleteTask", ActionGroup.DANGER,
-        allowed = input.canDelete, destructive = true,
+        allowed = input.canDelete && input.allowedActions.allows("trash"), destructive = true,
     ),
 )
 
@@ -483,10 +504,15 @@ object ScheduledActionId {
     const val CANCEL = "cancel"
 }
 
-fun scheduledActions(cancelling: Boolean = false): List<RecordAction> = listOf(
+/** #722: [allowedActions] is the row's server list; null keeps Cancel offered. */
+fun scheduledActions(
+    cancelling: Boolean = false,
+    allowedActions: List<String>? = null,
+): List<RecordAction> = listOf(
     RecordAction(ScheduledActionId.OPEN, "recordMenu.openConversation", ActionGroup.PRIMARY),
     RecordAction(
         ScheduledActionId.CANCEL, "recordMenu.cancelScheduled", ActionGroup.DANGER,
+        allowed = allowedActions.allows("cancel"),
         destructive = true, enabled = !cancelling,
     ),
 )

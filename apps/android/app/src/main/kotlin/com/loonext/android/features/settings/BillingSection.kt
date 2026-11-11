@@ -51,6 +51,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.BillingModule
 import com.loonext.android.core.model.CompanyView
+import com.loonext.android.core.model.allows
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.OpenPrepaidYear
 import com.loonext.android.core.model.SubscriptionStatus
@@ -166,6 +167,8 @@ fun BillingSection(
     val onPauseChanged: (PauseState) -> Unit = { settled ->
         pause = PauseRead.Answered(settled)
         pauseReads++
+        // #722: the company's action list was computed for the state before this move.
+        onRefreshCompany()
     }
 
     StatusNotices(scope, company, canManage)
@@ -688,7 +691,12 @@ private fun CancellationOfferNote(
     // [PauseRead.answer] is null for a read that has not landed or has failed,
     // and that is exactly right here: an unanswered read is not an offer, so
     // the seasonal words render instead — which is a whole answer on its own.
-    val pauseAnswer = if (reason == PAUSE_ANSWERS_REASON) pauseOfferCopy(pause.answer, locale) else null
+    // #722: and the workspace's own list must offer the pause.
+    val pauseAnswer = if (reason == PAUSE_ANSWERS_REASON && company.allowed_actions.allows("pause")) {
+        pauseOfferCopy(pause.answer, locale)
+    } else {
+        null
+    }
     val offer = if (pauseAnswer == null) {
         cancellationOffer(
             reason = reason,
@@ -1089,7 +1097,8 @@ private fun StatusNotices(scope: SettingsScope, company: CompanyView, canManage:
             style = MaterialTheme.typography.bodyMedium,
             color = amberInk,
         )
-        if (canManage) {
+        // #722: the card update is offered only where the server lists it.
+        if (canManage && company.allowed_actions.allows("update_payment_method")) {
             Spacer(Modifier.height(8.dp))
             PortalButton(scope, label = notice.second, solid = true)
         }
@@ -1273,7 +1282,8 @@ private fun CanceledSubscriptionCard(
 
         InlineError(error)
 
-        if (canManage) {
+        // #722: resubscribe is offered only where the server lists it.
+        if (canManage && company.allowed_actions.allows("resubscribe")) {
             val currentPlan = company.plan ?: "starter"
             // Stacked rather than sat side by side. "Resubscribe" and "Come
             // back on Starter" together are wider than a small phone, and a
@@ -1418,7 +1428,9 @@ private fun PlanCard(
             // The allowances below describe a plan that is not running. Saying
             // "texting for your crew" over "you cannot send texts" would be the
             // card contradicting itself, so while paused this IS the plan copy.
-            PausedPlanNote(scope, paused, answer, canManage, onPauseChanged)
+            PausedPlanNote(
+                scope, paused, answer, canManage && company.allowed_actions.allows("resume"), onPauseChanged,
+            )
         } else if (running || pause is PauseRead.Unasked) {
             // `Unasked` is here on purpose, and it is the one carve-out. Nobody
             // asked because nobody could: GET /v1/billing/pause is behind

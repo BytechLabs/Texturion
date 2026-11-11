@@ -70,6 +70,8 @@ struct TaskItem: Codable, Sendable {
     /// #690: the workspace-wide task number, shown as "T-142". Nil on a row from a
     /// server that predates numbers. Declared last so no call site reorders.
     var number: Int? = nil
+    /// #722: What this member may do to the task now (complete, reopen, trash). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 
     var priorityValue: TaskPriority { TaskPriority.from(priority) }
     var labelList: [TaskLabel] { labels ?? [] }
@@ -294,6 +296,8 @@ struct TaskDetail: Codable, Sendable {
 
     /// #690: see `TaskItem.number`.
     var number: Int? = nil
+    /// #722: What this member may do to the task now (complete, reopen, trash). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 
     var priorityValue: TaskPriority { TaskPriority.from(priority) }
     var labelList: [TaskLabel] { labels ?? [] }

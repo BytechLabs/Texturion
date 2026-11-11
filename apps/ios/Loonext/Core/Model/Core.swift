@@ -341,6 +341,8 @@ struct PhoneNumberSummary: Codable, Sendable {
     let failure_reason: String?
     let provision_attempts: Int?
     let retrying: Bool?
+    /// #722: GET /v1/numbers only. What this member may do now (remediate). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 }
 
 struct RegistrationSummary: Codable, Sendable {
@@ -635,6 +637,8 @@ struct CompanyView: Codable, Sendable {
     @Default<DefaultScheduledTextExpiryHours> var scheduled_text_expiry_hours: Int
     @Default<DefaultReminderExpiryHours> var reminder_expiry_hours: Int
     @Default<DefaultAutoReplyCooldownMinutes> var auto_reply_cooldown_minutes: Int
+    /// #722: What this member may do to the subscription and workspace now (subscribe, update_payment_method, resubscribe, pause, resume, close). Nil from an older API, and nil keeps the screen's own check.
+    var allowed_actions: [String]? = nil
 
     var subscriptionActive: Bool { subscription_status == SubscriptionStatus.active }
 

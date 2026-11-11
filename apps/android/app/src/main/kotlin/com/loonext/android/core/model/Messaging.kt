@@ -135,6 +135,8 @@ data class Conversation(
     val lead_source_origin: String? = null,
     val created_at: String,
     val updated_at: String,
+    /** #722: a PATCH answers with the bare row, so this is null there; null means "keep the screen's own check". */
+    val allowed_actions: List<String>? = null,
 )
 
 /** Newest-message snippet embedded on every GET /v1/conversations row. */
@@ -201,6 +203,8 @@ data class ConversationListItem(
     val muted: Boolean = false,
     val muted_until: String? = null,
     val followed: Boolean = false,
+    /** #722: the status moves, spam and trash this member may make now; null from an older API. */
+    val allowed_actions: List<String>? = null,
 )
 
 @Serializable
@@ -248,13 +252,17 @@ data class Message(
     val automated: Boolean = false,
     /** #725: which automation, one of `MESSAGE_AUTOMATIONS`; null on a text sent before it was recorded. */
     val automation: String? = null,
+    /** #722: what this member may do to the message now (retry); null where the row carries no list. */
+    val allowed_actions: List<String>? = null,
 ) {
     /**
      * The one retry affordance rule: API-level failure only (no carrier id),
-     * and never a carrier opt-out block.
+     * and never a carrier opt-out block. #722: and the server's list, when the
+     * row carries one, must offer it.
      */
     val retryable: Boolean
-        get() = direction == MessageDirection.OUTBOUND &&
+        get() = allowed_actions.allows("retry") &&
+            direction == MessageDirection.OUTBOUND &&
             status == MessageStatus.FAILED &&
             telnyx_message_id == null &&
             // #241: OUR reason, not the vendor's code. This used to compare
@@ -401,6 +409,8 @@ data class ConversationDetail(
      * gate's decision cannot disagree.
      */
     val destination_clock: DestinationClock? = null,
+    /** #722: the status moves, spam and trash this member may make now; null from an older API. */
+    val allowed_actions: List<String>? = null,
 )
 
 /**
@@ -464,6 +474,8 @@ data class ScheduledMessage(
      * #233 asks us to prevent rather than the answer to it.
      */
     val conversations: ScheduledConversation? = null,
+    /** #722: what this member may do to the text now (edit, cancel); null from an older API. */
+    val allowed_actions: List<String>? = null,
 )
 
 @Serializable

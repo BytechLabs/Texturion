@@ -4,6 +4,7 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallEffects
 import com.loonext.android.core.model.CallOutcome
+import com.loonext.android.core.model.allows
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.telephony.AudioRoute
@@ -158,7 +159,8 @@ fun callCanMessage(call: Call): Boolean =
     call.conversation_id != null || !call.caller_e164.isNullOrBlank()
 
 /** Call back goes through the dialer, so it needs a number. */
-fun callCanCallBack(call: Call): Boolean = !call.caller_e164.isNullOrBlank()
+fun callCanCallBack(call: Call): Boolean =
+    !call.caller_e164.isNullOrBlank() && call.allowed_actions.allows("call_back")
 
 fun callPrimaryAction(call: Call): CallRowAction? {
     val canMessage = callCanMessage(call)

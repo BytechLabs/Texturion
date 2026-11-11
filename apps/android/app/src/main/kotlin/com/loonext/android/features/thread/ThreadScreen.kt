@@ -121,7 +121,9 @@ import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentSummary
 import com.loonext.android.core.diag.RecentErrors
 import com.loonext.android.core.model.Capability
+import com.loonext.android.core.model.ConversationAllowed
 import com.loonext.android.core.model.ConversationStatus
+import com.loonext.android.core.model.allows
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
@@ -2314,6 +2316,7 @@ private fun ConversationSheet(
                 )
             },
             viewer = RecordViewer(canWrite = canWrite, canDelete = onDeleteConversation != null),
+            allowedActions = detail.allowed_actions,
             hasMembers = members.isNotEmpty(),
             surface = ConversationSurface(
                 canOpen = false,
@@ -2478,7 +2481,11 @@ private fun StatusPills(
                 ConversationStatus.OPEN,
                 ConversationStatus.WAITING,
                 ConversationStatus.CLOSED,
-            ).forEach { status ->
+            ).filter { status ->
+                // #722: a move the server would refuse is not offered.
+                status == detail.status ||
+                    detail.allowed_actions.allows(ConversationAllowed.statusMove(detail.status, status))
+            }.forEach { status ->
                 val selected = detail.status == status
                 Surface(
                     onClick = {

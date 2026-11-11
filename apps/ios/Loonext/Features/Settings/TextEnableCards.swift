@@ -80,15 +80,19 @@ private struct TextEnableCard: View {
                 .foregroundStyle(.secondary)
 
             if canManage && open {
-                Spacer().frame(height: 8)
-                TextEnableDocumentsRow(scope: scope, order: order, onChanged: onChanged)
+                // #722: each control also needs the server's list to offer its action.
+                if order.allowed_actions.allows("upload_documents") {
+                    Spacer().frame(height: 8)
+                    TextEnableDocumentsRow(scope: scope, order: order, onChanged: onChanged)
+                }
                 Spacer().frame(height: 8)
                 VerificationRow(scope: scope, order: order, onChanged: onChanged)
             }
 
             InlineError(actionError)
             HStack(spacing: 8) {
-                if canManage && order.status == TextEnablementStatus.failed {
+                if canManage && order.status == TextEnablementStatus.failed
+                    && order.allowed_actions.allows("resubmit") {
                     Button(
                         busy ? t("settingsMore.resubmitting") : t("settingsMore.resubmit")
                     ) { resubmit() }
@@ -96,7 +100,7 @@ private struct TextEnableCard: View {
                         .tint(BrandColor.olive)
                         .disabled(busy)
                 }
-                if canCancel && open {
+                if canCancel && open && order.allowed_actions.allows("cancel") {
                     Button(t("settingsMore.cancelOrder")) { cancelling = true }
                         .font(.subheadline)
                         .foregroundStyle(BrandColor.destructive)

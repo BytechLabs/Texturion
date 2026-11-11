@@ -64,6 +64,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
+import com.loonext.android.core.model.allows
 import com.loonext.android.features.tasks.CallTaskButton
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
@@ -196,7 +197,7 @@ internal fun ContactCallsSection(
                                         onOpen = call.conversation_id
                                             ?.takeIf { onOpenConversation != null }
                                             ?.let { id -> { onOpenConversation?.invoke(id) } },
-                                        onCallBack = onCallBack,
+                                        onCallBack = onCallBack?.takeIf { call.allowed_actions.allows("call_back") },
                                         makeTask = call.conversation_id
                                             ?.takeIf { call.outcome == CallOutcome.ANSWERED }
                                             ?.let { conversationId ->

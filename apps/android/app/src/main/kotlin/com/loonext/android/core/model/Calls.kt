@@ -60,6 +60,8 @@ data class Call(
     val ended_at: String? = null,
     val has_voicemail: Boolean? = null,
     val voicemail_transcript_attempted_at: String? = null,
+    /** #722: what this member may do to the call now (call_back, transfer); null on a legacy row or an older API. */
+    val allowed_actions: List<String>? = null,
 ) {
     /** Display resolution order: contact > CNAM dip > raw number. */
     val displayName: String?

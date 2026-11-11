@@ -71,6 +71,8 @@ data class PortRequest(
     val ported_at: String? = null,
     val cancelled_at: String? = null,
     val created_at: String? = null,
+    /** #722: what this member may do to the port now (edit, submit, fix_and_resubmit, cancel); null from an older API. */
+    val allowed_actions: List<String>? = null,
 )
 
 // ---------------------------------------------------------------------------
@@ -98,6 +100,8 @@ data class TextEnablementOrder(
     val completed_at: String? = null,
     val cancelled_at: String? = null,
     val created_at: String? = null,
+    /** #722: what this member may do to the order now (upload_documents, resubmit, cancel); null from an older API. */
+    val allowed_actions: List<String>? = null,
 )
 
 // ---------------------------------------------------------------------------
@@ -168,6 +172,8 @@ data class RegistrationDetail(
     val deactivated_at: String? = null,
     /** Wizard draft (carries EIN/BN) — present for owner/admin only. */
     val data: JsonObject? = null,
+    /** #722: what this member may do to the row now (edit, submit); null from an older API. */
+    val allowed_actions: List<String>? = null,
 )
 
 /** POST /v1/registration/enable-us. `invoice_id` is null when the one-time
@@ -582,6 +588,8 @@ data class DataExport(
     val completed_at: String? = null,
     val expires_at: String? = null,
     val files: List<DataExportFile> = emptyList(),
+    /** #722: what this member may do to the export now (download); null from an older API. */
+    val allowed_actions: List<String>? = null,
 )
 
 /**

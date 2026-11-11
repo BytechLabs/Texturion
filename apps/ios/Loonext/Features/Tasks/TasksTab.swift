@@ -930,6 +930,8 @@ private struct TaskListRow: View {
                 .frame(width: 22, height: 22)
             }
             .buttonStyle(.borderless)
+            // #722: the ring is inert where the server will not take the flip.
+            .disabled(!task.doneToggleAllowed)
             .accessibilityLabel(
                 AppStrings.translate(
                     appLocale,

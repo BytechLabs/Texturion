@@ -146,6 +146,8 @@ struct ConversationActionsInput: Sendable {
     var snoozeChoices: [RecordSubAction] = []
     var followUpChoices: [RecordSubAction] = []
     var muteChoices: [RecordSubAction] = []
+    /// #722: the server's status, spam and trash actions for this member; nil keeps the viewer checks alone.
+    var allowedActions: [String]? = nil
 }
 
 /// The mute durations the server takes, in the order the web menu lists them.
@@ -188,11 +190,13 @@ func conversationActions(_ input: ConversationActionsInput) -> [RecordAction] {
         input.closed
             ? RecordAction(
                 id: ConversationActionId.reopen, labelKey: "recordMenu.reopen",
-                group: .state, allowed: viewer.canWrite
+                group: .state,
+                allowed: viewer.canWrite && input.allowedActions.allows(ConversationAllowed.reopen)
             )
             : RecordAction(
                 id: ConversationActionId.close, labelKey: "recordMenu.close",
-                group: .state, allowed: viewer.canWrite
+                group: .state,
+                allowed: viewer.canWrite && input.allowedActions.allows(ConversationAllowed.close)
             )
     )
     list.append(RecordAction(
@@ -240,7 +244,11 @@ func conversationActions(_ input: ConversationActionsInput) -> [RecordAction] {
 
     list.append(RecordAction(
         id: ConversationActionId.spam, labelKey: "recordMenu.spam",
-        group: .danger, allowed: viewer.canWrite, checked: input.spam
+        group: .danger,
+        allowed: viewer.canWrite && input.allowedActions.allows(
+            input.spam ? ConversationAllowed.unmarkSpam : ConversationAllowed.markSpam
+        ),
+        checked: input.spam
     ))
     list.append(
         input.blocked == true
@@ -255,7 +263,9 @@ func conversationActions(_ input: ConversationActionsInput) -> [RecordAction] {
     )
     list.append(RecordAction(
         id: ConversationActionId.delete, labelKey: "recordMenu.deleteConversation",
-        group: .danger, allowed: viewer.canDelete, destructive: true
+        group: .danger,
+        allowed: viewer.canDelete && input.allowedActions.allows(ConversationAllowed.trash),
+        destructive: true
     ))
     let optedOut = input.optOut?.optedOut ?? false
     let carrier = input.optOut?.carrierEnforced ?? false
@@ -344,6 +354,8 @@ struct CallActionsInput: Sendable {
     var canMakeTask: Bool = false
     /// The call's own page; false where that page is already open.
     var canOpenDetails: Bool = false
+    /// #722: the server's call_back for this member; nil keeps the checks above alone.
+    var allowedActions: [String]? = nil
 }
 
 func callActions(_ input: CallActionsInput) -> [RecordAction] {
@@ -351,7 +363,9 @@ func callActions(_ input: CallActionsInput) -> [RecordAction] {
     return [
         RecordAction(
             id: CallActionId.callBack, labelKey: "recordMenu.callBack",
-            group: .primary, allowed: input.hasConversation || input.hasContact || hasNumber
+            group: .primary,
+            allowed: (input.hasConversation || input.hasContact || hasNumber)
+                && input.allowedActions.allows("call_back")
         ),
         RecordAction(
             id: CallActionId.text, labelKey: "recordMenu.text",
@@ -415,6 +429,8 @@ struct TaskActionsInput: Sendable {
     /// False on the task's own screen, where it is already open.
     let canOpen: Bool
     let canCopyLink: Bool
+    /// #722: the server's complete, reopen and trash for this member; nil keeps the checks above alone.
+    var allowedActions: [String]? = nil
 }
 
 func taskActions(_ input: TaskActionsInput) -> [RecordAction] {
@@ -429,7 +445,9 @@ func taskActions(_ input: TaskActionsInput) -> [RecordAction] {
         ),
         RecordAction(
             id: TaskActionId.done, labelKey: "recordMenu.done",
-            group: .state, allowed: input.hasAccess, checked: input.done
+            group: .state,
+            allowed: input.hasAccess && input.allowedActions.allows(input.done ? "reopen" : "complete"),
+            checked: input.done
         ),
         RecordAction(
             id: TaskActionId.due, labelKey: "recordMenu.moveDue",
@@ -437,7 +455,9 @@ func taskActions(_ input: TaskActionsInput) -> [RecordAction] {
         ),
         RecordAction(
             id: TaskActionId.delete, labelKey: "recordMenu.deleteTask",
-            group: .danger, allowed: input.canDelete, destructive: true
+            group: .danger,
+            allowed: input.canDelete && input.allowedActions.allows("trash"),
+            destructive: true
         ),
     ]
 }
@@ -513,14 +533,16 @@ enum ScheduledActionId {
     static let cancel = "cancel"
 }
 
-func scheduledActions(cancelling: Bool = false) -> [RecordAction] {
+/// #722: `allowedActions` is the row's server list; nil keeps Cancel offered.
+func scheduledActions(cancelling: Bool = false, allowedActions: [String]? = nil) -> [RecordAction] {
     [
         RecordAction(
             id: ScheduledActionId.open, labelKey: "recordMenu.openConversation", group: .primary
         ),
         RecordAction(
             id: ScheduledActionId.cancel, labelKey: "recordMenu.cancelScheduled",
-            group: .danger, destructive: true, enabled: !cancelling
+            group: .danger, allowed: allowedActions.allows("cancel"), destructive: true,
+            enabled: !cancelling
         ),
     ]
 }

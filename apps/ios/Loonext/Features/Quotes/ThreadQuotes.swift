@@ -152,7 +152,7 @@ struct ThreadQuotesPane: View {
                     ForEach(model.visible) { quote in
                         QuoteStripRow(
                             quote: quote,
-                            canSend: canAct,
+                            canSend: canAct && quote.allowed_actions.allows("send"),
                             sending: model.sendingId == quote.id
                         ) {
                             Task {

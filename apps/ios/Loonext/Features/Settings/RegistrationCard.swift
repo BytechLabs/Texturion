@@ -100,7 +100,7 @@ struct RegistrationBlock: View {
                             onSubmitted: onChanged,
                             focusField: $focusField
                         )
-                        if rejected != nil {
+                        if let rejected, rejected.allowed_actions.allows("submit") {
                             Button(
                                 AppStrings.translate(
                                     appLocale,

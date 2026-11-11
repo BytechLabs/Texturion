@@ -861,7 +861,8 @@ private final class InboxController {
                         trailing: TimestampFormat.clock($0.at)
                     )
                 },
-                muteChoices: recordMuteChoices
+                muteChoices: recordMuteChoices,
+                allowedActions: row.allowed_actions
             )
         )
     }
@@ -1717,29 +1718,33 @@ private struct ConversationListPane: View {
                 }
                 .tint(Color(.systemGray))
             }
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button {
-                    // A full swipe COMMITS — the row leaves the list. On a
-                    // swipe the finger is already moving, so the buzz is what
-                    // separates "it took" from "it sprang back".
-                    Haptics.confirm()
-                    controller.setRowStatus(
-                        row.id,
-                        status: closed ? ConversationStatus.open : ConversationStatus.closed,
-                        // #295: the swipe announces, so a mis-swipe has an Undo —
-                        // back to the status the row actually had.
-                        from: row.status,
-                        announce: true
-                    )
-                } label: {
-                    Label(
-                        closed
-                            ? AppStrings.translate(appLocale, "inbox.swipeReopen")
-                            : AppStrings.translate(appLocale, "inbox.swipeDone"),
-                        systemImage: closed ? "arrow.uturn.backward" : "checkmark"
-                    )
+            // #722: no close or reopen swipe where the server will not take it, and
+            // then a full swipe must not fall through to Assign.
+            .swipeActions(edge: .trailing, allowsFullSwipe: row.statusToggleAllowed) {
+                if row.statusToggleAllowed {
+                    Button {
+                        // A full swipe COMMITS — the row leaves the list. On a
+                        // swipe the finger is already moving, so the buzz is what
+                        // separates "it took" from "it sprang back".
+                        Haptics.confirm()
+                        controller.setRowStatus(
+                            row.id,
+                            status: closed ? ConversationStatus.open : ConversationStatus.closed,
+                            // #295: the swipe announces, so a mis-swipe has an Undo —
+                            // back to the status the row actually had.
+                            from: row.status,
+                            announce: true
+                        )
+                    } label: {
+                        Label(
+                            closed
+                                ? AppStrings.translate(appLocale, "inbox.swipeReopen")
+                                : AppStrings.translate(appLocale, "inbox.swipeDone"),
+                            systemImage: closed ? "arrow.uturn.backward" : "checkmark"
+                        )
+                    }
+                    .tint(BrandColor.olive)
                 }
-                .tint(BrandColor.olive)
                 Button {
                     Haptics.tap()
                     onAssign(row)

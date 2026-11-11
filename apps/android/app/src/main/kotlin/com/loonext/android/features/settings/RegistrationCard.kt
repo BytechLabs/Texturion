@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Column
+import com.loonext.android.core.model.allows
 import com.loonext.android.ui.common.InlineError
 import com.loonext.android.ui.common.ConfirmDialog
 import androidx.compose.foundation.layout.Row
@@ -129,7 +130,7 @@ fun RegistrationBlock(
                 focusField = focusField,
                 onFocusHandled = { focusField = null },
             )
-            if (rejected != null) {
+            if (rejected != null && rejected.allowed_actions.allows("submit")) {
                 Button(
                     onClick = {
                         submitting = true

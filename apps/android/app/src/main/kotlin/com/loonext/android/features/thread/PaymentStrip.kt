@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.core.model.allows
 import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -217,7 +218,7 @@ private fun PaymentRow(row: PaymentRequest, onCancel: (() -> Unit)?, cancelling:
                 )
             }
         }
-        if (onCancel != null && Payments.cancellable(state)) {
+        if (onCancel != null && Payments.cancellable(state) && row.allowed_actions.allows("cancel")) {
             IconButton(
                 onClick = {
                     haptics.tap()

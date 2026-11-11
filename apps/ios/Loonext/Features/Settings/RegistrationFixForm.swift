@@ -44,11 +44,13 @@ struct RegistrationFixValues: Equatable {
     var sample2 = ""
 }
 
-/// Draft and rejected rows are editable; anything submitted is frozen.
+/// Draft and rejected rows are editable; anything submitted is frozen. #722: and
+/// the server's list, when the row carries one, must offer the edit.
 func registrationEditable(_ detail: RegistrationDetail?) -> Bool {
     guard let detail else { return false }
-    return detail.status == RegistrationStatus.draft
-        || detail.status == RegistrationStatus.rejected
+    return (detail.status == RegistrationStatus.draft
+        || detail.status == RegistrationStatus.rejected)
+        && detail.allowed_actions.allows("edit")
 }
 
 private func wizardString(_ data: JSONValue?, _ key: String) -> String {
