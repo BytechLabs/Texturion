@@ -133,12 +133,12 @@ the prior state exists and the guard is an undo toast (undo is `POST
 /v1/trash/restore`). A SENT text keeps a confirmation first on the phones, because
 the copy has to say it is removed from Loonext only and the customer still has it.
 The **final** step is the destructive one and gets the confirmation: **Delete
-forever** (web, Settings → History → Trash, typed confirmation) and the daily
+forever** (Trash, typed confirmation on web, a confirm dialog on the phones) and the daily
 expiry that erases what has sat in the Trash 30 days. Bulk delete in the inbox
 (web) states the count in its confirmation and then offers one undo for the lot.
 Everything is gated by `records.delete`, and every delete, restore and purge
-writes a content-free audit event. Trash management is web-only, a back-office
-job like the others in the table above.
+writes a content-free audit event. Trash is in the web sidebar and is its own screen
+on Android and iOS (#735).
 
 ### Self-reversing → neither, correctly
 

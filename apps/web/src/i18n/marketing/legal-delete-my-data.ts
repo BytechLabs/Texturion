@@ -8,7 +8,7 @@ export const legalDeleteMyDataEn = {
     "How to delete your Loonext account or close your workspace, what happens to your data when you do, what we are required to keep, and for how long.",
   title: "Delete your data",
   breadcrumbLabel: "Delete your data",
-  lastUpdated: "July 26, 2026",
+  lastUpdated: "November 11, 2026",
   summary:
     "You can delete your own account, or close a whole workspace, from inside Loonext. No email to us, and no waiting on support. Deleting your account signs you out everywhere and takes your name off the product. Closing a workspace ends it for everyone on it, releases the phone number, stops billing, and erases everything in it after 30 days. Two things outlive both, and we say plainly why: anyone who replied STOP stays on the do-not-text list, and a stripped record that consent existed is kept for three years because the law requires it.",
 
@@ -48,7 +48,7 @@ export const legalDeleteMyDataEn = {
   boundaryItem:
     "If you sent us a message through the contact form on our website, that is held outside any workspace, so closing one does not remove it. It is deleted on its own schedule after a year, and you can ask us to remove it sooner.",
   recordsOne:
-    "Owners and admins can delete a single message, a whole conversation, a call or a voicemail from the thread or the call log, and a contact from its page. Deleted items go to the **Trash** under **Settings → History → Trash** and disappear from the inbox, search, the call log, exports and integrations at once. Anyone with that permission can restore them for 30 days.",
+    "Owners and admins can delete a single message, a whole conversation, a call or a voicemail from the thread or the call log, and a contact from its page. Deleted items go to the **Trash**, in the main menu of the web app and the phone apps, and disappear from the inbox, search, the call log, exports and integrations at once. Anyone with that permission can restore them for 30 days.",
   recordsTwo:
     "After 30 days, or when someone chooses **Delete forever**, the item is erased for good: the message text, photos and files, voicemail recordings and their transcripts, and any summaries made from them. A text you already sent cannot be taken back from the customer's phone; deleting it removes it from Loonext only. What stays: a STOP and the proof of consent behind it, and the counts we bill from (message segments, call minutes and usage records), which hold no message content.",
   helpUser:
@@ -63,7 +63,7 @@ export const legalDeleteMyDataFr: Translated<typeof legalDeleteMyDataEn> = {
     "Comment supprimer votre compte Loonext ou fermer votre espace de travail, ce qui arrive à vos données, ce que la loi nous oblige à conserver et pendant combien de temps.",
   title: "Supprimer vos données",
   breadcrumbLabel: "Supprimer vos données",
-  lastUpdated: "26 juillet 2026",
+  lastUpdated: "11 novembre 2026",
   summary:
     "Vous pouvez supprimer votre propre compte ou fermer tout un espace de travail directement dans Loonext. Aucun courriel à nous envoyer et aucune attente auprès du soutien. La suppression de votre compte vous déconnecte partout et retire votre nom du produit. La fermeture d'un espace de travail y met fin pour tous ses membres, libère le numéro de téléphone, arrête la facturation et efface tout son contenu après 30 jours. Deux éléments subsistent, et nous expliquons clairement pourquoi : toute personne qui a répondu STOP demeure sur la liste d'exclusion des textos, et une preuve minimale du consentement est conservée pendant trois ans parce que la loi l'exige.",
 
@@ -103,7 +103,7 @@ export const legalDeleteMyDataFr: Translated<typeof legalDeleteMyDataEn> = {
   boundaryItem:
     "Si vous nous avez envoyé un message au moyen du formulaire de contact de notre site Web, il est conservé à l'extérieur de tout espace de travail; la fermeture d'un espace ne le supprime donc pas. Il est supprimé selon son propre calendrier après un an, et vous pouvez nous demander de le supprimer plus tôt.",
   recordsOne:
-    "Les propriétaires et les administrateurs peuvent supprimer un message, toute une conversation, un appel ou un message vocal depuis la conversation ou le journal d'appels, et un contact depuis sa fiche. Les éléments supprimés vont dans la **corbeille**, sous **Paramètres → Historique → Corbeille**, et disparaissent aussitôt de la boîte de réception, de la recherche, du journal d'appels, des exportations et des intégrations. Toute personne qui a cette permission peut les restaurer pendant 30 jours.",
+    "Les propriétaires et les administrateurs peuvent supprimer un message, toute une conversation, un appel ou un message vocal depuis la conversation ou le journal d'appels, et un contact depuis sa fiche. Les éléments supprimés vont dans la **corbeille**, dans le menu principal de l'application web et des applications mobiles, et disparaissent aussitôt de la boîte de réception, de la recherche, du journal d'appels, des exportations et des intégrations. Toute personne qui a cette permission peut les restaurer pendant 30 jours.",
   recordsTwo:
     "Après 30 jours, ou lorsque quelqu'un choisit **Supprimer définitivement**, l'élément est effacé pour de bon : le texte du message, les photos et les fichiers, les enregistrements de messages vocaux et leurs transcriptions, ainsi que les résumés qui en ont été tirés. Un texto déjà envoyé ne peut pas être retiré du téléphone du client; le supprimer ne le retire que de Loonext. Ce qui demeure : un STOP et la preuve de consentement qui s'y rattache, ainsi que les compteurs sur lesquels nous facturons (segments de messages, minutes d'appel et enregistrements d'utilisation), qui ne contiennent aucun contenu de message.",
   helpUser:
