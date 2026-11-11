@@ -6,11 +6,14 @@ import {
 import {
   appendUnlinkNote,
   calendarTitleRefusalReason,
+  hasTaskLink,
   hashCalendarDescription,
   instantFromRfc3339OrWallClock,
   isIanaTimeZone,
   normalizeCalendarText,
   wallClockFromInstant,
+  withTaskLink,
+  withoutTaskLink,
 } from "./normalize";
 import {
   type AnnotateCalendarEventInput,
@@ -264,7 +267,7 @@ function graphWriteBody(input: WriteCalendarEventInput): Record<string, unknown>
     subject: normalizeCalendarText(input.schedule.title),
     body: {
       contentType: "text",
-      content: normalizeCalendarText(input.description),
+      content: withTaskLink(input.description, input.taskUrl),
     },
     start: { dateTime: start, timeZone: "UTC" },
     end: { dateTime: end, timeZone: "UTC" },
@@ -316,7 +319,8 @@ export async function normalizeMicrosoftEvent(
   }
   const recurrenceRefused = event.type === "seriesMaster";
 
-  const description = graphBodyText(event.body);
+  const providerDescription = graphBodyText(event.body);
+  const description = withoutTaskLink(providerDescription);
   const descriptionFormat: "text" | "html" =
     event.body?.contentType === "html" ? "html" : "text";
   const organizerEmail = event.organizer?.emailAddress?.address?.trim() || null;
@@ -327,6 +331,7 @@ export async function normalizeMicrosoftEvent(
     // weak/quoted syntax. changeKey is event metadata, not an If-Match value.
     version,
     description,
+    hasTaskLink: hasTaskLink(providerDescription),
     rawDescription:
       descriptionFormat === "html" ? (event.body?.content ?? "") : null,
     descriptionFormat,

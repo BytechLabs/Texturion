@@ -10396,3 +10396,11 @@ probe `messages`.
 **Limits.** No guarantee: if OSM blocks us the map falls back to pins, and the tile-health notice says the background is not loading. It is not a basis for heavy growth. The planned replacement is Protomaps PMTiles for North America in a Cloudflare R2 bucket, drawn with protomaps-leaflet. That needs R2 enabled on the existing Cloudflare account and a roughly 10 GB extract uploaded by someone with the dashboard or an R2 token; nothing in the repo stores R2 today. When it lands, only the three `NEXT_PUBLIC_MAP_TILE_*` values and the layer change.
 
 **Not changed.** Android keeps its refusal of this host and draws no basemap: osmdroid needs a user agent naming the app first, and the same decision applies. iOS uses MapKit and has streets.
+
+## D161 - a synced calendar event ends with a link back to its task (#751)
+
+**What was wrong.** A task synced to Google or Outlook carried its title, time and description, and nothing that led back to Loonext. The subscribed feed linked to the conversation, so a task with none had no link at all, and Google Calendar shows no URL field on a subscribed feed.
+
+**Choice.** Every description Loonext writes ends with `Open in Loonext: <app origin>/tasks/<id>`, on Google, Outlook and the feed (which also sets `URL`). The phones claim `/tasks/` as an app link, so on a phone it opens the app. The sync takes the line off when it reads an event back, before the description is hashed or stored, so D137's description equality still compares the task's own text and the line never lands in a task. It is English in both languages, like the unlink note. A line in the middle of a description, or a moved one, is left alone.
+
+**Existing events.** An event written before this has no link, and an untouched task is never written again. When the worker updates an event whose provider copy lacks the line, it also rewrites the description; the provider's version matched the stored one first, so the provider still holds the agreed text and no edit made there is lost. Migration `20261111380000` queued one sync per task with a live event (one in production).

@@ -15,6 +15,7 @@ import { CALENDAR_VERIFICATION_MAX_AGE_MS } from "./liveness";
 import {
   hashCalendarDescription,
   normalizeCalendarText,
+  taskLinkUrl,
 } from "./providers/normalize";
 import {
   CalendarProviderError,
@@ -341,6 +342,8 @@ export interface CalendarWorkerDependencies {
   ): Promise<CalendarAuthorizedProvider>;
   webhookCallbackUrl?(provider: CalendarProviderName): string;
   discloseOwner?(disclosure: CalendarOwnerDisclosureRow): Promise<void>;
+  /** The web app's origin, for the link back to each task. */
+  appOrigin: string;
   now?: Date;
   workerId?: string;
 }
@@ -652,6 +655,7 @@ function removedProviderObservation(
     version,
     inbound: { kind: "removed" },
     description: "",
+    hasTaskLink: false,
     descriptionFormat: "text",
     hasAttendees: false,
     hasOnlineMeeting: false,
@@ -1087,6 +1091,7 @@ async function processOutbox(
       idempotencyKey: outbox.id,
       schedule: sent,
       description: normalizeCalendarText(task.description),
+      taskUrl: taskLinkUrl(deps.appOrigin, task.id),
       connectedAccountEmail: connection.provider_account_id,
     });
     const created = scheduledRemote(remote);
@@ -1165,8 +1170,13 @@ async function processOutbox(
       sent.end !== base.end ||
       sent.timeZone !== base.timeZone,
     title: !base || sent.title !== base.title,
+    // An event written before #751 has no link back to its task. The version
+    // matched above, so the provider holds what was last agreed and rewriting
+    // the description to add the link overwrites no edit made there.
     description:
-      !base || sent.descriptionHash !== base.descriptionHash,
+      !base ||
+      sent.descriptionHash !== base.descriptionHash ||
+      !current.hasTaskLink,
   };
   if (!changes.timing && !changes.title && !changes.description) {
     const committed = await deps.store.commitSent({
@@ -1197,6 +1207,7 @@ async function processOutbox(
       version: current.version,
       schedule: sent,
       description: normalizeCalendarText(task.description),
+      taskUrl: taskLinkUrl(deps.appOrigin, task.id),
       changes,
       connectedAccountEmail: connection.provider_account_id,
     });
@@ -1465,6 +1476,7 @@ async function processPull(
           version: notice.version ?? link.provider_version,
           inbound: { kind: "removed" },
           description: "",
+          hasTaskLink: false,
           descriptionFormat: "text",
           hasAttendees: false,
           hasOnlineMeeting: false,
@@ -1535,6 +1547,7 @@ async function processPull(
             version: link.provider_version,
             inbound: { kind: "removed" },
             description: "",
+            hasTaskLink: false,
             descriptionFormat: "text",
             hasAttendees: false,
             hasOnlineMeeting: false,
@@ -2375,6 +2388,7 @@ export async function runCalendarSyncJob(env: Env): Promise<void> {
       `${env.API_ORIGIN}/calendar/webhooks/${provider}`,
     discloseOwner: (disclosure) =>
       discloseCalendarOwner(env, db, disclosure),
+    appOrigin: env.APP_ORIGIN,
     workerId,
   });
 }

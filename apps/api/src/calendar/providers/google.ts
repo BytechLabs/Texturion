@@ -6,10 +6,13 @@ import {
 import {
   appendUnlinkNote,
   calendarTitleRefusalReason,
+  hasTaskLink,
   hashCalendarDescription,
   instantFromRfc3339OrWallClock,
   isIanaTimeZone,
   normalizeCalendarText,
+  withTaskLink,
+  withoutTaskLink,
 } from "./normalize";
 import {
   type AnnotateCalendarEventInput,
@@ -126,7 +129,7 @@ function assertVersion(version: string, operation: string): void {
 function writeBody(input: WriteCalendarEventInput): Record<string, unknown> {
   return {
     summary: normalizeCalendarText(input.schedule.title),
-    description: normalizeCalendarText(input.description),
+    description: withTaskLink(input.description, input.taskUrl),
     start: {
       dateTime: input.schedule.start,
       timeZone: input.schedule.timeZone,
@@ -149,7 +152,7 @@ function patchBody(input: PatchCalendarEventInput): Record<string, unknown> {
       ? { summary: normalizeCalendarText(input.schedule.title) }
       : {}),
     ...(changes.description
-      ? { description: normalizeCalendarText(input.description) }
+      ? { description: withTaskLink(input.description, input.taskUrl) }
       : {}),
     ...(changes.timing
       ? {
@@ -220,12 +223,14 @@ export async function normalizeGoogleEvent(
     Boolean(event.recurrence?.length && !event.recurringEventId) ||
     Boolean(event.recurringEventId && !event.originalStartTime);
 
-  const description = normalizeCalendarText(event.description);
+  const providerDescription = normalizeCalendarText(event.description);
+  const description = withoutTaskLink(providerDescription);
   const organizerEmail = event.organizer?.email?.trim() || null;
   const common = {
     instanceId,
     version: event.etag ?? null,
     description,
+    hasTaskLink: hasTaskLink(providerDescription),
     descriptionFormat: "text" as const,
     hasAttendees: Boolean(event.attendees?.length),
     hasOnlineMeeting: Boolean(event.conferenceData || event.hangoutLink),

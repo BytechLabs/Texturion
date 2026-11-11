@@ -17,6 +17,8 @@ import {
   type CalendarFetch,
 } from "./types";
 
+const TASK_URL = "https://app.example.test/tasks/0b5c8f2e-6a1d-4c3e-9f7a-2d4b6e8c0a1f";
+
 function json(body: unknown, status = 200, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -59,6 +61,7 @@ async function writeInput() {
     idempotencyKey: "11111111-2222-4333-8444-555555555555",
     connectedAccountEmail: "owner@example.com",
     description,
+    taskUrl: TASK_URL,
     schedule: {
       start: "2026-11-01T16:00:00.000Z",
       end: "2026-11-01T17:00:00.000Z",
@@ -372,6 +375,37 @@ describe("Google calendar provider", () => {
     expect(new Headers(patchInit.headers).get("If-Match")).toBe('"etag-1"');
     expect(JSON.parse(String(patchInit.body))).not.toHaveProperty("attendees");
     expect("deleteEvent" in provider).toBe(true);
+  });
+
+  it("ends what it writes with a link to the task and reads the task's own text back (#751)", async () => {
+    const linked = `Bring ladder\n\nOpen in Loonext: ${TASK_URL}`;
+    const { fetcher, mock } = queuedFetch(
+      json(googleEvent({ description: linked })),
+      json(googleEvent({ description: linked, etag: '"etag-2"' })),
+    );
+    const provider = new GoogleCalendarProvider(fetcher);
+    const input = await writeInput();
+    await provider.createEvent(input);
+    await provider.patchEvent({
+      ...input,
+      instanceId: "instance-1",
+      version: '"etag-1"',
+      changes: { timing: false, title: false, description: true },
+    });
+    for (const [, init] of mock.mock.calls) {
+      expect(JSON.parse(String((init as RequestInit).body))).toMatchObject({ description: linked });
+    }
+
+    const read = await normalizeGoogleEvent(googleEvent({ description: linked }), "America/Edmonton");
+    expect(read?.description).toBe("Bring ladder");
+    expect(read?.hasTaskLink).toBe(true);
+    expect(read?.inbound).toMatchObject({
+      schedule: { descriptionHash: await hashCalendarDescription("Bring ladder") },
+    });
+
+    const beforeTheLink = await normalizeGoogleEvent(googleEvent(), "America/Edmonton");
+    expect(beforeTheLink?.description).toBe("Bring ladder");
+    expect(beforeTheLink?.hasTaskLink).toBe(false);
   });
 
   it("recovers an accepted create by its stable client event id", async () => {

@@ -17,6 +17,8 @@ import {
   type CalendarFetch,
 } from "./types";
 
+const TASK_URL = "https://app.example.test/tasks/0b5c8f2e-6a1d-4c3e-9f7a-2d4b6e8c0a1f";
+
 function json(body: unknown, status = 200, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -56,6 +58,7 @@ async function writeInput() {
     idempotencyKey: "11111111-2222-4333-8444-555555555555",
     connectedAccountEmail: "owner@example.com",
     description,
+    taskUrl: TASK_URL,
     schedule: {
       start: "2026-11-01T16:00:00.000Z",
       end: "2026-11-01T17:00:00.000Z",
@@ -528,6 +531,36 @@ describe("Microsoft calendar provider", () => {
       expect(error).toBeInstanceOf(CalendarEventNotFoundError);
       expect(error).toMatchObject({ kind: "not_found", status });
     }
+  });
+
+  it("ends what it writes with a link to the task and reads the task's own text back (#751)", async () => {
+    const linked = `Bring ladder\n\nOpen in Loonext: ${TASK_URL}`;
+    const { fetcher, mock } = queuedFetch(
+      json(graphEvent({ body: { contentType: "text", content: linked } })),
+    );
+    const provider = new MicrosoftCalendarProvider(fetcher);
+    await provider.createEvent(await writeInput());
+    const body = JSON.parse(String((mock.mock.calls[0]?.[1] as RequestInit).body)) as {
+      body: { content: string };
+    };
+    expect(body.body.content).toBe(linked);
+
+    // Outlook stores an edited body as HTML, one paragraph per line.
+    const edited = await normalizeMicrosoftEvent(
+      graphEvent({
+        body: {
+          contentType: "html",
+          content: `<html><body><p>Bring ladder</p><p>Open in Loonext: <a href="${TASK_URL}">${TASK_URL}</a></p></body></html>`,
+        },
+      }),
+      "owner@example.com",
+    );
+    expect(edited?.description).toBe("Bring ladder");
+    expect(edited?.hasTaskLink).toBe(true);
+
+    const beforeTheLink = await normalizeMicrosoftEvent(graphEvent(), "owner@example.com");
+    expect(beforeTheLink?.description).toBe("Bring ladder");
+    expect(beforeTheLink?.hasTaskLink).toBe(false);
   });
 
   it("creates and patches without attendees using exact UTC instants and If-Match", async () => {

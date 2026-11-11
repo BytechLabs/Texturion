@@ -27,8 +27,10 @@ export interface CalendarRemoteEvent {
   /** Etag/changeKey used for the next conditional write. */
   version: string | null;
   inbound: CalendarInbound;
-  /** Plain-text projection used for task synchronization and hashing. */
+  /** Plain-text projection used for task synchronization and hashing, without the task link. */
   description: string;
+  /** Whether the provider's description still ends with the link to the task. */
+  hasTaskLink: boolean;
   /** Original provider body, retained only in memory for format-safe unlink. */
   rawDescription?: string | null;
   descriptionFormat: "text" | "html";
@@ -87,6 +89,8 @@ export interface WriteCalendarEventInput {
   schedule: CalendarScheduleSnapshot;
   /** Plain text owned by Loonext. Attendees are deliberately not accepted. */
   description: string;
+  /** The task's page in Loonext; the event's description ends with a link to it. */
+  taskUrl: string;
   connectedAccountEmail?: string;
 }
 

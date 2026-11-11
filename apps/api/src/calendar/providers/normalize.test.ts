@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   appendUnlinkNote,
+  hasTaskLink,
   hashCalendarDescription,
   instantFromWallClock,
   normalizeCalendarScheduleSnapshot,
+  taskLinkUrl,
   wallClockFromInstant,
+  withTaskLink,
+  withoutTaskLink,
 } from "./normalize";
 import {
   ianaZoneToWindows,
@@ -119,6 +123,35 @@ describe("calendar provider normalization", () => {
         "Removed in Loonext",
       ),
     ).toBe("Bring ladder\n\nRemoved in Loonext");
+  });
+
+  describe("the link back to the task (#751)", () => {
+    const url = taskLinkUrl("https://app.example.test/", "0b5c8f2e-6a1d-4c3e-9f7a-2d4b6e8c0a1f");
+
+    it("points at the task's page", () => {
+      expect(url).toBe("https://app.example.test/tasks/0b5c8f2e-6a1d-4c3e-9f7a-2d4b6e8c0a1f");
+      expect(withTaskLink("Bring ladder", url)).toBe(`Bring ladder\n\nOpen in Loonext: ${url}`);
+      expect(withTaskLink("", url)).toBe(`Open in Loonext: ${url}`);
+    });
+
+    it.each([
+      "",
+      "Bring ladder",
+      "Bring ladder\n\nGate code 4412",
+      "Open in Loonext: is what the crew calls the app",
+      "First line\r\nSecond line",
+    ])("takes the link off again and gives back the task's text: %j", (description) => {
+      const written = withTaskLink(description, url);
+      expect(hasTaskLink(written)).toBe(true);
+      expect(withoutTaskLink(written)).toBe(description.replace(/\r\n/g, "\n"));
+    });
+
+    it("leaves a description alone when the link is not its last line", () => {
+      const moved = `Open in Loonext: ${url}\n\nBring ladder`;
+      expect(hasTaskLink(moved)).toBe(false);
+      expect(withoutTaskLink(moved)).toBe(moved);
+      expect(hasTaskLink("Bring ladder")).toBe(false);
+    });
   });
 
   it("covers every CLDR primary Windows zone with an accepted IANA zone", () => {

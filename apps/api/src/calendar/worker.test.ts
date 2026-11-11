@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CalendarCredentialRefreshUnavailableError } from "./authorization";
 import { openCalendarCredential, sealCalendarCredential } from "./crypto";
+import { hashCalendarDescription } from "./providers/normalize";
 import {
   CalendarFullResyncRequiredError,
   CalendarEventNotFoundError,
@@ -31,6 +32,7 @@ import {
 import { completeEnv } from "../test/support";
 import type { Env } from "../env";
 
+const APP_ORIGIN = "https://app.example.test";
 const KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 function configuredEnv(): Env {
@@ -168,6 +170,7 @@ function remote(
     version: "etag-returned",
     inbound: { kind: "scheduled", schedule },
     description: "First line\nSecond line",
+    hasTaskLink: true,
     descriptionFormat: "text",
     hasAttendees: false,
     hasOnlineMeeting: false,
@@ -280,6 +283,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn(),
       workerId: "worker-1",
       now: new Date("2026-08-25T12:00:00.000Z"),
@@ -316,6 +320,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn(),
       discloseOwner,
       workerId: "worker-1",
@@ -337,6 +342,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn(),
       workerId: "worker-1",
     });
@@ -366,6 +372,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn(),
       workerId: "worker-1",
     });
@@ -546,6 +553,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "access",
         provider: calendar,
@@ -592,6 +600,7 @@ describe("calendar sync worker", () => {
     const db = store({ claimOutbox });
     const dependencies = {
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "access",
         provider: calendar,
@@ -625,6 +634,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "access",
         provider: calendar,
@@ -650,6 +660,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -670,6 +681,59 @@ describe("calendar sync worker", () => {
     expect(db.commitSent).toHaveBeenCalledOnce();
   });
 
+  describe("the link back to the task (#751)", () => {
+    async function agreedLink(): Promise<CalendarLinkRow> {
+      const agreed = {
+        start: TASK.due_at!,
+        end: "2026-09-03T20:30:00.000Z",
+        timeZone: BASE.timeZone,
+        title: TASK.title,
+        descriptionHash: await hashCalendarDescription(TASK.description),
+      };
+      return { ...LINK, base_snapshot: agreed, last_sent_snapshot: agreed };
+    }
+
+    async function syncUnchangedTask(hasTaskLink: boolean) {
+      const calendar = provider();
+      vi.mocked(calendar.getEvent).mockResolvedValue({
+        ...remote(LINK.provider_instance_id),
+        version: LINK.provider_version,
+        hasTaskLink,
+      });
+      vi.mocked(calendar.patchEvent).mockImplementation(async (input) =>
+        remote(LINK.provider_instance_id, input.schedule),
+      );
+      const row = { ...OUTBOX, action: "upsert" as const, link_id: LINK.id };
+      const db = store({
+        claimOutbox: vi.fn().mockResolvedValue([row]),
+        getLink: vi.fn().mockResolvedValue(await agreedLink()),
+      });
+      await drainCalendarSync({
+        store: db,
+        appOrigin: APP_ORIGIN,
+        authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
+        workerId: "worker-1",
+      });
+      return { calendar, db };
+    }
+
+    it("writes nothing when the task is unchanged and the event has its link", async () => {
+      const { calendar, db } = await syncUnchangedTask(true);
+      expect(calendar.patchEvent).not.toHaveBeenCalled();
+      expect(db.commitSent).toHaveBeenCalledOnce();
+    });
+
+    it("rewrites only the description of an event that has no link yet", async () => {
+      const { calendar } = await syncUnchangedTask(false);
+      expect(calendar.patchEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          changes: { timing: false, title: false, description: true },
+          taskUrl: `${APP_ORIGIN}/tasks/${TASK.id}`,
+        }),
+      );
+    });
+  });
+
   it.each([
     ["participants", { hasAttendees: true }],
     ["an online meeting", { hasOnlineMeeting: true }],
@@ -686,6 +750,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -719,6 +784,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -759,6 +825,7 @@ describe("calendar sync worker", () => {
 
       await drainCalendarSync({
         store: db,
+        appOrigin: APP_ORIGIN,
         authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
         workerId: "worker-1",
       });
@@ -791,6 +858,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -822,6 +890,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -887,6 +956,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -935,6 +1005,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "access", provider: calendar }),
       workerId: "worker-1",
       now: new Date("2026-08-25T12:00:00.000Z"),
@@ -955,7 +1026,7 @@ describe("calendar sync worker", () => {
       }),
     });
 
-    await drainCalendarSync({ store: db, authorize, workerId: "worker-1" });
+    await drainCalendarSync({ store: db, appOrigin: APP_ORIGIN, authorize, workerId: "worker-1" });
 
     expect(authorize).not.toHaveBeenCalled();
     expect(db.cancelOutbox).toHaveBeenCalledWith(expect.objectContaining({ outbox: OUTBOX }));
@@ -968,7 +1039,7 @@ describe("calendar sync worker", () => {
       getTask: vi.fn().mockResolvedValue({ ...TASK, assigned_user_id: "someone-else" }),
     });
 
-    await drainCalendarSync({ store: db, authorize, workerId: "worker-1" });
+    await drainCalendarSync({ store: db, appOrigin: APP_ORIGIN, authorize, workerId: "worker-1" });
 
     expect(authorize).not.toHaveBeenCalled();
     expect(db.markProviderEffectStarted).not.toHaveBeenCalled();
@@ -989,6 +1060,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize,
       workerId: "worker-1",
       now: new Date("2026-08-25T12:00:00.000Z"),
@@ -1024,6 +1096,7 @@ describe("calendar sync worker", () => {
 
       await drainCalendarSync({
         store: db,
+        appOrigin: APP_ORIGIN,
         authorize: vi.fn().mockResolvedValue({
           accessToken: "access",
           provider: calendar,
@@ -1058,6 +1131,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1083,6 +1157,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1120,6 +1195,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1158,6 +1234,7 @@ describe("calendar sync worker", () => {
 
       await drainCalendarSync({
         store: db,
+        appOrigin: APP_ORIGIN,
         authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
         workerId: "worker-1",
       });
@@ -1187,6 +1264,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1217,6 +1295,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1248,6 +1327,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1272,6 +1352,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1301,6 +1382,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1346,6 +1428,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1389,6 +1472,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1416,6 +1500,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1435,6 +1520,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: rejectedDb,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "expired",
         provider: rejectedWrite,
@@ -1459,6 +1545,7 @@ describe("calendar sync worker", () => {
     });
     await drainCalendarSync({
       store: ambiguousDb,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "expired",
         provider: ambiguousRecoveryRead,
@@ -1480,6 +1567,7 @@ describe("calendar sync worker", () => {
     });
     await drainCalendarSync({
       store: priorAmbiguityDb,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "expired",
         provider: priorAmbiguityWrite,
@@ -1510,6 +1598,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
       now: new Date("2026-08-25T12:00:00.000Z"),
@@ -1554,6 +1643,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1591,6 +1681,7 @@ describe("calendar sync worker", () => {
 
       await drainCalendarSync({
         store: db,
+        appOrigin: APP_ORIGIN,
         authorize: vi.fn().mockResolvedValue({
           accessToken: "access",
           provider: calendar,
@@ -1639,6 +1730,7 @@ describe("calendar sync worker", () => {
 
       await drainCalendarSync({
         store: db,
+        appOrigin: APP_ORIGIN,
         authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
         workerId: "worker-1",
       });
@@ -1674,6 +1766,7 @@ describe("calendar sync worker", () => {
 
       await drainCalendarSync({
         store: db,
+        appOrigin: APP_ORIGIN,
         authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
         workerId: "worker-1",
       });
@@ -1820,6 +1913,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
       now: new Date("2026-08-25T12:00:00.000Z"),
@@ -1866,6 +1960,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1900,6 +1995,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "access",
         provider: calendar,
@@ -1932,6 +2028,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -1959,7 +2056,7 @@ describe("calendar sync worker", () => {
         new CalendarReauthRequiredError("google", "refresh access token"),
       );
 
-    await drainCalendarSync({ store: db, authorize, workerId: "worker-1" });
+    await drainCalendarSync({ store: db, appOrigin: APP_ORIGIN, authorize, workerId: "worker-1" });
 
     expect(db.retryOutbox).toHaveBeenCalledTimes(2);
     expect(db.markProviderEffectStarted).not.toHaveBeenCalled();
@@ -1992,6 +2089,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -2026,6 +2124,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -2064,6 +2163,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -2102,6 +2202,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -2138,6 +2239,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -2178,6 +2280,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -2215,6 +2318,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -2239,6 +2343,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "access",
         provider: calendar,
@@ -2292,6 +2397,7 @@ describe("calendar sync worker", () => {
 
     const result = await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "access",
         provider: calendar,
@@ -2330,6 +2436,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "access",
         provider: calendar,
@@ -2360,6 +2467,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({
         accessToken: "expired",
         provider: calendar,
@@ -2389,6 +2497,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
       now: new Date("2026-08-25T12:00:00.000Z"),
@@ -2424,6 +2533,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
       now: new Date("2026-08-25T12:00:00.000Z"),
@@ -2459,6 +2569,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -2493,6 +2604,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });
@@ -2515,6 +2627,7 @@ describe("calendar sync worker", () => {
 
     await drainCalendarSync({
       store: db,
+      appOrigin: APP_ORIGIN,
       authorize: vi.fn().mockResolvedValue({ accessToken: "a", provider: calendar }),
       workerId: "worker-1",
     });

@@ -35,6 +35,7 @@ import { cors } from "hono/cors";
 
 import { buildIcs, type IcsEvent } from "@loonext/shared";
 
+import { taskLinkUrl, withTaskLink } from "../calendar/providers/normalize";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -184,10 +185,10 @@ calendarFeedRoutes.get("/calendar/:token/schedule.ics", async (c) => {
     return notFound();
   }
 
-  const origin = env.APP_ORIGIN;
   const events: IcsEvent[] = ((taskRows ?? []) as unknown as FeedTask[]).map(
     (task) => {
     const start = new Date(task.due_at);
+    const taskUrl = taskLinkUrl(env.APP_ORIGIN, task.id);
     return {
       /*
        * Stable for the life of the task, so a rescheduled job MOVES in the
@@ -203,11 +204,11 @@ calendarFeedRoutes.get("/calendar/:token/schedule.ics", async (c) => {
       // of now() on every poll tells every client that every event changed.
       stamp: task.updated_at ? new Date(task.updated_at) : start,
       summary: task.title,
-      description: task.description || undefined,
+      // Google Calendar shows no URL property on a subscribed feed, so the link
+      // back to the task is also the description's last line (#751).
+      description: withTaskLink(task.description ?? "", taskUrl),
       location: addressOf(task),
-      url: task.conversation_id
-        ? `${origin}/inbox/${task.conversation_id}`
-        : undefined,
+      url: taskUrl,
       };
     },
   );

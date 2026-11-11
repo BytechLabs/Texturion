@@ -3,6 +3,16 @@ import type { CalendarScheduleSnapshot } from "../sync";
 const WALL_CLOCK =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?$/;
 
+const TASK_LINK_LABEL = "Open in Loonext:";
+
+/**
+ * The link line Loonext writes, with whatever blank lines the provider puts
+ * before or after it. Outlook's HTML round trip can collapse the blank line
+ * before it to a single newline, so any run of newlines counts.
+ */
+const TASK_LINK_LINE =
+  /(?:^|\n+)[ \t]*Open in Loonext: https?:\/\/\S+\/tasks\/[A-Za-z0-9-]+[ \t\n]*$/u;
+
 interface WallClockParts {
   year: number;
   month: number;
@@ -244,4 +254,28 @@ export function appendUnlinkNote(description: string, note: string): string {
   const normalizedNote = normalizeCalendarText(note).trim();
   if (!normalizedNote || current.endsWith(normalizedNote)) return current;
   return current ? `${current}\n\n${normalizedNote}` : normalizedNote;
+}
+
+export function taskLinkUrl(appOrigin: string, taskId: string): string {
+  return `${appOrigin.replace(/\/+$/u, "")}/tasks/${taskId}`;
+}
+
+/**
+ * The description as written to the provider: the task's own text, then a
+ * link back to the task (#751). The task's text is kept exactly, so taking the
+ * link off again gives back the same bytes and the same description hash.
+ */
+export function withTaskLink(description: string, taskUrl: string): string {
+  const text = normalizeCalendarText(description);
+  const line = `${TASK_LINK_LABEL} ${taskUrl}`;
+  return text ? `${text}\n\n${line}` : line;
+}
+
+/** The provider's description without the link line, as the task should hold it. */
+export function withoutTaskLink(description: string): string {
+  return description.replace(TASK_LINK_LINE, "");
+}
+
+export function hasTaskLink(description: string): boolean {
+  return TASK_LINK_LINE.test(description);
 }
