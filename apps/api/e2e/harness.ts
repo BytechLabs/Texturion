@@ -107,6 +107,11 @@ export interface Harness {
     path: string,
     options?: CallOptions,
   ): Promise<CallResult>;
+  /**
+   * The Worker's own Response to a request built elsewhere, headers and all,
+   * after its background work: for a real browser behind a local server.
+   */
+  fetch(request: Request): Promise<Response>;
   /** Sign + POST a Telnyx webhook event, flushing background work. */
   injectTelnyx(event: unknown): Promise<CallResult>;
   /** Sign + POST a Stripe webhook event, flushing background work. */
@@ -259,6 +264,15 @@ export async function startHarness(): Promise<Harness> {
     return { status: response.status, json, text };
   }
 
+  async function fetchRaw(request: Request): Promise<Response> {
+    const { ctx, flush } = makeCtx();
+    const response = await app.fetch(request, env, ctx);
+    // A 204 (a CORS preflight's answer) or 304 must be rebuilt with no body at all.
+    const body = [204, 304].includes(response.status) ? null : await response.arrayBuffer();
+    await flush();
+    return new Response(body, { status: response.status, headers: response.headers });
+  }
+
   async function injectTelnyx(event: unknown): Promise<CallResult> {
     const { ctx, flush } = makeCtx();
     const bodyText = JSON.stringify(event);
@@ -371,6 +385,7 @@ export async function startHarness(): Promise<Harness> {
        alter table public.audit_log enable trigger audit_log_append_only;
        commit;`,
     call,
+    fetch: fetchRaw,
     injectTelnyx,
     injectStripe,
     sql,
