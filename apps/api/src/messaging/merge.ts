@@ -85,9 +85,8 @@ export async function resolveSendMergeFields(
     try {
       const rows = unwrap<{ display_name: string | null }[]>(
         await db
-          .from("company_members")
+          .from("profiles")
           .select("display_name")
-          .eq("company_id", input.companyId)
           .eq("user_id", input.userId)
           .limit(1),
         "merge sender name",

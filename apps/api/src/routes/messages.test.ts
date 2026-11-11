@@ -237,7 +237,10 @@ function sendStubs(options: {
   // #274: the two reads {my_name} and {job_day}/{job_time} need. Counted, so a
   // test can assert they DID NOT happen for an ordinary message.
   const memberLookup = stubRoute(
-    restMatch(env, "GET", "company_members"),
+    // `profiles`, not `company_members`: the name lives on the profile, and the
+    // old fixture invented a `company_members.display_name` the database does
+    // not have (#750).
+    restMatch(env, "GET", "profiles"),
     () => [{ display_name: "Sam Okafor" }],
   );
   const taskLookup = stubRoute(restMatch(env, "GET", "tasks"), () => [
@@ -2105,7 +2108,7 @@ describe("POST /v1/messages/send — #274 the tokens that do real work", () => {
     stubFetch(
       ...stubs.all.filter((route) => route !== stubs.memberLookup.route),
       stubRoute(
-        restMatch(env, "GET", "company_members"),
+        restMatch(env, "GET", "profiles"),
         () => new Response("members down", { status: 500 }),
       ).route,
     );
