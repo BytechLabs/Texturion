@@ -43,6 +43,9 @@ struct SearchField: View {
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .focused($focused)
+                // The whole height of the box is the field, not the line of text.
+                .frame(minHeight: 44)
+                .accessibilityLabel(placeholder)
                 .onChange(of: query) { _, next in
                     if let maxLength, next.count > maxLength {
                         query = String(next.prefix(maxLength))
@@ -56,6 +59,8 @@ struct SearchField: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.scaled(IconSize.standard))
                         .foregroundStyle(BrandColor.muted700)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel(
@@ -63,8 +68,8 @@ struct SearchField: View {
                 )
             }
         }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 11)
+        .padding(.leading, 15)
+        .padding(.trailing, query.isEmpty ? 15 : 2)
         .background(BrandColor.paper, in: Capsule())
     }
 }

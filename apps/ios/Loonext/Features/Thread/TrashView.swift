@@ -189,6 +189,8 @@ struct TrashRowsList: View {
                         .font(.golos(13, weight: .semibold))
                         .foregroundStyle(BrandColor.olive)
                         .frame(maxWidth: .infinity, minHeight: 44)
+                        // A plain button is only as tappable as its drawn text without this.
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .disabled(loadingMore)
@@ -249,6 +251,7 @@ struct TrashRowView: View {
                         .foregroundStyle(BrandColor.destructive)
                         .frame(minHeight: 44)
                         .padding(.horizontal, 8)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(

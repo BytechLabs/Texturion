@@ -114,7 +114,8 @@ struct AccountSheet: View {
                         )
                     )
                     .font(.golos(11))
-                    .foregroundStyle(BrandColor.paper.opacity(0.55))
+                    // 0.55 fell just short of contrast on the dark theme's card.
+                    .foregroundStyle(BrandColor.paper.opacity(0.72))
                 }
             }
             Spacer(minLength: 0)
