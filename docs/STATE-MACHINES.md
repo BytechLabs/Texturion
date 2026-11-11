@@ -24,7 +24,7 @@
 | Id | Column(s) | States | Authority | Pinned by | Clients that render it |
 | --- | --- | --- | --- | --- | --- |
 | `call` | `calls.state` | 9 | internal | check (nullable) | web, Android, iOS |
-| `call_leg` | `call_member_legs.state` | 3 | internal | check | server only (audit) |
+| `call_leg` | `call_member_legs.state` | 3 | internal | check + transition trigger | server only (audit) |
 | `scheduled_message` | `scheduled_messages.status` | 6 | internal | check | web, Android, iOS |
 | `calendar_connection` | `calendar_connections.status` | 4 | internal | check | web only |
 | `calendar_outbox` | `calendar_outbox.state` | 4 | internal | check | server only |
@@ -32,22 +32,22 @@
 | `calendar_link` | `task_calendar_links.link_state` | 5 | internal | check | web only |
 | `calendar_push_subscription` | `webhook_subscriptions.status` | 6 | internal | check | server only |
 | `webhook_delivery` | `webhook_deliveries.status` | 4 | internal | check | web, Android, iOS (Webhooks settings) |
-| `subscription` | `companies.subscription_status` | 6 | provider | enum | web, Android, iOS |
-| `conversation` | `conversations.status` | 4 | internal | enum | web, Android, iOS |
+| `subscription` | `companies.subscription_status` | 6 | provider | enum + forward-only trigger (per subscription id) | web, Android, iOS |
+| `conversation` | `conversations.status` | 4 | internal | enum (every move is real, by decision) | web, Android, iOS |
 | `conversation_visibility` | `conversations.is_spam`, `deleted_at` | 3 | derived | none | web, Android, iOS |
 | `message` | `messages.status` | 5 | provider | enum | web, Android, iOS |
 | `registration` | `messaging_registrations.status` | 6 | provider | enum | web, Android, iOS |
-| `number_health` | `number_health.state` | 2 | internal | check | web, Android, iOS |
+| `number_health` | `number_health.state` | 2 | internal | check + transition trigger | web, Android, iOS |
 | `payment_request` | `payment_requests.status` | 4 | internal | check | web, Android, iOS |
 | `phone_number` | `phone_numbers.status` | 6 | internal | enum | web, Android, iOS |
-| `port` | `port_requests.status`, `phone_numbers.porting_status` | 9 | provider | enum | web, Android, iOS |
-| `port_messaging` | `port_requests.messaging_port_status` | 5 | provider | enum | server (surfaced through `port`) |
+| `port` | `port_requests.status`, `phone_numbers.porting_status` | 9 | provider | enum + forward-only triggers | web, Android, iOS |
+| `port_messaging` | `port_requests.messaging_port_status` | 5 | provider | enum + forward-only trigger | server (surfaced through `port`) |
 | `quote` | `quotes.status` | 6 | internal | none (length check only) | web, Android, iOS |
 | `text_enablement` | `text_enablement_orders.status` | 6 | provider | enum | web, Android, iOS |
 | `data_export` | `data_exports.status` | 4 | internal | check | web, Android, iOS |
-| `consent` | `contact_consent_events.state` | 3 | internal | check | server only |
-| `geocode` | `contacts.geocode_status`, `tasks.geocode_status` | 4 | internal | check | server only |
-| `billing_dispute` | `billing_disputes.status` | 7 | provider | none | server and ops only |
+| `consent` | `contact_consent_events.state` | 3 | internal | check (an evidence ledger; the opt-out gate enforces it) | server only |
+| `geocode` | `contacts.geocode_status`, `tasks.geocode_status` | 4 | internal | check + transition triggers | server only |
+| `billing_dispute` | `billing_disputes.status` | 7 | provider | forward-only trigger | server and ops only |
 | `task` | `tasks.done_at`, `deleted_at` | 3 | derived | none | web, Android, iOS |
 | `invite` | `invites.accepted_at`, `revoked_at`, `expires_at` | 4 | derived | none | web, Android, iOS (team) |
 | `workspace` | `companies.paused_at`, `deleted_at`, `purged_at` | 4 | derived | none | pause on all three; closure and trash on web only |
@@ -76,7 +76,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **States:** `ringing`, `answered`, `failed`. Edges `ringing -> answered`, `ringing -> failed`.
 - **Guards:** `api_claim_ring_answer` answers only a ringing ring leg when no other ring leg is answered; `api_ring_leg_failed` locks the session's ring legs and reports whether any is still live.
 - **Writers today:** `apps/api/src/messaging/live-call.ts:213,310,403,504,533` (direct updates for transfer and consult legs), `apps/api/src/calls/runtime.ts:541` (insert only), SQL `api_claim_ring_answer` in `supabase/migrations/20260712000500_calls_v2_hardening2.sql` and `api_ring_leg_failed` in `supabase/migrations/20260712000400_calls_v2_hardening.sql`.
-- **Flag:** in v3 the ledger is audit-only, so ring legs stay `ringing` forever: 125 rows on production are `ringing` on a call that has ended. Phase 2 either closes them when the call ends or retires the state column for ring legs.
+- **Enforced (phase 2):** `call_member_legs_transition_guard` (`supabase/migrations/20261111400000_the_remaining_machines_keep_their_lifecycles.sql`). A consult leg that was answered and then drops is marked `failed` by `live-call.ts`, so the definition has `answered -> failed`. The 125 ring legs once left `ringing` were all closed by 2026-11-11 (176 `failed`, 7 `answered`, none `ringing`).
 
 ### scheduled_message
 
@@ -133,6 +133,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 
 ### subscription
 
+- **Enforced (phase 2):** `companies_subscription_status_forward_only` keeps the status on an out-of-order Stripe event within one subscription. A new `stripe_subscription_id` (a resubscribe after an expired checkout or a cancellation) starts its own lifecycle, because `claim_checkout_activation` writes the id and the status together.
 - **States:** `incomplete`, `incomplete_expired`, `active`, `past_due`, `unpaid`, `canceled` (the Postgres enum; Stripe `trialing` and `paused` are not mapped).
 - **Authority:** Stripe. `syncSubscription` (`apps/api/src/webhooks/stripe.ts:1109`) overwrites the column on every Stripe event, so every edge is accepted today; the definition is Stripe's lifecycle. `canceled` is written at `apps/api/src/webhooks/stripe.ts:1340`.
 - **Entry-only done right:** a portal cancellation notice fires once because the code compares against the status already held before the mirror overwrites it (`isNewCancellation`, called near `apps/api/src/webhooks/stripe.ts:1100`).
@@ -141,7 +142,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 ### conversation
 
 - **States:** `new`, `open`, `waiting`, `closed`. **No transition rule exists.** `PATCH` validates the enum only (`apps/api/src/routes/conversations.ts:186,231,975,1210`), `api_bulk_conversations` accepts any target (`supabase/migrations/20261110170000_deletion_and_trash.sql:2124`), and an inbound text or missed call reopens a thread with `new` or `open` (`thread_inbound_message`, `claim_missed_call_text`, same file lines 2367, 2394, 2714, 2734).
-- The definition is therefore the full mesh. Phase 2 starts with a product decision on which edges are real (is `closed -> waiting` valid?).
+- **Decided (phase 2):** the full mesh is the product. A person may set any status, an inbound text or missed call reopens a closed thread, and `closed -> waiting` is a person marking a closed thread as waiting on the customer. A trigger would refuse nothing, so there is none; who may make each move is `allowedActions`, which the API returns as `allowed_actions`.
 - `closed_at` is set for every closed row on production (3 of 3).
 - **Other writers:** `apps/api/src/messaging/spam-flag.ts:63` (closes on spam), `apps/api/src/messaging/inbound.ts:455`, `apps/api/src/messaging/off-ramp.ts:128`, `apps/api/src/messaging/auto-send.ts:171`, `apps/api/src/routes/compose.ts:330` (insert `open`).
 - **Clients:** `apps/web/src/components/inbox/filter-bar.tsx`, `apps/android/app/src/main/kotlin/com/loonext/android/core/model/Messaging.kt`, `apps/ios/Loonext/Core/Model/Messaging.swift`.
@@ -168,6 +169,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 
 ### number_health
 
+- **Enforced (phase 2):** `number_health_transition_guard`.
 - **States:** `healthy`, `degraded`. `api_assess_number_health` returns only numbers whose state changed and the caller announces only those (`apps/api/src/messaging/number-health.ts`): the entry-only pattern already in place.
 
 ### payment_request
@@ -183,6 +185,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 
 ### port and port_messaging
 
+- **Enforced (phase 2):** `port_requests_status_forward_only`, `phone_numbers_porting_status_forward_only` and `port_requests_messaging_forward_only` keep the old status on an out-of-order Telnyx event instead of failing it.
 - `port` is the voice track, `port_messaging` the messaging track. The definitions equal `ALLOWED_STATUS_TRANSITIONS` and `ALLOWED_MESSAGING_TRANSITIONS` (`apps/api/src/telnyx/porting.ts:103,155`), asserted by test. `phone_numbers.porting_status` mirrors the port request's status.
 - **The model to copy:** `claimPortRow` (`apps/api/src/telnyx/porting.ts:245`) updates only while the row still holds the values this run read and returns null to the loser, which then sends no email or push.
 - **Effects (E):** `ported` activates the number and emails; `exception` emails; messaging `exception` sends the "texting is delayed" notice.
@@ -208,14 +211,17 @@ Each entry lists the transitions the definition allows, the guards that exist to
 
 ### consent
 
+- **No trigger, by decision (phase 2):** the ledger is evidence, written by two triggers when a contact is created, and a raising guard could block creating a contact whose earlier opt-out is recorded first. The rule that matters, only the customer lifts a STOP, is enforced where sends happen (`runPreSendGates`, `opt_outs`). Production's 12 events follow the machine (2026-11-11).
 - The consent ledger: `implied`, `express`, `revoked`. Each row is the state a contact entered; the latest row wins. Revoked leaves only for `express`, and only the customer lifts a STOP (opt-out is carrier truth, gate in `runPreSendGates`). Written by `supabase/migrations/20260728002100_consent_ledger.sql` and its follow-ups; no client renders it.
 
 ### geocode
 
+- **Enforced (phase 2):** `contacts_geocode_transition_guard` and `tasks_geocode_transition_guard`, on every update so a status moved by `tasks_geocode_status_sync` is checked too.
 - `pending -> ok | failed | no_address`; editing an address returns to `pending`, clearing sets `no_address`. Writers `apps/api/src/geocode/geocode-contacts.ts:158,174`, `apps/api/src/geocode/geocode-tasks.ts:128,137`, `apps/api/src/routes/contacts.ts:978`, SQL in `supabase/migrations/20260724020000_task_geocode.sql`.
 
 ### billing_dispute
 
+- **Enforced (phase 2):** `billing_disputes_status_forward_only` keeps the old status on a move outside Stripe's lifecycle rather than failing the webhook.
 - Free text copied from Stripe through `record_billing_dispute` (`apps/api/src/billing/disputes.ts:76`). Seven Stripe statuses; losing a closed dispute revokes a prepaid year, once. No constraint, table empty on production.
 
 ### task, invite, workspace (derived)

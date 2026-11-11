@@ -8,20 +8,27 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { billingDisputeMachine } from "./billing-dispute";
 import { calendarConnectionMachine } from "./calendar-connection";
 import { calendarLinkMachine } from "./calendar-link";
 import { calendarOutboxMachine } from "./calendar-outbox";
 import { calendarPushSubscriptionMachine } from "./calendar-push-subscription";
 import { calendarReminderReplanMachine } from "./calendar-reminder-replan";
+import { callLegMachine } from "./call-leg";
 import { conversationVisibilityMachine } from "./conversation-visibility";
 import { dataExportMachine } from "./data-export";
+import { geocodeMachine } from "./geocode";
 import { inviteMachine } from "./invite";
 import { messageMachine } from "./message";
+import { numberHealthMachine } from "./number-health";
 import { paymentRequestMachine } from "./payment-request";
 import { phoneNumberMachine } from "./phone-number";
+import { portMachine } from "./port";
+import { portMessagingMachine } from "./port-messaging";
 import { quoteMachine } from "./quote";
 import { registrationMachine } from "./registration";
 import { scheduledMessageMachine } from "./scheduled-message";
+import { subscriptionMachine } from "./subscription";
 import { taskMachine } from "./task";
 import { textEnablementMachine } from "./text-enablement";
 import { webhookDeliveryMachine } from "./webhook-delivery";
@@ -43,6 +50,19 @@ function triggerEdges(file: string, fn: string): Map<string, string[]> {
   }
   return edges;
 }
+
+/** #722 phase 2, the last of the status machines. */
+const REMAINING_GUARDS = new Set([
+  "number_health_transition_guard",
+  "contacts_geocode_transition_guard",
+  "tasks_geocode_transition_guard",
+  "call_member_legs_transition_guard",
+  "billing_disputes_status_forward_only",
+  "port_requests_status_forward_only",
+  "port_requests_messaging_forward_only",
+  "phone_numbers_porting_status_forward_only",
+  "companies_subscription_status_forward_only",
+]);
 
 const CALENDAR_GUARDS = new Set([
   "calendar_connections_transition_guard",
@@ -91,9 +111,20 @@ describe("#722 enforced machines", () => {
     ["calendar_outbox", calendarOutboxMachine, "calendar_outbox_transition_guard"],
     ["calendar_reminder_replan", calendarReminderReplanMachine, "calendar_reminder_replans_transition_guard"],
     ["calendar_push_subscription", calendarPushSubscriptionMachine, "webhook_subscriptions_transition_guard"],
+    ["number_health", numberHealthMachine, "number_health_transition_guard"],
+    ["geocode (contacts)", geocodeMachine, "contacts_geocode_transition_guard"],
+    ["geocode (tasks)", geocodeMachine, "tasks_geocode_transition_guard"],
+    ["call_leg", callLegMachine, "call_member_legs_transition_guard"],
+    ["billing_dispute", billingDisputeMachine, "billing_disputes_status_forward_only"],
+    ["port", portMachine, "port_requests_status_forward_only"],
+    ["port (number mirror)", portMachine, "phone_numbers_porting_status_forward_only"],
+    ["port_messaging", portMessagingMachine, "port_requests_messaging_forward_only"],
+    ["subscription", subscriptionMachine, "companies_subscription_status_forward_only"],
   ] as const)("%s: the trigger allows exactly the defined moves", (_name, machine, fn) => {
     const edges = triggerEdges(
-      fn === "phone_numbers_transition_guard"
+      REMAINING_GUARDS.has(fn)
+        ? "20261111400000_the_remaining_machines_keep_their_lifecycles.sql"
+        : fn === "phone_numbers_transition_guard"
         ? "20261111330000_a_number_keeps_its_lifecycle.sql"
         : fn.endsWith("_status_forward_only")
           ? "20261111340000_registrations_and_text_enablement_keep_their_lifecycles.sql"
