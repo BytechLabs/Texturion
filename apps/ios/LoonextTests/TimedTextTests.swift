@@ -15,7 +15,9 @@ final class TimedTextTests: XCTestCase {
             locale: "en",
             now: now,
             timeZone: toronto,
-            drawTime: { TimestampFormat.label($0, locale: "en", now: now, timeZone: toronto) }
+            drawTime: { [now, toronto] in
+                TimestampFormat.label($0, locale: "en", now: now, timeZone: toronto)
+            }
         ) { time in
             "Joined \(time(iso))"
         }
