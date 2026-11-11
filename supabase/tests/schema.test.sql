@@ -641,9 +641,15 @@ begin
     raise exception 'T18 FAILED: message.created broadcast row not found in realtime.messages';
   end if;
 
-  -- message.status fires on status change
+  -- message.status fires on status change. An outbound text, because an
+  -- inbound one never changes status (#722's message machine).
+  insert into public.messages
+    (id, company_id, conversation_id, direction, body, status, sent_by_user_id)
+  values ('99999999-9999-4999-8999-999999999998', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'outbound', 'on its way', 'queued',
+          '11111111-1111-4111-8111-111111111111');
   update public.messages set status = 'delivered'
-  where id = '99999999-9999-4999-8999-999999999999';
+  where id = '99999999-9999-4999-8999-999999999998';
   select count(*) into n from realtime.messages
   where topic like 'company:cccccccc-cccc-4ccc-8ccc-cccccccccccc%'
     and event = 'message.status' and payload->>'status' = 'delivered';

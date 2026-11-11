@@ -24,8 +24,10 @@ export const paymentRequestMachine = defineMachine<PaymentRequestState>({
   transitions: {
     requested: ["paid", "cancelled", "expired"],
     paid: [],
-    cancelled: [],
-    expired: [],
+    // The money is real: a payment that lands after a cancel or expiry is
+    // recorded (api_mark_payment_request_paid keeps the cancellation stamp).
+    cancelled: ["paid"],
+    expired: ["paid"],
   },
   entryEffects: {
     paid: ["thread_event_payment_paid"],

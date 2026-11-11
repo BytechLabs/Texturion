@@ -8,8 +8,12 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { dataExportMachine } from "./data-export";
 import { messageMachine } from "./message";
+import { paymentRequestMachine } from "./payment-request";
+import { quoteMachine } from "./quote";
 import { scheduledMessageMachine } from "./scheduled-message";
+import { webhookDeliveryMachine } from "./webhook-delivery";
 
 const MIGRATIONS = join(__dirname, "..", "..", "..", "..", "supabase", "migrations");
 
@@ -51,6 +55,24 @@ describe("#722 enforced machines", () => {
     expect(edges.size, "the trigger was not found or has no edges").toBeGreaterThan(0);
     for (const state of messageMachine.states) {
       const defined = messageMachine.transitions[state].filter((to) => to !== state).sort();
+      expect(edges.get(state) ?? [], state).toEqual(defined);
+    }
+  });
+  it.each([
+    ["payment_request", paymentRequestMachine, "payment_requests_transition_guard"],
+    ["quote", quoteMachine, "quotes_transition_guard"],
+    ["data_export", dataExportMachine, "data_exports_transition_guard"],
+    ["webhook_delivery", webhookDeliveryMachine, "webhook_deliveries_transition_guard"],
+  ] as const)("%s: the trigger allows exactly the defined moves", (_name, machine, fn) => {
+    const edges = triggerEdges(
+      "20261111320000_payments_quotes_exports_and_webhooks_keep_their_lifecycles.sql",
+      fn,
+    );
+    expect(edges.size, "the trigger was not found or has no edges").toBeGreaterThan(0);
+    for (const state of machine.states as readonly string[]) {
+      const defined = (machine.transitions as Record<string, readonly string[]>)[state]!
+        .filter((to) => to !== state)
+        .sort();
       expect(edges.get(state) ?? [], state).toEqual(defined);
     }
   });

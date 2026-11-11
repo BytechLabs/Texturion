@@ -225,10 +225,14 @@ declare
   v_state text;
   v_since timestamptz;
 begin
-  -- The number starts delivering again.
-  update public.messages set status = 'delivered'
+  -- The number starts delivering again: the failed texts are retried and land
+  -- (a failed text goes back to queued before it can be delivered).
+  update public.messages set status = 'queued'
    where conversation_id = 'da000000-0000-4000-8000-00000000b2b2'::uuid
      and status = 'failed';
+  update public.messages set status = 'delivered'
+   where conversation_id = 'da000000-0000-4000-8000-00000000b2b2'::uuid
+     and status = 'queued';
 
   perform public.api_assess_number_health();
 
