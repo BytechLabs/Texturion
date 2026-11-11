@@ -60,6 +60,7 @@ import {
 import { notifyCallEnd } from "../notifications/call-end";
 import { telnyxRequest, TelnyxApiError, isDefiniteRefusal } from "../telnyx/client";
 
+import type { CallStep } from "./call-steps";
 import type {
   AnswerIntent,
   InitiatedContext,
@@ -265,6 +266,8 @@ export interface SessionRuntime {
   reportError(cause: unknown): void;
   /** One call lifecycle event, sent to PostHog under the workspace. */
   capture(event: string, companyId: string, properties: Record<string, unknown>): void;
+  /** #725: a transition's steps, onto the call's own timeline. Never holds up or fails the call. */
+  recordCallSteps(sessionId: string, companyId: string, steps: CallStep[]): void;
   buildClientStates: {
     memberRing(input: {
       sessionId: string;
@@ -1347,6 +1350,34 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
     },
     capture(event, companyId, properties) {
       void captureEvent(env, event, companyId, properties, waitUntil);
+    },
+    recordCallSteps(sessionId, companyId, steps) {
+      if (steps.length === 0) return;
+      const write = Promise.resolve(
+        db.rpc("record_call_steps", {
+          p_company_id: companyId,
+          p_call_session_id: sessionId,
+          p_steps: steps.map((s) => ({
+            kind: s.kind,
+            at: new Date(s.atMs).toISOString(),
+            actor_user_id: s.actorUserId,
+            actor_type: s.actorType,
+            payload: s.payload,
+          })),
+        }),
+      ).then(
+        ({ error }) => {
+          if (error) report(new Error(`record_call_steps failed: ${error.code ?? "unknown"}`), "warning");
+        },
+        (cause: unknown) => report(cause, "warning"),
+      );
+      // Runs inside the transition, so it must never throw into it: a host
+      // with no waitUntil still lets the write finish on its own.
+      try {
+        waitUntil?.(write);
+      } catch {
+        void write;
+      }
     },
 
     buildClientStates: {

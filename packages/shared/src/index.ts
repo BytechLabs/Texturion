@@ -1249,6 +1249,8 @@ export {
   isCallEndReason,
   type CallEndReason,
 } from "./call-end-reasons";
+// #725 — the steps of one call, on that call's own timeline.
+export { CALL_STEP_KINDS, isCallStepKind, type CallStepKind } from "./call-steps";
 
 // #713: one tag control across a selection: every item, some, or none.
 export {

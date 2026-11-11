@@ -423,4 +423,53 @@ begin
   raise notice 'RA-11 PASSED: trash';
 end $$;
 
+-- RA-12 (#725): the call machine's steps land on the call's own timeline, under
+-- Calls, and nowhere else; the same step twice is one row; another workspace's
+-- session id writes nothing.
+do $$
+declare
+  k uuid := 'a7000000-0000-4000-8000-000000000d01';
+  co uuid := 'a7000000-0000-4000-8000-0000000000c1';
+  mem uuid := 'a7000000-0000-4000-8000-00000000000b';
+  steps jsonb := jsonb_build_array(
+    jsonb_build_object('kind', 'call_rang', 'at', '2026-11-10T15:00:01Z',
+                       'actor_type', 'system', 'payload', jsonb_build_object('user_ids', jsonb_build_array(mem))),
+    jsonb_build_object('kind', 'call_declined', 'at', '2026-11-10T15:00:05Z',
+                       'actor_user_id', mem, 'payload', '{}'::jsonb),
+    jsonb_build_object('kind', 'call_ended', 'at', '2026-11-10T15:00:30Z',
+                       'actor_type', 'system',
+                       'payload', jsonb_build_object('reason', 'declined_by_everyone', 'seconds', 30)));
+  n int;
+begin
+  if public.record_call_steps(co, 'ra-sess-1', steps) is distinct from 3 then
+    raise exception 'RA-12 FAILED: the steps were not written';
+  end if;
+  perform public.record_call_steps(co, 'ra-sess-1', steps);
+  select count(*) into n from public.record_activity
+   where record_type = 'call' and record_id = k and kind like 'call\_%';
+  if n is distinct from 3 then
+    raise exception 'RA-12 FAILED: % step rows after writing the same three twice', n;
+  end if;
+  if exists (select 1 from public.record_activity
+              where record_id = k and kind like 'call\_%' and category <> 'call') then
+    raise exception 'RA-12 FAILED: a call step is not filed under Calls';
+  end if;
+  if exists (select 1 from public.record_activity
+              where kind like 'call\_%' and record_type <> 'call') then
+    raise exception 'RA-12 FAILED: a call step reached a contact or thread timeline';
+  end if;
+  if not exists (select 1 from public.record_activity
+                  where record_id = k and kind = 'call_declined' and actor_id = mem
+                    and actor_type = 'member') then
+    raise exception 'RA-12 FAILED: the decline does not name who declined';
+  end if;
+  if public.record_call_steps('a7000000-0000-4000-8000-0000000000ff', 'ra-sess-1', steps) is distinct from 0 then
+    raise exception 'RA-12 FAILED: another workspace wrote onto this call';
+  end if;
+  if has_function_privilege('authenticated', 'public.record_call_steps(uuid, text, jsonb)', 'execute') then
+    raise exception 'RA-12 FAILED: a signed-in user can write call steps';
+  end if;
+  raise notice 'RA-12 PASSED: call steps';
+end $$;
+
 rollback;

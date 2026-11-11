@@ -34,6 +34,7 @@ import {
   parseOutboundSessionId,
 } from "../messaging/voice-webhook";
 
+import { callStepsBetween } from "./call-steps";
 import { createSessionRuntime, type AdoptionRow, type SessionRuntime } from "./runtime";
 import { requiresUnauthorizedHangup } from "./outbound-leg-gate";
 import {
@@ -644,6 +645,11 @@ export class CallSessionDO extends DurableObject<Env> {
           await this.ctx.storage.put({ machine: result.machine, journal });
           await this.rememberSessionId(result.machine.callSessionId);
           this.reportLifecycle(machine, result.machine, head.event, nowMs);
+          this.rt.recordCallSteps(
+            result.machine.callSessionId,
+            result.machine.companyId,
+            callStepsBetween(machine, result.machine, nowMs),
+          );
         } else {
           // reducer returned null machine (should not happen mid-session) —
           // keep the prior machine, journal the effects.

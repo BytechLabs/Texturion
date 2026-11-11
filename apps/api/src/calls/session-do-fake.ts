@@ -20,6 +20,7 @@
  */
 
 
+import type { CallStep } from "./call-steps";
 import type { AdoptionRow, SessionRuntime } from "./runtime";
 import type { InitiatedContext, MirrorSet, OutboundInitiatedContext } from "./transitions";
 
@@ -126,6 +127,7 @@ export function makeRuntime(config: FakeConfig = {}) {
     warnings: [] as string[],
     errorCount: 0,
     events: [] as { event: string; companyId: string; properties: Record<string, unknown> }[],
+    steps: [] as CallStep[],
     threads: 0,
     // #309: which recorded greetings were played, and from what URL.
     playbacks: [] as { ccid: string; audioUrl: string }[],
@@ -227,6 +229,9 @@ export function makeRuntime(config: FakeConfig = {}) {
     },
     capture(event, companyId, properties) {
       calls.events.push({ event, companyId, properties });
+    },
+    recordCallSteps(_sessionId, _companyId, steps) {
+      calls.steps.push(...steps);
     },
     buildClientStates: {
       memberRing: () => "brm-state",

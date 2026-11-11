@@ -1,8 +1,8 @@
-import type { CallEndReason } from "@loonext/shared";
+import { isCallEndReason, isCallRouting, type CallEndReason } from "@loonext/shared";
 
 import type { MessageKey, Translate } from "@/i18n/provider";
 import type { ActivityItem } from "@/lib/api/record-activity";
-import { callEndReason, formatCallDuration } from "@/lib/format/call";
+import { callEndReason, callRoutingReason, formatCallDuration } from "@/lib/format/call";
 import { formatTimestamp } from "@/lib/format/time";
 import { threadHref } from "@/lib/inbox/thread-href";
 
@@ -148,6 +148,54 @@ function callSentence(item: ActivityItem, t: Translate): string {
   return parts.join(" · ");
 }
 
+/** #725: why the call went to voicemail, from the machine or from the arrival route. */
+function voicemailCause(cause: unknown, t: Translate): string | null {
+  if (isCallEndReason(cause)) return callEndReason(cause, t);
+  if (isCallRouting(cause)) return callRoutingReason(cause, t);
+  return null;
+}
+
+/** #725: a step on a call's own timeline, or null when the kind is not one. */
+function callStepSentence(
+  item: ActivityItem,
+  t: Translate,
+  person: (id: unknown) => string,
+): ActivityLine["text"] | null {
+  const withWhy = (text: string, why: string | null) => (why ? `${text} · ${why}` : text);
+  switch (item.kind) {
+    case "call_arrived":
+      return withWhy(
+        t("activity.stepArrived"),
+        isCallRouting(item.payload.routing) ? callRoutingReason(item.payload.routing, t) : null,
+      );
+    case "call_placed":
+      return t("activity.stepPlaced");
+    case "call_rang": {
+      const ids = Array.isArray(item.payload.user_ids) ? item.payload.user_ids : [];
+      const names = ids.map(person).join(", ");
+      return item.payload.asked === true
+        ? t("activity.stepAskedToRing", { names })
+        : t("activity.stepRang", { names });
+    }
+    case "call_declined":
+      return t("activity.stepDeclined");
+    case "call_answered":
+      return t("activity.stepAnswered");
+    case "call_voicemail":
+      return withWhy(t("activity.stepVoicemail"), voicemailCause(item.payload.cause, t));
+    case "call_ended": {
+      const seconds = typeof item.payload.seconds === "number" ? item.payload.seconds : 0;
+      const parts = [t("activity.stepEnded")];
+      if (seconds > 0) parts.push(t("activity.stepLasted", { duration: formatCallDuration(seconds) }));
+      const why = isCallEndReason(item.payload.reason) ? callEndReason(item.payload.reason, t) : null;
+      if (why) parts.push(why);
+      return parts.join(" · ");
+    }
+    default:
+      return null;
+  }
+}
+
 function optOutSentence(item: ActivityItem, t: Translate): string {
   switch (str(item.payload.source)) {
     case "stop_keyword":
@@ -224,6 +272,15 @@ export function activityLine(
       return line(t("activity.scheduledCancelled"), "clock");
     case "call":
       return line(callSentence(item, t), "call");
+    case "call_arrived":
+    case "call_placed":
+    case "call_rang":
+    case "call_declined":
+    case "call_answered":
+    case "call_ended":
+      return line(callStepSentence(item, t, person) ?? t("activity.unknownKind"), "call");
+    case "call_voicemail":
+      return line(callStepSentence(item, t, person) ?? t("activity.unknownKind"), "voicemail");
     case "voicemail": {
       const seconds =
         typeof item.payload.voicemail_seconds === "number" ? item.payload.voicemail_seconds : 0;
