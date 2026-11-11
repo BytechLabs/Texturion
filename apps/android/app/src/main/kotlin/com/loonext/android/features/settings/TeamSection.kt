@@ -55,7 +55,8 @@ import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -333,14 +334,18 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     val deactivatedAt = member.deactivated_at
-                    Text(
+                    val membership = timedText { time ->
                         if (deactivatedAt != null) {
-                            t("settingsMore.deactivatedAgo", "ago" to relativeTime(deactivatedAt))
+                            t("settingsMore.deactivatedAgo", "ago" to time(deactivatedAt))
                         } else {
-                            t("settingsMore.joinedAgo", "ago" to relativeTime(member.created_at))
-                        },
+                            t("settingsMore.joinedAgo", "ago" to time(member.created_at))
+                        }
+                    }
+                    Text(
+                        membership.visible,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.spokenAs(membership),
                     )
                 }
                 Spacer(Modifier.width(8.dp))

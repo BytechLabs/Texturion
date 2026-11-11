@@ -164,36 +164,38 @@ private struct RegistrationRow: View {
     @Environment(\.appLocale) private var appLocale
 
     /// " 3 days ago", or nothing when there is no timestamp.
-    private func ago(_ iso: String?) -> String {
+    private func ago(_ iso: String?, _ time: (String?) -> String) -> String {
         iso.map {
             AppStrings.translate(
-                appLocale, "settingsMore.agoSuffix", ["ago": relativeTime($0)]
+                appLocale, "settingsMore.agoSuffix", ["ago": time($0)]
             )
         } ?? ""
     }
 
-    private var line: String {
-        guard let detail else {
-            return AppStrings.translate(appLocale, "settingsMore.regNotStarted")
-        }
-        switch detail.status {
-        case RegistrationStatus.approved:
-            return AppStrings.translate(appLocale, "settingsMore.regApproved")
-                + ago(detail.approved_at)
-        case RegistrationStatus.rejected:
-            return AppStrings.translate(appLocale, "settingsMore.regRejected")
-                + ago(detail.rejected_at)
-        case RegistrationStatus.submitted, RegistrationStatus.pending:
-            return AppStrings.translate(appLocale, "settingsMore.regInReview")
-                + (detail.submitted_at.map {
-                    AppStrings.translate(
-                        appLocale,
-                        "settingsMore.submittedSuffix",
-                        ["ago": relativeTime($0)]
-                    )
-                } ?? "")
-        default:
-            return AppStrings.translate(appLocale, "settingsMore.regDraftLine")
+    private var line: TimedText {
+        timedText(locale: appLocale) { time in
+            guard let detail else {
+                return AppStrings.translate(appLocale, "settingsMore.regNotStarted")
+            }
+            switch detail.status {
+            case RegistrationStatus.approved:
+                return AppStrings.translate(appLocale, "settingsMore.regApproved")
+                    + ago(detail.approved_at, time)
+            case RegistrationStatus.rejected:
+                return AppStrings.translate(appLocale, "settingsMore.regRejected")
+                    + ago(detail.rejected_at, time)
+            case RegistrationStatus.submitted, RegistrationStatus.pending:
+                return AppStrings.translate(appLocale, "settingsMore.regInReview")
+                    + (detail.submitted_at.map {
+                        AppStrings.translate(
+                            appLocale,
+                            "settingsMore.submittedSuffix",
+                            ["ago": time($0)]
+                        )
+                    } ?? "")
+            default:
+                return AppStrings.translate(appLocale, "settingsMore.regDraftLine")
+            }
         }
     }
 
@@ -202,7 +204,8 @@ private struct RegistrationRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.body)
-                Text(line)
+                Text(line.visible)
+                    .spokenAs(line)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

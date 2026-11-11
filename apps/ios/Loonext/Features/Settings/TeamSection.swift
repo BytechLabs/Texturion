@@ -248,15 +248,17 @@ private struct MemberRow: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(isSelf ? t("settingsMore.nameYou", ["name": name]) : name)
                             .font(.body)
-                        Text(
+                        let membership = timedText(locale: appLocale) { time in
                             member.deactivated_at.map {
-                                t("settingsMore.deactivatedAgo", ["ago": relativeTime($0)])
+                                t("settingsMore.deactivatedAgo", ["ago": time($0)])
                             }
                                 ?? t(
                                     "settingsMore.joinedAgo",
-                                    ["ago": relativeTime(member.created_at)]
+                                    ["ago": time(member.created_at)]
                                 )
-                        )
+                        }
+                        Text(membership.visible)
+                        .spokenAs(membership)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     }

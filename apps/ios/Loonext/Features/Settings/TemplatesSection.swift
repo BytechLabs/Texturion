@@ -21,41 +21,46 @@ private func appendToken(_ body: String, _ token: String) -> String {
     return "\(body)\(separator){\(token)}"
 }
 
-/// `relativeTime` speaks two dialects — durations ("now", "5m", "3h", "2d") and
-/// calendar dates ("Jul 8") — and only a duration reads right before "ago".
+/// The drawn time speaks two dialects — durations ("now", "5m", "3h", "2d") and
+/// calendar dates ("Jul 8") — and only a duration reads right before "ago". The words are
+/// chosen from the drawn label; the spoken line swaps only the time in.
 private func updatedLine(
     _ iso: String,
     editor: String? = nil,
     locale: String? = nil
-) -> String {
-    let relative = relativeTime(iso)
+) -> TimedText {
+    let stamp = timedText(locale: locale) { time in time(iso) }
+    let relative = stamp.visible
     // Whether there IS an edit to attribute, tracked as a flag rather than
     // recovered by comparing the rendered sentence to "Saved reply" — which is
     // what this did, and which stops being true the moment the sentence has a
     // second language.
     let neverEdited = relative.isEmpty
-    let base: String
-    if neverEdited {
-        base = AppStrings.translate(locale, "settingsMore.savedReply")
-    } else if relative == "now" {
-        base = AppStrings.translate(locale, "settingsMore.updatedJustNow")
-    } else if let last = relative.last, "mhd".contains(last) {
-        base = AppStrings.translate(locale, "settingsMore.updatedAgo", ["ago": relative])
-    } else {
-        base = AppStrings.translate(
-            locale, "settingsMore.updatedOn", ["when": relative]
+    func say(_ time: String) -> String {
+        let base: String
+        if neverEdited {
+            base = AppStrings.translate(locale, "settingsMore.savedReply")
+        } else if relative == "now" {
+            base = AppStrings.translate(locale, "settingsMore.updatedJustNow")
+        } else if let last = relative.last, "mhd".contains(last) {
+            base = AppStrings.translate(locale, "settingsMore.updatedAgo", ["ago": time])
+        } else {
+            base = AppStrings.translate(
+                locale, "settingsMore.updatedOn", ["when": time]
+            )
+        }
+        // #419: not a permission — visibility. A template is the only object here
+        // where one person's edit changes what everyone else says to customers,
+        // and in a crew of ten "Sam changed this on Tuesday" settles the question
+        // before it becomes a dispute. "Saved reply" takes no byline: there is no
+        // edit to attribute.
+        guard let editor, !editor.trimmingCharacters(in: .whitespaces).isEmpty, !neverEdited
+        else { return base }
+        return AppStrings.translate(
+            locale, "settingsMore.updatedBy", ["line": base, "editor": editor]
         )
     }
-    // #419: not a permission — visibility. A template is the only object here
-    // where one person's edit changes what everyone else says to customers,
-    // and in a crew of ten "Sam changed this on Tuesday" settles the question
-    // before it becomes a dispute. "Saved reply" takes no byline: there is no
-    // edit to attribute.
-    guard let editor, !editor.trimmingCharacters(in: .whitespaces).isEmpty, !neverEdited
-    else { return base }
-    return AppStrings.translate(
-        locale, "settingsMore.updatedBy", ["line": base, "editor": editor]
-    )
+    return TimedText(visible: say(stamp.visible), spoken: say(stamp.spoken))
 }
 
 /// Templates (parity with apps/web settings/templates): saved replies the crew
@@ -257,13 +262,13 @@ private struct TemplateRowView: View {
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
                     .lineLimit(2)
-                Text(
-                    updatedLine(
-                        template.updated_at,
-                        editor: template.updated_by_name,
-                        locale: appLocale
-                    )
+                let updated = updatedLine(
+                    template.updated_at,
+                    editor: template.updated_by_name,
+                    locale: appLocale
                 )
+                Text(updated.visible)
+                    .spokenAs(updated)
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted400)
             }

@@ -18,6 +18,9 @@ import java.util.Locale
  * `TimestampGuardTest` fails on any other file drawing a date itself.
  */
 object TimestampFormat {
+    /** The one compact label ("12m"), which a screen reader cannot say. */
+    private val MINUTES_LABEL = Regex("""\d+m""")
+
     enum class Style { SHORT, LONG }
 
     /**
@@ -137,6 +140,8 @@ object TimestampFormat {
     ): String {
         val exact = exact(iso, locale, zone)
         if (exact.isEmpty()) return ""
-        return "${label(iso, Style.LONG, locale, now, zone)}, $exact"
+        val label = label(iso, Style.LONG, locale, now, zone)
+        // "12m" is read aloud as "12 m"; the exact time says the same thing in words.
+        return if (label.matches(MINUTES_LABEL)) exact else "$label, $exact"
     }
 }

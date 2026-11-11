@@ -49,6 +49,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.doneToggleAllowed
 import com.loonext.android.core.model.Task
+import com.loonext.android.ui.common.spokenAs
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.SectionHeader
@@ -411,24 +412,24 @@ private fun BoardCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val overdue = isOverdue(task)
-                val dueLine = when {
-                    task.due_at == null -> ""
-                    overdue -> t("contactsTasks.overdue")
-                    else -> t(
-                        "contactsTasks.dueWhen",
-                        "when" to formatDue(task.due_at, locale = LocalAppLocale.current),
-                    )
+                val dueLine = timedDue(LocalAppLocale.current) { due ->
+                    // #690: "T-142 · due tomorrow".
+                    val line = when {
+                        task.due_at == null -> ""
+                        overdue -> t("contactsTasks.overdue")
+                        else -> t("contactsTasks.dueWhen", "when" to due(task.due_at))
+                    }
+                    listOfNotNull(task.number?.let { taskNumberLabel(it) }, line.ifEmpty { null })
+                        .joinToString(" · ")
                 }
                 Text(
-                    // #690: "T-142 · due tomorrow".
-                    listOfNotNull(task.number?.let { taskNumberLabel(it) }, dueLine.ifEmpty { null })
-                        .joinToString(" · "),
+                    dueLine.visible,
                     fontSize = 11.5.sp,
                     fontWeight = if (overdue) FontWeight.SemiBold else FontWeight.Normal,
                     // Overdue = olive emphasis, never a red scare.
                     color = if (overdue) MaterialTheme.colorScheme.secondary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).spokenAs(dueLine),
                 )
                 // #689 C: up to three avatars, then "+N". Names come off the
                 // task itself; the board holds no member list.

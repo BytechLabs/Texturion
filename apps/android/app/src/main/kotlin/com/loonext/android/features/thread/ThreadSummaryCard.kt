@@ -47,6 +47,7 @@ import com.loonext.android.core.model.threadSummarySections
 import com.loonext.android.ui.common.AiOrb
 import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenTimeOf
 import com.loonext.android.ui.theme.BrandColor
 
 /**
@@ -509,6 +510,7 @@ fun ThreadSummaryCard(
                                 relativeTime(line.at),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.spokenTimeOf(line.at),
                             )
                             Icon(
                                 Icons.Filled.ChevronRight,

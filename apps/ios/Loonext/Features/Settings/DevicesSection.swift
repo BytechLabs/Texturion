@@ -404,14 +404,18 @@ private struct DeviceRow<Action: View>: View {
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
                     .lineLimit(1)
-                Text(AppStrings.translate(
-                    appLocale,
-                    "settings.devicesLastActive",
-                    [
-                        "lastActive": relativeTime(lastActiveAt),
-                        "signedIn": relativeTime(signedInAt),
-                    ]
-                ))
+                let activity = timedText(locale: appLocale) { time in
+                    AppStrings.translate(
+                        appLocale,
+                        "settings.devicesLastActive",
+                        [
+                            "lastActive": time(lastActiveAt),
+                            "signedIn": time(signedInAt),
+                        ]
+                    )
+                }
+                Text(activity.visible)
+                .spokenAs(activity)
                 .font(.golos(11))
                 .foregroundStyle(BrandColor.muted600)
                 if let userAgent {

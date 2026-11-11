@@ -13,6 +13,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.i18n.t
 
@@ -46,6 +48,8 @@ fun ConfirmDialog(
     dismissLabel: String? = t("common.cancel"),
     confirmEnabled: Boolean = true,
     extraContent: (@Composable ColumnScope.() -> Unit)? = null,
+    /** A body with a compact time in it: what a screen reader says in place of [body]. */
+    bodySpoken: String? = null,
 ) {
     AlertDialog(
         onDismissRequest = { if (!pending && dismissLabel != null) onDismiss() },
@@ -56,7 +60,11 @@ fun ConfirmDialog(
             // watches extraContent text fields (release-confirm, start-order)
             // in case that ever stops being true.
             Column(Modifier.assertAboveIme("dialog")) {
-                Text(body, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    body,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = if (bodySpoken == null) Modifier else Modifier.semantics { contentDescription = bodySpoken },
+                )
                 extraContent?.invoke(this)
                 InlineError(error)
             }

@@ -77,6 +77,7 @@ import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenTimeOf
 
 /**
  * The thread's contact panel (#165) — the web sidebar as a bottom sheet,
@@ -694,6 +695,7 @@ private fun OtherConversations(
                             relativeTime(row.last_message_at),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.spokenTimeOf(row.last_message_at),
                         )
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

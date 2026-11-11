@@ -302,7 +302,9 @@ private struct BoardCard: View {
             TaskRowBadges(task: task)
             HStack {
                 let overdue = isOverdue(task)
-                Text(dueLine(overdue: overdue))
+                let line = dueLine(overdue: overdue)
+                Text(line.visible)
+                    .spokenAs(line)
                     .font(.golos(11.5, weight: overdue ? .semibold : .regular))
                     .foregroundStyle(
                         overdue
@@ -338,14 +340,16 @@ private struct BoardCard: View {
         .taskContextMenu(task)
     }
 
-    private func dueLine(overdue: Bool) -> String {
-        guard task.due_at != nil else { return "" }
-        if overdue { return AppStrings.translate(appLocale, "contactsTasks.dueOverdue") }
-        return AppStrings.translate(
-            appLocale,
-            "contactsTasks.dueWhen",
-            ["when": formatDue(task.due_at)]
-        )
+    private func dueLine(overdue: Bool) -> TimedText {
+        timedDue(locale: appLocale) { due in
+            guard task.due_at != nil else { return "" }
+            if overdue { return AppStrings.translate(appLocale, "contactsTasks.dueOverdue") }
+            return AppStrings.translate(
+                appLocale,
+                "contactsTasks.dueWhen",
+                ["when": due(task.due_at)]
+            )
+        }
     }
 }
 

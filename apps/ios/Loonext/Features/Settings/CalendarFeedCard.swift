@@ -195,7 +195,9 @@ struct CalendarFeedCard: View {
                 Image(systemName: "calendar.badge.clock")
                     .foregroundStyle(BrandColor.muted600)
                     .accessibilityHidden(true)
-                Text(lastChecked(status))
+                let checked = lastChecked(status)
+                Text(checked.visible)
+                    .spokenAs(checked)
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
                     .fixedSize(horizontal: false, vertical: true)
@@ -233,19 +235,21 @@ struct CalendarFeedCard: View {
     }
 
     /// The fact that answers "did this work?".
-    private func lastChecked(_ status: CalendarFeedStatus) -> String {
-        guard let when = status.last_read_at, !when.isEmpty else {
-            return t("calendarFeed.neverRead")
+    private func lastChecked(_ status: CalendarFeedStatus) -> TimedText {
+        timedText(locale: appLocale) { time in
+            guard let when = status.last_read_at, !when.isEmpty else {
+                return t("calendarFeed.neverRead")
+            }
+            // `time` renders "" for a stamp it cannot parse, which would
+            // leave the sentence trailing off mid-air. `absoluteTime` hands back the
+            // raw value in that case — ugly, but it never claims a feed that HAS
+            // been polled was not, which is the one thing this line must not do.
+            let stamp = time(when)
+            return t(
+                "calendarFeed.lastRead",
+                ["when": stamp.isEmpty ? absoluteTime(when) : stamp]
+            )
         }
-        // `relativeTime` renders "" for a stamp it cannot parse, which would
-        // leave the sentence trailing off mid-air. `absoluteTime` hands back the
-        // raw value in that case — ugly, but it never claims a feed that HAS
-        // been polled was not, which is the one thing this line must not do.
-        let stamp = relativeTime(when)
-        return t(
-            "calendarFeed.lastRead",
-            ["when": stamp.isEmpty ? absoluteTime(when) : stamp]
-        )
     }
 
     // MARK: - A feed that is off, and a status that would not load

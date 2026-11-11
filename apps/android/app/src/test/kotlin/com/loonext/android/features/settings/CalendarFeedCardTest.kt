@@ -8,6 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -27,6 +28,7 @@ import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.core.net.ApiClient
 import java.io.File
+import com.loonext.android.core.time.TimestampFormat
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -319,7 +321,14 @@ class CalendarFeedCardTest {
         // A feed nothing has polled looks identical to a working one without
         // this line, and the commonest failure is copying the link and never
         // finishing in the calendar app.
-        awaitText(en("lastRead", mapOf("when" to "6m")))
+        // #238: the compact "6m" is drawn, and the line a screen reader says holds the full time.
+        val spoken = en(
+            "lastRead",
+            mapOf("when" to TimestampFormat.spoken(sixMinutesAgo.toString(), MessageLocale.EN)),
+        )
+        awaitUntil("the line speaking \"$spoken\"") {
+            compose.onAllNodesWithContentDescription(spoken).fetchSemanticsNodes().isNotEmpty()
+        }
         assertEquals("a polled feed was reported as never read", 0, nodes(en("neverRead")))
     }
 

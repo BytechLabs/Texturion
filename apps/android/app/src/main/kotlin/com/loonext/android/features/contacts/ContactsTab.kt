@@ -128,7 +128,8 @@ import com.loonext.android.features.contacts.device.deviceContactRows
 import com.loonext.android.features.contacts.device.filterDeviceContacts
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -1276,7 +1277,7 @@ private fun DeviceContactRowItem(
 
 
 @Composable
-private fun ContactRow(
+internal fun ContactRow(
     contact: Contact,
     onClick: () -> Unit,
     menu: @Composable (expanded: Boolean, onDismiss: () -> Unit) -> Unit,
@@ -1324,16 +1325,19 @@ private fun ContactRow(
                     )
                 }
             }
-            Text(
+            val meta = timedText { time ->
                 listOfNotNull(
                     formatPhone(contact.phone_e164),
-                    contact.last_activity_at?.let { relativeTime(it) },
-                ).joinToString(" · "),
+                    contact.last_activity_at?.let { time(it) },
+                ).joinToString(" · ")
+            }
+            Text(
+                meta.visible,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = 2.dp).spokenAs(meta),
             )
         }
         Box(

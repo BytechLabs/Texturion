@@ -177,7 +177,8 @@ enum TimestampFormat {
         return "\(date1), \(clock(date, locale: locale, timeZone: timeZone)) \(zone)"
     }
 
-    /// What VoiceOver says: the visible label, then the exact time.
+    /// What VoiceOver says: the visible label, then the exact time (the exact time alone
+    /// for a compact "12m").
     static func spoken(
         _ iso: String?,
         locale: String? = nil,
@@ -187,6 +188,8 @@ enum TimestampFormat {
         let exactText = exact(iso, locale: locale, timeZone: timeZone)
         if exactText.isEmpty { return "" }
         let labelText = label(iso, style: .long, locale: locale, now: now, timeZone: timeZone)
-        return "\(labelText), \(exactText)"
+        // "12m" is read aloud as "12 m"; the exact time says the same thing in words.
+        let isMinutes = labelText.hasSuffix("m") && Int(labelText.dropLast()) != nil
+        return isMinutes ? exactText : "\(labelText), \(exactText)"
     }
 }

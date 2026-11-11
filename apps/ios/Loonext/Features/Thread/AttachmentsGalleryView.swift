@@ -270,12 +270,14 @@ struct AttachmentsGalleryView: View {
                                 .font(.golos(13.5, weight: .semibold))
                                 .foregroundStyle(BrandColor.ink)
                                 .lineLimit(1)
-                            Text(
-                                [gallerySizeLabel(item.size_bytes), relativeTime(item.created_at)]
+                            let meta = timedText(locale: appLocale) { time in
+                                [gallerySizeLabel(item.size_bytes), time(item.created_at)]
                                     .compactMap { $0 }
                                     .filter { !$0.isEmpty }
                                     .joined(separator: " · ")
-                            )
+                            }
+                            Text(meta.visible)
+                            .spokenAs(meta)
                             .font(.golos(11))
                             .foregroundStyle(BrandColor.muted500)
                         }

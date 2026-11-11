@@ -31,7 +31,8 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.RejectionDomain
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 
@@ -418,36 +419,39 @@ private fun RegistrationRow(label: String, detail: RegistrationDetail?) {
             // the clause is optional on every branch, and a language that puts
             // its time expression somewhere else can move it without rewriting
             // four status words.
-            val line = when {
-                detail == null -> t("settingsMore.regNotStarted")
-                detail.status == RegistrationStatus.APPROVED ->
-                    t("settingsMore.regApproved") + (
-                        detail.approved_at?.let {
-                            t("settingsMore.agoSuffix", "ago" to relativeTime(it))
-                        } ?: ""
-                        )
+            val line = timedText { time ->
+                when {
+                    detail == null -> t("settingsMore.regNotStarted")
+                    detail.status == RegistrationStatus.APPROVED ->
+                        t("settingsMore.regApproved") + (
+                            detail.approved_at?.let {
+                                t("settingsMore.agoSuffix", "ago" to time(it))
+                            } ?: ""
+                            )
 
-                detail.status == RegistrationStatus.REJECTED ->
-                    t("settingsMore.regRejected") + (
-                        detail.rejected_at?.let {
-                            t("settingsMore.agoSuffix", "ago" to relativeTime(it))
-                        } ?: ""
-                        )
+                    detail.status == RegistrationStatus.REJECTED ->
+                        t("settingsMore.regRejected") + (
+                            detail.rejected_at?.let {
+                                t("settingsMore.agoSuffix", "ago" to time(it))
+                            } ?: ""
+                            )
 
-                detail.status == RegistrationStatus.SUBMITTED ||
-                    detail.status == RegistrationStatus.PENDING ->
-                    t("settingsMore.regInReview") + (
-                        detail.submitted_at?.let {
-                            t("settingsMore.submittedSuffix", "ago" to relativeTime(it))
-                        } ?: ""
-                        )
+                    detail.status == RegistrationStatus.SUBMITTED ||
+                        detail.status == RegistrationStatus.PENDING ->
+                        t("settingsMore.regInReview") + (
+                            detail.submitted_at?.let {
+                                t("settingsMore.submittedSuffix", "ago" to time(it))
+                            } ?: ""
+                            )
 
-                else -> t("settingsMore.regDraftLine")
+                    else -> t("settingsMore.regDraftLine")
+                }
             }
             Text(
-                line,
+                line.visible,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.spokenAs(line),
             )
         }
         Spacer(Modifier.width(8.dp))

@@ -110,4 +110,63 @@ class TimestampGuardTest {
     fun `T-3 every roster entry gives a reason`() {
         assertEquals(emptyList<String>(), roster.filter { it.reason.trim().length < 15 }.map { it.file })
     }
+
+    /**
+     * #238: a compact time ("5m") drawn as plain text is read by TalkBack as "5 m". Every
+     * compact time a screen draws needs its spoken twin: `timedText { time -> ... time(iso) }`
+     * and `Modifier.spokenAs`, or `Modifier.spokenTimeOf(iso)` beside a lone `relativeTime`.
+     * A file may draw no more compact times than it speaks, unless the file only DEFINES
+     * those helpers (below). LONG labels name the day and clock and are not counted.
+     *
+     * T-4  the compact-time scan found the calls it is about.
+     * T-5  no unlisted file draws a compact time it does not speak.
+     * T-6  the compact roster is closed and gives a reason for each file.
+     */
+    private val compactCalls = Regex("""(?<!fun )\b(?:relativeTime|formatDue)\(""")
+    private val labelCalls = Regex("""TimestampFormat\.label\(""")
+    private val spokenCalls = Regex("""\bspokenTimeOf\(""")
+
+    /** Compact draws in [text]: relativeTime, formatDue, and a TimestampFormat.label that is not LONG. */
+    private fun compactDraws(text: String): Int =
+        compactCalls.findAll(text).count() +
+            labelCalls.findAll(text).count { text.substring(it.range.first, minOf(text.length, it.range.first + 220)).let { call -> "Style.LONG" !in call } }
+
+    private val compactRoster = mapOf(
+        "ui/common/Ui.kt" to "Defines relativeTime and timedText, which draw the compact label and build its spoken twin.",
+        "ui/common/Timestamp.kt" to "The Timestamp composable: draws the compact label and speaks it with clearAndSetSemantics.",
+        "features/tasks/TaskFormat.kt" to "Defines formatDue and timedDue, which draw the due label and build its spoken twin.",
+    )
+
+    private val compactFiles: List<Triple<String, Int, Int>> by lazy {
+        scanned.map { (file, text) -> Triple(file, compactDraws(text), spokenCalls.findAll(text).count()) }
+            .filter { it.second > 0 }
+    }
+
+    @Test
+    fun `T-4 the compact-time scan found the calls it is about`() {
+        assertTrue("no compact times found in ${scanned.size} files", compactFiles.isNotEmpty())
+        assertTrue("the compact scan read no sources", scanned.isNotEmpty())
+    }
+
+    @Test
+    fun `T-5 a compact time drawn as plain text has its spoken twin`() {
+        val unspoken = compactFiles
+            .filter { it.first !in compactRoster && it.second > it.third }
+            .map { "${it.first}  draws ${it.second} compact time(s), speaks ${it.third}" }
+        assertEquals(
+            "Scanned ${scanned.size} files, ${compactFiles.size} draw compact times. A compact " +
+                "time reads as \"5 m\" aloud. Build the line with timedText { time -> ... } and " +
+                "Modifier.spokenAs, or add Modifier.spokenTimeOf(iso) to a lone relativeTime:\n" +
+                unspoken.joinToString("\n"),
+            emptyList<String>(),
+            unspoken,
+        )
+    }
+
+    @Test
+    fun `T-6 the compact roster excuses files that still draw compact times`() {
+        val stale = compactRoster.keys.filter { file -> compactFiles.none { it.first == file } }
+        assertEquals("These compact roster entries no longer draw one. Delete them:", emptyList<String>(), stale)
+        assertEquals(emptyList<String>(), compactRoster.filter { it.value.trim().length < 15 }.keys.toList())
+    }
 }

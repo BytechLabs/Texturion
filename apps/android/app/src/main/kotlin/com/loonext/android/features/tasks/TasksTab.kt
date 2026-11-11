@@ -91,6 +91,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.ui.common.spokenAs
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.doneToggleAllowed
 import com.loonext.android.core.model.Me
@@ -1424,12 +1425,13 @@ internal fun TaskListRow(
             )
             val overdue = isOverdue(task)
             val locale = LocalAppLocale.current
-            val dueText = task.due_at?.let {
-                val when_ = formatDue(it, locale = locale)
-                if (overdue) {
-                    t("contactsTasks.overdueDueWhen", "when" to when_)
-                } else {
-                    t("contactsTasks.dueWhen", "when" to when_)
+            val dueText = task.due_at?.let { dueAt ->
+                timedDue(locale) { due ->
+                    if (overdue) {
+                        t("contactsTasks.overdueDueWhen", "when" to due(dueAt))
+                    } else {
+                        t("contactsTasks.dueWhen", "when" to due(dueAt))
+                    }
                 }
             }
             // D64: a call task names the call where a message task names the contact.
@@ -1447,13 +1449,14 @@ internal fun TaskListRow(
                 ) {
                     if (dueText != null) {
                         Text(
-                            dueText,
+                            dueText.visible,
                             fontSize = 11.5.sp,
                             fontWeight = if (overdue) FontWeight.SemiBold
                             else FontWeight.Normal,
                             // Overdue = olive emphasis, never a red scare.
                             color = if (overdue) MaterialTheme.colorScheme.secondary
                             else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.spokenAs(dueText),
                         )
                     }
                     if (dueText != null && context != null) {

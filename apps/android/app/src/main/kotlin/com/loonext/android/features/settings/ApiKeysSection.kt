@@ -35,7 +35,8 @@ import com.loonext.android.core.model.ApiKeyList
 import com.loonext.android.core.model.CreateApiKeyBody
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -328,18 +329,18 @@ private fun ApiKeyCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Text(
+        val usage = timedText { time ->
             when {
-                revoked ->
-                    t("apiKeys.revokedOn")
-                        .replace("{when}", relativeTime(apiKey.revokedAt ?: ""))
-                apiKey.lastUsedAt != null ->
-                    t("apiKeys.lastUsed")
-                        .replace("{when}", relativeTime(apiKey.lastUsedAt))
+                revoked -> t("apiKeys.revokedOn").replace("{when}", time(apiKey.revokedAt))
+                apiKey.lastUsedAt != null -> t("apiKeys.lastUsed").replace("{when}", time(apiKey.lastUsedAt))
                 else -> t("apiKeys.neverUsed")
-            },
+            }
+        }
+        Text(
+            usage.visible,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.spokenAs(usage),
         )
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -360,18 +361,19 @@ private fun ApiKeyCard(
 
     // Ethical Friction: this breaks a live integration and cannot be undone.
     if (confirming) {
-        val body = buildString {
-            append(t("apiKeys.revokeBody"))
-            apiKey.lastUsedAt?.let { at ->
-                append(" ")
-                append(
-                    t("apiKeys.revokeUsedWarning").replace("{when}", relativeTime(at)),
-                )
+        val body = timedText { time ->
+            buildString {
+                append(t("apiKeys.revokeBody"))
+                apiKey.lastUsedAt?.let { at ->
+                    append(" ")
+                    append(t("apiKeys.revokeUsedWarning").replace("{when}", time(at)))
+                }
             }
         }
         ConfirmDialog(
             title = t("apiKeys.revokeTitle"),
-            body = body,
+            body = body.visible,
+            bodySpoken = body.spoken,
             confirmLabel = t("apiKeys.revokeConfirm"),
             onConfirm = {
                 confirming = false

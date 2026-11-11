@@ -141,3 +141,12 @@ func csvExportData(_ text: String) -> Data {
     data.append(Data(body.utf8))
     return data
 }
+
+/// #238: a line with a due label in it, drawn by `formatDue` and spoken in full; see
+/// `timedText`.
+func timedDue(
+    locale: String? = nil,
+    _ build: (_ due: (String?) -> String) -> String
+) -> TimedText {
+    timedText(locale: locale, drawTime: { formatDue($0) }, build)
+}

@@ -758,15 +758,17 @@ private struct CalendarTaskRow: View {
                     )
                 if task.due_at != nil {
                     let overdue = isOverdue(task)
-                    Text(
+                    let dueText = timedDue(locale: appLocale) { due in
                         AppStrings.translate(
                             appLocale,
                             overdue
                                 ? "contactsTasks.overdueDueWhen"
                                 : "contactsTasks.dueWhen",
-                            ["when": formatDue(task.due_at)]
+                            ["when": due(task.due_at)]
                         )
-                    )
+                    }
+                    Text(dueText.visible)
+                    .spokenAs(dueText)
                     .font(.golos(11.5, weight: overdue ? .semibold : .regular))
                     .foregroundStyle(
                         overdue

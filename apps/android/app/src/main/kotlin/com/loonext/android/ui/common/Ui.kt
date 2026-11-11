@@ -322,6 +322,42 @@ fun Modifier.spokenTimeOf(iso: String): Modifier {
     return clearAndSetSemantics { contentDescription = spoken }
 }
 
+/**
+ * A line with a compact time in it: [visible] is drawn, [spoken] is what a screen reader says.
+ * They differ only in the time, which is "5m" on screen and a full date and zone aloud.
+ */
+class TimedText(val visible: String, val spoken: String)
+
+/**
+ * Builds a line twice, once with each time as the screen draws it and once as a screen reader
+ * says it. [build] gets `time` and writes it wherever the line wants a time; [label] is how the
+ * screen draws one. This is the one way a sentence with a time in it is built, so no screen
+ * pairs a compact label with its spoken twin by hand.
+ */
+@Composable
+inline fun timedText(
+    locale: String,
+    noinline label: (String?) -> String = { relativeTime(it.orEmpty()) },
+    build: (time: (String?) -> String) -> String,
+): TimedText = TimedText(
+    visible = build(label),
+    spoken = build { iso -> TimestampFormat.spoken(iso, locale).ifEmpty { label(iso) } },
+)
+
+/** [timedText] in the reader's language. */
+@Composable
+inline fun timedText(
+    noinline label: (String?) -> String = { relativeTime(it.orEmpty()) },
+    build: (time: (String?) -> String) -> String,
+): TimedText = timedText(LocalAppLocale.current, label) { time -> build(time) }
+
+/**
+ * Speaks [text].spoken for the Text that draws [text].visible. A line with no time in it
+ * says itself, so it keeps its own text semantics.
+ */
+fun Modifier.spokenAs(text: TimedText): Modifier =
+    if (text.spoken == text.visible) this else clearAndSetSemantics { contentDescription = text.spoken }
+
 /** The exact moment with its zone, or the raw text when it is not a timestamp. */
 fun absoluteTime(iso: String): String =
     TimestampFormat.exact(iso).ifEmpty { iso }

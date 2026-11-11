@@ -768,11 +768,11 @@ struct TaskDetailView: View {
             assigneeFaces, meUserId: me.user_id, locale: appLocale
         )
         let overdue = !detail.done && parseWireTimestamp(detail.due_at).map { $0 < Date() } == true
-        let dueLabel: String = {
+        let dueLabel = timedDue(locale: appLocale) { due in
             if detail.due_at == nil {
                 return AppStrings.translate(appLocale, "contactsTasks.noDueDate")
             }
-            let when = formatDue(detail.due_at)
+            let when = due(detail.due_at)
             if overdue {
                 return AppStrings.translate(
                     appLocale, "contactsTasks.overdueDot", ["due": when]
@@ -781,7 +781,7 @@ struct TaskDetailView: View {
             return AppStrings.translate(
                 appLocale, "contactsTasks.dueWhen", ["when": when]
             )
-        }()
+        }
 
         // Spec 23: a paper card of Assignee / Due rows with hairlines.
         return PaperCard {
@@ -809,7 +809,8 @@ struct TaskDetailView: View {
                 } label: {
                     HStack(spacing: 11) {
                         metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.due"))
-                        Text(dueLabel)
+                        Text(dueLabel.visible)
+                            .spokenAs(dueLabel)
                             .font(.golos(13, weight: .semibold))
                             .foregroundStyle(overdue ? BrandColor.overdueAmber : BrandColor.ink)
                         Spacer(minLength: 0)
@@ -1088,14 +1089,16 @@ struct TaskDetailView: View {
             if let name = detail.created_by?.display_name, !name.isBlank { return name }
             return memberName(detail.created_by_user_id)
         }()
-        let parts = [
-            creator.map {
-                AppStrings.translate(
-                    appLocale, "contactsTasks.createdByName", ["name": $0]
-                )
-            },
-            relativeTime(detail.created_at),
-        ].compactMap(\.self).filter { !$0.isEmpty }
+        let parts = timedText(locale: appLocale) { time in
+            [
+                creator.map {
+                    AppStrings.translate(
+                        appLocale, "contactsTasks.createdByName", ["name": $0]
+                    )
+                },
+                time(detail.created_at),
+            ].compactMap(\.self).filter { !$0.isEmpty }.joined(separator: " · ")
+        }
         return HStack(spacing: 7) {
             DsChip(
                 text: AppStrings.translate(
@@ -1103,7 +1106,8 @@ struct TaskDetailView: View {
                     detail.done ? "contactsTasks.columnDone" : "contactsTasks.columnToDo"
                 )
             )
-            Text(parts.joined(separator: " · "))
+            Text(parts.visible)
+                .spokenAs(parts)
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted300)
         }
@@ -1862,6 +1866,12 @@ private struct NoteCard: View {
         self.createdAt = createdAt
     }
 
+    @Environment(\.appLocale) private var appLocale
+
+    private var byline: TimedText {
+        timedText(locale: appLocale) { time in "\(author) · \(time(createdAt))".uppercased() }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             // Spec 23: internal note = dashed inset well, lock + AUTHOR · TIME.
@@ -1869,7 +1879,8 @@ private struct NoteCard: View {
                 Image(systemName: "lock")
                     .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted600)
-                Text("\(author) · \(relativeTime(createdAt))".uppercased())
+                Text(byline.visible)
+                    .spokenAs(byline)
                     .font(.golos(10, weight: .bold))
                     .kerning(0.8)
                     .foregroundStyle(BrandColor.muted600)
@@ -1919,7 +1930,8 @@ private struct CommentCard: View {
                 Text(author)
                     .font(.golos(12.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
-                Text(timeLine)
+                Text(timeLine.visible)
+                    .spokenAs(timeLine)
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted600)
                 Spacer()
@@ -1995,10 +2007,12 @@ private struct CommentCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var timeLine: String {
-        let when = relativeTime(item.created_at)
-        guard item.edited_at != nil else { return when }
-        return "\(when) · \(AppStrings.translate(appLocale, "contactsTasks.commentEdited"))"
+    private var timeLine: TimedText {
+        timedText(locale: appLocale) { time in
+            let when = time(item.created_at)
+            guard item.edited_at != nil else { return when }
+            return "\(when) · \(AppStrings.translate(appLocale, "contactsTasks.commentEdited"))"
+        }
     }
 
     private func save() {

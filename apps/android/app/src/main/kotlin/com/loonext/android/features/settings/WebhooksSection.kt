@@ -42,7 +42,8 @@ import com.loonext.android.core.model.WebhookEndpoint
 import com.loonext.android.core.model.WebhookEndpointList
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -446,10 +447,12 @@ private fun EndpointCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Health.HEALTHY -> endpoint.lastSuccessAt?.let { at ->
+                val success = timedText { time -> t("webhooks.lastSuccess").replace("{when}", time(at)) }
                 Text(
-                    t("webhooks.lastSuccess").replace("{when}", relativeTime(at)),
+                    success.visible,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.spokenAs(success),
                 )
             }
             else -> Unit

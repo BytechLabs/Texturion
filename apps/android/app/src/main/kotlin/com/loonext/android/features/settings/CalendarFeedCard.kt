@@ -32,7 +32,8 @@ import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CancellationException
@@ -159,9 +160,11 @@ private fun CalendarFeedBody(
      * switching it off. Written once because it is shown in both places — the
      * active card, and the body of the confirmation.
      */
-    val readState = status.last_read_at
-        ?.let { t("calendarFeed.lastRead", "when" to relativeTime(it)) }
-        ?: t("calendarFeed.neverRead")
+    val readState = timedText(locale) { time ->
+        status.last_read_at
+            ?.let { t("calendarFeed.lastRead", "when" to time(it)) }
+            ?: t("calendarFeed.neverRead")
+    }
 
     /** Mint or rotate — one call, and the same irreversible moment either way. */
     fun mint() {
@@ -297,9 +300,10 @@ private fun CalendarFeedBody(
 
             status.active -> {
                 Text(
-                    readState,
+                    readState.visible,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.spokenAs(readState),
                 )
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -343,7 +347,8 @@ private fun CalendarFeedBody(
             // What is relying on it, which is the ApiKeys rule: the answer to
             // "can I safely switch this off" belongs inside the confirmation and
             // not only on the card behind it.
-            body = readState,
+            body = readState.visible,
+            bodySpoken = readState.spoken,
             // The second press says WHAT BREAKS rather than "are you sure".
             // Its FIT is asserted by CalendarFeedCardTest rather than assumed:
             // it is the longest confirm label in the app (39 chars in English,

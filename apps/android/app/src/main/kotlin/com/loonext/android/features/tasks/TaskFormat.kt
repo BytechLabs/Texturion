@@ -62,6 +62,14 @@ fun formatDue(
     return TimestampFormat.label(dueAt, TimestampFormat.Style.SHORT, locale, clock.instant(), clock.zone)
 }
 
+/** A line with a due label in it, drawn by [formatDue] and spoken in full: see [timedText]. */
+@androidx.compose.runtime.Composable
+inline fun timedDue(
+    locale: String,
+    build: (due: (String?) -> String) -> String,
+): com.loonext.android.ui.common.TimedText =
+    com.loonext.android.ui.common.timedText(locale, label = { formatDue(it, locale = locale) }) { due -> build(due) }
+
 /** "today 3:00 PM" / "Jul 8 9:00 AM" for a due-set activity line. */
 fun dueSentenceTime(
     iso: String,

@@ -139,15 +139,17 @@ func callLineCaller(of event: ConversationEvent, locale: String?) -> String {
 }
 
 /// "3h · Talked for 4m 32s": when it was, and how long they spoke.
-func taskCallMeta(_ call: TaskSourceCall, locale: String?) -> String {
-    let when = relativeTime(call.started_at)
-    guard call.forward_seconds > 0 else { return when }
-    let talk = AppStrings.translate(
-        locale,
-        "contactsTasks.callTalkTime",
-        ["duration": formatCallDuration(call.forward_seconds)]
-    )
-    return "\(when) · \(talk)"
+func taskCallMeta(_ call: TaskSourceCall, locale: String?) -> TimedText {
+    timedText(locale: locale) { time in
+        let when = time(call.started_at)
+        guard call.forward_seconds > 0 else { return when }
+        let talk = AppStrings.translate(
+            locale,
+            "contactsTasks.callTalkTime",
+            ["duration": formatCallDuration(call.forward_seconds)]
+        )
+        return "\(when) · \(talk)"
+    }
 }
 
 // MARK: - Promoting a call
@@ -361,7 +363,9 @@ struct TaskSourceCallCard: View {
                     )
                     .font(.golos(13, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
-                    Text(taskCallMeta(call, locale: appLocale))
+                    let meta = taskCallMeta(call, locale: appLocale)
+                    Text(meta.visible)
+                        .spokenAs(meta)
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted500)
                     if call.has_voicemail {

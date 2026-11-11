@@ -385,28 +385,34 @@ private struct NotificationPauseNotice: View {
         return AppStrings.translate(appLocale, "inbox.notifPausedStillPush")
     }
 
-    private var resumes: String {
-        guard let at = pause?.resets_at else { return "" }
-        return AppStrings.translate(
-            appLocale,
-            "inbox.notifPausedResumes",
-            ["when": relativeTime(at)]
-        )
+    private var pausedLine: TimedText {
+        timedText(locale: appLocale) { time in
+            let resumes: String
+            if let at = pause?.resets_at {
+                resumes = AppStrings.translate(
+                    appLocale,
+                    "inbox.notifPausedResumes",
+                    ["when": time(at)]
+                )
+            } else {
+                resumes = ""
+            }
+            return AppStrings.translate(
+                appLocale,
+                "inbox.notifPausedBody",
+                [
+                    "what": headline,
+                    "still": stillCovered,
+                    "resumes": resumes,
+                ]
+            )
+        }
     }
 
     var body: some View {
         if let pause, pause.anyPaused {
-            Text(
-                AppStrings.translate(
-                    appLocale,
-                    "inbox.notifPausedBody",
-                    [
-                        "what": headline,
-                        "still": stillCovered,
-                        "resumes": resumes,
-                    ]
-                )
-            )
+            Text(pausedLine.visible)
+            .spokenAs(pausedLine)
             .font(.golos(11.5))
             .foregroundStyle(BrandColor.coral)
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -158,7 +158,8 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.pressScale
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
@@ -732,16 +733,17 @@ private fun TaskDetailBody(
                                     ),
                                 )
                             }
-                            Text(
+                            val created = timedText { time ->
                                 listOfNotNull(
-                                    t(
-                                        "contactsTasks.createdWhen",
-                                        "when" to relativeTime(detail.created_at),
-                                    ),
+                                    t("contactsTasks.createdWhen", "when" to time(detail.created_at)),
                                     creator?.let { t("contactsTasks.createdBy", "who" to it) },
-                                ).joinToString(" "),
+                                ).joinToString(" ")
+                            }
+                            Text(
+                                created.visible,
                                 fontSize = 11.5.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                modifier = Modifier.spokenAs(created),
                             )
                         }
                     },
@@ -1996,15 +1998,15 @@ private fun SourceMessageCard(
                         .padding(top = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val sentAt = timedText { time ->
+                        t("contactsTasks.sourceMessageWhen", "when" to time(createdAt))
+                    }
                     Text(
-                        t(
-                            "contactsTasks.sourceMessageWhen",
-                            "when" to relativeTime(createdAt),
-                        ),
+                        sentAt.visible,
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).spokenAs(sentAt),
                     )
                     if (onOpenConversation != null && linkLabel != null) {
                         Text(
@@ -2324,14 +2326,16 @@ private fun NoteCard(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(IconSize.Small),
             )
+            val byline = timedText { time -> "${author.uppercase()} · ${time(createdAt).uppercase()}" }
             Text(
-                "${author.uppercase()} · ${relativeTime(createdAt).uppercase()}",
+                byline.visible,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.08.em,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.spokenAs(byline),
             )
         }
         if (body.isNotBlank()) {
@@ -2387,11 +2391,15 @@ private fun CommentCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
+            val commentedAt = timedText { time ->
+                time(item.created_at) +
+                    if (item.edited_at != null) " · ${t("contactsTasks.commentEdited")}" else ""
+            }
             Text(
-                relativeTime(item.created_at) +
-                    if (item.edited_at != null) " · ${t("contactsTasks.commentEdited")}" else "",
+                commentedAt.visible,
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.spokenAs(commentedAt),
             )
             Spacer(Modifier.weight(1f))
             if ((canEdit || canDelete) && !editing) {

@@ -982,7 +982,7 @@ struct ForYouList: View {
                         if index > 0 { RowDivider() }
                         PersonRow(
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
-                            meta: relativeTime(row.last_message_at),
+                            meta: timedText(locale: appLocale) { time in time(row.last_message_at) },
                             unread: row.unread
                         ) { onOpenConversation(row.conversation_id) }
                     }
@@ -1027,12 +1027,14 @@ struct ForYouList: View {
                             // "Chase the quote" is a job; "Chase this" is a
                             // chore.
                             meta: (row.note?.isBlank == false)
-                                ? row.note!
-                                : AppStrings.translate(
-                                    appLocale,
-                                    "inbox.forYouWhyNoReply",
-                                    ["when": relativeTime(row.last_message_at)]
-                                ),
+                                ? TimedText(visible: row.note!, spoken: row.note!)
+                                : timedText(locale: appLocale) { time in
+                                    AppStrings.translate(
+                                        appLocale,
+                                        "inbox.forYouWhyNoReply",
+                                        ["when": time(row.last_message_at)]
+                                    )
+                                },
                             unread: row.unread
                         ) { onOpenConversation(row.conversation_id) }
                     }
@@ -1057,7 +1059,7 @@ struct ForYouList: View {
                         if index > 0 { RowDivider() }
                         PersonRow(
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
-                            meta: relativeTime(row.last_message_at),
+                            meta: timedText(locale: appLocale) { time in time(row.last_message_at) },
                             unread: row.unread
                         ) { onOpenConversation(row.conversation_id) }
                     }
@@ -1107,7 +1109,7 @@ struct ForYouList: View {
                         if index > 0 { RowDivider() }
                         PersonRow(
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
-                            meta: relativeTime(row.last_message_at),
+                            meta: timedText(locale: appLocale) { time in time(row.last_message_at) },
                             unread: true
                         ) { onOpenConversation(row.conversation_id) }
                     }
@@ -1359,7 +1361,7 @@ private struct RecentCallRow: View {
 
 private struct PersonRow: View {
     let name: String?
-    let meta: String
+    let meta: TimedText
     let unread: Bool
     let onTap: @MainActor () -> Void
 
@@ -1381,7 +1383,8 @@ private struct PersonRow: View {
                         .font(.golos(13.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
                         .lineLimit(1)
-                    Text(meta)
+                    Text(meta.visible)
+                        .spokenAs(meta)
                         .font(.golos(11.5))
                         .foregroundStyle(BrandColor.muted400)
                 }
@@ -1425,7 +1428,8 @@ private struct TaskLineRow: View {
                         .font(.golos(13.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
                         .lineLimit(1)
-                    Text(subtitle)
+                    Text(subtitle.visible)
+                        .spokenAs(subtitle)
                         .font(.golos(11.5, weight: overdue ? .bold : .regular))
                         // Overdue = amber, never red (calm system).
                         .foregroundStyle(
@@ -1444,20 +1448,22 @@ private struct TaskLineRow: View {
         .buttonStyle(.plain)
     }
 
-    private var subtitle: String {
-        if overdue {
-            return AppStrings.translate(appLocale, "inbox.forYouWhyOverdueTask")
-        }
-        // formatDue, NOT relativeTime: relativeTime measures time ELAPSED, so
+    private var subtitle: TimedText {
+        // timedDue, NOT timedText: relative time measures time ELAPSED, so
         // every future due date came out as "Due now".
-        if let dueAt {
-            return AppStrings.translate(
-                appLocale,
-                "inbox.forYouWhyDue",
-                ["when": formatDue(dueAt)]
-            )
+        timedDue(locale: appLocale) { due in
+            if overdue {
+                return AppStrings.translate(appLocale, "inbox.forYouWhyOverdueTask")
+            }
+            if let dueAt {
+                return AppStrings.translate(
+                    appLocale,
+                    "inbox.forYouWhyDue",
+                    ["when": due(dueAt)]
+                )
+            }
+            return AppStrings.translate(appLocale, "inbox.forYouWhyOpenTask")
         }
-        return AppStrings.translate(appLocale, "inbox.forYouWhyOpenTask")
     }
 }
 

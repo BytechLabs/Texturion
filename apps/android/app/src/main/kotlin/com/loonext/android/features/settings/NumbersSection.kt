@@ -71,7 +71,8 @@ import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.formatPhone
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -358,10 +359,14 @@ private fun NumberCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 number.released_at?.let { at ->
+                    val releasedLine = timedText { time ->
+                        t("settingsMore.releasedAgo", "ago" to time(at))
+                    }
                     Text(
-                        t("settingsMore.releasedAgo", "ago" to relativeTime(at)),
+                        releasedLine.visible,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.spokenAs(releasedLine),
                     )
                 }
             }

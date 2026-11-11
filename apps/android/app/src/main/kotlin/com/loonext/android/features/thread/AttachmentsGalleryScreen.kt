@@ -69,7 +69,8 @@ import com.loonext.android.core.model.GalleryItem
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
@@ -380,13 +381,17 @@ private fun FilesList(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
+                    val meta = timedText { time ->
                         listOfNotNull(
                             gallerySizeLabel(item.size_bytes),
-                            relativeTime(item.created_at).takeIf { it.isNotEmpty() },
-                        ).joinToString(" · "),
+                            time(item.created_at).takeIf { it.isNotEmpty() },
+                        ).joinToString(" · ")
+                    }
+                    Text(
+                        meta.visible,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.spokenAs(meta),
                     )
                 }
                 // #317: the one secondary action this row has, behind the

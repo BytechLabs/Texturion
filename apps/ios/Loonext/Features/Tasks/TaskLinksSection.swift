@@ -306,7 +306,8 @@ struct LinkedTasksSection: View {
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
                             if let detail = subtitle(task) {
-                                Text(detail)
+                                Text(detail.visible)
+                                    .spokenAs(detail)
                                     .font(.golos(11.5))
                                     .foregroundStyle(BrandColor.muted500)
                                     .lineLimit(1)
@@ -337,17 +338,22 @@ struct LinkedTasksSection: View {
         .task(id: target.key) { await load() }
     }
 
-    private func subtitle(_ task: LinkedTask) -> String? {
-        var parts: [String] = []
-        if let due = task.due_at, !task.done {
-            parts.append(
-                AppStrings.translate(appLocale, "contactsTasks.dueWhen", ["when": formatDue(due)])
-            )
+    private func subtitle(_ task: LinkedTask) -> TimedText? {
+        var hasParts = false
+        let line = timedDue(locale: appLocale) { due in
+            var parts: [String] = []
+            if let dueAt = task.due_at, !task.done {
+                parts.append(
+                    AppStrings.translate(appLocale, "contactsTasks.dueWhen", ["when": due(dueAt)])
+                )
+            }
+            for how in task.how ?? [] {
+                if let key = linkedTaskHowKey(how) { parts.append(AppStrings.translate(appLocale, key)) }
+            }
+            hasParts = !parts.isEmpty
+            return parts.joined(separator: " \u{00B7} ")
         }
-        for how in task.how ?? [] {
-            if let key = linkedTaskHowKey(how) { parts.append(AppStrings.translate(appLocale, key)) }
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " \u{00B7} ")
+        return hasParts ? line : nil
     }
 
     private func load() async {

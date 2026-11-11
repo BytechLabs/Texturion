@@ -50,7 +50,9 @@ import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.calls.formatCallDuration
 import com.loonext.android.features.thread.MakeTaskSheet
 import com.loonext.android.ui.common.formatPhone
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.TimedText
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.launch
@@ -242,11 +244,12 @@ internal fun SourceCallCard(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
+                val meta = callMeta(call)
                 Text(
-                    callMeta(call),
+                    meta.visible,
                     fontSize = 11.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 3.dp),
+                    modifier = Modifier.padding(top = 3.dp).spokenAs(meta),
                 )
                 if (call.has_voicemail) {
                     Row(
@@ -283,11 +286,14 @@ internal fun SourceCallCard(
     }
 }
 
-/** "3h · Talked for 4m 32s": when it was, and how long they spoke. */
+/** "3h · Talked for 4m 32s": when it was, and how long they spoke; the time is spoken in full. */
 @Composable
-internal fun callMeta(call: TaskSourceCall): String {
-    val when_ = relativeTime(call.started_at)
-    if (call.forward_seconds <= 0) return when_
-    val talk = t("contactsTasks.callTalkTime", "duration" to formatCallDuration(call.forward_seconds))
-    return "$when_ · $talk"
+internal fun callMeta(call: TaskSourceCall): TimedText = timedText { time ->
+    val when_ = time(call.started_at)
+    if (call.forward_seconds <= 0) {
+        when_
+    } else {
+        val talk = t("contactsTasks.callTalkTime", "duration" to formatCallDuration(call.forward_seconds))
+        "$when_ · $talk"
+    }
 }

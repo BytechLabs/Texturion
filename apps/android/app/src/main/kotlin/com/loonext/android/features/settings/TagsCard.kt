@@ -40,7 +40,8 @@ import com.loonext.android.core.model.TagUsage
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CancellationException
@@ -181,13 +182,16 @@ private fun TagUsageRow(
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.weight(1f),
             )
+            val uses = usesLabel(row.uses)
+            // Last used beside the count: a tag with forty uses and nothing
+            // since March is a category the crew has stopped believing in,
+            // and the count alone cannot say that.
+            val usage = timedText { time -> uses + lastUsedSuffix(row.last_used, time) }
             Text(
-                // Last used beside the count: a tag with forty uses and nothing
-                // since March is a category the crew has stopped believing in,
-                // and the count alone cannot say that.
-                usesLabel(row.uses) + lastUsedSuffix(row.last_used),
+                usage.visible,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.spokenAs(usage),
             )
             if (canManage) {
                 Spacer(Modifier.width(4.dp))
@@ -263,9 +267,9 @@ private const val TAG_DESCRIPTION_MAX = 200
 
 /** " · last 2d" when it has ever been used; nothing when it has not. */
 @Composable
-private fun lastUsedSuffix(iso: String?): String {
+private fun lastUsedSuffix(iso: String?, time: (String?) -> String): String {
     if (iso.isNullOrBlank()) return ""
-    val relative = relativeTime(iso)
+    val relative = time(iso)
     return if (relative.isEmpty()) "" else t("settingsMore.tagLastUsed", "ago" to relative)
 }
 

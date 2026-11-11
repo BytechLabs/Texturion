@@ -130,19 +130,20 @@ struct MergedFromRow: View {
 
     private var name: String { describeContact(mergedFrom.name, mergedFrom.phone_e164) }
 
-    private var dateLabel: String {
-        TimestampFormat.label(mergedFrom.merged_at, locale: appLocale)
+    private var mergedLine: TimedText {
+        timedText(locale: appLocale) { time in
+            AppStrings.translate(
+                appLocale,
+                "contactsTasks.mergedFromLine",
+                ["name": name, "date": time(mergedFrom.merged_at)]
+            )
+        }
     }
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            Text(
-                AppStrings.translate(
-                    appLocale,
-                    "contactsTasks.mergedFromLine",
-                    ["name": name, "date": dateLabel]
-                )
-            )
+            Text(mergedLine.visible)
+            .spokenAs(mergedLine)
             .font(.golos(12))
             .foregroundStyle(BrandColor.muted500)
             .frame(maxWidth: .infinity, alignment: .leading)

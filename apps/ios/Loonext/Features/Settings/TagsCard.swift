@@ -157,10 +157,12 @@ private struct TagUsageRow: View {
                 // Last used beside the count: a tag with forty uses and nothing
                 // since March is a category the crew has stopped believing in,
                 // and the count alone cannot say that.
-                Text(
+                let usage = timedText(locale: appLocale) { time in
                     usesLabel(row.uses, appLocale)
-                        + lastUsedSuffix(row.last_used, appLocale)
-                )
+                        + lastUsedSuffix(row.last_used, appLocale, time: time)
+                }
+                Text(usage.visible)
+                    .spokenAs(usage)
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
                 if canManage {
@@ -246,9 +248,13 @@ private struct TagUsageRow: View {
 private let tagDescriptionMax = 200
 
 /// " · last 2d" when it has ever been used; nothing when it has not.
-private func lastUsedSuffix(_ iso: String?, _ locale: String? = nil) -> String {
+private func lastUsedSuffix(
+    _ iso: String?,
+    _ locale: String? = nil,
+    time: (String?) -> String
+) -> String {
     guard let iso, !iso.isEmpty else { return "" }
-    let relative = relativeTime(iso)
+    let relative = time(iso)
     return relative.isEmpty
         ? ""
         : AppStrings.translate(locale, "settingsMore.tagLastUsed", ["ago": relative])

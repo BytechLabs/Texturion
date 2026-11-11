@@ -65,6 +65,15 @@ final class TimestampFormatTests: XCTestCase {
         )
     }
 
+    func testATimeMinutesAgoIsSpokenAsTheExactTimeAlone() {
+        XCTAssertEqual(
+            TimestampFormat.spoken(
+                ISO8601DateFormatter().string(from: now.addingTimeInterval(-12 * 60)),
+                locale: "en", now: now, timeZone: toronto),
+            "Tue, Nov 10, 2026, 2:48 PM EST"
+        )
+    }
+
     func testABadTimestampIsBlank() {
         XCTAssertEqual(short("not a date"), "")
         XCTAssertEqual(TimestampFormat.exact(nil, locale: "en", timeZone: toronto), "")

@@ -300,7 +300,8 @@ private struct ApiKeyCard: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
 
-            Text(statusLine)
+            Text(statusLine.visible)
+                .spokenAs(statusLine)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -322,7 +323,8 @@ private struct ApiKeyCard: View {
         .confirmDialog(
             words("apiKeys.revokeTitle"),
             isPresented: $confirming,
-            message: confirmBody,
+            message: confirmBody.visible,
+            messageSpoken: confirmBody.spoken,
             confirmLabel: words("apiKeys.revokeConfirm"),
             cancelLabel: words("apiKeys.keepIt")
         ) {
@@ -330,35 +332,39 @@ private struct ApiKeyCard: View {
         }
     }
 
-    private var statusLine: String {
-        if let revokedAt = apiKey.revoked_at {
-            return AppStrings.translate(
-                appLocale,
-                "apiKeys.revokedOn",
-                ["when": relativeTime(revokedAt)]
-            )
+    private var statusLine: TimedText {
+        timedText(locale: appLocale) { time in
+            if let revokedAt = apiKey.revoked_at {
+                return AppStrings.translate(
+                    appLocale,
+                    "apiKeys.revokedOn",
+                    ["when": time(revokedAt)]
+                )
+            }
+            if let usedAt = apiKey.last_used_at {
+                return AppStrings.translate(
+                    appLocale,
+                    "apiKeys.lastUsed",
+                    ["when": time(usedAt)]
+                )
+            }
+            return words("apiKeys.neverUsed")
         }
-        if let usedAt = apiKey.last_used_at {
-            return AppStrings.translate(
-                appLocale,
-                "apiKeys.lastUsed",
-                ["when": relativeTime(usedAt)]
-            )
-        }
-        return words("apiKeys.neverUsed")
     }
 
-    private var confirmBody: String {
-        var out = words("apiKeys.revokeBody")
-        if let usedAt = apiKey.last_used_at {
-            out += " "
-            out += AppStrings.translate(
-                appLocale,
-                "apiKeys.revokeUsedWarning",
-                ["when": relativeTime(usedAt)]
-            )
+    private var confirmBody: TimedText {
+        timedText(locale: appLocale) { time in
+            var out = words("apiKeys.revokeBody")
+            if let usedAt = apiKey.last_used_at {
+                out += " "
+                out += AppStrings.translate(
+                    appLocale,
+                    "apiKeys.revokeUsedWarning",
+                    ["when": time(usedAt)]
+                )
+            }
+            return out
         }
-        return out
     }
 
     private func revoke() async {

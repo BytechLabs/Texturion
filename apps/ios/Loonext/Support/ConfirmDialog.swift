@@ -143,6 +143,7 @@ extension View {
         _ title: String,
         isPresented: Binding<Bool>,
         message: String,
+        messageSpoken: String? = nil,
         confirmLabel: String,
         cancelLabel: String? = nil,
         tone: ConfirmTone = .destructive,
@@ -154,6 +155,7 @@ extension View {
                 title: title,
                 isPresented: isPresented,
                 message: message,
+                messageSpoken: messageSpoken,
                 confirmLabel: confirmLabel,
                 cancelLabel: cancelLabel,
                 tone: tone,
@@ -192,6 +194,8 @@ private struct ConfirmDialogModifier: ViewModifier {
     let title: String
     let isPresented: Binding<Bool>
     let message: String
+    /// What VoiceOver says in place of `message`, when it holds a compact time.
+    let messageSpoken: String?
     let confirmLabel: String
     let cancelLabel: String?
     let tone: ConfirmTone
@@ -213,7 +217,7 @@ private struct ConfirmDialogModifier: ViewModifier {
             Button(confirmLabel, role: role) { onConfirm() }
                 .disabled(confirmDisabled)
         } message: {
-            Text(message)
+            Text(message).accessibilityLabel(messageSpoken ?? message)
         }
     }
 }

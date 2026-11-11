@@ -92,7 +92,9 @@ import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.core.model.ReferralMoment
 import com.loonext.android.core.model.ReferralsView
-import com.loonext.android.features.tasks.formatDue
+import com.loonext.android.features.tasks.timedDue
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.calls.callOutcomeLabel
 import com.loonext.android.features.calls.callerDisplayName
@@ -111,7 +113,7 @@ import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.Timestamp
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.TimedText
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
@@ -127,7 +129,6 @@ import java.time.Instant
 import com.loonext.android.ui.common.asButton
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
-import com.loonext.android.ui.common.spokenTimeOf
 
 /**
  * /for-you — the default landing: Unassigned (every member since #416),
@@ -873,11 +874,10 @@ internal fun ForYouList(
                                 // The REASON, not the last-message time: it is what
                                 // the member wrote down, and the only thing that
                                 // makes the card actionable three days later.
-                                why = row.note?.takeIf { it.isNotBlank() }
-                                    ?: t(
-                                        "inbox.forYouWhyNoReply",
-                                        "when" to relativeTime(row.last_message_at),
-                                    ),
+                                why = row.note?.takeIf { it.isNotBlank() }?.let { TimedText(it, it) }
+                                    ?: timedText { time ->
+                                        t("inbox.forYouWhyNoReply", "when" to time(row.last_message_at))
+                                    },
                                 unread = row.unread,
                                 onClick = { onOpenConversation(row.conversation_id) },
                             )
@@ -899,8 +899,7 @@ internal fun ForYouList(
                                     if (index > 0) RowDivider()
                                     PersonRow(
                                         name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
-                                        why = relativeTime(row.last_message_at),
-                                        whyAt = row.last_message_at,
+                                        why = timedText { time -> time(row.last_message_at) },
                                         unread = row.unread,
                                         chipLabel = if (row.unread) t("inbox.forYouNewLead") else null,
                                         onClick = { onOpenConversation(row.conversation_id) },
@@ -927,8 +926,7 @@ internal fun ForYouList(
                             if (index > 0) RowDivider()
                             PersonRow(
                                 name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
-                                why = relativeTime(row.last_message_at),
-                                whyAt = row.last_message_at,
+                                why = timedText { time -> time(row.last_message_at) },
                                 unread = row.unread,
                                 onClick = { onOpenConversation(row.conversation_id) },
                             )
@@ -957,8 +955,7 @@ internal fun ForYouList(
                             if (index > 0) RowDivider()
                             PersonRow(
                                 name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
-                                why = relativeTime(row.last_message_at),
-                                whyAt = row.last_message_at,
+                                why = timedText { time -> time(row.last_message_at) },
                                 unread = true,
                                 onClick = { onOpenConversation(row.conversation_id) },
                             )
@@ -1193,11 +1190,10 @@ private fun RecentCallsHeader(onOpenCalls: (() -> Unit)?) {
 @Composable
 private fun PersonRow(
     name: String?,
-    why: String,
+    /** Drawn as [TimedText.visible]; a reader hears [TimedText.spoken], a time and not "22h". */
+    why: TimedText,
     unread: Boolean,
     chipLabel: String? = null,
-    /** The moment [why] abbreviates, so a reader hears a time and not "22h". */
-    whyAt: String? = null,
     onClick: () -> Unit,
 ) {
     val pressSource = remember { MutableInteractionSource() }
@@ -1238,14 +1234,14 @@ private fun PersonRow(
                 }
             }
             Text(
-                why,
+                why.visible,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .padding(top = 2.dp)
-                    .then(if (whyAt != null) Modifier.spokenTimeOf(whyAt) else Modifier),
+                    .spokenAs(why),
             )
         }
         RowArrow()
@@ -1285,14 +1281,17 @@ private fun TaskQueueRow(title: String, overdue: Boolean, dueAt: String?, onClic
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            // timedDue, NOT timedText: relative time measures time ELAPSED, so
+            // every future due date came out as "Due now".
+            val why = timedDue(LocalAppLocale.current) { due ->
                 when {
                     overdue -> t("inbox.forYouWhyOverdueTask")
-                    // formatDue, NOT relativeTime: relativeTime measures time
-                    // ELAPSED, so every future due date came out as "Due now".
-                    dueAt != null -> t("inbox.forYouWhyDue", "when" to formatDue(dueAt))
+                    dueAt != null -> t("inbox.forYouWhyDue", "when" to due(dueAt))
                     else -> t("inbox.forYouWhyOpenTask")
-                },
+                }
+            }
+            Text(
+                why.visible,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 11.5.sp,
                     fontWeight = if (overdue) FontWeight.SemiBold else FontWeight.Normal,
@@ -1304,7 +1303,7 @@ private fun TaskQueueRow(title: String, overdue: Boolean, dueAt: String?, onClic
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 },
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = 2.dp).spokenAs(why),
             )
         }
         RowArrow()

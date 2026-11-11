@@ -46,7 +46,8 @@ import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 
@@ -420,14 +421,18 @@ private fun DeviceRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            val activity = timedText { time ->
                 t(
                     "settings.devicesLastActive",
-                    "lastActive" to relativeTime(lastActiveAt),
-                    "signedIn" to relativeTime(signedInAt),
-                ),
+                    "lastActive" to time(lastActiveAt),
+                    "signedIn" to time(signedInAt),
+                )
+            }
+            Text(
+                activity.visible,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.spokenAs(activity),
             )
             if (userAgent != null) {
                 Text(

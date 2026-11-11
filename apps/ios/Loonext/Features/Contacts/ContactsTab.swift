@@ -1021,10 +1021,12 @@ private struct ContactRow: View {
     }
 
     /// Spec 27 sub line: the number, with last activity folded in when known.
-    private var sub: String {
-        let phone = formatPhone(contact.phone_e164)
-        guard let lastActivity = contact.last_activity_at else { return phone }
-        return "\(phone) · \(relativeTime(lastActivity))"
+    private var sub: TimedText {
+        timedText(locale: appLocale) { time in
+            let phone = formatPhone(contact.phone_e164)
+            guard let lastActivity = contact.last_activity_at else { return phone }
+            return "\(phone) · \(time(lastActivity))"
+        }
     }
 
     var body: some View {
@@ -1044,7 +1046,8 @@ private struct ContactRow: View {
                         )
                     }
                 }
-                Text(sub)
+                Text(sub.visible)
+                    .spokenAs(sub)
                     .font(.golos(11.5))
                     .monospacedDigit()
                     .foregroundStyle(BrandColor.muted400)

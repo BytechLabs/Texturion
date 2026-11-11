@@ -416,13 +416,15 @@ private struct NumberCard: View {
                 .strikethrough()
                 .foregroundStyle(.secondary)
             if let at = number.released_at {
-                Text(
+                let releasedLine = timedText(locale: appLocale) { time in
                     AppStrings.translate(
                         appLocale,
                         "settingsMore.releasedAgo",
-                        ["ago": relativeTime(at)]
+                        ["ago": time(at)]
                     )
-                )
+                }
+                Text(releasedLine.visible)
+                    .spokenAs(releasedLine)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

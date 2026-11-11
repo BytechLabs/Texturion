@@ -66,6 +66,14 @@ class TimestampFormatTest {
     }
 
     @Test
+    fun `a time minutes ago is spoken as the exact time alone`() {
+        assertEquals(
+            "Tue, Nov 10, 2026, 2:48 PM EST",
+            TimestampFormat.spoken(now.minusSeconds(12 * 60).toString(), "en", now, zone),
+        )
+    }
+
+    @Test
     fun `a bad timestamp is blank`() {
         assertEquals("", short("not a date"))
         assertEquals("", TimestampFormat.exact(null, "en", zone))

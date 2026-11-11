@@ -128,7 +128,8 @@ import com.loonext.android.features.tasks.LinkedTasksList
 import com.loonext.android.features.tasks.ReferenceRepository
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -1095,17 +1096,19 @@ private fun ContactDetailBody(
                                     content =
                                     MaterialTheme.colorScheme.onSecondaryContainer,
                                 )
-                                Text(
+                                val updated = timedText { time ->
                                     t(
                                         "contactsTasks.updatedWhen",
-                                        "when" to relativeTime(
-                                            conversationRow.last_message_at,
-                                        ),
-                                    ),
+                                        "when" to time(conversationRow.last_message_at),
+                                    )
+                                }
+                                Text(
+                                    updated.visible,
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 11.sp,
                                     ),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.spokenAs(updated),
                                 )
                             }
                         }

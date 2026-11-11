@@ -76,7 +76,8 @@ import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.Timestamp
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import kotlinx.coroutines.delay
@@ -715,9 +716,17 @@ private fun NotificationPauseNotice(pause: AlertPause?) {
     } else {
         ""
     }
-    val resumes = pause.resets_at?.let {
-        t("contactsTasks.notifPausedResumes", "when" to relativeTime(it))
-    } ?: ""
+    val body = timedText { time ->
+        val resumes = pause.resets_at
+            ?.let { t("contactsTasks.notifPausedResumes", "when" to time(it)) }
+            ?: ""
+        t(
+            "contactsTasks.notifPausedBody",
+            "what" to what,
+            "still" to still,
+            "resumes" to resumes,
+        )
+    }
 
     Surface(
         shape = MaterialTheme.shapes.large,
@@ -727,15 +736,10 @@ private fun NotificationPauseNotice(pause: AlertPause?) {
             .padding(bottom = 8.dp),
     ) {
         Text(
-            t(
-                "contactsTasks.notifPausedBody",
-                "what" to what,
-                "still" to still,
-                "resumes" to resumes,
-            ),
+            body.visible,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onErrorContainer,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).spokenAs(body),
         )
     }
 }

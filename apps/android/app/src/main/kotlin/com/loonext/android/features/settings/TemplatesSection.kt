@@ -44,7 +44,9 @@ import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.assertAboveIme
-import com.loonext.android.ui.common.relativeTime
+import com.loonext.android.ui.common.TimedText
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CancellationException
@@ -251,11 +253,12 @@ private fun TemplateListRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            val updated = updatedLine(template.updated_at, template.updated_by_name)
             Text(
-                updatedLine(template.updated_at, template.updated_by_name),
+                updated.visible,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = 2.dp).spokenAs(updated),
             )
         }
         Spacer(Modifier.width(4.dp))
@@ -267,29 +270,35 @@ private fun TemplateListRow(
 }
 
 /**
- * [relativeTime] speaks two dialects — durations ("now", "5m", "3h", "2d") and
+ * The drawn time speaks two dialects — durations ("now", "5m", "3h", "2d") and
  * calendar dates ("Jul 8") — and only a duration reads right before "ago".
  */
 @Composable
-private fun updatedLine(iso: String, editor: String? = null): String {
-    val relative = relativeTime(iso)
+private fun updatedLine(iso: String, editor: String? = null): TimedText {
+    val stamp = timedText { time -> time(iso) }
+    // The words are chosen from the drawn label; the spoken line swaps only the time in.
+    val relative = stamp.visible
     // Tested BEFORE the words, so the "no edit to attribute" branch below is
     // decided by the state rather than by comparing two translated sentences —
     // which is the version that quietly stops working in French.
     val unknown = relative.isEmpty()
-    val base = when {
-        unknown -> t("settingsMore.savedReply")
-        relative == "now" -> t("settingsMore.updatedJustNow")
-        relative.last() in "mhd" -> t("settingsMore.updatedAgo", "ago" to relative)
-        else -> t("settingsMore.updatedOn", "when" to relative)
+    @Composable
+    fun say(time: String): String {
+        val base = when {
+            unknown -> t("settingsMore.savedReply")
+            relative == "now" -> t("settingsMore.updatedJustNow")
+            relative.last() in "mhd" -> t("settingsMore.updatedAgo", "ago" to time)
+            else -> t("settingsMore.updatedOn", "when" to time)
+        }
+        // #419: not a permission — visibility. A template is the only object here
+        // where one person's edit changes what everyone else says to customers,
+        // and in a crew of ten "Sam changed this on Tuesday" settles the question
+        // before it becomes a dispute. "Saved reply" takes no byline: there is no
+        // edit to attribute.
+        if (editor.isNullOrBlank() || unknown) return base
+        return t("settingsMore.updatedBy", "line" to base, "editor" to editor)
     }
-    // #419: not a permission — visibility. A template is the only object here
-    // where one person's edit changes what everyone else says to customers,
-    // and in a crew of ten "Sam changed this on Tuesday" settles the question
-    // before it becomes a dispute. "Saved reply" takes no byline: there is no
-    // edit to attribute.
-    if (editor.isNullOrBlank() || unknown) return base
-    return t("settingsMore.updatedBy", "line" to base, "editor" to editor)
+    return TimedText(say(stamp.visible), say(stamp.spoken))
 }
 
 /** Create ([template] null) or edit a saved reply — the web dialog's twin. */

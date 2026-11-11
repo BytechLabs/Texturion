@@ -73,9 +73,53 @@ final class TimestampGuardTests: XCTestCase {
         return out
     }
 
+    /// #238: a compact time ("5m") drawn as plain text is read by VoiceOver as "5 m". Every
+    /// compact time a screen draws needs its spoken twin: `timedText { time in ... time(iso) }`
+    /// with `.spokenAs`, or `.exactTime(iso)` on a lone `relativeTime`. A file may draw no
+    /// more compact times than it speaks, unless the file only DEFINES those helpers or
+    /// builds a sentence in pure model code (below). LONG labels name the day and the
+    /// clock, and are not counted.
+    ///
+    /// T-4  the compact-time scan found the calls it is about.
+    /// T-5  no unlisted file draws a compact time it does not speak.
+    /// T-6  the compact roster is closed and gives a reason for each file.
+    private static let compactRoster: [String: String] = [
+        "Support/Format.swift": "Defines relativeTime, formatDue and timedDue, which draw the compact label and build its spoken twin.",
+        "Support/Timestamp.swift": "Defines timedText, whose default label is relativeTime, and speaks it with its spoken twin.",
+        "Core/Model/ContactTimeline.swift": "A due date inside a timeline sentence built in pure model code, with no view to label; it is a day or a clock ahead of now.",
+    ]
+
+    private static let compactCalls = [#"(?<!func )\brelativeTime\("#, #"(?<!func )\bformatDue\("#]
+    private static let labelCall = #"TimestampFormat\.label\("#
+    private static let spokenCalls = [#"\.exactTime\("#, #"\.spokenAs\("#]
+
+    private static func count(_ pattern: String, in text: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
+        return regex.numberOfMatches(in: text, range: NSRange(text.startIndex..., in: text))
+    }
+
+    /// Compact draws in `text`: relativeTime, formatDue, and a TimestampFormat.label that is
+    /// not LONG (a `.long` in the 220 characters after the call counts as LONG).
+    private static func compactDraws(_ text: String) -> Int {
+        var total = compactCalls.reduce(0) { $0 + count($1, in: text) }
+        guard let regex = try? NSRegularExpression(pattern: labelCall) else { return total }
+        let whole = NSRange(text.startIndex..., in: text)
+        for match in regex.matches(in: text, range: whole) {
+            let window = (text as NSString).substring(
+                with: NSRange(
+                    location: match.range.location,
+                    length: min(220, whole.length - match.range.location)
+                )
+            )
+            if !window.contains(".long") { total += 1 }
+        }
+        return total
+    }
+
     private struct Scan {
         let fileCount: Int
         let hits: [(file: String, call: String)]
+        let compact: [(file: String, draws: Int, spoken: Int)]
     }
 
     private func scan() throws -> Scan {
@@ -97,11 +141,17 @@ final class TimestampGuardTests: XCTestCase {
         )
         var count = 0
         var hits: [(file: String, call: String)] = []
+        var compact: [(file: String, draws: Int, spoken: Int)] = []
         for case let url as URL in walker where url.pathExtension == "swift" {
             let relative = String(url.path.dropFirst(base.path.count + 1))
             if Self.formatterFiles.contains(relative) { continue }
             let text = Self.stripComments(try String(contentsOf: url, encoding: .utf8))
             count += 1
+            let draws = Self.compactDraws(text)
+            if draws > 0 {
+                let spoken = Self.spokenCalls.reduce(0) { $0 + Self.count($1, in: text) }
+                compact.append((relative, draws, spoken))
+            }
             for rule in Self.rules {
                 guard let regex = try? NSRegularExpression(pattern: rule.pattern) else {
                     XCTFail("bad pattern for \(rule.call)")
@@ -112,7 +162,7 @@ final class TimestampGuardTests: XCTestCase {
                 }
             }
         }
-        return Scan(fileCount: count, hits: hits)
+        return Scan(fileCount: count, hits: hits, compact: compact)
     }
 
     func testT0TheScanReadSourcesAndFoundTheCallsItIsAbout() throws {
@@ -148,6 +198,39 @@ final class TimestampGuardTests: XCTestCase {
         let thin = Self.roster
             .filter { $0.reason.trimmingCharacters(in: .whitespaces).count < 15 }
             .map(\.file)
+        XCTAssertEqual(thin, [])
+    }
+
+    func testT4TheCompactTimeScanFoundTheCallsItIsAbout() throws {
+        let scan = try scan()
+        XCTAssertGreaterThan(scan.fileCount, 0, "the compact scan read no source files")
+        XCTAssertGreaterThan(scan.compact.count, 0, "no compact times found in \(scan.fileCount) files")
+    }
+
+    func testT5ACompactTimeDrawnAsPlainTextHasItsSpokenTwin() throws {
+        let scan = try scan()
+        let unspoken = scan.compact
+            .filter { Self.compactRoster[$0.file] == nil && $0.draws > $0.spoken }
+            .map { "\($0.file)  draws \($0.draws) compact time(s), speaks \($0.spoken)" }
+        XCTAssertEqual(
+            unspoken,
+            [],
+            "Scanned \(scan.fileCount) files, \(scan.compact.count) draw compact times. A compact "
+                + "time reads as \"5 m\" aloud. Build the line with timedText { time in ... } and "
+                + ".spokenAs, or add .exactTime(iso) to a lone relativeTime:\n"
+                + unspoken.joined(separator: "\n")
+        )
+    }
+
+    func testT6TheCompactRosterExcusesFilesThatStillDrawCompactTimes() throws {
+        let scan = try scan()
+        let stale = Self.compactRoster.keys
+            .filter { file in !scan.compact.contains { $0.file == file } }
+            .sorted()
+        XCTAssertEqual(stale, [], "These compact roster entries no longer draw one. Delete them.")
+        let thin = Self.compactRoster
+            .filter { $0.value.trimmingCharacters(in: .whitespaces).count < 15 }
+            .map(\.key)
         XCTAssertEqual(thin, [])
     }
 }

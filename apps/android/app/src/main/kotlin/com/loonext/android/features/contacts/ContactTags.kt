@@ -38,8 +38,9 @@ import com.loonext.android.core.model.ContactTag
 import com.loonext.android.core.model.MergedFrom
 import com.loonext.android.core.model.Tag
 import com.loonext.android.ui.common.rememberHaptics
+import com.loonext.android.ui.common.spokenAs
+import com.loonext.android.ui.common.timedText
 import java.time.ZoneId
-import com.loonext.android.core.time.TimestampFormat
 import java.time.format.FormatStyle
 import java.util.Locale
 
@@ -172,17 +173,19 @@ fun MergedFromRow(
     val haptics = rememberHaptics()
     var confirming by remember(mergedFrom.id) { mutableStateOf(false) }
     val name = describeContact(mergedFrom.name, mergedFrom.phone_e164)
-    val date = mergedDateLabel(mergedFrom.merged_at, locale)
+    val line = timedText(locale) { time ->
+        t("contactsTasks.mergedFromLine", "name" to name, "date" to time(mergedFrom.merged_at))
+    }
 
     Row(
         modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            t("contactsTasks.mergedFromLine", "name" to name, "date" to date),
+            line.visible,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).spokenAs(line),
         )
         if (canUnmerge) {
             TextButton(onClick = { confirming = true }) {
@@ -206,9 +209,4 @@ fun MergedFromRow(
             },
         )
     }
-}
-
-/** "Nov 2" in the reader's language, from the server's instant. */
-internal fun mergedDateLabel(mergedAt: String, locale: String?): String {
-    return TimestampFormat.label(mergedAt, locale = locale)
 }

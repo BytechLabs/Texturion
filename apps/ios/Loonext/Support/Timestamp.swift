@@ -53,7 +53,54 @@ extension EnvironmentValues {
     }
 }
 
+/// #238: a line with a compact time in it. `visible` is drawn; `spoken` is what VoiceOver
+/// says. They differ only in the time, which is "5m" on screen and a full date and zone aloud.
+struct TimedText: Equatable {
+    let visible: String
+    let spoken: String
+}
+
+/// Builds a line twice, once with each time as the screen draws it and once as VoiceOver
+/// says it. `build` gets `time` and writes it wherever the line wants a time; `drawTime` is
+/// how the screen draws one. This is the one way a sentence with a time in it is built, so
+/// no screen pairs a compact label with its spoken twin by hand.
+func timedText(
+    locale: String? = nil,
+    now: Date = Date(),
+    timeZone: TimeZone = .current,
+    _ build: (_ time: (String?) -> String) -> String
+) -> TimedText {
+    timedText(
+        locale: locale,
+        now: now,
+        timeZone: timeZone,
+        drawTime: { relativeTime($0 ?? "") },
+        build
+    )
+}
+
+/// `timedText` with its own way of drawing a time, such as `formatDue` for a due moment.
+func timedText(
+    locale: String? = nil,
+    now: Date = Date(),
+    timeZone: TimeZone = .current,
+    drawTime: (String?) -> String,
+    _ build: (_ time: (String?) -> String) -> String
+) -> TimedText {
+    let visible = build(drawTime)
+    let spoken = build { iso in
+        let said = TimestampFormat.spoken(iso, locale: locale, now: now, timeZone: timeZone)
+        return said.isEmpty ? drawTime(iso) : said
+    }
+    return TimedText(visible: visible, spoken: spoken)
+}
+
 extension View {
+    /// VoiceOver says `text.spoken` for the Text that draws `text.visible`.
+    func spokenAs(_ text: TimedText) -> some View {
+        accessibilityLabel(text.spoken)
+    }
+
     /// Long-press for the exact time; VoiceOver hears it after the visible label.
     @ViewBuilder
     func exactTime(_ iso: String?) -> some View {
