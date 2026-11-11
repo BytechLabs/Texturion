@@ -7,7 +7,8 @@ import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.EmptyStateSize
 import com.loonext.android.ui.common.EmptyState
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
@@ -62,6 +69,7 @@ import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -108,6 +116,24 @@ internal data class TaskCalendarSnapshot(
     /** True when the undated count hit its page cap (render "N+"). */
     val undatedTruncated: Boolean,
 )
+
+/** The hour a task made from a tapped day is due, when nobody picked one. */
+internal const val CALENDAR_CREATE_HOUR = 9
+
+/**
+ * #739: the due a long-press on [day] starts New task with, as an instant: the
+ * morning default on that calendar day in the WORKSPACE's [zone], not the phone's.
+ */
+internal fun calendarDayDueIso(day: LocalDate, zone: ZoneId): String =
+    day.atTime(LocalTime.of(CALENDAR_CREATE_HOUR, 0)).atZone(zone).toInstant().toString()
+
+/** The workspace's zone, or the phone's when the id is missing or unknown. */
+internal fun workspaceZone(id: String?): ZoneId =
+    id?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.systemDefault()
+
+/** #739: Enter on a focused day opens New task there (a tap only selects the day). */
+internal fun isCalendarCreateKey(event: KeyEvent): Boolean =
+    event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)
 
 /** Monday on/before the 1st — DayOfWeek.value is Mon=1..Sun=7. */
 internal fun calendarGridStart(month: YearMonth): LocalDate {
@@ -238,19 +264,22 @@ internal fun TaskCalendarView(
     onOpenTask: (String) -> Unit,
     onToggleDone: (Task, Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    /** The workspace's zone; every day and "today" here is read on its clock (#739). */
+    zone: ZoneId = ZoneId.systemDefault(),
+    /** #739: asked to open New task due on this day. */
+    onCreateTask: (LocalDate) -> Unit = {},
 ) {
-    val zone = remember { ZoneId.systemDefault() }
     val haptics = rememberHaptics()
 
     // Month + selected day survive detail round-trips exactly like the view
     // choice (founder mandate): both persist by STRING through rememberSaveable
     // and re-parse defensively.
-    var monthKey by rememberSaveable(companyId) { mutableStateOf(YearMonth.now().toString()) }
+    var monthKey by rememberSaveable(companyId) { mutableStateOf(YearMonth.now(zone).toString()) }
     val month = remember(monthKey) {
-        runCatching { YearMonth.parse(monthKey) }.getOrDefault(YearMonth.now())
+        runCatching { YearMonth.parse(monthKey) }.getOrDefault(YearMonth.now(zone))
     }
     var selectedKey by rememberSaveable(companyId) {
-        mutableStateOf<String?>(LocalDate.now().toString())
+        mutableStateOf<String?>(LocalDate.now(zone).toString())
     }
     val selectedDay = remember(selectedKey) {
         selectedKey?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
@@ -341,7 +370,7 @@ internal fun TaskCalendarView(
                 TasksTabKind.Done -> snapshot.undatedDone
                 else -> snapshot.undatedOpen + snapshot.undatedDone
             }
-            val today = LocalDate.now()
+            val today = LocalDate.now(zone)
             val dayTasks = selectedDay?.let { byDay[it] }.orEmpty()
             val selectionVisible = selectedDay != null &&
                 !selectedDay.isBefore(gridStart) && !selectedDay.isAfter(gridEnd)
@@ -360,13 +389,13 @@ internal fun TaskCalendarView(
                     ) {
                         MonthNavRow(
                             month = month,
-                            isCurrentMonth = month == YearMonth.now(),
+                            isCurrentMonth = month == YearMonth.now(zone),
                             onPrevious = { stepMonth(-1) },
                             onNext = { stepMonth(1) },
                             onToday = {
                                 haptics.tap()
-                                monthKey = YearMonth.now().toString()
-                                selectedKey = LocalDate.now().toString()
+                                monthKey = YearMonth.now(zone).toString()
+                                selectedKey = LocalDate.now(zone).toString()
                             },
                         )
                         WeekdayHeads()
@@ -385,6 +414,10 @@ internal fun TaskCalendarView(
                                             selectedKey =
                                                 if (day == selectedDay) null
                                                 else day.toString()
+                                        },
+                                        onCreate = {
+                                            haptics.tap()
+                                            onCreateTask(day)
                                         },
                                         modifier = Modifier.weight(1f),
                                     )
@@ -451,6 +484,24 @@ internal fun TaskCalendarView(
                             Modifier.padding(start = 18.dp, top = 14.dp),
                             count = dayTasks.size,
                         )
+                    }
+                    // #739: a tap on a day only selects it, so creating from it is a
+                    // long-press, and this is the visible way to the same form (a
+                    // long-press is never the only path).
+                    item(key = "day-new") {
+                        TextButton(
+                            onClick = {
+                                haptics.tap()
+                                onCreateTask(selectedDay)
+                            },
+                            modifier = Modifier.padding(start = 10.dp),
+                        ) {
+                            Text(
+                                t("contactsTasks.calendarCreateOnDay", "date" to selectedDay.format(CELL_A11Y_DATE)),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                     if (dayTasks.isEmpty()) {
                         item(key = "day-empty") {
@@ -584,16 +635,19 @@ private fun WeekdayHeads() {
  * the avatar tint, adjacent-month days muted) over up to three task dots —
  * lime for done, ink for open.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DayCell(
+internal fun DayCell(
     day: LocalDate,
     inMonth: Boolean,
     today: Boolean,
     selected: Boolean,
     tasks: List<Task>,
     onClick: () -> Unit,
+    onCreate: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val createLabel = t("contactsTasks.calendarCreateOnDay", "date" to day.format(CELL_A11Y_DATE))
     // Read here rather than inside the semantics lambda, which is not composition.
     val label = t(
         if (tasks.size == 1) {
@@ -607,7 +661,21 @@ private fun DayCell(
     Column(
         modifier
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .onPreviewKeyEvent { event ->
+                if (isCalendarCreateKey(event)) {
+                    onCreate()
+                    true
+                } else {
+                    false
+                }
+            }
+            .combinedClickable(
+                onClick = onClick,
+                // #739: the tap selects, so New task is the long-press, offered to
+                // TalkBack as a named action.
+                onLongClick = onCreate,
+                onLongClickLabel = createLabel,
+            )
             .semantics { contentDescription = label }
             .padding(top = 5.dp, bottom = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

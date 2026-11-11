@@ -181,3 +181,23 @@ describe("#689 New task", () => {
     ).toBe(true);
   });
 });
+
+describe("#739 New task from the calendar", () => {
+  it("opens with the clicked due on screen and reads it in the workspace zone", async () => {
+    openWith({ due: "2026-11-12T09:00", timeZone: "America/Toronto" });
+    const field = screen.getByLabelText("Due") as HTMLInputElement;
+    expect(field.value).toBe("2026-11-12T09:00");
+    typeTitle("Fix the boiler");
+    fireEvent.submit(field.closest("form")!);
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync.mock.calls[0]![0].due_at).toBe("2026-11-12T14:00:00.000Z");
+  });
+
+  it("does the same in Los Angeles", async () => {
+    openWith({ due: "2026-11-12T09:00", timeZone: "America/Los_Angeles" });
+    typeTitle("Fix the boiler");
+    fireEvent.submit(screen.getByLabelText("Due").closest("form")!);
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    expect(mutateAsync.mock.calls[0]![0].due_at).toBe("2026-11-12T17:00:00.000Z");
+  });
+});

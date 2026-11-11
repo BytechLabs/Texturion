@@ -332,3 +332,53 @@ function wallClock(
     );
   }
 }
+
+/** An instant as the clock on the wall reads in `timeZone`: a day key and the time. */
+export function zonedWallClock(
+  iso: string,
+  timeZone: string,
+): { date: string; hour: number; minute: number } | null {
+  const at = new Date(iso);
+  if (!iso || Number.isNaN(at.getTime())) return null;
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    const wall = zonedWallClockParts(formatter, at.getTime());
+    if (!wall) return null;
+    const pad = (n: number, width: number) => String(n).padStart(width, "0");
+    return {
+      date: `${pad(wall.year, 4)}-${pad(wall.month, 2)}-${pad(wall.day, 2)}`,
+      hour: wall.hour,
+      minute: wall.minute,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** A `yyyy-MM-dd` day as "Thursday, November 12" in the reader's language. */
+export function formatWallDay(date: string, locale: string): string {
+  const at = new Date(`${date}T12:00:00Z`);
+  if (Number.isNaN(at.getTime())) return date;
+  return new Intl.DateTimeFormat(locale, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(at);
+}
+
+/** An hour of the day as "9 AM" or "9 h", in the reader's language. */
+export function formatWallHour(hour: number, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    hour: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(2000, 0, 1, hour)));
+}

@@ -69,6 +69,29 @@ func calendarGridDays(_ date: Date, calendar: Calendar) -> [Date] {
     return days
 }
 
+/// The hour a task made from a tapped day is due, when nobody picked one.
+let calendarCreateHour = 9
+
+/// #739: the due a long-press (or Return) on `day` starts New task with: the
+/// morning default on that calendar day, read on `calendar`'s clock, which is
+/// the WORKSPACE's zone rather than the phone's.
+func calendarDayDue(_ day: Date, calendar: Calendar) -> Date? {
+    calendar.date(bySettingHour: calendarCreateHour, minute: 0, second: 0, of: day)
+}
+
+/// The calendar the grid reads days on: the workspace's zone when it is a
+/// known identifier, otherwise the phone's.
+func workspaceCalendar(timeZoneId: String?, base: Calendar = .current) -> Calendar {
+    var calendar = base
+    if let timeZoneId, let zone = TimeZone(identifier: timeZoneId) {
+        calendar.timeZone = zone
+    }
+    return calendar
+}
+
+/// #739: Return on a focused day opens New task there (a tap only selects it).
+func calendarKeyCreates(_ key: KeyEquivalent) -> Bool { key == .return }
+
 /// The tab's assignee baseline for the calendar fetch (status goes client-side
 /// once the calendar strips it): Open/Mine/Done pin `me`, All means every
 /// assignee, and the chips override. Mirrors Android's taskCalendarBaseAssignee.
@@ -128,9 +151,14 @@ struct TaskCalendarView: View {
     let refreshKey: Int
     let onOpenTask: @MainActor (String) -> Void
     let onToggleDone: @MainActor (TaskItem, Bool) -> Void
+    /// #739: asked to open New task due at this instant. Defaulted so a preview
+    /// or another caller keeps compiling.
+    var onCreateTask: @MainActor (Date) -> Void = { _ in }
 
     @State private var monthAnchor = Date()
-    @State private var selectedDay: Date? = Calendar.current.startOfDay(for: Date())
+    // Any instant in today: days compare with isDate(inSameDayAs:) on the
+    // workspace's calendar, so the phone's midnight must not be baked in.
+    @State private var selectedDay: Date? = Date()
 
     @State private var state: LoadState<Void> = .loading
     @State private var rows: [TaskItem] = []
@@ -141,7 +169,7 @@ struct TaskCalendarView: View {
 
     @Environment(\.appLocale) private var appLocale
 
-    private var calendar: Calendar { .current }
+    private var calendar: Calendar { workspaceCalendar(timeZoneId: me.company?.timezone) }
     private var month: Date { startOfMonth(monthAnchor, calendar: calendar) }
     private var query: String? { q.isEmpty ? nil : q }
     private var baseAssignee: String? {
@@ -360,7 +388,33 @@ struct TaskCalendarView: View {
         .padding(.bottom, 4)
         .contentShape(Rectangle())
         .onTapGesture { toggleSelection(day) }
+        // #739: a tap selects, so New task is a long-press, Return on a focused
+        // day, and a named VoiceOver action; the day section also has a button.
+        .onLongPressGesture { createTask(on: day) }
+        .focusable()
+        .onKeyPress(phases: .down) { press in
+            guard calendarKeyCreates(press.key) else { return .ignored }
+            createTask(on: day)
+            return .handled
+        }
         .accessibilityLabel(cellAccessibilityLabel(day: day, count: tasks.count))
+        .accessibilityAction(named: Text(createTaskLabel(day))) { createTask(on: day) }
+    }
+
+    private func createTask(on day: Date) {
+        guard let due = calendarDayDue(day, calendar: calendar) else { return }
+        onCreateTask(due)
+    }
+
+    private func createTaskLabel(_ day: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "MMMM d"
+        return AppStrings.translate(
+            appLocale, "contactsTasks.calendarCreateOnDay", ["date": formatter.string(from: day)]
+        )
     }
 
     private func dayNumberColor(inMonth: Bool, isSelected: Bool) -> Color {
@@ -421,6 +475,18 @@ struct TaskCalendarView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 18)
             .padding(.top, 14)
+        // #739: the visible way to the long-press, so it is never the only path.
+        Button {
+            createTask(on: day)
+        } label: {
+            Text(createTaskLabel(day))
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 18)
+        .padding(.top, 6)
         if tasks.isEmpty {
             Text(
                 AppStrings.translate(appLocale, "contactsTasks.calendarNothingDueThisDay")
@@ -475,8 +541,11 @@ struct TaskCalendarView: View {
         guard let selectedDay else { return nil }
         let gridStart = calendarGridStart(month, calendar: calendar)
         let gridEnd = calendarGridEnd(month, calendar: calendar)
-        guard selectedDay >= gridStart && selectedDay <= gridEnd else { return nil }
-        return (selectedDay, byDay[calendar.startOfDay(for: selectedDay)] ?? [])
+        // Normalised on the workspace calendar: the initial selection is any
+        // instant today, not the phone's midnight.
+        let day = calendar.startOfDay(for: selectedDay)
+        guard day >= gridStart && day <= gridEnd else { return nil }
+        return (day, byDay[day] ?? [])
     }
 
     private func toggleSelection(_ day: Date) {

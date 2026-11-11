@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
+import { browserTimezone, instantFromZonedWallClock } from "@/lib/format/time";
 import { useTags } from "@/lib/api/tags";
 import { useMembers } from "@/lib/api/team";
 import {
@@ -54,6 +55,10 @@ export interface NewTaskContext {
   conversationId?: string;
   /** Shown as "For {name}". */
   contactName?: string;
+  /** A due value (`yyyy-MM-ddTHH:mm`) to start with, e.g. from a calendar click. */
+  due?: string;
+  /** The IANA zone `due` is read in; the workspace's, not the device's. */
+  timeZone?: string;
 }
 
 /** Ask the one New task dialog (mounted in the app shell) to open. */
@@ -168,10 +173,12 @@ function NewTaskForm({
       }),
     [title, me.data?.user_id, members.data, tags.data],
   );
-  const [moreOpen, setMoreOpen] = useState(false);
+  // A prefilled due opens More so the date it chose is on screen, not hidden.
+  const [moreOpen, setMoreOpen] = useState(context.due !== undefined);
   const [crewOverride, setCrewOverride] = useState<string[] | null>(null);
   const crew = crewOverride ?? (me.data ? [me.data.user_id] : []);
-  const [due, setDue] = useState("");
+  const [due, setDue] = useState(context.due ?? "");
+  const dueZone = context.timeZone;
   const [notes, setNotes] = useState("");
   const [addr, setAddr] = useState(EMPTY_ADDRESS);
   const [priority, setPriority] = useState<TaskPriority>("normal");
@@ -199,7 +206,19 @@ function NewTaskForm({
     }
     // What the line set wins over the form's defaults and over More.
     const finalCrew = parsed.assignee ? [parsed.assignee.userId] : crew;
-    const finalDue = parsed.dueAt ?? (due === "" ? null : new Date(due).toISOString());
+    let finalDue: string | null = parsed.dueAt ?? null;
+    if (finalDue === null && due !== "") {
+      if (dueZone) {
+        const zoned = instantFromZonedWallClock(due, dueZone);
+        if (!zoned.ok) {
+          toast.error(t("tasks.newTaskDueInvalid"));
+          return;
+        }
+        finalDue = zoned.iso;
+      } else {
+        finalDue = new Date(due).toISOString();
+      }
+    }
     const finalPriority = parsed.priority ?? priority;
     const finalLabelIds = [
       ...new Set([...pickedTags.map((tag) => tag.id), ...parsed.labels.map((l) => l.id)]),
@@ -328,6 +347,11 @@ function NewTaskForm({
                 value={due}
                 onChange={(event) => setDue(event.target.value)}
               />
+              {dueZone && dueZone !== browserTimezone() && (
+                <p className="text-[12px] text-muted-foreground">
+                  {t("tasks.newTaskDueZone", { zone: dueZone.replace(/_/g, " ") })}
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="new-task-priority">{t("tasks.priority")}</Label>

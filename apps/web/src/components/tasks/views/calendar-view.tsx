@@ -1,22 +1,19 @@
 "use client";
 
 import {
-  addDays,
   addMonths,
   addWeeks,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
   format,
-  isSameDay,
   isSameMonth,
-  isToday,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { LoadError } from "@/components/ui/load-error";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -27,16 +24,31 @@ import {
   RecordOverflowMenu,
 } from "@/components/ui/record-menu";
 import { useT, type MessageKey } from "@/i18n/provider";
+import { useCompany } from "@/lib/api/companies";
 import { useAllTasks } from "@/lib/api/tasks";
+import {
+  browserTimezone,
+  formatWallDay,
+  formatWallHour,
+} from "@/lib/format/time";
 import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
+import { openNewTask } from "../new-task";
 import { taskThreadId } from "../task-format";
 import { useTaskDrawer } from "../use-task-drawer";
 import { useTaskRowActions } from "../task-actions";
 import { useTaskReschedule } from "../use-task-mutations";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
+import {
+  dayKey,
+  dueCell,
+  droppedDueAt,
+  slotDueValue,
+  todayInZone,
+  windowInstants,
+} from "./calendar-create";
 
 type CalMode = "month" | "week";
 
@@ -68,7 +80,14 @@ const RANGE_KEYS: Record<CalMode, MessageKey> = {
 export function CalendarView({ state }: { state: TaskPageState }) {
   const t = useT();
   const [mode, setMode] = useState<CalMode>("month");
-  const [cursor, setCursor] = useState(() => new Date());
+  const company = useCompany();
+  // Every day, hour and "today" on this grid is the WORKSPACE's clock: a
+  // dispatcher in Vancouver looking at a Toronto crew's week sees Toronto's.
+  const timeZone = company.data?.timezone ?? browserTimezone() ?? "UTC";
+  const today = todayInZone(new Date(), timeZone);
+  const [picked, setPicked] = useState<Date | null>(null);
+  const cursor = picked ?? today;
+  const [activeKey, setActiveKey] = useState<string | null>(null);
 
   // The visible grid always spans whole weeks so the month grid is rectangular.
   const { gridStart, gridEnd, days } = useMemo(() => {
@@ -80,16 +99,18 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     const s = startOfWeek(startOfMonth(cursor));
     const e = endOfWeek(endOfMonth(cursor));
     return { gridStart: s, gridEnd: e, days: eachDayOfInterval({ start: s, end: e }) };
-  }, [mode, cursor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `cursor` is derived from picked and the zone
+  }, [mode, picked, timeZone]);
 
   // Fetch every task due within the visible window (+ the tab/chip scope). The
   // due-range makes this a due-sorted query; a large page covers a month.
+  const range = windowInstants(gridStart, gridEnd, timeZone);
   const filters = {
     ...toTaskFilters(state),
     status: undefined,
     overdue: undefined,
-    due_after: gridStart.toISOString(),
-    due_before: addDays(gridEnd, 1).toISOString(),
+    due_after: range.after,
+    due_before: range.before,
   };
   // Drain every page in the visible window so no dated chip past page 1 is
   // dropped from the month/week grid.
@@ -105,20 +126,68 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     return true;
   });
 
-  const byDay = useMemo(() => {
+  // Month cells are keyed by day, week slots by day and hour, both on the
+  // workspace clock.
+  const byCell = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const task of tasks) {
       if (task.due_at === null) continue;
-      const key = format(new Date(task.due_at), "yyyy-MM-dd");
+      const cell = dueCell(task.due_at, timeZone);
+      const key = mode === "week" ? `${cell.key}T${cell.hour}` : cell.key;
       const list = map.get(key) ?? [];
       list.push(task);
       map.set(key, list);
     }
     return map;
-  }, [tasks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `tasks` is rebuilt each render; its inputs are the deps
+  }, [query.data, state.tab, mode, timeZone]);
 
   const step = (dir: 1 | -1) =>
-    setCursor((c) => (mode === "week" ? addWeeks(c, dir) : addMonths(c, dir)));
+    setPicked(mode === "week" ? addWeeks(cursor, dir) : addMonths(cursor, dir));
+
+  const todayKey = dayKey(today);
+  const cellKeys = useMemo(
+    () =>
+      mode === "week"
+        ? days.flatMap((d) => Array.from({ length: 24 }, (_, h) => `${dayKey(d)}T${h}`))
+        : days.map(dayKey),
+    [mode, days],
+  );
+  // One tab stop for the whole grid (roving): the arrows move within it.
+  const tabStop = cellKeys.includes(activeKey ?? "")
+    ? activeKey
+    : mode === "week"
+      ? (cellKeys.find((k) => k.startsWith(todayKey)) ?? cellKeys[0])
+      : cellKeys.includes(todayKey)
+        ? todayKey
+        : cellKeys[0];
+
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Open the week at the working day, not at midnight.
+    if (mode === "week" && bodyRef.current) bodyRef.current.scrollTop = 7 * 32;
+  }, [mode]);
+
+  const onGridKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (!target.hasAttribute("data-create-cell")) return;
+    const delta: Record<string, number> =
+      mode === "week"
+        ? { ArrowUp: -1, ArrowDown: 1, ArrowLeft: -24, ArrowRight: 24 }
+        : { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+    const move = delta[e.key];
+    if (move === undefined) return;
+    const cells = Array.from(
+      e.currentTarget.querySelectorAll<HTMLElement>("[data-create-cell]"),
+    );
+    const next = cells[cells.indexOf(target) + move];
+    if (!next) return;
+    e.preventDefault();
+    next.focus();
+  };
+
+  const createAt = (day: Date, hour: number | null) =>
+    openNewTask({ due: slotDueValue(day, hour), timeZone });
 
   return (
     <div className="space-y-3">
@@ -154,7 +223,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setCursor(new Date())}
+            onClick={() => setPicked(null)}
             className="ml-1"
           >
             {t("tasks.today")}
@@ -172,33 +241,90 @@ export function CalendarView({ state }: { state: TaskPageState }) {
       </header>
 
       <div className="overflow-x-auto">
-        <div className="min-w-[640px]">
-          <div className="grid grid-cols-7 border-b border-border">
-            {DOW_KEYS.map((key) => (
+        <div className="min-w-[640px]" onKeyDown={onGridKeyDown}>
+          <div
+            className={cn(
+              "grid border-b border-border",
+              mode === "week" ? WEEK_COLUMNS : "grid-cols-7",
+            )}
+          >
+            {mode === "week" && <div aria-hidden />}
+            {days.map((day) => (
               <div
-                key={key}
-                className={cn(SECTION_LABEL_CLASS, "px-2 py-1.5")}
+                key={day.getDay()}
+                className={cn(SECTION_LABEL_CLASS, "flex items-center gap-1.5 px-2 py-1.5")}
               >
-                {t(key)}
+                {t(DOW_KEYS[day.getDay()]!)}
+                {mode === "week" && (
+                  <DayNumber day={day} todayKey={todayKey} inMonth />
+                )}
               </div>
             ))}
           </div>
-          <div
-            className={cn(
-              "grid grid-cols-7",
-              mode === "week" ? "grid-rows-1" : "auto-rows-fr",
-            )}
-          >
-            {days.map((day) => (
-              <DayCell
-                key={day.toISOString()}
-                day={day}
-                inMonth={mode === "week" || isSameMonth(day, cursor)}
-                tasks={byDay.get(format(day, "yyyy-MM-dd")) ?? []}
-                weekMode={mode === "week"}
-              />
-            ))}
-          </div>
+          {mode === "week" ? (
+            <div ref={bodyRef} className="max-h-[36rem] overflow-y-auto">
+              <div
+                className={cn("grid", WEEK_COLUMNS)}
+                style={{ gridTemplateRows: "repeat(24, minmax(2rem, auto))" }}
+              >
+                {Array.from({ length: 24 }, (_, h) => (
+                  <div
+                    key={h}
+                    aria-hidden
+                    style={{ gridColumn: 1, gridRow: h + 1 }}
+                    className="pr-1.5 pt-0.5 text-right text-[10px] tabular-nums text-muted-foreground"
+                  >
+                    {formatWallHour(h, t.locale)}
+                  </div>
+                ))}
+                {days.map((day, col) =>
+                  Array.from({ length: 24 }, (_, h) => {
+                    const key = `${dayKey(day)}T${h}`;
+                    return (
+                      <Cell
+                        key={key}
+                        day={day}
+                        hour={h}
+                        cellKey={key}
+                        timeZone={timeZone}
+                        tabStop={tabStop === key}
+                        onActive={setActiveKey}
+                        onCreate={createAt}
+                        tasks={byCell.get(key) ?? []}
+                        style={{ gridColumn: col + 2, gridRow: h + 1 }}
+                        className="min-h-8"
+                      />
+                    );
+                  }),
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid auto-rows-fr grid-cols-7">
+              {days.map((day) => (
+                <Cell
+                  key={day.toISOString()}
+                  day={day}
+                  hour={null}
+                  cellKey={dayKey(day)}
+                  timeZone={timeZone}
+                  tabStop={tabStop === dayKey(day)}
+                  onActive={setActiveKey}
+                  onCreate={createAt}
+                  tasks={byCell.get(dayKey(day)) ?? []}
+                  className="min-h-[104px]"
+                  header={
+                    <DayNumber
+                      day={day}
+                      todayKey={todayKey}
+                      inMonth={isSameMonth(day, cursor)}
+                    />
+                  }
+                  dim={!isSameMonth(day, cursor)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
       {query.isError && (
@@ -224,18 +350,71 @@ export function CalendarView({ state }: { state: TaskPageState }) {
   );
 }
 
-/** One day cell — a drop target for reschedule + its dated task chips. */
-function DayCell({
+const WEEK_COLUMNS = "grid-cols-[3rem_repeat(7,minmax(0,1fr))]";
+
+function DayNumber({
   day,
+  todayKey,
   inMonth,
-  tasks,
-  weekMode,
 }: {
   day: Date;
+  todayKey: string;
   inMonth: boolean;
-  tasks: Task[];
-  weekMode: boolean;
 }) {
+  return (
+    <span
+      className={cn(
+        "flex size-6 items-center justify-center self-start rounded-full text-[12px] tabular-nums",
+        dayKey(day) === todayKey
+          ? "bg-primary font-semibold text-primary-foreground"
+          : inMonth
+            ? "text-foreground"
+            : "text-muted-foreground",
+      )}
+    >
+      {format(day, "d")}
+    </span>
+  );
+}
+
+/**
+ * One day (month) or one hour of one day (week): a drop target for reschedule,
+ * its dated task chips, and the way to make a task there.
+ *
+ * #739: the empty part of the cell is a real button behind the chips, so a
+ * click or tap on free space opens New task due then, Enter does the same from
+ * the keyboard, and the chips keep their own links. Tasks have no duration, so
+ * there is no drag-to-create; the click is the whole gesture, which is also
+ * what WCAG 2.5.7 asks for. *Applying: Smart Defaults, Prioritize Intent.*
+ */
+function Cell({
+  day,
+  hour,
+  cellKey,
+  timeZone,
+  tabStop,
+  onActive,
+  onCreate,
+  tasks,
+  header,
+  dim,
+  style,
+  className,
+}: {
+  day: Date;
+  hour: number | null;
+  cellKey: string;
+  timeZone: string;
+  tabStop: boolean;
+  onActive: (key: string) => void;
+  onCreate: (day: Date, hour: number | null) => void;
+  tasks: Task[];
+  header?: React.ReactNode;
+  dim?: boolean;
+  style?: React.CSSProperties;
+  className?: string;
+}) {
+  const t = useT();
   const reschedule = useTaskReschedule();
   const [over, setOver] = useState(false);
 
@@ -246,22 +425,27 @@ function DayCell({
     const conversationId = e.dataTransfer.getData("text/task-conversation");
     const dueRaw = e.dataTransfer.getData("text/task-due");
     if (!taskId || !conversationId) return;
-    // Preserve the original time-of-day; only move the calendar date.
-    const prev = dueRaw ? new Date(dueRaw) : new Date();
-    const next = new Date(day);
-    next.setHours(prev.getHours(), prev.getMinutes(), 0, 0);
-    if (isSameDay(prev, next)) return;
-    reschedule.mutate({ taskId, conversationId, due_at: next.toISOString() });
+    // Month: keep the time of day, move the date. Week: the slot names the hour.
+    const next = droppedDueAt(dueRaw || null, day, hour, timeZone);
+    if (next === null) return;
+    reschedule.mutate({ taskId, conversationId, due_at: next });
   };
+
+  const date = formatWallDay(dayKey(day), t.locale);
+  const label =
+    hour === null
+      ? t("tasks.calendarCreateDay", { date })
+      : t("tasks.calendarCreateSlot", { date, time: formatWallHour(hour, t.locale) });
 
   return (
     <div
+      style={style}
       onDragOver={(e) => {
         e.preventDefault();
         setOver(true);
       }}
       onDragLeave={(e) => {
-        // Only clear when the pointer truly exits the day cell (dragleave also
+        // Only clear when the pointer truly exits the cell (dragleave also
         // fires when crossing onto a child chip) — otherwise the highlight flickers.
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
           setOver(false);
@@ -269,28 +453,40 @@ function DayCell({
       }}
       onDrop={onDrop}
       className={cn(
-        "flex flex-col gap-1 border-b border-r border-border-subtle p-1.5",
-        weekMode ? "min-h-[320px]" : "min-h-[104px]",
-        !inMonth && "bg-muted/30",
+        "relative flex flex-col gap-1 border-b border-r border-border-subtle p-1.5",
+        dim && "bg-muted/30",
         over && "bg-primary/5 ring-1 ring-inset ring-primary/40",
+        className,
       )}
     >
-      <span
-        className={cn(
-          "flex size-6 items-center justify-center self-start rounded-full text-[12px] tabular-nums",
-          isToday(day)
-            ? "bg-primary font-semibold text-primary-foreground"
-            : inMonth
-              ? "text-foreground"
-              : "text-muted-foreground",
-        )}
+      <button
+        type="button"
+        data-create-cell
+        aria-label={label}
+        tabIndex={tabStop ? 0 : -1}
+        onFocus={() => onActive(cellKey)}
+        onClick={() => onCreate(day, hour)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          // Handled here so Enter never also fires a second click.
+          e.preventDefault();
+          onCreate(day, hour);
+        }}
+        className="group/create absolute inset-0 flex items-end justify-end p-1 text-muted-foreground outline-none hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        {format(day, "d")}
-      </span>
-      <div className="flex flex-col gap-1">
-        {tasks.map((task) => (
-          <DayChip key={task.id} task={task} />
-        ))}
+        <Plus
+          className="size-3.5 opacity-0 transition-opacity duration-150 group-hover/create:opacity-70 group-focus-visible/create:opacity-70"
+          strokeWidth={1.75}
+          aria-hidden
+        />
+      </button>
+      <div className="pointer-events-none relative flex flex-col gap-1">
+        {header}
+        <div className="pointer-events-auto flex flex-col gap-1">
+          {tasks.map((task) => (
+            <DayChip key={task.id} task={task} />
+          ))}
+        </div>
       </div>
     </div>
   );
