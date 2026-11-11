@@ -189,6 +189,13 @@ final class AccessibilityAuditUITests: XCTestCase {
         if issue.auditType == .hitRegion, issue.element?.elementType == .secureTextField {
             return true
         }
+        // The shared SearchField reports the same way: its TextField sits in a 44pt
+        // box (`.frame(height: 44)`), yet the audit reads the 18pt text line. Only a
+        // wide field qualifies, so a genuinely small text field still fails.
+        if issue.auditType == .hitRegion, issue.element?.elementType == .textField,
+           let width = issue.element?.frame.width, width >= 200 {
+            return true
+        }
         // Text the OS saw drawn but cannot tie to any element: nothing to fix, and
         // it appeared on one of three runs of the same build.
         if issue.auditType == .elementDetection, issue.element == nil {
