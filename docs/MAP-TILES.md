@@ -2,9 +2,9 @@
 
 **Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
 
-**Web production serves OpenStreetMap's standard tiles as a bridge (D160).** The
-values are in `.github/workflows/ship.yml`. Android still draws no basemap, and
-iOS uses MapKit. The rest of this file explains the rule and how to change the
+**Web and Android serve OpenStreetMap's standard tiles as a bridge (D160).** The
+web values are in `.github/workflows/ship.yml`, Android's in
+`apps/android/app/build.gradle.kts`, and iOS uses MapKit. The rest of this file explains the rule and how to change the
 source; the limits of the bridge are in `docs/DECISIONS.md` D160.
 
 ---
@@ -29,11 +29,11 @@ when the feature is being used *most*, because tile requests scale with usage.
 nothing configured the map is worse and honest. Keeping the OSM URL as a fallback
 would have meant the compliant path was the one nobody was on.
 
-`features/tasks/Basemap.kt` still **refuses `tile.openstreetmap.org` even if it
-is configured**. Web's refusal was removed by D160, after reading the policy: it
-does not ban commercial use, it bans prefetching, offline archives and scanning,
-and it promises nothing. Android's can follow once its osmdroid user agent names
-the app (the policy blocks generic ones).
+Both refusals of `tile.openstreetmap.org` were removed by D160, after reading the
+policy: it does not ban commercial use, it bans prefetching, offline archives,
+scanning, plain-http requests and generic user agents, and it promises nothing.
+Android's osmdroid names the app and version in every tile request, draws the
+credit on the map, and `features/tasks/Basemap.kt` refuses a non-https tile URL.
 
 **iOS is unaffected.** `TaskMapView.swift` uses MapKit — Apple's own tiles under the
 platform terms — so it never had this problem and needs no key.

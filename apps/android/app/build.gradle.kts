@@ -122,14 +122,11 @@ android {
             "SUPABASE_PUBLISHABLE_KEY",
             "\"sb_publishable_iHmvcjwNRbHKk70eqIZS6w_c2ZLdbrL\"",
         )
-        // #428: the Map's basemap. EMPTY on purpose. osmdroid's default source is
-        // TileSourceFactory.MAPNIK, which is tile.openstreetmap.org — the OSMF's
-        // donated infrastructure, and their Tile Usage Policy does not license a
-        // paid product to serve it. With these blank the map draws pins on an
-        // empty ground instead of falling back to somebody else's goodwill.
-        // Filling them in is the whole configuration; see docs/MAP-TILES.md.
-        buildConfigField("String", "MAP_TILE_URL", "\"\"")
-        buildConfigField("String", "MAP_TILE_ATTRIBUTION", "\"\"")
+        // The Map's basemap: OpenStreetMap's standard tiles with their credit, the
+        // same bridge the web serves (D160, docs/MAP-TILES.md). osmdroid names the
+        // app in every tile request's user agent, as the tile policy requires.
+        buildConfigField("String", "MAP_TILE_URL", "\"https://tile.openstreetmap.org/{z}/{x}/{y}.png\"")
+        buildConfigField("String", "MAP_TILE_ATTRIBUTION", "\"\\u00A9 OpenStreetMap contributors\"")
         // Production's web app; only the nonprod build replaces these.
         buildConfigField("String", "APP_ORIGIN", "\"https://app.loonext.com\"")
         buildConfigField("String", "APP_HOST", "\"app.loonext.com\"")

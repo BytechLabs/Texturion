@@ -20,10 +20,15 @@ import org.osmdroid.tileprovider.tilesource.XYTileSource
  * simply stops drawing tiles. Markers still plot, nothing throws — the #387 shape,
  * arriving exactly when the feature is being used most.
  *
- * THE RULE: WE FAIL TOWARD NO BASEMAP, NEVER TOWARD SOMEBODY ELSE'S GOODWILL.
- * With no provider configured the map shows pins on an empty ground and the screen
- * says why. Quietly keeping MAPNIK as a fallback would mean the compliant path is
- * the one nobody is on, which is how this got here.
+ * D160 (2026-11-11) SUPERSEDES THE REFUSAL OF `tile.openstreetmap.org`: the tile
+ * policy does not ban commercial use; it forbids bulk downloads, plain-http
+ * requests and an app that does not name itself. The build now configures the
+ * standard tiles with their credit, as the web does, and the user agent is the
+ * package name and version (TaskMap's ensureOsmConfiguration).
+ *
+ * THE RULE: WE FAIL TOWARD NO BASEMAP, NEVER TOWARD A SILENT FALLBACK. With no
+ * provider configured the map shows pins on an empty ground and the screen says
+ * why; it never falls back to MAPNIK on its own.
  */
 object Basemap {
     /**
@@ -37,10 +42,7 @@ object Basemap {
         val url = BuildConfig.MAP_TILE_URL.trim()
         val attribution = BuildConfig.MAP_TILE_ATTRIBUTION.trim()
         if (url.isEmpty() || attribution.isEmpty()) return null
-        // A provider we are NOT licensed to use cannot be configured back in by
-        // accident. The violation has to be impossible to reintroduce quietly,
-        // not merely removed once.
-        if (isUnlicensedTileHost(url)) return null
+        if (!isHttps(url)) return null
 
         return XYTileSource(
             "loonext-basemap",
@@ -56,16 +58,8 @@ object Basemap {
     /** True when the map should render without a basemap layer. */
     fun isConfigured(): Boolean = tileSource() != null
 
-    /**
-     * Hosts we must not serve tiles from, whatever the config says. Not a general
-     * blocklist — the specific mistake #428 documents, made unrepeatable. Mirrors
-     * the web twin's `isUnlicensedTileHost`.
-     */
-    fun isUnlicensedTileHost(url: String): Boolean =
-        Regex(
-            """(^|//)([^/]*\.)?tile\.openstreetmap\.org(/|$)""",
-            RegexOption.IGNORE_CASE,
-        ).containsMatchIn(url)
+    /** Tiles only over https: the OSM policy refuses plain http, and so do we for any provider. */
+    fun isHttps(url: String): Boolean = url.startsWith("https://", ignoreCase = true)
 
     /**
      * What the map tells the crew when there is no basemap. Names the state and who

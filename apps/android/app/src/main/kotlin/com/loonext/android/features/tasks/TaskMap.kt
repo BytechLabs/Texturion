@@ -66,6 +66,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.loonext.android.AppGraph
+import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Task
@@ -96,7 +97,7 @@ import org.osmdroid.views.overlay.Marker
  * Renderer: osmdroid over standard OSM raster tiles, the SAME tile source the
  * web island uses (D25 "Map view technology": no Google/Mapbox, no key). OSM
  * tile-policy compliance lives here: the app identifies itself via
- * `Configuration.userAgentValue = packageName` before the first MapView
+ * `Configuration.userAgentValue` (package name and version) before the first MapView
  * inflates, and a [CopyrightOverlay] draws the attribution on the canvas.
  * The raster look is intentionally the same in both themes (as on the web);
  * a color-filter inversion never looks clean without custom colors, so the
@@ -676,7 +677,7 @@ private fun ensureOsmConfiguration(context: Context) {
         load(app, app.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
         // REQUIRED by the OSM tile policy: identify the app on every tile
         // request. Set after load() so a stale stored value can't win.
-        userAgentValue = app.packageName
+        userAgentValue = "${app.packageName}/${BuildConfig.VERSION_NAME}"
     }
 }
 

@@ -10395,7 +10395,7 @@ probe `messages`.
 
 **Limits.** No guarantee: if OSM blocks us the map falls back to pins, and the tile-health notice says the background is not loading. It is not a basis for heavy growth. The planned replacement is Protomaps PMTiles for North America in a Cloudflare R2 bucket, drawn with protomaps-leaflet. That needs R2 enabled on the existing Cloudflare account and a roughly 10 GB extract uploaded by someone with the dashboard or an R2 token; nothing in the repo stores R2 today. When it lands, only the three `NEXT_PUBLIC_MAP_TILE_*` values and the layer change.
 
-**Not changed.** Android keeps its refusal of this host and draws no basemap: osmdroid needs a user agent naming the app first, and the same decision applies. iOS uses MapKit and has streets.
+**Android, same day.** Android serves the same tiles: osmdroid's user agent is the package name and version, the credit is drawn on the map, and `Basemap.kt` refuses a non-https tile URL in place of the host refusal. iOS uses MapKit and has streets.
 
 ## D161 - a synced calendar event ends with a link back to its task (#751)
 
