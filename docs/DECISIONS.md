@@ -10474,3 +10474,11 @@ probe `messages`.
 | `notification_prefs.batch_window_minutes` | `null` |  | Notifications arrive one by one until the member asks for them grouped. |
 | `notification_prefs.summary_at` | `null` |  | No daily summary until the member asks for one. |
 <!-- setting-defaults:end -->
+
+## D163 - the calendar creates a task from one click or Enter, not a drag (#739)
+
+**Question.** #739 asked for drag-to-create in the week view, with a keyboard alternative.
+
+**Choice.** Not built. A task has a due date and an optional due time, and no duration or end. Dragging across slots asks the person to draw a span that nothing stores or shows, so the drag would either drop its end silently or make a stored end time up. A click or tap on an empty day (month) or an hour slot (week), or Enter on it from the keyboard, opens New task due then. That one gesture covers the whole job and needs no dragging (WCAG 2.5.7).
+
+**Revisit when** a task gains a duration (a job that blocks an afternoon). Then a drag sets due time and length, with the keyboard alternative it was asked with.
