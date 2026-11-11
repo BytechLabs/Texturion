@@ -12,7 +12,7 @@
 # deploy to production, indefinitely, until somebody pushes again. That is far too
 # much consequence for an intermittent bind.
 #
-# WHAT IT DOES NOT DO: pretend to know the cause. The runner is a fresh VM and
+# WHAT IT DID NOT DO, until the cause was found below: pretend to know it. The runner is a fresh VM and
 # nothing in the job binds 54322 before this step, so the honest position is that
 # we do not yet know what held it. Hence the diagnostics BEFORE the first attempt:
 # the next occurrence leaves evidence in the log instead of a bare bind error, and
@@ -118,6 +118,19 @@ verify_image() {
 }
 
 node scripts/pin-postgres-image.mjs
+
+# THE CAUSE, found 2026-11-11. The bind failed again with nothing listening on any
+# of these ports and no container holding them. These ports sit inside Linux's
+# ephemeral range (32768-60999), so an OUTGOING connection, such as one of the
+# image pulls `supabase start` makes, can be given local port 54322 and hold it at
+# the moment Docker binds. Reserving the ports takes them out of that pool.
+if sudo -n true 2>/dev/null; then
+  RESERVED=$(echo "$PORTS" | tr ' ' ',')
+  sudo sysctl -w "net.ipv4.ip_local_reserved_ports=$RESERVED" >/dev/null || echo "(sysctl refused: ports NOT reserved)"
+  echo "Reserved from the ephemeral range: $(sysctl -n net.ipv4.ip_local_reserved_ports)"
+else
+  echo "(no sudo on this runner: ports NOT reserved from the ephemeral range)"
+fi
 
 echo "Starting local Supabase stack"
 report_holders "before"
