@@ -128,6 +128,8 @@ import com.loonext.android.core.model.TaskDetail
 import com.loonext.android.core.model.addressProvenanceLabel
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.features.activity.ActivityRecordType
+import com.loonext.android.features.activity.ActivityTimeline
 import com.loonext.android.features.contacts.MultipartClient
 import com.loonext.android.features.contacts.uploadNoteFile
 import com.loonext.android.ui.common.AiOrb
@@ -1264,13 +1266,26 @@ private fun TaskDetailBody(
                 item(key = "activity-label") {
                     Column(Modifier.padding(horizontal = 18.dp).padding(top = 16.dp)) {
                         SectionHeader(t("contactsTasks.activity"))
+                        // #714: the job's history, the one timeline every record
+                        // shows. The comments and notes below are the discussion
+                        // the #689 feed still holds that the timeline does not.
+                        ActivityTimeline(
+                            graph = graph,
+                            companyId = companyId,
+                            recordType = ActivityRecordType.TASK,
+                            recordId = detail.id,
+                            onOpenConversation = onOpenConversation,
+                            onOpenTask = onOpenTask,
+                            onOpenContact = onOpenContact,
+                            reloadKey = feedReload + detail.updated_at.hashCode(),
+                        )
                         if (feedFailed && feed.isEmpty()) {
                             Text(
                                 t("contactsTasks.activityLoadFailed"),
                                 fontSize = 12.5.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                        } else if (feedLoaded && feed.isEmpty()) {
+                        } else if (feedLoaded && feed.none { it.kind == "note" || it.kind == "comment" }) {
                             Text(
                                 t(
                                     if (asComment) {
@@ -1338,43 +1353,8 @@ private fun TaskDetailBody(
                             modifier = Modifier.animateItem(),
                         )
 
-                        else -> Row(
-                            Modifier
-                                .animateItem()
-                                .padding(horizontal = 24.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(9.dp),
-                        ) {
-                            Box(
-                                Modifier
-                                    .size(6.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.outline,
-                                        CircleShape,
-                                    ),
-                            )
-                            Text(
-                                t(
-                                    "contactsTasks.activityLine",
-                                    "sentence" to if (item.kind == "reference") {
-                                        taskReferenceSentence(
-                                            item,
-                                            by = who ?: "Loonext",
-                                            locale = locale,
-                                        )
-                                    } else {
-                                        taskHistorySentence(
-                                            item,
-                                            by = who ?: "Loonext",
-                                            locale = locale,
-                                        )
-                                    },
-                                    "when" to relativeTime(item.created_at),
-                                ),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        // #714: a change or a reference is the timeline's now.
+                        else -> Unit
                     }
                 }
 

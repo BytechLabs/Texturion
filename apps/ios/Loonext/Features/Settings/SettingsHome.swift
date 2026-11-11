@@ -643,6 +643,12 @@ struct SettingsHome: View {
     }
 }
 
+/// #731: a settings row's title, which a group heading (10.5pt, upper case)
+/// must stay clearly smaller than.
+enum SettingsRowStyle {
+    static let titleSize: CGFloat = 13.5
+}
+
 /// Spec-28 index row: inset icon tile, 13.5 semibold title, 11 muted blurb.
 /// Standalone so the responsive index preview can render the real section
 /// grammar without the (heavily-defaulted) `CompanyView` the live screen loads.
@@ -666,7 +672,7 @@ private struct SettingsSectionRow: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(AppStrings.translate(appLocale, section.titleKey))
-                    .font(.golos(13.5, weight: .semibold))
+                    .font(.golos(SettingsRowStyle.titleSize, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                 Text(AppStrings.translate(appLocale, section.blurbKey))
                     .font(.golos(11))

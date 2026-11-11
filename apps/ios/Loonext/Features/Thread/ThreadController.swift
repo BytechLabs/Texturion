@@ -1928,7 +1928,9 @@ extension Message {
             has_task: has_task,
             promoted_task: promoted_task,
             task_id: task_id,
-            task: task
+            task: task,
+            automated: automated,
+            automation: automation
         )
     }
 }
@@ -2001,7 +2003,9 @@ extension Message {
             has_task: true,
             promoted_task: link,
             task_id: task_id,
-            task: task
+            task: task,
+            automated: automated,
+            automation: automation
         )
     }
 }

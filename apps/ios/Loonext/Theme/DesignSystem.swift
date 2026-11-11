@@ -172,6 +172,18 @@ struct PaperCard<Content: View>: View {
     }
 }
 
+/// #731: what a group heading is, so it never reads as one of the rows under it.
+/// Small, bold, upper case, tracked and muted, against a row's 13.5pt semibold
+/// title in ink (web: `GROUP_HEADING_CLASS` against `NAV_LINK_CLASS`).
+/// `SectionHeadingStyleTests` pins the difference.
+enum SectionHeadingStyle {
+    static let size: CGFloat = 10.5
+    static let kerning: CGFloat = 1.2
+    static var weight: Font.Weight { .bold }
+
+    static func text(_ label: String) -> String { label.uppercased() }
+}
+
 /// Tracked uppercase micro-label + olive tabular count.
 struct SectionHeader: View {
     let label: String
@@ -179,9 +191,9 @@ struct SectionHeader: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(label.uppercased())
-                .font(.golos(10.5, weight: .bold))
-                .kerning(1.2)
+            Text(SectionHeadingStyle.text(label))
+                .font(.golos(SectionHeadingStyle.size, weight: SectionHeadingStyle.weight))
+                .kerning(SectionHeadingStyle.kerning)
                 .foregroundStyle(BrandColor.muted500)
             if let count, count > 0 {
                 Text("\(count)")

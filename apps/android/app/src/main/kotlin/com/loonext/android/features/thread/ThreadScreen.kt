@@ -944,8 +944,11 @@ private fun ThreadLoaded(
                                             message.sent_by_user_id?.let { names[it] }
                                                 ?: t("thread.internalNote")
 
+                                        // #725: an automated text names its
+                                        // automation, never the owner it was
+                                        // sent in the name of.
                                         MessageDirection.OUTBOUND ->
-                                            message.sent_by_user_id?.let { names[it] }
+                                            messageSenderLabel(message, names, locale)
 
                                         else -> null
                                     },
@@ -1543,6 +1546,8 @@ private fun ThreadLoaded(
 
     if (contactPanelOpen) {
         ContactPanelSheet(
+            graph = graph,
+            companyId = companyId,
             controller = controller,
             references = references,
             members = controller.members,

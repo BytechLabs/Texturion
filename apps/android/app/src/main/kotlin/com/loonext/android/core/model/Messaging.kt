@@ -244,6 +244,10 @@ data class Message(
     val promoted_task: MessageTaskLink? = null,
     val task_id: String? = null,
     val task: MessageTaskLink? = null,
+    /** #725: a machine wrote this text, not the teammate in [sent_by_user_id]. */
+    val automated: Boolean = false,
+    /** #725: which automation, one of `MESSAGE_AUTOMATIONS`; null on a text sent before it was recorded. */
+    val automation: String? = null,
 ) {
     /**
      * The one retry affordance rule: API-level failure only (no carrier id),

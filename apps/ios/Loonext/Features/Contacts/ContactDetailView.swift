@@ -339,6 +339,28 @@ struct ContactDetailView: View {
         }
     }
 
+    /// #714: ONE activity timeline (texts, calls, edits, tags, merges, opt-outs,
+    /// assignments, references), the same one a job, a thread and a call show.
+    /// It replaces the #324 History section.
+    private func activitySection(_ contact: Contact) -> some View {
+        ContactSection(title: AppStrings.translate(appLocale, "activity.heading")) {
+            ActivityTimelineView(
+                graph: graph,
+                companyId: companyId,
+                recordType: .contact,
+                recordId: contact.id,
+                onOpenConversation: activityOpenConversation,
+                onOpenTask: { AppRouter.shared.openTaskId = $0 }
+            )
+        }
+    }
+
+    /// The timeline hands back the message too; a customer's screen only opens the thread.
+    private var activityOpenConversation: (@MainActor (String, String?) -> Void)? {
+        guard let go = onOpenConversation else { return nil }
+        return { conversationId, _ in go(conversationId) }
+    }
+
     // fileprivate (not private) so the #Preview below can render the ready
     // state with inline mock data — the loaded view is otherwise unreachable
     // without a live API.
@@ -386,17 +408,8 @@ struct ContactDetailView: View {
                         onOpenTask: { AppRouter.shared.openTaskId = $0 }
                     )
                 }
-                // #324: ONE chronology of texts, calls and jobs. D7 threads by
-                // recency, so a long relationship is many conversations; this
-                // is the overview and Calls below stays the detail view where a
-                // voicemail plays in place.
-                ContactTimelineSection(
-                    graph: graph,
-                    mutations: mutations,
-                    companyId: companyId,
-                    contactId: contact.id,
-                    onOpenConversation: onOpenConversation
-                )
+                activitySection(contact)
+                // Calls stays the place a voicemail plays in place.
                 ContactCallsSection(
                     graph: graph,
                     companyId: companyId,

@@ -1352,11 +1352,24 @@ struct TaskDetailView: View {
     private func activitySection(_ detail: TaskDetail) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel(AppStrings.translate(appLocale, "contactsTasks.activity"))
+            // #714: the job's history, the one timeline every record shows. The
+            // comments and notes below are the discussion the #689 feed still
+            // holds that the timeline does not.
+            ActivityTimelineView(
+                graph: graph,
+                companyId: companyId,
+                recordType: .task,
+                recordId: detail.id,
+                onOpenConversation: onOpenConversation,
+                onOpenTask: { AppRouter.shared.openTaskId = $0 },
+                onOpenContact: { AppRouter.shared.openContactId = $0 },
+                reloadKey: refreshKey
+            )
             if feedFailed && feed.isEmpty {
                 Text(AppStrings.translate(appLocale, "contactsTasks.activityLoadFailed"))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted500)
-            } else if feedLoaded && feed.isEmpty {
+            } else if feedLoaded && !feed.contains(where: { $0.kind == "note" || $0.kind == "comment" }) {
                 Text(
                     AppStrings.translate(
                         appLocale,
@@ -1381,8 +1394,6 @@ struct TaskDetailView: View {
                         body: item.body ?? "",
                         createdAt: item.created_at
                     )
-                } else if item.kind == "reference" {
-                    referenceLine(item)
                 } else if item.kind == "comment" {
                     CommentCard(
                         item: item,
@@ -1399,56 +1410,10 @@ struct TaskDetailView: View {
                         onChanged: { refreshKey += 1 },
                         onError: { actionError = $0 }
                     )
-                } else {
-                    let by = item.actor == nil ? "Loonext" : feedName(item.actor)
-                    let sentence = item.event == "link_added" || item.event == "link_removed"
-                        ? taskLinkSentence(item, by: by, locale: appLocale)
-                        : taskHistorySentence(item, by: by, locale: appLocale)
-                    // Spec 23: a muted dot bullet + quiet sentence per event.
-                    HStack(alignment: .firstTextBaseline, spacing: 9) {
-                        Circle()
-                            .fill(BrandColor.muted250)
-                            .frame(width: 6, height: 6)
-                        Text(
-                            AppStrings.translate(
-                                appLocale,
-                                "contactsTasks.activityLine",
-                                [
-                                    "sentence": sentence,
-                                    "when": relativeTime(item.created_at),
-                                ]
-                            )
-                        )
-                            .font(.golos(12))
-                            .foregroundStyle(BrandColor.muted600)
-                    }
-                    .padding(.leading, 4)
                 }
+                // #714: a change or a reference is the timeline's now.
             }
         }
-    }
-
-    /// #690: a note, task description or comment elsewhere that points at this
-    /// task, or something this task points at. Quiet, like a history line.
-    private func referenceLine(_ item: TaskFeedItem) -> some View {
-        let sentence = taskReferenceSentence(item, by: feedName(item.author), locale: appLocale)
-        return HStack(alignment: .firstTextBaseline, spacing: 9) {
-            Image(systemName: "link")
-                .font(.scaled(9, weight: .semibold))
-                .foregroundStyle(BrandColor.muted500)
-                .frame(width: 6)
-                .accessibilityHidden(true)
-            Text(
-                AppStrings.translate(
-                    appLocale,
-                    "contactsTasks.activityLine",
-                    ["sentence": sentence, "when": relativeTime(item.created_at)]
-                )
-            )
-            .font(.golos(12))
-            .foregroundStyle(BrandColor.muted600)
-        }
-        .padding(.leading, 4)
     }
 
     private func feedName(_ person: TaskProfile?) -> String {

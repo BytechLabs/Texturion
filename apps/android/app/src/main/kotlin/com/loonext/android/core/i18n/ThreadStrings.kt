@@ -231,6 +231,16 @@ object ThreadStrings : AppStrings.Section {
 
         // --- Message bubbles + long-press actions ---------------------------------
         "thread.internalNote" to "Internal note",
+        // #725: what stands where a teammate's name would on an automated text.
+        "thread.sentAutomatically" to "Sent automatically",
+        "thread.sentAutomaticallyBy" to "Sent automatically · {automation}",
+        "thread.automationAwayReply" to "Away reply",
+        "thread.automationHelpReply" to "Help reply",
+        "thread.automationOffRamp" to "Moved-number reply",
+        "thread.automationEmergencyAck" to "Urgent reply",
+        "thread.automationMissedCallText" to "Missed-call text",
+        "thread.automationJobRating" to "Rating request",
+        "thread.automationReminder" to "Task reminder",
         "thread.noteOnTask" to "on: {title}",
         "thread.openTask" to "Open task",
         "thread.hasTask" to "Has a task",
@@ -980,6 +990,15 @@ object ThreadStrings : AppStrings.Section {
 
         // --- Message bubbles + long-press actions ---------------------------------
         "thread.internalNote" to "Note interne",
+        "thread.sentAutomatically" to "Envoyé automatiquement",
+        "thread.sentAutomaticallyBy" to "Envoyé automatiquement · {automation}",
+        "thread.automationAwayReply" to "Réponse d’absence",
+        "thread.automationHelpReply" to "Réponse d’aide",
+        "thread.automationOffRamp" to "Réponse de numéro changé",
+        "thread.automationEmergencyAck" to "Réponse urgente",
+        "thread.automationMissedCallText" to "Texto d’appel manqué",
+        "thread.automationJobRating" to "Demande d’évaluation",
+        "thread.automationReminder" to "Rappel de tâche",
         "thread.noteOnTask" to "sur : {title}",
         "thread.openTask" to "Ouvrir la tâche",
         "thread.hasTask" to "A une tâche",

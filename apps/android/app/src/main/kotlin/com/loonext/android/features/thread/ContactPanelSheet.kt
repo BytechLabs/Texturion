@@ -8,7 +8,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.loonext.android.AppGraph
 import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.features.activity.ActivityRecordType
+import com.loonext.android.features.activity.ActivityTimeline
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.LeadSource
@@ -87,6 +90,8 @@ import com.loonext.android.ui.common.relativeTime
  */
 @Composable
 internal fun ContactPanelSheet(
+    graph: AppGraph,
+    companyId: String,
     controller: ThreadController,
     members: List<Member>,
     onOpenConversation: ((conversationId: String) -> Unit)?,
@@ -303,6 +308,20 @@ internal fun ContactPanelSheet(
                 OtherConversations(
                     state = controller.otherConversations,
                     onOpen = onOpenConversation,
+                )
+            }
+
+            // #714: this thread's own activity: texts, calls, assignments, tags,
+            // status, opt-outs and scheduled texts. Fetched only while the sheet is open.
+            RecordSection(t("activity.heading")) {
+                ActivityTimeline(
+                    graph = graph,
+                    companyId = companyId,
+                    recordType = ActivityRecordType.CONVERSATION,
+                    recordId = detail.id,
+                    onOpenConversation = onOpenConversation?.let { go -> { id, _ -> go(id) } },
+                    onOpenTask = onOpenTask,
+                    onOpenContact = onOpenContact,
                 )
             }
 

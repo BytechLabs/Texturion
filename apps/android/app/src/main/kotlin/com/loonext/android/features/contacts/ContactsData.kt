@@ -221,29 +221,6 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
     )
 
     /**
-     * #324 — one chronology of everything done for this customer.
-     *
-     * D7 threads by recency, so a customer returning after 31 days starts a new
-     * conversation: a homeowner serviced once a year for six years is six
-     * threads. Paginated with the shared opaque cursor (SPEC §7/D10), which
-     * carries the FULL `(occurred_at, id)` sort key — a timestamp alone skips
-     * the second of any two entries sharing an instant.
-     */
-    internal suspend fun timeline(
-        companyId: String,
-        contactId: String,
-        cursor: String? = null,
-        limit: Int = 50,
-    ): ContactTimelinePage = api.get(
-        "/v1/contacts/$contactId/timeline",
-        query = mapOf(
-            "cursor" to cursor,
-            "limit" to limit.toString(),
-        ),
-        companyId = companyId,
-    )
-
-    /**
      * Mint a fresh signed voicemail playback URL — on demand, per view, NEVER
      * cached (SPEC: signed attachment URLs are always fetched on view). Same
      * data path as the call log's player (features/calls/CallsData.kt).

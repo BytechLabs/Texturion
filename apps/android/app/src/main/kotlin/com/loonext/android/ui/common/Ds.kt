@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -50,6 +51,20 @@ fun PaperCard(
     ) { Column(content = content) }
 }
 
+/**
+ * #731: what a group heading is, so it never reads as one of the rows under it.
+ * Small, bold, upper case, tracked and muted, against a row's 13.5sp title in
+ * the ink colour (web: `GROUP_HEADING_CLASS` against `NAV_LINK_CLASS`).
+ * `SectionHeadingStyleTest` pins the difference.
+ */
+object SectionHeadingStyle {
+    val fontSize: TextUnit = 10.5.sp
+    val weight: FontWeight = FontWeight.Bold
+    val tracking: TextUnit = 0.12.em
+
+    fun text(label: String): String = label.uppercase()
+}
+
 @Composable
 fun SectionHeader(
     label: String,
@@ -63,11 +78,11 @@ fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            label.uppercase(),
+            SectionHeadingStyle.text(label),
             style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.12.em,
+                fontSize = SectionHeadingStyle.fontSize,
+                fontWeight = SectionHeadingStyle.weight,
+                letterSpacing = SectionHeadingStyle.tracking,
             ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

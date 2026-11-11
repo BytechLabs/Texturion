@@ -1051,10 +1051,7 @@ private fun ContactDetailBody(
         // day-grouped, cache-first, voicemail playable inline, tap-through to
         // the conversation. Call back reuses the same mic-preflight + softphone
         // path as the header pill.
-        // #324: ONE chronology of texts, calls and jobs. D7 threads by recency,
-        // so a long relationship is many conversations; this is the overview
-        // and the Calls section below stays as the detail view (voicemail
-        // plays in place there).
+        // The Calls section below stays as the place a voicemail plays in place.
         if (onOpenTask != null) {
             Column {
                 SectionHeader(t("taskLinks.linkedTasks"))
@@ -1067,14 +1064,19 @@ private fun ContactDetailBody(
             }
         }
 
-        ContactTimelineSection(
-            graph = graph,
-            mutations = mutations,
-            companyId = companyId,
-            contactId = contact.id,
-            onOpenConversation = onOpenConversation,
-            onOpenTask = onOpenTask,
-        )
+        // #714: ONE activity timeline (texts, calls, edits, tags, merges,
+        // opt-outs, assignments, references), the same one a job, a thread and
+        // a call show. It replaces the #324 History section.
+        ContactSection(t("activity.heading")) {
+            com.loonext.android.features.activity.ActivityTimeline(
+                graph = graph,
+                companyId = companyId,
+                recordType = com.loonext.android.features.activity.ActivityRecordType.CONTACT,
+                recordId = contact.id,
+                onOpenConversation = onOpenConversation?.let { go -> { id, _ -> go(id) } },
+                onOpenTask = onOpenTask,
+            )
+        }
 
         ContactCallsSection(
             graph = graph,

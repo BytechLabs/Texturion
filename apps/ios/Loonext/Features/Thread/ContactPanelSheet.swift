@@ -11,6 +11,8 @@ import SwiftUI
 /// folded into Preferences (#717).
 @MainActor
 struct ContactPanelSheet: View {
+    let graph: AppGraph
+    let companyId: String
     let controller: ThreadController
     let members: [Member]
     /// Navigation into ANOTHER thread; rows stay un-tappable until it's wired
@@ -47,6 +49,12 @@ struct ContactPanelSheet: View {
         }
         .presentationDetents([.medium, .large])
         .task { controller.loadContactPanel() }
+    }
+
+    /// The timeline hands back the message too; this sheet only opens the thread.
+    private var activityOpenConversation: (@MainActor (String, String?) -> Void)? {
+        guard let go = onOpenConversation else { return nil }
+        return { conversationId, _ in go(conversationId) }
     }
 
     private func memberName(_ userId: String?) -> String? {
@@ -241,6 +249,21 @@ struct ContactPanelSheet: View {
                     OtherConversationsSection(
                         state: controller.otherConversations,
                         onOpen: onOpenConversation
+                    )
+                }
+
+                // #714: this thread's own activity: texts, calls, assignments,
+                // tags, status, opt-outs and scheduled texts. Read only while
+                // the sheet is open.
+                RecordSection(label: AppStrings.translate(appLocale, "activity.heading")) {
+                    ActivityTimelineView(
+                        graph: graph,
+                        companyId: companyId,
+                        recordType: .conversation,
+                        recordId: detail.id,
+                        onOpenConversation: activityOpenConversation,
+                        onOpenTask: onOpenTask,
+                        onOpenContact: onOpenContact
                     )
                 }
 

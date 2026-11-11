@@ -601,6 +601,8 @@ private struct ThreadBody: View {
                     )
                 case .contactPanel:
                     ContactPanelSheet(
+                        graph: graph,
+                        companyId: companyId,
                         controller: controller,
                         members: controller.members,
                         onOpenConversation: { conversationId in
@@ -1010,6 +1012,19 @@ private struct ThreadBody: View {
         return message.id == flashMessageId
     }
 
+    /// The name under a bubble. #101: a teammate's, so a shared inbox shows who
+    /// already answered; #725: an automated text names its automation instead.
+    private func bubbleAuthorName(_ message: Message, names: [String: String]) -> String? {
+        if message.direction == MessageDirection.note {
+            return message.sent_by_user_id.flatMap { names[$0] }
+                ?? AppStrings.translate(appLocale, "thread.internalNote")
+        }
+        if message.direction == MessageDirection.outbound {
+            return messageSenderLabel(message, names: names, locale: appLocale)
+        }
+        return nil
+    }
+
     @ViewBuilder
     private func itemView(
         _ item: TimelineItem,
@@ -1023,12 +1038,7 @@ private struct ThreadBody: View {
                 // #101 shared-inbox attribution: in a shared inbox the first
                 // question about an outbound text is who already answered this
                 // customer, so sends carry the teammate's name like the web.
-                authorName: message.direction == MessageDirection.note
-                    ? (message.sent_by_user_id.flatMap { names[$0] }
-                        ?? AppStrings.translate(appLocale, "thread.internalNote"))
-                    : (message.direction == MessageDirection.outbound
-                        ? message.sent_by_user_id.flatMap { names[$0] }
-                        : nil),
+                authorName: bubbleAuthorName(message, names: names),
                 doneByName: message.done_by_user_id.flatMap { names[$0] },
                 noteFilesState: message.direction == MessageDirection.note
                     ? controller.noteFiles[message.id]

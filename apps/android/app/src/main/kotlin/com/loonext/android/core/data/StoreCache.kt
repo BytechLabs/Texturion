@@ -44,8 +44,6 @@ object CacheKeys {
     fun contacts(companyId: String, query: String = "") = "contacts/$companyId/q=$query"
     fun contact(companyId: String, contactId: String) = "contact/$companyId/$contactId"
     fun contactCalls(companyId: String, contactId: String) = "contactCalls/$companyId/$contactId"
-    /** #324: the merged conversations + calls + jobs history for one customer. */
-    fun contactTimeline(companyId: String, contactId: String) = "contactTimeline/$companyId/$contactId"
     fun calls(companyId: String, filterKey: String = "default") = "calls/$companyId/$filterKey"
 
     /** #734: one call's own page, by carrier session id. */

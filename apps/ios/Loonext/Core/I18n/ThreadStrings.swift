@@ -238,6 +238,16 @@ enum ThreadStrings {
 
             // --- Message bubbles + long-press actions ---------------------------
             "thread.internalNote": "Internal note",
+            // #725: what stands where a teammate's name would on an automated text.
+            "thread.sentAutomatically": "Sent automatically",
+            "thread.sentAutomaticallyBy": "Sent automatically · {automation}",
+            "thread.automationAwayReply": "Away reply",
+            "thread.automationHelpReply": "Help reply",
+            "thread.automationOffRamp": "Moved-number reply",
+            "thread.automationEmergencyAck": "Urgent reply",
+            "thread.automationMissedCallText": "Missed-call text",
+            "thread.automationJobRating": "Rating request",
+            "thread.automationReminder": "Task reminder",
             "thread.noteOnTask": "on: {title}",
             "thread.openTask": "Open task",
             "thread.openTaskNamed": "Open task {title}",
@@ -977,6 +987,15 @@ enum ThreadStrings {
 
             // --- Message bubbles + long-press actions ---------------------------
             "thread.internalNote": "Note interne",
+            "thread.sentAutomatically": "Envoyé automatiquement",
+            "thread.sentAutomaticallyBy": "Envoyé automatiquement · {automation}",
+            "thread.automationAwayReply": "Réponse d’absence",
+            "thread.automationHelpReply": "Réponse d’aide",
+            "thread.automationOffRamp": "Réponse de numéro changé",
+            "thread.automationEmergencyAck": "Réponse urgente",
+            "thread.automationMissedCallText": "Texto d’appel manqué",
+            "thread.automationJobRating": "Demande d’évaluation",
+            "thread.automationReminder": "Rappel de tâche",
             "thread.noteOnTask": "sur : {title}",
             "thread.openTask": "Ouvrir la tâche",
             "thread.openTaskNamed": "Ouvrir la tâche {title}",

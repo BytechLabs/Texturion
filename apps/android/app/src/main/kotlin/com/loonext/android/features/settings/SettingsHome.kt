@@ -960,6 +960,9 @@ private fun resetsIn(periodEnd: String?): String? {
     }
 }
 
+/** #731: a row's title, which a group heading (10.5sp, upper case) must stay clearly smaller than. */
+internal val SETTINGS_ROW_TITLE_SIZE = 13.5.sp
+
 @Composable
 private fun SettingsIndexRow(
     section: SettingsSection,
@@ -991,7 +994,7 @@ private fun SettingsIndexRow(
         Column(Modifier.weight(1f)) {
             Text(
                 t(section.titleKey),
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = SETTINGS_ROW_TITLE_SIZE),
             )
             Text(
                 t(section.blurbKey),

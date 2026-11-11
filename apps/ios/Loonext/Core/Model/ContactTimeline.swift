@@ -9,8 +9,9 @@ import Foundation
 /// prior-conversations list (G6) and the per-contact call history (#205) both
 /// existed as separate blocks, with jobs nowhere.
 ///
-/// Hand-port of the Kotlin `ContactTimelineLogic.kt`; the display strings are
-/// deliberately identical rather than re-voiced.
+/// #714: the contact screen no longer shows this history; it reads the one
+/// activity timeline every record shares (`Features/Activity`). The model, its
+/// sentences and `timelineOpen` stay because other tests build on them.
 struct TimelineEntry: Decodable, Identifiable, Equatable, Sendable {
     let kind: String
     let id: String
@@ -282,4 +283,17 @@ func appendTimelinePage(
         entries: current.entries + page.entries.filter { !seen.contains($0.dedupeKey) },
         nextCursor: page.next_cursor
     )
+}
+
+/// Where tapping a timeline row goes (#718): a job opens the job, anything else
+/// its thread.
+enum TimelineOpen: Equatable {
+    case task(taskId: String)
+    case thread(conversationId: String)
+}
+
+func timelineOpen(_ entry: TimelineEntry) -> TimelineOpen? {
+    if entry.kind == "task" { return .task(taskId: entry.id) }
+    guard let conversationId = entry.conversation_id else { return nil }
+    return .thread(conversationId: conversationId)
 }

@@ -62,6 +62,7 @@ struct CallDetailView: View {
                 onward(call)
                 wordsCard(call)
                 factsCard(call)
+                activitySection(call)
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 32)
@@ -186,6 +187,22 @@ struct CallDetailView: View {
             rows.append(Fact(label: t("shell.howItEnded"), value: ended))
         }
         return rows
+    }
+
+    /// #714: the same activity timeline a customer, a job and a thread show,
+    /// which for a call is its steps from ringing to hang-up (#725).
+    private func activitySection(_ call: Call) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(label: t("activity.heading"))
+            ActivityTimelineView(
+                graph: graph,
+                companyId: companyId,
+                recordType: .call,
+                recordId: call.id,
+                onOpenConversation: { conversationId, _ in onOpenConversation(conversationId) },
+                onOpenContact: onOpenContact
+            )
+        }
     }
 
     private func factsCard(_ call: Call) -> some View {

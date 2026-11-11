@@ -221,6 +221,14 @@ struct Message: Codable, Sendable {
     let promoted_task: MessageTaskLink?
     let task_id: String?
     let task: MessageTaskLink?
+    /// #725: a machine wrote this text, not the teammate in `sent_by_user_id`.
+    ///
+    /// Declared LAST, with defaults, so the memberwise init every test calls
+    /// keeps compiling and an older payload without the key still decodes.
+    @Default<DefaultFalse> var automated: Bool = false
+    /// #725: which automation (one of `messageAutomations`); nil on a text sent
+    /// before it was recorded.
+    var automation: String? = nil
 
     /// The one retry affordance rule: API-level failure only (no carrier id),
     /// and never a carrier opt-out block.

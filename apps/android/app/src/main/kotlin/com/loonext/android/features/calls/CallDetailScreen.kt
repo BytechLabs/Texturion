@@ -32,6 +32,9 @@ import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
+import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.features.activity.ActivityRecordType
+import com.loonext.android.features.activity.ActivityTimeline
 import com.loonext.android.ui.common.Timestamp
 import com.loonext.android.ui.common.VoicemailTranscript
 import com.loonext.android.ui.common.formatPhone
@@ -68,6 +71,7 @@ fun CallDetailScreen(
         is LoadState.Loading -> CenteredLoading()
         is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ })
         is LoadState.Ready -> CallDetailBody(
+            graph = graph,
             call = current.value,
             repo = repo,
             companyId = companyId,
@@ -80,6 +84,7 @@ fun CallDetailScreen(
 
 @Composable
 private fun CallDetailBody(
+    graph: AppGraph,
     call: Call,
     repo: CallsRepository,
     companyId: String,
@@ -235,6 +240,21 @@ private fun CallDetailBody(
                         value()
                     }
                 }
+            }
+        }
+        // #714: the same activity timeline a customer, a job and a thread show,
+        // which for a call is its steps from ringing to hang-up (#725).
+        item {
+            Column {
+                SectionHeader(t("activity.heading"))
+                ActivityTimeline(
+                    graph = graph,
+                    companyId = companyId,
+                    recordType = ActivityRecordType.CALL,
+                    recordId = call.id,
+                    onOpenConversation = { id, _ -> onOpenConversation(id) },
+                    onOpenContact = onOpenContact,
+                )
             }
         }
     }

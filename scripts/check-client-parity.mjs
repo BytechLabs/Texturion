@@ -69,6 +69,7 @@ const ROOTS = {
  */
 const SURFACES = [
   // ---- shared capabilities: all three, no excuses ------------------------
+  { key: "activity", web: "activity", android: "activity", ios: "Activity" },
   { key: "auth", web: "auth", android: "auth", ios: "Auth" },
   { key: "calls", web: "calls", android: "calls", ios: "Calls" },
   { key: "contacts", web: "contacts", android: "contacts", ios: "Contacts" },
