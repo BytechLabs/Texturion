@@ -169,7 +169,12 @@ fun ListViewsMenu(views: ListViews) {
     var open by remember { mutableStateOf(false) }
     var managing by remember { mutableStateOf(false) }
     val active = views.entries.firstOrNull { it.id == views.activeId }
-    val name = t("inbox.viewsMenuAria", "current" to (active?.name ?: t("inbox.viewsMenu")))
+    // With no saved view on, "Views: Views" said the same word twice.
+    val name = if (active != null) {
+        t("inbox.viewsMenuAria", "current" to active.name)
+    } else {
+        t("inbox.viewsMenu")
+    }
     Box {
         Surface(
             onClick = {

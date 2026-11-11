@@ -30,6 +30,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -37,6 +39,7 @@ import com.loonext.android.core.data.MeRepository
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.features.thread.MessagingRepository
+import com.loonext.android.ui.common.asButton
 import com.loonext.android.ui.common.rememberHaptics
 import kotlinx.coroutines.CancellationException
 
@@ -167,11 +170,6 @@ fun GettingStartedCard(
     // Read out here rather than inside `semantics { }`: that lambda is not
     // composition, so the catalogue cannot be reached from inside it.
     val dismissLabel = t("inbox.startedDismissAria", "title" to title.lowercase())
-    val progressAria = t(
-        "inbox.startedProgressAria",
-        "done" to doneCount.toString(),
-        "total" to steps.size.toString(),
-    )
     val stepDone = t("inbox.startedStepDone")
     val stepNotDone = t("inbox.startedStepNotDone")
 
@@ -179,7 +177,11 @@ fun GettingStartedCard(
         Column(Modifier.padding(14.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.semantics { heading() },
+                    )
                     Text(
                         t(
                             "inbox.startedProgress",
@@ -194,6 +196,7 @@ fun GettingStartedCard(
                     color = Color.Transparent,
                     modifier = Modifier
                         .size(32.dp)
+                        .asButton()
                         .semantics { contentDescription = dismissLabel },
                     onClick = {
                         haptics.tap()
@@ -220,7 +223,8 @@ fun GettingStartedCard(
                     .fillMaxWidth()
                     .height(4.dp)
                     .clip(CircleShape)
-                    .semantics { contentDescription = progressAria },
+                    // The "4 of 5 done" line above already says it, so the bar stays silent.
+                    .semantics { hideFromAccessibility() },
             )
 
             steps.forEach { step ->

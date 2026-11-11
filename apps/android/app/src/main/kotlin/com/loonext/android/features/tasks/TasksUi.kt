@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -60,10 +62,10 @@ internal fun DoneCircle(
     /** #722: false draws the state only, for a task the server will not let this member flip. */
     enabled: Boolean = true,
 ) {
-    // Read here rather than inside the semantics lambda, which is not composition.
-    val label = t(
-        if (done) "contactsTasks.markNotDone" else "contactsTasks.markDone",
-    )
+    // Read here rather than inside the semantics lambda, which is not composition. One
+    // name for both states: the check box says whether it is checked, so "Mark not done,
+    // check box" no longer has to be decoded as "this task is done".
+    val label = t("contactsTasks.markDone")
     Box(
         modifier
             .touchTarget()
@@ -73,7 +75,10 @@ internal fun DoneCircle(
                 if (enabled) {
                     Modifier
                         .clickable(role = Role.Checkbox) { onToggle(!done) }
-                        .semantics { contentDescription = label }
+                        .semantics {
+                            contentDescription = label
+                            toggleableState = ToggleableState(done)
+                        }
                 } else {
                     Modifier
                 },

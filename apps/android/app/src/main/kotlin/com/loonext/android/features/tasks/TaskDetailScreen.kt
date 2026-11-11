@@ -100,8 +100,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.loonext.android.ui.common.asHeading
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -356,7 +358,7 @@ private fun DetailTopBar(
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).asHeading(),
         )
         menu()
     }
@@ -1623,7 +1625,7 @@ private fun dueRowLabel(dueAt: String, locale: String?): String {
  * trailing affordance, and a chevron when the row is tappable.
  */
 @Composable
-private fun MetaRow(
+internal fun MetaRow(
     label: String,
     onClick: (() -> Unit)?,
     trailing: (@Composable () -> Unit)? = null,
@@ -1632,7 +1634,8 @@ private fun MetaRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            // A button role, so the reader says that this opens a menu.
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .padding(horizontal = 15.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1731,7 +1734,7 @@ private fun TaskAddressSection(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
-                .clickable { open = !open }
+                .clickable(role = Role.Button) { open = !open }
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1765,7 +1768,7 @@ private fun TaskAddressSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = !saving) {
+                        .clickable(enabled = !saving, role = Role.Button) {
                             // Commit the clear in ONE tap (like the Due "X" +
                             // iOS/web) — staging it behind a second "Save" tap
                             // reads as "cleared" while the server still holds the

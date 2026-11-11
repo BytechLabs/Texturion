@@ -1,6 +1,8 @@
 package com.loonext.android.features.shell
 
 import com.loonext.android.ui.common.IconSize
+import com.loonext.android.features.settings.roleLabelIn
+import com.loonext.android.core.i18n.LocalAppLocale
 import android.content.ClipData
 import com.loonext.android.ui.common.SegmentedSize
 import com.loonext.android.ui.common.Segment
@@ -219,7 +221,8 @@ internal fun AccountSheetContent(
                             )
                             membership?.let {
                                 Text(
-                                    "${me.display_name} · ${it.role.replaceFirstChar(Char::uppercase)}",
+                                    // The role has its own catalogue words, so it reads in the person's language.
+                                    "${me.display_name} · ${roleLabelIn(LocalAppLocale.current, it.role)}",
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f),
                                     maxLines = 1,

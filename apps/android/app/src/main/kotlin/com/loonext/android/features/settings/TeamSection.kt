@@ -105,7 +105,7 @@ private fun roleLabelKey(role: String): String? = when (role) {
  * Never a catch-all "Member": that is the app telling an owner the opposite of
  * what they set.
  */
-private fun roleLabelIn(locale: String?, role: String): String =
+internal fun roleLabelIn(locale: String?, role: String): String =
     roleLabelKey(role)?.let { AppStrings.translate(locale, it) }
         ?: role.replace('_', ' ').replaceFirstChar { it.uppercase() }
 

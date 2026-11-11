@@ -123,6 +123,9 @@ import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
+import com.loonext.android.ui.common.announcesChanges
+import com.loonext.android.ui.common.selectableRow
+import androidx.compose.ui.platform.LocalDensity
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SwipeAction
 import com.loonext.android.ui.common.SwipeActionRow
@@ -1082,6 +1085,8 @@ private fun TaskList(
                     }
                 }
 
+                // A column, not the pull-to-refresh Box, so the bar sits above the list, never over it.
+                Column(Modifier.fillMaxSize()) {
                 if (!selection.isEmpty()) {
                     TaskBulkBar(
                         selection = selection,
@@ -1179,7 +1184,7 @@ private fun TaskList(
                 }
 
                 LazyColumn(
-                    Modifier.fillMaxSize(),
+                    Modifier.weight(1f),
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
                     buckets.forEachIndexed { index, bucket ->
@@ -1242,6 +1247,7 @@ private fun TaskList(
                             }
                         }
                     }
+                }
                 }
             }
         }
@@ -1346,6 +1352,7 @@ private fun LazyListScope.taskSection(
                     },
                     onToggleDone = { done -> onToggleDone(task, done) },
                     selected = selection?.isRowSelected(task.id) == true,
+                    selecting = selection != null && !selection.isEmpty(),
                     onLongPress = onToggleSelected?.let { toggle -> { toggle(task.id) } },
                 )
             }
@@ -1368,6 +1375,8 @@ internal fun TaskListRow(
     onToggleDone: (Boolean) -> Unit,
     /** #478: true when this row is in the current bulk selection. */
     selected: Boolean = false,
+    /** True while any row is selected: only then does a row say whether it is one of them. */
+    selecting: Boolean = false,
     /**
      * #478: long-press starts (or extends) a selection. Null on the surfaces
      * that do not offer multi-select — the calendar reuses this row and a
@@ -1387,6 +1396,7 @@ internal fun TaskListRow(
     Row(
         Modifier
             .fillMaxWidth()
+            .selectableRow(selecting, selected)
             // #478: the selected tint rather than a second checkbox. This row
             // already has one — the done circle — and putting another beside it
             // is two round targets a thumb has to tell apart on the one control
@@ -1418,7 +1428,8 @@ internal fun TaskListRow(
                 task.title,
                 fontSize = 13.5.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
+                // The title may wrap, so large text never cuts it short.
+                maxLines = if (LocalDensity.current.fontScale > 1.3f) 3 else 1,
                 overflow = TextOverflow.Ellipsis,
                 textDecoration = if (task.done) TextDecoration.LineThrough else null,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -1572,6 +1583,8 @@ private fun TaskBulkBar(
                     selection.label(LocalAppLocale.current),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    // The selection count is spoken as it changes.
+                    modifier = Modifier.announcesChanges(),
                 )
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onMarkDone, enabled = !running) {

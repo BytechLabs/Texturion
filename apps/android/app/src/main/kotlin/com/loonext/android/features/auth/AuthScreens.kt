@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -656,6 +657,8 @@ private fun FooterLink(prefix: String, action: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick)
+            // One control, so the lead-in and the action are one stop for a screen reader.
+            .clearAndSetSemantics { contentDescription = "$prefix $action" }
             .heightIn(min = 48.dp),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,

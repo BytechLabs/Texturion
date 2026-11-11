@@ -10,6 +10,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -105,7 +107,8 @@ class AuthFrenchRenderTest {
         compose.onNodeWithText("Réinitialisez votre mot de passe").assertIsDisplayed()
         // 34 characters in a pill. The reason this file exists.
         compose.onNodeWithText("Envoyer le lien de réinitialisation").assertIsDisplayed()
-        compose.onNodeWithText("Retour à la connexion").assertIsDisplayed()
+        // The footer is one control now, so its sentence is its description, not a Text.
+        compose.onAllNodes(hasContentDescription("Retour à la connexion", substring = true)).onLast().assertIsDisplayed()
     }
 
     @Test

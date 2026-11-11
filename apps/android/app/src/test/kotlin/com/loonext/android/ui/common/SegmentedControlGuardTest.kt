@@ -30,6 +30,7 @@ class SegmentedControlGuardTest {
             GuardException("features/compose/Composer.kt", toggleRole, 1, "The text/note mode pill, which recolours per mode (amber for a note)."),
             GuardException("features/inbox/InboxTab.kt", toggleRole, 1, "The filter sheet's chips: multi-select filters, not exclusive choices."),
             GuardException("features/tasks/TasksUi.kt", toggleRole, 1, "The task filter chips and the sort pill: multi-select filters, not exclusive choices."),
+            GuardException("features/thread/MessageActions.kt", toggleRole, 3, "The new-task sheet's assignee, nobody and due chips: a person can be one of several assignees and a due is cleared by tapping it again, so neither is an exclusive track."),
         ),
     )
 

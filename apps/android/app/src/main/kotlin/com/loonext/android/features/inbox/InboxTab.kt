@@ -94,6 +94,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -186,7 +187,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import com.loonext.android.ui.common.asToggleButton
+import com.loonext.android.ui.common.announcesChanges
 import com.loonext.android.ui.common.asButton
+import com.loonext.android.ui.common.cappedAtLargeText
+import com.loonext.android.ui.common.selectableRow
 
 // #280: internal rather than file-private so SavedViews.kt can translate a
 // stored view into a tab selection. Same module, same package.
@@ -1530,6 +1534,8 @@ private fun InboxList(
                         steps = startedSteps,
                         companyId = companyId,
                         kind = startedAudience,
+                        // Capped so that at 200% text the card cannot crowd out the list.
+                        modifier = Modifier.cappedAtLargeText(),
                         footer = if (startedAudience == StartedAudience.SETUP) null
                         else t("inbox.startedMemberFooter"),
                     )
@@ -1751,7 +1757,7 @@ private fun FilterPill(
  * while staying lazy for paging.
  */
 @Composable
-private fun GroupedRow(
+internal fun GroupedRow(
     first: Boolean,
     last: Boolean,
     modifier: Modifier = Modifier,
@@ -1760,6 +1766,8 @@ private fun GroupedRow(
     onLongClick: (() -> Unit)? = null,
     /** #275: Material's selection treatment — a tinted card, not a checkbox column. */
     selected: Boolean = false,
+    /** True while any row is selected: only then does a row say whether it is one of them. */
+    selecting: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val radius = 22.dp
@@ -1777,6 +1785,7 @@ private fun GroupedRow(
                 if (selected) MaterialTheme.colorScheme.secondaryContainer
                 else MaterialTheme.colorScheme.surface,
             )
+            .selectableRow(selecting, selected)
             .let {
                 when {
                     onClick != null && onLongClick != null ->
@@ -1874,6 +1883,7 @@ private fun ConversationListPane(
                     },
                     onLongClick = { controller.toggleSelected(row.id) },
                     selected = controller.selection.isRowSelected(row.id),
+                    selecting = selecting,
                 ) { SwipeableConversationRow(row, controller, assigneeName(row)) }
             }
             if (controller.rows.isNotEmpty()) {
@@ -1897,6 +1907,7 @@ private fun ConversationListPane(
                 },
                 onLongClick = { controller.toggleSelected(row.id) },
                 selected = controller.selection.isRowSelected(row.id),
+                selecting = selecting,
             ) { SwipeableConversationRow(row, controller, assigneeName(row)) }
         }
         if (controller.loadingMore) {
@@ -2048,17 +2059,21 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Past large text the time drops under the name, which may wrap, so neither is cut.
+            val largeText = LocalDensity.current.fontScale > 1.3f
+            val nameText: @Composable (Modifier) -> Unit = { nameModifier ->
                 Text(
                     name,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 14.sp,
                         fontWeight = if (row.unread) FontWeight.SemiBold else FontWeight.Medium,
                     ),
-                    maxLines = 1,
+                    maxLines = if (largeText) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = nameModifier,
                 )
+            }
+            val flagAndTime: @Composable () -> Unit = {
                 // #414 ask 2 — "visibly flagged in the inbox". Flagged until
                 // the crew CLOSES the thread: closing is the product's
                 // existing word for "handled", so nothing here invents a
@@ -2074,6 +2089,15 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                     textStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (largeText) {
+                nameText(Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) { flagAndTime() }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    nameText(Modifier.weight(1f))
+                    flagAndTime()
+                }
             }
             val snippet = row.last_message?.let { last ->
                 // Name what actually arrived: a voice message is not a "Photo",
@@ -3041,6 +3065,8 @@ private fun BulkSelectionBar(
                     selection.label(locale),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    // The selection count is spoken as it changes.
+                    modifier = Modifier.announcesChanges(),
                 )
                 Spacer(Modifier.weight(1f))
                 if (running) LoadingIndicator()

@@ -63,8 +63,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
+import com.loonext.android.ui.common.asHeading
+import com.loonext.android.ui.common.asToggleButton
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -489,6 +494,7 @@ fun MakeTaskSheet(
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = (-0.01).em,
                         ),
+                        modifier = Modifier.asHeading(),
                     )
                     if (!standalone || contactName.isNotBlank()) {
                         Text(
@@ -510,7 +516,7 @@ fun MakeTaskSheet(
                     Modifier
                         .size(34.dp)
                         .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape)
-                        .clickable(onClick = onDismiss),
+                        .clickable(role = Role.Button, onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -529,7 +535,10 @@ fun MakeTaskSheet(
 
             // Title.
             Column {
-                TaskFieldLabel(t("thread.taskTitle"))
+                val titleLabel = t("thread.taskTitle")
+                // The field carries this word as its own name, so the reader does not
+                // stop on it twice (same as the sign-in fields).
+                TaskFieldLabel(titleLabel, Modifier.semantics { hideFromAccessibility() })
                 BasicTextField(
                     value = title,
                     onValueChange = { title = it.take(200) },
@@ -555,7 +564,7 @@ fun MakeTaskSheet(
                                 .padding(horizontal = 15.dp, vertical = 13.dp),
                         ) { inner() }
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = titleLabel },
                 )
             }
 
@@ -811,6 +820,7 @@ fun MakeTaskSheet(
                         interactionSource = createInteraction,
                         indication = LocalIndication.current,
                         enabled = canCreate,
+                        role = Role.Button,
                     ) {
                         haptics.confirm()
                         val address = if (addr.isEmpty()) {
@@ -1030,13 +1040,13 @@ private fun QuotedMessageWell(message: Message, contactName: String, zone: ZoneI
 
 /** Tracked-uppercase micro field label ("TITLE", "ASSIGN TO", "DUE"). */
 @Composable
-private fun TaskFieldLabel(text: String) {
-    SectionLabel(text, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
+private fun TaskFieldLabel(text: String, modifier: Modifier = Modifier) {
+    SectionLabel(text, modifier = modifier.padding(start = 4.dp, bottom = 6.dp))
 }
 
 /** One member chip: 26dp avatar + name; selected = ink ring + olive check. */
 @Composable
-private fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
+internal fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
             .clip(CircleShape)
@@ -1045,6 +1055,7 @@ private fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
                 if (selected) it.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
                 else it
             }
+            .asToggleButton(selected)
             .clickable(onClick = onClick)
             .heightIn(min = 44.dp)
             .padding(start = 6.dp, top = 6.dp, bottom = 6.dp, end = 13.dp),
@@ -1064,7 +1075,8 @@ private fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
         if (selected) {
             Icon(
                 Icons.Outlined.Check,
-                contentDescription = t("thread.selected"),
+                // The chip's own state says "Selected"; the check no longer says it again.
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.size(IconSize.Small),
             )
@@ -1074,7 +1086,7 @@ private fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
 
 /** The "Nobody yet" (unassigned) chip. */
 @Composable
-private fun NobodyChip(selected: Boolean, onClick: () -> Unit) {
+internal fun NobodyChip(selected: Boolean, onClick: () -> Unit) {
     Text(
         t("thread.nobodyYet"),
         style = MaterialTheme.typography.labelMedium.copy(
@@ -1090,6 +1102,7 @@ private fun NobodyChip(selected: Boolean, onClick: () -> Unit) {
                 if (selected) it.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
                 else it
             }
+            .asToggleButton(selected)
             .clickable(onClick = onClick)
             .heightIn(min = 44.dp)
             .wrapContentHeight(Alignment.CenterVertically)
@@ -1099,7 +1112,7 @@ private fun NobodyChip(selected: Boolean, onClick: () -> Unit) {
 
 /** One due chip; selected = ink fill, paper text. */
 @Composable
-private fun DueChip(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun DueChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
             .clip(CircleShape)
@@ -1107,6 +1120,7 @@ private fun DueChip(label: String, selected: Boolean, onClick: () -> Unit) {
                 if (selected) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.surface,
             )
+            .asToggleButton(selected)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1116,7 +1130,7 @@ private fun DueChip(label: String, selected: Boolean, onClick: () -> Unit) {
         if (selected) {
             Icon(
                 Icons.Outlined.Check,
-                contentDescription = t("thread.selected"),
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(IconSize.Small),
             )
@@ -1190,7 +1204,7 @@ private fun AddressSection(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
-                .clickable(onClick = onToggle)
+                .clickable(role = Role.Button, onClick = onToggle)
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1232,7 +1246,7 @@ private fun AddressSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onClear)
+                        .clickable(role = Role.Button, onClick = onClear)
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }

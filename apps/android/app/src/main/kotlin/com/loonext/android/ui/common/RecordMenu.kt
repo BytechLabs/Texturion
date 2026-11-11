@@ -21,6 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
@@ -131,7 +133,12 @@ internal fun ColumnScope.RecordMenuItems(
                 text = { Text(t(action.labelKey), color = tint) },
                 enabled = action.enabled,
                 modifier = if (action.checked != null) {
-                    Modifier.semantics { toggleableState = ToggleableState(action.checked) }
+                    // A state with no role read "not checked, Done, double-tap to toggle":
+                    // nothing said it was a check box.
+                    Modifier.semantics {
+                        toggleableState = ToggleableState(action.checked)
+                        role = Role.Checkbox
+                    }
                 } else {
                     Modifier
                 },
