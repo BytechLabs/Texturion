@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.30.0](https://github.com/BytechLabs/Texturion/compare/web-v0.29.0...web-v0.30.0) (2026-11-11)
+
+
+### Features
+
+* calendar settings are one section that explains both ways to connect ([c51f423](https://github.com/BytechLabs/Texturion/commit/c51f423313c9a4ca7f6ef0d084359537e4ecd6b4))
+* **clients:** a contact's page shows who they are beside what happened ([9cdf3e0](https://github.com/BytechLabs/Texturion/commit/9cdf3e0be796ece77813a142b3fc407c24704013))
+* **clients:** create a task by clicking a day or time slot on the calendar ([78ad099](https://github.com/BytechLabs/Texturion/commit/78ad099f1f62a91b9a9e7526671df58077e26d34))
+* **clients:** every dropdown and picker is one of three shared controls ([0fdb964](https://github.com/BytechLabs/Texturion/commit/0fdb964bb75bb63c25256e7c040431e28b62f9ec))
+* **clients:** every value picker and described choice uses its shared control ([b0626ac](https://github.com/BytechLabs/Texturion/commit/b0626acc32a26085b125119838fb81ae1f1ae755))
+* settings that can lose a customer say who chose them and when ([720ca4e](https://github.com/BytechLabs/Texturion/commit/720ca4e81bf1e5bc55943fc9d5c44ecc19d6f5f3))
+* what's new is written once and a release cannot ship features without it ([8df06be](https://github.com/BytechLabs/Texturion/commit/8df06bede8a3684b1ef587130dc154dcb8bf87a6))
+
+
+### Bug Fixes
+
+* a button is offered only when the server will accept it ([ab50c4c](https://github.com/BytechLabs/Texturion/commit/ab50c4c8cf4184f0ee7d8daa90529babb8da4e56))
+* **clients:** a conversation is never a thread and a number is never a line ([acfe9fa](https://github.com/BytechLabs/Texturion/commit/acfe9fa1b28b9b4c19545de5e39c871884f033af))
+* **clients:** the record of every change is called the audit log ([b2c69a3](https://github.com/BytechLabs/Texturion/commit/b2c69a35237fadfe2b4ed4264351aed7610c2058))
+* **clients:** the settings group that holds the audit log no longer says history ([44346f9](https://github.com/BytechLabs/Texturion/commit/44346f9280b33bbc7d3b24248e056530ddd86f48))
+* **web:** a described choice lines its name up with its description ([140afbd](https://github.com/BytechLabs/Texturion/commit/140afbdf621c9ee9751e8cc8411da6b4e24434f9))
+* **web:** the month calendar names each weekday once ([328bc5e](https://github.com/BytechLabs/Texturion/commit/328bc5ee2a5013e30b24a002e0ca1dc2a80af575))
+* **web:** the tasks map shows streets and says when no task has an address ([b6b401a](https://github.com/BytechLabs/Texturion/commit/b6b401ac9cc4544f3cfec76195f6b3713aff41d8))
+
 ## [0.29.0](https://github.com/BytechLabs/Texturion/compare/web-v0.28.0...web-v0.29.0) (2026-11-11)
 
 

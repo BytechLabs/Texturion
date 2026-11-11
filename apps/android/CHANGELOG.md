@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.26.0](https://github.com/BytechLabs/Texturion/compare/android-v0.25.0...android-v0.26.0) (2026-11-11)
+
+
+### Features
+
+* **android:** the tasks map draws streets, as the web does ([cb5c4b4](https://github.com/BytechLabs/Texturion/commit/cb5c4b4a4bfa28484b40bccbe480850caabe472a))
+* calendar settings are one section that explains both ways to connect ([c51f423](https://github.com/BytechLabs/Texturion/commit/c51f423313c9a4ca7f6ef0d084359537e4ecd6b4))
+* **clients:** a contact's page shows who they are beside what happened ([9cdf3e0](https://github.com/BytechLabs/Texturion/commit/9cdf3e0be796ece77813a142b3fc407c24704013))
+* **clients:** create a task by clicking a day or time slot on the calendar ([78ad099](https://github.com/BytechLabs/Texturion/commit/78ad099f1f62a91b9a9e7526671df58077e26d34))
+* **clients:** every dropdown and picker is one of three shared controls ([0fdb964](https://github.com/BytechLabs/Texturion/commit/0fdb964bb75bb63c25256e7c040431e28b62f9ec))
+* **mobile:** phone settings say who chose a value off its default ([e406eb0](https://github.com/BytechLabs/Texturion/commit/e406eb09ec8719500d5ef542118acd219b9b31a4))
+* what's new is written once and a release cannot ship features without it ([8df06be](https://github.com/BytechLabs/Texturion/commit/8df06bede8a3684b1ef587130dc154dcb8bf87a6))
+
+
+### Bug Fixes
+
+* **android:** a team member's name keeps its own line beside the role ([2c604db](https://github.com/BytechLabs/Texturion/commit/2c604db1a9825bb15791da9a48922d43dd592bfb))
+* **clients:** a conversation is never a thread and a number is never a line ([acfe9fa](https://github.com/BytechLabs/Texturion/commit/acfe9fa1b28b9b4c19545de5e39c871884f033af))
+* **clients:** the record of every change is called the audit log ([b2c69a3](https://github.com/BytechLabs/Texturion/commit/b2c69a35237fadfe2b4ed4264351aed7610c2058))
+* **clients:** the settings group that holds the audit log no longer says history ([44346f9](https://github.com/BytechLabs/Texturion/commit/44346f9280b33bbc7d3b24248e056530ddd86f48))
+* **mobile:** every section label and header button looks the same ([785016c](https://github.com/BytechLabs/Texturion/commit/785016ca0b9862c8e74c580e0b8c52bd5bdc9bbb))
+* **mobile:** the last settings group names the two rows a phone shows ([468dfaf](https://github.com/BytechLabs/Texturion/commit/468dfafa049d71f6ee5526aebe2c0e376c913e0b))
+
 ## [0.25.0](https://github.com/BytechLabs/Texturion/compare/android-v0.24.0...android-v0.25.0) (2026-11-11)
 
 
