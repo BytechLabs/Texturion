@@ -466,8 +466,8 @@ struct A11ySettingsSurface: View {
                 TeamSectionView(scope: scope, company: company)
             }
         case .calling:
-            if let company {
-                CallingSectionView(scope: scope, company: company) { company = $0 }
+            if let loaded = company {
+                CallingSectionView(scope: scope, company: loaded) { company = $0 }
             }
         }
     }
