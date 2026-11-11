@@ -881,6 +881,13 @@ export {
   unseenEntries,
 } from "./whats-new";
 export type { WhatsNewEntry } from "./whats-new";
+export { WHATS_NEW_ENTRIES } from "./whats-new-entries";
+export {
+  RELEASE_SUBJECT,
+  judgeWhatsNew,
+  type ReleaseWindow,
+  type WhatsNewVerdict,
+} from "./whats-new-rule";
 export {
   TAG_SUGGEST_DISTANCE,
   TAGS_PER_WORKSPACE,
