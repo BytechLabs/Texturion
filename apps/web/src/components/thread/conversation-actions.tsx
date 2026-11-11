@@ -63,9 +63,11 @@ import {
 } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useMembers } from "@/lib/api/team";
-import type {
-  ConversationStatus,
-  MuteDuration,
+import {
+  isCarrierEnforcedOptOut,
+  type ConversationStatus,
+  type MuteDuration,
+  type OptOutSource,
 } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
@@ -454,7 +456,7 @@ export function useConversationActions({
 }: {
   conversation: ConversationLike;
   /** Absent on surfaces that do not know the contact's opt-out state. */
-  optOut?: { optedOut: boolean; carrierEnforced: boolean };
+  optOut?: { optedOut: boolean; source: OptOutSource | null };
   openHref?: string;
   onOpenGallery?: () => void;
   onCatchUp?: () => void;
@@ -634,7 +636,11 @@ export function useConversationActions({
     viewer: { canWrite, canDelete },
     blocked: blockedNumber.blocked !== undefined,
     unblocking: blockedNumber.unblocking,
-    optOut,
+    // A STOP the customer sent is lifted only by them: the menu offers a note, not the undo.
+    optOut: optOut && {
+      optedOut: optOut.optedOut,
+      carrierEnforced: isCarrierEnforcedOptOut(optOut.source),
+    },
     surface: {
       openHref,
       hasGallery: onOpenGallery !== undefined,

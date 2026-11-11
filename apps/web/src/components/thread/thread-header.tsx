@@ -24,8 +24,6 @@ import {
   avatarInitials,
 } from "@loonext/shared";
 
-import { isCarrierEnforcedOptOut } from "@/lib/api/types";
-
 import { useBlockedNumber } from "@/components/blocked/block-number";
 import { CallButton } from "@/components/calls/call-button";
 import { avatarColorClass } from "@/components/shell/avatar-color";
@@ -114,10 +112,7 @@ export function ThreadHeader({
     useConversationActions({
       conversation,
       optOut: contact
-        ? {
-            optedOut: contact.opted_out,
-            carrierEnforced: isCarrierEnforcedOptOut(contact.opt_out_source),
-          }
+        ? { optedOut: contact.opted_out, source: contact.opt_out_source ?? null }
         : undefined,
       onOpenGallery,
       onCatchUp,

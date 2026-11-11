@@ -155,7 +155,8 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
    */
   const MUST_OFFER = [
     "components/contact-panel/contact-panel.tsx",
-    "components/thread/thread-header.tsx",
+    // #712: the thread's ⋯ menu, which the thread header opens.
+    "components/thread/conversation-actions.tsx",
     "features/thread/ThreadScreen.kt",
     "Features/Thread/ThreadView.swift",
     "features/contacts/ContactDetailScreen.kt",
@@ -308,6 +309,23 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
     return out;
   }
 
+  /**
+   * #712: a phone surface that draws the shared record menu renders that
+   * list's words, not its own. The list is read only when the surface calls
+   * it, and only the one on the surface's own client.
+   */
+  const SHARED_MENU_CALL = /\b(conversationActions|contactActions)\s*\(/;
+  function withSharedMenu(file: string, source: string): string {
+    if (!SHARED_MENU_CALL.test(code(source))) return source;
+    const path = file.replaceAll("\\", "/");
+    const list = path.includes("/apps/android/")
+      ? join(REPO, "apps/android/app/src/main/kotlin/com/loonext/android/ui/common/RecordActions.kt")
+      : path.includes("/apps/ios/")
+        ? join(REPO, "apps/ios/Loonext/Support/RecordActions.swift")
+        : null;
+    return list ? `${source}\n${readFileSync(list, "utf8")}` : source;
+  }
+
   it("names START as the customer's route back wherever it refuses", () => {
     // Ask 2: the owner will speak to this customer on the phone. "You can't do
     // that" is a dead end; "tell them to text START to your number" is a thing
@@ -316,7 +334,7 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
       const source = readFileSync(file, "utf8");
       if (!code(source).includes("isCarrierEnforcedOptOut")) continue;
       expect(
-        flat(resolvedCopy(file, source)),
+        flat(resolvedCopy(file, withSharedMenu(file, source))),
         `${file.slice(REPO.length + 1)} refuses without naming START`,
       )
         .toMatch(/texting START|text START/);
