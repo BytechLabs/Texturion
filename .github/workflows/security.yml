@@ -159,9 +159,13 @@ jobs:
             > "$RUNNER_TEMP/gitleaks-selftest/supabase.ts"
           printf 'const b = "%s0193A5B7C9D1E3F5079BDF13579BDF13";\n' "KE""Y" \
             > "$RUNNER_TEMP/gitleaks-selftest/telnyx.ts"
+          # Mixed case and digits, like a real key: the rule lets lower-case
+          # snake_case names through, and this proves it still catches the rest.
+          printf 'const c = "%sHj1nXk2P_8vU3tFwQ9sLmZb4cRyE6dA7";\n' "re""_" \
+            > "$RUNNER_TEMP/gitleaks-selftest/resend.ts"
 
           missed=""
-          for planted in supabase:supabase-secret-key telnyx:telnyx-api-key; do
+          for planted in supabase:supabase-secret-key telnyx:telnyx-api-key resend:resend-api-key; do
             file="${planted%%:*}"
             rule="${planted##*:}"
             report="$RUNNER_TEMP/gitleaks-selftest/$file.json"

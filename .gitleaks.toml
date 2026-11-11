@@ -58,6 +58,15 @@ description = "Resend API key"
 regex = '''re_[A-Za-z0-9_-]{20,}'''
 keywords = ["re_"]
 
+# A Resend key's tail mixes cases and digits. Lower-case words joined by
+# underscores are a snake_case name that happens to contain "re_"
+# (feature_flag_overrides_company_id_fkey, share_of_sockets_...), which is
+# what every finding of this rule has been. Each regenerated schema snapshot
+# would need a new fingerprint, so this is a class, not one finding. The
+# self-test in security.yml plants a real-shaped key to keep the rule honest.
+[[rules.allowlists]]
+regexes = ['''^re_[a-z_]+$''']
+
 [[rules]]
 id = "vapid-private-key"
 description = "VAPID private key"
