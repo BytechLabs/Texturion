@@ -5,8 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -83,7 +84,8 @@ fun <T> SegmentedControl(
             Row(
                 Modifier
                     .then(if (fill) Modifier.weight(1f) else Modifier)
-                    .height(if (size == SegmentedSize.Md) 44.dp else 36.dp)
+                    .heightIn(min = if (size == SegmentedSize.Md) 44.dp else 36.dp)
+                    .widthIn(min = 44.dp)
                     .clip(CircleShape)
                     .background(container, CircleShape)
                     .selectable(
@@ -97,7 +99,7 @@ fun <T> SegmentedControl(
                         },
                     )
                     .semantics { if (iconOnly) contentDescription = spoken }
-                    .padding(horizontal = if (iconOnly) 16.dp else 14.dp),
+                    .padding(horizontal = if (iconOnly) 16.dp else 11.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
