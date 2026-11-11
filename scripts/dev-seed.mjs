@@ -369,6 +369,18 @@ update public.calls c
   ) as v(id, reason)
  where c.id = v.id and c.ended_reason is null;
 
+-- #726: two lead sources, so a thread's source section shows. Maria's thread
+-- has not been asked; Jake's source was chosen by hand.
+insert into public.lead_sources (id, company_id, name) values
+  ('c1000000-0000-4000-8000-000000000001', '${COMPANY}', 'Truck'),
+  ('c1000000-0000-4000-8000-000000000002', '${COMPANY}', 'Google')
+on conflict (id) do nothing;
+update public.conversations
+   set lead_source_id = 'c1000000-0000-4000-8000-000000000002',
+       lead_source_origin = 'manual',
+       lead_source_set_by = '${dana}'
+ where id = '${V(3)}' and lead_source_id is null;
+
 insert into public.conversation_events
   (id, company_id, conversation_id, actor_user_id, type, payload, created_at)
 values
