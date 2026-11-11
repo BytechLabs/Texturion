@@ -62,6 +62,7 @@ const IOS_HAPTICS = "apps/ios/Loonext/Core/Haptics.swift";
  * declared Android-only, and every name here must be a real directory.
  */
 const AREAS = {
+  activity: "Activity",
   attachments: "Attachments",
   auth: "Auth",
   calls: "Calls",
