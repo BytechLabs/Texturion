@@ -84,7 +84,7 @@ func timedText(
     locale: String? = nil,
     now: Date = Date(),
     timeZone: TimeZone = .current,
-    drawTime: (String?) -> String,
+    drawTime: @escaping (String?) -> String,
     _ build: (_ time: (String?) -> String) -> String
 ) -> TimedText {
     let visible = build(drawTime)
