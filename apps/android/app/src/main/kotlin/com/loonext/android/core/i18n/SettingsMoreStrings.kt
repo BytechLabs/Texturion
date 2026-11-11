@@ -1116,27 +1116,6 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.whatsNewFooter" to
             "Smaller repairs ship most days and are not listed. If you reported " +
             "something and want to know where it got to, ask us on the Help page.",
-        "settingsMore.whatsNewSavedViewsTitle" to
-            "Save the filters you use every morning",
-        "settingsMore.whatsNewSavedViewsBody" to
-            "Arrange the inbox how you want it, name it, and it is one tap away " +
-            "tomorrow. Share one with the crew and everybody opens the same list.",
-        "settingsMore.whatsNewQuotesTitle" to "See how many quotes turned into work",
-        "settingsMore.whatsNewQuotesBody" to
-            "Your home screen now shows how many quotes you sent, how many you won, " +
-            "and how many are still waiting on an answer.",
-        "settingsMore.whatsNewVoicemailTitle" to "Voicemails are written down",
-        "settingsMore.whatsNewVoicemailBody" to
-            "A missed call leaves a voicemail you can read at a red light instead of " +
-            "listening to it. It is searchable like any other message.",
-        "settingsMore.whatsNewDraftsTitle" to "Lou drafts the reply for you",
-        "settingsMore.whatsNewDraftsBody" to
-            "Lou reads the conversation and offers a reply you can edit before it goes. " +
-            "You send it, or you ignore it; nothing is sent on your behalf.",
-        "settingsMore.whatsNewCallsTitle" to "Answer calls in the app",
-        "settingsMore.whatsNewCallsBody" to
-            "Calls to your business number ring your whole crew right here. Pick up, " +
-            "put someone on hold, or hand the call to a teammate.",
 
         // -- The workspace itself --------------------------------------------
         // `{business_name}` in the description below is a MERGE FIELD, not an
@@ -2471,34 +2450,6 @@ object SettingsMoreStrings : AppStrings.Section {
             "De petites corrections sortent presque tous les jours et ne sont pas " +
             "listées. Si vous avez signalé quelque chose et voulez savoir où ça en " +
             "est, écrivez-nous depuis la page Aide.",
-        "settingsMore.whatsNewSavedViewsTitle" to
-            "Enregistrez les filtres que vous utilisez chaque matin",
-        "settingsMore.whatsNewSavedViewsBody" to
-            "Organisez la boîte de réception comme vous voulez, nommez-la, et elle " +
-            "est à une touche demain matin. Partagez-en une avec l'équipe et tout " +
-            "le monde ouvre la même liste.",
-        "settingsMore.whatsNewQuotesTitle" to
-            "Voyez combien de devis sont devenus des contrats",
-        "settingsMore.whatsNewQuotesBody" to
-            "Votre écran d'accueil montre maintenant combien de devis vous avez " +
-            "envoyés, combien vous avez obtenus, et combien attendent encore une " +
-            "réponse.",
-        "settingsMore.whatsNewVoicemailTitle" to
-            "Les messages vocaux sont transcrits",
-        "settingsMore.whatsNewVoicemailBody" to
-            "Un appel manqué laisse un message vocal que vous pouvez lire à un feu " +
-            "rouge au lieu de l'écouter. Il se cherche comme n'importe quel autre " +
-            "message.",
-        "settingsMore.whatsNewDraftsTitle" to "Lou rédige la réponse pour vous",
-        "settingsMore.whatsNewDraftsBody" to
-            "Lou lit la conversation et propose une réponse que vous pouvez " +
-            "modifier avant l'envoi. Vous l'envoyez, ou vous l'ignorez ; rien " +
-            "n'est envoyé en votre nom.",
-        "settingsMore.whatsNewCallsTitle" to "Répondez aux appels dans l'application",
-        "settingsMore.whatsNewCallsBody" to
-            "Les appels à votre numéro d'affaires font sonner toute votre équipe " +
-            "ici même. Répondez, mettez quelqu'un en attente, ou transférez " +
-            "l'appel à un coéquipier.",
 
         // -- The workspace itself --------------------------------------------
         "settingsMore.workspaceName" to "Nom de l'espace de travail",

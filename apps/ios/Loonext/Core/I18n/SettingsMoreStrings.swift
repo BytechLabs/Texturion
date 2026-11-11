@@ -1346,71 +1346,22 @@ private let settingsMoreIosHomeFr: [String: String] = [
 
 private let settingsMoreIosWhatsNewEn: [String: String] = [
     "settingsMore.whatsNewBadge": "New",
-    "settingsMore.whatsNewCallsBody":
-        "Calls to your business number ring your whole crew right here. "
-        + "Pick up, put someone on hold, or hand the call to a teammate.",
-    "settingsMore.whatsNewCallsTitle": "Answer calls in the app",
-    "settingsMore.whatsNewDraftsBody":
-        "Lou reads the conversation and offers a reply you can edit before it "
-        + "goes. You send it, or you ignore it; nothing is sent on your "
-        + "behalf.",
-    "settingsMore.whatsNewDraftsTitle": "Lou drafts the reply for you",
     "settingsMore.whatsNewFooter":
         "Smaller repairs ship most days and are not listed. If you reported "
         + "something and want to know where it got to, ask us on the Help "
         + "page.",
     "settingsMore.whatsNewIntro":
         "Everything here has already shipped and is in the product now.",
-    "settingsMore.whatsNewQuotesBody":
-        "Your home screen now shows how many quotes you sent, how many you "
-        + "won, and how many are still waiting on an answer.",
-    "settingsMore.whatsNewQuotesTitle": "See how many quotes turned into work",
-    "settingsMore.whatsNewSavedViewsBody":
-        "Arrange the inbox how you want it, name it, and it is one tap away "
-        + "tomorrow. Share one with the crew and everybody opens the same "
-        + "list.",
-    "settingsMore.whatsNewSavedViewsTitle": "Save the filters you use every morning",
-    "settingsMore.whatsNewVoicemailBody":
-        "A missed call leaves a voicemail you can read at a red light "
-        + "instead of listening to it. It is searchable like any other "
-        + "message.",
-    "settingsMore.whatsNewVoicemailTitle": "Voicemails are written down",
 ]
 
 private let settingsMoreIosWhatsNewFr: [String: String] = [
     "settingsMore.whatsNewBadge": "Nouveau",
-    "settingsMore.whatsNewCallsBody":
-        "Les appels à votre numéro d'affaires font sonner toute votre "
-        + "équipe ici même. Répondez, mettez quelqu'un en attente, ou "
-        + "transférez l'appel à un coéquipier.",
-    "settingsMore.whatsNewCallsTitle": "Répondez aux appels dans l'application",
-    "settingsMore.whatsNewDraftsBody":
-        "Lou lit la conversation et propose une réponse que vous pouvez "
-        + "modifier avant l'envoi. Vous l'envoyez, ou vous l'ignorez ; rien "
-        + "n'est envoyé en votre nom.",
-    "settingsMore.whatsNewDraftsTitle": "Lou rédige la réponse pour vous",
     "settingsMore.whatsNewFooter":
         "De petites corrections sortent presque tous les jours et ne sont "
         + "pas listées. Si vous avez signalé quelque chose et voulez savoir "
         + "où ça en est, écrivez-nous depuis la page Aide.",
     "settingsMore.whatsNewIntro":
         "Tout ce qui est ici est déjà livré et se trouve dans le produit.",
-    "settingsMore.whatsNewQuotesBody":
-        "Votre écran d'accueil montre maintenant combien de devis vous avez "
-        + "envoyés, combien vous avez obtenus, et combien attendent encore "
-        + "une réponse.",
-    "settingsMore.whatsNewQuotesTitle": "Voyez combien de devis sont devenus des contrats",
-    "settingsMore.whatsNewSavedViewsBody":
-        "Organisez la boîte de réception comme vous voulez, nommez-la, et "
-        + "elle est à une touche demain matin. Partagez-en une avec l'équipe "
-        + "et tout le monde ouvre la même liste.",
-    "settingsMore.whatsNewSavedViewsTitle":
-        "Enregistrez les filtres que vous utilisez chaque matin",
-    "settingsMore.whatsNewVoicemailBody":
-        "Un appel manqué laisse un message vocal que vous pouvez lire à un "
-        + "feu rouge au lieu de l'écouter. Il se cherche comme n'importe quel "
-        + "autre message.",
-    "settingsMore.whatsNewVoicemailTitle": "Les messages vocaux sont transcrits",
 ]
 
 private let settingsMoreIosTwoFactorEn: [String: String] = [
