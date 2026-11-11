@@ -213,13 +213,7 @@ struct AccountSheet: View {
             linkRow(
                 icon: "bell",
                 label: AppStrings.translate(appLocale, "shell.notifications"),
-                trailing: unreadNotifications > 0
-                    ? AppStrings.translate(
-                        appLocale,
-                        "shell.unreadNew",
-                        ["count": "\(unreadNotifications)"]
-                    )
-                    : nil,
+                count: unreadNotifications > 0 ? unreadNotifications : nil,
                 showDot: unreadNotifications > 0,
                 action: onOpenNotifications
             )
@@ -271,7 +265,7 @@ struct AccountSheet: View {
     private func linkRow(
         icon: String,
         label: String,
-        trailing: String? = nil,
+        count: Int? = nil,
         showDot: Bool = false,
         destructive: Bool = false,
         action: @escaping @MainActor () -> Void
@@ -298,11 +292,11 @@ struct AccountSheet: View {
                     .font(.golos(13.5, weight: .semibold))
                     .foregroundStyle(destructive ? BrandColor.destructive : BrandColor.ink)
                 Spacer()
-                if let trailing {
-                    Text(trailing)
-                        .font(.golos(11, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(BrandColor.olive)
+                if let count {
+                    CountPill(count, tone: .primary)
+                        .accessibilityLabel(
+                            AppStrings.translate(appLocale, "shell.unreadNew", ["count": String(count)])
+                        )
                 } else if !destructive {
                     Image(systemName: "chevron.right")
                         .font(.scaled(12, weight: .semibold))

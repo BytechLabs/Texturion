@@ -1381,12 +1381,12 @@ private struct InboxList: View {
                     Button {
                         scheduledSheetOpen = true
                     } label: {
-                        Label(
-                            "\(controller.scheduled.count)",
-                            systemImage: "clock"
-                        )
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(BrandColor.muted500)
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(BrandColor.muted500)
+                            CountPill(controller.scheduled.count)
+                        }
                     }
                     .accessibilityLabel(
                         controller.scheduled.count == 1
