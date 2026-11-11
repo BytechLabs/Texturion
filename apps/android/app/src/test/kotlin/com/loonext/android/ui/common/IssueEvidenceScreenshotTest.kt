@@ -13,6 +13,47 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.isSelectable
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import com.loonext.android.core.model.DayHours
+import com.loonext.android.core.model.SettingChoice
+import com.loonext.android.core.model.SettingChoices
+import com.loonext.android.features.settings.CalendarFeedCard
+import com.loonext.android.features.settings.CallingSection
+import com.loonext.android.features.settings.OnCallCard
+import com.loonext.android.features.settings.SettingsRepository
+import com.loonext.android.features.settings.SettingsScope
+import com.loonext.android.features.settings.TeamSection
+import com.loonext.android.features.tasks.NewTaskSheetHost
+import com.loonext.android.features.tasks.TaskCalendarSnapshot
+import com.loonext.android.features.tasks.TaskCalendarView
+import com.loonext.android.features.tasks.TaskMapView
+import com.loonext.android.features.tasks.calendarDayDueIso
+import com.loonext.android.features.tasks.taskCalendarBaseAssignee
+import com.loonext.android.features.tasks.taskCalendarFilterKey
+import com.loonext.android.features.tasks.taskMapFilterKey
+import com.loonext.android.features.tasks.TasksTabKind
+import kotlinx.serialization.json.JsonPrimitive
+import java.time.YearMonth
+import java.time.ZoneId
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -119,6 +160,10 @@ class IssueEvidenceScreenshotTest {
     private lateinit var server: MockWebServer
     private lateinit var graph: AppGraph
 
+    /** What /v1/members and /v1/calls answer; a test that needs more rows sets these first. */
+    private var membersJson = MEMBERS_JSON
+    private var callsJson = CALLS_JSON
+
     @Before
     fun setUp() {
         server = MockWebServer()
@@ -127,9 +172,16 @@ class IssueEvidenceScreenshotTest {
                 val path = request.url.encodedPath
                 return when {
                     path == "/v1/contacts/p1/activity" -> MockResponse(body = ACTIVITY_JSON)
-                    path == "/v1/members" -> MockResponse(body = MEMBERS_JSON)
+                    path == "/v1/members" -> MockResponse(body = membersJson)
                     path == "/v1/tags" -> MockResponse(body = TAGS_JSON)
-                    path == "/v1/calls" -> MockResponse(body = CALLS_JSON)
+                    path == "/v1/calls" -> MockResponse(body = callsJson)
+                    path == "/v1/conversations" -> MockResponse(body = CONVERSATIONS_JSON)
+                    path == "/v1/contacts/p1/linked-tasks" -> MockResponse(body = LINKED_TASKS_JSON)
+                    path == "/v1/invites" -> MockResponse(body = INVITES_JSON)
+                    path == "/v1/company/ownership" -> MockResponse(body = OWNERSHIP_JSON)
+                    path == "/v1/voicemail-greetings" -> MockResponse(body = """{"data":[],"next_cursor":null}""")
+                    path == "/v1/on-call" -> MockResponse(body = """{"data":[]}""")
+                    path == "/v1/calendar/feed" -> MockResponse(body = """{"active":false}""")
                     else -> MockResponse(code = 404, body = """{"error":"not in this test"}""")
                 }
             }
@@ -418,6 +470,57 @@ class IssueEvidenceScreenshotTest {
         )
     }
 
+    // --- 8b. contact-long (#740) -------------------------------------------------------------
+    // The same contact with a long history, on the Activity tab, one pane per shot.
+
+    @Test @Config(qualifiers = "w390dp-h1400dp-xhdpi")
+    fun `contact-long light`() =
+        shoot("contact-long", dark = false, heightDp = 1400, settle = true, afterShow = { openActivityPane("Conversations") }) { longContact() }
+
+    @Test @Config(qualifiers = "w390dp-h1400dp-xhdpi")
+    fun `contact-long dark`() =
+        shoot("contact-long", dark = true, heightDp = 1400, settle = true, afterShow = { openActivityPane("Conversations") }) { longContact() }
+
+    @Test @Config(qualifiers = "w390dp-h1400dp-xhdpi")
+    fun `contact-long-calls light`() =
+        shoot("contact-long-calls", dark = false, heightDp = 1400, settle = true, afterShow = { openActivityPane("Calls") }) { longContact() }
+
+    @Test @Config(qualifiers = "w390dp-h1400dp-xhdpi")
+    fun `contact-long-calls dark`() =
+        shoot("contact-long-calls", dark = true, heightDp = 1400, settle = true, afterShow = { openActivityPane("Calls") }) { longContact() }
+
+    @Test @Config(qualifiers = "w390dp-h1400dp-xhdpi")
+    fun `contact-long-tasks light`() =
+        shoot("contact-long-tasks", dark = false, heightDp = 1400, settle = true, afterShow = { openActivityPane("Tasks") }) { longContact() }
+
+    @Test @Config(qualifiers = "w390dp-h1400dp-xhdpi")
+    fun `contact-long-tasks dark`() =
+        shoot("contact-long-tasks", dark = true, heightDp = 1400, settle = true, afterShow = { openActivityPane("Tasks") }) { longContact() }
+
+    private fun openActivityPane(pane: String) {
+        compose.onAllNodes(hasText("Activity") and isSelectable())[0].performClick()
+        compose.waitForIdle()
+        compose.onAllNodes(hasText(pane) and isSelectable())[0].performClick()
+    }
+
+    @Composable
+    private fun longContact() {
+        callsJson = LONG_CALLS_JSON
+        graph.storeCache.flowOf<Contact>(CacheKeys.contact("co_1", "p1")).value =
+            CONTACT.copy(conversation_count = 9)
+        ContactDetailScreen(
+            graph = graph,
+            mutations = ContactMutations(graph.api, server.url("/").toString().trimEnd('/')),
+            companyId = "co_1",
+            contactId = "p1",
+            onBack = {},
+            onOpenConversation = {},
+            onOpenTask = {},
+            onComposeNew = {},
+            canDelete = true,
+        )
+    }
+
     // --- 9. timestamp ------------------------------------------------------------------
 
     @Test fun `timestamp light`() = shoot("timestamp", dark = false) { timestamp() }
@@ -556,6 +659,281 @@ class IssueEvidenceScreenshotTest {
         ContactsTab(graph = graph, companyId = "co_1", me = previewMe())
     }
 
+    // --- 14. calendar-create (#739) ---------------------------------------------------------
+    // The month grid with an empty day long-pressed, which opens New task due that day. Android
+    // has no week view (the calendar is the month grid and a day list), so there is no
+    // calendar-week shot.
+
+    @Test fun `calendar-create light`() =
+        shoot("calendar-create", dark = false, settle = true, afterShow = { longPressEmptyDay() }) { calendarCreate() }
+
+    @Test fun `calendar-create dark`() =
+        shoot("calendar-create", dark = true, settle = true, afterShow = { longPressEmptyDay() }) { calendarCreate() }
+
+    private fun longPressEmptyDay() {
+        val emptyDay = SemanticsMatcher("an empty day") { node ->
+            node.config.getOrNull(SemanticsProperties.ContentDescription)
+                ?.any { it.endsWith(", 0 tasks") } == true
+        }
+        // The sheet is its own window, which a test cannot capture, so this shows the tapped day
+        // with the visible "New task on ..." button that opens it.
+        compose.onAllNodes(emptyDay)[16].performClick()
+    }
+
+    @Composable
+    private fun calendarCreate() {
+        val zone = ZoneId.of("America/Los_Angeles")
+        val month = YearMonth.now(zone)
+        fun due(day: Int, hour: Int) = month.atDay(day).atTime(hour, 0).atZone(zone).toInstant().toString()
+        fun task(id: String, title: String, day: Int, hour: Int = 9, done: Boolean = false) = Task(
+            id = id,
+            company_id = "co_1",
+            title = title,
+            assigned_user_id = "usr_1",
+            due_at = due(day, hour),
+            created_by_user_id = "usr_1",
+            created_at = due(1, 8),
+            updated_at = due(1, 8),
+            done = done,
+            status = if (done) "done" else "open",
+        )
+        val rows = listOf(
+            task("t1", "Replace the kitchen faucet", 3),
+            task("t2", "Quote the water heater swap", 9),
+            task("t3", "Order shutoff valves", 9, 14),
+            task("t4", "Walk the Alder St job", 12, done = true),
+            task("t5", "Call back about the permit", 19),
+            task("t6", "Inspect the boiler", 24),
+        )
+        graph.storeCache.flowOf<TaskCalendarSnapshot>(
+            CacheKeys.tasks(
+                "co_1",
+                taskCalendarFilterKey(month, taskCalendarBaseAssignee(TasksTabKind.All, null, false), false, null),
+            ),
+        ).value = TaskCalendarSnapshot(rows, undatedOpen = 2, undatedDone = 0, undatedTruncated = false)
+        var dueIso by remember { mutableStateOf<String?>(null) }
+        Column(Modifier.fillMaxSize()) {
+            Spacer(Modifier.height(12.dp))
+            TaskCalendarView(
+                cache = graph.storeCache,
+                mutations = TaskMutations(graph.api),
+                companyId = "co_1",
+                tab = TasksTabKind.All,
+                assigneeChip = null,
+                unassignedChip = false,
+                dueChip = null,
+                q = null,
+                refreshKey = 0,
+                memberName = { "Jordan Lee" },
+                onOpenTask = {},
+                onToggleDone = { _, _ -> },
+                zone = zone,
+                onCreateTask = { day -> dueIso = calendarDayDueIso(day, zone) },
+            )
+        }
+        dueIso?.let { iso ->
+            NewTaskSheetHost(
+                graph = graph,
+                companyId = "co_1",
+                conversationId = null,
+                contactId = null,
+                contactName = "",
+                onDismiss = { dueIso = null },
+                initialDueIso = iso,
+                zone = zone,
+            )
+        }
+    }
+
+    // --- 15. calendar-settings (#744) ---------------------------------------------------------
+
+    @Test fun `calendar-settings light`() = shoot("calendar-settings", dark = false, settle = true) { calendarSettings() }
+    @Test fun `calendar-settings dark`() = shoot("calendar-settings", dark = true, settle = true) { calendarSettings() }
+
+    @Composable
+    private fun calendarSettings() {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
+            CalendarFeedCard(settingsScope())
+        }
+    }
+
+    // --- 16. team-roles (#746) ------------------------------------------------------------------
+
+    @Test @Config(qualifiers = "w390dp-h3500dp-xhdpi")
+    fun `team-roles light`() = shoot("team-roles", dark = false, heightDp = 3500, settle = true) { teamRoles() }
+
+    @Test @Config(qualifiers = "w390dp-h3500dp-xhdpi")
+    fun `team-roles dark`() = shoot("team-roles", dark = true, heightDp = 3500, settle = true) { teamRoles() }
+
+    @Test fun `team-role-open light`() = shoot("team-role-open", dark = false) { roleMenuOpen() }
+    @Test fun `team-role-open dark`() = shoot("team-role-open", dark = true) { roleMenuOpen() }
+
+    /**
+     * The role field with its list open. The list is a popup window, which a test cannot
+     * capture, so the same options are drawn on the menu's own surface (as call-menu does),
+     * under the real closed field.
+     */
+    @Composable
+    private fun roleMenuOpen() {
+        val roles = listOf(
+            "settingsMore.roleMember" to "settingsMore.roleMemberBlurb",
+            "settingsMore.roleAdmin" to "settingsMore.roleAdminBlurb",
+            "settingsMore.roleReadOnly" to "settingsMore.roleReadOnlyBlurb",
+            "settingsMore.roleBookkeeper" to "settingsMore.roleBookkeeperBlurb",
+        )
+        Column(Modifier.fillMaxSize().padding(18.dp)) {
+            PaperCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(t("settingsMore.inviteTeammate"), style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(10.dp))
+                    SelectField(
+                        options = roles.map { SelectOption(it.first, t(it.first), t(it.second)) },
+                        selected = roles.first().first,
+                        onSelect = {},
+                        label = t("settingsMore.roleLabel"),
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Surface(
+                shape = MaterialTheme.shapes.extraSmall,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                shadowElevation = 3.dp,
+                modifier = Modifier.width(300.dp).padding(start = 16.dp),
+            ) {
+                Column(Modifier.padding(vertical = 8.dp)) {
+                    roles.forEachIndexed { index, (label, blurb) ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(t(label))
+                                Text(
+                                    t(blurb),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (index == 0) {
+                                androidx.compose.material3.Icon(
+                                    androidx.compose.material.icons.Icons.Outlined.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun teamRoles() {
+        membersJson = TEAM_MEMBERS_JSON
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
+            TeamSection(settingsScope(), previewCompany())
+        }
+    }
+
+    // --- 17. on-call (#746) ---------------------------------------------------------------------
+
+    @Test fun `on-call light`() = shoot("on-call", dark = false, settle = true) { onCall() }
+    @Test fun `on-call dark`() = shoot("on-call", dark = true, settle = true) { onCall() }
+
+    @Composable
+    private fun onCall() {
+        membersJson = TEAM_MEMBERS_JSON
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
+            OnCallCard(settingsScope())
+        }
+    }
+
+    // --- 18. tasks-map (#752) ---------------------------------------------------------------------
+    // Map tiles are fetched over the network, which a test cannot do, so the pins sit on the
+    // map's blank ground.
+
+    @Test fun `tasks-map light`() = shoot("tasks-map", dark = false, settle = true) { tasksMap(located = true) }
+    @Test fun `tasks-map dark`() = shoot("tasks-map", dark = true, settle = true) { tasksMap(located = true) }
+
+    @Test fun `tasks-map-unlocated light`() = shoot("tasks-map-unlocated", dark = false, settle = true) { tasksMap(located = false) }
+    @Test fun `tasks-map-unlocated dark`() = shoot("tasks-map-unlocated", dark = true, settle = true) { tasksMap(located = false) }
+
+    @Composable
+    private fun tasksMap(located: Boolean) {
+        val now = java.time.Instant.now()
+        fun task(id: String, title: String, contact: String, lat: Double?, lng: Double?) = Task(
+            id = id,
+            company_id = "co_1",
+            title = title,
+            assigned_user_id = "usr_1",
+            due_at = now.plus(java.time.Duration.ofHours(30)).toString(),
+            created_by_user_id = "usr_1",
+            created_at = now.minus(java.time.Duration.ofDays(2)).toString(),
+            updated_at = now.minus(java.time.Duration.ofDays(1)).toString(),
+            status = "open",
+            contact = TaskContactLocation(id = "c-$id", name = contact),
+            lat = lat.takeIf { located },
+            lng = lng.takeIf { located },
+        )
+        val rows = listOf(
+            task("t1", "Replace the kitchen faucet", "Dana Whitcomb", 37.8044, -122.2712),
+            task("t2", "Quote the water heater swap", "Priya Nair", 37.7749, -122.4194),
+            task("t3", "Order shutoff valves", "Sam Okafor", 37.8715, -122.2730),
+            task("t4", "Inspect the boiler", "Marcus Bell", 37.6879, -122.4702),
+            task("t5", "Re-pipe the laundry room", "Dana Whitcomb", 37.8044, -122.2712),
+        )
+        graph.storeCache.flowOf<List<Task>>(CacheKeys.tasks("co_1", taskMapFilterKey(null, false, null, ""))).value = rows
+        Column(Modifier.fillMaxSize()) {
+            Spacer(Modifier.height(12.dp))
+            TaskMapView(graph = graph, companyId = "co_1", onOpenTask = {}, modifier = Modifier.fillMaxSize())
+        }
+    }
+
+    // --- 19. calling-choice-note (#749) -----------------------------------------------------------
+
+    @Test @Config(qualifiers = "w390dp-h1100dp-xhdpi")
+    fun `calling-choice-note light`() =
+        shoot("calling-choice-note", dark = false, heightDp = 1100, settle = true, afterShow = { scrollToChoiceNote() }) { callingChoiceNote() }
+
+    @Test @Config(qualifiers = "w390dp-h1100dp-xhdpi")
+    fun `calling-choice-note dark`() =
+        shoot("calling-choice-note", dark = true, heightDp = 1100, settle = true, afterShow = { scrollToChoiceNote() }) { callingChoiceNote() }
+
+    private fun scrollToChoiceNote() {
+        compose.onNode(hasText("Sam Rivera chose this on", substring = true)).performScrollTo()
+    }
+
+    @Composable
+    private fun callingChoiceNote() {
+        graph.storeCache.flowOf<SettingChoices>(CacheKeys.settingChoices("co_1")).value = SettingChoices(
+            listOf(
+                SettingChoice(
+                    key = "after_hours_calls",
+                    value = JsonPrimitive("voicemail"),
+                    default_value = JsonPrimitive("ring_everyone"),
+                    chosen_by = "Sam Rivera",
+                    chosen_at = "2026-08-08T15:31:13Z",
+                ),
+            ),
+        )
+        val days = listOf("mon", "tue", "wed", "thu", "fri").associateWith { DayHours("08:00", "17:00") }
+        val company = previewCompany().copy(after_hours_calls = "voicemail", business_hours = days)
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
+            CallingSection(settingsScope(), company, onCompanyUpdated = {})
+        }
+    }
+
+    private fun settingsScope(role: String = "owner") = SettingsScope(
+        graph = graph,
+        repo = SettingsRepository(graph.api),
+        companyId = "co_1",
+        me = previewMe(),
+        role = role,
+        showMessage = {},
+    )
+
     // --- harness --------------------------------------------------------------------------
 
     private fun shoot(
@@ -591,11 +969,40 @@ class IssueEvidenceScreenshotTest {
         } else {
             compose.waitForIdle()
         }
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val bitmap = captureAll()
         val mode = if (dark) "dark" else "light"
         val dir = File("build/screenshots/evidence").apply { mkdirs() }
         File(dir, "$name-$mode.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         assertTrue("$name-$mode drew nothing", drewSomething(bitmap))
+    }
+
+    /**
+     * The activity's root, with any sheet or menu window drawn over it. A sheet and a
+     * dropdown are their own windows, so `onRoot()` alone would leave them out.
+     */
+    private fun captureAll(): Bitmap {
+        val roots = compose.onAllNodes(isRoot())
+        val nodes = roots.fetchSemanticsNodes()
+        class Layer(val bitmap: Bitmap, val x: Int, val y: Int)
+        val layers = nodes.indices.map { i ->
+            val at = IntArray(2)
+            (nodes[i].root as? android.view.View)?.getLocationOnScreen(at)
+            Layer(roots[i].captureToImage().asAndroidBitmap(), at[0], at[1])
+        }.sortedByDescending { it.bitmap.width * it.bitmap.height }
+        if (layers.size == 1) return layers.first().bitmap
+        val base = layers.first().bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = android.graphics.Canvas(base)
+        layers.drop(1).forEach { top ->
+            val x = top.x - layers.first().x
+            val y = top.y - layers.first().y
+            // A sheet as wide as the screen sits at the bottom; a menu sits where it was placed.
+            if (top.bitmap.width >= base.width) {
+                canvas.drawBitmap(top.bitmap, 0f, (base.height - top.bitmap.height).toFloat(), null)
+            } else {
+                canvas.drawBitmap(top.bitmap, x.toFloat(), y.toFloat(), null)
+            }
+        }
+        return base
     }
 
     private fun drewSomething(bitmap: Bitmap): Boolean {
@@ -700,6 +1107,34 @@ class IssueEvidenceScreenshotTest {
         const val TAGS_JSON = """{"data":[{"id":"tg1","name":"Repeat customer"},{"id":"tg2","name":"Landlord"}],"next_cursor":null}"""
 
         const val MEMBERS_JSON = """{"data":[{"id":"mem_1","user_id":"usr_1","role":"owner","created_at":"2026-01-01T00:00:00Z","display_name":"Jordan Lee"}],"next_cursor":null}"""
+
+        const val TEAM_MEMBERS_JSON = """{"data":[
+          {"id":"mem_1","user_id":"usr_1","role":"owner","created_at":"2026-01-01T00:00:00Z","display_name":"Jordan Lee"},
+          {"id":"mem_2","user_id":"usr_2","role":"admin","created_at":"2026-02-01T00:00:00Z","display_name":"Priya Nair"},
+          {"id":"mem_3","user_id":"usr_3","role":"member","created_at":"2026-03-01T00:00:00Z","display_name":"Sam Okafor"},
+          {"id":"mem_4","user_id":"usr_4","role":"read_only","created_at":"2026-04-01T00:00:00Z","display_name":"Marcus Bell"}
+        ],"next_cursor":null}"""
+
+        const val INVITES_JSON = """{"data":[
+          {"id":"inv_1","company_id":"co_1","email":"alex@example.com","role":"member","invited_by":"usr_1","expires_at":"2099-01-01T00:00:00Z","created_at":"2026-07-10T00:00:00Z"},
+          {"id":"inv_2","company_id":"co_1","email":"books@example.com","role":"bookkeeper","invited_by":"usr_1","expires_at":"2099-01-01T00:00:00Z","created_at":"2026-07-11T00:00:00Z"}
+        ],"next_cursor":null}"""
+
+        const val OWNERSHIP_JSON = """{"owner_member_id":"mem_1","backup_member_id":null,"i_am_owner":true,"can_offer":true}"""
+
+        val LONG_CALLS_JSON = """{"data":[""" + (1..9).joinToString(",") { i ->
+            """{"id":"k$i","call_session_id":"s$i","caller_e164":"+14155550134","contact_id":"p1","contact_name":"Dana Whitcomb","outcome":"${if (i % 3 == 0) "missed" else "answered"}","direction":"${if (i % 2 == 0) "outbound" else "inbound"}","forward_seconds":${60 + i * 17},"started_at":"2026-07-${(20 - i).toString().padStart(2, '0')}T15:20:00Z"}"""
+        } + """],"next_cursor":null}"""
+
+        const val CONVERSATIONS_JSON = """{"data":[{"id":"c1","company_id":"co_1","contact_id":"p1","phone_number_id":"n1","status":"open","is_spam":false,"last_message_at":"2026-07-15T12:00:00Z","created_at":"2026-06-02T12:00:00Z","updated_at":"2026-07-15T12:00:00Z","contact":{"id":"p1","name":"Dana Whitcomb","phone_e164":"+14155550134"},"tags":[],"unread":false,"last_message":{"id":"m1","direction":"inbound","body":"Can you come by Tuesday morning?","created_at":"2026-07-15T12:00:00Z","has_attachments":false}}],"next_cursor":null}"""
+
+        val LINKED_TASKS_JSON = """{"data":[""" + listOf(
+            "Replace the kitchen faucet", "Quote the water heater swap", "Order shutoff valves",
+            "Call back about the permit", "Inspect the boiler", "Re-pipe the laundry room",
+            "Send the final invoice", "Book the gas line test", "Collect the old fixtures",
+        ).mapIndexed { i, title ->
+            """{"id":"t${i + 1}","number":${101 + i},"title":"$title","done":${i >= 6},"due_at":"2026-07-${20 + i}T15:00:00Z","how":["contact"]}"""
+        }.joinToString(",") + """],"next_cursor":null}"""
 
         const val CALLS_JSON = """{"data":[{"id":"k1","call_session_id":"s1","caller_e164":"+14155550134","contact_id":"p1","contact_name":"Dana Whitcomb","outcome":"answered","direction":"inbound","forward_seconds":184,"started_at":"2026-07-15T11:20:00Z"}],"next_cursor":null}"""
 
