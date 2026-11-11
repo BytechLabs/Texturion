@@ -22,7 +22,7 @@ final class SearchFieldPatternGuardTests: XCTestCase {
             PatternRule(name: "searchable", pattern: #"\.searchable\("#),
         ],
         exceptions: [
-            PatternException(file: "Features/Settings/WorkspaceSection.swift", rule: "searchable", reason: "The time zone picker searches through the navigation bar drawer of its own stack."),
+            PatternException(file: "Support/SearchablePicker.swift", rule: "searchable", reason: "The shared picker for long lists (#746), the time zone list among them, searches through the navigation bar drawer of its own stack."),
             PatternException(file: "Theme/CountryField.swift", rule: "searchable", reason: "The country picker searches through the navigation bar drawer of its own stack."),
         ],
         usePattern: #"\bSearchField\("#,
