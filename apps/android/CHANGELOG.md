@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.3](https://github.com/BytechLabs/Texturion/compare/android-v0.26.2...android-v0.26.3) (2026-11-11)
+
+
+### Bug Fixes
+
+* **android:** the screen reader reads sign-up, selections and task screens clearly ([03a8b35](https://github.com/BytechLabs/Texturion/commit/03a8b35fbdadf4c132d8f121b53c2960f0fa4c93))
+
 ## [0.26.2](https://github.com/BytechLabs/Texturion/compare/android-v0.26.1...android-v0.26.2) (2026-11-11)
 
 
