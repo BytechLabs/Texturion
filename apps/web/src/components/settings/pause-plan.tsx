@@ -13,6 +13,7 @@ import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { makeTranslate, useT, type Translate } from "@/i18n/provider";
 import { usePauseOffer, usePausePlan, useResumePlan } from "@/lib/api/billing";
+import { companyAllows } from "@/lib/api/company-actions";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
 
@@ -107,12 +108,16 @@ import type { CompanyView } from "@/lib/api/types";
  */
 export function pauseQueryEnabled(
   allowed: boolean,
-  company: Pick<CompanyView, "plan" | "subscription_status"> | undefined,
+  company:
+    | Pick<CompanyView, "plan" | "subscription_status" | "allowed_actions">
+    | undefined,
 ): boolean {
   return (
     allowed &&
     company?.plan != null &&
-    company.subscription_status === "active"
+    company.subscription_status === "active" &&
+    // #722: only where the workspace may pause (running) or resume (paused).
+    (companyAllows(company, "pause") || companyAllows(company, "resume"))
   );
 }
 
@@ -320,9 +325,12 @@ function pausedDay(isoDate: string, locale: string): string | null {
  */
 export function PausedPlanCard({
   show,
+  canResume = true,
 }: {
   /** `billing.manage`, a plan, and an active subscription. */
   show: boolean;
+  /** #722: the server's allowed_actions has `resume`. */
+  canResume?: boolean;
 }) {
   const t = useT();
   const pause = usePauseOffer(show);
@@ -365,6 +373,7 @@ export function PausedPlanCard({
             </p>
           )}
 
+          {canResume && (
           <div className="space-y-2">
             <Button
               disabled={resume.isPending}
@@ -403,6 +412,7 @@ export function PausedPlanCard({
               </p>
             )}
           </div>
+          )}
         </div>
       </div>
       <CallEffectNote reason="paused" />

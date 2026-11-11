@@ -502,26 +502,28 @@ function InviteRow({ invite }: { invite: Invite }) {
       >
         {t("appShell.teamCopyLink")}
       </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="text-muted-foreground hover:text-destructive"
-        disabled={revoke.isPending}
-        aria-label={t("appShell.teamRevokeInviteAria", { email: invite.email })}
-        onClick={() =>
-          revoke.mutate(invite.id, {
-            onSuccess: () => toast.success(t("appShell.teamInviteRevoked")),
-            onError: (cause) =>
-              toast.error(
-                cause instanceof ApiError
-                  ? cause.message
-                  : t("appShell.teamInviteRevokeFailed"),
-              ),
-          })
-        }
-      >
-        {t("appShell.teamRevoke")}
-      </Button>
+      {invite.allowed_actions?.includes("revoke") ?? true ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-destructive"
+          disabled={revoke.isPending}
+          aria-label={t("appShell.teamRevokeInviteAria", { email: invite.email })}
+          onClick={() =>
+            revoke.mutate(invite.id, {
+              onSuccess: () => toast.success(t("appShell.teamInviteRevoked")),
+              onError: (cause) =>
+                toast.error(
+                  cause instanceof ApiError
+                    ? cause.message
+                    : t("appShell.teamInviteRevokeFailed"),
+                ),
+            })
+          }
+        >
+          {t("appShell.teamRevoke")}
+        </Button>
+      ) : null}
     </div>
   );
 }

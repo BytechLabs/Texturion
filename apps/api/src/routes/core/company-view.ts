@@ -14,6 +14,7 @@ import {
   identificationSuffix,
   roleHasCapability,
   seatLimit,
+  stateMachines,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -31,7 +32,7 @@ export const COMPANY_COLUMNS =
   // a screen that renders the wrong currency is the credibility wobble this
   // whole change exists to remove.
   "billing_currency," +
-  "subscription_status,current_period_start,current_period_end," +
+  "subscription_status,paused_at,current_period_start,current_period_end," +
   "overage_cap_multiplier,registration_fee_paid_at,canceled_at," +
   "cancel_at_period_end," +
   // #277 follow-up: whether the win-back answer on the billing screen has been
@@ -513,7 +514,11 @@ export async function loadCompanyView(
       ...withSeatDerived(
         withCallerIdDerived(
           withEmergencyDerived(
-            withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+            withMctbDerived(
+              withAwayDerived(
+                withIdentificationDerived(withLifecycleActions(company, caller.role)),
+              ),
+            ),
           ),
         ),
       ),
@@ -527,6 +532,35 @@ export async function loadCompanyView(
     },
     caller.role,
   );
+}
+
+/**
+ * #722: what this member may do to the workspace's billing and lifecycle now.
+ *
+ * ONE list for two machines: the subscription's (subscribe, update_payment_method,
+ * resubscribe) and the workspace's (pause, resume, close). Their action names
+ * never collide, so a client asks one question of one field. `paused_at` is
+ * read to derive the workspace state and then dropped: the paused fact has its
+ * own route (GET /v1/billing/pause) and this view never carried it.
+ */
+export function withLifecycleActions<T extends Record<string, unknown>>(
+  company: T,
+  role: MemberRole,
+): Omit<T, "paused_at"> & { allowed_actions: readonly string[] } {
+  const { paused_at: pausedAt, ...rest } = company;
+  const subscription = stateMachines.allowedActions(
+    stateMachines.subscriptionMachine,
+    company.subscription_status as stateMachines.SubscriptionState,
+    role,
+  );
+  const workspace = stateMachines.allowedActions(
+    stateMachines.workspaceMachine,
+    stateMachines.workspaceState({
+      paused_at: typeof pausedAt === "string" ? pausedAt : null,
+    }),
+    role,
+  );
+  return { ...rest, allowed_actions: [...subscription, ...workspace] };
 }
 
 /**

@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useBillingPortal, usePauseOffer } from "@/lib/api/billing";
+import { companyAllows } from "@/lib/api/company-actions";
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
@@ -147,12 +148,14 @@ function StatusNotices({ company }: { company: CompanyView }) {
         <p className="text-sm">
           {t("appShell.billingPastDue")}
         </p>
-        <div className="mt-2">
-          <PortalButton
-            label={t("appShell.billingUpdatePayment")}
-            variant="default"
-          />
-        </div>
+        {companyAllows(company, "update_payment_method") && (
+          <div className="mt-2">
+            <PortalButton
+              label={t("appShell.billingUpdatePayment")}
+              variant="default"
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -162,12 +165,14 @@ function StatusNotices({ company }: { company: CompanyView }) {
         <p className="text-sm">
           {t("appShell.billingUnpaid")}
         </p>
-        <div className="mt-2">
-          <PortalButton
-            label={t("appShell.billingUpdatePayment")}
-            variant="default"
-          />
-        </div>
+        {companyAllows(company, "update_payment_method") && (
+          <div className="mt-2">
+            <PortalButton
+              label={t("appShell.billingUpdatePayment")}
+              variant="default"
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -324,7 +329,10 @@ export default function BillingSettingsPage() {
               BELOW the payment notices rather than above them: a card that has
               stopped working is the one thing more urgent than the pause, and it
               is the one thing that can end a pause badly. */}
-          <PausedPlanCard show={showPause} />
+          <PausedPlanCard
+            show={showPause}
+            canResume={companyAllows(company.data, "resume")}
+          />
 
           {/* #490: directly under the status notice that says the line is off,
               because it is the consequence of that sentence rather than a
@@ -353,7 +361,7 @@ export default function BillingSettingsPage() {
 
                 <HoldSentence company={company.data} />
 
-                {canManage && (
+                {canManage && companyAllows(company.data, "resubscribe") && (
                   <ResubscribeButton plan={company.data.plan ?? "starter"} />
                 )}
               </div>

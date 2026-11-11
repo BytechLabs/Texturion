@@ -94,3 +94,32 @@ describe("GET /v1/scheduled-messages allowed actions (#722)", () => {
     expect(await listAs("read_only")).toEqual({ s1: [], s2: [], s3: [] });
   });
 });
+
+describe("PATCH /v1/scheduled-messages/:id follows the machine (#722)", () => {
+  async function patchRow(status: string) {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
+    sb.on("GET", "/rest/v1/scheduled_messages", () => ({
+      status,
+      conversation_id: CONVERSATION_ID,
+      conversations: null,
+    }));
+    sb.on("PATCH", "/rest/v1/scheduled_messages", () => [{ id: "s1", status, body: "New words" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+    return apiRequest(app, env, await auth.token(), "/v1/scheduled-messages/s1", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { body: "New words" },
+    });
+  }
+
+  it("edits a pending text", async () => {
+    expect((await patchRow("pending")).status).toBe(200);
+  });
+
+  it("refuses an edit on a text the machine allows no edit on", async () => {
+    for (const status of ["sent", "canceled", "expired", "failed"]) {
+      expect((await patchRow(status)).status, status).toBe(422);
+    }
+  });
+});

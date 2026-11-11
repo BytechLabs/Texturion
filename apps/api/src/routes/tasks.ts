@@ -87,6 +87,7 @@ import { emitWebhookEvent, enqueueWebhookEvent } from "../webhooks/outbound";
 import { askForJobRating } from "../messaging/job-ratings";
 import { getEnv } from "../env";
 import { companySettingDefault, roleHasCapability } from "@loonext/shared";
+import { doneToggleAction, taskAllowedActions } from "./task-actions";
 import { ApiError, errorResponse } from "../http/errors";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
@@ -769,11 +770,12 @@ async function findTask(
   db: Db,
   companyId: string,
   id: string,
+  withDoneState = false,
 ): Promise<Record<string, unknown> | null> {
   const rows = unwrap<Record<string, unknown>[]>(
     await db
       .from("tasks")
-      .select(TASK_COLUMNS)
+      .select(withDoneState ? `${TASK_COLUMNS},${TASK_DONE_SELECT}` : TASK_COLUMNS)
       .eq("company_id", companyId)
       .eq("id", id)
       .is("deleted_at", null)
@@ -1779,6 +1781,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
         ...rest,
         done,
         status: done ? "done" : "open",
+        allowed_actions: taskAllowedActions(done, c.get("role")),
         contact,
       });
     }
@@ -1793,6 +1796,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
       ...rest,
       done,
       status: done ? "done" : "open",
+      allowed_actions: taskAllowedActions(done, c.get("role")),
       call: publicSourceCall(row.source_call),
       contact: linkedContact(row.linked_contact) ?? linkedContact(row.thread?.contact),
     });
@@ -2524,6 +2528,8 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     done_at: done_state ?? null,
     done_by_user_id: done ? done_by ?? null : null,
     status: done ? "done" : "open",
+    // #722: what this member may do to it now, from the shared machine.
+    allowed_actions: taskAllowedActions(done, c.get("role")),
     assignee: row.assigned_user_id
       ? profiles.get(row.assigned_user_id) ?? null
       : null,
@@ -2798,12 +2804,21 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   // done_at of its own. Refused BEFORE anything is written so a mixed body does
   // not half-apply.
   if (body.done !== undefined) {
-    const existing = await findTask(db, companyId, id);
+    const existing = await findTask(db, companyId, id, true);
     if (!existing) return errorResponse(c, "not_found", "No such task.");
     if (existing.message_id !== null) {
       throw new ApiError(
         "validation_failed",
         "done: this task came from a text, so mark its message done instead.",
+      );
+    }
+    // #722: the move must be one the machine offers this member. Asking for the
+    // state it is already in is a no-op the RPC answers as `unchanged`.
+    const action = doneToggleAction((existing.done_state ?? null) !== null, body.done);
+    if (action !== null && !taskAllowedActions(!body.done, c.get("role")).includes(action)) {
+      throw new ApiError(
+        "conflict",
+        body.done ? "This task cannot be completed now." : "This task cannot be reopened now.",
       );
     }
   }

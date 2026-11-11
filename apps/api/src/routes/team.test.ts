@@ -1444,6 +1444,41 @@ describe("GET /v1/invites + DELETE /v1/invites/:id (O/A)", () => {
     // Revoke only touches pending invites.
     expect(patch.url.searchParams.get("accepted_at")).toBe("is.null");
   });
+
+  it("lists allowed_actions from the invite state", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/invites", () => [
+      pendingInvite(),
+      pendingInvite({ id: "x2", expires_at: "2020-01-01T00:00:00+00:00" }),
+      pendingInvite({ id: "x3", accepted_at: "2026-07-02T00:00:00+00:00" }),
+      pendingInvite({ id: "x4", revoked_at: "2026-07-02T00:00:00+00:00" }),
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
+      companyId: COMPANY_ID,
+    });
+    const body = (await res.json()) as { data: { allowed_actions: string[] }[] };
+    expect(body.data.map((r) => r.allowed_actions)).toEqual([
+      ["revoke"],
+      ["revoke"],
+      [],
+      [],
+    ]);
+  });
+
+  it("refuses to revoke an invite that is already accepted or revoked", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/invites", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/invites/${INVITE_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+  });
 });
 
 describe("DELETE /v1/members/me (#406 — leaving on your own)", () => {

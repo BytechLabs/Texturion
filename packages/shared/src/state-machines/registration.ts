@@ -41,6 +41,9 @@ export const registrationMachine = defineMachine<RegistrationState>({
     rejected: ["email_rejection_notice"],
   },
   actions: capabilityActions<RegistrationState>({
+    // PUT / (assertEditable) and POST /submit (submitRegistration) both work on
+    // a draft and on a rejected row (fix and resubmit).
     draft: [{ action: "edit", capability: "numbers.manage" }, { action: "submit", capability: "numbers.manage" }],
+    rejected: [{ action: "edit", capability: "numbers.manage" }, { action: "submit", capability: "numbers.manage" }],
   }),
 });

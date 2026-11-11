@@ -1187,3 +1187,58 @@ describe("POST /v1/port-requests/:id/cancel", () => {
     expect(harness.rest.rows("phone_numbers")[0].status).toBe("released");
   });
 });
+
+describe("port allowed actions (#722)", () => {
+  function seed(harness: ReturnType<typeof buildHarness>, status: string) {
+    const phone = harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      source: "ported",
+      provisioning_key: `k-${status}`,
+      country: "US",
+    });
+    return harness.rest.insert("port_requests", {
+      company_id: COMPANY_ID,
+      phone_number_id: phone.id,
+      phone_e164: PORT_E164,
+      country: "US",
+      entity_name: "Acme",
+      auth_person_name: "Pat",
+      account_number: "ACC-1",
+      service_street: "1 Main St",
+      service_locality: "Denver",
+      service_admin_area: "CO",
+      service_postal_code: "80202",
+      status,
+    });
+  }
+
+  it("serves what this member may do, by state and role", async () => {
+    const harness = buildHarness();
+    const draft = seed(harness, "draft");
+    const exception = seed(harness, "exception");
+    const ported = seed(harness, "ported");
+    const actionsOf = async () => {
+      const body = (await (await harness.request("/v1/port-requests")).json()) as {
+        data: { id: string; allowed_actions: string[] }[];
+      };
+      return Object.fromEntries(body.data.map((row) => [row.id, row.allowed_actions]));
+    };
+    harness.state.role = "owner";
+    expect(await actionsOf()).toEqual({
+      [draft.id as string]: ["edit", "submit", "cancel"],
+      [exception.id as string]: ["edit", "fix_and_resubmit", "cancel"],
+      [ported.id as string]: [],
+    });
+    harness.state.role = "member";
+    expect(Object.values(await actionsOf()).flat()).toEqual([]);
+  });
+
+  it("refuses a cancel on a ported port", async () => {
+    const harness = buildHarness();
+    const ported = seed(harness, "ported");
+    harness.state.role = "owner";
+    const res = await harness.request(`/v1/port-requests/${ported.id}/cancel`, { method: "POST" });
+    expect(res.status).toBe(409);
+  });
+});

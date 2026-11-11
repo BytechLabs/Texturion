@@ -30,6 +30,9 @@ export const dataExportMachine = defineMachine<DataExportState>({
     ready: ["email_export_link"],
   },
   actions: capabilityActions<DataExportState>({
-    ready: [{ action: "download", capability: "contacts.bulk" }],
+    // The floor of GET /exports, where the signed links are minted. Which
+    // KINDS a caller may collect is a per-row filter in that query: a
+    // bookkeeper downloads usage summaries without holding contacts.bulk.
+    ready: [{ action: "download", capability: "workspace.access" }],
   }),
 });

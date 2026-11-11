@@ -373,6 +373,20 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
     );
   }
 
+  // #722: the rows say whether this member may edit and submit them in their
+  // state; an older server (no list on either row) falls back to the role.
+  const listedRows = [brand, campaign].filter(
+    (row) => row?.allowed_actions !== undefined,
+  );
+  const mayEditRegistration =
+    listedRows.length > 0
+      ? listedRows.some(
+          (row) =>
+            row?.allowed_actions?.includes("edit") ||
+            row?.allowed_actions?.includes("submit"),
+        )
+      : canEdit;
+
   const rejectedRow =
     brand?.status === "rejected"
       ? brand
@@ -478,7 +492,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
                 plan: company.plan,
               }}
             />
-            {canEdit ? (
+            {mayEditRegistration ? (
               <div ref={fixFormRef}>
                 <RegistrationFixForm
                   brand={brand}
@@ -496,7 +510,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
         {isDraft && !rejectedRow && (
           <div className="space-y-3">
-            {canEdit ? (
+            {mayEditRegistration ? (
               <RegistrationFixForm
                 brand={brand}
                 campaign={campaign}

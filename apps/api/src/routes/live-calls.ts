@@ -31,6 +31,7 @@
  * here" for as long as both of those existed, which is how somebody comes to
  * believe a per-member scope is absent from a file that has two of them.
  */
+import { stateMachines } from "@loonext/shared";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
@@ -589,7 +590,12 @@ liveCallsRoutes.post(
         kind: "transfer",
         targetUserId: body.target_user_id,
       });
-      if (state !== "answered") {
+      // #722: the shared machine says whether this member may transfer a call
+      // in the state the machine is in now.
+      const mayTransfer = stateMachines
+        .allowedActions(stateMachines.callMachine, state, c.get("role"))
+        .includes("transfer");
+      if (!mayTransfer) {
         return errorResponse(c, "conflict", "The call just ended.");
       }
     }

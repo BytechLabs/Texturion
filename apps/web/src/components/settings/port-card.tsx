@@ -261,6 +261,20 @@ export function PortCard({
 
   const ui = derivePortUiState(port);
   const canEdit = role === "owner" || role === "admin";
+  // #722: the server's list says what this member may do to the port in its
+  // state; an older server (no list) falls back to the role checks.
+  const allows = (action: string, fallback: boolean) =>
+    port.allowed_actions?.includes(action) ?? fallback;
+  const canSubmitPort = allows("submit", canEdit);
+  const canFixPort = allows("fix_and_resubmit", canEdit);
+  // A port already winding down (cancel-pending) offers no second cancel here,
+  // though the route would accept the retry.
+  const canCancelPort =
+    !ui.cancelled &&
+    allows(
+      "cancel",
+      roleHasCapability(role, "workspace.own") && port.status !== "ported",
+    );
   const display = formatPhone(port.phone_e164);
   // Null when the shared catalogue doesn't recognise the carrier's wording —
   // the raw banner below stays the honest answer for that case.
@@ -476,7 +490,7 @@ export function PortCard({
         )}
 
         {/* Draft: upload documents, then submit (documents-gated, §8.2). */}
-        {port.status === "draft" && canEdit ? (
+        {port.status === "draft" && canSubmitPort ? (
           <div className="space-y-4">
             {ui.documentsPending ? (
               <PortDocumentsForm port={port} country={country} />
@@ -501,18 +515,18 @@ export function PortCard({
               </p>
             ) : null}
           </div>
-        ) : port.status === "draft" && !canEdit ? (
+        ) : port.status === "draft" && !canSubmitPort ? (
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.portOwnerSubmits")}
           </p>
         ) : null}
 
         {/* Exception: fix-and-resubmit (§8.2). */}
-        {ui.exception === "voice" && canEdit ? (
+        {ui.exception === "voice" && canFixPort ? (
           <div ref={fixFormRef} className="border-t border-border-subtle pt-4">
             <PortFixForm port={port} country={country} />
           </div>
-        ) : ui.exception === "voice" && !canEdit ? (
+        ) : ui.exception === "voice" && !canFixPort ? (
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.portAskOwnerToFix")}
           </p>
@@ -559,9 +573,7 @@ export function PortCard({
                branch above and the capability the cancel route itself requires.
                The two are the same set today; asking one question two ways in
                adjacent branches is how they stop being. */
-          roleHasCapability(role, "workspace.own") &&
-          !ui.cancelled &&
-          port.status !== "ported" ? (
+          canCancelPort ? (
           <div className="border-t border-border-subtle pt-3">
             <CancelPortDialog port={port} />
           </div>

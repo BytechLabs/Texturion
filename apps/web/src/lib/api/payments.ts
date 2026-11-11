@@ -55,7 +55,7 @@ export interface PayoutAccount {
 export interface PaymentRequest {
   id: string;
   /**
-   * #722: what this member may do to it now (`cancel`, `resend`), from the
+   * #722: what this member may do to it now (`cancel`), from the
    * shared machine. Absent from an older server.
    */
   allowed_actions?: readonly string[];

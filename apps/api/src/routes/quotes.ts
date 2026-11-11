@@ -4,7 +4,6 @@ import { z } from "zod";
 import {
   QUOTE_STATUSES,
   billingCurrencyOf,
-  canTransitionQuote,
   effectiveQuoteStatus,
   estimateSegments,
   isQuoteOutstanding,
@@ -418,7 +417,8 @@ quotesRoutes.post(
     // business has already withdrawn. Checked against the EFFECTIVE status,
     // because nothing writes the expired one.
     const current = effectiveQuoteStatus(row, new Date());
-    if (!canTransitionQuote(current, "sent")) {
+    // #722: the shared machine says which states a quote may be sent from.
+    if (!stateMachines.allowedActions(stateMachines.quoteMachine, current, c.get("role")).includes("send")) {
       return errorResponse(c, "conflict", `a quote that is ${current} cannot be sent`);
     }
 

@@ -77,7 +77,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 describe("GET /v1/quotes", () => {
   it("#722: says what the reader may do with each quote in its state", async () => {
     for (const [role, draftActions] of [
-      ["member", ["edit", "send"]],
+      ["member", ["send"]],
       ["read_only", []],
     ] as const) {
       const sb = stubWithRole(role);

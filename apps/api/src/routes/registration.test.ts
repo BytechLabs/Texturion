@@ -226,6 +226,37 @@ describe("GET /v1/registration", () => {
   });
 });
 
+describe("GET /v1/registration allowed actions (#722)", () => {
+  it("offers edit and submit on a draft or rejected row, nothing while under review", async () => {
+    const harness = buildHarness();
+    harness.rest.insert("messaging_registrations", {
+      company_id: COMPANY_ID,
+      kind: "brand",
+      status: "rejected",
+      telnyx_id: "brand-1",
+      data: BRAND_BODY,
+    });
+    harness.rest.insert("messaging_registrations", {
+      company_id: COMPANY_ID,
+      kind: "campaign",
+      status: "pending",
+      data: CAMPAIGN_BODY,
+    });
+    const body = (await (await harness.request("/v1/registration")).json()) as {
+      brand: { allowed_actions: string[] };
+      campaign: { allowed_actions: string[] };
+    };
+    expect(body.brand.allowed_actions).toEqual(["edit", "submit"]);
+    expect(body.campaign.allowed_actions).toEqual([]);
+
+    harness.state.role = "member";
+    const member = (await (await harness.request("/v1/registration")).json()) as {
+      brand: { allowed_actions: string[] };
+    };
+    expect(member.brand.allowed_actions).toEqual([]);
+  });
+});
+
 describe("PUT /v1/registration", () => {
   it("is owner/admin only", async () => {
     const harness = buildHarness();

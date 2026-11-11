@@ -19,6 +19,7 @@ import {
   useCheckout,
   useDismissWinback,
 } from "@/lib/api/billing";
+import { companyAllows } from "@/lib/api/company-actions";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView, PlanId } from "@/lib/api/types";
 
@@ -199,6 +200,8 @@ function OfferControl({
   // STARTER, not `company.plan`. They left because Pro was too expensive; the
   // one control that answers that must not put them back on Pro.
   if (action === "resubscribe_starter") {
+    // #722: the server's list says whether this workspace may resubscribe.
+    if (!companyAllows(company, "resubscribe")) return null;
     return (
       <ResubscribeButton
         plan="starter"

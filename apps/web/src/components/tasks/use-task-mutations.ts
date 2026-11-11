@@ -58,7 +58,21 @@ export function useTaskDone() {
       const snapshots: [readonly unknown[], unknown][] = [];
       const patchRow = (task: Task): Task =>
         task.id === input.taskId
-          ? { ...task, done: input.done, status: input.done ? "done" : "open" }
+          ? {
+              ...task,
+              done: input.done,
+              status: input.done ? "done" : "open",
+              // #722: the move flips which of complete and reopen is offered.
+              ...(task.allowed_actions && {
+                allowed_actions: task.allowed_actions.map((action) =>
+                  action === "complete" && input.done
+                    ? "reopen"
+                    : action === "reopen" && !input.done
+                      ? "complete"
+                      : action,
+                ),
+              }),
+            }
           : task;
 
       for (const query of queryClient.getQueryCache().findAll({

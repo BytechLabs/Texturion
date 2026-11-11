@@ -55,7 +55,11 @@ export const callMachine = defineMachine<CallState>({
   actions: capabilityActions<CallState>({
     ringing: [{ action: "answer", capability: "conversations.send" }],
     answered: [{ action: "hang_up", capability: "conversations.send" }, { action: "transfer", capability: "conversations.send" }],
+    // Calling back places a NEW call (POST /v1/calls/browser), which any ended
+    // call row offers today, so every ended state does.
+    ended_answered: [{ action: "call_back", capability: "conversations.send" }],
     ended_missed: [{ action: "call_back", capability: "conversations.send" }],
     ended_voicemail: [{ action: "call_back", capability: "conversations.send" }],
+    ended_rejected: [{ action: "call_back", capability: "conversations.send" }],
   }),
 });

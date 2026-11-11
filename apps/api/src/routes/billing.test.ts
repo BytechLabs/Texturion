@@ -2253,6 +2253,13 @@ describe("#277 the seasonal pause", () => {
     ).toMatchObject({ p_side: "referrer" });
   });
 
+  it("#722: 409s on pause when the workspace is already paused, before asking Stripe", async () => {
+    const harness = makeHarness([companyEndpoint(activePaused())]);
+    const response = await post("/v1/billing/pause", {}, harness);
+    expect(response.status).toBe(409);
+    expect(harness.callsTo("GET", /api.stripe.com/)).toHaveLength(0);
+  });
+
   it("409s on resume when nothing is paused", async () => {
     const harness = makeHarness([companyEndpoint(activeUnpaused())]);
     const response = await post("/v1/billing/resume", {}, harness);

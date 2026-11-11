@@ -101,7 +101,9 @@ function ReadyExport({ row }: { row: DataExport }) {
     (sum, count) => sum + count,
     0,
   );
-  const expired = row.files.length === 0;
+  // #722: the server says whether a download is on offer; no list, no links.
+  const expired =
+    row.files.length === 0 || !(row.allowed_actions?.includes("download") ?? true);
 
   return (
     <div className="space-y-2 rounded-lg border p-3">

@@ -737,7 +737,10 @@ describe("GET /v1/company — billing fields follow billing.manage (#515)", () =
 
   const BILLING_FIELDS = Object.keys(COMMERCIAL_ROW);
 
-  async function companyAs(role: string): Promise<Record<string, unknown>> {
+  async function companyAs(
+    role: string,
+    overrides: Record<string, unknown> = {},
+  ): Promise<Record<string, unknown>> {
     const sb = stubWithRole(role);
     sb.on("GET", "/rest/v1/companies", () => [
       {
@@ -750,6 +753,7 @@ describe("GET /v1/company — billing fields follow billing.manage (#515)", () =
         subscription_status: "active",
         mfa_grace_until: "2026-09-01T00:00:00Z",
         ...COMMERCIAL_ROW,
+        ...overrides,
       },
     ]);
     sb.on("GET", "/rest/v1/phone_numbers", () => [
@@ -770,6 +774,22 @@ describe("GET /v1/company — billing fields follow billing.manage (#515)", () =
     vi.unstubAllGlobals();
     return body;
   }
+
+  it("#722: serves what the caller may do to the subscription and the workspace", async () => {
+    const owner = await companyAs("owner");
+    expect(owner.allowed_actions).toEqual(["update_payment_method", "pause", "close"]);
+    // The paused fact stays on its own route; it only derives the actions.
+    expect(owner).not.toHaveProperty("paused_at");
+
+    const paused = await companyAs("admin", { paused_at: "2026-07-01T00:00:00Z" });
+    expect(paused.allowed_actions).toEqual(["update_payment_method", "resume"]);
+
+    const canceled = await companyAs("owner", { subscription_status: "canceled" });
+    expect(canceled.allowed_actions).toEqual(["resubscribe", "pause", "close"]);
+
+    const member = await companyAs("member");
+    expect(member.allowed_actions).toEqual([]);
+  });
 
   it("withholds the workspace's commercial state from a member", async () => {
     const body = await companyAs("member");

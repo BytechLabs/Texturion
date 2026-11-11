@@ -42,6 +42,8 @@ export interface CalendarConnection {
   last_sync_at: string | null;
   last_error_key: string | null;
   conflict_count: number;
+  /** #722: what this member may do to the connection now (the shared machine). */
+  allowed_actions?: readonly string[];
 }
 
 export interface CalendarOwnerDisclosure {
@@ -79,6 +81,8 @@ export type CalendarAttentionState =
 export interface CalendarAttentionItem {
   id: string;
   state: CalendarAttentionState;
+  /** #722: what this member may do to the link now (the shared machine). */
+  allowed_actions?: readonly string[];
   /** Latest provider condition; may differ while conflict evidence is held. */
   provider_condition: CalendarAttentionState;
   task: {

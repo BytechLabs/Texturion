@@ -63,6 +63,7 @@ import {
   withEmergencyDerived,
   withBillingRedacted,
   withIdentificationDerived,
+  withLifecycleActions,
   withMctbDerived,
   withSeatDerived,
 } from "./core/company-view";
@@ -1407,7 +1408,11 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
       withSeatDerived(
         withCallerIdDerived(
           withEmergencyDerived(
-            withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+            withMctbDerived(
+              withAwayDerived(
+                withIdentificationDerived(withLifecycleActions(company, c.get("role"))),
+              ),
+            ),
           ),
         ),
       ),

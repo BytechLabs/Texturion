@@ -11,7 +11,7 @@ import { Timestamp } from "@/components/ui/timestamp";
 
 import { AssigneeStack, assigneeSummary } from "./assignee-field";
 import { assigneeNames } from "./task-assignees";
-import { isOverdue, taskThreadId } from "./task-format";
+import { isOverdue, taskActionAllowed, taskThreadId } from "./task-format";
 import { useTaskDone } from "./use-task-mutations";
 
 /**
@@ -38,7 +38,9 @@ export function TaskDoneCheckbox({
       aria-label={task.done ? t("tasks.markNotDone") : t("tasks.markDone")}
       // Guard against a double-submit while the derived PATCH is in flight —
       // matching the for-you TaskRow checkbox, the same message-done write (#4).
-      disabled={done.isPending}
+      disabled={
+        done.isPending || !taskActionAllowed(task, task.done ? "reopen" : "complete")
+      }
       onClick={(e) => {
         e.stopPropagation();
         e.preventDefault();

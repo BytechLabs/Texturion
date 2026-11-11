@@ -131,6 +131,23 @@ describe("GET /v1/calls", () => {
     expect(sb.find("GET", "/rest/v1/profiles")).toHaveLength(0);
   });
 
+  it("#722: a row with a state carries what the member may do to it; a legacy row carries none", async () => {
+    const sb = callsStub([
+      callRow({ state: "ended_missed" }),
+      callRow({ id: "aaaaaaaa-0000-4000-8000-000000000008", state: "answered" }),
+      callRow({ id: "aaaaaaaa-0000-4000-8000-000000000007", state: null }),
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls", {
+      companyId: COMPANY_ID,
+    });
+    const body = (await res.json()) as { data: { allowed_actions?: string[] }[] };
+    expect(body.data[0].allowed_actions).toEqual(["call_back"]);
+    expect(body.data[1].allowed_actions).toEqual(["hang_up", "transfer"]);
+    expect(body.data[2].allowed_actions).toBeUndefined();
+  });
+
   it("passes the #106 deny list into the SQL for a restricted member", async () => {
     const sb = callsStub([], {
       accessRules: [

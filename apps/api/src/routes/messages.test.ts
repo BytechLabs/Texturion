@@ -1103,6 +1103,15 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
     expect(stubs.base.telnyx.calls).toHaveLength(1);
   });
 
+  it("#722: a delivered message is outside the machine's retry action and is refused", async () => {
+    const stubs = retryStubs({ status: "delivered", telnyx_message_id: null });
+    stubFetch(...stubs.all);
+
+    const response = await postRetry();
+    expect(response.status).toBe(409);
+    expect(stubs.claim.calls).toHaveLength(0);
+  });
+
   it("409s a fresh queued row — an in-flight send is never double-dispatched", async () => {
     const stubs = retryStubs({
       status: "queued",

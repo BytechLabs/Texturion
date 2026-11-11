@@ -189,6 +189,36 @@ describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
     expect(transfer.calls).toHaveLength(0);
   });
 
+  it("#722: refuses a transfer when the call machine is no longer answered, and allows one that is", async () => {
+    for (const [machineState, expected] of [
+      ["ended_answered", 409],
+      ["answered", 202],
+    ] as const) {
+      const sb = liveWorld({});
+      const transfer = telnyxTransfer();
+      stubFetch(jwksRoute(auth), sb.route, transfer.route);
+      const doEnv: Env = {
+        ...env,
+        CALL_SESSIONS: {
+          idFromName: (name: string) => name,
+          get: () => ({
+            registerIntent: async () => ({ state: machineState }),
+            clearIntent: async () => undefined,
+          }),
+        } as unknown as Env["CALL_SESSIONS"],
+      };
+      const res = await apiRequest(
+        app,
+        doEnv,
+        await auth.token(),
+        `/v1/calls/live/${SESSION}/transfer`,
+        { companyId: COMPANY_ID, method: "POST", body: { target_user_id: TARGET_ID } },
+      );
+      expect(res.status).toBe(expected);
+      expect(transfer.calls).toHaveLength(expected === 202 ? 1 : 0);
+    }
+  });
+
   it("404s a session from another company (scoped read finds nothing)", async () => {
     const sb = liveWorld({ call: null });
     stubFetch(jwksRoute(auth), sb.route);

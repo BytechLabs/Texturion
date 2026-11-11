@@ -12,7 +12,7 @@ import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import type { RecordAction } from "@/lib/record-actions/types";
 import { useNavigate } from "@/lib/use-navigate";
 
-import { taskThreadId } from "./task-format";
+import { taskActionAllowed, taskThreadId } from "./task-format";
 import { movedDueAt, RESCHEDULE_MOVES } from "./task-reschedule";
 import { TASK_DRAWER_PARAM, useTaskDrawer } from "./use-task-drawer";
 import { useTaskDone, useTaskReschedule } from "./use-task-mutations";
@@ -28,7 +28,7 @@ import { useTaskDone, useTaskReschedule } from "./use-task-mutations";
  */
 export interface TaskActionsInput {
   t: Translate;
-  task: Pick<Task, "done" | "due_at">;
+  task: Pick<Task, "done" | "due_at" | "allowed_actions">;
   hasAccess: boolean;
   canDelete: boolean;
   deleting: boolean;
@@ -72,7 +72,9 @@ export function buildTaskActions(input: TaskActionsInput): RecordAction[] {
       label: t("tasks.markDoneAction"),
       icon: Check,
       group: "state",
-      allowed: input.hasAccess,
+      allowed:
+        input.hasAccess &&
+        taskActionAllowed(input.task, input.task.done ? "reopen" : "complete"),
       checked: input.task.done,
       onSelect: run.toggleDone,
     },
@@ -95,7 +97,7 @@ export function buildTaskActions(input: TaskActionsInput): RecordAction[] {
       label: t("tasks.deleteTask"),
       icon: Trash2,
       group: "danger",
-      allowed: input.canDelete,
+      allowed: input.canDelete && taskActionAllowed(input.task, "trash"),
       destructive: true,
       disabled: input.deleting,
       onSelect: run.requestDelete,

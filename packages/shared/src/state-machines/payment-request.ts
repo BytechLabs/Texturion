@@ -34,6 +34,6 @@ export const paymentRequestMachine = defineMachine<PaymentRequestState>({
     cancelled: ["thread_event_payment_cancelled"],
   },
   actions: capabilityActions<PaymentRequestState>({
-    requested: [{ action: "cancel", capability: "conversations.send" }, { action: "resend", capability: "conversations.send" }],
+    requested: [{ action: "cancel", capability: "conversations.send" }],
   }),
 });

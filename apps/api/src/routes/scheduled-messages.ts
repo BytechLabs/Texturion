@@ -33,7 +33,6 @@
 import {
   SCHEDULED_BODY_MAX,
   SCHEDULED_HORIZON_DAYS,
-  isScheduledMessageLive,
   stateMachines,
 } from "@loonext/shared";
 import { Hono } from "hono";
@@ -300,7 +299,16 @@ scheduledMessageRoutes.patch(
       "scheduled message lookup",
     );
     if (!existing) throw new ApiError("not_found", "That message is not here.");
-    if (!isScheduledMessageLive(existing.status as never)) {
+    // #722: the shared machine decides whether this text may still be edited.
+    if (
+      !stateMachines
+        .allowedActions(
+          stateMachines.scheduledMessageMachine,
+          existing.status as stateMachines.ScheduledMessageState,
+          c.get("role"),
+        )
+        .includes("edit")
+    ) {
       throw new ApiError(
         "validation_failed",
         "That message is no longer waiting to send.",

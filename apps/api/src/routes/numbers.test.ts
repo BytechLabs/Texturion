@@ -2281,3 +2281,34 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
     expect(JSON.stringify(audits)).toContain("number.identity_changed");
   });
 });
+
+describe("GET /v1/numbers allowed actions (#722)", () => {
+  it("offers remediate on a failed purchase to a numbers manager, never to a member or on a hosted number", async () => {
+    const harness = buildHarness();
+    harness.rest.insert("phone_numbers", {
+      id: "aaaaaaaa-0000-4000-8000-0000000000f1",
+      company_id: COMPANY_ID,
+      status: "provision_failed",
+      source: "provisioned",
+      provisioning_key: "k-f1",
+      country: "US",
+    });
+    harness.rest.insert("phone_numbers", {
+      id: "aaaaaaaa-0000-4000-8000-0000000000f2",
+      company_id: COMPANY_ID,
+      status: "provision_failed",
+      source: "hosted",
+      provisioning_key: "k-f2",
+      country: "US",
+    });
+    const actionsOf = async () => {
+      const body = (await (await harness.request("/v1/numbers")).json()) as {
+        data: { id: string; allowed_actions: string[] }[];
+      };
+      return Object.fromEntries(body.data.map((row) => [row.id.slice(-2), row.allowed_actions]));
+    };
+    expect(await actionsOf()).toEqual({ f1: ["remediate"], f2: [] });
+    harness.state.role = "member";
+    expect(await actionsOf()).toEqual({ f1: [], f2: [] });
+  });
+});

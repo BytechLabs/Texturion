@@ -27,14 +27,14 @@
  *     by design — a fresh order starts a fresh budget, and the per-number
  *     rate limiter covers the cross-order angle.
  */
-import { lookupAreaCode } from "@loonext/shared";
+import { lookupAreaCode, stateMachines } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
 import { PLAN_LIMITS, type PlanId } from "../billing/plans";
-import type { AppEnv } from "../context";
+import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
@@ -82,12 +82,25 @@ async function fetchCompany(
 }
 
 /** Vendor ids stay server-side; expose only status + the honest fields. */
-function sanitize(row: TextEnablementOrderRow) {
+/** #722: what this member may do to the order now, from the shared machine. */
+function orderActions(
+  status: string,
+  role: MemberRole,
+): readonly string[] {
+  return stateMachines.allowedActions(
+    stateMachines.textEnablementMachine,
+    status as stateMachines.TextEnablementState,
+    role,
+  );
+}
+
+function sanitize(row: TextEnablementOrderRow, role: MemberRole) {
   return {
     id: row.id,
     phone_e164: row.phone_e164,
     country: row.country,
     status: row.status,
+    allowed_actions: orderActions(row.status, role),
     has_loa: row.telnyx_loa_document_id !== null,
     has_bill: row.telnyx_bill_document_id !== null,
     last_error: row.last_error,
@@ -208,7 +221,7 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
   }
   if (existingByKey && existingByKey.length > 0) {
     return c.json(
-      sanitize(existingByKey[0] as unknown as TextEnablementOrderRow),
+      sanitize(existingByKey[0] as unknown as TextEnablementOrderRow, c.get("role")),
       200,
     );
   }
@@ -300,7 +313,7 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
 
   if (slot.outcome === "exists") {
     // Idempotent replay: same Idempotency-Key → return the existing order.
-    return c.json(sanitize(slot.order as TextEnablementOrderRow), 200);
+    return c.json(sanitize(slot.order as TextEnablementOrderRow, c.get("role")), 200);
   }
 
   // Start the saga (create the Telnyx hosted order) in the background; it never
@@ -311,7 +324,7 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
   if (ctx) ctx.waitUntil(saga.then(() => undefined));
   else await saga;
 
-  return c.json(sanitize(slot.order as TextEnablementOrderRow), 201);
+  return c.json(sanitize(slot.order as TextEnablementOrderRow, c.get("role")), 201);
 });
 
 /** GET /v1/text-enablements — any member: list the company's enablements. */
@@ -327,7 +340,7 @@ textEnablementRoutes.get("/", async (c) => {
   }
   const rows = (data ?? []) as unknown as (TextEnablementOrderRow &
     Record<string, unknown>)[];
-  return c.json({ data: rows.map(sanitize), next_cursor: null });
+  return c.json({ data: rows.map((row) => sanitize(row, c.get("role"))), next_cursor: null });
 });
 
 /** GET /v1/text-enablements/:id — any member: one enablement's state. */
@@ -336,7 +349,7 @@ textEnablementRoutes.get("/:id", async (c) => {
   const id = pathUuid(c, "id");
   const order = await loadOrder(db, c.get("companyId"), id);
   if (!order) return errorResponse(c, "not_found", "No such text-enablement.");
-  return c.json(sanitize(order));
+  return c.json(sanitize(order, c.get("role")));
 });
 
 // 5 MB — the Telnyx hosted-SMS per-file limit (STRICTER than porting's 10 MB;
@@ -350,12 +363,11 @@ const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENTS_BODY_BYTES = 2 * MAX_DOCUMENT_BYTES + 1024 * 1024;
 
 /** The upload window: before the carrier review starts, or after it rejects. */
-function documentsUploadable(order: TextEnablementOrderRow): boolean {
-  return (
-    order.status === "pending" ||
-    order.status === "action-required" ||
-    order.status === "failed"
-  );
+function documentsUploadable(
+  order: TextEnablementOrderRow,
+  role: MemberRole,
+): boolean {
+  return orderActions(order.status, role).includes("upload_documents");
 }
 
 /**
@@ -378,7 +390,7 @@ textEnablementRoutes.put("/:id/documents", requireCapability("numbers.manage"), 
   const id = pathUuid(c, "id");
   const order = await loadOrder(db, companyId, id);
   if (!order) return errorResponse(c, "not_found", "No such text-enablement.");
-  if (!documentsUploadable(order)) {
+  if (!documentsUploadable(order, c.get("role"))) {
     return errorResponse(
       c,
       "conflict",
@@ -492,7 +504,7 @@ textEnablementRoutes.put("/:id/documents", requireCapability("numbers.manage"), 
     // action-required poll.
     await attachHostedOrderDocuments(env, updated);
   }
-  return c.json(sanitize(updated));
+  return c.json(sanitize(updated, c.get("role")));
 });
 
 /**
@@ -521,7 +533,7 @@ textEnablementRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), 
   const id = pathUuid(c, "id");
   const order = await loadOrder(db, companyId, id);
   if (!order) return errorResponse(c, "not_found", "No such text-enablement.");
-  if (order.status !== "failed" && order.status !== "action-required") {
+  if (!orderActions(order.status, c.get("role")).includes("resubmit")) {
     return errorResponse(
       c,
       "conflict",
@@ -589,7 +601,7 @@ textEnablementRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), 
   if (ctx) ctx.waitUntil(saga.then(() => undefined));
   else await saga;
 
-  return c.json(sanitize(resetRow));
+  return c.json(sanitize(resetRow, c.get("role")));
 });
 
 const verificationRequestSchema = z.strictObject({
@@ -814,7 +826,7 @@ textEnablementRoutes.post("/:id/cancel", requireCapability("workspace.own"), asy
   const id = pathUuid(c, "id");
   const order = await loadOrder(db, c.get("companyId"), id);
   if (!order) return errorResponse(c, "not_found", "No such text-enablement.");
-  if (order.status === "completed" || order.status === "cancelled") {
+  if (!orderActions(order.status, c.get("role")).includes("cancel")) {
     return errorResponse(
       c,
       "conflict",
@@ -822,5 +834,5 @@ textEnablementRoutes.post("/:id/cancel", requireCapability("workspace.own"), asy
     );
   }
   const updated = await cancelTextEnablement(env, order);
-  return c.json(sanitize(updated));
+  return c.json(sanitize(updated, c.get("role")));
 });

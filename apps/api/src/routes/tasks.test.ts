@@ -1849,6 +1849,19 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
     expect(setDone.calls).toHaveLength(0);
   });
 
+  it("#722: completing an open standalone task is a move the machine offers", async () => {
+    const open = taskRow({ message_id: null, source_call_id: CALL_ID, done_state: null });
+    const lookup = stubRoute(restMatch(env, "GET", "tasks"), () => [open]);
+    const setDone = stubRoute(rpcMatch(env, "set_task_done"), () => ({
+      outcome: "updated",
+      task: { ...open, done_at: "2026-07-02T15:00:00.000Z" },
+    }));
+    stubFetch(jwksRoute(auth), membersRoute(), lookup.route, setDone.route, ...reminderRoutes());
+    const response = await request("PATCH", `/v1/tasks/${TASK_ID}`, { done: true });
+    expect(response.status).toBe(200);
+    expect(setDone.calls).toHaveLength(1);
+  });
+
   it("marks a call-anchored task done through set_task_done, and returns the source", async () => {
     const callTask = taskRow({ message_id: null, source_call_id: CALL_ID });
     const lookup = stubRoute(restMatch(env, "GET", "tasks"), () => [callTask]);

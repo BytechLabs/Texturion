@@ -1044,3 +1044,37 @@ describe("lifetime caps (durable per-order budgets, §10)", () => {
     }
   });
 });
+
+describe("allowed actions (#722)", () => {
+  it("serves what this member may do, by state and role", async () => {
+    const h = buildHarness();
+    const failed = seedOrder(h, { status: "failed" });
+    const inProgress = seedOrder(h, { status: "in-progress" });
+    const completed = seedOrder(h, { status: "completed" });
+    const actionsOf = async () => {
+      const body = (await (await h.request("/v1/text-enablements")).json()) as {
+        data: { id: string; allowed_actions: string[] }[];
+      };
+      return Object.fromEntries(body.data.map((row) => [row.id, row.allowed_actions]));
+    };
+    h.state.role = "owner";
+    expect(await actionsOf()).toEqual({
+      [failed.id as string]: ["upload_documents", "resubmit", "cancel"],
+      [inProgress.id as string]: ["cancel"],
+      [completed.id as string]: [],
+    });
+    h.state.role = "member";
+    expect(Object.values(await actionsOf()).flat()).toEqual([]);
+  });
+
+  it("refuses a cancel on a completed enablement", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h, { status: "completed" });
+    h.state.role = "owner";
+    const res = await h.request(
+      `/v1/text-enablements/${order.id}/cancel`,
+      jsonInit("POST", undefined),
+    );
+    expect(res.status).toBe(409);
+  });
+});

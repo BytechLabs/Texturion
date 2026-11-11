@@ -63,8 +63,12 @@ export function callPrimaryAction(call: {
   conversation_id: string | null;
   contact_id: string | null;
   caller_e164: string | null;
+  allowed_actions?: readonly string[];
 }): CallPrimaryAction | null {
-  const canCallBack = call.conversation_id !== null || call.contact_id !== null;
+  const canCallBack =
+    (call.conversation_id !== null || call.contact_id !== null) &&
+    // #722: the server's list, when the row carries one.
+    (call.allowed_actions?.includes("call_back") ?? true);
   const canMessage = callMessageHref(call) !== null;
   const wantsCallBack =
     call.direction !== "outbound" &&
@@ -85,6 +89,8 @@ export interface CallActionsInput {
   conversationId: string | null;
   contactId: string | null;
   callerE164: string | null;
+  /** #722: the server's actions for this call; absent where the surface holds none. */
+  allowedActions?: readonly string[];
   canDelete: boolean;
   calling: boolean;
   deletingCall: boolean;
@@ -110,7 +116,9 @@ export function buildCallActions(input: CallActionsInput): RecordAction[] {
       label: t("recordMenu.callBack"),
       icon: Phone,
       group: "primary",
-      allowed: input.conversationId !== null || input.contactId !== null,
+      allowed:
+        (input.conversationId !== null || input.contactId !== null) &&
+        (input.allowedActions?.includes("call_back") ?? true),
       disabled: input.calling,
       onSelect: run.callBack,
     },
@@ -197,6 +205,8 @@ export interface CallActionsProps {
   conversationId?: string | null;
   contactId?: string | null;
   callerE164?: string | null;
+  /** #722: the call's `allowed_actions`, when its surface carries them. */
+  allowedActions?: readonly string[];
   /** #734: the call row wires these; the call's own page leaves them out. */
   callSessionId?: string | null;
   /** D64: only an answered call in a conversation can become a task. */
@@ -222,6 +232,7 @@ export function useCallActions({
   conversationId = null,
   contactId = null,
   callerE164 = null,
+  allowedActions,
   callSessionId = null,
   canMakeTask = false,
   onMakeTask,
@@ -257,6 +268,7 @@ export function useCallActions({
     conversationId,
     contactId,
     callerE164,
+    allowedActions,
     canDelete,
     calling: busy,
     deletingCall: deleteCall.isPending,

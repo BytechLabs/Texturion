@@ -326,6 +326,8 @@ export interface PhoneNumberSummary {
    */
   ring_targets?: number | null;
   ring_target_limit?: number;
+  /** #722: GET /v1/numbers only. What this member may do now (remediate). */
+  allowed_actions?: readonly string[];
   /**
    * #235: this number's delivery health, present only when it is DEGRADED —
    * a carrier or analytics vendor is filtering or labelling it. `null` or
@@ -413,6 +415,12 @@ export interface CompanyView {
    */
   billing_currency?: BillingCurrency;
   subscription_status: SubscriptionStatus;
+  /**
+   * #722: what this member may do to the subscription and the workspace now
+   * (subscribe, update_payment_method, resubscribe, pause, resume, close).
+   * Absent from an older server.
+   */
+  allowed_actions?: readonly string[];
   current_period_start: string | null;
   current_period_end: string | null;
   overage_cap_multiplier: number | string | null;
@@ -637,6 +645,8 @@ export interface Conversation {
   phone_number_id: string;
   status: ConversationStatus;
   is_spam: boolean;
+  /** #722: status moves plus spam/trash actions this member may take now. */
+  allowed_actions?: readonly string[];
   assigned_user_id: string | null;
   /** #3 pin state — set/cleared together by PATCH /v1/conversations/:id {pinned}. */
   pinned_at: string | null;
@@ -781,6 +791,8 @@ export interface Message {
   direction: MessageDirection;
   body: string;
   status: MessageStatus | null; // null iff direction='note'
+  /** #722: what this member may do to the message now (retry). Absent on a pinned-list row. */
+  allowed_actions?: readonly string[];
   segments: number | null;
   encoding: string | null;
   sent_by_user_id: string | null;
@@ -1094,6 +1106,8 @@ export interface TaskAssignee {
 export interface Task {
   id: string;
   company_id: string;
+  /** #722: what this member may do to the task now (complete, reopen, trash). */
+  allowed_actions?: readonly string[];
   /** #690: the per-workspace task number, shown as T-142. Absent on an older cached row. */
   number?: number;
   /**
@@ -1780,6 +1794,8 @@ export interface Invite {
    * what it says before the new member reads it once and it is gone.
    */
   note: string | null;
+  /** #722: what this member may do to the invite now (the shared machine). */
+  allowed_actions?: readonly string[];
 }
 
 /**
@@ -1999,6 +2015,8 @@ export interface Call {
   id: string;
   /** D43: Telnyx session id — the voicemail playback + live-call key. */
   call_session_id: string;
+  /** #722: what this member may do to the call now (call_back, ...). Absent on a legacy row. */
+  allowed_actions?: readonly string[];
   caller_e164: string | null;
   contact_id: string | null;
   contact_name: string | null;
@@ -2327,6 +2345,8 @@ export const US_REGISTRATION_FEE_DOLLARS = US_REGISTRATION_FEE_CENTS.usd / 100;
 export interface RegistrationRow extends RegistrationSummary {
   id: string;
   data?: Record<string, unknown>;
+  /** #722: what this member may do to the row now (edit, submit). */
+  allowed_actions?: readonly string[];
 }
 
 export interface RegistrationState {
@@ -2398,6 +2418,8 @@ export interface PortRequest {
   phone_e164: string;
   country: Country;
   status: PortStatus;
+  /** #722: what this member may do to the port now (edit, submit, fix_and_resubmit, cancel). */
+  allowed_actions?: readonly string[];
   messaging_port_status: PortMessagingStatus;
   foc_date: string | null;
   foc_datetime_requested: string | null;
@@ -2501,6 +2523,8 @@ export interface TextEnablement {
   phone_e164: string;
   country: Country;
   status: TextEnablementStatus;
+  /** #722: what this member may do to the order now (upload_documents, resubmit, cancel). */
+  allowed_actions?: readonly string[];
   has_loa: boolean;
   has_bill: boolean;
   last_error: string | null;
@@ -2831,6 +2855,8 @@ export interface DataExport {
   expires_at: string | null;
   /** Signed links, minted at read time. Empty unless ready and unexpired. */
   files: { name: string; url: string }[];
+  /** #722: what this member may do to the export now (the shared machine). */
+  allowed_actions?: readonly string[];
 }
 
 /**

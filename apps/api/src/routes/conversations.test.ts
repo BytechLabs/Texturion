@@ -133,6 +133,27 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
     });
   });
 
+  it("#722: each row carries the status moves and visibility actions for the caller", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => [
+      conversationRow({ status: "closed" }),
+      conversationRow({ status: "new", is_spam: true }),
+    ]);
+    sb.on("GET", "/rest/v1/conversation_member_prefs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/conversations", {
+      companyId: COMPANY_ID,
+    });
+    const body = (await res.json()) as { data: { allowed_actions: string[] }[] };
+    expect(body.data[0].allowed_actions).toEqual(
+      expect.arrayContaining(["reopen", "mark_waiting", "mark_spam"]),
+    );
+    expect(body.data[1].allowed_actions).toEqual(
+      expect.arrayContaining(["mark_open", "close", "unmark_spam"]),
+    );
+  });
+
   it("defaults: limit 25, spam excluded, no filters", async () => {
     const sb = memberStub();
     sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => []);

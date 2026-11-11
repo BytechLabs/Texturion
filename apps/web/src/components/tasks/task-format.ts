@@ -64,6 +64,17 @@ export function taskCallerName(
  */
 export const NO_CONVERSATION = "no-conversation";
 
+/**
+ * #722: whether the server's list offers this member `action` on the task. A
+ * surface that holds no list (the field is absent) keeps its own behaviour.
+ */
+export function taskActionAllowed(
+  task: Pick<Task, "allowed_actions">,
+  action: "complete" | "reopen" | "trash",
+): boolean {
+  return task.allowed_actions?.includes(action) ?? true;
+}
+
 export function taskThreadId(task: Pick<Task, "conversation_id">): string {
   return task.conversation_id ?? NO_CONVERSATION;
 }

@@ -98,7 +98,7 @@ export interface ConversationActionsInput {
     snoozedUntil: string | null;
     snoozeKind: DeferralKind | null;
     assignedUserId: string | null;
-    /** #722: the server's status moves for this member; absent on a list row. */
+    /** #722: the server's status, spam and trash actions for this member; absent where the surface holds none. */
     allowedActions?: readonly string[];
   };
   members: { id: string; name: string; isYou: boolean }[];
@@ -390,7 +390,11 @@ export function buildConversationActions(
       label: t("thread.spam"),
       icon: OctagonAlert,
       group: "danger",
-      allowed: viewer.canWrite,
+      allowed: statusMoveAllowed(
+        state.allowedActions,
+        state.isSpam ? "unmark_spam" : "mark_spam",
+        viewer.canWrite,
+      ),
       checked: state.isSpam,
       keepOpen: true,
       onSelect: run.toggleSpam,
@@ -418,7 +422,7 @@ export function buildConversationActions(
       label: t("trash.deleteConversation"),
       icon: Trash2,
       group: "danger",
-      allowed: viewer.canDelete,
+      allowed: statusMoveAllowed(state.allowedActions, "trash", viewer.canDelete),
       destructive: true,
       onSelect: run.askDelete,
     },

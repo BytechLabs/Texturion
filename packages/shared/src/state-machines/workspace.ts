@@ -12,6 +12,21 @@ import { capabilityActions, defineMachine } from "./define-machine";
  */
 export type WorkspaceState = "active" | "paused" | "closed" | "purged";
 
+/**
+ * The state of a companies row, from the same three columns as the SQL
+ * function workspace_state (purged beats closed beats paused).
+ */
+export function workspaceState(row: {
+  paused_at?: string | null;
+  deleted_at?: string | null;
+  purged_at?: string | null;
+}): WorkspaceState {
+  if (row.purged_at) return "purged";
+  if (row.deleted_at) return "closed";
+  if (row.paused_at) return "paused";
+  return "active";
+}
+
 /** A workspace's lifecycle, derived from paused_at, deleted_at and purged_at on companies. */
 export const workspaceMachine = defineMachine<WorkspaceState>({
   id: "workspace",
@@ -37,6 +52,5 @@ export const workspaceMachine = defineMachine<WorkspaceState>({
   actions: capabilityActions<WorkspaceState>({
     active: [{ action: "pause", capability: "billing.manage" }, { action: "close", capability: "workspace.own" }],
     paused: [{ action: "resume", capability: "billing.manage" }, { action: "close", capability: "workspace.own" }],
-    closed: [{ action: "reopen", capability: "workspace.own" }],
   }),
 });

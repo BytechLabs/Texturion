@@ -14,16 +14,17 @@ import { useT } from "@/i18n/provider";
 import type { Task } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
-import { taskThreadId } from "./task-format";
+import { taskActionAllowed, taskThreadId } from "./task-format";
 import { useTaskDone } from "./use-task-mutations";
 
 type TaskStatus = "open" | "done";
 
 /**
  * #743: the Status cell of a list row is the one control for changing a task's
- * status. Task rows carry no `allowed_actions`, and the task machine lets an
- * open task become done and a done task reopen, so the picker offers exactly
- * those two. The server still refuses what it must (the mutation rolls back).
+ * status. #722: the row's `allowed_actions` (from the task machine) decides
+ * which move is offered: complete reaches done, reopen reaches open. The
+ * current status is always listed. A row with no list offers both, and the
+ * server still refuses what it must (the mutation rolls back).
  */
 export function TaskStatusPicker({ task }: { task: Task }) {
   const t = useT();
@@ -79,8 +80,12 @@ export function TaskStatusPicker({ task }: { task: Task }) {
           value={current}
           onValueChange={(value) => move(value as TaskStatus)}
         >
-          <DropdownMenuRadioItem value="open">{labels.open}</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="done">{labels.done}</DropdownMenuRadioItem>
+          {(current === "open" || taskActionAllowed(task, "reopen")) && (
+            <DropdownMenuRadioItem value="open">{labels.open}</DropdownMenuRadioItem>
+          )}
+          {(current === "done" || taskActionAllowed(task, "complete")) && (
+            <DropdownMenuRadioItem value="done">{labels.done}</DropdownMenuRadioItem>
+          )}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>

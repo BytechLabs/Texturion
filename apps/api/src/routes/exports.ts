@@ -17,6 +17,7 @@ import { z } from "zod";
 import {
   roleHasCapability,
   type Capability,
+  stateMachines,
   type MemberRole,
 } from "@loonext/shared";
 import { Hono } from "hono";
@@ -336,8 +337,10 @@ exportsRoutes.get("/exports", requireCapability("workspace.access"), async (c) =
     "data export list",
   );
 
+  const role = c.get("role") as MemberRole;
   const data = await Promise.all(
     rows.map(async (row) => ({
+      ...exportActions(row, role),
       id: row.id,
       status: row.status,
       row_counts: row.row_counts ?? {},
@@ -345,11 +348,32 @@ exportsRoutes.get("/exports", requireCapability("workspace.access"), async (c) =
       requested_at: row.requested_at,
       completed_at: row.completed_at,
       expires_at: row.expires_at,
-      files: await signFiles(db, row),
+      files: await signFiles(db, row, role),
     })),
   );
   return c.json({ data, next_cursor: null });
 });
+
+/**
+ * #722: what this member may do to the export now. An expired export has had
+ * its objects swept, so it offers nothing even though its status is still ready.
+ */
+function exportActions(
+  row: ExportRow,
+  role: MemberRole,
+): { allowed_actions: readonly string[] } {
+  const expired =
+    row.expires_at !== null && new Date(row.expires_at).getTime() <= Date.now();
+  return {
+    allowed_actions: expired
+      ? []
+      : stateMachines.allowedActions(
+          stateMachines.dataExportMachine,
+          row.status,
+          role,
+        ),
+  };
+}
 
 /**
  * One signed URL per file, minted now rather than stored. An expired export
@@ -359,11 +383,10 @@ exportsRoutes.get("/exports", requireCapability("workspace.access"), async (c) =
 async function signFiles(
   db: ReturnType<typeof getDb>,
   row: ExportRow,
+  role: MemberRole,
 ): Promise<{ name: string; url: string }[]> {
-  if (row.status !== "ready" || !row.storage_prefix) return [];
-  if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) {
-    return [];
-  }
+  if (!exportActions(row, role).allowed_actions.includes("download")) return [];
+  if (!row.storage_prefix) return [];
 
   const { data, error } = await db.storage
     .from(EXPORTS_BUCKET)
@@ -406,7 +429,9 @@ exportsRoutes.get("/exports/:id", requireCapability("workspace.access"), async (
   );
   const row = rows[0];
   if (!row) return errorResponse(c, "not_found", "No such export.");
+  const role = c.get("role") as MemberRole;
   return c.json({
+    ...exportActions(row, role),
     id: row.id,
     status: row.status,
     row_counts: row.row_counts ?? {},
@@ -414,6 +439,6 @@ exportsRoutes.get("/exports/:id", requireCapability("workspace.access"), async (
     requested_at: row.requested_at,
     completed_at: row.completed_at,
     expires_at: row.expires_at,
-    files: await signFiles(db, row),
+    files: await signFiles(db, row, role),
   });
 });

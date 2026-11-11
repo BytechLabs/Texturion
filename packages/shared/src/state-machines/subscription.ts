@@ -33,7 +33,13 @@ export const subscriptionMachine = defineMachine<SubscriptionState>({
     canceled: ["incomplete", "active"],
   },
   actions: capabilityActions<SubscriptionState>({
+    // POST /v1/billing/checkout refuses only a live subscription (active,
+    // past_due, unpaid), so a first or an expired attempt may subscribe.
     incomplete: [{ action: "subscribe", capability: "billing.manage" }],
+    incomplete_expired: [{ action: "subscribe", capability: "billing.manage" }],
+    // POST /v1/billing/portal opens a payment-method update for any workspace
+    // that has a Stripe customer, so a healthy active one may update its card too.
+    active: [{ action: "update_payment_method", capability: "billing.manage" }],
     past_due: [{ action: "update_payment_method", capability: "billing.manage" }],
     unpaid: [{ action: "update_payment_method", capability: "billing.manage" }],
     canceled: [{ action: "resubscribe", capability: "billing.manage" }],

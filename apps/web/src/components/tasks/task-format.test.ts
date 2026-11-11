@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { makeTranslate } from "@/i18n/provider";
 
-import {
-  taskCallerName,
-} from "./task-format";
-
+import { taskActionAllowed, taskCallerName } from "./task-format";
 const t = makeTranslate("en");
 
 describe("D64 a task that came from a call", () => {
@@ -28,5 +25,14 @@ describe("D64 a task that came from a call", () => {
       "Unknown caller",
     );
     expect(taskCallerName({ call: null }, t)).toBeNull();
+  });
+});
+
+describe("#722 taskActionAllowed", () => {
+  it("follows the server's list, and allows everything when the row has none", () => {
+    expect(taskActionAllowed({ allowed_actions: ["complete"] }, "complete")).toBe(true);
+    expect(taskActionAllowed({ allowed_actions: ["complete"] }, "trash")).toBe(false);
+    expect(taskActionAllowed({ allowed_actions: [] }, "reopen")).toBe(false);
+    expect(taskActionAllowed({}, "trash")).toBe(true);
   });
 });

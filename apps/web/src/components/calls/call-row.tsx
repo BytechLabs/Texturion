@@ -126,6 +126,7 @@ export function CallRow({ call }: { call: Call }) {
     conversationId: call.conversation_id,
     contactId: call.contact_id,
     callerE164: call.caller_e164,
+    allowedActions: call.allowed_actions,
   });
   const body = (
     <>

@@ -142,6 +142,7 @@ describe("calendar connection management", () => {
           last_sync_at: "2026-08-25T10:01:00Z",
           last_error_key: null,
           conflict_count: 2,
+          allowed_actions: ["disconnect"],
         },
       ],
       disclosures: [],
@@ -330,7 +331,7 @@ describe("calendar connection management", () => {
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/calendar_connections", () => [{ id: CONNECTION_ID }]);
+    sb.on("GET", "/rest/v1/calendar_connections", () => [{ id: CONNECTION_ID, status: "active" }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_calendar_connection", () => ({
       outcome: "revoked",
       count: 1,
@@ -362,7 +363,7 @@ describe("calendar connection management", () => {
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/calendar_connections", () => [{ id: CONNECTION_ID }]);
+    sb.on("GET", "/rest/v1/calendar_connections", () => [{ id: CONNECTION_ID, status: "active" }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_calendar_connection", () => ({
       outcome: "disconnecting",
       count: 1,
@@ -392,7 +393,7 @@ describe("calendar connection management", () => {
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/calendar_connections", () => [{ id: CONNECTION_ID }]);
+    sb.on("GET", "/rest/v1/calendar_connections", () => [{ id: CONNECTION_ID, status: "active" }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_calendar_connection", () => ({
       outcome: "busy",
       reason,
@@ -421,7 +422,7 @@ describe("calendar connection management", () => {
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/calendar_connections", () => [{ id: CONNECTION_ID }]);
+    sb.on("GET", "/rest/v1/calendar_connections", () => [{ id: CONNECTION_ID, status: "active" }]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_calendar_connection", () => ({
       outcome: "superseded",
       connection_id: "aaaaaaaa-1111-4222-8333-444444444444",
@@ -440,6 +441,35 @@ describe("calendar connection management", () => {
     expect(await response.json()).toMatchObject({
       error: { code: "conflict" },
     });
+  });
+
+  it("refuses to disconnect a connection that is already draining its cleanup", async () => {
+    const env = configuredEnv();
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("GET", "/rest/v1/calendar_connections", () => [
+      { id: CONNECTION_ID, status: "disconnected" },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_calendar_connection", () => ({
+      outcome: "disconnecting",
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calendar/connections/${CONNECTION_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(response.status).toBe(409);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_revoke_calendar_connection"),
+    ).toHaveLength(0);
   });
 
   it("lists only the caller's attention details without exposing snapshot hashes", async () => {
@@ -570,6 +600,40 @@ describe("calendar connection management", () => {
     expect(response.status).toBe(403);
     expect(
       sb.find("POST", "/rest/v1/rpc/api_get_calendar_attention"),
+    ).toHaveLength(0);
+  });
+
+  it("refuses to resolve a link whose state offers no resolution", async () => {
+    const env = configuredEnv();
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("POST", "/rest/v1/rpc/api_get_calendar_attention", () => ({
+      outcome: "found",
+      attention: attentionRow("refused"),
+    }));
+    sb.on("POST", "/rest/v1/rpc/api_resolve_calendar_conflict", () => ({
+      outcome: "resolved",
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calendar/attention/${LINK_ID}/resolve`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { action: "use_app" },
+      },
+    );
+    expect(response.status).toBe(409);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_resolve_calendar_conflict"),
     ).toHaveLength(0);
   });
 

@@ -73,7 +73,7 @@ export { taskMachine, type TaskState } from "./task";
 import { inviteMachine } from "./invite";
 export { inviteMachine, type InviteState } from "./invite";
 import { workspaceMachine } from "./workspace";
-export { workspaceMachine, type WorkspaceState } from "./workspace";
+export { workspaceMachine, workspaceState, type WorkspaceState } from "./workspace";
 
 /** Every machine, for tests and for anything that needs to enumerate them. */
 export const ALL_MACHINES = [

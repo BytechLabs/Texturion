@@ -29,6 +29,7 @@ import {
   useRecordCancellationReason,
 } from "@/lib/api/billing";
 import { useExportContacts } from "@/lib/api/contacts-export-hook";
+import { companyAllows } from "@/lib/api/company-actions";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
 
@@ -300,6 +301,8 @@ export function CancelSubscriptionCard({
   const pause = pauseReadOf(pauseAsked, pauseQuery);
   const pauseOffer =
     reason === "seasonal" &&
+    // #722: the server's list says this workspace may pause now.
+    companyAllows(company, "pause") &&
     pauseQuery.data?.eligible === true &&
     pauseQuery.data.monthly_cents !== null
       ? pauseQuery.data.monthly_cents

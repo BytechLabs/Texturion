@@ -34,6 +34,7 @@
  *        `attachments: [{ id, content_type, size_bytes }]`.
  */
 
+import { stateMachines } from "@loonext/shared";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -376,10 +377,21 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
   const stuckQueued =
     message.status === "queued" &&
     Date.parse(message.updated_at) < Date.now() - STUCK_SEND_SECONDS * 1000;
+  // #722: a failed send is retryable by the shared machine; a stuck-queued one
+  // is the route's own extra case, which the machine cannot know (it is a
+  // matter of time, not state).
+  const mayRetry =
+    stateMachines
+      .allowedActions(
+        stateMachines.messageMachine,
+        (message.status ?? "received") as stateMachines.MessageState,
+        c.get("role"),
+      )
+      .includes("retry") || stuckQueued;
   if (
     message.direction !== "outbound" ||
     message.telnyx_message_id !== null ||
-    (message.status !== "failed" && !stuckQueued)
+    !mayRetry
   ) {
     throw new ApiError(
       "conflict",

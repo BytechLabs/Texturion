@@ -1,11 +1,11 @@
-import { lookupAreaCode } from "@loonext/shared";
+import { lookupAreaCode, stateMachines } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
 import { PLAN_LIMITS, type PlanId } from "../billing/plans";
-import type { AppEnv } from "../context";
+import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
@@ -135,12 +135,22 @@ async function bridgeNumbers(
 
 const NO_BRIDGE_NUMBERS: ReadonlyMap<string, string> = new Map();
 
+/** #722: the shared machine's answer for this port's state and this member. */
+function portActions(status: string, role: MemberRole): readonly string[] {
+  return stateMachines.allowedActions(
+    stateMachines.portMachine,
+    status as stateMachines.PortState,
+    role,
+  );
+}
+
 /**
  * §2.2 PII policy: pin_passcode + account_number NEVER leave the server —
  * serialize them as on-file booleans only.
  */
 function sanitizePort(
   row: PortRequestRow & { created_at?: string | null },
+  role: MemberRole,
   assignmentBlocked: ReadonlySet<string> = NO_BLOCKED_NUMBERS,
   bridge: ReadonlyMap<string, string> = NO_BRIDGE_NUMBERS,
 ) {
@@ -149,6 +159,8 @@ function sanitizePort(
     phone_e164: row.phone_e164,
     country: row.country,
     status: row.status,
+    // #722: what this member may do to the port now, from the shared machine.
+    allowed_actions: portActions(row.status, role),
     messaging_port_status: row.messaging_port_status,
     foc_date: row.foc_date,
     foc_datetime_requested: row.foc_datetime_requested,
@@ -450,7 +462,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
       .limit(1);
     if (portErr) throw new Error(`port_requests lookup failed: ${portErr.message}`);
     const existingPort = (portRows?.[0] ?? null) as unknown as PortRequestRow | null;
-    if (existingPort) return c.json(sanitizePort(existingPort), 200);
+    if (existingPort) return c.json(sanitizePort(existingPort, c.get("role")), 200);
   }
 
   // No non-cancelled port may already exist for this number (§7 conflict).
@@ -621,7 +633,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
     }
   }
 
-  return c.json(sanitizePort(port), 201);
+  return c.json(sanitizePort(port, c.get("role")), 201);
 });
 
 /** Hono's `c.executionCtx` throws when there is no runtime context; probe it. */
@@ -658,7 +670,7 @@ portingRoutes.get("/", async (c) => {
     : NO_BLOCKED_NUMBERS;
   const bridge = await bridgeNumbers(db, rows);
   return c.json({
-    data: rows.map((row) => sanitizePort(row, blocked, bridge)),
+    data: rows.map((row) => sanitizePort(row, c.get("role"), blocked, bridge)),
     next_cursor: null,
   });
 });
@@ -675,16 +687,16 @@ portingRoutes.get("/:id", async (c) => {
       ? await assignmentBlockedNumbers(db, companyId)
       : NO_BLOCKED_NUMBERS;
   const bridge = await bridgeNumbers(db, [port]);
-  return c.json(sanitizePort(port, blocked, bridge));
+  return c.json(sanitizePort(port, c.get("role"), blocked, bridge));
 });
 
 // ---------------------------------------------------------------------------
 // Edit (fix-and-resubmit form) + document upload
 // ---------------------------------------------------------------------------
 
-/** Editable only while draft or exception (§7). */
-function assertEditable(port: PortRequestRow): void {
-  if (port.status !== "draft" && port.status !== "exception") {
+/** Editable only while the machine offers an edit: draft or exception (§7). */
+function assertEditable(port: PortRequestRow, role: MemberRole): void {
+  if (!portActions(port.status, role).includes("edit")) {
     throw new ApiError(
       "validation_failed",
       `This port is ${port.status} and can no longer be edited.`,
@@ -707,7 +719,7 @@ portingRoutes.put("/:id", requireCapability("numbers.manage"), async (c) => {
   const id = pathUuid(c, "id");
   const port = await loadPort(db, c.get("companyId"), id);
   if (!port) return errorResponse(c, "not_found", "No such port request.");
-  assertEditable(port);
+  assertEditable(port, c.get("role"));
 
   const body = await parseJsonBody(c, editBodySchema);
   const patch: Record<string, unknown> = {};
@@ -715,7 +727,7 @@ portingRoutes.put("/:id", requireCapability("numbers.manage"), async (c) => {
     if (value !== undefined) patch[key] = value;
   }
   if (Object.keys(patch).length === 0) {
-    return c.json(sanitizePort(port));
+    return c.json(sanitizePort(port, c.get("role")));
   }
   const { data, error } = await db
     .from("port_requests")
@@ -727,7 +739,7 @@ portingRoutes.put("/:id", requireCapability("numbers.manage"), async (c) => {
   const updated = (data?.[0] ?? null) as unknown as PortRequestRow | null;
   if (!updated) return errorResponse(c, "not_found", "No such port request.");
   return c.json(
-    sanitizePort(updated),
+    sanitizePort(updated, c.get("role")),
   );
 });
 
@@ -755,7 +767,7 @@ portingRoutes.put("/:id/documents", requireCapability("numbers.manage"), async (
   const id = pathUuid(c, "id");
   const port = await loadPort(db, companyId, id);
   if (!port) return errorResponse(c, "not_found", "No such port request.");
-  assertEditable(port);
+  assertEditable(port, c.get("role"));
 
   // Paid-first (D16 / §3.2): uploading the LOA + invoice is a Telnyx-committing
   // action (POST /v2/documents) and D16 is explicit — "no LOA upload ... before
@@ -855,7 +867,7 @@ portingRoutes.put("/:id/documents", requireCapability("numbers.manage"), async (
   const updated = (data?.[0] ?? null) as unknown as PortRequestRow | null;
   if (!updated) return errorResponse(c, "not_found", "No such port request.");
   return c.json(
-    sanitizePort(updated),
+    sanitizePort(updated, c.get("role")),
   );
 });
 
@@ -877,7 +889,7 @@ portingRoutes.post("/:id/submit", requireCapability("numbers.manage"), async (c)
   const id = pathUuid(c, "id");
   const port = await loadPort(db, c.get("companyId"), id);
   if (!port) return errorResponse(c, "not_found", "No such port request.");
-  if (port.status !== "draft") {
+  if (!portActions(port.status, c.get("role")).includes("submit")) {
     return errorResponse(
       c,
       "conflict",
@@ -901,7 +913,7 @@ portingRoutes.post("/:id/submit", requireCapability("numbers.manage"), async (c)
     portRequestId: id,
   });
   if (!updated) return errorResponse(c, "not_found", "No such port request.");
-  return c.json(sanitizePort(updated));
+  return c.json(sanitizePort(updated, c.get("role")));
 });
 
 /**
@@ -919,7 +931,7 @@ portingRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), async (
   const id = pathUuid(c, "id");
   const port = await loadPort(db, c.get("companyId"), id);
   if (!port) return errorResponse(c, "not_found", "No such port request.");
-  if (port.status !== "exception") {
+  if (!portActions(port.status, c.get("role")).includes("fix_and_resubmit")) {
     return errorResponse(
       c,
       "conflict",
@@ -953,7 +965,7 @@ portingRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), async (
   }
   if (!updated) return errorResponse(c, "not_found", "No such port request.");
   return c.json(
-    sanitizePort(updated),
+    sanitizePort(updated, c.get("role")),
   );
 });
 
@@ -968,7 +980,7 @@ portingRoutes.post("/:id/cancel", requireCapability("workspace.own"), async (c) 
   const id = pathUuid(c, "id");
   const port = await loadPort(db, c.get("companyId"), id);
   if (!port) return errorResponse(c, "not_found", "No such port request.");
-  if (port.status === "ported" || port.status === "cancelled") {
+  if (!portActions(port.status, c.get("role")).includes("cancel")) {
     return errorResponse(
       c,
       "conflict",
@@ -983,5 +995,5 @@ portingRoutes.post("/:id/cancel", requireCapability("workspace.own"), async (c) 
   // + release the still-provisioning number) since nothing else would ever drive
   // it out of cancel-pending, wedging the company's number slot forever.
   const updated = await cancelPortRequest(env, port);
-  return c.json(sanitizePort(updated));
+  return c.json(sanitizePort(updated, c.get("role")));
 });

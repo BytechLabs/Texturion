@@ -654,6 +654,18 @@ paymentRequestRoutes.post(
       // row as it stands rather than an error about a state that is fine.
       return c.json(requestJson(row, c.get("role")), 200);
     }
+    // #722: the shared machine decides whether this request may still be cancelled.
+    if (
+      !stateMachines
+        .allowedActions(
+          stateMachines.paymentRequestMachine,
+          row.status as stateMachines.PaymentRequestState,
+          c.get("role"),
+        )
+        .includes("cancel")
+    ) {
+      return errorResponse(c, "conflict", "This request can no longer be cancelled.");
+    }
 
     await deactivateStripeLink(env, row.stripe_account_id, row.stripe_payment_link_id);
     if (row.public_link_id) {

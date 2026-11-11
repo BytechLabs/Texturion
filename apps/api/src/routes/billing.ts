@@ -1,5 +1,10 @@
 import { checkoutCurrency } from "../billing/checkout-currency";
-import { billingCurrencyOf, formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
+import {
+  billingCurrencyOf,
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  stateMachines,
+} from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -71,7 +76,7 @@ import {
 } from "../billing/schedule-phases";
 import { payPendingReferralRewards } from "../referrals/referrals";
 import { getStripe, type Stripe } from "../billing/stripe";
-import type { AppEnv } from "../context";
+import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { callerIp } from "../public-links/guard";
 import { getEnv, type Env } from "../env";
@@ -239,6 +244,38 @@ export const billingRoutes = new Hono<AppEnv>();
 billingRoutes.use("*", requireCapability("billing.manage"));
 
 /**
+ * #722: whether the shared machines let this member take `action` now. The
+ * subscription machine decides checkout, the workspace machine pause and resume.
+ */
+function subscriptionAllows(
+  company: BillingCompany,
+  role: MemberRole,
+  action: string,
+): boolean {
+  return stateMachines
+    .allowedActions(
+      stateMachines.subscriptionMachine,
+      company.subscription_status as stateMachines.SubscriptionState,
+      role,
+    )
+    .includes(action);
+}
+
+function workspaceAllows(
+  company: BillingCompany,
+  role: MemberRole,
+  action: string,
+): boolean {
+  return stateMachines
+    .allowedActions(
+      stateMachines.workspaceMachine,
+      stateMachines.workspaceState({ paused_at: company.paused_at }),
+      role,
+    )
+    .includes(action);
+}
+
+/**
  * POST /v1/billing/checkout (SPEC §4.1 step 4, §9 checkout composition).
  */
 billingRoutes.post("/checkout", async (c) => {
@@ -304,8 +341,13 @@ billingRoutes.post("/checkout", async (c) => {
 
   const company = await fetchCompany(db, c.get("companyId"));
 
-  // Gate 1 (409): one subscription per company, ever concurrent.
-  if (hasLiveSubscription(company.subscription_status)) {
+  // Gate 1 (409): one subscription per company, ever concurrent. A workspace
+  // may subscribe or resubscribe exactly when the machine offers either.
+  const role = c.get("role");
+  if (
+    !subscriptionAllows(company, role, "subscribe") &&
+    !subscriptionAllows(company, role, "resubscribe")
+  ) {
     return errorResponse(
       c,
       "conflict",
@@ -1566,6 +1608,14 @@ billingRoutes.post("/pause", async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const company = await fetchCompany(db, c.get("companyId"));
+  // #722: a workspace that is not active (already paused) cannot be paused.
+  if (!workspaceAllows(company, c.get("role"), "pause")) {
+    return errorResponse(
+      c,
+      "conflict",
+      pauseRefusal({ eligible: false, reason: "already_paused" }),
+    );
+  }
 
   let subscription: Stripe.Subscription | null = null;
   if (company.stripe_subscription_id) {
@@ -1690,7 +1740,7 @@ billingRoutes.post("/resume", async (c) => {
   const db = getDb(env);
   const company = await fetchCompany(db, c.get("companyId"));
 
-  if (!company.paused_at) {
+  if (!workspaceAllows(company, c.get("role"), "resume")) {
     return errorResponse(c, "conflict", "Your plan isn't paused.");
   }
   if (!company.stripe_subscription_id || company.plan === null) {

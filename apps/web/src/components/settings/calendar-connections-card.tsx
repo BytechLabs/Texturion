@@ -173,6 +173,14 @@ function attentionDescription(
   }
 }
 
+/** #722: the server names what is on offer; a response without the list keeps the old behaviour. */
+function offers(
+  record: { allowed_actions?: readonly string[] },
+  action: string,
+): boolean {
+  return record.allowed_actions?.includes(action) ?? true;
+}
+
 function ConnectionStatus({ connection }: { connection: CalendarConnection }) {
   const t = useT();
 
@@ -487,7 +495,7 @@ export function CalendarConnectionsCard() {
                       )}
 
                       <div className="flex flex-wrap gap-2">
-                        {reconnect && (
+                        {reconnect && offers(connection, "reconnect") && (
                           <Button
                             type="button"
                             size="sm"
@@ -504,6 +512,7 @@ export function CalendarConnectionsCard() {
                         )}
 
                         {!cleaningUp &&
+                          offers(connection, "disconnect") &&
                           (confirmingDisconnect === connection.id ? (
                             <Button
                               type="button"
@@ -745,7 +754,7 @@ export function CalendarConnectionsCard() {
                         )}
 
                         <div className="flex flex-wrap gap-2">
-                          {item.state === "conflict" && (
+                          {item.state === "conflict" && offers(item, "resolve_conflict") && (
                             <>
                               <Button
                                 type="button"
@@ -771,7 +780,8 @@ export function CalendarConnectionsCard() {
                             </>
                           )}
 
-                          {item.state === "event_removed" && (
+                          {item.state === "event_removed" &&
+                            offers(item, "resolve_event_removed") && (
                             <>
                               <Button
                                 type="button"
@@ -810,7 +820,13 @@ export function CalendarConnectionsCard() {
                             </>
                           )}
 
-                          {item.state !== "refused" && (
+                          {item.state !== "refused" &&
+                            offers(
+                              item,
+                              item.state === "conflict"
+                                ? "resolve_conflict"
+                                : "resolve_event_removed",
+                            ) && (
                             <Button
                               type="button"
                               variant="ghost"

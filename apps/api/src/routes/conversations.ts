@@ -146,6 +146,10 @@ import {
   pathUuid,
   unwrap,
 } from "./core/http";
+import {
+  assertConversationPatchAllowed,
+  conversationAllowedActions,
+} from "./conversation-actions";
 import { assertOwnLeadSource } from "./lead-sources";
 import {
   loadMessageTaskFlags,
@@ -391,7 +395,16 @@ conversationsRoutes.get("/conversations", requireCapability("conversations.read"
     c.get("userId"),
     rows as { id: string; last_message_at: string }[],
   );
-  return c.json(buildPage(flagged, limit, "last_message_at"));
+  // #722: what this member may do to each row, from the row already in hand.
+  const role = c.get("role");
+  const withActions = flagged.map((row) => ({
+    ...row,
+    allowed_actions: conversationAllowedActions(
+      row as unknown as { status: string; is_spam: boolean },
+      role,
+    ),
+  }));
+  return c.json(buildPage(withActions, limit, "last_message_at"));
 });
 
 /**
@@ -874,10 +887,10 @@ conversationsRoutes.get(
     return c.json({
       ...conversation,
       viewer_level: viewerLevel,
-      // #722: the status moves this member may make now, from the shared machine.
-      allowed_actions: stateMachines.allowedActions(
-        stateMachines.conversationMachine,
-        (conversation as { status: stateMachines.ConversationState }).status,
+      // #722: the status moves and the spam/trash actions this member may
+      // make now, from the shared machines.
+      allowed_actions: conversationAllowedActions(
+        conversation as { status: string; is_spam: boolean },
         c.get("role"),
       ),
       // Null is the answer on nearly every thread, which is why it is a small
@@ -915,6 +928,15 @@ conversationsRoutes.get(
           ({ message_attachments, ...message }) => ({
             ...message,
             attachments: message_attachments,
+            // #722: a note has no status and so no actions.
+            allowed_actions:
+              message.status === null
+                ? []
+                : stateMachines.allowedActions(
+                    stateMachines.messageMachine,
+                    message.status as stateMachines.MessageState,
+                    c.get("role"),
+                  ),
             has_task: promoted.has(message.id),
             promoted_task: promoted.get(message.id) ?? null,
             task:
@@ -951,6 +973,14 @@ conversationsRoutes.patch(
       phoneNumberId: current.phone_number_id as string | null,
       need: "note",
     });
+
+    // #722: a status move or spam flip must be one the shared machines offer
+    // this member for the conversation as it stands.
+    assertConversationPatchAllowed(
+      current as { status: string; is_spam: boolean },
+      c.get("role"),
+      body,
+    );
 
     const now = new Date().toISOString();
     const patch: Record<string, unknown> = {};

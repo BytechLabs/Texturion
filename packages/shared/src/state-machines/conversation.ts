@@ -32,10 +32,28 @@ export const conversationMachine = defineMachine<ConversationState>({
   entryEffects: {
     closed: ["stamp_closed_at"],
   },
+  // The full mesh PATCH /v1/conversations accepts: every other status is one
+  // move away, so no member loses a move the route already allows.
   actions: capabilityActions<ConversationState>({
-    new: [{ action: "mark_open", capability: "conversations.note" }, { action: "close", capability: "conversations.note" }],
-    open: [{ action: "mark_waiting", capability: "conversations.note" }, { action: "close", capability: "conversations.note" }],
-    waiting: [{ action: "mark_open", capability: "conversations.note" }, { action: "close", capability: "conversations.note" }],
-    closed: [{ action: "reopen", capability: "conversations.note" }],
+    new: [
+      { action: "mark_open", capability: "conversations.note" },
+      { action: "mark_waiting", capability: "conversations.note" },
+      { action: "close", capability: "conversations.note" },
+    ],
+    open: [
+      { action: "mark_new", capability: "conversations.note" },
+      { action: "mark_waiting", capability: "conversations.note" },
+      { action: "close", capability: "conversations.note" },
+    ],
+    waiting: [
+      { action: "mark_new", capability: "conversations.note" },
+      { action: "mark_open", capability: "conversations.note" },
+      { action: "close", capability: "conversations.note" },
+    ],
+    closed: [
+      { action: "reopen", capability: "conversations.note" },
+      { action: "mark_waiting", capability: "conversations.note" },
+      { action: "mark_new", capability: "conversations.note" },
+    ],
   }),
 });

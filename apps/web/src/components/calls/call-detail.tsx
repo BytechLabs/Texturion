@@ -99,6 +99,7 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
             conversationId={row.conversation_id}
             contactId={row.contact_id}
             callerE164={row.caller_e164}
+            allowedActions={row.allowed_actions}
             onDeleted={() => router.replace("/calls")}
           />
         }

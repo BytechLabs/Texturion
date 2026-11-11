@@ -493,6 +493,13 @@ export function TextEnableCard({
 
   const ui = deriveTextEnableUiState(order, t);
   const canEdit = role === "owner" || role === "admin";
+  // #722: the server's list says what this member may do to the order in its
+  // state; an older server (no list) falls back to the role checks.
+  const allows = (action: string, fallback: boolean) =>
+    order.allowed_actions?.includes(action) ?? fallback;
+  const canUploadDocs = allows("upload_documents", canEdit);
+  const canResubmitOrder = allows("resubmit", canEdit);
+  const canCancelOrder = allows("cancel", role === "owner");
   const display = formatPhone(order.phone_e164);
   // Honest elapsed-time context while the carrier reviews (created_at is on
   // the wire; guarded for stale caches that predate it).
@@ -583,9 +590,9 @@ export function TextEnableCard({
         )}
 
         {/* The upload window (pending with missing docs / action-required / failed). */}
-        {ui.showDocumentsForm && canEdit ? (
+        {ui.showDocumentsForm && canUploadDocs ? (
           <TextEnableDocumentsForm order={order} />
-        ) : ui.showDocumentsForm && ui.documentsPending && !canEdit ? (
+        ) : ui.showDocumentsForm && ui.documentsPending && !canUploadDocs ? (
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.hostedOwnerUploads")}
           </p>
@@ -597,7 +604,7 @@ export function TextEnableCard({
         ) : null}
 
         {/* Resubmit: failed, or action-required with the documents fixed. */}
-        {ui.canResubmit && canEdit ? (
+        {ui.canResubmit && canResubmitOrder ? (
           <div className="space-y-2">
             {resubmitError ? (
               <p role="alert" className="text-sm text-destructive">
@@ -614,14 +621,14 @@ export function TextEnableCard({
                 : t("settingsMore.hostedResubmit")}
             </Button>
           </div>
-        ) : order.status === "failed" && !canEdit ? (
+        ) : order.status === "failed" && !canResubmitOrder ? (
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.hostedAskOwnerToFix")}
           </p>
         ) : null}
 
         {/* Owner-only cancel while non-terminal. */}
-        {role === "owner" && ui.cancellable ? (
+        {canCancelOrder && ui.cancellable ? (
           <div className="border-t border-border-subtle pt-3">
             <CancelTextEnableDialog order={order} />
           </div>

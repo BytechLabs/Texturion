@@ -32,8 +32,11 @@ export const textEnablementMachine = defineMachine<TextEnablementState>({
   },
   actions: capabilityActions<TextEnablementState>({
     "action-required": [{ action: "upload_documents", capability: "numbers.manage" }, { action: "resubmit", capability: "numbers.manage" }, { action: "cancel", capability: "workspace.own" }],
-    failed: [{ action: "resubmit", capability: "numbers.manage" }, { action: "cancel", capability: "workspace.own" }],
-    pending: [{ action: "cancel", capability: "workspace.own" }],
+    // PUT /:id/documents accepts pending, action-required and failed;
+    // POST /:id/resubmit failed and action-required; POST /:id/cancel refuses
+    // only completed and cancelled.
+    failed: [{ action: "upload_documents", capability: "numbers.manage" }, { action: "resubmit", capability: "numbers.manage" }, { action: "cancel", capability: "workspace.own" }],
+    pending: [{ action: "upload_documents", capability: "numbers.manage" }, { action: "cancel", capability: "workspace.own" }],
     "in-progress": [{ action: "cancel", capability: "workspace.own" }],
   }),
 });

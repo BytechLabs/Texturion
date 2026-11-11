@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useT, type Translate } from "@/i18n/provider";
+import { companyAllows } from "@/lib/api/company-actions";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useRegistration } from "@/lib/api/registration";
@@ -621,7 +622,9 @@ export default function WorkspaceSettingsPage() {
           {canExportWorkspace && <ExportDataCard />}
           {/* #341: last, and only for the owner — ending the account is not an
               everyday setting and should not sit among them. */}
-          {role === "owner" && <CloseWorkspaceCard company={company.data} />}
+          {role === "owner" && companyAllows(company.data, "close") && (
+            <CloseWorkspaceCard company={company.data} />
+          )}
           {/* #406: the mirror image, and the one the owner does NOT get — an
               owner leaving would strand a workspace nobody can administer
               (#332). Everyone else can end their own access without having to

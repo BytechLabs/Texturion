@@ -17,6 +17,7 @@ import { getStripe } from "../billing/stripe";
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
+import { stateMachines } from "@loonext/shared";
 import { ApiError, errorResponse } from "../http/errors";
 import { parseJsonBody, parseWith } from "./core/http";
 import { TelnyxApiError } from "../telnyx/client";
@@ -95,6 +96,12 @@ function sanitizeRow(
     approved_at: row.approved_at,
     rejected_at: row.rejected_at,
     deactivated_at: row.deactivated_at,
+    // #722: what this member may do to the row now, from the shared machine.
+    allowed_actions: stateMachines.allowedActions(
+      stateMachines.registrationMachine,
+      row.status as stateMachines.RegistrationState,
+      role,
+    ),
     ...(role === "owner" || role === "admin" ? { data: row.data } : {}),
   };
 }
@@ -133,8 +140,21 @@ const wizardBodySchema = z
  * resubmit, §4.4 R4). Submitted/pending/approved rows are immutable from the
  * wizard — 409.
  */
-function assertEditable(row: RegistrationRow | null, what: string): void {
-  if (row && row.status !== "draft" && row.status !== "rejected") {
+function assertEditable(
+  row: RegistrationRow | null,
+  what: string,
+  role: MemberRole,
+): void {
+  if (
+    row &&
+    !stateMachines
+      .allowedActions(
+        stateMachines.registrationMachine,
+        row.status as stateMachines.RegistrationState,
+        role,
+      )
+      .includes("edit")
+  ) {
     throw new ApiError(
       "conflict",
       `The ${what} registration is ${row.status} and can no longer be edited.`,
@@ -187,11 +207,11 @@ registrationRoutes.put("/", requireCapability("numbers.manage"), async (c) => {
     : (brand?.sole_proprietor ?? false);
 
   if (body.brand) {
-    assertEditable(brand, "brand");
+    assertEditable(brand, "brand", c.get("role"));
     await upsertDraftRow(db, companyId, "brand", brand, body.brand, soleProprietor);
   }
   if (body.campaign) {
-    assertEditable(campaign, "campaign");
+    assertEditable(campaign, "campaign", c.get("role"));
     await upsertDraftRow(
       db,
       companyId,

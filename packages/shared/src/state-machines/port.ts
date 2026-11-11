@@ -41,9 +41,15 @@ export const portMachine = defineMachine<PortState>({
     cancelled: ["release_reservation"],
   },
   actions: capabilityActions<PortState>({
+    // PUT /:id and PUT /:id/documents edit a draft or an exception;
+    // POST /:id/cancel refuses only a ported or cancelled port, so every other
+    // state (cancel-pending included, a retry) may be cancelled.
     draft: [{ action: "edit", capability: "numbers.manage" }, { action: "submit", capability: "numbers.manage" }, { action: "cancel", capability: "workspace.own" }],
-    exception: [{ action: "fix_and_resubmit", capability: "numbers.manage" }, { action: "cancel", capability: "workspace.own" }],
+    exception: [{ action: "edit", capability: "numbers.manage" }, { action: "fix_and_resubmit", capability: "numbers.manage" }, { action: "cancel", capability: "workspace.own" }],
     submitted: [{ action: "cancel", capability: "workspace.own" }],
     "in-process": [{ action: "cancel", capability: "workspace.own" }],
+    "foc-date-confirmed": [{ action: "cancel", capability: "workspace.own" }],
+    "activation-in-progress": [{ action: "cancel", capability: "workspace.own" }],
+    "cancel-pending": [{ action: "cancel", capability: "workspace.own" }],
   }),
 });

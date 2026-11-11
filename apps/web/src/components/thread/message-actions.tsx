@@ -61,6 +61,8 @@ import { MakeTaskForm } from "./make-task-form";
 /** A failed outbound with no carrier id assigned can be retried (SPEC §7). */
 function isRetryable(message: Message): boolean {
   return (
+    // #722: the server's list decides where it was sent (a pinned-list row has none).
+    (message.allowed_actions?.includes("retry") ?? true) &&
     message.direction === "outbound" &&
     message.status === "failed" &&
     message.telnyx_message_id === null &&

@@ -4,6 +4,7 @@ import {
   isValidBusinessHours,
   isValidHoursExceptions,
   NANP_AREA_CODES,
+  stateMachines,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
@@ -46,7 +47,7 @@ import {
   type PlanId,
 } from "../billing/plans";
 import { getStripe } from "../billing/stripe";
-import type { AppEnv } from "../context";
+import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
@@ -88,10 +89,20 @@ type NumberRowFull = PhoneNumberRow & {
  * so the UI can render provision_failed honestly and actionably — but the raw
  * last_provision_error and every telnyx_* id are never sent.
  */
-function sanitizeNumber(row: NumberRowFull) {
+function sanitizeNumber(row: NumberRowFull, role: MemberRole) {
   return {
     id: row.id,
     status: row.status,
+    // #722: what this member may do to the number now, from the shared
+    // machine. Remediation is for a failed BUY only (the route refuses any
+    // other source), so it is withheld from a hosted or ported number.
+    allowed_actions: stateMachines
+      .allowedActions(
+        stateMachines.phoneNumberMachine,
+        row.status as stateMachines.PhoneNumberState,
+        role,
+      )
+      .filter((action) => action !== "remediate" || row.source === "provisioned"),
     // Hosted-vs-purchased + voice state (FEATURE-GAPS voice wave): the web
     // renders keep-your-number rows differently from bought inventory.
     source: row.source,
@@ -185,7 +196,7 @@ numbersRoutes.get("/", async (c) => {
   // §7 shape with no second page ever.
   return c.json({
     data: visible.map((row) => ({
-      ...sanitizeNumber(row),
+      ...sanitizeNumber(row, c.get("role")),
       health: health.get(row.id) ?? null,
       /** #366: null when it could not be resolved — never a guess. */
       ring_targets: ringTargets.get(row.id) ?? null,
@@ -364,7 +375,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
       throw new Error(`replay lookup failed: ${replayError.message}`);
     }
     const replay = (replayRows?.[0] ?? null) as unknown as NumberRowFull | null;
-    if (replay) return c.json(sanitizeNumber(replay), 200);
+    if (replay) return c.json(sanitizeNumber(replay, c.get("role")), 200);
   }
 
   /**
@@ -615,14 +626,14 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
 
   if (slot.outcome === "exists") {
     // Idempotent replay (§7): the same Idempotency-Key returns the same row.
-    return c.json(sanitizeNumber(slot.number as NumberRowFull), 200);
+    return c.json(sanitizeNumber(slot.number as NumberRowFull, c.get("role")), 200);
   }
 
   const provisioned = await resumeProvisioning(
     env,
     slot.number as unknown as PhoneNumberRow,
   );
-  return c.json(sanitizeNumber(provisioned as NumberRowFull), 201);
+  return c.json(sanitizeNumber(provisioned as NumberRowFull, c.get("role")), 201);
 });
 
 /**
@@ -706,7 +717,7 @@ numbersRoutes.delete("/:id", requireCapability("workspace.own"), async (c) => {
     );
   }
 
-  return c.json(sanitizeNumber(released as NumberRowFull));
+  return c.json(sanitizeNumber(released as NumberRowFull, c.get("role")));
 });
 
 /**
@@ -1448,7 +1459,15 @@ numbersRoutes.post("/:id/remediate", requireCapability("numbers.manage"), async 
   if (row.source !== "provisioned") {
     return errorResponse(c, "conflict", "This number can't be set up this way.");
   }
-  if (row.status !== "provision_failed") {
+  if (
+    !stateMachines
+      .allowedActions(
+        stateMachines.phoneNumberMachine,
+        row.status as stateMachines.PhoneNumberState,
+        c.get("role"),
+      )
+      .includes("remediate")
+  ) {
     return errorResponse(c, "conflict", "This number isn't waiting to be set up.");
   }
 
@@ -1522,5 +1541,5 @@ numbersRoutes.post("/:id/remediate", requireCapability("numbers.manage"), async 
   }
 
   const result = await resumeProvisioning(env, armed);
-  return c.json(sanitizeNumber(result as NumberRowFull));
+  return c.json(sanitizeNumber(result as NumberRowFull, c.get("role")));
 });

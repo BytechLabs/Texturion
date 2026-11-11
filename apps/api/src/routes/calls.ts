@@ -23,6 +23,8 @@ import {
   CALL_ROUTINGS,
   type CallEndReason,
   type CallRouting,
+  type MemberRole,
+  stateMachines,
 } from "@loonext/shared";
 import { Hono, type Context } from "hono";
 import { assertEgressWithinAllowance } from "../attachments/egress";
@@ -132,9 +134,28 @@ export interface CallRow {
   answered_by_name: string | null;
   /** #208: the DO's state mirror (ended_% = terminal even while outcome lags). */
   state: string | null;
+  /** #722: what this member may do to the call now; absent on a legacy row. */
+  allowed_actions?: readonly string[];
   /** #210: when the call was answered — the live-duration anchor. */
   answered_at: string | null;
   started_at: string;
+}
+
+/**
+ * #722: what this member may do to a call row now, from the shared machine and
+ * the row's state mirror. A legacy row with no state has no state to read, so
+ * it carries no list and clients keep their own behaviour.
+ */
+function callAllowedActions(
+  state: string | null,
+  role: MemberRole,
+): readonly string[] | undefined {
+  if (!state) return undefined;
+  return stateMachines.allowedActions(
+    stateMachines.callMachine,
+    state as stateMachines.CallState,
+    role,
+  );
 }
 
 export const callsRoutes = new Hono<AppEnv>();
@@ -207,6 +228,7 @@ callsRoutes.get("/calls", requireCapability("conversations.read"), async (c) => 
     answered_by_name: r.answered_by_user_id
       ? actorNames.get(r.answered_by_user_id) ?? null
       : null,
+    allowed_actions: callAllowedActions(r.state, c.get("role")),
   }));
   return c.json(buildPage(enriched, limit, "started_at"));
 });
@@ -289,6 +311,7 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
     answered_by_name: call.answered_by_user_id
       ? actorNames.get(call.answered_by_user_id) ?? null
       : null,
+    allowed_actions: callAllowedActions(call.state, c.get("role")),
     // The path itself never leaves the server — it is a storage key, and the
     // signed URL is minted by the voicemail endpoint on demand. What a client
     // needs to know is only whether there is anything to play.

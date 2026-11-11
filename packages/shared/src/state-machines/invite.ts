@@ -2,8 +2,8 @@ import { capabilityActions, defineMachine } from "./define-machine";
 
 /**
  * A team invite, derived from accepted_at, revoked_at and expires_at on
- * invites (routes/team.ts). Resend extends expires_at, so an expired invite
- * returns to pending.
+ * invites (routes/team.ts). Extending expires_at returns an expired invite to
+ * pending; no REST route does that today, so resend is not an action.
  *
  * Phase 1 of #722: definition only, no runtime behaviour. See docs/STATE-MACHINES.md.
  */
@@ -30,7 +30,7 @@ export const inviteMachine = defineMachine<InviteState>({
     accepted: ["create_membership"],
   },
   actions: capabilityActions<InviteState>({
-    pending: [{ action: "resend", capability: "team.manage" }, { action: "revoke", capability: "team.manage" }],
-    expired: [{ action: "resend", capability: "team.manage" }, { action: "revoke", capability: "team.manage" }],
+    pending: [{ action: "revoke", capability: "team.manage" }],
+    expired: [{ action: "revoke", capability: "team.manage" }],
   }),
 });

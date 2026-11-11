@@ -172,6 +172,9 @@ describe("GET /v1/exports", () => {
       data: { status: string; files: { name: string }[] }[];
     };
     expect(body.data[0].status).toBe("ready");
+    expect(
+      (body.data[0] as unknown as { allowed_actions: string[] }).allowed_actions,
+    ).toEqual(["download"]);
     expect(body.data[0].files.map((file) => file.name)).toEqual([
       "messages-0001.jsonl",
       "manifest.json",
@@ -267,8 +270,11 @@ describe("GET /v1/exports", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/exports", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as { data: { files: unknown[] }[] };
+    const body = (await res.json()) as {
+      data: { files: unknown[]; allowed_actions: string[] }[];
+    };
     expect(body.data[0].files).toEqual([]);
+    expect(body.data[0].allowed_actions).toEqual([]);
   });
 
   it("offers no links for one still building, and says why it failed", async () => {
@@ -284,9 +290,15 @@ describe("GET /v1/exports", () => {
       companyId: COMPANY_ID,
     });
     const body = (await res.json()) as {
-      data: { status: string; error: string | null; files: unknown[] }[];
+      data: {
+        status: string;
+        error: string | null;
+        files: unknown[];
+        allowed_actions: string[];
+      }[];
     };
     expect(body.data[0].files).toEqual([]);
+    expect(body.data.map((row) => row.allowed_actions)).toEqual([[], []]);
     expect(body.data[1].error).toBe("messages read failed");
   });
 });

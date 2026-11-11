@@ -234,7 +234,11 @@ export function NumberCard({
           })}
         </p>
       )}
-      {canManage && number.status === "provision_failed" && (
+      {/* #722: the server says whether this number may be remediated (a failed
+          BUY, to a member who manages numbers); an older server falls back to
+          the status and the role check. */}
+      {(number.allowed_actions?.includes("remediate") ??
+        (canManage && number.status === "provision_failed")) && (
         <div className="mt-3 border-t pt-3">
           <Button size="sm" onClick={() => setChoosing(true)}>
             {t("settingsMore.numberChooseAction")}

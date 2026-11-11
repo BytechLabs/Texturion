@@ -33,6 +33,7 @@ import {
   SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY,
   roleHasCapability,
   shouldShowOrientation,
+  stateMachines,
   type MemberRole,
 } from "@loonext/shared";
 import { Hono } from "hono";
@@ -693,9 +694,25 @@ async function endMemberAccess(
   return { sessions, devices, voice };
 }
 
+type InviteRow = {
+  accepted_at: string | null;
+  revoked_at: string | null;
+  expires_at: string | null;
+};
+
+/** The derived invite state; the same rule as SQL invite_state(). */
+function inviteState(row: InviteRow, now: Date): stateMachines.InviteState {
+  if (row.accepted_at !== null) return "accepted";
+  if (row.revoked_at !== null) return "revoked";
+  if (row.expires_at !== null && new Date(row.expires_at).getTime() <= now.getTime()) {
+    return "expired";
+  }
+  return "pending";
+}
+
 teamRoutes.get("/invites", requireCapability("team.manage"), async (c) => {
   const db = getDb(getEnv(c.env));
-  const rows = unwrap<unknown[]>(
+  const rows = unwrap<InviteRow[]>(
     await db
       .from("invites")
       .select(INVITE_COLUMNS)
@@ -703,7 +720,20 @@ teamRoutes.get("/invites", requireCapability("team.manage"), async (c) => {
       .order("created_at", { ascending: false }),
     "invites list",
   );
-  return c.json({ data: rows, next_cursor: null });
+  const role = c.get("role") as MemberRole;
+  const now = new Date();
+  return c.json({
+    data: rows.map((row) => ({
+      ...row,
+      // #722: what this member may do to the invite now, from the shared machine.
+      allowed_actions: stateMachines.allowedActions(
+        stateMachines.inviteMachine,
+        inviteState(row, now),
+        role,
+      ),
+    })),
+    next_cursor: null,
+  });
 });
 
 teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
@@ -892,6 +922,9 @@ teamRoutes.delete("/invites/:id", requireCapability("team.manage"), async (c) =>
       .select("id"),
     "invite revoke",
   );
+  // #722: revoke is allowed from pending and expired, which is exactly what the
+  // conditional update above matches (not accepted, not revoked). The database
+  // filter is the atomic check, so no extra read: a miss is a wrong state.
   if (rows.length === 0) {
     return errorResponse(c, "not_found", "No pending invite to revoke.");
   }

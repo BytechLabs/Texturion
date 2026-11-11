@@ -6,6 +6,7 @@
  * user id: connecting a calendar grants long-lived access to that person's
  * schedule, so an owner cannot connect, inspect, or revoke it on their behalf.
  */
+import { stateMachines, type MemberRole } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -189,12 +190,18 @@ function snapshotView(snapshot: CalendarSnapshotRow | null) {
   };
 }
 
-function attentionView(row: CalendarAttentionRow) {
+function attentionView(row: CalendarAttentionRow, role: MemberRole) {
   const ours = snapshotView(row.ours_snapshot);
   const theirs = snapshotView(row.theirs_snapshot);
   return {
     id: row.link_id,
     state: row.link_state,
+    // #722: what this member may do to the link now, from the shared machine.
+    allowed_actions: stateMachines.allowedActions(
+      stateMachines.calendarLinkMachine,
+      row.link_state as stateMachines.CalendarLinkState,
+      role,
+    ),
     provider_condition: row.provider_condition,
     task: {
       id: row.task_id,
@@ -558,6 +565,12 @@ calendarConnectionRoutes.get(
         last_sync_at: connection.last_sync_completed_at,
         last_error_key: connection.last_error_code,
         conflict_count: conflictCounts.get(connection.id) ?? 0,
+        // #722: what this member may do to the connection now.
+        allowed_actions: stateMachines.allowedActions(
+          stateMachines.calendarConnectionMachine,
+          connection.status as stateMachines.CalendarConnectionState,
+          c.get("role") as MemberRole,
+        ),
       })),
       disclosures,
       configured: {
@@ -581,7 +594,7 @@ calendarConnectionRoutes.get(
       }),
       "calendar attention list",
     );
-    return c.json({ attention: rows.map(attentionView) });
+    return c.json({ attention: rows.map((row) => attentionView(row, c.get("role") as MemberRole)) });
   },
 );
 
@@ -596,7 +609,9 @@ calendarConnectionRoutes.get(
       c.get("userId"),
       pathUuid(c, "id"),
     );
-    return c.json({ attention: attentionView(attention) });
+    return c.json({
+      attention: attentionView(attention, c.get("role") as MemberRole),
+    });
   },
 );
 
@@ -611,6 +626,23 @@ calendarConnectionRoutes.post(
     const userId = c.get("userId");
     const attention = await ownAttention(env, companyId, userId, linkId);
     const db = getDb(env);
+
+    // #722: the link's own state decides which resolution is on offer.
+    const offered = stateMachines.allowedActions(
+      stateMachines.calendarLinkMachine,
+      attention.link_state as stateMachines.CalendarLinkState,
+      c.get("role") as MemberRole,
+    );
+    const resolveAction =
+      attention.link_state === "conflict"
+        ? "resolve_conflict"
+        : "resolve_event_removed";
+    if (!offered.includes(resolveAction)) {
+      throw new ApiError(
+        "conflict",
+        "This calendar item cannot be resolved from this action.",
+      );
+    }
 
     if (attention.link_state === "conflict") {
       if (!["use_app", "use_calendar", "not_sure"].includes(body.action)) {
@@ -862,10 +894,10 @@ calendarConnectionRoutes.delete(
     const companyId = c.get("companyId");
     const userId = c.get("userId");
 
-    const owned = unwrap<{ id: string }[]>(
+    const owned = unwrap<{ id: string; status: string }[]>(
       await db
         .from("calendar_connections")
-        .select("id")
+        .select("id,status")
         .eq("id", id)
         .eq("company_id", companyId)
         .eq("user_id", userId)
@@ -875,6 +907,21 @@ calendarConnectionRoutes.delete(
     );
     if (!owned[0]) {
       throw new ApiError("not_found", "No such calendar connection.");
+    }
+    // #722: a connection already draining its cleanup has nothing left to disconnect.
+    if (
+      !stateMachines
+        .allowedActions(
+          stateMachines.calendarConnectionMachine,
+          owned[0].status as stateMachines.CalendarConnectionState,
+          c.get("role") as MemberRole,
+        )
+        .includes("disconnect")
+    ) {
+      throw new ApiError(
+        "conflict",
+        "This calendar connection is already disconnecting.",
+      );
     }
 
     const revoked = unwrap<{
