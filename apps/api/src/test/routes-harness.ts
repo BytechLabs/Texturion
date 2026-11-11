@@ -19,6 +19,7 @@ import {
   errorResponse,
   internalErrorResponse,
 } from "../http/errors";
+import { schemaViolationResponse } from "./schema-columns";
 import type { FetchRoute } from "./support";
 
 /** Mount sub-apps behind the real /v1 middleware chain (SPEC §7, §10). */
@@ -343,6 +344,10 @@ export function supabaseStub(env: Env): SupabaseStub {
         headers: request.headers,
       };
       calls.push(call);
+      // #750: a query naming a column the database lacks is a production 500
+      // however the test answers it, so the stub answers 400 before any responder.
+      const violation = schemaViolationResponse(request.method, url, body);
+      if (violation) return violation;
       for (const handler of [...handlers, ...ambientHandlers]) {
         if (handler.method !== request.method) continue;
         if (!matches(handler.matcher, url.pathname)) continue;

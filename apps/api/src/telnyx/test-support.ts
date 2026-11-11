@@ -8,6 +8,7 @@
  * Prefer resolution/return) to exercise the real query code, failing loudly on
  * anything it does not understand.
  */
+import { schemaViolationResponse } from "../test/schema-columns";
 import type { FetchRoute } from "../test/support";
 import type { Env } from "../env";
 
@@ -231,6 +232,16 @@ export class FakeRest {
           { status: 500 },
         );
       }
+
+      // #750: refuse a column the real schema lacks, so a fake cannot invent one.
+      const violation = schemaViolationResponse(
+        request.method,
+        url,
+        request.method === "POST" || request.method === "PATCH"
+          ? await request.clone().json().catch(() => undefined)
+          : undefined,
+      );
+      if (violation) return violation;
 
       if (request.method === "GET") {
         const matched = applyOrderAndLimit(

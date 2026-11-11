@@ -116,6 +116,15 @@ jobs:
       - name: Apply migrations from zero (db reset)
         run: supabase db reset
 
+      # #750: the API tests refuse a column this snapshot lacks, and a test scans
+      # every select the Worker builds against it. This is the half that needs a
+      # database: it fails when the snapshot differs from the schema the
+      # migrations just built, so a migration cannot change a column without the
+      # snapshot (and therefore every fake) following. Fix: node
+      # scripts/api-schema-snapshot.mjs --write
+      - name: API schema snapshot matches the migrated database
+        run: node scripts/api-schema-snapshot.mjs --check
+
       # Runs every suite in supabase/tests/ against the container supabase start
       # created. The ordered list lives in the root package.json db:test:all
       # script (source of truth); db:test:ci delegates to it.
