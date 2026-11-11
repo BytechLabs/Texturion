@@ -106,14 +106,16 @@ function render(): string {
 }
 
 describe("CallsView (#129)", () => {
-  it("renders contact name, the missed pill, and the conversation link", () => {
+  it("renders contact name, the missed pill, and a call back (#734)", () => {
     state.rows = [call()];
     state.isPending = false;
     state.isError = false;
     const html = render();
     expect(html).toContain("Dana Roofer");
     expect(html).toContain("Missed");
-    expect(html).toContain('href="/inbox/conv-1"');
+    expect(html).toContain('aria-label="Call back Dana Roofer"');
+    expect(html).toContain('href="/calls/');
+    expect(html).not.toContain('href="/inbox/conv-1"');
   });
 
   it("shows answered talk time and formats an unknown caller's number", () => {

@@ -338,6 +338,9 @@ export const shellEn = {
   callActionAddContact: "Add contact",
   callActionTask: "Task",
   callActionDetails: "Details",
+  /** #734: the row's one inline action, naming who it is for. */
+  callActionMessageFor: "Message {name}",
+  callActionCallBackFor: "Call back {name}",
   /** #725: the call page's row for why the call ended. */
   howItEnded: "How it ended",
   openConversation: "Open the conversation",
@@ -694,6 +697,8 @@ export const shellFr: Translated<typeof shellEn> = {
   callActionAddContact: "Ajouter le contact",
   callActionTask: "Tâche",
   callActionDetails: "Détails",
+  callActionMessageFor: "Envoyer un texto à {name}",
+  callActionCallBackFor: "Rappeler {name}",
   howItEnded: "Comment il s'est terminé",
   openConversation: "Ouvrir la conversation",
   viewContact: "Voir le contact",

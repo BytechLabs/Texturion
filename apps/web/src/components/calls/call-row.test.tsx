@@ -117,45 +117,53 @@ describe("#566 the meta line cannot be reflowed by a name", () => {
   });
 });
 
-describe("#734 a call row offers actions, not a jump", () => {
-  it("is not one link stretched over the whole row", () => {
-    const html = renderToStaticMarkup(<CallRow call={base} />);
-    expect(html).not.toContain("after:inset-0");
-  });
+/** The opening tag that carries a given attribute, whatever order they print in. */
+function tagWith(markup: string, attr: string): string {
+  const at = markup.indexOf(attr);
+  expect(at, `no element with ${attr}`).not.toBe(-1);
+  return markup.slice(markup.lastIndexOf("<", at), markup.indexOf(">", at) + 1);
+}
 
-  it("Message opens the call's conversation", () => {
-    const html = renderToStaticMarkup(<CallRow call={base} />);
-    expect(html).toContain('href="/inbox/conv-1"');
-  });
+const html = (c: Call) => renderToStaticMarkup(<CallRow call={c} />);
 
-  it("Message on a call with no conversation starts a text to that number", () => {
-    const html = renderToStaticMarkup(
-      <CallRow call={{ ...base, conversation_id: null, contact_id: null }} />,
-    );
-    expect(html).toContain('href="/inbox/new?to=%2B14165550133"');
-    expect(html).not.toContain("Not linked to a conversation");
-  });
-
-  it("always offers the call's own page", () => {
-    const html = renderToStaticMarkup(<CallRow call={base} />);
-    expect(html).toMatch(/href="\/calls\/[^"]+"/);
-  });
-});
-
-describe("D64 an answered call can become a task", () => {
-  it("offers Make a task on an answered, threaded call", () => {
-    const html = renderToStaticMarkup(<CallRow call={base} />);
-    expect(html).toMatch(/>Task<\/span><\/button>/);
-  });
-
+describe("#734 a quiet row with one primary action", () => {
   it.each([
-    ["a missed call", { outcome: "missed" }],
-    ["a voicemail (it is a message in the thread)", { outcome: "voicemail" }],
-    ["an unthreaded call (the server needs a conversation)", { conversation_id: null }],
-  ])("does not offer it on %s", (_label, patch) => {
-    const html = renderToStaticMarkup(
-      <CallRow call={{ ...base, ...patch } as Call} />,
-    );
-    expect(html).not.toMatch(/>Task<\/span><\/button>/);
+    ["answered", { outcome: "answered" }, "Message Maria Alvarez"],
+    ["outbound", { direction: "outbound", outcome: "answered" }, "Message Maria Alvarez"],
+    ["an outbound no-answer", { direction: "outbound", outcome: "missed" }, "Message Maria Alvarez"],
+    ["missed", { outcome: "missed" }, "Call back Maria Alvarez"],
+    ["voicemail", { outcome: "voicemail" }, "Call back Maria Alvarez"],
+  ])("a %s call gets exactly its one primary action", (_l, patch, name) => {
+    const out = html({ ...base, ...patch } as Call);
+    expect(out).toContain(`aria-label="${name}"`);
+    // The other primary is not drawn, and no labelled secondary buttons are.
+    const other = name.startsWith("Message") ? "Call back " : "Message ";
+    expect(out).not.toContain(`aria-label="${other}`);
+    for (const word of [">Task<", ">Details<", ">Contact<", ">Add contact<"]) {
+      expect(out).not.toContain(word);
+    }
+  });
+
+  it("the primary action is a full-size touch target", () => {
+    expect(tagWith(html(base), 'aria-label="Message Maria Alvarez"')).toContain("tap-target");
+  });
+
+  it("Message opens the call's conversation; with none it texts the number", () => {
+    expect(html(base)).toContain('href="/inbox/conv-1"');
+    const bare = html({ ...base, conversation_id: null, contact_id: null });
+    expect(bare).toContain('href="/inbox/new?to=%2B14165550133"');
+  });
+
+  it("tapping the row opens the call's details, not the conversation", () => {
+    const out = html(base);
+    // The one stretched link is the details page.
+    expect(tagWith(out, 'href="/calls/sess-1"')).toContain("after:inset-0");
+    expect(tagWith(out, 'href="/inbox/conv-1"')).not.toContain("after:inset-0");
+  });
+
+  it("a caller we cannot reach gets no primary action", () => {
+    const out = html({ ...base, conversation_id: null, contact_id: null, caller_e164: null });
+    expect(out).not.toContain('aria-label="Message');
+    expect(out).not.toContain('aria-label="Call back');
   });
 });

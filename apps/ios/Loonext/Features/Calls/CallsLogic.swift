@@ -116,46 +116,44 @@ func callOutcomeLabel(_ call: Call) -> String {
     }
 }
 
-/// #734: what a call row offers, each its own control. The row itself goes
-/// nowhere. Mirrors the web's CallRowActions: text them (the conversation, or a
-/// new text to that number), call back, the contact (or add one), a task, and
-/// the call's own page.
+/// #734: the ONE action a call row draws inline. A missed inbound call or a
+/// voicemail wants a call back; an answered or outbound one wants a message.
+/// Everything else is in the row's long-press menu. Mirrors the web's
+/// callPrimaryAction: when the preferred action cannot be done the other one
+/// stands in, and a caller we cannot reach at all gets none.
 enum CallRowAction: Hashable, Sendable {
     case message
     case callBack
-    case contact
-    case addContact
-    case task
-    case details
 }
 
-func callRowActions(_ call: Call) -> [CallRowAction] {
-    let hasNumber = call.caller_e164.map { !$0.isBlank } ?? false
-    var actions: [CallRowAction] = []
-    if call.conversation_id != nil || hasNumber { actions.append(.message) }
-    if hasNumber { actions.append(.callBack) }
-    if call.contact_id != nil {
-        actions.append(.contact)
-    } else if hasNumber {
-        actions.append(.addContact)
-    }
-    // D64: only an answered call in a conversation can become a task.
-    if call.outcome == CallOutcome.answered && call.conversation_id != nil {
-        actions.append(.task)
-    }
-    actions.append(.details)
-    return actions
+/// Message goes to the thread, or starts a text to the number.
+func callCanMessage(_ call: Call) -> Bool {
+    call.conversation_id != nil || (call.caller_e164.map { !$0.isBlank } ?? false)
 }
 
-/// The catalogue key naming an action, for its spoken label.
+/// Call back goes through the dialer, so it needs a number.
+func callCanCallBack(_ call: Call) -> Bool {
+    call.caller_e164.map { !$0.isBlank } ?? false
+}
+
+func callPrimaryAction(_ call: Call) -> CallRowAction? {
+    let canMessage = callCanMessage(call)
+    let canCallBack = callCanCallBack(call)
+    let wantsCallBack = call.direction != "outbound"
+        && (call.outcome == CallOutcome.missed || call.outcome == CallOutcome.voicemail)
+    if wantsCallBack {
+        if canCallBack { return .callBack }
+        return canMessage ? CallRowAction.message : nil
+    }
+    if canMessage { return .message }
+    return canCallBack ? .callBack : nil
+}
+
+/// The catalogue key naming an action for VoiceOver; it takes the caller's {name}.
 func callRowActionLabelKey(_ action: CallRowAction) -> String {
     switch action {
-    case .message: "shell.callActionMessage"
-    case .callBack: "shell.callActionCallBack"
-    case .contact: "shell.callActionContact"
-    case .addContact: "shell.callActionAddContact"
-    case .task: "shell.callActionTask"
-    case .details: "shell.callActionDetails"
+    case .message: "shell.callActionMessageFor"
+    case .callBack: "shell.callActionCallBackFor"
     }
 }
 

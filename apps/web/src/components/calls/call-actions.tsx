@@ -1,11 +1,15 @@
 "use client";
 
 import {
+  Copy,
+  Info,
+  ListPlus,
   MessageSquareText,
   MoreHorizontal,
   Phone,
-  Copy,
   Trash2,
+  User,
+  UserPlus,
   Voicemail,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,8 +36,50 @@ import { cn } from "@/lib/utils";
  * number offers none of them, and a member without `records.delete` is left
  * with only what they can do, or no menu at all.
  */
+/**
+ * #734: the ONE action a call row draws inline. A missed inbound call or a
+ * voicemail wants a call back; an answered or outbound one wants a message.
+ * Every other action lives in the row's menu. When the preferred action cannot
+ * be done (no thread or contact to ring), the other one stands in, and a
+ * caller we cannot reach at all gets none.
+ */
+export type CallPrimaryAction = "call-back" | "message";
+
+/** Where Message goes: the thread, a new text to the contact, or to the number. */
+export function callMessageHref(call: {
+  conversation_id: string | null;
+  contact_id: string | null;
+  caller_e164: string | null;
+}): string | null {
+  if (call.conversation_id) return `/inbox/${call.conversation_id}`;
+  if (call.contact_id) return `/inbox/new?contact=${call.contact_id}`;
+  if (call.caller_e164) return `/inbox/new?to=${encodeURIComponent(call.caller_e164)}`;
+  return null;
+}
+
+export function callPrimaryAction(call: {
+  direction: string;
+  outcome: string | null;
+  conversation_id: string | null;
+  contact_id: string | null;
+  caller_e164: string | null;
+}): CallPrimaryAction | null {
+  const canCallBack = call.conversation_id !== null || call.contact_id !== null;
+  const canMessage = callMessageHref(call) !== null;
+  const wantsCallBack =
+    call.direction !== "outbound" &&
+    (call.outcome === "missed" || call.outcome === "voicemail");
+  if (wantsCallBack) return canCallBack ? "call-back" : canMessage ? "message" : null;
+  return canMessage ? "message" : canCallBack ? "call-back" : null;
+}
+
 export interface CallActionsInput {
   t: Translate;
+  /** The call's own page; absent on that page itself, so Details is not offered. */
+  detailsHref?: string | null;
+  messageHref?: string | null;
+  contactHref?: string | null;
+  canMakeTask?: boolean;
   callerName: string;
   hasVoicemail: boolean;
   conversationId: string | null;
@@ -47,6 +93,10 @@ export interface CallActionsInput {
     callBack: () => void;
     text: () => void;
     copyNumber: () => void;
+    openContact?: () => void;
+    addContact?: () => void;
+    makeTask?: () => void;
+    openDetails?: () => void;
     deleteVoicemail: () => void;
     deleteCall: () => void;
   };
@@ -69,7 +119,7 @@ export function buildCallActions(input: CallActionsInput): RecordAction[] {
       label: t("recordMenu.text"),
       icon: MessageSquareText,
       group: "primary",
-      allowed: input.conversationId !== null,
+      allowed: (input.messageHref ?? null) !== null,
       onSelect: run.text,
     },
     {
@@ -79,6 +129,41 @@ export function buildCallActions(input: CallActionsInput): RecordAction[] {
       group: "primary",
       allowed: input.callerE164 !== null,
       onSelect: run.copyNumber,
+    },
+    {
+      id: "contact",
+      label: t("shell.callActionContact"),
+      icon: User,
+      group: "primary",
+      allowed: (input.contactHref ?? null) !== null,
+      onSelect: run.openContact,
+    },
+    {
+      id: "add-contact",
+      label: t("shell.callActionAddContact"),
+      icon: UserPlus,
+      group: "primary",
+      allowed:
+        input.contactId === null &&
+        input.callerE164 !== null &&
+        run.addContact !== undefined,
+      onSelect: run.addContact,
+    },
+    {
+      id: "task",
+      label: t("shell.callActionTask"),
+      icon: ListPlus,
+      group: "primary",
+      allowed: input.canMakeTask === true && run.makeTask !== undefined,
+      onSelect: run.makeTask,
+    },
+    {
+      id: "details",
+      label: t("shell.callActionDetails"),
+      icon: Info,
+      group: "primary",
+      allowed: (input.detailsHref ?? null) !== null,
+      onSelect: run.openDetails,
     },
     {
       id: "delete-voicemail",
@@ -112,6 +197,12 @@ export interface CallActionsProps {
   conversationId?: string | null;
   contactId?: string | null;
   callerE164?: string | null;
+  /** #734: the call row wires these; the call's own page leaves them out. */
+  callSessionId?: string | null;
+  /** D64: only an answered call in a conversation can become a task. */
+  canMakeTask?: boolean;
+  onMakeTask?: () => void;
+  onAddContact?: () => void;
   /** After a whole-call delete, e.g. leaving the call's own page. */
   onDeleted?: () => void;
   className?: string;
@@ -131,6 +222,10 @@ export function useCallActions({
   conversationId = null,
   contactId = null,
   callerE164 = null,
+  callSessionId = null,
+  canMakeTask = false,
+  onMakeTask,
+  onAddContact,
   onDeleted,
 }: CallActionsProps): RecordAction[] {
   const t = useT();
@@ -143,8 +238,20 @@ export function useCallActions({
   const failure = (error: unknown, fallback: string) =>
     toast.error(error instanceof ApiError ? error.message : fallback);
 
+  const messageHref = callMessageHref({
+    conversation_id: conversationId,
+    contact_id: contactId,
+    caller_e164: callerE164,
+  });
+  const detailsHref = callSessionId ? `/calls/${callSessionId}` : null;
+  const contactHref = contactId ? `/contacts/${contactId}` : null;
+
   return buildCallActions({
     t,
+    detailsHref,
+    messageHref,
+    contactHref,
+    canMakeTask,
     callerName,
     hasVoicemail,
     conversationId,
@@ -161,7 +268,11 @@ export function useCallActions({
           contactId: conversationId ? undefined : (contactId ?? undefined),
           contactName: callerName,
         }),
-      text: () => conversationId && navigate(`/inbox/${conversationId}`),
+      text: () => messageHref && navigate(messageHref),
+      openContact: () => contactHref && navigate(contactHref),
+      addContact: onAddContact,
+      makeTask: onMakeTask,
+      openDetails: () => detailsHref && navigate(detailsHref),
       copyNumber: async () => {
         try {
           await navigator.clipboard.writeText(callerE164 ?? "");

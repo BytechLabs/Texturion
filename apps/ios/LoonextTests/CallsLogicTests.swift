@@ -12,17 +12,19 @@ final class CallsLogicTests: XCTestCase {
         callerName: String? = nil,
         callerE164: String? = nil,
         screening: String? = nil,
-        answeredByName: String? = nil
+        answeredByName: String? = nil,
+        conversationId: String? = nil,
+        contactId: String? = nil
     ) -> Call {
         Call(
             id: "c1",
             call_session_id: "sess-1",
             caller_e164: callerE164,
-            contact_id: nil,
+            contact_id: contactId,
             contact_name: contactName,
             caller_name: callerName,
             phone_number_id: nil,
-            conversation_id: nil,
+            conversation_id: conversationId,
             outcome: outcome,
             direction: direction,
             forward_seconds: forwardSeconds,
@@ -287,5 +289,66 @@ final class CallsLogicTests: XCTestCase {
         XCTAssertEqual("Note", noteControlLabel(linked: false, resolving: false))
         // A linked note is never pending, whatever the resolver flag says.
         XCTAssertEqual("Note", noteControlLabel(linked: true, resolving: true))
+    }
+
+    /// #734 — mirrors CallsLogicTest.kt's `each outcome gets its one primary
+    /// action`, case for case.
+    func testEachOutcomeGetsItsOnePrimaryAction() {
+        let number = "+14155550101"
+        // Missed and voicemail want a call back.
+        XCTAssertEqual(CallRowAction.callBack, callPrimaryAction(call(outcome: "missed", callerE164: number)))
+        XCTAssertEqual(CallRowAction.callBack, callPrimaryAction(call(outcome: "voicemail", callerE164: number)))
+        // Answered and outbound want a message, whatever their outcome.
+        XCTAssertEqual(CallRowAction.message, callPrimaryAction(call(outcome: "answered", callerE164: number)))
+        XCTAssertEqual(
+            CallRowAction.message,
+            callPrimaryAction(call(outcome: "answered", direction: "outbound", callerE164: number))
+        )
+        XCTAssertEqual(
+            CallRowAction.message,
+            callPrimaryAction(call(outcome: "missed", direction: "outbound", callerE164: number))
+        )
+        // A caller we cannot reach gets none; a thread alone can still be messaged.
+        XCTAssertNil(callPrimaryAction(call(outcome: "missed")))
+        XCTAssertEqual(
+            CallRowAction.message,
+            callPrimaryAction(call(outcome: "missed", conversationId: "conv-1"))
+        )
+        // The spoken name is the same key on both, and carries whose it is.
+        XCTAssertEqual("shell.callActionCallBackFor", callRowActionLabelKey(.callBack))
+        XCTAssertEqual("shell.callActionMessageFor", callRowActionLabelKey(.message))
+    }
+
+    /// #734 — everything else that leaves the row is in the record menu, and the
+    /// row's tap is its Details item.
+    func testTheRecordMenuHoldsEverythingTheRowNoLongerDraws() {
+        func ids(_ call: Call, canDelete: Bool = false) -> [String] {
+            callActions(
+                CallActionsInput(
+                    hasConversation: call.conversation_id != nil,
+                    hasContact: call.contact_id != nil,
+                    callerE164: call.caller_e164,
+                    hasVoicemail: false,
+                    canDelete: canDelete,
+                    canMakeTask: call.outcome == "answered" && call.conversation_id != nil,
+                    canOpenDetails: true
+                )
+            ).visibleIds
+        }
+        let linked = call(
+            outcome: "answered", callerE164: "+14155550101",
+            conversationId: "conv-1", contactId: "con-1"
+        )
+        XCTAssertEqual(
+            ["call-back", "text", "copy-number", "contact", "task", "details", "delete-call"],
+            ids(linked, canDelete: true)
+        )
+        // An unsaved number offers Add contact in place of Contact; a miss has no task.
+        XCTAssertEqual(
+            ["call-back", "text", "copy-number", "add-contact", "details"],
+            ids(call(outcome: "missed", callerE164: "+14155550101"))
+        )
+        // No number and no thread: Details is all that is left.
+        XCTAssertEqual(["details"], ids(call(outcome: "missed")))
     }
 }

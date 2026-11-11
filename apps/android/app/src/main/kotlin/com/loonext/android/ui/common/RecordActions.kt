@@ -307,6 +307,10 @@ object CallActionId {
     const val CALL_BACK = "call-back"
     const val TEXT = "text"
     const val COPY_NUMBER = "copy-number"
+    const val CONTACT = "contact"
+    const val ADD_CONTACT = "add-contact"
+    const val TASK = "task"
+    const val DETAILS = "details"
     const val DELETE_VOICEMAIL = "delete-voicemail"
     const val DELETE_CALL = "delete-call"
 }
@@ -317,6 +321,10 @@ data class CallActionsInput(
     val callerE164: String?,
     val hasVoicemail: Boolean,
     val canDelete: Boolean,
+    /** D64: an answered call in a conversation can become a task. */
+    val canMakeTask: Boolean = false,
+    /** The call's own page; false where that page is already open. */
+    val canOpenDetails: Boolean = false,
 )
 
 fun callActions(input: CallActionsInput): List<RecordAction> = listOf(
@@ -326,11 +334,27 @@ fun callActions(input: CallActionsInput): List<RecordAction> = listOf(
     ),
     RecordAction(
         CallActionId.TEXT, "recordMenu.text", ActionGroup.PRIMARY,
-        allowed = input.hasConversation,
+        allowed = input.hasConversation || !input.callerE164.isNullOrBlank(),
     ),
     RecordAction(
         CallActionId.COPY_NUMBER, "recordMenu.copyNumber", ActionGroup.PRIMARY,
         allowed = !input.callerE164.isNullOrBlank(),
+    ),
+    RecordAction(
+        CallActionId.CONTACT, "shell.callActionContact", ActionGroup.PRIMARY,
+        allowed = input.hasContact,
+    ),
+    RecordAction(
+        CallActionId.ADD_CONTACT, "shell.callActionAddContact", ActionGroup.PRIMARY,
+        allowed = !input.hasContact && !input.callerE164.isNullOrBlank(),
+    ),
+    RecordAction(
+        CallActionId.TASK, "shell.callActionTask", ActionGroup.PRIMARY,
+        allowed = input.canMakeTask,
+    ),
+    RecordAction(
+        CallActionId.DETAILS, "shell.callActionDetails", ActionGroup.PRIMARY,
+        allowed = input.canOpenDetails,
     ),
     RecordAction(
         CallActionId.DELETE_VOICEMAIL, "recordMenu.deleteVoicemail", ActionGroup.DANGER,

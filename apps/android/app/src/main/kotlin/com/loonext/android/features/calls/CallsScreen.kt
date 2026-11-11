@@ -47,13 +47,10 @@ import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Dialpad
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PhoneCallback
 import androidx.compose.material.icons.outlined.PhoneForwarded
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.PhoneMissed
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.Icon
@@ -98,7 +95,7 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
-import com.loonext.android.features.tasks.CallTaskButton
+import com.loonext.android.features.tasks.CallTaskSheetHost
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.canDeleteRecords
@@ -253,6 +250,8 @@ fun CallsScreen(
     var dialerOpen by rememberSaveable { mutableStateOf(false) }
     var dialerPrefill by rememberSaveable { mutableStateOf("") }
     var addContactPrefill by rememberSaveable { mutableStateOf<String?>(null) }
+    // #734: the call whose "Make a task" sheet is open (from the row's menu).
+    var taskCall by remember { mutableStateOf<Call?>(null) }
     val contactsRepo = remember(graph) { com.loonext.android.core.data.ContactsRepository(graph.api) }
     val scope = rememberCoroutineScope()
 
@@ -591,32 +590,13 @@ fun CallsScreen(
                                                     call = call,
                                                     repo = repo,
                                                     companyId = companyId,
-                                                    makeTask = call.conversation_id
-                                                        ?.takeIf { call.outcome == CallOutcome.ANSWERED }
-                                                        ?.let { conversationId ->
-                                                            {
-                                                                CallTaskButton(
-                                                                    graph = graph,
-                                                                    companyId = companyId,
-                                                                    conversationId = conversationId,
-                                                                    callerName = callerDisplayName(call),
-                                                                    callId = call.id,
-                                                                )
-                                                            }
-                                                        },
-                                                    // #734: the row goes nowhere; its actions do.
-                                                    rowActions = callRowActions(call),
+                                                    // #734: one primary action inline; a tap on the row
+                                                    // opens the call's details, never the conversation.
+                                                    onOpen = { onOpenCall(call.call_session_id) },
                                                     onRowAction = { rowAction ->
                                                         when (rowAction) {
                                                             CallRowAction.MESSAGE -> messageCall(call)
                                                             CallRowAction.CALL_BACK -> callBack(call)
-                                                            CallRowAction.CONTACT ->
-                                                                call.contact_id?.let(onOpenContact)
-                                                            CallRowAction.ADD_CONTACT ->
-                                                                addContactPrefill = call.caller_e164
-                                                            CallRowAction.DETAILS ->
-                                                                onOpenCall(call.call_session_id)
-                                                            CallRowAction.TASK -> Unit
                                                         }
                                                     },
                                                     // #712: the call's one action list. The row's more button
@@ -629,10 +609,19 @@ fun CallsScreen(
                                                             hasVoicemail = call.outcome == CallOutcome.VOICEMAIL &&
                                                                 (call.voicemail_seconds ?: 0) > 0,
                                                             canDelete = canDelete,
+                                                            canMakeTask = call.outcome == CallOutcome.ANSWERED &&
+                                                                call.conversation_id != null,
+                                                            canOpenDetails = true,
                                                         ),
                                                     ),
                                                     onAction = { actionId ->
                                                         when (actionId) {
+                                                            CallActionId.CONTACT ->
+                                                                call.contact_id?.let(onOpenContact)
+                                                            CallActionId.ADD_CONTACT ->
+                                                                addContactPrefill = call.caller_e164
+                                                            CallActionId.TASK -> taskCall = call
+                                                            CallActionId.DETAILS -> onOpenCall(call.call_session_id)
                                                             CallActionId.CALL_BACK -> callBack(call)
                                                             CallActionId.TEXT -> messageCall(call)
                                                             CallActionId.COPY_NUMBER -> {
@@ -807,6 +796,19 @@ fun CallsScreen(
         )
     }
 
+    taskCall?.let { picked ->
+        picked.conversation_id?.let { conversationId ->
+            CallTaskSheetHost(
+                graph = graph,
+                companyId = companyId,
+                conversationId = conversationId,
+                callerName = callerDisplayName(picked),
+                callId = picked.id,
+                sessionId = null,
+                onDismiss = { taskCall = null },
+            )
+        }
+    }
     addContactPrefill?.let { prefill ->
         CreateContactSheet(
             mutations = remember(graph) { ContactMutations(graph.api, BuildConfig.API_URL) },
@@ -1034,21 +1036,21 @@ internal fun CallRow(
     call: Call,
     repo: CallsRepository,
     companyId: String,
-    /** #734: the compact actions under the row, and what to do with the one chosen. */
-    rowActions: List<CallRowAction>,
+    /** #734: a tap on the row opens the call's details. */
+    onOpen: () -> Unit,
+    /** #734: the one inline action, chosen by the call, and what it does. */
     onRowAction: (CallRowAction) -> Unit,
     /** #712: this call's action list, and what to do with the id that was chosen. */
     actions: List<RecordAction>,
     onAction: (String) -> Unit,
-    /** D64: "Make a task", offered on an answered call that has a conversation. */
-    makeTask: (@Composable () -> Unit)? = null,
 ) {
-    val onMessage = if (CallRowAction.MESSAGE in rowActions) {
+    val primary = callPrimaryAction(call)
+    val onMessage = if (callCanMessage(call)) {
         { onRowAction(CallRowAction.MESSAGE) }
     } else {
         null
     }
-    val onDialBack = if (CallRowAction.CALL_BACK in rowActions) {
+    val onDialBack = if (callCanCallBack(call)) {
         { onRowAction(CallRowAction.CALL_BACK) }
     } else {
         null
@@ -1063,10 +1065,10 @@ internal fun CallRow(
         Modifier
             .fillMaxWidth()
             .then(
-                if (hasMenu) {
+                run {
                     Modifier.combinedClickable(
-                        // #734: a tap goes nowhere; only the actions do.
-                        onClick = {},
+                        // #734: a tap opens the call's details.
+                        onClick = onOpen,
                         // #712: long-press is the same menu as the more button. The
                         // time's own long-press yields to it, so the menu leads with it.
                         onLongClick = if (hasMenu) {
@@ -1077,10 +1079,8 @@ internal fun CallRow(
                         } else {
                             null
                         },
-                        onLongClickLabel = t("recordMenu.moreActions"),
+                        onLongClickLabel = if (hasMenu) t("recordMenu.moreActions") else null,
                     )
-                } else {
-                    Modifier
                 },
             ),
     ) {
@@ -1154,6 +1154,30 @@ internal fun CallRow(
                             maxLines = 1,
                             softWrap = false,
                         )
+                        if (primary != null) {
+                            // #734: the one inline action, a full 48dp target with
+                            // its name (and whose it is) spoken.
+                            Box(
+                                Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        haptics.tap()
+                                        onRowAction(primary)
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    callRowActionIcon(primary),
+                                    contentDescription = t(
+                                        callRowActionLabelKey(primary),
+                                        "name" to name,
+                                    ),
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(IconSize.Default),
+                                )
+                            }
+                        }
                         if (hasMenu) {
                             Box(
                                 Modifier
@@ -1254,13 +1278,6 @@ internal fun CallRow(
                 }
             }
         }
-        CallRowActionBar(
-            actions = rowActions,
-            name = name,
-            onAction = onRowAction,
-            task = makeTask,
-            modifier = Modifier.padding(start = 56.dp, end = 8.dp, bottom = 2.dp),
-        )
         if (call.outcome == CallOutcome.VOICEMAIL && (call.voicemail_seconds ?: 0) > 0) {
             VoicemailPlayerRow(
                 repo = repo,
@@ -1300,54 +1317,9 @@ internal fun CallRow(
     }
 }
 
-/**
- * #734: what a call row offers, each its own 48dp control. Icons only, so the
- * row stays one quiet line on a phone; each carries its name for TalkBack.
- * The Task action is drawn by [task], which owns its sheet.
- */
-@Composable
-private fun CallRowActionBar(
-    actions: List<CallRowAction>,
-    name: String,
-    onAction: (CallRowAction) -> Unit,
-    task: (@Composable () -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    val haptics = rememberHaptics()
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        actions.forEach { action ->
-            if (action == CallRowAction.TASK) {
-                task?.invoke()
-            } else {
-                Box(
-                    Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .clickable {
-                            haptics.tap()
-                            onAction(action)
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        callRowActionIcon(action),
-                        contentDescription = t(callRowActionLabelKey(action)) + ", " + name,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(IconSize.Default),
-                    )
-                }
-            }
-        }
-    }
-}
-
 private fun callRowActionIcon(action: CallRowAction): ImageVector = when (action) {
     CallRowAction.MESSAGE -> Icons.AutoMirrored.Outlined.Message
     CallRowAction.CALL_BACK -> Icons.Outlined.Call
-    CallRowAction.CONTACT -> Icons.Outlined.Person
-    CallRowAction.ADD_CONTACT -> Icons.Outlined.PersonAdd
-    CallRowAction.TASK -> Icons.Outlined.Info
-    CallRowAction.DETAILS -> Icons.Outlined.Info
 }
 
 /** #725: the removable chip for the reason the log is narrowed to. */

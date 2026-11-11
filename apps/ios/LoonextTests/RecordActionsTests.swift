@@ -249,17 +249,17 @@ final class RecordActionsTests: XCTestCase {
         }
         XCTAssertEqual(
             list(MemberRole.owner, voicemail: true),
-            ["call-back", "text", "copy-number", "delete-voicemail", "delete-call"]
+            ["call-back", "text", "copy-number", "contact", "delete-voicemail", "delete-call"]
         )
         XCTAssertEqual(
             list(MemberRole.owner, voicemail: false),
-            ["call-back", "text", "copy-number", "delete-call"]
+            ["call-back", "text", "copy-number", "contact", "delete-call"]
         )
         XCTAssertEqual(
-            list(MemberRole.member, voicemail: true), ["call-back", "text", "copy-number"]
+            list(MemberRole.member, voicemail: true), ["call-back", "text", "copy-number", "contact"]
         )
         XCTAssertEqual(
-            list(MemberRole.readOnly, voicemail: true), ["call-back", "text", "copy-number"]
+            list(MemberRole.readOnly, voicemail: true), ["call-back", "text", "copy-number", "contact"]
         )
     }
 

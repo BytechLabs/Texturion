@@ -241,6 +241,9 @@ struct CallTaskButton: View {
     let callerName: String
     var callId: String?
     var sessionId: String?
+    /// #734: a menu item sets this true to start the same flow without the button
+    /// being drawn; it is set back to false once the flow has started.
+    var requested: Binding<Bool>?
 
     @State private var host: CallTaskHost?
     @State private var resolvedCallId: String?
@@ -280,6 +283,12 @@ struct CallTaskButton: View {
             }
         }
         .createdAlert(notice: $notice, openTaskId: $noticeTaskId)
+        .onChange(of: requested?.wrappedValue ?? false) { _, wanted in
+            if wanted {
+                requested?.wrappedValue = false
+                open()
+            }
+        }
     }
 
     private func open() {

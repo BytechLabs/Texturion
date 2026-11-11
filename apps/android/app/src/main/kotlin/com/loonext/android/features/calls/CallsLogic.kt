@@ -145,39 +145,45 @@ fun callOutcomeLabel(call: Call): String {
 }
 
 /**
- * #734: what a call row offers, each its own control. The row itself goes
- * nowhere. Mirrors the web's CallRowActions: text them (the conversation, or a
- * new text to that number), call back, the contact (or add one), a task, and
- * the call's own page.
+ * #734: the ONE action a call row draws inline. A missed inbound call or a
+ * voicemail wants a call back; an answered or outbound one wants a message.
+ * Everything else is in the row's more / long-press menu. Mirrors the web's
+ * callPrimaryAction: when the preferred action cannot be done the other one
+ * stands in, and a caller we cannot reach at all gets none.
  */
-enum class CallRowAction { MESSAGE, CALL_BACK, CONTACT, ADD_CONTACT, TASK, DETAILS }
+enum class CallRowAction { MESSAGE, CALL_BACK }
 
-fun callRowActions(call: Call): List<CallRowAction> {
-    val hasNumber = !call.caller_e164.isNullOrBlank()
-    return buildList {
-        if (call.conversation_id != null || hasNumber) add(CallRowAction.MESSAGE)
-        if (hasNumber) add(CallRowAction.CALL_BACK)
-        if (call.contact_id != null) {
-            add(CallRowAction.CONTACT)
-        } else if (hasNumber) {
-            add(CallRowAction.ADD_CONTACT)
+/** Message goes to the thread, or starts a text to the number. */
+fun callCanMessage(call: Call): Boolean =
+    call.conversation_id != null || !call.caller_e164.isNullOrBlank()
+
+/** Call back goes through the dialer, so it needs a number. */
+fun callCanCallBack(call: Call): Boolean = !call.caller_e164.isNullOrBlank()
+
+fun callPrimaryAction(call: Call): CallRowAction? {
+    val canMessage = callCanMessage(call)
+    val canCallBack = callCanCallBack(call)
+    val wantsCallBack = call.direction != "outbound" &&
+        (call.outcome == CallOutcome.MISSED || call.outcome == CallOutcome.VOICEMAIL)
+    return if (wantsCallBack) {
+        when {
+            canCallBack -> CallRowAction.CALL_BACK
+            canMessage -> CallRowAction.MESSAGE
+            else -> null
         }
-        // D64: only an answered call in a conversation can become a task.
-        if (call.outcome == CallOutcome.ANSWERED && call.conversation_id != null) {
-            add(CallRowAction.TASK)
+    } else {
+        when {
+            canMessage -> CallRowAction.MESSAGE
+            canCallBack -> CallRowAction.CALL_BACK
+            else -> null
         }
-        add(CallRowAction.DETAILS)
     }
 }
 
-/** The catalogue key naming an action, for its spoken label. */
+/** The catalogue key naming an action for TalkBack; it takes the caller's {name}. */
 fun callRowActionLabelKey(action: CallRowAction): String = when (action) {
-    CallRowAction.MESSAGE -> "shell.callActionMessage"
-    CallRowAction.CALL_BACK -> "shell.callActionCallBack"
-    CallRowAction.CONTACT -> "shell.callActionContact"
-    CallRowAction.ADD_CONTACT -> "shell.callActionAddContact"
-    CallRowAction.TASK -> "shell.callActionTask"
-    CallRowAction.DETAILS -> "shell.callActionDetails"
+    CallRowAction.MESSAGE -> "shell.callActionMessageFor"
+    CallRowAction.CALL_BACK -> "shell.callActionCallBackFor"
 }
 
 /**

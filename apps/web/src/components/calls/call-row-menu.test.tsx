@@ -71,10 +71,14 @@ describe("#712 the call row's menus", () => {
       { key: "Enter" },
     );
     const fromButton = listed();
+    // #734: every action that leaves the row is here, so the row draws one.
     expect(fromButton).toEqual([
       "call-back",
       "text",
       "copy-number",
+      "contact",
+      "task",
+      "details",
       "delete-call",
     ]);
     view.unmount();
@@ -85,14 +89,32 @@ describe("#712 the call row's menus", () => {
     expect(listed()).toEqual(fromButton);
   });
 
+  it("an unsaved number offers Add contact in place of Contact", () => {
+    const unsaved = { ...call, contact_id: null, outcome: "missed" } as Call;
+    const { container } = render(<CallRow call={unsaved} />);
+    fireEvent.contextMenu(container.firstElementChild as Element);
+    const ids = listed();
+    expect(ids).toContain("add-contact");
+    expect(ids).not.toContain("contact");
+    // A task needs an answered call.
+    expect(ids).not.toContain("task");
+  });
+
   it("a member who cannot delete still gets the ways to reach the caller", () => {
     state.canDelete = false;
     const { container } = render(<CallRow call={call} />);
     fireEvent.contextMenu(container.firstElementChild as Element);
-    expect(listed()).toEqual(["call-back", "text", "copy-number"]);
+    expect(listed()).toEqual([
+      "call-back",
+      "text",
+      "copy-number",
+      "contact",
+      "task",
+      "details",
+    ]);
   });
 
-  it("a call with nobody to reach and nothing deletable has no menu at all", () => {
+  it("a call with nobody to reach and nothing deletable still opens its details", () => {
     state.canDelete = false;
     const withheld = {
       ...call,
@@ -101,11 +123,7 @@ describe("#712 the call row's menus", () => {
       conversation_id: null,
     } as Call;
     const { container } = render(<CallRow call={withheld} />);
-    expect(
-      screen.queryByRole("button", { name: /Actions for the call from/ }),
-    ).toBeNull();
-    const notPrevented = fireEvent.contextMenu(container.firstElementChild as Element);
-    expect(notPrevented).toBe(true);
-    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.contextMenu(container.firstElementChild as Element);
+    expect(listed()).toEqual(["details"]);
   });
 });

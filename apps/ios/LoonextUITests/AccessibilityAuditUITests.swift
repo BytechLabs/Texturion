@@ -60,7 +60,10 @@ final class AccessibilityAuditUITests: XCTestCase {
             app.launch()
             // The row may read as one element, so match any whose label names her.
             let row = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "label CONTAINS %@", "Dana Whitcomb"))
+                .matching(NSPredicate(
+                    format: "label CONTAINS %@ AND NOT (label BEGINSWITH %@) AND NOT (label BEGINSWITH %@)",
+                    "Dana Whitcomb", "Call back", "Message"
+                ))
                 .firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: 20), "the first call row never appeared")
             row.press(forDuration: 1.2)

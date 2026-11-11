@@ -135,7 +135,7 @@ fun CallTaskButton(
 }
 
 @Composable
-private fun CallTaskSheetHost(
+internal fun CallTaskSheetHost(
     graph: AppGraph,
     companyId: String,
     conversationId: String,

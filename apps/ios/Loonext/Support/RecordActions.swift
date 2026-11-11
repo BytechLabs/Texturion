@@ -325,6 +325,10 @@ enum CallActionId {
     static let callBack = "call-back"
     static let text = "text"
     static let copyNumber = "copy-number"
+    static let contact = "contact"
+    static let addContact = "add-contact"
+    static let task = "task"
+    static let details = "details"
     static let deleteVoicemail = "delete-voicemail"
     static let deleteCall = "delete-call"
 }
@@ -335,6 +339,11 @@ struct CallActionsInput: Sendable {
     let callerE164: String?
     let hasVoicemail: Bool
     let canDelete: Bool
+    /// D64: an answered call in a conversation can become a task. After the
+    /// required fields and defaulted, so call sites that omit it keep compiling.
+    var canMakeTask: Bool = false
+    /// The call's own page; false where that page is already open.
+    var canOpenDetails: Bool = false
 }
 
 func callActions(_ input: CallActionsInput) -> [RecordAction] {
@@ -346,11 +355,27 @@ func callActions(_ input: CallActionsInput) -> [RecordAction] {
         ),
         RecordAction(
             id: CallActionId.text, labelKey: "recordMenu.text",
-            group: .primary, allowed: input.hasConversation
+            group: .primary, allowed: input.hasConversation || hasNumber
         ),
         RecordAction(
             id: CallActionId.copyNumber, labelKey: "recordMenu.copyNumber",
             group: .primary, allowed: hasNumber
+        ),
+        RecordAction(
+            id: CallActionId.contact, labelKey: "shell.callActionContact",
+            group: .primary, allowed: input.hasContact
+        ),
+        RecordAction(
+            id: CallActionId.addContact, labelKey: "shell.callActionAddContact",
+            group: .primary, allowed: !input.hasContact && hasNumber
+        ),
+        RecordAction(
+            id: CallActionId.task, labelKey: "shell.callActionTask",
+            group: .primary, allowed: input.canMakeTask
+        ),
+        RecordAction(
+            id: CallActionId.details, labelKey: "shell.callActionDetails",
+            group: .primary, allowed: input.canOpenDetails
         ),
         RecordAction(
             id: CallActionId.deleteVoicemail, labelKey: "recordMenu.deleteVoicemail",

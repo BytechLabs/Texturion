@@ -65,6 +65,8 @@ struct CallsView: View {
     /// anchor is dropped on iOS 15/16 and flaky on 17.x — "Add contact" would
     /// do nothing / need a second tap).
     @State private var activeSheet: CallsSheet?
+    /// #734: the call whose "Make a task" was picked from the row's menu.
+    @State private var taskRequestId: String?
     /// #691: the toast after a delete, carrying its Undo.
     @State private var notice: ThreadNotice?
     @State private var noticeSeq: Int64 = 0
@@ -314,7 +316,10 @@ struct CallsView: View {
                 callerE164: call.caller_e164,
                 hasVoicemail: call.outcome == CallOutcome.voicemail
                     && (call.voicemail_seconds ?? 0) > 0,
-                canDelete: canDeleteRecords
+                canDelete: canDeleteRecords,
+                canMakeTask: call.outcome == CallOutcome.answered
+                    && call.conversation_id != nil,
+                canOpenDetails: true
             )
         )
     }
@@ -325,6 +330,14 @@ struct CallsView: View {
             callBack(call)
         case CallActionId.text:
             messageCall(call)
+        case CallActionId.contact:
+            if let id = call.contact_id { AppRouter.shared.openContactId = id }
+        case CallActionId.addContact:
+            if let number = call.caller_e164 { activeSheet = .addContact(prefill: number) }
+        case CallActionId.task:
+            taskRequestId = call.id
+        case CallActionId.details:
+            AppRouter.shared.openCallSessionId = call.call_session_id
         case CallActionId.copyNumber:
             Haptics.tap()
             UIPasteboard.general.string = call.caller_e164
@@ -454,6 +467,16 @@ struct CallsView: View {
         }
     }
 
+    /// #734: true while the menu's Make a task is asking this call's launcher to open.
+    private func taskRequestBinding(for call: Call) -> Binding<Bool> {
+        Binding<Bool>(
+            get: { taskRequestId == call.id },
+            set: { wanted in
+                if !wanted && taskRequestId == call.id { taskRequestId = nil }
+            }
+        )
+    }
+
     /// D64: "Make a task" on an answered call that landed in a conversation.
     private func makeTaskButton(for call: Call) -> AnyView? {
         guard call.outcome == CallOutcome.answered,
@@ -465,7 +488,8 @@ struct CallsView: View {
                 companyId: companyId,
                 conversationId: conversationId,
                 callerName: callerDisplayName(call),
-                callId: call.id
+                callId: call.id,
+                requested: taskRequestBinding(for: call)
             )
         )
     }
@@ -491,11 +515,11 @@ struct CallsView: View {
                                 call: call,
                                 service: service,
                                 companyId: companyId,
-                                rowActions: callRowActions(call),
                                 makeTask: makeTaskButton(for: call),
                                 actions: recordActions(for: call),
                                 onAction: { actionId in performAction(actionId, for: call) },
-                                onRowAction: rowActionHandler(for: call)
+                                onRowAction: rowActionHandler(for: call),
+                                onOpen: rowOpenHandler(for: call)
                             )
                             if call.id != calls.last?.id {
                                 RowDivider().padding(.leading, 64)
@@ -523,11 +547,16 @@ struct CallsView: View {
         }
     }
 
-    /// #734: the row goes nowhere; its actions do. Extracted with an explicit
+    /// #734: the row's one inline action. Extracted with an explicit
     /// type — a closure built inline inside the ForEach made swiftc's type
     /// checker give up ("failed to produce diagnostic", CI run 5).
     private func rowActionHandler(for call: Call) -> @MainActor (CallRowAction) -> Void {
         return { action in performRowAction(action, for: call) }
+    }
+
+    /// #734: a tap on the row is the menu's Details, never the conversation.
+    private func rowOpenHandler(for call: Call) -> @MainActor () -> Void {
+        return { performAction(CallActionId.details, for: call) }
     }
 
     private func performRowAction(_ action: CallRowAction, for call: Call) {
@@ -536,14 +565,6 @@ struct CallsView: View {
             messageCall(call)
         case .callBack:
             callBack(call)
-        case .contact:
-            if let id = call.contact_id { AppRouter.shared.openContactId = id }
-        case .addContact:
-            if let number = call.caller_e164 { activeSheet = .addContact(prefill: number) }
-        case .details:
-            AppRouter.shared.openCallSessionId = call.call_session_id
-        case .task:
-            break
         }
     }
 
@@ -847,24 +868,37 @@ private struct CallRow: View {
     let call: Call
     let service: CallsService
     let companyId: String
-    /// #734: the compact actions under the row. Defaulted, so the previews that
-    /// omit it keep compiling.
-    var rowActions: [CallRowAction] = []
-    /// D64: "Make a task", offered on an answered call that has a conversation.
-    /// After the required `let`s and defaulted, so the call sites and previews
-    /// that omit it keep compiling.
+    /// D64: the launcher for "Make a task" (an answered call that has a
+    /// conversation). #734: it is no longer drawn; the row's menu asks it to open.
+    /// After the required `let`s and defaulted, so the previews that omit it keep
+    /// compiling.
     var makeTask: AnyView?
     /// #712: this call's action list, and what to do with the id that was chosen. Empty
     /// means no menu at all.
     var actions: [RecordAction] = []
     var onAction: (@MainActor (String) -> Void)?
     var onRowAction: (@MainActor (CallRowAction) -> Void)?
+    /// #734: a tap on the row opens the call's details.
+    var onOpen: (@MainActor () -> Void)?
 
     /// #228: AFTER the required `let`s, so the memberwise init every call site
     /// above uses keeps the same argument order.
     @Environment(\.appLocale) private var appLocale
 
     private var name: String { callerDisplayName(call) }
+
+    private var primaryAction: CallRowAction? { callPrimaryAction(call) }
+
+    private func primarySymbol(_ action: CallRowAction) -> String {
+        switch action {
+        case .message: "message"
+        case .callBack: "phone"
+        }
+    }
+
+    private func primaryLabel(_ action: CallRowAction) -> String {
+        AppStrings.translate(appLocale, callRowActionLabelKey(action), ["name": name])
+    }
 
     private var directionIcon: String {
         call.direction == "outbound" ? "phone.arrow.up.right" : "phone.arrow.down.left"
@@ -898,6 +932,104 @@ private struct CallRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 11) {
+                CallRowSummary(
+                    call: call,
+                    name: name,
+                    directionIcon: directionIcon,
+                    metaColor: metaColor,
+                    onOpen: onOpen
+                )
+                Spacer(minLength: 8)
+                Text(relativeTime(call.started_at))
+                    .exactTime(call.started_at)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted300)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                if let primary = primaryAction {
+                    // #734: the one inline action, a full 48pt target with its
+                    // name (and whose it is) spoken.
+                    Button {
+                        Haptics.tap()
+                        onRowAction?(primary)
+                    } label: {
+                        Image(systemName: primarySymbol(primary))
+                            .font(.scaled(IconSize.standard, weight: .medium))
+                            .foregroundStyle(BrandColor.ink)
+                            .frame(width: 48, height: 48)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(primaryLabel(primary))
+                }
+            }
+            .padding(.leading, 15)
+            .padding(.trailing, 4)
+            .padding(.top, 5)
+            .padding(.bottom, 2)
+            if let makeTask {
+                // Hidden: it only owns the Make a task sheet the menu opens.
+                makeTask
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .accessibilityHidden(true)
+            }
+            if showsVoicemail {
+                VoicemailPlayerRow(
+                    service: service,
+                    companyId: companyId,
+                    sessionId: call.call_session_id,
+                    seconds: call.voicemail_seconds ?? 0,
+                    transcriptShown: transcript != nil
+                )
+                .padding(.leading, 64)
+                .padding(.trailing, 15)
+                .padding(.bottom, transcript == nil && intakeLines.isEmpty ? 12 : 6)
+                // #367: the two lines that answer "do I need to call back",
+                // ABOVE the transcript they were read out of. A shortcut
+                // printed after the thing it shortens is not one.
+                if !intakeLines.isEmpty {
+                    VoicemailIntakeSummary(lines: intakeLines)
+                        .padding(.leading, 64)
+                        .padding(.trailing, 15)
+                        .padding(.bottom, transcript == nil ? 12 : 4)
+                }
+                // What it says, for the times playing it is not an option: on
+                // a roof, in a truck, next to a running compressor. The player
+                // stays above it: the recording is the record, this is the
+                // shortcut.
+                if let transcript {
+                    VoicemailTranscript(text: transcript)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 64)
+                        .padding(.trailing, 15)
+                        .padding(.bottom, 12)
+                }
+            }
+        }
+        // #712: long-press draws the call's one action list. The time's own long-press
+        // yields to it, so the menu leads with the exact time instead.
+        .recordContextMenu(
+            actions,
+            exactTime: TimestampFormat.exact(call.started_at, locale: appLocale)
+        ) { actionId, _ in
+            onAction?(actionId)
+        }
+    }
+}
+
+/// #734: who, what happened and how it ended. Tapping it opens the call's
+/// details, never the conversation.
+private struct CallRowSummary: View {
+    let call: Call
+    let name: String
+    let directionIcon: String
+    let metaColor: Color
+    let onOpen: (@MainActor () -> Void)?
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 11) {
                 InitialsAvatar(name: name, size: 38)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
@@ -941,126 +1073,11 @@ private struct CallRow: View {
                             .truncationMode(.tail)
                     }
                 }
-                Spacer(minLength: 8)
-                Text(relativeTime(call.started_at))
-                    .exactTime(call.started_at)
-                    .font(.golos(11))
-                    .foregroundStyle(BrandColor.muted300)
-                    .monospacedDigit()
-                    // #566: at the largest Dynamic Type sizes this wrapped and
-                    // grew the row on its own. `relativeTime` emits "now"/"5m"/
-                    // "3h"/"3d" and, past a week, "Jul 16" or "Jul 16 2025" — the
-                    // dated forms being the widest at ~11 characters, which is what
-                    // `fixedSize` reserves from the name beside it. None of them
-                    // reads better broken in two.
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-            .padding(.horizontal, 15)
-            .padding(.top, 11)
-            .padding(.bottom, 2)
-            CallRowActionBar(
-                actions: rowActions,
-                name: name,
-                task: makeTask,
-                onAction: onRowAction
-            )
-            .padding(.leading, 56)
-            .padding(.trailing, 8)
-            .padding(.bottom, showsVoicemail ? 2 : 6)
-            if showsVoicemail {
-                VoicemailPlayerRow(
-                    service: service,
-                    companyId: companyId,
-                    sessionId: call.call_session_id,
-                    seconds: call.voicemail_seconds ?? 0,
-                    transcriptShown: transcript != nil
-                )
-                .padding(.leading, 64)
-                .padding(.trailing, 15)
-                .padding(.bottom, transcript == nil && intakeLines.isEmpty ? 12 : 6)
-                // #367: the two lines that answer "do I need to call back",
-                // ABOVE the transcript they were read out of. A shortcut
-                // printed after the thing it shortens is not one.
-                if !intakeLines.isEmpty {
-                    VoicemailIntakeSummary(lines: intakeLines)
-                        .padding(.leading, 64)
-                        .padding(.trailing, 15)
-                        .padding(.bottom, transcript == nil ? 12 : 4)
-                }
-                // What it says, for the times playing it is not an option: on
-                // a roof, in a truck, next to a running compressor. The player
-                // stays above it: the recording is the record, this is the
-                // shortcut.
-                if let transcript {
-                    VoicemailTranscript(text: transcript)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.leading, 64)
-                        .padding(.trailing, 15)
-                        .padding(.bottom, 12)
-                }
-            }
         }
-        // #734: a tap goes nowhere; only the actions do.
-        // #712: long-press draws the call's one action list. The time's own long-press
-        // yields to it, so the menu leads with the exact time instead.
-        .recordContextMenu(
-            actions,
-            exactTime: TimestampFormat.exact(call.started_at, locale: appLocale)
-        ) { actionId, _ in
-            onAction?(actionId)
-        }
-    }
-}
-
-/// #734: what a call row offers, each its own 48pt control. Icons only, so the
-/// row stays one quiet line on a phone; each carries its name for VoiceOver.
-/// The Task action is drawn by `task`, which owns its sheet.
-private struct CallRowActionBar: View {
-    let actions: [CallRowAction]
-    let name: String
-    let task: AnyView?
-    let onAction: (@MainActor (CallRowAction) -> Void)?
-
-    @Environment(\.appLocale) private var appLocale
-
-    private func symbol(_ action: CallRowAction) -> String {
-        switch action {
-        case .message: "message"
-        case .callBack: "phone"
-        case .contact: "person"
-        case .addContact: "person.badge.plus"
-        case .task: "checklist"
-        case .details: "info.circle"
-        }
-    }
-
-    private func label(_ action: CallRowAction) -> String {
-        AppStrings.translate(appLocale, callRowActionLabelKey(action)) + ", " + name
-    }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(actions, id: \.self) { action in
-                if action == .task {
-                    if let task { task }
-                } else {
-                    Button {
-                        Haptics.tap()
-                        onAction?(action)
-                    } label: {
-                        Image(systemName: symbol(action))
-                            .font(.scaled(IconSize.standard, weight: .medium))
-                            .foregroundStyle(BrandColor.muted600)
-                            .frame(width: 48, height: 48)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(label(action))
-                }
-            }
-            Spacer(minLength: 0)
-        }
+        .contentShape(Rectangle())
+        .onTapGesture { onOpen?() }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -1408,7 +1425,6 @@ private func callLogFixtureRows(service: CallsService, menu: [RecordAction]) -> 
                     call: call,
                     service: service,
                     companyId: "company-1",
-                    rowActions: callRowActions(call),
                     actions: menu
                 )
                 if call.id != calls.last?.id {

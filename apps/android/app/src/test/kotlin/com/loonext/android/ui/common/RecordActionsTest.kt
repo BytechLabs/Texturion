@@ -190,12 +190,12 @@ class RecordActionsTest {
             ),
         ).visibleIds()
         assertEquals(
-            listOf("call-back", "text", "copy-number", "delete-voicemail", "delete-call"),
+            listOf("call-back", "text", "copy-number", "contact", "delete-voicemail", "delete-call"),
             list(MemberRole.OWNER, voicemail = true),
         )
-        assertEquals(listOf("call-back", "text", "copy-number", "delete-call"), list(MemberRole.OWNER, voicemail = false))
-        assertEquals(listOf("call-back", "text", "copy-number"), list(MemberRole.MEMBER, voicemail = true))
-        assertEquals(listOf("call-back", "text", "copy-number"), list(MemberRole.READ_ONLY, voicemail = true))
+        assertEquals(listOf("call-back", "text", "copy-number", "contact", "delete-call"), list(MemberRole.OWNER, voicemail = false))
+        assertEquals(listOf("call-back", "text", "copy-number", "contact"), list(MemberRole.MEMBER, voicemail = true))
+        assertEquals(listOf("call-back", "text", "copy-number", "contact"), list(MemberRole.READ_ONLY, voicemail = true))
     }
 
     private fun task(role: String, canOpen: Boolean, hasAccess: Boolean = true) = taskActions(

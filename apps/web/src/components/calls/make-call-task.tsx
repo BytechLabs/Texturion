@@ -6,6 +6,7 @@ import { useState } from "react";
 import { MakeTaskForm } from "@/components/thread/make-task-form";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverHeader,
   PopoverTitle,
@@ -35,6 +36,8 @@ export function MakeCallTask({
   callerName,
   className,
   trigger,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   callId?: string;
   sessionId?: string;
@@ -43,12 +46,30 @@ export function MakeCallTask({
   className?: string;
   /** #734: a trigger of the caller's own, so it matches the row it sits in. */
   trigger?: React.ReactNode;
+  /**
+   * #734: opened from a menu item instead of a button of its own. The form then
+   * hangs off an invisible anchor at the row's top-right, since the menu item
+   * that asked for it has already closed.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : ownOpen;
+  const setOpen = (next: boolean) => {
+    if (!controlled) setOwnOpen(next);
+    onOpenChange?.(next);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      {controlled ? (
+        <PopoverAnchor asChild>
+          <span aria-hidden className="pointer-events-none absolute right-3 top-3 size-0" />
+        </PopoverAnchor>
+      ) : (
       <PopoverTrigger asChild>
         {trigger ?? <button
           type="button"
@@ -63,6 +84,7 @@ export function MakeCallTask({
           <ListPlus aria-hidden className="size-4" strokeWidth={1.75} />
         </button>}
       </PopoverTrigger>
+      )}
       <PopoverContent align="end" className="w-80">
         <PopoverHeader className="mb-3">
           <PopoverTitle>{t("thread.makeATask")}</PopoverTitle>

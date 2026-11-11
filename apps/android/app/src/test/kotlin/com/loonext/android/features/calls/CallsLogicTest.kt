@@ -1,6 +1,8 @@
 package com.loonext.android.features.calls
 
 import com.loonext.android.core.model.Call
+import com.loonext.android.ui.common.CallActionsInput
+import com.loonext.android.ui.common.callActions
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.telephony.AudioRoute
@@ -279,31 +281,86 @@ class CallsLogicTest {
         )
     }
 
-    /** #734: a row offers actions, and which ones depends on what the call has. */
+    /** #734: one primary action inline, chosen by what the call needs. */
     @Test
-    fun `a call row offers the actions its call can support`() {
-        val bare = call(outcome = "missed", callerE164 = "+14155550101")
+    fun `each outcome gets its one primary action`() {
+        val number = "+14155550101"
+        // Missed and voicemail want a call back.
+        assertEquals(CallRowAction.CALL_BACK, callPrimaryAction(call(outcome = "missed", callerE164 = number)))
+        assertEquals(CallRowAction.CALL_BACK, callPrimaryAction(call(outcome = "voicemail", callerE164 = number)))
+        // Answered and outbound want a message, whatever their outcome.
+        assertEquals(CallRowAction.MESSAGE, callPrimaryAction(call(outcome = "answered", callerE164 = number)))
         assertEquals(
-            listOf(CallRowAction.MESSAGE, CallRowAction.CALL_BACK, CallRowAction.ADD_CONTACT, CallRowAction.DETAILS),
-            callRowActions(bare),
+            CallRowAction.MESSAGE,
+            callPrimaryAction(call(outcome = "answered", direction = "outbound", callerE164 = number)),
         )
+        assertEquals(
+            CallRowAction.MESSAGE,
+            callPrimaryAction(call(outcome = "missed", direction = "outbound", callerE164 = number)),
+        )
+        // A caller we cannot reach gets none; a thread alone can still be messaged.
+        assertNull(callPrimaryAction(call(outcome = "missed")))
+        assertEquals(
+            CallRowAction.MESSAGE,
+            callPrimaryAction(call(outcome = "missed").copy(conversation_id = "conv-1")),
+        )
+        // The spoken name is the same key on both, and carries whose it is.
+        assertEquals("shell.callActionCallBackFor", callRowActionLabelKey(CallRowAction.CALL_BACK))
+        assertEquals("shell.callActionMessageFor", callRowActionLabelKey(CallRowAction.MESSAGE))
+    }
+
+    /** #734: everything else that leaves the row is in the record menu. */
+    @Test
+    fun `the record menu holds everything the row no longer draws`() {
+        fun ids(call: Call, canDelete: Boolean = false) = callActions(
+            CallActionsInput(
+                hasConversation = call.conversation_id != null,
+                hasContact = call.contact_id != null,
+                callerE164 = call.caller_e164,
+                hasVoicemail = false,
+                canDelete = canDelete,
+                canMakeTask = call.outcome == "answered" && call.conversation_id != null,
+                canOpenDetails = true,
+            ),
+        ).filter { it.allowed }.map { it.id }
         val linked = call(outcome = "answered", callerE164 = "+14155550101")
             .copy(conversation_id = "conv-1", contact_id = "con-1")
         assertEquals(
-            listOf(
-                CallRowAction.MESSAGE,
-                CallRowAction.CALL_BACK,
-                CallRowAction.CONTACT,
-                CallRowAction.TASK,
-                CallRowAction.DETAILS,
-            ),
-            callRowActions(linked),
+            listOf("call-back", "text", "copy-number", "contact", "task", "details", "delete-call"),
+            ids(linked, canDelete = true),
         )
-        // A task only comes from an answered call that has a conversation.
-        assertFalse(CallRowAction.TASK in callRowActions(linked.copy(outcome = "missed")))
-        assertFalse(CallRowAction.TASK in callRowActions(linked.copy(conversation_id = null)))
-        // No number and no conversation: nothing to text, call or add; Details always remains.
-        assertEquals(listOf(CallRowAction.DETAILS), callRowActions(call(outcome = "missed")))
+        // An unsaved number offers Add contact in place of Contact; a miss has no task.
+        val bare = call(outcome = "missed", callerE164 = "+14155550101")
+        assertEquals(
+            listOf("call-back", "text", "copy-number", "add-contact", "details"),
+            ids(bare),
+        )
+        // No number and no thread: Details is all that is left.
+        assertEquals(listOf("details"), ids(call(outcome = "missed")))
+    }
+
+    /** #734: a tap on the row opens the call's details, never the conversation. */
+    @Test
+    fun `tapping a call row opens its details`() {
+        val screen = listOf("features/calls/CallsScreen.kt")
+            .joinToString("\n") { readMainSource(it) }
+        assertTrue(screen.contains("onOpen = { onOpenCall(call.call_session_id) }"))
+        assertTrue(screen.contains("onClick = onOpen,"))
+        // The old action bar under each row is gone.
+        assertFalse(screen.contains("CallRowActionBar"))
+    }
+
+    private fun readMainSource(relative: String): String {
+        val bases = listOf(
+            "src/main/kotlin/com/loonext/android",
+            "app/src/main/kotlin/com/loonext/android",
+            "apps/android/app/src/main/kotlin/com/loonext/android",
+        )
+        for (base in bases) {
+            val file = File(File(base), relative)
+            if (file.exists()) return file.readText()
+        }
+        throw AssertionError("source not found: $relative")
     }
 
     @Test

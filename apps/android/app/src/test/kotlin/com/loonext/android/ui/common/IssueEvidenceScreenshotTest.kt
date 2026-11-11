@@ -64,7 +64,6 @@ import com.loonext.android.core.model.TaskSourceMessage
 import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.features.calls.CallRow
 import com.loonext.android.features.calls.CallsRepository
-import com.loonext.android.features.calls.callRowActions
 import com.loonext.android.features.contacts.ContactDetailScreen
 import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.features.contacts.ContactsSnapshot
@@ -74,7 +73,6 @@ import com.loonext.android.features.inbox.InboxAuditBody
 import com.loonext.android.features.settings.SettingsIndex
 import com.loonext.android.features.settings.TrashScreen
 import com.loonext.android.features.shell.AccountSheetContent
-import com.loonext.android.features.tasks.CallTaskButton
 import com.loonext.android.features.tasks.TaskDetailScreen
 import com.loonext.android.features.tasks.TaskListLoader
 import com.loonext.android.features.tasks.TaskListSnapshot
@@ -215,18 +213,7 @@ class IssueEvidenceScreenshotTest {
         call = call,
         repo = repo,
         companyId = "co_1",
-        makeTask = call.conversation_id?.takeIf { call.outcome == CallOutcome.ANSWERED }?.let { conversationId ->
-            {
-                CallTaskButton(
-                    graph = graph,
-                    companyId = "co_1",
-                    conversationId = conversationId,
-                    callerName = "Dana Whitcomb",
-                    callId = call.id,
-                )
-            }
-        },
-        rowActions = callRowActions(call),
+        onOpen = {},
         onRowAction = {},
         actions = callActions(
             CallActionsInput(
