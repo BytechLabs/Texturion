@@ -239,16 +239,20 @@ describe("#712 call", () => {
     conversationId: "c-1" as string | null,
     contactId: "k-1" as string | null,
     callerE164: "+12125550123" as string | null,
+    // What a call row passes (#734): the row keeps one action, the menu the rest.
+    messageHref: "/inbox/c-1" as string | null,
+    contactHref: "/contacts/k-1" as string | null,
+    detailsHref: "/calls/s-1" as string | null,
     calling: false,
     deletingCall: false,
     deletingVoicemail: false,
     run: noopRun<Parameters<typeof buildCallActions>[0]["run"]>(),
   };
   expectOneList("owner", buildCallActions({ ...base, canDelete: true }), [
-    "call-back", "text", "copy-number", "delete-voicemail", "delete-call",
+    "call-back", "text", "copy-number", "contact", "details", "delete-voicemail", "delete-call",
   ]);
   expectOneList("member (no records.delete)", buildCallActions({ ...base, canDelete: false }), [
-    "call-back", "text", "copy-number",
+    "call-back", "text", "copy-number", "contact", "details",
   ]);
   expectOneList(
     "member on a call from a withheld number",
@@ -258,13 +262,15 @@ describe("#712 call", () => {
       conversationId: null,
       contactId: null,
       callerE164: null,
+      messageHref: null,
+      contactHref: null,
     }),
-    [],
+    ["details"],
   );
   expectOneList(
     "owner on a call with no voicemail",
     buildCallActions({ ...base, canDelete: true, hasVoicemail: false }),
-    ["call-back", "text", "copy-number", "delete-call"],
+    ["call-back", "text", "copy-number", "contact", "details", "delete-call"],
   );
 });
 
