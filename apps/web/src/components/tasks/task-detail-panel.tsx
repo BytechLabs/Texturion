@@ -441,9 +441,12 @@ function TaskDetailLoaded({
         title={
           <>
             <TaskNumber task={task} className="ml-1 block" />
-            <input
+            {/* A textarea that grows, so a long title wraps instead of being
+                cut off under the bell and menu. Enter still saves. */}
+            <textarea
               aria-label={t("tasks.titleAria")}
               value={title}
+              rows={1}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={saveTitle}
               onKeyDown={(e) => {
@@ -454,7 +457,7 @@ function TaskDetailLoaded({
               }}
               maxLength={500}
               className={cn(
-                "w-full rounded-app-ctrl bg-transparent px-1 py-0.5 text-lg font-semibold text-app-ink outline-none",
+                "field-sizing-content w-full resize-none rounded-app-ctrl bg-transparent px-1 py-0.5 text-lg font-semibold leading-snug text-app-ink outline-none",
                 "focus-visible:bg-app-inset focus-visible:ring-2 focus-visible:ring-ring",
                 task.done && "text-app-muted line-through opacity-70",
               )}
