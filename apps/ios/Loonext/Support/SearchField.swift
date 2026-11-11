@@ -44,7 +44,7 @@ struct SearchField: View {
                 .submitLabel(.search)
                 .focused($focused)
                 // The whole height of the box is the field, not the line of text.
-                .frame(minHeight: 44)
+                .frame(height: 44)
                 .accessibilityLabel(placeholder)
                 .onChange(of: query) { _, next in
                     if let maxLength, next.count > maxLength {
