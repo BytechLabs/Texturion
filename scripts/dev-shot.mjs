@@ -20,6 +20,8 @@
  *   --full                full-page screenshot instead of the viewport
  *   --click <selector>    after load, click this (repeatable; e.g. to open
  *                         the conversation info panel)
+ *   --fill <selector> <text>  after the clicks, type this into the field
+ *                         (repeatable; e.g. a search box)
  *   --el <selector>       capture just this element instead of the page
  *   --wait <ms>           settle delay after load/clicks (default 600)
  *   --out <dir>           output directory (default .dev-shots)
@@ -42,6 +44,7 @@ const STATE_FILE = join(STATE_DIR, "state.json");
 const args = process.argv.slice(2);
 const paths = [];
 const clicks = [];
+const fills = [];
 let mobile = false;
 let dark = false;
 let fullPage = false;
@@ -58,6 +61,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === "--full") fullPage = true;
   else if (a === "--fresh") fresh = true;
   else if (a === "--click") clicks.push(args[++i]);
+  else if (a === "--fill") fills.push([args[++i], args[++i]]);
   else if (a === "--el") element = args[++i];
   else if (a === "--wait") settle = Number(args[++i]);
   else if (a === "--out") outDir = args[++i];
@@ -163,6 +167,9 @@ for (const path of paths) {
 async function shoot(page, path) {
   for (const selector of clicks) {
     await page.click(selector, { timeout: 10_000 });
+  }
+  for (const [selector, text] of fills) {
+    await page.fill(selector, text, { timeout: 10_000 });
   }
   await page.waitForTimeout(settle);
   const slug = path.replaceAll("/", "_").replaceAll(/[^\w-]/g, "") || "root";
