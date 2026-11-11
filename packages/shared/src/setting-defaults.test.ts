@@ -1,8 +1,9 @@
 /**
  * #749: the setting defaults the phones read come from this table. Their tests
  * decode a company with no settings and compare against
- * `vectors/setting-defaults.json`, which this test keeps in step.
- * The same run keeps the D162 table in docs/DECISIONS.md. Regenerate both with:
+ * `vectors/setting-defaults.json`, which this test keeps in step, as it does the
+ * D162 table in docs/DECISIONS.md, where each setting's reason is written.
+ * Regenerate both, keeping the reasons, with:
  * WRITE_SETTING_VECTORS=1 pnpm --filter @loonext/shared test setting-defaults
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -36,16 +37,31 @@ function vectors() {
   ];
 }
 
-/** The D162 table: one row per setting, written from the table so the two cannot drift. */
-function decisionRows(): string {
+const DOC_START = "<!-- setting-defaults:start -->";
+const DOC_END = "<!-- setting-defaults:end -->";
+const DOC_ROW = /^\| `([a-z_]+)\.([a-z_]+)` \| `(.*)` \| (yes)? \| (.*) \|$/;
+
+/** The reasons now in the D162 table, by setting. */
+function documentedReasons(block: string): Map<string, string> {
+  const reasons = new Map<string, string>();
+  for (const line of block.split("\n")) {
+    const row = DOC_ROW.exec(line);
+    if (row) reasons.set(`${row[1]}.${row[2]}`, row[5]!.trim());
+  }
+  return reasons;
+}
+
+/**
+ * The D162 table rebuilt from the code: the setting, its default and whether it
+ * is attributed come from setting-defaults.ts; the reason is carried over from
+ * the doc, and a new setting starts with none, which fails the reason check.
+ */
+function decisionRows(reasons: Map<string, string>): string {
   const header = "| Setting | Default | Attributed | Why |\n|---|---|---|---|";
-  const rows = vectors().map(({ table, key, value, revenue }) => {
-    const all = { ...COMPANY_SETTING_DEFAULTS, ...NOTIFICATION_SETTING_DEFAULTS } as Record<
-      string,
-      SettingDefault
-    >;
-    return `| \`${table}.${key}\` | \`${JSON.stringify(value)}\` | ${revenue ? "yes" : ""} | ${all[key]!.reason} |`;
-  });
+  const rows = vectors().map(
+    ({ table, key, value, revenue }) =>
+      `| \`${table}.${key}\` | \`${JSON.stringify(value)}\` | ${revenue ? "yes" : ""} | ${reasons.get(`${table}.${key}`) ?? ""} |`,
+  );
   return [header, ...rows].join("\n");
 }
 
@@ -57,23 +73,20 @@ describe("setting defaults (#749)", () => {
   });
 
   it("docs/DECISIONS.md lists every default with its reason (D162)", () => {
-    const start = "<!-- setting-defaults:start -->";
-    const end = "<!-- setting-defaults:end -->";
     const doc = readFileSync(DECISIONS, "utf8").replace(/\r\n/g, "\n");
-    const before = doc.slice(0, doc.indexOf(start) + start.length);
-    const after = doc.slice(doc.indexOf(end));
-    expect(doc.indexOf(start)).toBeGreaterThan(0);
-    const expected = `${before}\n${decisionRows()}\n${after}`;
+    const start = doc.indexOf(DOC_START);
+    const end = doc.indexOf(DOC_END);
+    expect(start).toBeGreaterThan(0);
+    const reasons = documentedReasons(doc.slice(start, end));
+    const expected =
+      `${doc.slice(0, start + DOC_START.length)}\n${decisionRows(reasons)}\n${doc.slice(end)}`;
     if (process.env.WRITE_SETTING_VECTORS) writeFileSync(DECISIONS, expected);
     expect(readFileSync(DECISIONS, "utf8").replace(/\r\n/g, "\n")).toBe(expected);
-  });
 
-  it("every setting says why it is the default", () => {
-    const all = { ...COMPANY_SETTING_DEFAULTS, ...NOTIFICATION_SETTING_DEFAULTS };
-    const silent = Object.entries(all as Record<string, SettingDefault>)
-      .filter(([, { reason }]) => reason.trim().length < 20)
-      .map(([key]) => key);
-    expect(silent).toEqual([]);
+    const silent = vectors()
+      .map(({ table, key }) => `${table}.${key}`)
+      .filter((setting) => (reasons.get(setting) ?? "").length < 20);
+    expect(silent, "write why each of these is the default in the D162 table").toEqual([]);
   });
 
   it("nothing that can lose a customer starts switched against them", () => {
