@@ -19,6 +19,11 @@ import { keys } from "./keys";
 
 export interface Quote {
   id: string;
+  /**
+   * #722: what this member may do to it now (`edit`, `send`), from the shared
+   * machine. Absent from an older server.
+   */
+  allowed_actions?: readonly string[];
   conversation_id: string;
   contact_id: string;
   amount_cents: number;

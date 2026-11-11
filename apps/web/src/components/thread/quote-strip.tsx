@@ -123,7 +123,7 @@ function QuoteRow({
           {t("quotes.askForPayment")}
         </button>
       )}
-      {isDraft && canSend && (
+      {(quote.allowed_actions?.includes("send") ?? (isDraft && canSend)) && (
         <button
           type="button"
           onClick={onSend}

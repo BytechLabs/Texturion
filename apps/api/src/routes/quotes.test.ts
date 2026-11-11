@@ -75,6 +75,24 @@ const row = (over: Record<string, unknown> = {}) => ({
 });
 
 describe("GET /v1/quotes", () => {
+  it("#722: says what the reader may do with each quote in its state", async () => {
+    for (const [role, draftActions] of [
+      ["member", ["edit", "send"]],
+      ["read_only", []],
+    ] as const) {
+      const sb = stubWithRole(role);
+      sb.on("GET", "/rest/v1/quotes", () => [row({ id: "q-draft", status: "draft" }), row()]);
+      stubFetch(jwksRoute(auth), sb.route);
+      const res = await apiRequest(app, env, await auth.token(), "/v1/quotes", {
+        companyId: COMPANY_ID,
+      });
+      const body = (await res.json()) as { data: { allowed_actions: string[] }[] };
+      expect(body.data[0].allowed_actions, role).toEqual(draftActions);
+      expect(body.data[1].allowed_actions, `${role}, sent`).toEqual([]);
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("carries the effective status beside the stored one", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/quotes", () => [row()]);

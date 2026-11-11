@@ -10,6 +10,8 @@ import {
   isQuoteOutstanding,
   quoteSms,
   resolveLocale,
+  stateMachines,
+  type MemberRole,
   type QuoteState,
 } from "@loonext/shared";
 
@@ -89,8 +91,21 @@ interface SendView {
  * A response that carried only the stored one would make every client derive
  * expiry itself, which is three implementations of a rule that has one home.
  */
-function withEffectiveStatus(row: QuoteRow, now: Date): Record<string, unknown> {
-  return { ...row, effective_status: effectiveQuoteStatus(row, now) };
+function withEffectiveStatus(
+  row: QuoteRow,
+  now: Date,
+  role: MemberRole,
+): Record<string, unknown> {
+  return {
+    ...row,
+    effective_status: effectiveQuoteStatus(row, now),
+    // #722: what this member may do to it now, from the shared machine.
+    allowed_actions: stateMachines.allowedActions(
+      stateMachines.quoteMachine,
+      row.status as stateMachines.QuoteState,
+      role,
+    ),
+  };
 }
 
 const createSchema = z.object({
@@ -218,7 +233,7 @@ quotesRoutes.get("/quotes", requireCapability("conversations.read"), async (c) =
   });
 
   return c.json({
-    data: filtered.map((row: QuoteRow) => withEffectiveStatus(row, now)),
+    data: filtered.map((row: QuoteRow) => withEffectiveStatus(row, now, c.get("role"))),
     next_cursor: null,
   });
 });
@@ -252,7 +267,7 @@ quotesRoutes.get("/quotes/:id", requireCapability("conversations.read"), async (
   }
   const row = rows[0];
   if (!row) return errorResponse(c, "not_found", "no such quote");
-  return c.json(withEffectiveStatus(row, new Date()));
+  return c.json(withEffectiveStatus(row, new Date(), c.get("role")));
 });
 
 /**
@@ -347,7 +362,7 @@ quotesRoutes.post("/quotes", requireCapability("conversations.send"), async (c) 
     "quote create",
   );
 
-  return c.json(withEffectiveStatus(rows[0] as QuoteRow, new Date()), 201);
+  return c.json(withEffectiveStatus(rows[0] as QuoteRow, new Date(), c.get("role")), 201);
 });
 
 /**
@@ -622,7 +637,7 @@ quotesRoutes.post(
     // they already have — handing it back to the sender is a second copy of a
     // credential with nothing to do.
     return c.json({
-      ...withEffectiveStatus(sent[0] as QuoteRow, new Date()),
+      ...withEffectiveStatus(sent[0] as QuoteRow, new Date(), c.get("role")),
       message_id: message.id,
     });
   },

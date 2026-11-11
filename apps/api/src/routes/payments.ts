@@ -40,6 +40,7 @@ import {
   payoutReadinessCopy,
   payoutReadinessKeys,
   roleHasCapability,
+  stateMachines,
   type BillingCurrency,
   type MemberRole,
 } from "@loonext/shared";
@@ -145,8 +146,17 @@ interface PaymentRequestRow {
  * cache, and the API needs it so a consumer that never reads our shared package
  * still gets the right word. Both call the same function.
  */
-function requestJson(row: PaymentRequestRow): Record<string, unknown> {
-  return { ...row, state: paymentRequestState(row) };
+function requestJson(row: PaymentRequestRow, role: MemberRole): Record<string, unknown> {
+  return {
+    ...row,
+    state: paymentRequestState(row),
+    // #722: what this member may do to it now, from the shared machine.
+    allowed_actions: stateMachines.allowedActions(
+      stateMachines.paymentRequestMachine,
+      row.status as stateMachines.PaymentRequestState,
+      role,
+    ),
+  };
 }
 
 /**
@@ -499,7 +509,7 @@ paymentRequestRoutes.post(
         // made, so it goes, and the caller gets the original.
         await cancelQuietly(env, db, companyId, request.id, paymentLink.id, link.id);
         const original = await loadRequestForMessage(db, companyId, gated.message.id);
-        return c.json(original ? requestJson(original) : requestJson(request), 200);
+        return c.json(requestJson(original ?? request, c.get("role")), 200);
       }
       message = gated.message;
     } catch (cause) {
@@ -558,7 +568,7 @@ paymentRequestRoutes.post(
     });
 
     const saved = await loadRequest(db, companyId, request.id);
-    return c.json(requestJson(saved ?? request), 201);
+    return c.json(requestJson(saved ?? request, c.get("role")), 201);
   },
 );
 
@@ -590,7 +600,7 @@ paymentRequestRoutes.get(
         .limit(50),
       "payment request list",
     );
-    return c.json({ payment_requests: rows.map(requestJson) });
+    return c.json({ payment_requests: rows.map((row) => requestJson(row, c.get("role"))) });
   },
 );
 
@@ -641,7 +651,7 @@ paymentRequestRoutes.post(
     if (state !== "requested") {
       // Already cancelled or expired — idempotent, and the honest answer is the
       // row as it stands rather than an error about a state that is fine.
-      return c.json(requestJson(row), 200);
+      return c.json(requestJson(row, c.get("role")), 200);
     }
 
     await deactivateStripeLink(env, row.stripe_account_id, row.stripe_payment_link_id);
@@ -688,7 +698,7 @@ paymentRequestRoutes.post(
       after: { status: "cancelled" },
     });
 
-    return c.json(requestJson(updated ?? row));
+    return c.json(requestJson(updated ?? row, c.get("role")));
   },
 );
 

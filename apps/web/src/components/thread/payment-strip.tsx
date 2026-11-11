@@ -162,7 +162,7 @@ function PaymentRow({
           </p>
         )}
       </div>
-      {canAct && paymentRequestCancellable(row) && (
+      {(row.allowed_actions?.includes("cancel") ?? (canAct && paymentRequestCancellable(row))) && (
         <button
           type="button"
           onClick={onCancel}
