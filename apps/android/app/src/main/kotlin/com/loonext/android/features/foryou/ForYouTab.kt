@@ -9,7 +9,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.loonext.android.core.dashboard.DashboardTiles
+import com.loonext.android.core.dashboard.DashboardLayout
+import com.loonext.android.core.dashboard.DashboardLayouts
 import com.loonext.android.core.dashboard.DashboardPanels
+import com.loonext.android.core.dashboard.LayoutEntry
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.snooze.parseInstantMillis
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.layout.Arrangement
@@ -344,13 +348,16 @@ fun ForYouTab(
     // OPTIMISTIC — the sheet's switch has to move on the tap, not a round trip
     // later, and `me` is owned by the shell and will not refresh until the next
     // app load. Seeded per membership so a genuine refresh reseeds it.
-    val serverHidden = me.memberships
-        .firstOrNull { it.company_id == companyId }
-        ?.dashboard_hidden
-        .orEmpty()
+    val membership = me.memberships.firstOrNull { it.company_id == companyId }
+    val serverHidden = membership?.dashboard_hidden.orEmpty()
     var hidden by remember(companyId, serverHidden) { mutableStateOf(serverHidden) }
-    var customiseOpen by remember { mutableStateOf(false) }
-    var customiseFailed by remember { mutableStateOf(false) }
+    // #736: the member's own arrangement, null for the default. Optimistic for
+    // the same reason as the hidden set.
+    val serverLayout = DashboardLayouts.normalise(membership?.dashboard_layout)
+    var layout by remember(companyId, serverLayout) { mutableStateOf(serverLayout) }
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var layoutFailed by remember { mutableStateOf(false) }
+    var announcement by remember { mutableStateOf("") }
 
     // Pull-to-refresh rides the same silent refreshKey revalidation the
     // realtime ticks use (cache-first: rows never blank underneath); the
@@ -369,32 +376,34 @@ fun ForYouTab(
     // disagree about. On failure the row goes back to exactly what it was, so a
     // dropped connection never leaves the phone showing a preference the server
     // has not got.
-    fun toggle(panel: DashboardPanels.Panel, visible: Boolean) {
+    fun saveHidden(next: List<String>) {
         val before = hidden
-        val next = DashboardPanels.normalise(
-            if (visible) before.filterNot { it == panel.id } else before + panel.id,
-        ).map { it.id }
-        hidden = next
-        customiseFailed = false
+        val clean = DashboardPanels.normalise(next).map { it.id }
+        if (clean == before) return
+        hidden = clean
         coroutines.launch {
-            runCatching { graph.meRepo.setDashboardHidden(companyId, next) }
+            runCatching { graph.meRepo.setDashboardHidden(companyId, clean) }
                 .onFailure {
                     hidden = before
-                    customiseFailed = true
+                    layoutFailed = true
                 }
         }
     }
 
-    if (customiseOpen) {
-        CustomiseSheet(
-            hidden = hidden,
-            onToggle = ::toggle,
-            onDismiss = {
-                customiseOpen = false
-                customiseFailed = false
-            },
-            failed = customiseFailed,
-        )
+    // #736: every change saves at once. A failure puts the screen back exactly as
+    // it was, so the phone never shows an arrangement the Worker has not got.
+    fun saveLayout(next: DashboardLayout?, message: String) {
+        val before = layout
+        layout = next
+        layoutFailed = false
+        announcement = message
+        coroutines.launch {
+            runCatching { graph.meRepo.setDashboardLayout(companyId, next) }
+                .onFailure {
+                    layout = before
+                    layoutFailed = true
+                }
+        }
     }
 
     when (val current = state) {
@@ -411,6 +420,7 @@ fun ForYouTab(
             },
             modifier = modifier,
         ) {
+          Box(Modifier.fillMaxSize()) {
             ForYouList(
                 forYou = current.value,
                 // #342: spam marks that do not look like spam.
@@ -498,11 +508,20 @@ fun ForYouTab(
                 onOpenContacts = onOpenContacts,
                 onOpenSettings = onOpenSettings,
                 onOpenUnanswered = onOpenUnanswered,
-                // #540: what this member has put away, and the door to change it.
+                // #540/#736: what this member has put away, how the page is
+                // arranged, and the door to change it.
                 hidden = hidden,
-                onCustomise = { customiseOpen = true },
+                layout = layout,
+                editing = editing,
+                layoutFailed = layoutFailed,
+                onToggleEditing = { editing = !editing },
+                onSaveLayout = ::saveLayout,
+                onSaveHidden = ::saveHidden,
+                onAnnounce = { announcement = it },
                 modifier = Modifier.fillMaxSize(),
             )
+            LayoutAnnouncement(announcement)
+          }
         }
     }
 }
@@ -547,10 +566,20 @@ private fun ForYouList(
     onOpenUnanswered: () -> Unit,
     /** #540: the panels this member has put away. Empty for almost everybody. */
     hidden: List<String>,
-    /** #540: opens the Customise sheet. */
-    onCustomise: () -> Unit,
+    /** #736: the stored arrangement, null for the default. */
+    layout: DashboardLayout?,
+    /** #736: the member is arranging the page. */
+    editing: Boolean,
+    layoutFailed: Boolean,
+    onToggleEditing: () -> Unit,
+    /** #736: saves at once; the string is what a screen reader hears. */
+    onSaveLayout: (DashboardLayout?, String) -> Unit,
+    onSaveHidden: (List<String>) -> Unit,
+    /** #736: a spoken confirmation with nothing to save. */
+    onAnnounce: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val locale = LocalAppLocale.current
     // #306: what each section HOLDS, not how many rows came back. Counting the
     // rows meant a member 60 conversations behind read "20 things need you",
     // and the queue looked finished after twenty items — the product reassuring
@@ -586,27 +615,20 @@ private fun ForYouList(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // #540: quiet, and beside the bell that was already here.
-                    // THE DOT MATTERS MORE THAN IT LOOKS LIKE IT DOES — somebody
-                    // who put two panels away in April has no other way to find
-                    // out why their screen is shorter than a colleague's, and
-                    // "the app is missing the pipeline card" is a support
-                    // conversation nobody can win.
-                    CircleIconButton(
-                        icon = Icons.Outlined.Tune,
-                        contentDescription = if (hidden.isEmpty()) {
-                            t("inbox.customiseAria")
-                        } else {
-                            val n = DashboardPanels.normalise(hidden).size
-                            t(
-                                if (n == 1) "inbox.customiseAriaPutAwayOne"
-                                else "inbox.customiseAriaPutAwayMany",
-                                "count" to n.toString(),
-                            )
-                        },
-                        onClick = onCustomise,
-                        showDot = hidden.isNotEmpty(),
-                    )
+                    // #736: quiet, and beside the bell that was already here.
+                    // While arranging, the same place says "Done".
+                    if (editing) {
+                        TextButton(
+                            onClick = onToggleEditing,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) { Text(t("inbox.forYouDoneEditing")) }
+                    } else {
+                        CircleIconButton(
+                            icon = Icons.Outlined.Tune,
+                            contentDescription = t("inbox.forYouEditLayout"),
+                            onClick = onToggleEditing,
+                        )
+                    }
                     CircleIconButton(
                         icon = Icons.Outlined.Notifications,
                         contentDescription = t("inbox.forYouNotificationsAria"),
@@ -627,72 +649,6 @@ private fun ForYouList(
                 onOpenTeam = { onOpenSettings(SettingsSection.Team) },
                 onOpenHours = { onOpenSettings(SettingsSection.Hours) },
                 modifier = Modifier.padding(top = 14.dp),
-            )
-        }
-
-        // #239 — the claim we sell, measured. Above the queue because the arc
-        // is the reason a contractor stays, and it is a result to read rather
-        // than a task to do.
-        // #540: each measure can be put away from Customise. Gated on the ITEM
-        // rather than inside the card, so a hidden panel holds no list slot and
-        // leaves no gap where a card used to be.
-        if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.RESPONSE_TIME)) {
-            item(key = "response-time") {
-                ResponseTimeCard(
-                    report = responseTime,
-                    days = responseDays,
-                    onWindow = onResponseWindow,
-                    onOpenUnanswered = onOpenUnanswered,
-                )
-            }
-        }
-
-        // #354: beside its neighbour, and absent entirely until there is
-        // something true to say.
-        if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.PIPELINE)) {
-            item(key = "pipeline") { PipelineCard(report = pipeline) }
-        }
-
-        // #301: last of the four, because it answers a slower question than the
-        // three above it — next month's spending rather than this week's work.
-        // #540: its own item now rather than sharing the pipeline's, because the
-        // two are separately hideable and a shared slot cannot hide one of them.
-        if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.LEAD_SOURCES)) {
-            item(key = "lead-sources") {
-                LeadSourcesCard(
-                    report = leadSources,
-                    onSetUpSources = { onOpenSettings(SettingsSection.Numbers) },
-                )
-            }
-        }
-
-        // #313: directly under the speed number on purpose. How fast you
-        // answered and whether it landed are one thought, and separating them
-        // onto two screens is how a business optimises the first while the
-        // second quietly slides.
-        if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.SATISFACTION)) {
-            item(key = "satisfaction") {
-                SatisfactionCard(
-                    report = satisfaction,
-                    days = responseDays,
-                    onWindow = onResponseWindow,
-                    onOpenPoor = onOpenUnanswered,
-                )
-            }
-        }
-
-        // #288: after the numbers, never before them. The ask is earned by the
-        // measures above it, and reading those first is what makes it land as
-        // earned rather than as an interruption. NOT one of the hideable panels:
-        // it already has its own "Not now", and a prompt with two ways to put it
-        // away is a prompt where one of them stops being honoured.
-        item(key = "referral-ask") {
-            ReferralAskCard(
-                moment = referralMoment,
-                referrals = referralLink,
-                opened = referralOpened,
-                onOpen = onOpenReferral,
-                onDismiss = onDismissReferral,
             )
         }
 
@@ -741,11 +697,9 @@ private fun ForYouList(
             item(key = "caught-up") { CaughtUpWell(Modifier.animateItem()) }
         }
 
-        // #540: the four queues are emitted in the order the SHARED rule gives,
-        // so the phone leads with the same thing the laptop does. Web spends its
-        // horizontal room on a strip of four tiles; a 375dp screen cannot afford
-        // two rows of chrome above the work, so here the same decision orders the
-        // sections themselves — which is all the strip was ever an index of.
+        // #540: the urgency order the SHARED rule gives. It no longer orders
+        // sections directly; it is what the DEFAULT layout follows, so a member
+        // who never arranges the page keeps leading with whatever has gone wrong.
         val now = System.currentTimeMillis()
         // An unparseable stamp reads as "just now" rather than as ancient. The age
         // can therefore be younger than the truth and never older, which is the
@@ -769,54 +723,198 @@ private fun ForYouList(
             ),
         ).map { it.tile }
 
-        val unassignedSection: LazyListScope.() -> Unit = {
-            forYou.triage
-                ?.takeIf { it.conversations.isNotEmpty() || it.tasks.isNotEmpty() }
-                ?.let { triage ->
-                    item(key = "triage") {
-                        QueueSection(
-                            // #416/D53: "Triage" was dispatcher language for a
-                            // section only owners could see. It is the whole
-                            // crew's queue now, and the word for it everywhere
-                            // else in the product is "unassigned".
-                            t("inbox.forYouSectionUnassigned"),
-                            count = triageCount,
-                            // Sections glide as queues above them empty or fill.
-                            modifier = Modifier.animateItem(),
-                        ) {
-                            triage.conversations.forEachIndexed { index, row ->
-                                if (index > 0) RowDivider()
-                                PersonRow(
-                                    name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
-                                    why = relativeTime(row.last_message_at),
-                                    whyAt = row.last_message_at,
-                                    unread = row.unread,
-                                    chipLabel = if (row.unread) t("inbox.forYouNewLead") else null,
-                                    onClick = { onOpenConversation(row.conversation_id) },
-                                )
-                            }
-                            triage.tasks.forEachIndexed { index, row ->
-                                if (index > 0 || triage.conversations.isNotEmpty()) RowDivider()
-                                TaskQueueRow(
-                                    title = row.title,
-                                    overdue = row.overdue,
-                                    dueAt = row.due_at,
-                                    // #718: a task row opens the task.
-                                    onClick = { onOpenTask(row.task_id) },
-                                )
+        // #736: the stored layout, else the default; then what the #540 hidden set
+        // takes off. The page is exactly these panels, in this order.
+        val effective = layout ?: DashboardLayouts.default(queueOrder)
+        val shown = effective.panels.filterNot { DashboardLayouts.isHidden(hidden, it.id) }
+        val onPage = shown.map { it.id }.toSet()
+
+        // What each queue holds, for the line that says so when its panel is off the page.
+        val queueCounts = mapOf(
+            "follow_ups" to if (forYou.follow_ups.isNotEmpty()) followUpTotal else 0,
+            "unassigned" to triageCount,
+            "waiting" to if (forYou.waiting_on_you.isNotEmpty()) waitingTotal else 0,
+            "tasks" to if (forYou.my_tasks.isNotEmpty()) tasksTotal else 0,
+            "unread" to if (forYou.unread.isNotEmpty()) unreadTotal else 0,
+        )
+
+        fun say(key: String, vararg vars: Pair<String, String>): String =
+            AppStrings.translate(locale, key, vars.toMap())
+
+        fun nameOf(id: String): String = DashboardLayouts.label(id, locale)
+
+        fun moveBy(id: String, delta: Int) {
+            val next = DashboardLayouts.move(effective, id, delta)
+            if (next === effective) return
+            onSaveLayout(
+                next,
+                say(
+                    "inbox.forYouPanelMoved",
+                    "panel" to nameOf(id),
+                    "position" to (next.panels.indexOfFirst { it.id == id } + 1).toString(),
+                    "count" to next.panels.size.toString(),
+                ),
+            )
+        }
+
+        fun cycleSize(id: String) {
+            val current = effective.panels.firstOrNull { it.id == id } ?: return
+            val size = DashboardLayouts.nextSize(current.size)
+            onSaveLayout(
+                DashboardLayouts.resize(effective, id, size),
+                say(
+                    "inbox.forYouPanelResized",
+                    "panel" to nameOf(id),
+                    "size" to DashboardLayouts.sizeLabel(size, locale),
+                ),
+            )
+        }
+
+        fun takeOff(id: String) {
+            onSaveLayout(
+                DashboardLayouts.remove(effective, id),
+                say("inbox.forYouPanelRemoved", "panel" to nameOf(id)),
+            )
+            // The #540 set stays in step, so a client that only reads it agrees.
+            if (DashboardLayouts.isHideable(id) && !hidden.contains(id)) {
+                onSaveHidden(hidden + id)
+            }
+        }
+
+        fun putBack(id: String) {
+            val message = say("inbox.forYouPanelAdded", "panel" to nameOf(id))
+            if (effective.panels.none { it.id == id }) {
+                onSaveLayout(DashboardLayouts.add(effective, id), message)
+            } else {
+                onAnnounce(message)
+            }
+            if (DashboardLayouts.isHidden(hidden, id)) onSaveHidden(hidden.filter { it != id })
+        }
+
+        // Before the panels, so work the member took off the page is still said
+        // out loud above everything else.
+        DashboardLayouts.QUEUE_IDS
+            .filter { it !in onPage && (queueCounts[it] ?: 0) > 0 }
+            .forEach { id ->
+                item(key = "off-page-$id") {
+                    OffPageLine(
+                        panel = nameOf(id),
+                        count = queueCounts[id] ?: 0,
+                        onShow = { putBack(id) },
+                    )
+                }
+            }
+
+        if (editing) {
+            item(key = "layout-toolbar") {
+                LayoutToolbar(
+                    addable = DashboardLayouts.PANEL_IDS.filter { it !in onPage },
+                    onAdd = ::putBack,
+                    onReset = {
+                        onSaveLayout(null, "")
+                        if (hidden.isNotEmpty()) onSaveHidden(emptyList())
+                    },
+                    failed = layoutFailed,
+                )
+            }
+        }
+
+        /*
+         * One item per panel, in the member's order. An empty panel takes no space
+         * unless the page is being arranged, when it shows a stub so it can still
+         * be moved or taken off.
+         */
+        fun panelItem(entry: LayoutEntry, hasContent: Boolean, body: @Composable () -> Unit) {
+            if (!hasContent && !editing) return
+            item(key = entry.id) {
+                Column(Modifier.animateItem()) {
+                    if (editing) {
+                        PanelEditBar(
+                            id = entry.id,
+                            size = entry.size,
+                            onMove = { moveBy(entry.id, it) },
+                            onResize = { cycleSize(entry.id) },
+                            onRemove = { takeOff(entry.id) },
+                            modifier = Modifier.padding(top = 14.dp),
+                        )
+                    }
+                    if (hasContent) body() else PanelEmptyStub()
+                }
+            }
+        }
+
+        /*
+         * #287: oldest first, the opposite of every other list here and
+         * deliberately: a quote sent this morning needs nothing, and one sent nine
+         * days ago is the one going cold.
+         */
+        val waitingQuotes = outstandingQuotes
+            .sortedBy { it.sent_at ?: "" }
+            .take(OUTSTANDING_QUOTES_LIMIT)
+
+        shown.forEach { entry ->
+            when (entry.id) {
+                // NOT hideable: reminders the member set for themselves.
+                "follow_ups" -> panelItem(entry, forYou.follow_ups.isNotEmpty()) {
+                    QueueSection(t("inbox.forYouSectionChaseThese"), count = followUpTotal) {
+                        forYou.follow_ups.forEachIndexed { index, row ->
+                            if (index > 0) RowDivider()
+                            PersonRow(
+                                name = row.contact?.name
+                                    ?: formatPhone(row.contact?.phone_e164),
+                                // The REASON, not the last-message time: it is what
+                                // the member wrote down, and the only thing that
+                                // makes the card actionable three days later.
+                                why = row.note?.takeIf { it.isNotBlank() }
+                                    ?: t(
+                                        "inbox.forYouWhyNoReply",
+                                        "when" to relativeTime(row.last_message_at),
+                                    ),
+                                unread = row.unread,
+                                onClick = { onOpenConversation(row.conversation_id) },
+                            )
+                        }
+                    }
+                }
+
+                "unassigned" -> {
+                    val triage = forYou.triage
+                    panelItem(
+                        entry,
+                        triage != null && (triage.conversations.isNotEmpty() || triage.tasks.isNotEmpty()),
+                    ) {
+                        if (triage != null) {
+                            // #416/D53: the whole crew's queue, and the word for it
+                            // everywhere else in the product is "unassigned".
+                            QueueSection(t("inbox.forYouSectionUnassigned"), count = triageCount) {
+                                triage.conversations.forEachIndexed { index, row ->
+                                    if (index > 0) RowDivider()
+                                    PersonRow(
+                                        name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
+                                        why = relativeTime(row.last_message_at),
+                                        whyAt = row.last_message_at,
+                                        unread = row.unread,
+                                        chipLabel = if (row.unread) t("inbox.forYouNewLead") else null,
+                                        onClick = { onOpenConversation(row.conversation_id) },
+                                    )
+                                }
+                                triage.tasks.forEachIndexed { index, row ->
+                                    if (index > 0 || triage.conversations.isNotEmpty()) RowDivider()
+                                    TaskQueueRow(
+                                        title = row.title,
+                                        overdue = row.overdue,
+                                        dueAt = row.due_at,
+                                        // #718: a task row opens the task.
+                                        onClick = { onOpenTask(row.task_id) },
+                                    )
+                                }
                             }
                         }
                     }
                 }
-        }
-        val waitingSection: LazyListScope.() -> Unit = {
-            if (forYou.waiting_on_you.isNotEmpty()) {
-                item(key = "waiting") {
-                    QueueSection(
-                        t("inbox.forYouSectionWaiting"),
-                        count = waitingTotal,
-                        modifier = Modifier.animateItem(),
-                    ) {
+
+                "waiting" -> panelItem(entry, forYou.waiting_on_you.isNotEmpty()) {
+                    QueueSection(t("inbox.forYouSectionWaiting"), count = waitingTotal) {
                         forYou.waiting_on_you.forEachIndexed { index, row ->
                             if (index > 0) RowDivider()
                             PersonRow(
@@ -829,16 +927,9 @@ private fun ForYouList(
                         }
                     }
                 }
-            }
-        }
-        val tasksSection: LazyListScope.() -> Unit = {
-            if (forYou.my_tasks.isNotEmpty()) {
-                item(key = "tasks") {
-                    QueueSection(
-                        t("inbox.forYouSectionTasks"),
-                        count = tasksTotal,
-                        modifier = Modifier.animateItem(),
-                    ) {
+
+                "tasks" -> panelItem(entry, forYou.my_tasks.isNotEmpty()) {
+                    QueueSection(t("inbox.forYouSectionTasks"), count = tasksTotal) {
                         forYou.my_tasks.forEachIndexed { index, row ->
                             if (index > 0) RowDivider()
                             TaskQueueRow(
@@ -851,16 +942,9 @@ private fun ForYouList(
                         }
                     }
                 }
-            }
-        }
-        val unreadSection: LazyListScope.() -> Unit = {
-            if (forYou.unread.isNotEmpty()) {
-                item(key = "unread") {
-                    QueueSection(
-                        t("inbox.forYouSectionUnread"),
-                        count = unreadTotal,
-                        modifier = Modifier.animateItem(),
-                    ) {
+
+                "unread" -> panelItem(entry, forYou.unread.isNotEmpty()) {
+                    QueueSection(t("inbox.forYouSectionUnread"), count = unreadTotal) {
                         forYou.unread.forEachIndexed { index, row ->
                             if (index > 0) RowDivider()
                             PersonRow(
@@ -873,125 +957,53 @@ private fun ForYouList(
                         }
                     }
                 }
-            }
-        }
 
-        // NOT in the reorderable set: reminders a member set for themselves keep
-        // the top of the queue, because they are there because somebody asked to
-        // be reminded — which outranks whatever merely happens to be urgent today.
-        // #293: ABOVE "Waiting on you". A quote nobody answered is the most
-        // valuable thing in the business to be reminded about, and unlike
-        // every section below it, this one only appears because the member
-        // asked for it — so it has earned the top of the queue.
-        if (forYou.follow_ups.isNotEmpty()) {
-            item(key = "follow-ups") {
-                QueueSection(
-                    t("inbox.forYouSectionChaseThese"),
-                    count = followUpTotal,
-                    modifier = Modifier.animateItem(),
+                "outstanding_quotes" -> panelItem(entry, waitingQuotes.isNotEmpty()) {
+                    QueueSection(t("quotes.outstandingTitle"), count = waitingQuotes.size) {
+                        waitingQuotes.forEachIndexed { index, quote ->
+                            if (index > 0) RowDivider()
+                            // Built HERE rather than in the click lambda, because
+                            // `t` is @Composable and a lambda is not.
+                            //
+                            // The note is what makes the reminder actionable three
+                            // days later: "Chase this" is a chore, and "Chase the
+                            // $450 quote - replace the water heater" is a job.
+                            val chaseNote = t(
+                                "quotes.chaseNote",
+                                "amount" to formatMoney(quote.amount_cents, quote.money),
+                                "description" to quote.description,
+                            ).take(SnoozeTiming.NOTE_MAX)
+                            OutstandingQuoteRow(
+                                quote = quote,
+                                onOpen = { onOpenConversation(quote.conversation_id) },
+                                chased = chasedQuotes?.contains(quote.id),
+                                onChase = { onChaseQuote(quote, chaseNote) },
+                            )
+                        }
+                    }
+                }
+
+                // Recent calls (#165/D43) - the mobile doorway into the Calls
+                // surface. Nothing while there are no calls; an honest error line
+                // when the log couldn't load.
+                "recent_calls" -> panelItem(
+                    entry,
+                    recentCalls is LoadState.Failed ||
+                        (recentCalls is LoadState.Ready && recentCalls.value.isNotEmpty()),
                 ) {
-                    forYou.follow_ups.forEachIndexed { index, row ->
-                        if (index > 0) RowDivider()
-                        PersonRow(
-                            name = row.contact?.name
-                                ?: formatPhone(row.contact?.phone_e164),
-                            // The REASON, not the last-message time: it is what
-                            // the member wrote down, and the only thing that
-                            // makes the card actionable three days later.
-                            // "Chase the quote" is a job; "Chase this" is a
-                            // chore.
-                            why = row.note?.takeIf { it.isNotBlank() }
-                                ?: t(
-                                    "inbox.forYouWhyNoReply",
-                                    "when" to relativeTime(row.last_message_at),
-                                ),
-                            unread = row.unread,
-                            onClick = { onOpenConversation(row.conversation_id) },
-                        )
-                    }
-                }
-            }
-        }
+                    when (recentCalls) {
+                        is LoadState.Loading -> Unit
+                        is LoadState.Failed -> Column(Modifier.padding(top = 14.dp)) {
+                            RecentCallsHeader(onOpenCalls)
+                            Text(
+                                t("inbox.forYouCallsLoadFailed"),
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 6.dp, top = 2.dp),
+                            )
+                        }
 
-        queueOrder.forEach { tile ->
-            when (tile) {
-                DashboardTiles.Tile.UNASSIGNED -> unassignedSection()
-                DashboardTiles.Tile.WAITING -> waitingSection()
-                DashboardTiles.Tile.TASKS -> tasksSection()
-                DashboardTiles.Tile.UNREAD -> unreadSection()
-            }
-        }
-
-        /*
-         * #287 — the quotes nobody has answered yet, above the call history.
-         *
-         * Money a customer was asked for and has not answered outranks a list
-         * of calls that already happened. OLDEST FIRST, the opposite of every
-         * other list here and deliberately: a quote sent this morning needs
-         * nothing, and one sent nine days ago is the one going cold.
-         *
-         * Not hideable, which follows the line DashboardPanels already draws:
-         * the measures come off, the queues do not, because hiding a queue is a
-         * way to stop seeing work.
-         */
-        val waitingQuotes = outstandingQuotes
-            .sortedBy { it.sent_at ?: "" }
-            .take(OUTSTANDING_QUOTES_LIMIT)
-        if (waitingQuotes.isNotEmpty()) {
-            item(key = "outstanding-quotes") {
-                QueueSection(
-                    t("quotes.outstandingTitle"),
-                    count = waitingQuotes.size,
-                    modifier = Modifier.animateItem(),
-                ) {
-                    waitingQuotes.forEachIndexed { index, quote ->
-                        if (index > 0) RowDivider()
-                        // Built HERE rather than in the click lambda, because
-                        // `t` is @Composable and a lambda is not.
-                        //
-                        // The note is what makes the reminder actionable three
-                        // days later: "Chase this" is a chore, and "Chase the
-                        // $450 quote — replace the water heater" is a job.
-                        val chaseNote = t(
-                            "quotes.chaseNote",
-                            "amount" to formatMoney(quote.amount_cents, quote.money),
-                            "description" to quote.description,
-                        ).take(SnoozeTiming.NOTE_MAX)
-                        OutstandingQuoteRow(
-                            quote = quote,
-                            onOpen = { onOpenConversation(quote.conversation_id) },
-                            chased = chasedQuotes?.contains(quote.id),
-                            onChase = { onChaseQuote(quote, chaseNote) },
-                        )
-                    }
-                }
-            }
-        }
-
-        // Recent calls (#165/D43) — the mobile doorway into the Calls
-        // surface. Hidden entirely while there are no calls; an honest error
-        // line when the log couldn't load.
-        // #540: and hideable, unlike everything above it in the queue. Calls
-        // already happened — this is history a member reads, not work they owe
-        // anybody, so it is the one section here that can come off.
-        if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.RECENT_CALLS)) {
-            when (recentCalls) {
-                is LoadState.Loading -> Unit
-                is LoadState.Failed -> item(key = "calls-error") {
-                    Column(Modifier.animateItem().padding(top = 14.dp)) {
-                        RecentCallsHeader(onOpenCalls)
-                        Text(
-                            t("inbox.forYouCallsLoadFailed"),
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 6.dp, top = 2.dp),
-                        )
-                    }
-                }
-
-                is LoadState.Ready -> if (recentCalls.value.isNotEmpty()) {
-                    item(key = "calls") {
-                        Column(Modifier.animateItem().padding(top = 14.dp)) {
+                        is LoadState.Ready -> Column(Modifier.padding(top = 14.dp)) {
                             RecentCallsHeader(onOpenCalls)
                             PaperCard(Modifier.fillMaxWidth()) {
                                 recentCalls.value.forEachIndexed { index, call ->
@@ -1007,7 +1019,53 @@ private fun ForYouList(
                         }
                     }
                 }
+
+                // #239 - the claim we sell, measured.
+                "response_time" -> panelItem(entry, true) {
+                    ResponseTimeCard(
+                        report = responseTime,
+                        days = responseDays,
+                        onWindow = onResponseWindow,
+                        onOpenUnanswered = onOpenUnanswered,
+                    )
+                }
+
+                // #354: absent entirely until there is something true to say.
+                "pipeline" -> panelItem(entry, true) { PipelineCard(report = pipeline) }
+
+                // #313: how fast you answered and whether it landed are one
+                // thought; the member now decides whether they sit together.
+                "satisfaction" -> panelItem(entry, true) {
+                    SatisfactionCard(
+                        report = satisfaction,
+                        days = responseDays,
+                        onWindow = onResponseWindow,
+                        onOpenPoor = onOpenUnanswered,
+                    )
+                }
+
+                // #301: the slower question - next month's spending.
+                "lead_sources" -> panelItem(entry, true) {
+                    LeadSourcesCard(
+                        report = leadSources,
+                        onSetUpSources = { onOpenSettings(SettingsSection.Numbers) },
+                    )
+                }
             }
+        }
+
+        // #288: after the work and the measures, so the ask lands as earned rather
+        // than as an interruption. NOT one of the panels: it already has its own
+        // "Not now", and a prompt with two ways to put it away is a prompt where
+        // one of them stops being honoured.
+        item(key = "referral-ask") {
+            ReferralAskCard(
+                moment = referralMoment,
+                referrals = referralLink,
+                opened = referralOpened,
+                onOpen = onOpenReferral,
+                onDismiss = onDismissReferral,
+            )
         }
     }
 }

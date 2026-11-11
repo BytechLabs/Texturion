@@ -86,8 +86,13 @@ struct ForYouTab: View {
     /// seeded yet", so the membership's value is used until somebody changes
     /// something; that distinction is why this is not simply `[]`.
     @State private var hiddenOverride: [String]?
-    @State private var customiseOpen = false
-    @State private var customiseFailed = false
+    /// #736: the member's arrangement, optimistic like the hidden set. `nil` with
+    /// `layoutSeeded` true means "reset to the default", which is why the flag
+    /// exists: an optional alone cannot say "not chosen yet" and "chose nothing".
+    @State private var layoutOverride: DashboardLayout?
+    @State private var layoutSeeded = false
+    @State private var editing = false
+    @State private var layoutFailed = false
 
     /// The set to render from: whatever this session last chose, else the server's.
     private var hidden: [String] {
@@ -96,31 +101,55 @@ struct ForYouTab: View {
             ?? []
     }
 
-    /// #540: the whole set goes up, matching the route — the body describes the
-    /// screen they want rather than a delta against a state two devices may
-    /// disagree about. On failure the row goes back to exactly what it was, so a
-    /// dropped connection never leaves the phone showing a preference the server
-    /// has not got.
-    private func toggle(_ panel: DashboardPanels.Panel, _ visible: Bool) {
+    /// The arrangement to render from, `nil` for the default.
+    private var layout: DashboardLayout? {
+        if layoutSeeded { return layoutOverride }
+        let stored = me.memberships.first { $0.company_id == companyId }?.dashboard_layout
+        return DashboardLayouts.normalise(stored)
+    }
+
+    /// #540: the whole set goes up, matching the route. On failure it goes back to
+    /// exactly what it was, so a dropped connection never leaves the phone showing
+    /// a preference the server has not got.
+    private func saveHidden(_ next: [String]) {
         let before = hidden
-        let next = DashboardPanels.normalise(
-            visible
-                ? before.filter { $0 != panel.rawValue }
-                : before + [panel.rawValue]
-        ).map(\.rawValue)
-        hiddenOverride = next
-        customiseFailed = false
+        let clean = DashboardPanels.normalise(next).map(\.rawValue)
+        if clean == before { return }
+        hiddenOverride = clean
         Task {
             do {
                 try await graph.meApi.setDashboardHidden(
                     companyId: companyId,
-                    hidden: next
+                    hidden: clean
                 )
             } catch {
                 hiddenOverride = before
-                customiseFailed = true
+                layoutFailed = true
             }
         }
+    }
+
+    /// #736: every change saves at once, and a failure puts the screen back.
+    private func saveLayout(_ next: DashboardLayout?, _ message: String) {
+        let before = layout
+        layoutOverride = next
+        layoutSeeded = true
+        layoutFailed = false
+        announce(message)
+        Task {
+            do {
+                try await graph.meApi.setDashboardLayout(companyId: companyId, layout: next)
+            } catch {
+                layoutOverride = before
+                layoutFailed = true
+            }
+        }
+    }
+
+    /// Spoken by VoiceOver without moving focus; nothing is drawn.
+    private func announce(_ message: String) {
+        if message.isEmpty { return }
+        AccessibilityNotification.Announcement(message).post()
     }
 
     var body: some View {
@@ -197,18 +226,18 @@ struct ForYouTab: View {
                         )
                         AppRouter.shared.openInbox = true
                     },
-                    // #540: what this member has put away, and the door to change it.
+                    // #540/#736: what this member has put away, how the page is
+                    // arranged, and the door to change it.
                     hidden: hidden,
-                    onCustomise: { customiseOpen = true }
+                    layout: layout,
+                    editing: editing,
+                    layoutFailed: layoutFailed,
+                    onToggleEditing: { editing.toggle() },
+                    onSaveLayout: { next, message in saveLayout(next, message) },
+                    onSaveHidden: { next in saveHidden(next) },
+                    onAnnounce: { message in announce(message) }
                 )
             }
-        }
-        .sheet(isPresented: $customiseOpen, onDismiss: { customiseFailed = false }) {
-            CustomiseSheet(
-                hidden: hidden,
-                onToggle: { panel, visible in toggle(panel, visible) },
-                failed: customiseFailed
-            )
         }
         .task(id: "\(companyId)#\(refreshKey)") { await reload() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadSpamReview() }
@@ -457,8 +486,17 @@ struct ForYouList: View {
     let onOpenUnanswered: @MainActor () -> Void
     /// #540: the panels this member has put away. Empty for almost everybody.
     let hidden: [String]
-    /// #540: opens the Customise sheet.
-    let onCustomise: @MainActor () -> Void
+    /// #736: the stored arrangement, nil for the default.
+    let layout: DashboardLayout?
+    /// #736: the member is arranging the page.
+    let editing: Bool
+    let layoutFailed: Bool
+    let onToggleEditing: @MainActor () -> Void
+    /// #736: saves at once; the string is what VoiceOver hears.
+    let onSaveLayout: @MainActor (DashboardLayout?, String) -> Void
+    let onSaveHidden: @MainActor ([String]) -> Void
+    /// #736: a spoken confirmation with nothing to save.
+    let onAnnounce: @MainActor (String) -> Void
 
     @Environment(\.appLocale) private var appLocale
 
@@ -517,52 +555,25 @@ struct ForYouList: View {
                     onOpenContacts: onOpenContacts,
                     onOpenSettings: onOpenSettings
                 )
-                // #239 — the claim we sell, measured. Above the queue because the
-                // arc is the reason a contractor stays, and it is a result to
-                // read rather than a task to do.
-                // #540: each measure can be put away from Customise. Gated here
-                // rather than inside each card, so a hidden panel contributes no
-                // stack spacing and leaves no gap where a card used to be.
-                if DashboardPanels.isVisible(hidden, .responseTime) {
-                    ResponseTimeCard(
-                        report: responseTime,
-                        days: responseDays,
-                        onWindow: onResponseWindow,
-                        onOpenUnanswered: onOpenUnanswered
-                    )
+                // #342: above the queue, because "you're all caught up" is not
+                // true if somebody has been texting a thread nobody can see.
+                spamReviewSection
+                // #736: work the member took off the page is still said out loud.
+                offPageLines
+                if editing {
+                    layoutToolbar
                 }
-                // #354: beside its neighbour, and absent entirely until there
-                // is something true to say.
-                if DashboardPanels.isVisible(hidden, .pipeline) {
-                    PipelineCard(report: pipeline)
+                // #736: the panels, in the member's order, or the default's. A
+                // panel with nothing to show contributes nothing here, so it
+                // leaves no gap; while arranging it shows a stub so it can still
+                // be moved or taken off.
+                ForEach(shownPanels, id: \.id) { entry in
+                    panelView(entry)
                 }
-                // #301: last of the four, because it answers a slower question
-                // than the three above it — next month's spending rather than
-                // this week's work.
-                if DashboardPanels.isVisible(hidden, .leadSources) {
-                    LeadSourcesCard(
-                        report: leadSources,
-                        onSetUpSources: { onOpenSettings(.numbers) }
-                    )
-                }
-                // #313: directly under the speed number on purpose. How fast
-                // you answered and whether it landed are one thought, and
-                // separating them onto two screens is how a business optimises
-                // the first while the second quietly slides.
-                if DashboardPanels.isVisible(hidden, .satisfaction) {
-                    SatisfactionCard(
-                        report: satisfaction,
-                        days: responseDays,
-                        onWindow: onResponseWindow,
-                        onOpenPoor: onOpenUnanswered
-                    )
-                }
-                // #288: after the numbers, never before them. The ask is earned
-                // by the measures above it, and reading those first is what makes
-                // it land as earned rather than as an interruption. NOT one of the
-                // hideable panels: it already has its own "Not now", and a prompt
-                // with two ways to put it away is a prompt where one of them stops
-                // being honoured.
+                // #288: after the work and the measures, so the ask lands as
+                // earned rather than as an interruption. NOT one of the panels: it
+                // already has its own "Not now", and a prompt with two ways to put
+                // it away is a prompt where one of them stops being honoured.
                 ReferralAskCard(
                     moment: referralMoment,
                     referrals: referralLink,
@@ -570,30 +581,6 @@ struct ForYouList: View {
                     onOpen: onOpenReferral,
                     onDismiss: onDismissReferral
                 )
-                // #342: above the queue, because "you're all caught up" is not
-                // true if somebody has been texting a thread nobody can see.
-                spamReviewSection
-                // #293: ABOVE the queue. A quote nobody answered is the most
-                // valuable thing in the business to be reminded about, and unlike
-                // every section below it this one only appears because the member
-                // asked for it — so it keeps the top regardless of what the
-                // ordering below says is urgent today.
-                followUpsSection
-                // #540: the four queues in the order the SHARED rule gives, so the
-                // phone leads with the same thing the laptop does. Web spends its
-                // horizontal room on a strip of four tiles; a phone cannot afford
-                // two rows of chrome above the work, so the same decision orders
-                // the sections — which is all the strip was ever an index of.
-                ForEach(queueOrder, id: \.self) { tile in
-                    switch tile {
-                    case .unassigned: triageSection
-                    case .waiting: waitingSection
-                    case .tasks: tasksSection
-                    case .unread: unreadSection
-                    }
-                }
-                outstandingQuotesSection
-                recentCallsSection
             }
             .padding(.horizontal, 18)
             .padding(.top, 8)
@@ -658,41 +645,248 @@ struct ForYouList: View {
             .accessibilityLabel(
                 AppStrings.translate(appLocale, "inbox.forYouNotificationsAria")
             )
-            Button(action: onCustomise) {
-                Image(systemName: "slider.horizontal.3")
-                    // Scaled, so the glyph grows with the reader's font setting
-                    // rather than staying 15pt for somebody who asked for larger.
-                    .font(.scaled(15, weight: .medium))
-                    .foregroundStyle(BrandColor.muted700)
-                    .frame(width: 40, height: 40)
-                    .background(BrandColor.paper, in: Circle())
-                    .overlay(alignment: .topTrailing) {
-                        if !hidden.isEmpty {
-                            Circle()
-                                .fill(BrandColor.lime)
-                                .frame(width: 8, height: 8)
-                                .overlay(Circle().stroke(BrandColor.canvas, lineWidth: 2))
-                        }
-                    }
-            }
-            .accessibilityLabel(customiseLabel)
+            editLayoutButton
         }
         .padding(.bottom, 2)
     }
 
-    /// The control's accessible name, carrying the count the dot only hints at.
-    private var customiseLabel: String {
-        let count = DashboardPanels.normalise(hidden).count
-        if count == 0 {
-            return AppStrings.translate(appLocale, "inbox.customiseAria")
+    /// #736: the one quiet door to arranging the page, which says "Done" in the
+    /// same place while arranging. 44pt either way.
+    @ViewBuilder
+    private var editLayoutButton: some View {
+        if editing {
+            Button(
+                AppStrings.translate(appLocale, "inbox.forYouDoneEditing"),
+                action: onToggleEditing
+            )
+            .font(.golos(14, weight: .semibold))
+            .foregroundStyle(BrandColor.olive)
+            .frame(minWidth: 44, minHeight: 44)
+        } else {
+            Button(action: onToggleEditing) {
+                Image(systemName: "slider.horizontal.3")
+                    // Scaled, so the glyph grows with the reader's font setting.
+                    .font(.scaled(15, weight: .medium))
+                    .foregroundStyle(BrandColor.muted700)
+                    .frame(width: 44, height: 44)
+                    .background(BrandColor.paper, in: Circle())
+            }
+            .accessibilityLabel(AppStrings.translate(appLocale, "inbox.forYouEditLayout"))
         }
-        // A whole sentence per number, not a noun swapped inside one: French
-        // agrees the participle as well as the noun ("panneau rangé" /
-        // "panneaux rangés"), which a spliced word cannot reach.
-        let key: String = count == 1
-            ? "inbox.customiseAriaPutAwayOne"
-            : "inbox.customiseAriaPutAwayMany"
-        return AppStrings.translate(appLocale, key, ["count": String(count)])
+    }
+
+    // MARK: - #736 the arranged page
+
+    /// The stored layout, else the default that follows the urgency order.
+    private var effectiveLayout: DashboardLayout {
+        layout ?? DashboardLayouts.defaultLayout(queueOrder: queueOrder)
+    }
+
+    /// What the #540 hidden set takes off the layout.
+    private var shownPanels: [DashboardLayoutEntry] {
+        effectiveLayout.panels.filter { !DashboardLayouts.isHidden(hidden, $0.id) }
+    }
+
+    private func panelName(_ id: String) -> String {
+        DashboardLayouts.label(id, locale: appLocale)
+    }
+
+    /// What each queue holds, for the line that says so when its panel is off.
+    private func queueCount(_ id: String) -> Int {
+        switch id {
+        case "follow_ups": return forYou.follow_ups.isEmpty ? 0 : followUpTotal
+        case "unassigned": return triageConvTotal + triageTaskTotal
+        case "waiting": return forYou.waiting_on_you.isEmpty ? 0 : waitingTotal
+        case "tasks": return forYou.my_tasks.isEmpty ? 0 : tasksTotal
+        case "unread": return forYou.unread.isEmpty ? 0 : unreadTotal
+        default: return 0
+        }
+    }
+
+    /// Queue panels not on the page that still have work in them.
+    private var offPageQueueIds: [String] {
+        let onPage = Set(shownPanels.map(\.id))
+        return DashboardLayouts.queueIds.filter { !onPage.contains($0) && queueCount($0) > 0 }
+    }
+
+    private func hasContent(_ id: String) -> Bool {
+        switch id {
+        case "follow_ups": return !forYou.follow_ups.isEmpty
+        case "unassigned": return hasTriage
+        case "waiting": return !forYou.waiting_on_you.isEmpty
+        case "tasks": return !forYou.my_tasks.isEmpty
+        case "unread": return !forYou.unread.isEmpty
+        case "outstanding_quotes": return !waitingQuotes.isEmpty
+        case "recent_calls": return hasRecentCalls
+        default: return true
+        }
+    }
+
+    private var hasTriage: Bool {
+        guard let triage = forYou.triage else { return false }
+        return !triage.conversations.isEmpty || !triage.tasks.isEmpty
+    }
+
+    private var hasRecentCalls: Bool {
+        switch recentCalls {
+        case .failed: return true
+        case .ready(let calls): return !calls.isEmpty
+        default: return false
+        }
+    }
+
+    @ViewBuilder
+    private func panelView(_ entry: DashboardLayoutEntry) -> some View {
+        if editing {
+            VStack(alignment: .leading, spacing: 6) {
+                PanelEditBar(
+                    label: panelName(entry.id),
+                    sizeLabel: DashboardLayouts.sizeLabel(entry.size, locale: appLocale),
+                    onEarlier: { moveBy(entry.id, -1) },
+                    onLater: { moveBy(entry.id, 1) },
+                    onResize: { cycleSize(entry.id) },
+                    onRemove: { takeOff(entry.id) }
+                )
+                if hasContent(entry.id) {
+                    panelContent(entry.id)
+                } else {
+                    PanelEmptyStub()
+                }
+            }
+        } else {
+            panelContent(entry.id)
+        }
+    }
+
+    /// One panel's own content; each of these is empty when it has nothing.
+    @ViewBuilder
+    private func panelContent(_ id: String) -> some View {
+        switch id {
+        case "follow_ups": followUpsSection
+        case "unassigned": triageSection
+        case "waiting": waitingSection
+        case "tasks": tasksSection
+        case "unread": unreadSection
+        case "outstanding_quotes": outstandingQuotesSection
+        case "recent_calls": recentCallsBody
+        case "response_time":
+            ResponseTimeCard(
+                report: responseTime,
+                days: responseDays,
+                onWindow: onResponseWindow,
+                onOpenUnanswered: onOpenUnanswered
+            )
+        case "pipeline":
+            PipelineCard(report: pipeline)
+        case "satisfaction":
+            SatisfactionCard(
+                report: satisfaction,
+                days: responseDays,
+                onWindow: onResponseWindow,
+                onOpenPoor: onOpenUnanswered
+            )
+        case "lead_sources":
+            LeadSourcesCard(
+                report: leadSources,
+                onSetUpSources: { onOpenSettings(.numbers) }
+            )
+        default:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var offPageLines: some View {
+        ForEach(offPageQueueIds, id: \.self) { id in
+            OffPageLine(
+                text: AppStrings.translate(
+                    appLocale,
+                    "inbox.forYouHiddenQueue",
+                    ["panel": panelName(id), "count": String(queueCount(id))]
+                ),
+                action: { putBack(id) }
+            )
+        }
+    }
+
+    private var layoutToolbar: some View {
+        let onPage = Set(shownPanels.map(\.id))
+        let addable = DashboardLayouts.panelIds.filter { !onPage.contains($0) }
+        return LayoutToolbar(
+            addable: addable,
+            failed: layoutFailed,
+            onAdd: { id in putBack(id) },
+            onReset: { resetLayout() }
+        )
+    }
+
+    private func moveBy(_ id: String, _ delta: Int) {
+        let current = effectiveLayout
+        let next = DashboardLayouts.move(current, id: id, delta: delta)
+        if next == current { return }
+        let position = (next.panels.firstIndex { $0.id == id } ?? 0) + 1
+        onSaveLayout(
+            next,
+            AppStrings.translate(
+                appLocale,
+                "inbox.forYouPanelMoved",
+                [
+                    "panel": panelName(id),
+                    "position": String(position),
+                    "count": String(next.panels.count),
+                ]
+            )
+        )
+    }
+
+    private func cycleSize(_ id: String) {
+        let current = effectiveLayout
+        guard let entry = current.panels.first(where: { $0.id == id }) else { return }
+        let size = DashboardLayouts.nextSize(entry.size)
+        onSaveLayout(
+            DashboardLayouts.resize(current, id: id, size: size),
+            AppStrings.translate(
+                appLocale,
+                "inbox.forYouPanelResized",
+                [
+                    "panel": panelName(id),
+                    "size": DashboardLayouts.sizeLabel(size, locale: appLocale),
+                ]
+            )
+        )
+    }
+
+    private func takeOff(_ id: String) {
+        onSaveLayout(
+            DashboardLayouts.remove(effectiveLayout, id: id),
+            AppStrings.translate(appLocale, "inbox.forYouPanelRemoved", ["panel": panelName(id)])
+        )
+        // The #540 set stays in step, so a client that only reads it agrees.
+        if DashboardLayouts.isHideable(id) && !hidden.contains(id) {
+            onSaveHidden(hidden + [id])
+        }
+    }
+
+    private func putBack(_ id: String) {
+        let message = AppStrings.translate(
+            appLocale,
+            "inbox.forYouPanelAdded",
+            ["panel": panelName(id)]
+        )
+        let current = effectiveLayout
+        if current.panels.contains(where: { $0.id == id }) {
+            onAnnounce(message)
+        } else {
+            onSaveLayout(DashboardLayouts.add(current, id: id), message)
+        }
+        if DashboardLayouts.isHidden(hidden, id) {
+            onSaveHidden(hidden.filter { $0 != id })
+        }
+    }
+
+    private func resetLayout() {
+        onSaveLayout(nil, "")
+        if !hidden.isEmpty { onSaveHidden([]) }
     }
 
     /// #342 — the spam marks that do not look like spam, and the two answers.
@@ -984,18 +1178,8 @@ struct ForYouList: View {
 
     // Recent calls (#161/D43) — the mobile doorway into the Calls surface.
     // Hidden entirely while loading or empty; an honest error line when the
-    // log couldn't load (Android twin parity).
-    // #540: and hideable, unlike everything above it in the queue. Calls already
-    // happened — this is history a member reads, not work they owe anybody, so it
-    // is the one section here that can come off.
-    @ViewBuilder
-    private var recentCallsSection: some View {
-        if !DashboardPanels.isVisible(hidden, .recentCalls) {
-            EmptyView()
-        } else {
-            recentCallsBody
-        }
-    }
+    // log couldn't load (Android twin parity). #736: a panel like any other,
+    // and the #540 hidden set takes it off through `shownPanels`.
 
     @ViewBuilder
     private var recentCallsBody: some View {
@@ -1362,7 +1546,13 @@ private func previewCall(
         onOpenUnanswered: {},
         // #540: previews render the whole screen — nothing put away.
         hidden: [],
-        onCustomise: {}
+        layout: nil,
+        editing: false,
+        layoutFailed: false,
+        onToggleEditing: {},
+        onSaveLayout: { _, _ in },
+        onSaveHidden: { _ in },
+        onAnnounce: { _ in }
     )
 }
 
@@ -1401,7 +1591,13 @@ private func previewCall(
         onOpenUnanswered: {},
         // #540: previews render the whole screen — nothing put away.
         hidden: [],
-        onCustomise: {}
+        layout: nil,
+        editing: false,
+        layoutFailed: false,
+        onToggleEditing: {},
+        onSaveLayout: { _, _ in },
+        onSaveHidden: { _ in },
+        onAnnounce: { _ in }
     )
 }
 
@@ -1459,7 +1655,13 @@ private func previewCall(
         onOpenUnanswered: {},
         // #540: previews render the whole screen — nothing put away.
         hidden: [],
-        onCustomise: {}
+        layout: nil,
+        editing: false,
+        layoutFailed: false,
+        onToggleEditing: {},
+        onSaveLayout: { _, _ in },
+        onSaveHidden: { _ in },
+        onAnnounce: { _ in }
     )
 }
 

@@ -76,6 +76,30 @@ struct MeApi: Sendable {
             companyId: companyId
         )
     }
+
+    /// #736: this member's own For you layout, or `nil` to put the default back.
+    ///
+    /// `nil` goes up as an explicit JSON null: the Worker's schema requires the
+    /// `layout` key, and an omitted one is a 422 rather than a reset.
+    func setDashboardLayout(companyId: String, layout: DashboardLayout?) async throws {
+        let value: JSONValue
+        if let layout {
+            let panels: [JSONValue] = layout.panels.map { entry in
+                JSONValue.object([
+                    "id": JSONValue.string(entry.id),
+                    "size": JSONValue.string(entry.size),
+                ])
+            }
+            value = JSONValue.object(["panels": JSONValue.array(panels)])
+        } else {
+            value = JSONValue.null
+        }
+        let _: JSONValue = try await api.put(
+            "/v1/me/dashboard-layout",
+            body: JSONValue.object(["layout": value]),
+            companyId: companyId
+        )
+    }
 }
 
 struct ForYouApi: Sendable {

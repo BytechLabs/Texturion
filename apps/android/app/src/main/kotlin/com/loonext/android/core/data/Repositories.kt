@@ -1,5 +1,7 @@
 package com.loonext.android.core.data
 
+import com.loonext.android.core.dashboard.DashboardLayout
+import com.loonext.android.core.dashboard.DashboardLayoutReply
 import com.loonext.android.core.model.ReplySuggestions
 import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.core.model.CompanyAiSettings
@@ -105,6 +107,45 @@ class MeRepository(private val api: ApiClient) {
         hidden: List<String>,
     ): Map<String, List<String>> =
         api.put("/v1/me/dashboard", mapOf("hidden" to hidden), companyId = companyId)
+
+    /**
+     * #736: this member's own For you layout, or null to put the default back.
+     *
+     * The body is built as a JSON object because the Worker's schema requires the
+     * `layout` KEY and the client encoder omits null properties: a reset sent as a
+     * data class would arrive as `{}` and be refused.
+     */
+    suspend fun setDashboardLayout(
+        companyId: String,
+        layout: DashboardLayout?,
+    ): DashboardLayoutReply = api.put(
+        "/v1/me/dashboard-layout",
+        buildJsonObject {
+            put(
+                "layout",
+                if (layout == null) {
+                    JsonNull
+                } else {
+                    // Written out rather than encoded: an encoder drops a size
+                    // equal to its default, and the Worker requires every one.
+                    buildJsonObject {
+                        put(
+                            "panels",
+                            kotlinx.serialization.json.JsonArray(
+                                layout.panels.map { entry ->
+                                    buildJsonObject {
+                                        put("id", JsonPrimitive(entry.id))
+                                        put("size", JsonPrimitive(entry.size))
+                                    }
+                                },
+                            ),
+                        )
+                    }
+                },
+            )
+        },
+        companyId = companyId,
+    )
 }
 
 class ForYouRepository(private val api: ApiClient) {

@@ -206,6 +206,9 @@ struct Membership: Codable, Sendable {
     /// decodes, and so the three places that construct a Membership for a preview
     /// keep compiling. `nil` and `[]` mean the same thing: the whole screen.
     var dashboard_hidden: [String]? = nil
+    /// #736: this member's own arrangement of the For you page, or nil for the
+    /// default, which follows the queue's urgency order on every load.
+    var dashboard_layout: DashboardLayout? = nil
     /// #228: the language the BUSINESS works in — the LAST step of
     /// `UiLocale.resolve`, after the member's own setting and their phone's.
     ///

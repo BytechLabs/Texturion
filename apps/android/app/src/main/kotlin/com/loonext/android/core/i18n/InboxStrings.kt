@@ -289,20 +289,36 @@ object InboxStrings : AppStrings.Section {
         "inbox.forYouNotSpam" to "Not spam",
         "inbox.forYouStillSpam" to "Still spam",
 
-        // --- Customise the dashboard (#540) -----------------------------------------
-        "inbox.customiseAria" to "Customise this screen",
-        "inbox.customiseAriaPutAwayOne" to "Customise this screen — {count} panel put away",
-        "inbox.customiseAriaPutAwayMany" to "Customise this screen — {count} panels put away",
-        "inbox.customiseTitle" to "What's on this screen",
-        "inbox.customiseQueueStays" to
-            "The queue always stays. Work isn't something you can switch off.",
-        "inbox.customiseGroupMeasures" to "Measures",
-        "inbox.customiseGroupHistory" to "History",
-        "inbox.customiseSaveFailed" to
-            "We couldn't save that — it's back the way it was. " +
-            "Try again in a moment.",
-        "inbox.customiseStateOn" to "On this screen",
-        "inbox.customiseStatePutAway" to "Put away",
+        // --- Arranging the For you page (#736) --------------------------------------
+        "inbox.forYouEditLayout" to "Edit layout",
+        "inbox.forYouDoneEditing" to "Done",
+        "inbox.forYouEditingHintPhone" to
+            "Move a panel, change its width, or take it off. Changes save as you go.",
+        "inbox.forYouAddPanel" to "Add a panel",
+        "inbox.forYouAddPanelNone" to "Every panel is on your page.",
+        "inbox.forYouResetLayout" to "Reset to default",
+        "inbox.forYouMoveEarlier" to "Move {panel} earlier",
+        "inbox.forYouMoveLater" to "Move {panel} later",
+        "inbox.forYouResizePanel" to "Change the width of {panel}, now {size}",
+        "inbox.forYouRemovePanel" to "Take {panel} off your page",
+        "inbox.forYouSizeThird" to "a third",
+        "inbox.forYouSizeTwoThirds" to "two thirds",
+        "inbox.forYouSizeFull" to "full width",
+        "inbox.forYouPanelMoved" to "{panel} moved to position {position} of {count}",
+        "inbox.forYouPanelResized" to "{panel} is now {size}",
+        "inbox.forYouPanelRemoved" to "{panel} taken off your page",
+        "inbox.forYouPanelAdded" to "{panel} added to your page",
+        "inbox.forYouPanelEmpty" to "Nothing here right now",
+        "inbox.forYouHiddenQueue" to "{panel}: {count} waiting, not on your page",
+        "inbox.forYouShowPanel" to "Put it back",
+        "inbox.forYouLayoutSaveFailed" to
+            "We couldn't save that — it's back the way it was. Try again in a moment.",
+        "inbox.forYouPanelNoteFollowUps" to "Quotes and threads you asked to be reminded about.",
+        "inbox.forYouPanelNoteUnassigned" to "New conversations and tasks nobody has claimed.",
+        "inbox.forYouPanelNoteWaiting" to "Your conversations where the customer spoke last.",
+        "inbox.forYouPanelNoteTasks" to "Open tasks assigned to you.",
+        "inbox.forYouPanelNoteUnread" to "Your conversations with texts you have not read.",
+        "inbox.forYouPanelNoteQuotes" to "Quotes sent and not yet answered.",
 
         // --- Where the customers came from (#301) -------------------------------------
         "inbox.leadSourcesTitle" to "Where your customers come from",
@@ -674,20 +690,36 @@ object InboxStrings : AppStrings.Section {
         "inbox.forYouNotSpam" to "Pas indésirable",
         "inbox.forYouStillSpam" to "Toujours indésirable",
 
-        // --- Customise the dashboard -----------------------------------------------------------
-        "inbox.customiseAria" to "Personnaliser cet écran",
-        "inbox.customiseAriaPutAwayOne" to "Personnaliser cet écran — {count} panneau rangé",
-        "inbox.customiseAriaPutAwayMany" to "Personnaliser cet écran — {count} panneaux rangés",
-        "inbox.customiseTitle" to "Ce qu'il y a sur cet écran",
-        "inbox.customiseQueueStays" to
-            "La file reste toujours. Le travail ne se désactive pas.",
-        "inbox.customiseGroupMeasures" to "Mesures",
-        "inbox.customiseGroupHistory" to "Historique",
-        "inbox.customiseSaveFailed" to
-            "Impossible d'enregistrer — tout est revenu comme avant. " +
-            "Réessayez dans un moment.",
-        "inbox.customiseStateOn" to "Sur cet écran",
-        "inbox.customiseStatePutAway" to "Rangé",
+        // --- Arranging the For you page -----------------------------------------------------------
+        "inbox.forYouEditLayout" to "Modifier la disposition",
+        "inbox.forYouDoneEditing" to "Terminé",
+        "inbox.forYouEditingHintPhone" to
+            "Déplacez un panneau, changez sa largeur ou retirez-le. Tout est enregistré au fur et à mesure.",
+        "inbox.forYouAddPanel" to "Ajouter un panneau",
+        "inbox.forYouAddPanelNone" to "Tous les panneaux sont sur votre page.",
+        "inbox.forYouResetLayout" to "Rétablir la disposition par défaut",
+        "inbox.forYouMoveEarlier" to "Avancer {panel}",
+        "inbox.forYouMoveLater" to "Reculer {panel}",
+        "inbox.forYouResizePanel" to "Changer la largeur de {panel}, actuellement {size}",
+        "inbox.forYouRemovePanel" to "Retirer {panel} de votre page",
+        "inbox.forYouSizeThird" to "un tiers",
+        "inbox.forYouSizeTwoThirds" to "deux tiers",
+        "inbox.forYouSizeFull" to "pleine largeur",
+        "inbox.forYouPanelMoved" to "{panel} déplacé en position {position} sur {count}",
+        "inbox.forYouPanelResized" to "{panel} fait maintenant {size}",
+        "inbox.forYouPanelRemoved" to "{panel} retiré de votre page",
+        "inbox.forYouPanelAdded" to "{panel} ajouté à votre page",
+        "inbox.forYouPanelEmpty" to "Rien pour l’instant",
+        "inbox.forYouHiddenQueue" to "{panel} : {count} en attente, absent de votre page",
+        "inbox.forYouShowPanel" to "Le remettre",
+        "inbox.forYouLayoutSaveFailed" to
+            "Impossible d'enregistrer — tout est revenu comme avant. Réessayez dans un moment.",
+        "inbox.forYouPanelNoteFollowUps" to "Les soumissions et conversations à relancer que vous avez demandées.",
+        "inbox.forYouPanelNoteUnassigned" to "Les nouvelles conversations et tâches que personne n’a prises.",
+        "inbox.forYouPanelNoteWaiting" to "Vos conversations où le client a parlé en dernier.",
+        "inbox.forYouPanelNoteTasks" to "Les tâches ouvertes qui vous sont assignées.",
+        "inbox.forYouPanelNoteUnread" to "Vos conversations avec des textos non lus.",
+        "inbox.forYouPanelNoteQuotes" to "Les soumissions envoyées sans réponse.",
 
         // --- Where the customers came from -------------------------------------------------------
         "inbox.leadSourcesTitle" to "D'où viennent vos clients",

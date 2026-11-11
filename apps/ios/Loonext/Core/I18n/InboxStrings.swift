@@ -278,27 +278,46 @@ enum InboxStrings {
             "inbox.forYouWhyDue": "Due {when}",
             "inbox.forYouWhyOpenTask": "Open task",
 
-            // --- Customise this screen (#540 CustomiseSheet.swift) ---------------------------
+            // --- Response time and satisfaction detail toggles ---------------------------------
             "inbox.responseDetails": "Details",
             "inbox.responseHideDetails": "Hide details",
             "inbox.satisfactionDetails": "Details",
             "inbox.satisfactionHideDetails": "Hide details",
             "inbox.forYouNotificationsAria": "Notifications",
-            "inbox.customiseAria": "Customise this screen",
-            "inbox.customiseAriaPutAwayOne":
-                "Customise this screen — {count} panel put away",
-            "inbox.customiseAriaPutAwayMany":
-                "Customise this screen — {count} panels put away",
-            "inbox.customiseTitle": "What's on this screen",
-            "inbox.customiseQueueStays":
-                "The queue always stays. Work isn't something you can switch off.",
-            "inbox.customiseGroupMeasures": "Measures",
-            "inbox.customiseGroupHistory": "History",
-            "inbox.customiseSaveFailed":
-                "We couldn't save that — it's back the way it was. Try again in "
-                + "a moment.",
-            "inbox.customiseStateOn": "On this screen",
-            "inbox.customiseStatePutAway": "Put away",
+            // --- Arranging the For you page (#736) ---------------------------------------
+            "inbox.forYouEditLayout": "Edit layout",
+            "inbox.forYouDoneEditing": "Done",
+            "inbox.forYouEditingHintPhone":
+                "Move a panel, change its width, or take it off. Changes save as you go.",
+            "inbox.forYouAddPanel": "Add a panel",
+            "inbox.forYouAddPanelNone": "Every panel is on your page.",
+            "inbox.forYouResetLayout": "Reset to default",
+            "inbox.forYouMoveEarlier": "Move {panel} earlier",
+            "inbox.forYouMoveLater": "Move {panel} later",
+            "inbox.forYouResizePanel": "Change the width of {panel}, now {size}",
+            "inbox.forYouRemovePanel": "Take {panel} off your page",
+            "inbox.forYouSizeThird": "a third",
+            "inbox.forYouSizeTwoThirds": "two thirds",
+            "inbox.forYouSizeFull": "full width",
+            "inbox.forYouPanelMoved": "{panel} moved to position {position} of {count}",
+            "inbox.forYouPanelResized": "{panel} is now {size}",
+            "inbox.forYouPanelRemoved": "{panel} taken off your page",
+            "inbox.forYouPanelAdded": "{panel} added to your page",
+            "inbox.forYouPanelEmpty": "Nothing here right now",
+            "inbox.forYouHiddenQueue": "{panel}: {count} waiting, not on your page",
+            "inbox.forYouShowPanel": "Put it back",
+            "inbox.forYouLayoutSaveFailed":
+                "We couldn't save that — it's back the way it was. Try again in a moment.",
+            "inbox.forYouPanelNoteFollowUps":
+                "Quotes and threads you asked to be reminded about.",
+            "inbox.forYouPanelNoteUnassigned":
+                "New conversations and tasks nobody has claimed.",
+            "inbox.forYouPanelNoteWaiting":
+                "Your conversations where the customer spoke last.",
+            "inbox.forYouPanelNoteTasks": "Open tasks assigned to you.",
+            "inbox.forYouPanelNoteUnread":
+                "Your conversations with texts you have not read.",
+            "inbox.forYouPanelNoteQuotes": "Quotes sent and not yet answered.",
 
             // --- Where customers come from (#301 LeadSourcesCard.swift) -----------------------
             "inbox.leadSourcesTitle": "Where your customers come from",
@@ -705,27 +724,46 @@ enum InboxStrings {
             "inbox.forYouWhyDue": "Échéance {when}",
             "inbox.forYouWhyOpenTask": "Tâche ouverte",
 
-            // --- Customise this screen (#540 CustomiseSheet.swift) ---------------------------
+            // --- Response time and satisfaction detail toggles ---------------------------------
             "inbox.responseDetails": "Détails",
             "inbox.responseHideDetails": "Masquer les détails",
             "inbox.satisfactionDetails": "Détails",
             "inbox.satisfactionHideDetails": "Masquer les détails",
             "inbox.forYouNotificationsAria": "Notifications",
-            "inbox.customiseAria": "Personnaliser cet écran",
-            "inbox.customiseAriaPutAwayOne":
-                "Personnaliser cet écran — {count} panneau rangé",
-            "inbox.customiseAriaPutAwayMany":
-                "Personnaliser cet écran — {count} panneaux rangés",
-            "inbox.customiseTitle": "Ce qu'il y a sur cet écran",
-            "inbox.customiseQueueStays":
-                "La file reste toujours. Le travail ne se désactive pas.",
-            "inbox.customiseGroupMeasures": "Mesures",
-            "inbox.customiseGroupHistory": "Historique",
-            "inbox.customiseSaveFailed":
+            "inbox.forYouEditLayout": "Modifier la disposition",
+            "inbox.forYouDoneEditing": "Terminé",
+            "inbox.forYouEditingHintPhone":
+                "Déplacez un panneau, changez sa largeur ou retirez-le. Tout est "
+                + "enregistré au fur et à mesure.",
+            "inbox.forYouAddPanel": "Ajouter un panneau",
+            "inbox.forYouAddPanelNone": "Tous les panneaux sont sur votre page.",
+            "inbox.forYouResetLayout": "Rétablir la disposition par défaut",
+            "inbox.forYouMoveEarlier": "Avancer {panel}",
+            "inbox.forYouMoveLater": "Reculer {panel}",
+            "inbox.forYouResizePanel": "Changer la largeur de {panel}, actuellement {size}",
+            "inbox.forYouRemovePanel": "Retirer {panel} de votre page",
+            "inbox.forYouSizeThird": "un tiers",
+            "inbox.forYouSizeTwoThirds": "deux tiers",
+            "inbox.forYouSizeFull": "pleine largeur",
+            "inbox.forYouPanelMoved": "{panel} déplacé en position {position} sur {count}",
+            "inbox.forYouPanelResized": "{panel} fait maintenant {size}",
+            "inbox.forYouPanelRemoved": "{panel} retiré de votre page",
+            "inbox.forYouPanelAdded": "{panel} ajouté à votre page",
+            "inbox.forYouPanelEmpty": "Rien pour l’instant",
+            "inbox.forYouHiddenQueue": "{panel} : {count} en attente, absent de votre page",
+            "inbox.forYouShowPanel": "Le remettre",
+            "inbox.forYouLayoutSaveFailed":
                 "Impossible d'enregistrer — tout est revenu comme avant. "
                 + "Réessayez dans un moment.",
-            "inbox.customiseStateOn": "Sur cet écran",
-            "inbox.customiseStatePutAway": "Rangé",
+            "inbox.forYouPanelNoteFollowUps":
+                "Les soumissions et conversations à relancer que vous avez demandées.",
+            "inbox.forYouPanelNoteUnassigned":
+                "Les nouvelles conversations et tâches que personne n’a prises.",
+            "inbox.forYouPanelNoteWaiting":
+                "Vos conversations où le client a parlé en dernier.",
+            "inbox.forYouPanelNoteTasks": "Les tâches ouvertes qui vous sont assignées.",
+            "inbox.forYouPanelNoteUnread": "Vos conversations avec des textos non lus.",
+            "inbox.forYouPanelNoteQuotes": "Les soumissions envoyées sans réponse.",
 
             // --- Where customers come from (#301 LeadSourcesCard.swift) -----------------------
             "inbox.leadSourcesTitle": "D'où viennent vos clients",

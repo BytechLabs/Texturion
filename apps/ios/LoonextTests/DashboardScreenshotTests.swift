@@ -481,7 +481,13 @@ final class DashboardScreenshotTests: XCTestCase {
             onOpenSettings: { _ in },
             onOpenUnanswered: {},
             hidden: [],
-            onCustomise: {}
+            layout: nil,
+            editing: false,
+            layoutFailed: false,
+            onToggleEditing: {},
+            onSaveLayout: { _, _ in },
+            onSaveHidden: { _ in },
+            onAnnounce: { _ in }
         )
     }
 

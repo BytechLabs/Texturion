@@ -185,6 +185,11 @@ data class Membership(
      */
     val dashboard_hidden: List<String> = emptyList(),
     /**
+     * #736: this member's own arrangement of the For you page, or null for the
+     * default, which follows the queue's urgency order on every load.
+     */
+    val dashboard_layout: com.loonext.android.core.dashboard.DashboardLayout? = null,
+    /**
      * #228: the language the BUSINESS works in — the last step of the app's own
      * locale chain (user > device > company > English), and a different question
      * from [CompanyView.locale]'s only in that this one arrives unhydrated, on
