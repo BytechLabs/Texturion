@@ -637,7 +637,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.groupBilling" to "Billing and payments",
         "settingsMore.groupYou" to "You",
         "settingsMore.groupDevelopers" to "Developers",
-        "settingsMore.groupSupport" to "Help and audit log",
+        "settingsMore.groupSupport" to "Help and what's new",
         "settingsMore.sectionWhatsNew" to "What's new",
         "settingsMore.sectionWhatsNewBlurb" to "What shipped recently, and where to find it",
         "settingsMore.captionSpendingCap" to "SPENDING CAP",
@@ -1931,7 +1931,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.groupBilling" to "Facturation et paiements",
         "settingsMore.groupYou" to "Vous",
         "settingsMore.groupDevelopers" to "Développeurs",
-        "settingsMore.groupSupport" to "Aide et journal d'audit",
+        "settingsMore.groupSupport" to "Aide et nouveautés",
         "settingsMore.sectionWhatsNew" to "Nouveautés",
         "settingsMore.sectionWhatsNewBlurb" to
             "Ce qui a été livré récemment, et où le trouver",

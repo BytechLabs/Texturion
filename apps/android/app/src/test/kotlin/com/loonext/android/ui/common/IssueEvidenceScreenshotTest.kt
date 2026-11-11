@@ -322,11 +322,11 @@ class IssueEvidenceScreenshotTest {
 
     // --- 4. settings ------------------------------------------------------------------
 
-    @Test @Config(qualifiers = "w390dp-h1500dp-xhdpi")
-    fun `settings light`() = shoot("settings", dark = false, heightDp = 1500) { settings() }
+    @Test @Config(qualifiers = "w390dp-h1700dp-xhdpi")
+    fun `settings light`() = shoot("settings", dark = false, heightDp = 1700) { settings() }
 
-    @Test @Config(qualifiers = "w390dp-h1500dp-xhdpi")
-    fun `settings dark`() = shoot("settings", dark = true, heightDp = 1500) { settings() }
+    @Test @Config(qualifiers = "w390dp-h1700dp-xhdpi")
+    fun `settings dark`() = shoot("settings", dark = true, heightDp = 1700) { settings() }
 
     @Composable
     private fun settings() = SettingsIndex(
