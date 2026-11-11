@@ -13,6 +13,7 @@
  * is gone — there is no module state to warn about.
  */
 import { PageHeader } from "@/components/ui/page-header";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { isCallEndReason, isCallRouting } from "@loonext/shared";
 import { Grid3x3, PhoneIncoming, X } from "lucide-react";
 import Link from "next/link";
@@ -179,7 +180,7 @@ export function CallsView() {
       <OngoingCalls calls={ongoing} />
 
       <section>
-        <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+        <h2 className={cn(SECTION_LABEL_CLASS, "flex items-baseline gap-2 px-1 pb-2")}>
           {t("shell.recentCalls")}
         </h2>
         <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">

@@ -4,6 +4,7 @@ import { THREAD_SUMMARY_ATTRIBUTION } from "@loonext/shared";
 import { useEffect, useRef, useState } from "react";
 
 import { AiStatus } from "@/components/ui/ai-orb";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useT } from "@/i18n/provider";
 import { reportAiOutcome } from "@/lib/api/conversations";
 import {
@@ -341,7 +342,7 @@ export function ThreadSummaryCard({
                 {/* Heading and its lines are a tight pair; the gap BETWEEN
                     sections is the wider one, carried by the padding above.
                     *Applying: Relationship Strength.* */}
-                <h4 className="px-3 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+                <h4 className={cn(SECTION_LABEL_CLASS, "px-3 pb-0.5")}>
                   {t(group.label)}
                 </h4>
                 <ul>

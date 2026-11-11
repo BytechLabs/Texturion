@@ -3,6 +3,7 @@
 import type { QuickAddResult } from "@loonext/shared";
 
 import { useT } from "@/i18n/provider";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { formatTimestamp } from "@/lib/format/time";
 
 import { priorityLabelKey } from "./task-planning";
@@ -42,7 +43,7 @@ export function QuickAddPreview({ parsed }: { parsed: QuickAddResult }) {
       className="rounded-app-ctrl border border-app-line bg-app-inset px-3 py-2 text-[13px]"
       aria-live="polite"
     >
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+      <p className={SECTION_LABEL_CLASS}>
         {t("tasks.quickUnderstood")}
       </p>
       <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">

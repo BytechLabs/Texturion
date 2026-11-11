@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { contactRelationshipLine , avatarInitials } from "@loonext/shared";
 
 import { CallButton } from "@/components/calls/call-button";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
 import { avatarColorClass } from "@/components/shell/avatar-color";
@@ -453,7 +454,7 @@ function Preferences({
         onClick={() => setOpen((was) => !was)}
         className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+        <span className={cn(SECTION_LABEL_CLASS, "shrink-0")}>
           {t("contacts.preferencesGroup")}
         </span>
         <span className="min-w-0 flex-1 truncate text-right text-[12px] text-muted-foreground">

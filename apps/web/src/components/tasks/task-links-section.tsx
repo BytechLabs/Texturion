@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useT, type MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useAddTaskLink, useRemoveTaskLink, useTaskLinks } from "@/lib/api/task-links";
@@ -51,7 +52,7 @@ export function TaskLinksSection({ taskId }: { taskId: string }) {
   return (
     <section className="space-y-2" aria-label={t("tasks.linksAria")}>
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+        <p className={SECTION_LABEL_CLASS}>
           {t("tasks.links")}
         </p>
         <DropdownMenu>

@@ -4,6 +4,7 @@ import { taskNumberLabel } from "@loonext/shared";
 import Link from "next/link";
 
 import { useT } from "@/i18n/provider";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useLinkedTasks } from "@/lib/api/task-links";
 import type { LinkedTask } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -34,7 +35,7 @@ export function LinkedTasks({
   if (rows.length === 0) return null;
   return (
     <section aria-label={t("tasks.linkedTasks")} className="space-y-1">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className={SECTION_LABEL_CLASS}>
         {t("tasks.linkedTasks")}
       </p>
       <ul className="space-y-0.5">

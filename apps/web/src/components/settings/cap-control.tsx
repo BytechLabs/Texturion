@@ -4,6 +4,8 @@ import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useT } from "@/i18n/provider";
 import { useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
@@ -111,7 +113,7 @@ export function CapControl({
           multiplier is the mechanism, the pause point is the decision. */}
       <div className="flex items-end justify-between gap-4">
         <label htmlFor={sliderId} className="min-w-0">
-          <span className="block text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+          <span className={cn(SECTION_LABEL_CLASS, "block")}>
             {t("settings.capPausesAt")}
           </span>
           <span

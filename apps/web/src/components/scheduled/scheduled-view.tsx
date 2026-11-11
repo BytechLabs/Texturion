@@ -39,6 +39,7 @@ import {
 } from "@loonext/shared";
 
 import { CalmEmptyState } from "@/components/settings/empty-state";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sendAtLabel } from "@/components/thread/scheduled-strip";
 import { RecordContextMenu } from "@/components/ui/record-menu";
@@ -151,7 +152,7 @@ function ScheduledGroup({
 }) {
   return (
     <section>
-      <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+      <h2 className={cn(SECTION_LABEL_CLASS, "flex items-baseline gap-2 px-1 pb-2")}>
         {title}
       </h2>
       <ul className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">

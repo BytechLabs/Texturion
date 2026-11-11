@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { LoadError } from "@/components/settings/section";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
 import {
   RecordContextMenu,
@@ -182,7 +183,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
             {DOW_KEYS.map((key) => (
               <div
                 key={key}
-                className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+                className={cn(SECTION_LABEL_CLASS, "px-2 py-1.5")}
               >
                 {t(key)}
               </div>

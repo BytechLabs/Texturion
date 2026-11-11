@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { TaskAttachments } from "@/components/attachments/task-attachments";
 import {
   DropOverlay,
@@ -563,7 +564,7 @@ function TaskDetailLoaded({
         {/* Source message + thread link. */}
         {task.source_message && (
           <section aria-label={t("tasks.sourceMessageAria")} className="space-y-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+            <p className={SECTION_LABEL_CLASS}>
               {sourceLink?.label ?? t("tasks.fromThisMessage")}
             </p>
             <div className="rounded-app-card border border-app-line bg-app-inset p-3">
@@ -588,7 +589,7 @@ function TaskDetailLoaded({
         {/* D64: the call this task was promoted from, where a message would be. */}
         {task.source_call && (
           <section aria-label={t("tasks.sourceCallAria")} className="space-y-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+            <p className={SECTION_LABEL_CLASS}>
               {sourceLink?.label ?? t("tasks.fromThisCall")}
             </p>
             <div className="rounded-app-card border border-app-line bg-app-inset p-3">
@@ -811,7 +812,7 @@ function TaskDetailLoaded({
                 on task-linked notes + legacy rows), a read view: files are
                 attached through the discussion composer, never the task. */}
             <section className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+              <p className={SECTION_LABEL_CLASS}>
                 {t("tasks.attachments")}
               </p>
               <TaskAttachments items={task.attachments} names={memberNames} />
@@ -827,7 +828,7 @@ function TaskDetailLoaded({
 
             {/* Merged activity + discussion timeline (D-C + D-D). */}
             <section className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+              <p className={SECTION_LABEL_CLASS}>
                 {t("tasks.activity")}
               </p>
               <TaskFeed

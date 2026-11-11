@@ -19,6 +19,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { NotificationFeed } from "@/components/notifications/notification-bell";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import {
   Sheet,
   SheetContent,
@@ -129,7 +130,7 @@ export function MobileAccountSheetBody({
     "flex w-full items-center gap-3 px-4 py-3 text-left text-[13.5px] font-semibold text-app-ink transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   // The For You section label recipe, verbatim.
   const labelClass =
-    "flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2";
+    cn(SECTION_LABEL_CLASS, "flex items-baseline gap-2 px-1 pb-2");
   // The grouped elevated card (flat, hairline border) with quiet row dividers.
   const cardClass =
     "overflow-hidden rounded-app-card border border-app-line bg-app-paper divide-y divide-app-line-soft";

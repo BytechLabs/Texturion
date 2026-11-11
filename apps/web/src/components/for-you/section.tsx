@@ -24,7 +24,7 @@ export function Section({
 }) {
   return (
     <section id={id} className="scroll-mt-4">
-      <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+      <h2 className={cn(SECTION_LABEL_CLASS, "flex items-baseline gap-2 px-1 pb-2")}>
         {label}
         {count !== undefined && count > 0 && (
           <span className="tabular-nums">{count}</span>
@@ -36,3 +36,5 @@ export function Section({
     </section>
   );
 }
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
+import { cn } from "@/lib/utils";

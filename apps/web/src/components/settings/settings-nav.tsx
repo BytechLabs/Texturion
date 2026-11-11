@@ -37,6 +37,7 @@ import {
 } from "@loonext/shared";
 
 import { useT, type MessageKey } from "@/i18n/provider";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useActiveCompany } from "@/lib/company/provider";
 import { shouldShowWhatsNewMarker } from "@/lib/whats-new/seen";
 import { useCompany } from "@/lib/api/companies";
@@ -79,7 +80,7 @@ export interface SettingsSection {
  * labels; links are the full text colour.
  */
 export const GROUP_HEADING_CLASS =
-  "text-[10.5px] font-semibold uppercase tracking-[0.08em] text-app-muted";
+  SECTION_LABEL_CLASS;
 export const NAV_LINK_CLASS = "text-sm font-medium text-foreground";
 
 /** #727: each group's heading. */

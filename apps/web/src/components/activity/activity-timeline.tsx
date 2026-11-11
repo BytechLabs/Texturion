@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { CalmEmptyState } from "@/components/settings/empty-state";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
 import { ChoiceChip } from "@/components/ui/choice-chip";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -200,7 +201,7 @@ export function ActivityTimeline({
               {/* The jump target, keyed by the local day an <input type="date"> emits. */}
               <h3
                 data-timeline-day={isoDay}
-                className="bg-app-tint px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted"
+                className={cn(SECTION_LABEL_CLASS, "bg-app-tint px-3 py-1.5")}
               >
                 {label}
               </h3>
@@ -233,7 +234,7 @@ export function ActivityTimeline({
   return (
     <section>
       {hideHeading ? null : (
-        <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+        <h2 className={cn(SECTION_LABEL_CLASS, "flex items-baseline gap-2 px-1 pb-2")}>
           {t("activity.heading")}
           {entries.length > 0 ? <JumpToDate /> : null}
         </h2>

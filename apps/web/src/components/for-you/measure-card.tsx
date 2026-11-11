@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 
 /**
  * #540 — the shell the four dashboard measures share: one header, one frame.
@@ -56,7 +57,7 @@ export function MeasureCard({
 }) {
   return (
     <section className="flex h-full flex-col">
-      <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+      <h2 className={cn(SECTION_LABEL_CLASS, "flex items-baseline justify-between gap-2 px-1 pb-2")}>
         <span className="flex items-baseline gap-2">{title}</span>
         {action}
       </h2>

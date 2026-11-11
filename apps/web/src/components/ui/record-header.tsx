@@ -2,6 +2,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { cn } from "@/lib/utils";
 
 /**
@@ -77,7 +78,7 @@ export function RecordSection({
 }) {
   return (
     <section aria-label={label} className="space-y-1.5">
-      <h3 className="px-2 text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
+      <h3 className={cn(SECTION_LABEL_CLASS, "px-2")}>
         {label}
       </h3>
       {children}

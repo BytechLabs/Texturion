@@ -25,6 +25,7 @@
 import { useEffect, useState } from "react";
 
 import { callerName } from "@/components/calls/call-row";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { avatarColorClass } from "@/components/shell/avatar-color";
 import { useT, type Translate } from "@/i18n/provider";
 import { useNumbers } from "@/lib/api/numbers";
@@ -200,7 +201,7 @@ export function OngoingCalls({ calls }: { calls: Call[] }) {
 
   return (
     <section aria-label={t("shell.ongoingCalls")}>
-      <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+      <h2 className={cn(SECTION_LABEL_CLASS, "flex items-baseline gap-2 px-1 pb-2")}>
         {t("shell.ongoing")}
       </h2>
       <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">

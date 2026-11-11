@@ -4,6 +4,7 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 import { LoadError } from "@/components/settings/section";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -184,7 +185,7 @@ export function ListView({ state }: { state: TaskPageState }) {
       )}
       {/* Column header — quiet stone labels, hidden on mobile (the row carries
           its own compact layout there). */}
-      <div className="hidden min-w-[640px] grid-cols-[minmax(0,1fr)_160px_128px_96px] items-center gap-4 border-b border-border px-3 pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:grid">
+      <div className={cn(SECTION_LABEL_CLASS, "hidden min-w-[640px] grid-cols-[minmax(0,1fr)_160px_128px_96px] items-center gap-4 border-b border-border px-3 pb-2 md:grid")}>
         <span>{t("tasks.columnTask")}</span>
         <span>{t("tasks.assignee")}</span>
         <span>{t("tasks.due")}</span>

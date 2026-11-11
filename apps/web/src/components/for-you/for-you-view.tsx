@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -565,7 +566,7 @@ function SummaryTile({
       >
         {tile.count}
       </p>
-      <p className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.06em] text-app-muted-2">
+      <p className={cn(SECTION_LABEL_CLASS, "mt-1 truncate")}>
         {t(DASHBOARD_TILE_LABELS[tile.id])}
       </p>
       {/* Reserved whether or not there is a signal, so the tiles keep one height

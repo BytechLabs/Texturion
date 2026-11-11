@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { payoutRequirementCopy } from "@loonext/shared";
 
 import { LoadError, SettingsCard } from "@/components/settings/section";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useT, type Translate } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -232,7 +233,7 @@ function readinessWords(
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[12px] uppercase tracking-wide text-muted-foreground">
+      <dt className={SECTION_LABEL_CLASS}>
         {label}
       </dt>
       <dd className="text-sm text-foreground">{value}</dd>

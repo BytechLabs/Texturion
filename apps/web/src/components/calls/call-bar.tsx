@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useT } from "@/i18n/provider";
 import {
   LIVE_NOTE_LOOKUP_ATTEMPTS,
@@ -76,7 +77,7 @@ function TransferMenu({
 
   return (
     <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-2 shadow-lg">
-      <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+      <p className={cn(SECTION_LABEL_CLASS, "px-2 pb-1.5")}>
         {t("shell.transferTo")}
       </p>
       {targets.isPending ? (
@@ -265,7 +266,7 @@ function DtmfKeypad({
   return (
     <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-3 shadow-lg">
       <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+        <span className={SECTION_LABEL_CLASS}>
           {t("shell.keypad")}
         </span>
         <button

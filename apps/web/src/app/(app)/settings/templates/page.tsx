@@ -5,6 +5,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { LoadError, SettingsPage } from "@/components/settings/section";
+import { cn } from "@/lib/utils";
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { TagManagementCard } from "@/components/settings/tag-management-card";
 import { Button } from "@/components/ui/button";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -167,7 +169,7 @@ export default function TemplatesSettingsPage() {
                     template in a five-template shop is chrome that describes
                     nothing. */}
                 {group.label !== null && (
-                  <h3 className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <h3 className={cn(SECTION_LABEL_CLASS, "px-1")}>
                     {group.label}
                   </h3>
                 )}
