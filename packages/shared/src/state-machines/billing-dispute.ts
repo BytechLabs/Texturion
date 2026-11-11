@@ -6,7 +6,9 @@ import { defineMachine } from "./define-machine";
  * so the vocabulary is Stripe's documented set. Losing a dispute revokes any
  * prepaid year bought with the payment (once, on the closing event).
  *
- * Phase 1 of #722: definition only, no runtime behaviour. See docs/STATE-MACHINES.md.
+ * An inquiry may reach any later status in one step: an escalation to
+ * needs_response whose event was missed still arrives as under_review, won or
+ * lost. The edges rule out only going backwards (#722).
  */
 export type BillingDisputeState = "warning_needs_response" | "warning_under_review" | "warning_closed" | "needs_response" | "under_review" | "won" | "lost";
 
@@ -22,8 +24,8 @@ export const billingDisputeMachine = defineMachine<BillingDisputeState>({
   states: ["warning_needs_response", "warning_under_review", "warning_closed", "needs_response", "under_review", "won", "lost"],
   initial: ["warning_needs_response", "needs_response"],
   transitions: {
-    warning_needs_response: ["warning_under_review", "warning_closed", "needs_response"],
-    warning_under_review: ["warning_closed", "needs_response"],
+    warning_needs_response: ["warning_under_review", "warning_closed", "needs_response", "under_review", "won", "lost"],
+    warning_under_review: ["warning_closed", "needs_response", "under_review", "won", "lost"],
     warning_closed: [],
     needs_response: ["under_review", "won", "lost"],
     under_review: ["won", "lost"],

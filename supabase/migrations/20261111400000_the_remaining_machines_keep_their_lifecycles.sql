@@ -94,8 +94,8 @@ set search_path = ''
 as $$
 begin
   if new.status is distinct from old.status and not (
-       (old.status = 'warning_needs_response' and new.status in ('warning_under_review', 'warning_closed', 'needs_response'))
-    or (old.status = 'warning_under_review' and new.status in ('warning_closed', 'needs_response'))
+       (old.status = 'warning_needs_response' and new.status in ('warning_under_review', 'warning_closed', 'needs_response', 'under_review', 'won', 'lost'))
+    or (old.status = 'warning_under_review' and new.status in ('warning_closed', 'needs_response', 'under_review', 'won', 'lost'))
     or (old.status = 'needs_response' and new.status in ('under_review', 'won', 'lost'))
     or (old.status = 'under_review' and new.status in ('won', 'lost'))
   ) then
@@ -205,7 +205,10 @@ create trigger billing_disputes_status_forward_only
   before update of status on public.billing_disputes
   for each row execute function public.billing_disputes_status_forward_only();
 
-create trigger port_requests_status_forward_only
+-- Named to fire before port_requests_scrub_credentials (BEFORE triggers run in
+-- name order): the scrub must see the status this one keeps, or a refused move
+-- into ported would strip a live port of the credentials it still needs.
+create trigger port_requests_keep_status_forward
   before update of status on public.port_requests
   for each row execute function public.port_requests_status_forward_only();
 

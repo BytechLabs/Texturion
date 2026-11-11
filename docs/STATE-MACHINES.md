@@ -222,7 +222,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 
 ### billing_dispute
 
-- **Enforced (phase 2):** `billing_disputes_status_forward_only` keeps the old status on a move outside Stripe's lifecycle rather than failing the webhook.
+- **Enforced (phase 2):** `billing_disputes_status_forward_only` keeps the old status on a move outside Stripe's lifecycle rather than failing the webhook. An inquiry may skip to any later status (a missed escalation event still arrives as `under_review`, `won` or `lost`), so only a backward move is refused.
 - Free text copied from Stripe through `record_billing_dispute` (`apps/api/src/billing/disputes.ts:76`). Seven Stripe statuses; losing a closed dispute revokes a prepaid year, once. No constraint, table empty on production.
 
 ### task, invite, workspace (derived)

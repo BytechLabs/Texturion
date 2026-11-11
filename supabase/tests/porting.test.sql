@@ -601,9 +601,14 @@ begin
   select id into walk_id from public.port_requests
   where phone_e164 = '+13035550001' limit 1;
 
-  -- Voice track: draft → in-process → submitted → foc-date-confirmed →
-  -- activation-in-progress → ported. (exception + cancel-pending covered below.)
-  foreach voice in array array['draft','in-process','submitted','foc-date-confirmed',
+  -- Voice track, one legal move at a time (port_requests_status_forward_only
+  -- keeps the old status on any other): draft → in-process → exception →
+  -- submitted → foc-date-confirmed → activation-in-progress → ported.
+  -- cancel-pending and cancelled are walked on a second row below.
+  update public.port_requests set status = 'in-process' where id = walk_id;
+  update public.port_requests set status = 'exception',
+         rejection_reason = 'PASSCODE_PIN_INVALID' where id = walk_id;
+  foreach voice in array array['submitted','foc-date-confirmed',
                                'activation-in-progress','ported']::port_status[]
   loop
     update public.port_requests set status = voice where id = walk_id;
@@ -621,18 +626,30 @@ begin
   end loop;
   update public.port_requests set messaging_port_status = 'ported', ported_at = now()
   where id = walk_id;
+  select messaging_port_status into msg from public.port_requests where id = walk_id;
+  if msg is distinct from 'ported' then
+    raise exception 'PT17 FAILED: messaging walk did not end at ported (got %)', msg;
+  end if;
 
-  -- The exception + cancel-pending voice states must also be assignable.
-  -- account_number has to be re-supplied on the way back OUT of 'ported':
-  -- reaching a terminal status scrubbed it (PT24) and a LIVE port may not exist
-  -- without one (PT26). This walk is a raw exercise of the enum — the app's
-  -- ALLOWED_STATUS_TRANSITIONS has no ported → exception edge at all — so it is
-  -- the test paying for driving a transition production cannot.
-  update public.port_requests set status = 'exception',
-         account_number = 'ACCT-REWALK',
-         rejection_reason = 'PASSCODE_PIN_INVALID' where id = walk_id;
-  update public.port_requests set status = 'cancel-pending' where id = walk_id;
-  update public.port_requests set status = 'cancelled', cancelled_at = now() where id = walk_id;
+  insert into public.port_requests
+    (id, company_id, phone_number_id, phone_e164, country,
+     entity_name, auth_person_name, account_number,
+     service_street, service_locality, service_admin_area, service_postal_code)
+  values ('b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000b9',
+          'b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5',
+          'b5b5b5b5-b5b5-4b5b-8b5b-b5b000000001',
+          '+13035550009', 'US',
+          'PT17 Cancel Co', 'Jo Signer', 'ACCT-PT17',
+          '17 Main St', 'Denver', 'CO', '80202');
+  update public.port_requests set status = 'cancel-pending'
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000b9';
+  update public.port_requests set status = 'cancelled', cancelled_at = now()
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000b9';
+  select status into s from public.port_requests
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000b9';
+  if s is distinct from 'cancelled' then
+    raise exception 'PT17 FAILED: cancel walk did not end at cancelled (got %)', s;
+  end if;
 
   raise notice 'PT17 PASSED: every port_status + port_messaging_status value is assignable through the lifecycle';
 end $$;
@@ -846,6 +863,19 @@ begin
     raise exception 'PT24 FAILED: a still-running port lost its credentials early';
   end if;
 
+  -- A draft cannot jump to ported, and the refused move must not scrub either:
+  -- the status trigger fires before the scrub and keeps 'draft'.
+  update public.port_requests set status = 'ported'
+   where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1';
+  select * into r from public.port_requests
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1';
+  if r.status <> 'draft' or r.account_number is null then
+    raise exception 'PT24 FAILED: a refused jump to ported left status % with account number set=%',
+      r.status, r.account_number is not null;
+  end if;
+
+  update public.port_requests set status = 'in-process'
+   where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1';
   update public.port_requests
      set status = 'ported', messaging_port_status = 'ported', ported_at = now()
    where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1';
@@ -937,8 +967,8 @@ end $$;
 --       conditional CHECK is what stops that from also making it optional. A
 --       LIVE port with no account number is the state in which the §3.4 PATCH
 --       ships `account_number: null` to Telnyx and the carrier rejects the
---       order — so it must be unrepresentable, including by walking a scrubbed
---       row back out of a terminal status.
+--       order — so it must be unrepresentable. A finished port is never
+--       walked back out of its terminal status at all.
 -- ===========================================================================
 do $$
 declare
@@ -972,22 +1002,15 @@ begin
           'PT26 Done Co', 'Lee Signer', null, 'cancelled', now(),
           '26 Done St', 'Denver', 'CO', '80202');
 
-  -- Reviving it into a live status without re-collecting the number → rejected.
-  begin
-    update public.port_requests set status = 'exception'
-    where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c3';
-    raise exception 'PT26 FAILED: a scrubbed port was revived into a live status with no account_number';
-  exception when check_violation then null;
-  end;
-
-  -- Re-collecting it in the same statement is the way back, and the only one.
+  -- A finished port is never revived, even with the number re-supplied: the
+  -- status stays cancelled and the scrub takes the number again.
   update public.port_requests set status = 'exception', account_number = 'ACCT-PT26'
   where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c3';
   select * into r from public.port_requests
   where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c3';
-  if r.account_number is distinct from 'ACCT-PT26' then
-    raise exception 'PT26 FAILED: re-supplying the account number did not revive the port (got %)',
-      r.account_number;
+  if r.status <> 'cancelled' or r.account_number is not null then
+    raise exception 'PT26 FAILED: a cancelled port was revived (status %, account number set=%)',
+      r.status, r.account_number is not null;
   end if;
   raise notice 'PT26 PASSED: a live port must carry an account number; a finished one need not';
 end $$;
