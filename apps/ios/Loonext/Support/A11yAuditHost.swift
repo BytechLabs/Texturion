@@ -37,17 +37,6 @@ struct A11yAuditHost: View {
             .environment(\.locale, UiLocale.platformLocale(locale))
             .tint(BrandColor.olive)
             .background(BrandColor.canvas.ignoresSafeArea())
-            // The UI tests launch with `-theme dark` to audit and capture the
-            // dark theme; the stored preference decides, as in the live app.
-            .preferredColorScheme(preferredScheme)
-    }
-
-    private var preferredScheme: ColorScheme? {
-        switch graph.prefs.theme {
-        case AppPrefs.Theme.light: .light
-        case AppPrefs.Theme.dark: .dark
-        default: nil
-        }
     }
 
     @ViewBuilder

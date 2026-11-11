@@ -32,7 +32,10 @@ struct LoonextApp: App {
             #if DEBUG
             // #238: the accessibility audit opens one screen on fixture data.
             if let surface = A11yAuditSurface.requested {
+                // The theme preference applies here too, so the UI tests can
+                // launch with `-theme dark` to audit the dark palette.
                 A11yAuditHost(surface: surface)
+                    .preferredColorScheme(preferredScheme)
             } else {
                 liveRoot
             }
