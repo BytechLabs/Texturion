@@ -55,3 +55,28 @@ struct SettingsSearchResults: View {
         }
     }
 }
+
+/// Settings searched for "time zone", as the real search draws it: the box,
+/// then the results. For the #238 accessibility audit and its screenshots.
+@MainActor
+func settingsSearchFixture() -> some View {
+    ScrollView {
+        VStack(alignment: .leading, spacing: 13) {
+            ScreenTitle(text: AppStrings.translate(nil, "shell.settings"))
+            SearchField(
+                query: .constant("time zone"),
+                placeholder: AppStrings.translate(nil, "settingsMore.searchPlaceholder"),
+                clearLabel: AppStrings.translate(nil, "settingsMore.searchClear")
+            )
+            SettingsSearchResults(
+                query: "time zone",
+                visible: Array(SettingsSection.allCases),
+                onOpen: { _, _ in }
+            )
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+        .padding(.bottom, 24)
+    }
+    .background(BrandColor.canvas)
+}

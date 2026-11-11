@@ -345,6 +345,13 @@ private func previewAccountSheet() -> AccountSheet {
     )
 }
 
+/// The account sheet for the #238 accessibility audit, with its Trash entry.
+@MainActor
+func accountSheetFixture() -> some View {
+    previewAccountSheet()
+        .background(BrandColor.canvas)
+}
+
 // #180 responsive matrix — fixed frames prove every card (Sign out included)
 // stays reachable via scroll at each ratio; the compact-height variant forces
 // the collapsed rhythm branch.

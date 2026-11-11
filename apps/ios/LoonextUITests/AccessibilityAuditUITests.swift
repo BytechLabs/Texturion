@@ -39,6 +39,36 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     func testSettingsIndex() throws { try audit("settings") }
 
+    func testSettingsSearch() throws { try audit("settingsSearch") }
+
+    // MARK: Account sheet
+
+    func testAccountSheet() throws { try audit("account") }
+
+    // MARK: Exact time
+
+    /// #720: a long-press on a call row opens its menu, which leads with the
+    /// exact time. Kept as a screenshot in each theme.
+    func testLongPressOnACallRowShowsTheExactTime() throws {
+        for theme in ["light", "dark"] {
+            let app = XCUIApplication()
+            app.launchArguments += ["-a11yAuditSurface", "calls", "-theme", theme]
+            app.launch()
+            // The row may read as one element, so match any whose label names her.
+            let row = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label CONTAINS %@", "Dana Whitcomb"))
+                .firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 20), "the first call row never appeared")
+            row.press(forDuration: 1.2)
+            sleep(1)
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = "calls long-press (\(theme))"
+            shot.lifetime = .keepAlways
+            add(shot)
+            app.terminate()
+        }
+    }
+
     // MARK: Large text
 
     /// The same screens at the largest accessibility text size, where controls
@@ -54,7 +84,10 @@ final class AccessibilityAuditUITests: XCTestCase {
     /// The same screens in the dark theme, where contrast is measured against
     /// the dark palette.
     func testDarkTheme() throws {
-        for surface in ["login", "inbox", "thread", "calls", "tasks", "contacts", "dialer", "settings"] {
+        for surface in [
+            "login", "inbox", "thread", "calls", "tasks", "contacts", "dialer", "settings",
+            "settingsSearch", "account",
+        ] {
             try audit(surface, theme: "dark")
         }
     }

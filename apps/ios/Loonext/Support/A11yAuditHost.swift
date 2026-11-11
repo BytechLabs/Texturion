@@ -15,6 +15,8 @@ enum A11yAuditSurface: String, CaseIterable {
     case inCall
     case dialer
     case settings
+    case settingsSearch
+    case account
 
     /// The surface this launch asked for, if any.
     static var requested: A11yAuditSurface? {
@@ -69,6 +71,10 @@ struct A11yAuditHost: View {
             dialerFixture()
         case .settings:
             settingsIndexFixture()
+        case .settingsSearch:
+            settingsSearchFixture()
+        case .account:
+            accountSheetFixture()
         }
     }
 }
