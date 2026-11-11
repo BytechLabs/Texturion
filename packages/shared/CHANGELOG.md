@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.23.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.22.0...shared-v0.23.0) (2026-11-11)
+
+
+### Features
+
+* **db:** invites, workspaces and consent keep their lifecycles in the database ([afcb52b](https://github.com/BytechLabs/Texturion/commit/afcb52b49e65fff86f7ae0fac7d3e32ec6d603a1))
+* **db:** status changes are recorded in the audit log and PostHog ([21f3a75](https://github.com/BytechLabs/Texturion/commit/21f3a7513338a6f1fba1c5ea6611392a022700f8))
+
+
+### Bug Fixes
+
+* **mobile:** a button is offered only when the server will accept it ([0cfceed](https://github.com/BytechLabs/Texturion/commit/0cfceeda34d94a0f179ef8cd20dfd765c4af1067))
+
 ## [0.22.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.21.0...shared-v0.22.0) (2026-11-11)
 
 

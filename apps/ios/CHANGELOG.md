@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.26.1](https://github.com/BytechLabs/Texturion/compare/ios-v0.26.0...ios-v0.26.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **clients:** a timestamp reads as when it happened, never Jul 14 ago ([4d70607](https://github.com/BytechLabs/Texturion/commit/4d70607c42bde30de8c78bb3b184486ebbcab0db))
+* **ios:** a team member's role keeps its own line beside the name ([6a8006f](https://github.com/BytechLabs/Texturion/commit/6a8006fa3c9f0be1b7d8466157d6ab3b7c716fcb))
+* **ios:** the pause offer reads the same pause answer as the card below it ([ffd96a3](https://github.com/BytechLabs/Texturion/commit/ffd96a32d3129ab3a68caa403a5eab099537fd1b))
+* **mobile:** a button is offered only when the server will accept it ([0cfceed](https://github.com/BytechLabs/Texturion/commit/0cfceeda34d94a0f179ef8cd20dfd765c4af1067))
+
 ## [0.26.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.25.0...ios-v0.26.0) (2026-11-11)
 
 

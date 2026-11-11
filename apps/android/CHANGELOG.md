@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.1](https://github.com/BytechLabs/Texturion/compare/android-v0.26.0...android-v0.26.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **clients:** a timestamp reads as when it happened, never Jul 14 ago ([4d70607](https://github.com/BytechLabs/Texturion/commit/4d70607c42bde30de8c78bb3b184486ebbcab0db))
+* **mobile:** a button is offered only when the server will accept it ([0cfceed](https://github.com/BytechLabs/Texturion/commit/0cfceeda34d94a0f179ef8cd20dfd765c4af1067))
+
 ## [0.26.0](https://github.com/BytechLabs/Texturion/compare/android-v0.25.0...android-v0.26.0) (2026-11-11)
 
 
