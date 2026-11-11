@@ -263,6 +263,19 @@ jobs:
       - name: Guard destructive migrations
         run: node scripts/check-migrations.mjs
 
+      # #756: a release that ships a feature adds a What's new entry. On the push
+      # that merges a release this fails, so nothing is tagged or shipped until
+      # one lands; on any other push it only warns. Deepens this checkout when the
+      # previous release is further back than the 50 commits fetched above.
+      - name: What's new covers the release
+        run: node scripts/check-whats-new.mjs
+
+      # #756: What's new is written once, in packages/shared/whats-new.json, and
+      # generated into web, Android and iOS. Fails when a client's copy differs
+      # or an entry breaks #321's rules (a future date, a dash, a missing language).
+      - name: What's new is the same on every client
+        run: node scripts/generate-whats-new.mjs --check
+
       # #248 CL-13: `NULL <> '+1…'` is NULL, so an assertion written with `<>`
       # takes the false branch when the value it is judging came back NULL —
       # which is the state most defects produce. A mutation that stopped the

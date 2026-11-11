@@ -80,6 +80,7 @@ object AppStrings {
         ThreadStrings,
         TrashStrings,
         WebhooksStrings,
+        WhatsNewStrings,
     )
 
     /**

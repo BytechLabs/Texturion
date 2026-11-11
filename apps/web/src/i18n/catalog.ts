@@ -68,6 +68,7 @@ import { trashEn, trashFr } from "./sections/trash";
 import { quotesEn, quotesFr } from "./sections/quotes";
 import { recordMenuEn, recordMenuFr } from "./sections/recordMenu";
 import { webhooksEn, webhooksFr } from "./sections/webhooks";
+import { whatsNewEn, whatsNewFr } from "./sections/whatsNew";
 import { shellEn, shellFr } from "./sections/shell";
 import { tasksEn, tasksFr } from "./sections/tasks";
 import { threadEn, threadFr } from "./sections/thread";
@@ -337,6 +338,7 @@ export const EN = {
   payments: paymentsEn,
   settings: settingsEn,
   settingsMore: settingsMoreEn,
+  whatsNew: whatsNewEn,
   domain: domainEn,
   trash: trashEn,
   quotes: quotesEn,
@@ -369,6 +371,7 @@ export const FR_CA: Catalog = {
   payments: paymentsFr,
   settings: settingsFr,
   settingsMore: settingsMoreFr,
+  whatsNew: whatsNewFr,
   domain: domainFr,
   trash: trashFr,
   quotes: quotesFr,

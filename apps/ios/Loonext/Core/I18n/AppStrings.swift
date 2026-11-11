@@ -69,6 +69,7 @@ enum AppStrings {
         TaskReferencesStrings.section,
         ThreadStrings.section,
         WebhooksStrings.section,
+        WhatsNewStrings.section,
     ]
 
     static let en: [String: String] = merged { $0.en }

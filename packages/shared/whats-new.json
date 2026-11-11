@@ -1,0 +1,235 @@
+{
+  "_": [
+    "#756: What's new, written once. Run node scripts/generate-whats-new.mjs after editing;",
+    "it writes the list and its English and French words for web, Android and iOS, and",
+    "CI fails when a client's copy differs. Newest first. The date is the day the release",
+    "shipped. Entries report what shipped, never what is planned. The clients show the",
+    "newest 12; older entries stay here as the record.",
+    "A release with no customer-facing change adds a quietReleases record instead:",
+    "{ \"date\": \"YYYY-MM-DD\", \"reason\": \"why nothing here is news\" }."
+  ],
+  "entries": [
+    {
+      "id": "calendarCreate",
+      "date": "2026-11-11",
+      "href": "/tasks?view=calendar",
+      "en": {
+        "title": "Make a task from the calendar",
+        "body": "Click an empty day, or an hour in the week view, and a new task opens already due then."
+      },
+      "fr": {
+        "title": "Créez une tâche depuis le calendrier",
+        "body": "Cliquez sur une journée libre, ou sur une heure dans la vue semaine, et une nouvelle tâche s'ouvre déjà prévue à ce moment."
+      }
+    },
+    {
+      "id": "calendarLinkBack",
+      "date": "2026-11-11",
+      "href": "/settings/profile",
+      "en": {
+        "title": "Calendar events open the job",
+        "body": "Every job in your Google or Outlook calendar ends with a link back to its task in Loonext, on your phone too."
+      },
+      "fr": {
+        "title": "Les événements du calendrier ouvrent la tâche",
+        "body": "Chaque tâche dans Google Agenda ou Outlook se termine par un lien vers elle dans Loonext, aussi sur votre téléphone."
+      }
+    },
+    {
+      "id": "settingChoices",
+      "date": "2026-11-11",
+      "href": "/settings/missed-calls",
+      "en": {
+        "title": "See who changed a setting, and when",
+        "body": "Settings that decide where calls and texts go, like after-hours calls, say who chose them and when. No more mystery changes."
+      },
+      "fr": {
+        "title": "Voyez qui a modifié un réglage, et quand",
+        "body": "Les réglages qui décident où vont les appels et les textos, comme les appels après les heures, indiquent qui les a choisis et quand. Plus de changement mystère."
+      }
+    },
+    {
+      "id": "trash",
+      "date": "2026-11-10",
+      "href": "/trash",
+      "en": {
+        "title": "Deleted by mistake? It's in the Trash",
+        "body": "Deleted conversations, calls and contacts wait in the Trash for 30 days. Restore them in one click from the sidebar."
+      },
+      "fr": {
+        "title": "Supprimé par erreur? C'est dans la corbeille",
+        "body": "Les conversations, appels et contacts supprimés restent dans la corbeille pendant 30 jours. Restaurez-les d'un clic depuis le menu."
+      }
+    },
+    {
+      "id": "activity",
+      "date": "2026-11-10",
+      "href": "/contacts",
+      "en": {
+        "title": "Every customer and job shows what happened",
+        "body": "Contacts, tasks, conversations and calls each have one timeline of messages, calls and changes, with who did what."
+      },
+      "fr": {
+        "title": "Chaque client et chaque tâche montrent ce qui s'est passé",
+        "body": "Les contacts, tâches, conversations et appels ont chacun un fil chronologique des messages, appels et changements, avec qui a fait quoi."
+      }
+    },
+    {
+      "id": "callEndings",
+      "date": "2026-11-10",
+      "href": "/calls",
+      "en": {
+        "title": "See why a call ended",
+        "body": "Each call says how it ended, like no answer in time or the caller hung up, and its page shows every step from ringing to hang-up."
+      },
+      "fr": {
+        "title": "Voyez pourquoi un appel s'est terminé",
+        "body": "Chaque appel indique comment il s'est terminé, par exemple sans réponse à temps ou l'appelant a raccroché, et sa page montre chaque étape."
+      }
+    },
+    {
+      "id": "forYouLayout",
+      "date": "2026-11-10",
+      "href": "/for-you",
+      "en": {
+        "title": "Arrange your For you page",
+        "body": "Move, resize, add or remove panels so the page shows what you check first. Your layout is yours; the crew keeps theirs."
+      },
+      "fr": {
+        "title": "Organisez votre page Pour vous",
+        "body": "Déplacez, redimensionnez, ajoutez ou retirez des panneaux pour voir d'abord ce qui compte. Votre disposition est la vôtre; l'équipe garde la sienne."
+      }
+    },
+    {
+      "id": "settingsSearch",
+      "date": "2026-11-10",
+      "href": "/settings",
+      "en": {
+        "title": "Find any setting by typing",
+        "body": "Type what you want to change, like time zone, and jump straight to it from Settings or from ⌘K."
+      },
+      "fr": {
+        "title": "Trouvez un réglage en tapant",
+        "body": "Tapez ce que vous voulez changer, comme le fuseau horaire, et allez-y directement depuis les Paramètres ou ⌘K."
+      }
+    },
+    {
+      "id": "menus",
+      "date": "2026-11-10",
+      "href": "/inbox",
+      "en": {
+        "title": "Right-click for the actions you need",
+        "body": "Right-click a conversation, call, task or contact, or long-press it on a phone, for the same menu as its ⋯ button."
+      },
+      "fr": {
+        "title": "Clic droit pour les actions dont vous avez besoin",
+        "body": "Faites un clic droit sur une conversation, un appel, une tâche ou un contact, ou un appui long sur un téléphone, pour le même menu que son bouton ⋯."
+      }
+    },
+    {
+      "id": "calendarSync",
+      "date": "2026-10-29",
+      "href": "/settings/profile",
+      "en": {
+        "title": "Your jobs in Google Calendar or Outlook",
+        "body": "Connect Google Calendar or Microsoft 365 and your scheduled jobs appear there. Move one in either place and it moves in both."
+      },
+      "fr": {
+        "title": "Vos tâches dans Google Agenda ou Outlook",
+        "body": "Connectez Google Agenda ou Microsoft 365 et vos tâches prévues y apparaissent. Déplacez-en une d'un côté et elle bouge des deux côtés."
+      }
+    },
+    {
+      "id": "quotesFromConversation",
+      "date": "2026-08-17",
+      "href": "/inbox",
+      "en": {
+        "title": "Send a quote the customer accepts from a text",
+        "body": "Write a quote in the conversation where they asked. They open it from a text and accept it, no account needed."
+      },
+      "fr": {
+        "title": "Envoyez un devis que le client accepte par texto",
+        "body": "Rédigez un devis dans la conversation où il a été demandé. Le client l'ouvre depuis un texto et l'accepte, sans compte."
+      }
+    },
+    {
+      "id": "calendarSubscribe",
+      "date": "2026-08-17",
+      "href": "/settings/profile",
+      "en": {
+        "title": "Your schedule in any calendar app",
+        "body": "Subscribe from Apple Calendar or any other calendar app and the jobs assigned to you show up there."
+      },
+      "fr": {
+        "title": "Votre horaire dans toute application de calendrier",
+        "body": "Abonnez-vous depuis Calendrier Apple ou toute autre application de calendrier et les tâches qui vous sont assignées y apparaissent."
+      }
+    },
+    {
+      "id": "savedViews",
+      "date": "2026-08-01",
+      "href": "/inbox",
+      "en": {
+        "title": "Save the filters you use every morning",
+        "body": "Arrange the inbox how you want it, name it, and it is one tap away tomorrow. Share one with the crew and everybody opens the same list."
+      },
+      "fr": {
+        "title": "Enregistrez les filtres que vous utilisez chaque matin",
+        "body": "Organisez la boîte de réception comme vous voulez, nommez-la, et elle est à une touche demain matin. Partagez-en une avec l'équipe et tout le monde ouvre la même liste."
+      }
+    },
+    {
+      "id": "quotesWon",
+      "date": "2026-08-01",
+      "href": "/for-you",
+      "en": {
+        "title": "See how many quotes turned into work",
+        "body": "Your home screen now shows how many quotes you sent, how many you won, and how many are still waiting on an answer."
+      },
+      "fr": {
+        "title": "Voyez combien de devis sont devenus des contrats",
+        "body": "Votre écran d'accueil montre maintenant combien de devis vous avez envoyés, combien vous avez obtenus, et combien attendent encore une réponse."
+      }
+    },
+    {
+      "id": "voicemail",
+      "date": "2026-07-25",
+      "href": "/calls",
+      "en": {
+        "title": "Voicemails are written down",
+        "body": "A missed call leaves a voicemail you can read at a red light instead of listening to it. It is searchable like any other message."
+      },
+      "fr": {
+        "title": "Les messages vocaux sont transcrits",
+        "body": "Un appel manqué laisse un message vocal que vous pouvez lire à un feu rouge au lieu de l'écouter. Il se cherche comme n'importe quel autre message."
+      }
+    },
+    {
+      "id": "drafts",
+      "date": "2026-07-24",
+      "href": "/inbox",
+      "en": {
+        "title": "Lou drafts the reply for you",
+        "body": "Lou reads the conversation and offers a reply you can edit before it goes. You send it, or you ignore it; nothing is sent on your behalf."
+      },
+      "fr": {
+        "title": "Lou rédige la réponse pour vous",
+        "body": "Lou lit la conversation et propose une réponse que vous pouvez modifier avant l'envoi. Vous l'envoyez, ou vous l'ignorez ; rien n'est envoyé en votre nom."
+      }
+    },
+    {
+      "id": "calls",
+      "date": "2026-07-12",
+      "href": "/calls",
+      "en": {
+        "title": "Answer calls in the app",
+        "body": "Calls to your business number ring your whole crew right here. Pick up, put someone on hold, or hand the call to a teammate."
+      },
+      "fr": {
+        "title": "Répondez aux appels dans l'application",
+        "body": "Les appels à votre numéro d'affaires font sonner toute votre équipe ici même. Répondez, mettez quelqu'un en attente, ou transférez l'appel à un coéquipier."
+      }
+    }
+  ],
+  "quietReleases": []
+}

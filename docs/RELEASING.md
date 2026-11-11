@@ -111,6 +111,36 @@ anything ships.
 from the Actions tab. It requires a written reason and records it on the run.
 That door exists precisely so "no release PR" can never mean "no way to ship".
 
+## Say what's new (#756)
+
+**A release that ships a `feat` cannot ship until What's new says so.** On the
+push that merges a release, `scripts/check-whats-new.mjs` fails the gates when
+the release contains a `feat` commit and nothing was added to What's new since
+the previous release, so nothing is tagged or shipped. Add the entry and push;
+the next run releases it. On every other push the same check only warns, and
+lists the features waiting for an entry.
+
+**To add an entry:**
+
+1. Add it at the top of `packages/shared/whats-new.json`: an `id` (camelCase),
+   the `date` the release ships, an in-app `href` (or `null`), and a `title` and
+   `body` in `en` and `fr`. Say what someone can now do, not how it works; one
+   entry can cover several commits.
+2. Run `node scripts/generate-whats-new.mjs`. It writes the list and its words
+   for web, Android and iOS, and refuses a future date, a dash, a missing
+   language, or a title over 60 or a body over 220 characters.
+3. Commit the JSON and the six generated files together. CI runs the generator
+   with `--check` and fails if any client's copy differs.
+
+**A release with nothing a customer would notice** (internal tools, a
+refactor) records that instead, in the same file:
+`"quietReleases": [{ "date": "YYYY-MM-DD", "reason": "why nothing here is news" }]`.
+It counts as the release's What's new; the reason is there for whoever reads
+the history.
+
+The clients show the newest 12 entries; older ones stay in the JSON as the
+record.
+
 ## Tell the people who reported it (#321)
 
 **After merging, before you close the tab: reply to the reports this release

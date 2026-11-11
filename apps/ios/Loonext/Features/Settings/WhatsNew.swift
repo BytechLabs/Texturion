@@ -36,38 +36,12 @@ struct WhatsNewEntry: Identifiable, Sendable {
     var id: String { "\(date)-\(title)" }
 }
 
-/// Newest first. Mirrors `WHATS_NEW` in packages/shared.
+/// Newest first, generated from packages/shared/whats-new.json (#756).
 ///
 /// No links on this client, deliberately: the settings detail cannot deep-link
 /// into a tab without a router it does not have, and a link that goes nowhere
 /// is worse than a sentence saying where to look. The web page carries them.
-let whatsNewEntries: [WhatsNewEntry] = [
-    WhatsNewEntry(
-        date: "2026-08-01",
-        title: "settingsMore.whatsNewSavedViewsTitle",
-        body: "settingsMore.whatsNewSavedViewsBody"
-    ),
-    WhatsNewEntry(
-        date: "2026-08-01",
-        title: "settingsMore.whatsNewQuotesTitle",
-        body: "settingsMore.whatsNewQuotesBody"
-    ),
-    WhatsNewEntry(
-        date: "2026-07-25",
-        title: "settingsMore.whatsNewVoicemailTitle",
-        body: "settingsMore.whatsNewVoicemailBody"
-    ),
-    WhatsNewEntry(
-        date: "2026-07-24",
-        title: "settingsMore.whatsNewDraftsTitle",
-        body: "settingsMore.whatsNewDraftsBody"
-    ),
-    WhatsNewEntry(
-        date: "2026-07-12",
-        title: "settingsMore.whatsNewCallsTitle",
-        body: "settingsMore.whatsNewCallsBody"
-    ),
-]
+let whatsNewEntries: [WhatsNewEntry] = whatsNewGeneratedEntries
 
 /// The newest entry's date, which is what the marker compares against.
 func latestWhatsNewDate(_ entries: [WhatsNewEntry] = whatsNewEntries) -> String {

@@ -59,39 +59,13 @@ data class WhatsNewEntry(
 )
 
 /**
- * Newest first. Mirrors `WHATS_NEW` in packages/shared.
+ * Newest first, generated from packages/shared/whats-new.json (#756).
  *
  * No `href`: the phone's settings detail cannot deep-link into a tab without a
  * router this screen does not have, and a link that goes nowhere is worse than
  * a sentence that tells you where to look. The web page carries the links.
  */
-val WHATS_NEW: List<WhatsNewEntry> = listOf(
-    WhatsNewEntry(
-        "2026-08-01",
-        "settingsMore.whatsNewSavedViewsTitle",
-        "settingsMore.whatsNewSavedViewsBody",
-    ),
-    WhatsNewEntry(
-        "2026-08-01",
-        "settingsMore.whatsNewQuotesTitle",
-        "settingsMore.whatsNewQuotesBody",
-    ),
-    WhatsNewEntry(
-        "2026-07-25",
-        "settingsMore.whatsNewVoicemailTitle",
-        "settingsMore.whatsNewVoicemailBody",
-    ),
-    WhatsNewEntry(
-        "2026-07-24",
-        "settingsMore.whatsNewDraftsTitle",
-        "settingsMore.whatsNewDraftsBody",
-    ),
-    WhatsNewEntry(
-        "2026-07-12",
-        "settingsMore.whatsNewCallsTitle",
-        "settingsMore.whatsNewCallsBody",
-    ),
-)
+val WHATS_NEW: List<WhatsNewEntry> = WHATS_NEW_ENTRIES
 
 /** The newest entry's date, which is what the marker compares against. */
 fun latestWhatsNewDate(entries: List<WhatsNewEntry> = WHATS_NEW): String =

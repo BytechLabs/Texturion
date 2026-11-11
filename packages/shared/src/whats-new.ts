@@ -30,6 +30,8 @@
  * soon", no "will".
  */
 
+import { WHATS_NEW_ENTRIES } from "./whats-new-entries";
+
 export interface WhatsNewEntry {
   /** ISO date the change reached customers, not the date it was written. */
   date: string;
@@ -55,44 +57,11 @@ export interface WhatsNewEntry {
 }
 
 /**
- * Newest first. Dates are the day the release shipped.
- *
- * Kept short on purpose. A changelog nobody scrolls is a changelog whose newest
- * entry is the only one that matters, and the marker only ever reflects the top
- * of this list.
+ * Newest first, the newest twelve. Written in packages/shared/whats-new.json
+ * and generated into each client by scripts/generate-whats-new.mjs (#756);
+ * the dates are the day the release shipped.
  */
-export const WHATS_NEW: WhatsNewEntry[] = [
-  {
-    date: "2026-08-01",
-    title: "settingsMore.whatsNewSavedViewsTitle",
-    body: "settingsMore.whatsNewSavedViewsBody",
-    href: "/inbox",
-  },
-  {
-    date: "2026-08-01",
-    title: "settingsMore.whatsNewQuotesTitle",
-    body: "settingsMore.whatsNewQuotesBody",
-    href: "/for-you",
-  },
-  {
-    date: "2026-07-25",
-    title: "settingsMore.whatsNewVoicemailTitle",
-    body: "settingsMore.whatsNewVoicemailBody",
-    href: "/calls",
-  },
-  {
-    date: "2026-07-24",
-    title: "settingsMore.whatsNewDraftsTitle",
-    body: "settingsMore.whatsNewDraftsBody",
-    href: "/inbox",
-  },
-  {
-    date: "2026-07-12",
-    title: "settingsMore.whatsNewCallsTitle",
-    body: "settingsMore.whatsNewCallsBody",
-    href: "/calls",
-  },
-];
+export const WHATS_NEW: WhatsNewEntry[] = WHATS_NEW_ENTRIES;
 
 /** The newest entry's date, which is what a marker compares against. */
 export function latestWhatsNewDate(entries: WhatsNewEntry[] = WHATS_NEW): string {
