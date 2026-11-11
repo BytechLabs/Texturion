@@ -26,6 +26,7 @@ import type { CompanyView } from "@/lib/api/types";
  */
 
 const mutate = vi.fn();
+vi.mock("@/components/settings/setting-choice-note", () => ({ SettingChoiceNote: () => null }));
 vi.mock("@/lib/api/companies", () => ({
   useUpdateCompany: () => ({ isPending: false, mutate }),
 }));

@@ -9,6 +9,7 @@
  * (D43 deleted it), so there is no cell to configure anywhere.
  */
 import { ChoiceCards } from "@/components/ui/choice-cards";
+import { SettingChoiceNote } from "@/components/settings/setting-choice-note";
 import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { DEFAULT_MCTB_MESSAGE, resolveLocale } from "@loonext/shared";
 import { useEffect, useRef, useState } from "react";
@@ -471,6 +472,10 @@ function ScreeningCard({
           label: choice.label,
           description: choice.detail,
         }))}
+      />
+      <SettingChoiceNote
+        settingKey="call_screening"
+        defaultLabel={t("appShell.screeningFlagLabel")}
       />
       {error && (
         <p role="alert" className="mt-3 text-sm text-destructive">

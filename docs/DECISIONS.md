@@ -10404,3 +10404,73 @@ probe `messages`.
 **Choice.** Every description Loonext writes ends with `Open in Loonext: <app origin>/tasks/<id>`, on Google, Outlook and the feed (which also sets `URL`). The phones claim `/tasks/` as an app link, so on a phone it opens the app. The sync takes the line off when it reads an event back, before the description is hashed or stored, so D137's description equality still compares the task's own text and the line never lands in a task. It is English in both languages, like the unlink note. A line in the middle of a description, or a moved one, is left alone.
 
 **Existing events.** An event written before this has no link, and an untouched task is never written again. When the worker updates an event whose provider copy lacks the line, it also rewrites the description; the provider's version matched the stored one first, so the provider still holds the agreed text and no edit made there is lost. Migration `20261111380000` queued one sync per task with a live event (one in production).
+
+## D162 - no setting that can lose a customer is on until a person turns it on, and each default is written once (#749)
+
+**What was wrong.** Defaults lived in four places: the database's column defaults, literal fallbacks in the API (`after_hours_calls ?? "ring_everyone"` in two files, `push_enabled ?? true` in six), each phone's decoder, and nowhere at all as a reason. Nothing said whether a setting off its default was the product's choice or a person's: Bytech Labs sends after-hours calls to voicemail because someone chose it on 2026-08-08, and the screen looked the same as a default.
+
+**Choice.** `packages/shared/src/setting-defaults.ts` holds every workspace and notification setting's default with its reason, and names the columns that are not settings. Tests hold the rest to it: the database's defaults (read from the schema snapshot, which CI rebuilds from the migrations), the API's fallbacks (a literal fallback for a setting fails, with two named exceptions), every per-number override starting empty so the number inherits, and the phones' decoders through `vectors/setting-defaults.json`. The settings marked below are attributed: when one is off its default, Settings says who chose it and when (`GET /v1/company/setting-choices`, from the audit log), or that it is not the default when no change on record names anyone.
+
+**Exceptions to "on only when a person turns it on".** The spending cap pauses sending at three times the allowance from day one (the cost-protection rule), and is attributed so an owner can see who moved it. The automatic-text holds start on, because each one stops a text that would talk past a customer who has just replied; a held text waits for a person, it is not dropped.
+
+<!-- setting-defaults:start -->
+| Setting | Default | Attributed | Why |
+|---|---|---|---|
+| `companies.after_hours_calls` | `"ring_everyone"` | yes | A call outside business hours still reaches the crew; sending it to voicemail is the owner's choice. |
+| `companies.ring_strategy` | `"all"` | yes | Everyone's phone rings at once, so a call is answered by whoever is free. |
+| `companies.ring_seconds` | `45` | yes | Phones ring for the longest time allowed before the call goes to voicemail. |
+| `companies.away_enabled` | `false` | yes | An away reply tells customers nobody is there, so only the owner turns it on. |
+| `companies.call_screening` | `"flag"` | yes | Likely spam is marked, never sent away, so a real caller is never dropped. |
+| `companies.us_texting_enabled` | `true` |  | Turning it off stops every text to a US number; only a Canadian business can, at signup. |
+| `companies.emergency_keyword_enabled` | `true` | yes | A customer who writes about an emergency is flagged to the crew at once. |
+| `companies.emergency_reply_enabled` | `true` | yes | A customer reporting an emergency hears straight away that the crew has been told. |
+| `companies.overage_cap_multiplier` | `3` | yes | Sending pauses at three times the plan's allowance, with a warning first, so a bill cannot run away; the owner can raise or clear it. |
+| `companies.mctb_enabled` | `false` |  | A missed-call text goes out in the business's name, so the owner writes and turns it on. |
+| `companies.caller_id_lookup` | `true` |  | An unknown caller's name is looked up so the crew knows who is ringing. |
+| `companies.push_include_content` | `true` |  | A notification shows what the customer wrote, so a reply does not wait for the app to open. |
+| `companies.first_message_identification` | `false` |  | The first text is the person's own words; adding the business name is opt-in. |
+| `companies.quiet_hours_confirm_enabled` | `true` |  | Texting a customer late at night asks first; it never blocks the text. |
+| `companies.response_stats_per_member` | `false` |  | Reply times are shown for the team, not ranked per person, unless the owner asks. |
+| `companies.tags_locked` | `false` |  | Anyone can add a tag until the owner wants a fixed list. |
+| `companies.lead_chase_crew_enabled` | `false` |  | Only the assigned person is reminded of an unanswered lead unless the owner widens it. |
+| `companies.on_call_escalate_after_minutes` | `10` |  | An after-hours alert the on-call member has not answered widens to everyone on the thread after ten minutes. |
+| `companies.timezone` | `"America/Toronto"` |  | Only a fallback: signup sets the business's own time zone. |
+| `companies.locale` | `"en"` |  | Only a fallback: signup sets the business's language. |
+| `companies.business_hours` | `{}` |  | No hours set means no after-hours rule, so nothing is treated as closed (#721). |
+| `companies.business_hours_exceptions` | `[]` |  | No closed dates until the owner enters one. |
+| `companies.hold_scheduled_on_reply` | `true` |  | A scheduled text written before the customer replied waits for a person, so it cannot talk past them. |
+| `companies.hold_reminders_on_reply` | `true` |  | A reminder queued before the customer replied waits for a person, so it cannot contradict what they said. |
+| `companies.hold_rating_ask_on_reply` | `true` |  | A rating question is held while the customer is mid-conversation. |
+| `companies.hold_reminders_unverified_calendar` | `true` |  | A reminder from a calendar that has not synced lately waits, so it cannot give a wrong time. |
+| `companies.rating_ask_enabled` | `true` |  | Asking how a finished job went brings reviews, and the owner can turn it off. |
+| `companies.rating_ask_delay_hours` | `4` |  | The question comes a few hours after the job, not while the crew is still there. |
+| `companies.rating_ask_expiry_hours` | `24` |  | A rating question not sent within a day is dropped as stale. |
+| `companies.rating_ask_cooldown_days` | `30` |  | A customer is asked at most once a month. |
+| `companies.scheduled_text_expiry_hours` | `24` |  | A held scheduled text waits a day for a person before it expires. |
+| `companies.reminder_expiry_hours` | `2` |  | A held reminder expires two hours after the appointment, when it can no longer help. |
+| `companies.auto_reply_cooldown_minutes` | `180` |  | One automatic reply per conversation every three hours, so a customer is not answered by a machine twice. |
+| `companies.away_message` | `null` |  | Empty until the owner writes one; the away reply needs it. |
+| `companies.mctb_message` | `null` |  | Empty until the owner writes one; the missed-call text needs it. |
+| `companies.emergency_keywords` | `null` |  | The built-in list of emergency words applies until the owner edits it. |
+| `companies.emergency_message` | `null` |  | The built-in emergency reply applies until the owner writes one. |
+| `companies.offramp_message` | `null` |  | A closing workspace sends nothing from its old number unless the departing owner writes it. |
+| `companies.voicemail_greeting` | `null` |  | The built-in greeting plays until the owner records or writes one. |
+| `companies.voicemail_greeting_id` | `null` |  | The built-in greeting plays until the owner records one. |
+| `companies.after_hours_greeting_id` | `null` |  | The voicemail greeting plays after hours too until the owner records another. |
+| `companies.cnam_display_name` | `null` |  | Outgoing calls show the business name until the owner sets another (#193). |
+| `companies.notify_email_limit` | `null` |  | The plan's email limit applies unless staff set another. |
+| `companies.notify_push_limit` | `null` |  | The plan's notification limit applies unless staff set another. |
+| `companies.high_priority_push_limit` | `null` |  | The plan's urgent-notification limit applies unless staff set another. |
+| `companies.retention_days` | `null` |  | Records are kept seven years (D77) unless the owner picks a shorter time. |
+| `companies.backup_owner_user_id` | `null` |  | No backup owner until the owner names one. |
+| `companies.mfa_required_at` | `null` |  | Two-step sign-in is offered to everyone and required only when the owner requires it. |
+| `companies.widget_number_id` | `null` |  | The website button uses the oldest active number until the owner picks one. |
+| `notification_prefs.email_enabled` | `true` | yes | A member hears about a new customer message by email unless they turn it off. |
+| `notification_prefs.push_enabled` | `true` | yes | A member's phone is told about a new customer message unless they turn it off. |
+| `notification_prefs.delivery` | `{}` |  | Every kind of notification follows the two switches above until the member picks per kind. |
+| `notification_prefs.quiet_from` | `null` |  | No quiet hours until the member sets them. |
+| `notification_prefs.quiet_to` | `null` |  | No quiet hours until the member sets them. |
+| `notification_prefs.quiet_timezone` | `null` |  | Quiet hours follow the workspace's time zone until the member picks one. |
+| `notification_prefs.batch_window_minutes` | `null` |  | Notifications arrive one by one until the member asks for them grouped. |
+| `notification_prefs.summary_at` | `null` |  | No daily summary until the member asks for one. |
+<!-- setting-defaults:end -->

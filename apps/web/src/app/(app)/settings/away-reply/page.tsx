@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
+import { SettingChoiceNote } from "@/components/settings/setting-choice-note";
 import { WeeklyHoursGrid } from "@/components/settings/weekly-hours-grid";
 import { ApiError } from "@/lib/api/error";
 import {
@@ -248,6 +249,10 @@ function AwayMessageCard({
             onCheckedChange={setEnabled}
           />
         </div>
+        <SettingChoiceNote
+          settingKey="away_enabled"
+          defaultLabel={t("settings.choiceDefaultOff")}
+        />
 
         {/* The send gates refuse a US destination until the campaign is
             approved, and the away reply is best-effort: it is skipped without
@@ -331,6 +336,10 @@ function AwayMessageCard({
               onCheckedChange={setEmergency}
             />
           </div>
+          <SettingChoiceNote
+            settingKey="emergency_keyword_enabled"
+            defaultLabel={t("settings.choiceDefaultOn")}
+          />
 
           {/* #453: which sentence appears is decided in `shared`, so this
               screen, Android and iOS cannot drift into three wordings of the

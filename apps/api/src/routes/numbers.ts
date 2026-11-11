@@ -1,8 +1,9 @@
 import {
+  billingCurrencyOf,
+  companySettingDefault,
   isValidBusinessHours,
   isValidHoursExceptions,
   NANP_AREA_CODES,
-  billingCurrencyOf,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
@@ -903,10 +904,10 @@ async function loadIdentity(
       // A workspace row's value is NOT NULL in the schema; the coalesce is for
       // a row read before the column existed, which resolves to the behaviour
       // that predates it.
-      afterHoursCalls: company.after_hours_calls ?? "ring_everyone",
+      afterHoursCalls: company.after_hours_calls ?? companySettingDefault("after_hours_calls"),
       afterHoursGreetingId: company.after_hours_greeting_id,
-      ringStrategy: company.ring_strategy ?? "all",
-      ringSeconds: company.ring_seconds ?? RING_SECONDS_MAX,
+      ringStrategy: company.ring_strategy ?? companySettingDefault("ring_strategy"),
+      ringSeconds: company.ring_seconds ?? companySettingDefault("ring_seconds"),
     },
     {
       label: number.label,

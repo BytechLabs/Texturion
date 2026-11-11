@@ -1,6 +1,8 @@
 "use client";
 
 import { CallEffectNote } from "@/components/settings/call-effect-note";
+import { SettingChoiceNote } from "@/components/settings/setting-choice-note";
+import { companySettingDefault } from "@loonext/shared";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -119,6 +121,10 @@ export function RingCard({
           description: t(choice.detail),
         }))}
       />
+      <SettingChoiceNote
+        settingKey="ring_strategy"
+        defaultLabel={t("settingsMore.numberIdentityRingAll")}
+      />
 
       <div className="mt-4 space-y-1.5">
         <Label htmlFor="ring-seconds">
@@ -148,6 +154,13 @@ export function RingCard({
                 })
             : t("settingsMore.ringWindowAll")}
         </p>
+        <SettingChoiceNote
+          settingKey="ring_seconds"
+          defaultLabel={t("settingsMore.numberRingLength", {
+            seconds: DEFAULT_RING_SECONDS,
+            rings: ringsIn(DEFAULT_RING_SECONDS),
+          })}
+        />
       </div>
 
       {error && (
@@ -186,6 +199,7 @@ export function phonesReached(seconds: number): number {
 
 /** Four is inside what anybody holds at once, and covers the real range. */
 const SECOND_CHOICES = [15, 20, 30, 45];
+const DEFAULT_RING_SECONDS = companySettingDefault("ring_seconds");
 
 const RING_CHOICES: {
   value: CompanyView["ring_strategy"];

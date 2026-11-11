@@ -8,6 +8,7 @@ import { useCompanyId } from "@/lib/company/provider";
 
 import type {
   AutomaticTextSettings,
+  CompanySettingKey,
   CrewSizeBucket,
   HoursException,
   Locale,
@@ -29,6 +30,27 @@ export function useCompany() {
   return useQuery({
     queryKey: keys.company(companyId),
     queryFn: () => apiFetch<CompanyView>("/v1/company", { companyId }),
+  });
+}
+
+export interface SettingChoice {
+  key: CompanySettingKey;
+  value: unknown;
+  default_value: unknown;
+  /** Null when no settings change on record touched it. */
+  chosen_by: string | null;
+  chosen_at: string | null;
+}
+
+/** GET /v1/company/setting-choices (#749). Only people who can change settings may ask. */
+export function useSettingChoices(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.settingChoices(companyId),
+    queryFn: () =>
+      apiFetch<{ data: SettingChoice[] }>("/v1/company/setting-choices", { companyId }),
+    enabled,
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -160,6 +182,7 @@ export function useUpdateCompany() {
         keys.company(companyId),
         (company) => (company ? { ...company, ...updated } : company),
       );
+      queryClient.invalidateQueries({ queryKey: keys.settingChoices(companyId) });
       if (updated.name !== undefined) {
         // The sidebar company block reads /v1/me.
         queryClient.invalidateQueries({ queryKey: keys.me });

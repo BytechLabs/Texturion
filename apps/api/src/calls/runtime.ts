@@ -9,17 +9,18 @@
  * testable with no Telnyx and no PostgREST.
  */
 import {
+  type AfterHoursCalls,
+  type BusinessHours,
   callLooksSpam,
   clampRingSeconds,
+  companySettingDefault,
+  type HoursException,
   isAfterHours,
   nextOpening,
   resolveNumberIdentity,
-  roleHasCapability,
   RING_SECONDS_MAX,
-  type AfterHoursCalls,
   type RingStrategy,
-  type BusinessHours,
-  type HoursException,
+  roleHasCapability,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -768,7 +769,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
           // greeting actually plays (greetingAudioUrl). Passed because
           // CompanyIdentity is one shape.
           voicemailGreetingId: null,
-          afterHoursCalls: company.after_hours_calls ?? "ring_everyone",
+          afterHoursCalls: company.after_hours_calls ?? companySettingDefault("after_hours_calls"),
           // Resolved here so the LINE's selection wins, then read again at
           // play time for the same reason the ordinary one is (see
           // greetingAudioUrl) — this half only decides the routing.
@@ -776,8 +777,8 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
           // A workspace row's values are NOT NULL in the schema; the coalesces
           // are for a row read before the columns existed, which resolve to
           // the behaviour that predates them.
-          ringStrategy: company.ring_strategy ?? "all",
-          ringSeconds: company.ring_seconds ?? RING_SECONDS_MAX,
+          ringStrategy: company.ring_strategy ?? companySettingDefault("ring_strategy"),
+          ringSeconds: company.ring_seconds ?? companySettingDefault("ring_seconds"),
         },
         {
           label: number.label,

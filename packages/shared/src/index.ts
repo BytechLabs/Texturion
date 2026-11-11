@@ -795,6 +795,17 @@ export {
   type AutomaticTextSettings,
 } from "./automatic-text-settings";
 export {
+  COMPANY_COLUMNS_NOT_SETTINGS,
+  COMPANY_SETTING_DEFAULTS,
+  NOTIFICATION_COLUMNS_NOT_SETTINGS,
+  NOTIFICATION_SETTING_DEFAULTS,
+  REVENUE_SETTING_KEYS,
+  companySettingDefault,
+  type CompanySettingKey,
+  type SettingDefault,
+  type SettingValue,
+} from "./setting-defaults";
+export {
   APPOINTMENT_CONFIRMED_EVENT,
   APPOINTMENT_CONFIRMED_LINE,
   APPOINTMENT_CONFIRM_KEYWORDS,

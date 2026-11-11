@@ -2,6 +2,7 @@
 
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { CallEffectNote } from "@/components/settings/call-effect-note";
+import { SettingChoiceNote } from "@/components/settings/setting-choice-note";
 import { hasBusinessHours } from "@loonext/shared";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -135,6 +136,10 @@ export function AfterHoursCallsCard({
           label: choice.label,
           description: choice.detail,
         }))}
+      />
+      <SettingChoiceNote
+        settingKey="after_hours_calls"
+        defaultLabel={t("settings.afterHoursRingEveryone")}
       />
 
       {active !== "ring_everyone" && (greetings.data?.data.length ?? 0) > 0 && (

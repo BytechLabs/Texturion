@@ -28,21 +28,22 @@
  * message that never went.
  */
 import {
+  type BillingCurrency,
+  companySettingDefault,
   estimateSegments,
   formatMoney,
   isBillingCurrency,
+  type MemberRole,
   PAYMENT_DESCRIPTION_MAX,
   paymentAmountProblem,
   paymentAmountProblemCopy,
   paymentRequestSms,
-  resolveLocale,
   paymentRequestState,
   payoutReadinessCopy,
   payoutReadinessKeys,
+  resolveLocale,
   roleHasCapability,
   stateMachines,
-  type BillingCurrency,
-  type MemberRole,
 } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -769,7 +770,7 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
      * customer meeting an English payment page is exactly the Bill 96 problem,
      * and it is the business's own choice that should decide it.
      */
-    locale: company?.locale ?? "en",
+    locale: company?.locale ?? companySettingDefault("locale"),
     amount_cents: row.amount_cents,
     currency: row.currency,
     amount: formatMoney(row.amount_cents, row.currency),

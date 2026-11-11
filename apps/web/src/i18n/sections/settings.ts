@@ -185,6 +185,11 @@ export const settingsEn = {
   afterHoursAdminOnly: "Only owners and admins can change after-hours calling.",
   afterHoursSaved: "After-hours calling updated.",
   afterHoursGreetingSaved: "After-hours greeting updated.",
+  /** #749: under a setting that can lose a customer, when it is off its default. */
+  choiceChosenBy: "{name} chose this on {date}. The default is {default}.",
+  choiceChangedFromDefault: "Changed from the default, which is {default}.",
+  choiceDefaultOn: "on",
+  choiceDefaultOff: "off",
   afterHoursRingEveryone: "Ring everyone, day or night",
   afterHoursRingEveryoneDetail:
     "What happens today. Every call rings the whole crew whatever the clock says.",
@@ -950,6 +955,10 @@ export const settingsFr: Translated<typeof settingsEn> = {
     "Seuls les propriétaires et les administrateurs peuvent modifier les " +
     "appels en dehors des heures.",
   afterHoursSaved: "Appels en dehors des heures mis à jour.",
+  choiceChosenBy: "{name} a fait ce choix le {date}. Par défaut : {default}.",
+  choiceChangedFromDefault: "Différent du réglage par défaut : {default}.",
+  choiceDefaultOn: "activé",
+  choiceDefaultOff: "désactivé",
   afterHoursGreetingSaved:
     "Message d'accueil en dehors des heures mis à jour.",
   afterHoursRingEveryone: "Sonner chez toute l'équipe, jour et nuit",

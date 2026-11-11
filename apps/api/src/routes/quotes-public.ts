@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { effectiveQuoteStatus, isQuoteDecided, type QuoteState } from "@loonext/shared";
+import { companySettingDefault, effectiveQuoteStatus, isQuoteDecided, type QuoteState } from "@loonext/shared";
 
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -172,7 +172,7 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
      * honest default is the language the business writes in, which is the
      * language they wrote this quote in.
      */
-    locale: company.locale ?? "en",
+    locale: company.locale ?? companySettingDefault("locale"),
     business_name: company.name,
     amount_cents: row.amount_cents,
     currency: row.currency,

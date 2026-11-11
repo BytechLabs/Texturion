@@ -34,6 +34,7 @@ import {
 import { deliverPush } from "./deliver";
 import { MISSED_CALL_COPY } from "./missed-call-copy";
 import { routeAfterHoursAlert } from "./on-call";
+import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 
 export interface MissedCallNotificationInput {
   companyId: string;
@@ -153,7 +154,7 @@ export async function notifyMissedCall(
   // email-enabled member per miss was pure noise. Inbound-message emails are
   // unchanged (§8).
   const pushUsers = audience.filter(
-    (userId) => prefs.get(userId)?.push_enabled ?? true,
+    (userId) => prefs.get(userId)?.push_enabled ?? NOTIFICATION_SETTING_DEFAULTS.push_enabled.value,
   );
 
   const contactName =

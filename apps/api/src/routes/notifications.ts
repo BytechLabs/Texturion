@@ -59,8 +59,9 @@ import { z } from "zod";
 
 import {
   DELIVERY_MODES,
-  NOTIFICATION_CATEGORIES,
   normalizeDeviceLocale,
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_SETTING_DEFAULTS,
 } from "@loonext/shared";
 
 import { requireCapability } from "../auth/company";
@@ -314,7 +315,7 @@ notificationsRoutes.put(
             // whole preference, so an omitted field CLEARS rather than
             // preserves. Otherwise turning a category back to immediate would
             // be impossible to express.
-            delivery: body.delivery ?? {},
+            delivery: body.delivery ?? NOTIFICATION_SETTING_DEFAULTS.delivery.value,
             batch_window_minutes: body.batch_window_minutes ?? null,
             summary_at: body.summary_at ?? null,
             updated_at: new Date().toISOString(),

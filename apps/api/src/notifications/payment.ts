@@ -43,7 +43,7 @@
  * reasons (#452), and the case for spending it here is weak: the person waiting
  * on a deposit is holding their phone, and a phone in use is not in Doze.
  */
-import { formatMoney, isBillingCurrency, type Locale } from "@loonext/shared";
+import { formatMoney, isBillingCurrency, type Locale, NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
@@ -225,7 +225,7 @@ export async function notifyPayment(
   const prefs = new Map(prefRows.map((row) => [row.user_id, row]));
   // A missing row reads as the §6 defaults, which have push on.
   const pushUsers = audience.filter(
-    (userId) => prefs.get(userId)?.push_enabled ?? true,
+    (userId) => prefs.get(userId)?.push_enabled ?? NOTIFICATION_SETTING_DEFAULTS.push_enabled.value,
   );
   if (pushUsers.length === 0) return;
 

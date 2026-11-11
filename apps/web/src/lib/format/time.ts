@@ -363,6 +363,22 @@ export function zonedWallClock(
   }
 }
 
+/**
+ * An instant's calendar date, "Aug 8, 2026", in the reader's language and zone:
+ * for a date inside a sentence ("chose this on Aug 8, 2026"), where a relative
+ * label like "5m" or "Yesterday" would not read.
+ */
+export function formatCalendarDate(iso: string, locale?: string, timeZone?: string): string {
+  const at = new Date(iso);
+  if (!iso || Number.isNaN(at.getTime())) return "";
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    ...(timeZone ? { timeZone } : {}),
+  }).format(at);
+}
+
 /** A `yyyy-MM-dd` day as "Thursday, November 12" in the reader's language. */
 export function formatWallDay(date: string, locale: string): string {
   const at = new Date(`${date}T12:00:00Z`);

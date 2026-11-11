@@ -37,12 +37,13 @@
  *      a leaderboard, and the opt-in IS the control.
  */
 import {
-  SATISFACTION_MIN_SAMPLE,
-  SATISFACTION_POOR_AT_OR_BELOW,
+  companySettingDefault,
   pipelineInsight,
   pipelineInsightKeys,
-  pipelineWinRate,
   type PipelineReport,
+  pipelineWinRate,
+  SATISFACTION_MIN_SAMPLE,
+  SATISFACTION_POOR_AT_OR_BELOW,
 } from "@loonext/shared";
 import { isAfterHours, type BusinessHours, type HoursException } from "@loonext/shared";
 import { Hono } from "hono";
@@ -281,8 +282,8 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
   // answered: the question is how fast we answer a message that arrived out of
   // hours, and grouping by our own reply time would put a 9am answer to a
   // midnight text in the business-hours bucket and flatter it.
-  const hours = company.business_hours ?? {};
-  const exceptions = company.business_hours_exceptions ?? [];
+  const hours = company.business_hours ?? companySettingDefault("business_hours");
+  const exceptions = company.business_hours_exceptions ?? companySettingDefault("business_hours_exceptions");
   const afterHours: LeadRow[] = [];
   const inHours: LeadRow[] = [];
   for (const row of current.rows) {

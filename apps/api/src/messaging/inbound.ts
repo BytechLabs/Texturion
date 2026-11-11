@@ -14,7 +14,7 @@
  * re-notifies.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { canonicalMmsType } from "@loonext/shared";
+import { canonicalMmsType, companySettingDefault } from "@loonext/shared";
 
 import { PLAN_NOTIFY_LIMITS, type PlanId } from "../billing/plans";
 import { billingRecipients } from "../billing/recipients";
@@ -418,7 +418,7 @@ export async function handleInboundMessage(
   // setting — but a locksmith whose customers text LOCKEDOUT is now heard, and
   // the settings screen warns against the same list this line acts on.
   const emergency =
-    (company?.emergency_keyword_enabled ?? true) &&
+    (company?.emergency_keyword_enabled ?? companySettingDefault("emergency_keyword_enabled")) &&
     isEmergencyKeyword(
       payload.text ?? "",
       effectiveEmergencyKeywords(company?.emergency_keywords),

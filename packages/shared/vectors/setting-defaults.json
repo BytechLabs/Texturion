@@ -1,0 +1,344 @@
+[
+  {
+    "table": "companies",
+    "key": "after_hours_calls",
+    "value": "ring_everyone",
+    "revenue": true
+  },
+  {
+    "table": "companies",
+    "key": "ring_strategy",
+    "value": "all",
+    "revenue": true
+  },
+  {
+    "table": "companies",
+    "key": "ring_seconds",
+    "value": 45,
+    "revenue": true
+  },
+  {
+    "table": "companies",
+    "key": "away_enabled",
+    "value": false,
+    "revenue": true
+  },
+  {
+    "table": "companies",
+    "key": "call_screening",
+    "value": "flag",
+    "revenue": true
+  },
+  {
+    "table": "companies",
+    "key": "us_texting_enabled",
+    "value": true,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "emergency_keyword_enabled",
+    "value": true,
+    "revenue": true
+  },
+  {
+    "table": "companies",
+    "key": "emergency_reply_enabled",
+    "value": true,
+    "revenue": true
+  },
+  {
+    "table": "companies",
+    "key": "overage_cap_multiplier",
+    "value": 3,
+    "revenue": true
+  },
+  {
+    "table": "companies",
+    "key": "mctb_enabled",
+    "value": false,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "caller_id_lookup",
+    "value": true,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "push_include_content",
+    "value": true,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "first_message_identification",
+    "value": false,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "quiet_hours_confirm_enabled",
+    "value": true,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "response_stats_per_member",
+    "value": false,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "tags_locked",
+    "value": false,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "lead_chase_crew_enabled",
+    "value": false,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "on_call_escalate_after_minutes",
+    "value": 10,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "timezone",
+    "value": "America/Toronto",
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "locale",
+    "value": "en",
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "business_hours",
+    "value": {},
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "business_hours_exceptions",
+    "value": [],
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "hold_scheduled_on_reply",
+    "value": true,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "hold_reminders_on_reply",
+    "value": true,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "hold_rating_ask_on_reply",
+    "value": true,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "hold_reminders_unverified_calendar",
+    "value": true,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "rating_ask_enabled",
+    "value": true,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "rating_ask_delay_hours",
+    "value": 4,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "rating_ask_expiry_hours",
+    "value": 24,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "rating_ask_cooldown_days",
+    "value": 30,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "scheduled_text_expiry_hours",
+    "value": 24,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "reminder_expiry_hours",
+    "value": 2,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "auto_reply_cooldown_minutes",
+    "value": 180,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "away_message",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "mctb_message",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "emergency_keywords",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "emergency_message",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "offramp_message",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "voicemail_greeting",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "voicemail_greeting_id",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "after_hours_greeting_id",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "cnam_display_name",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "notify_email_limit",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "notify_push_limit",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "high_priority_push_limit",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "retention_days",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "backup_owner_user_id",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "mfa_required_at",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "companies",
+    "key": "widget_number_id",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "notification_prefs",
+    "key": "email_enabled",
+    "value": true,
+    "revenue": true
+  },
+  {
+    "table": "notification_prefs",
+    "key": "push_enabled",
+    "value": true,
+    "revenue": true
+  },
+  {
+    "table": "notification_prefs",
+    "key": "delivery",
+    "value": {},
+    "revenue": false
+  },
+  {
+    "table": "notification_prefs",
+    "key": "quiet_from",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "notification_prefs",
+    "key": "quiet_to",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "notification_prefs",
+    "key": "quiet_timezone",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "notification_prefs",
+    "key": "batch_window_minutes",
+    "value": null,
+    "revenue": false
+  },
+  {
+    "table": "notification_prefs",
+    "key": "summary_at",
+    "value": null,
+    "revenue": false
+  }
+]

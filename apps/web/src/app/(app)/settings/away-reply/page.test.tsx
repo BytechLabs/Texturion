@@ -39,6 +39,7 @@ function setReach(
   } as unknown as CompanyView["registration"];
 }
 
+vi.mock("@/components/settings/setting-choice-note", () => ({ SettingChoiceNote: () => null }));
 vi.mock("@/lib/api/companies", () => ({
   useCompany: () => ({
     isPending: false,

@@ -27,6 +27,9 @@ export const keys = {
     ["available-numbers", country, areaCode, bestEffort, contains ?? null] as const,
 
   company: (companyId: string) => [companyId, "company"] as const,
+  /** #749: who chose each setting that can lose a customer, when it is off its default. */
+  settingChoices: (companyId: string) =>
+    [companyId, "company", "setting-choices"] as const,
   usage: (companyId: string) => [companyId, "usage"] as const,
   modules: (companyId: string) => [companyId, "modules"] as const,
   /** #490: calls that reached a line which could not take them. */

@@ -43,12 +43,13 @@
  */
 import type { BusinessHours, HoursException } from "@loonext/shared";
 import {
-  stateMachines,
-  TAGS_PER_WORKSPACE,
-  WORK_PHASES,
+  companySettingDefault,
   hasBusinessHours,
   roleHasCapability,
   shouldOfferThreadSummary,
+  stateMachines,
+  TAGS_PER_WORKSPACE,
+  WORK_PHASES,
 } from "@loonext/shared";
 import {
   CALL_WRAPUP_FEATURE_SPEC,
@@ -1591,7 +1592,7 @@ conversationsRoutes.post(
       companyName: company?.name ?? "",
       contactName,
       messages,
-      timezone: company?.timezone ?? "America/Toronto",
+      timezone: company?.timezone ?? companySettingDefault("timezone"),
       now: new Date(),
       // Only a company that has actually set hours gets them in the prompt; the
       // default is an empty jsonb map, which reads as unset.
@@ -1914,7 +1915,7 @@ conversationsRoutes.post(
       companyName: company?.name ?? "",
       contactName: contact?.name?.trim() || null,
       messages: window,
-      timezone: company?.timezone ?? "America/Toronto",
+      timezone: company?.timezone ?? companySettingDefault("timezone"),
       now: new Date(),
     });
 

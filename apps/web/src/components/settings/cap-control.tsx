@@ -3,6 +3,9 @@
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
+import { companySettingDefault } from "@loonext/shared";
+
+import { SettingChoiceNote } from "@/components/settings/setting-choice-note";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
@@ -152,6 +155,10 @@ export function CapControl({
         <span>{t("settings.capRailMin", { n: MIN_CAP_MULTIPLIER })}</span>
         <span>{t("settings.capRailMax", { n: MAX_CAP_MULTIPLIER })}</span>
       </div>
+      <SettingChoiceNote
+        settingKey="overage_cap_multiplier"
+        defaultLabel={capLabel(companySettingDefault("overage_cap_multiplier"))}
+      />
 
       {proposed >= MAX_CAP_MULTIPLIER && (
         <p className="mt-2 text-[12px] text-app-muted">

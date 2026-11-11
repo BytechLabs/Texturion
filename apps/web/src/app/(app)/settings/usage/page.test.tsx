@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // #725: the effect note reads company and query context these tests do not mount.
+vi.mock("@/components/settings/setting-choice-note", () => ({ SettingChoiceNote: () => null }));
 vi.mock("@/components/settings/call-effect-note", () => ({ CallEffectNote: () => null }));
 
 import type { Usage } from "@/lib/api/types";

@@ -40,6 +40,7 @@ import {
 } from "./conversation-prefs";
 import { deliverPush } from "./deliver";
 import { THREAD_PUSH_COPY } from "./thread-copy";
+import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 
 const SNIPPET_LENGTH = 80;
 
@@ -210,7 +211,7 @@ export async function notifyInboundMessage(
   // member who wants email still does not get one past the company's cap.
   const emailUsers = (input.allowEmail ?? true)
     ? audience
-        .filter((userId) => prefs.get(userId)?.email_enabled ?? true)
+        .filter((userId) => prefs.get(userId)?.email_enabled ?? NOTIFICATION_SETTING_DEFAULTS.email_enabled.value)
         // The claim is ONE Resend call carrying every recipient, so this bound
         // is what keeps the per-claim cost from scaling with crew size — see
         // the derivation on PLAN_NOTIFY_LIMITS. Push below is unbounded and
@@ -219,7 +220,7 @@ export async function notifyInboundMessage(
         .slice(0, MAX_EMAIL_RECIPIENTS_PER_CLAIM)
     : [];
   const pushUsers = (input.allowPush ?? true)
-    ? audience.filter((userId) => prefs.get(userId)?.push_enabled ?? true)
+    ? audience.filter((userId) => prefs.get(userId)?.push_enabled ?? NOTIFICATION_SETTING_DEFAULTS.push_enabled.value)
     : [];
 
   // The one form every alert names a customer in — shared rather than restated,

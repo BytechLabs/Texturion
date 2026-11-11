@@ -20,13 +20,14 @@
 import {
   AUTOMATIC_TEXT_BOUNDS,
   AUTOMATIC_TEXT_KEYS,
+  companySettingDefault,
   isValidBusinessHours,
   isValidHoursExceptions,
   LOCALES,
   NANP_AREA_CODES,
-  screenBusinessName,
   RING_SECONDS_MAX,
   RING_SECONDS_MIN,
+  screenBusinessName,
 } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -532,7 +533,7 @@ companiesRoutes.post("/companies", async (c) => {
       p_requested_area_code: body.requested_area_code,
       // us_texting_enabled applies to CA (SPEC §4.2); US is always true.
       p_us_texting_enabled:
-        body.country === "US" ? true : (body.us_texting_enabled ?? true),
+        body.country === "US" ? true : (body.us_texting_enabled ?? companySettingDefault("us_texting_enabled")),
       // Omitted → the SQL default ('America/Toronto', D15) applies.
       ...(body.timezone !== undefined ? { p_timezone: body.timezone } : {}),
     }),

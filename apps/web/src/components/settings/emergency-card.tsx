@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { X } from "lucide-react";
 
 import { SettingsCard } from "@/components/settings/section";
+import { SettingChoiceNote } from "@/components/settings/setting-choice-note";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -272,6 +273,10 @@ export function EmergencyCard({
               }}
             />
           </div>
+          <SettingChoiceNote
+            settingKey="emergency_reply_enabled"
+            defaultLabel={t("settings.choiceDefaultOn")}
+          />
           <p className="text-muted-foreground text-sm">
             {t("settings.emergencyReplyHelp")}
           </p>

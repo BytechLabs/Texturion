@@ -57,6 +57,7 @@ import {
   revokeLinksForSubject,
 } from "../public-links/tokens";
 import { parseOptionalJsonBody, pathUuid } from "./core/http";
+import { companySettingDefault } from "@loonext/shared";
 
 /** Authenticated: the crew mints and revokes. Mounted under /v1. */
 export const jobPhotoShareRoutes = new Hono<AppEnv>();
@@ -306,7 +307,7 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
      * own choice that decides. A Quebec crew's customer meeting an English page
      * is the Bill 96 problem in miniature.
      */
-    locale: (company as { locale?: string | null } | null)?.locale ?? "en",
+    locale: (company as { locale?: string | null } | null)?.locale ?? companySettingDefault("locale"),
     photos: loaded.photos,
     // Said out loud rather than quietly dropping the rest. Somebody looking at
     // "everything we did" has to know when it is not everything.

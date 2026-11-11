@@ -86,7 +86,7 @@ import { getDb } from "../db";
 import { emitWebhookEvent, enqueueWebhookEvent } from "../webhooks/outbound";
 import { askForJobRating } from "../messaging/job-ratings";
 import { getEnv } from "../env";
-import { roleHasCapability } from "@loonext/shared";
+import { companySettingDefault, roleHasCapability } from "@loonext/shared";
 import { ApiError, errorResponse } from "../http/errors";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
@@ -1329,7 +1329,7 @@ async function loadEnrichmentContext(
   }
 
   return {
-    timezone: company?.timezone ?? "America/Toronto",
+    timezone: company?.timezone ?? companySettingDefault("timezone"),
     contactAddress,
   };
 }

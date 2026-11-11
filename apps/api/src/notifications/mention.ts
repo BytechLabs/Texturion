@@ -25,6 +25,7 @@ import type { Env } from "../env";
 import { deliverPush } from "./deliver";
 import { notificationSnippet } from "./inbound";
 import { THREAD_PUSH_COPY } from "./thread-copy";
+import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 
 export interface NoteMentionNotificationInput {
   companyId: string;
@@ -99,7 +100,7 @@ export async function notifyNoteMention(
   );
   const prefs = new Map(prefRows.map((row) => [row.user_id, row]));
   const pushUsers = audience.filter(
-    (userId) => prefs.get(userId)?.push_enabled ?? true,
+    (userId) => prefs.get(userId)?.push_enabled ?? NOTIFICATION_SETTING_DEFAULTS.push_enabled.value,
   );
   if (pushUsers.length === 0) return;
 

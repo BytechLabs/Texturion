@@ -30,6 +30,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
 import { NUMBER_NOTICE_COPY } from "./number-copy";
+import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 
 /**
  * What the lock screen says, in each of the two situations approval can land in.
@@ -129,7 +130,7 @@ export async function pushRegistrationApproved(
     );
     // Default true: a member who has never opened the settings screen has not
     // opted out of anything.
-    const recipients = audience.filter((userId) => prefs.get(userId) ?? true);
+    const recipients = audience.filter((userId) => prefs.get(userId) ?? NOTIFICATION_SETTING_DEFAULTS.push_enabled.value);
     if (recipients.length === 0) return;
 
     const failures: unknown[] = [];

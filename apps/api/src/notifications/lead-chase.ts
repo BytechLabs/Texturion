@@ -27,6 +27,7 @@ import {
   isValidBusinessHours,
   LEAD_CHASE_WIDEN_MINUTES,
   leadChaseNotification,
+  NOTIFICATION_SETTING_DEFAULTS,
 } from "@loonext/shared";
 
 import { listConversationViewers } from "../auth/conversation-audience";
@@ -170,7 +171,7 @@ async function sendChase(
   // A member who turned push off does not get it back through a side door.
   // This is the rule that keeps the ladder from being a way around the
   // preference rather than a feature within it.
-  const pushUsers = audience.filter((userId) => prefs.get(userId)?.push_enabled ?? true);
+  const pushUsers = audience.filter((userId) => prefs.get(userId)?.push_enabled ?? NOTIFICATION_SETTING_DEFAULTS.push_enabled.value);
   if (pushUsers.length === 0) return;
 
   const contactName = row.contact_name?.trim() || row.contact_phone;

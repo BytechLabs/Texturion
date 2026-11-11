@@ -21,6 +21,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const CONTAINER = "supabase_db_Loonext";
 const OUT = "apps/api/src/test/schema-snapshot.json";
+// #749: the tables whose column defaults are settings, checked against packages/shared/src/setting-defaults.ts.
+const DEFAULT_TABLES = ["companies", "notification_prefs", "phone_numbers"]
+  .map((name) => `'${name}'`)
+  .join(", ");
 
 const QUERY = `
 select json_build_object(
@@ -57,6 +61,16 @@ select json_build_object(
     join pg_class rc on rc.oid = con.confrelid
     join pg_namespace n on n.oid = cl.relnamespace and n.nspname = 'public'
     where con.contype = 'f'
+  ),
+  'defaults', (
+    select coalesce(json_object_agg(d.table_name, d.columns order by d.table_name), '{}'::json)
+    from (
+      select c.table_name,
+             json_object_agg(c.column_name, c.column_default order by c.column_name) as columns
+      from information_schema.columns c
+      where c.table_schema = 'public' and c.table_name in (${DEFAULT_TABLES})
+      group by c.table_name
+    ) d
   )
 )`;
 
@@ -73,6 +87,9 @@ function render() {
       `    ${JSON.stringify(name)}: ${JSON.stringify({ kind: t.kind, columns: t.columns ?? [], computed: t.computed ?? [] })}`,
   );
   const fks = schema.foreignKeys.map((f) => `    ${JSON.stringify(f)}`);
+  const defaults = Object.entries(schema.defaults).map(
+    ([name, columns]) => `    ${JSON.stringify(name)}: ${JSON.stringify(columns)}`,
+  );
   return `{
   "generated": "by scripts/api-schema-snapshot.mjs from the local database built from supabase/migrations; do not edit, run --write (#750)",
   "tables": {
@@ -80,7 +97,10 @@ ${tables.join(",\n")}
   },
   "foreignKeys": [
 ${fks.join(",\n")}
-  ]
+  ],
+  "defaults": {
+${defaults.join(",\n")}
+  }
 }
 `;
 }
