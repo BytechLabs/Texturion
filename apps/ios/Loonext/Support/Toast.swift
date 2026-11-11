@@ -79,8 +79,6 @@ extension ThreadNotice {
 struct ToastView: View {
     let notice: ThreadNotice
     let onDismiss: @MainActor () -> Void
-    @Environment(\.openURL) private var openURL
-
     var body: some View {
         HStack(spacing: 12) {
             Text(notice.text)
@@ -98,7 +96,7 @@ struct ToastView: View {
             // #710: a delete notice also leads to the Trash.
             if let trashLabel = notice.trashLabel {
                 Button(trashLabel) {
-                    openURL(RecordDeletion.trashURL)
+                    AppRouter.shared.openTrash = true
                     onDismiss()
                 }
                 .font(.golos(12.5, weight: .semibold))

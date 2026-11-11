@@ -17,6 +17,7 @@ enum A11yAuditSurface: String, CaseIterable {
     case settings
     case settingsSearch
     case account
+    case trash
 
     /// The surface this launch asked for, if any.
     static var requested: A11yAuditSurface? {
@@ -75,6 +76,8 @@ struct A11yAuditHost: View {
             settingsSearchFixture()
         case .account:
             accountSheetFixture()
+        case .trash:
+            trashListFixture()
         }
     }
 }

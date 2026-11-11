@@ -20,6 +20,8 @@ import Foundation
 ///   "See them"); set alongside `openCalls`.
 /// - `openContacts` — show the contacts surface (nav-less destination reached
 ///   from the account sheet).
+/// - `openTrash` — present the native Trash sheet (#735): the account sheet's
+///   Trash row, the thread's "View Trash" and a delete toast's "View Trash".
 /// - `openInbox` + `inboxDestination` — show the inbox landed on a filter
 ///   (#508, the response-time card's unanswered row). The Android twin of this
 ///   pair is the `InboxDestination` the shell holds and hands down.
@@ -61,6 +63,7 @@ struct InboxDestination: Equatable, Sendable {
     @Published var callsReason: String?          // command (#725): narrow the calls log to one reason (the calls tab reads it, then clears)
     @Published var openCalls: Bool = false        // command: show the calls tab
     @Published var openContacts: Bool = false     // command: show the contacts surface
+    @Published var openTrash: Bool = false        // command (#735): present the native Trash sheet
     // #508 command: show the inbox landed on a filter. Two fields for the same
     // reason `openConversationId` and `pendingHighlightMessageId` are two: the
     // SHELL owns the tab switch and the INBOX owns its own filters, so each

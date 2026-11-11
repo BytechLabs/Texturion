@@ -240,9 +240,9 @@ private struct ThreadBody: View {
                 controller.restoreConversation()
             }
             .buttonStyle(.bordered)
-            // #710: the Trash is otherwise only under Settings > History on the web.
+            // #710/#735: the native Trash.
             Button(AppStrings.translate(appLocale, "trash.viewTrash")) {
-                openURL(RecordDeletion.trashURL)
+                AppRouter.shared.openTrash = true
             }
             .buttonStyle(.bordered)
             Button(

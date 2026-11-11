@@ -47,6 +47,7 @@ private enum ShellSheet: Identifiable {
     case account
     case notifications
     case settings
+    case trash
     case compose(prefillContactId: String?, prefillPhone: String?)
 
     var id: String {
@@ -54,6 +55,7 @@ private enum ShellSheet: Identifiable {
         case .account: "account"
         case .notifications: "notifications"
         case .settings: "settings"
+        case .trash: "trash"
         case .compose(let contactId, let phone):
             "compose:\(contactId ?? "")|\(phone ?? "")"
         }
@@ -211,6 +213,12 @@ struct ShellView: View {
             guard let number else { return }
             router.composeTo = nil
             activeSheet = .compose(prefillContactId: nil, prefillPhone: number)
+        }
+        // #735: the native Trash, from the account sheet, a thread and a delete toast.
+        .onReceive(router.$openTrash) { open in
+            guard open else { return }
+            router.openTrash = false
+            activeSheet = .trash
         }
         .onReceive(router.$openContacts) { open in
             guard open else { return }
@@ -730,6 +738,12 @@ struct ShellView: View {
                 me: hydratedMe,
                 onSignOut: { root.signOut() },
                 initialSection: pendingSettingsSection
+            )
+        case .trash:
+            TrashView(
+                graph: graph,
+                companyId: companyId,
+                meUserId: hydratedMe.user_id
             )
         case .compose(let prefillContactId, let prefillPhone):
             NewConversationView(

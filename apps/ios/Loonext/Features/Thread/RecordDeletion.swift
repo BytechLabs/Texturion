@@ -11,7 +11,8 @@ enum TrashKind: String, Sendable {
 
 /// The delete and restore calls for messages, conversations, calls and
 /// voicemails. A delete moves the record to the workspace Trash for 30 days;
-/// restore is what an Undo calls. Trash management itself is web-only.
+/// restore is what an Undo calls. The Trash screen (#735) restores and purges
+/// through `TrashModel`.
 struct RecordDeletionRepository: Sendable {
     let api: ApiClient
 
@@ -64,10 +65,6 @@ enum RecordDeletion {
             && (message.status == MessageStatus.sent
                 || message.status == MessageStatus.delivered)
     }
-
-    /// #710/#735: the web Trash. The phones hold no Trash screen, so "View Trash"
-    /// and the account sheet's Trash row open this in the browser.
-    static let trashURL = AppConfig.appOrigin.appendingPathComponent("trash")
 
     static func isNote(_ message: Message) -> Bool {
         message.direction == MessageDirection.note

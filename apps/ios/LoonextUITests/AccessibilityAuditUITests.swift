@@ -45,6 +45,10 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     func testAccountSheet() throws { try audit("account") }
 
+    // MARK: Trash (#735)
+
+    func testTrash() throws { try audit("trash") }
+
     // MARK: Exact time
 
     /// #720: a long-press on a call row opens its menu, which leads with the
@@ -86,7 +90,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testDarkTheme() throws {
         for surface in [
             "login", "inbox", "thread", "calls", "tasks", "contacts", "dialer", "settings",
-            "settingsSearch", "account",
+            "settingsSearch", "account", "trash",
         ] {
             try audit(surface, theme: "dark")
         }
