@@ -8,6 +8,11 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { calendarConnectionMachine } from "./calendar-connection";
+import { calendarLinkMachine } from "./calendar-link";
+import { calendarOutboxMachine } from "./calendar-outbox";
+import { calendarPushSubscriptionMachine } from "./calendar-push-subscription";
+import { calendarReminderReplanMachine } from "./calendar-reminder-replan";
 import { dataExportMachine } from "./data-export";
 import { messageMachine } from "./message";
 import { paymentRequestMachine } from "./payment-request";
@@ -20,13 +25,13 @@ import { webhookDeliveryMachine } from "./webhook-delivery";
 
 const MIGRATIONS = join(__dirname, "..", "..", "..", "..", "supabase", "migrations");
 
-/** The `old.status = 'x' and new.status in (...)` pairs in a guard function. */
+/** The `old.<column> = 'x' and new.<column> in (...)` pairs in a guard function. */
 function triggerEdges(file: string, fn: string): Map<string, string[]> {
   const sql = readFileSync(join(MIGRATIONS, file), "utf8");
   const start = sql.indexOf(`function public.${fn}()`);
   const body = sql.slice(start, sql.indexOf("$$;", start));
   const edges = new Map<string, string[]>();
-  for (const match of body.matchAll(/old\.status = '([\w-]+)' and new\.status in \(([^)]*)\)/g)) {
+  for (const match of body.matchAll(/old\.\w+ = '([\w-]+)' and new\.\w+ in \(([^)]*)\)/g)) {
     edges.set(
       match[1]!,
       [...match[2]!.matchAll(/'([\w-]+)'/g)].map((m) => m[1]!).sort(),
@@ -34,6 +39,14 @@ function triggerEdges(file: string, fn: string): Map<string, string[]> {
   }
   return edges;
 }
+
+const CALENDAR_GUARDS = new Set([
+  "calendar_connections_transition_guard",
+  "task_calendar_links_transition_guard",
+  "calendar_outbox_transition_guard",
+  "calendar_reminder_replans_transition_guard",
+  "webhook_subscriptions_transition_guard",
+]);
 
 describe("#722 enforced machines", () => {
   it("scheduled_message: the trigger allows exactly the defined moves", () => {
@@ -69,13 +82,20 @@ describe("#722 enforced machines", () => {
     ["phone_number", phoneNumberMachine, "phone_numbers_transition_guard"],
     ["registration", registrationMachine, "messaging_registrations_status_forward_only"],
     ["text_enablement", textEnablementMachine, "text_enablement_orders_status_forward_only"],
+    ["calendar_connection", calendarConnectionMachine, "calendar_connections_transition_guard"],
+    ["calendar_link", calendarLinkMachine, "task_calendar_links_transition_guard"],
+    ["calendar_outbox", calendarOutboxMachine, "calendar_outbox_transition_guard"],
+    ["calendar_reminder_replan", calendarReminderReplanMachine, "calendar_reminder_replans_transition_guard"],
+    ["calendar_push_subscription", calendarPushSubscriptionMachine, "webhook_subscriptions_transition_guard"],
   ] as const)("%s: the trigger allows exactly the defined moves", (_name, machine, fn) => {
     const edges = triggerEdges(
       fn === "phone_numbers_transition_guard"
         ? "20261111330000_a_number_keeps_its_lifecycle.sql"
         : fn.endsWith("_status_forward_only")
           ? "20261111340000_registrations_and_text_enablement_keep_their_lifecycles.sql"
-          : "20261111320000_payments_quotes_exports_and_webhooks_keep_their_lifecycles.sql",
+          : CALENDAR_GUARDS.has(fn)
+            ? "20261111350000_the_calendar_keeps_its_lifecycles.sql"
+            : "20261111320000_payments_quotes_exports_and_webhooks_keep_their_lifecycles.sql",
       fn,
     );
     expect(edges.size, "the trigger was not found or has no edges").toBeGreaterThan(0);

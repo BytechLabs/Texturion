@@ -24,7 +24,8 @@ export const calendarLinkMachine = defineMachine<CalendarLinkState>({
   transitions: {
     active: ["conflict", "event_removed", "refused", "unlinked"],
     conflict: ["active", "unlinked"],
-    event_removed: ["active", "unlinked"],
+    // The provider can refuse a link whose event is already gone.
+    event_removed: ["active", "refused", "unlinked"],
     refused: ["active", "event_removed", "unlinked"],
     unlinked: ["active"],
   },
