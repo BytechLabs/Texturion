@@ -707,6 +707,14 @@ private struct SettingsSectionRow: View {
 /// #180 responsive matrix — fixed frames prove every row stays reachable via
 /// scroll at each ratio.
 private struct SettingsIndexPreview: View {
+    /// The marker by the real rule, for a workspace that arrived 200 days ago.
+    private var showWhatsNewMarker: Bool {
+        hasUnseenWhatsNew(
+            lastSeen: readWhatsNewSeen(),
+            joinedAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-200 * 86_400))
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 13) {
@@ -720,7 +728,12 @@ private struct SettingsIndexPreview: View {
                             ForEach(Array(entry.sections.enumerated()), id: \.element.id) { index, section in
                                 if index > 0 { RowDivider() }
                                 // A button, as the real rows are links: one element per row.
-                                Button {} label: { SettingsSectionRow(section: section) }
+                                Button {} label: {
+                                    SettingsSectionRow(
+                                        section: section,
+                                        showMarker: section == .whatsNew && showWhatsNewMarker
+                                    )
+                                }
                                     .buttonStyle(.plain)
                             }
                         }
