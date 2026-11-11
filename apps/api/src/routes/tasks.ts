@@ -465,7 +465,7 @@ function priorityKeysetFilter(cursor: PriorityCursor): string {
  * Columns of the tasks row the API returns (T1.1). No status column: `done` is
  * derived (see TASK_DONE_AT) and added to each row by `withSource`/the callers.
  */
-const TASK_COLUMNS =
+export const TASK_COLUMNS =
   "id,company_id,number,message_id,source_call_id,conversation_id,contact_id,title,description," +
   "assigned_user_id,due_at,created_by_user_id,created_at,updated_at," +
   // #214 structured job address + provenance (null when the task has no address).
