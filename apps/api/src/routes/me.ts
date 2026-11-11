@@ -16,7 +16,14 @@
  * profile name — the signup form is the only other place that sets one, and
  * invitees never pass through it).
  */
-import { DASHBOARD_PANEL_IDS, LOCALES, normaliseHiddenPanels } from "@loonext/shared";
+import {
+  DASHBOARD_PANEL_IDS,
+  LAYOUT_PANEL_IDS,
+  LOCALES,
+  normaliseDashboardLayout,
+  normaliseHiddenPanels,
+  PANEL_SIZES,
+} from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -53,6 +60,7 @@ interface MembershipRow {
   company_id: string;
   role: string;
   dashboard_hidden: string[] | null;
+  dashboard_layout: unknown;
   companies: { name: string; subscription_status: string; locale: string | null };
 }
 
@@ -67,6 +75,17 @@ interface MembershipRow {
  */
 const dashboardHiddenSchema = z.object({
   hidden: z.array(z.enum(DASHBOARD_PANEL_IDS)).max(DASHBOARD_PANEL_IDS.length),
+});
+
+/** #736 — PUT /v1/me/dashboard-layout body. Null puts the default back. */
+const dashboardLayoutSchema = z.object({
+  layout: z
+    .object({
+      panels: z
+        .array(z.object({ id: z.enum(LAYOUT_PANEL_IDS), size: z.enum(PANEL_SIZES) }))
+        .max(LAYOUT_PANEL_IDS.length),
+    })
+    .nullable(),
 });
 
 export const meRoutes = new Hono<AppEnv>();
@@ -229,6 +248,33 @@ meRoutes.put(
   },
 );
 
+/**
+ * PUT /v1/me/dashboard-layout — #736. This member's own For you layout: which
+ * panels, in what order, how wide. The whole layout every time, like the
+ * hidden set above, and null to go back to the default.
+ */
+meRoutes.put(
+  "/me/dashboard-layout",
+  requireCapability("workspace.access"),
+  async (c) => {
+    const body = await parseJsonBody(c, dashboardLayoutSchema);
+    const layout = normaliseDashboardLayout(body.layout);
+    const db = getDb(getEnv(c.env));
+    const { data, error } = await db.rpc("api_set_dashboard_layout", {
+      p_company_id: c.get("companyId"),
+      p_user_id: c.get("userId"),
+      p_layout: layout,
+    });
+    if (error) {
+      if (error.code === "P0002" || /no active membership/i.test(error.message)) {
+        return errorResponse(c, "forbidden", "Not an active member of this company.");
+      }
+      throw new Error(`dashboard layout save failed: ${error.message}`);
+    }
+    return c.json({ layout: normaliseDashboardLayout(data) });
+  },
+);
+
 // #112: the caller sets their OWN display name (the team sees it everywhere —
 // members list, avatars, notes). Company-exempt: the invite flow collects the
 // name BEFORE the first membership exists. Upsert mirrors the signup trigger
@@ -318,7 +364,7 @@ meRoutes.get("/me", async (c) => {
         // know which language to draw itself in BEFORE it paints. A second
         // round trip would cost an English flash on every load for a French
         // workspace, which is the one reader this is for.
-        "company_id,role,dashboard_hidden,companies!inner(name,subscription_status,deleted_at,locale)",
+        "company_id,role,dashboard_hidden,dashboard_layout,companies!inner(name,subscription_status,deleted_at,locale)",
       )
       .eq("user_id", userId)
       .is("deactivated_at", null)
@@ -355,6 +401,8 @@ meRoutes.get("/me", async (c) => {
     // simply not hidden any more rather than a panel the client cannot account
     // for. Clients then need no defensive handling of their own.
     dashboard_hidden: normaliseHiddenPanels(row.dashboard_hidden ?? []),
+    // #736: null is the default layout, which the client builds from the queue.
+    dashboard_layout: normaliseDashboardLayout(row.dashboard_layout),
   }));
 
   const body: Record<string, unknown> = {

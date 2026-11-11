@@ -4,6 +4,7 @@
  * threaded rows into the inbox and everything else at /calls, and stays
  * absent while there are no calls.
  */
+import type { DashboardLayout } from "@loonext/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +17,8 @@ const state: {
   spamReview: SpamReviewItem[];
   /** #540: the panels this member has put away. */
   hidden: string[];
+  /** #736: the member's arranged page, or undefined for the default. */
+  layout?: DashboardLayout | null;
 } = {
   forYou: { waiting_on_you: [], my_tasks: [], unread: [], triage: null },
   calls: [],
@@ -82,6 +85,9 @@ vi.mock("@/lib/api/me-company", () => ({
   // assert that a panel a member put away actually stays off the screen.
   useHiddenPanels: () => state.hidden,
   useSetHiddenPanels: () => ({ mutate: vi.fn(), isError: false }),
+  // #736: the default layout unless a test arranges one.
+  useDashboardLayout: () => state.layout ?? null,
+  useSetDashboardLayout: () => ({ mutate: vi.fn(), isError: false }),
 }));
 
 vi.mock("@/lib/api/conversations", () => ({
@@ -194,6 +200,7 @@ function render(): string {
 // somewhere unrelated.
 beforeEach(() => {
   state.hidden = [];
+  state.layout = undefined;
 });
 
 describe("ForYouView follow-up reminders (#293)", () => {
@@ -727,9 +734,8 @@ describe("#540 the strip and the sections agree, and both lead with urgency", ()
  * declared first, which is exactly what breaks if somebody later reorders the
  * record instead of the array.
  */
-describe("#540 the bento gives the widest slot to the queue that needs it", () => {
+describe("#736 the page follows the member's layout", () => {
   const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
-
   const overdueTask = {
     task_id: "t1",
     title: "Send the quote",
@@ -739,104 +745,49 @@ describe("#540 the bento gives the widest slot to the queue that needs it", () =
     due_at: hoursAgo(30),
     overdue: true,
   };
-
-  const unreadItem = {
-    conversation_id: "c-u",
-    status: "open",
-    contact: { id: "p-u", name: "Uma Unread", phone_e164: "+16135550107" },
-    assigned_user_id: "u1",
-    last_message_at: hoursAgo(0.2),
-  } as ForYou["unread"][number];
-
-  /**
-   * The queue sections are anchored by their CONTENT, never by their heading.
-   *
-   * The summary tile strip renders every queue's NAME above the sections, so
-   * `indexOf("My tasks")` lands on the tile — which made the original version
-   * of the first test below slice an empty range and assert nothing at all. A
-   * contact name and a task title appear only where the queue itself is drawn.
-   */
+  // Rows, not headings: the summary strip above the panels repeats every
+  // queue's NAME, so only a row's own words say where its panel was drawn.
   const TASK_ROW = "Send the quote";
   const WAITING_ROW = "Wendy Lead";
-  const UNREAD_ROW = "Uma Unread";
 
-  it("spans the first queue WITH WORK, not the first declared one", () => {
-    // Unassigned is declared first. Here it is empty, My tasks is overdue and
-    // Waiting on you also has work — so the double-width slot must go to My
-    // tasks, with the other queue falling in beside it.
-    state.forYou = {
-      waiting_on_you: [waitingItem],
-      my_tasks: [overdueTask],
-      unread: [],
-      triage: null,
-    };
+  it("draws the queues in the urgency order when nothing is arranged", () => {
+    state.forYou = queue({ waiting_on_you: [waitingItem], my_tasks: [overdueTask] });
     const html = render();
-    const spanAt = html.indexOf("xl:col-span-2");
-    expect(spanAt).toBeGreaterThan(-1);
-    // The wide wrapper opens before the My tasks ROWS, with no other queue's
-    // rows in between.
-    const between = html.slice(spanAt, html.indexOf(TASK_ROW));
-    expect(between.length).toBeGreaterThan(0);
-    expect(between).not.toContain(WAITING_ROW);
+    // My tasks is overdue, so the urgency rule puts it first.
+    expect(html.indexOf(TASK_ROW)).toBeGreaterThan(-1);
+    expect(html.indexOf(TASK_ROW)).toBeLessThan(html.indexOf(WAITING_ROW));
   });
 
-  it("gives a LONE queue the whole row instead of leaving a column empty", () => {
-    // The void this issue was reopened about, in its purest form. A single live
-    // queue taking two of three columns leaves the third holding nothing — the
-    // same dead space as a short panel beside a tall one, arrived at from the
-    // other direction. It must take the full row instead.
-    state.forYou = {
-      waiting_on_you: [],
-      my_tasks: [overdueTask],
-      unread: [],
-      triage: null,
+  it("draws a member's own order instead", () => {
+    state.forYou = queue({ waiting_on_you: [waitingItem], my_tasks: [overdueTask] });
+    state.layout = {
+      panels: [
+        { id: "waiting", size: "full" },
+        { id: "tasks", size: "third" },
+      ],
     };
     const html = render();
-    expect(html).toContain(TASK_ROW);
-    // `xl:col-span-2` is the two-of-three slot and nothing else on this screen
-    // uses it, so its ABSENCE is exactly the property: with nothing to put
-    // beside the queue, no element claims two columns of three.
-    expect(html).not.toContain("xl:col-span-2");
+    expect(html.indexOf(WAITING_ROW)).toBeLessThan(html.indexOf(TASK_ROW));
   });
 
-  it("stacks the queues after the first rather than giving each a grid cell", () => {
-    // WHY THIS IS THE FIX. A CSS grid quantises into rows: with three live
-    // queues the primary spanned two columns, the second took the third, and
-    // the third dropped to a new row leaving TWO empty tracks beside it. The
-    // ones after the first share a single stacked column, so the space beside
-    // the primary holds the next thing to do rather than air.
-    state.forYou = {
-      waiting_on_you: [waitingItem],
-      my_tasks: [overdueTask],
-      unread: [unreadItem],
-      triage: null,
-    };
+  it("keeps a removed queue's work on the page as a line that puts it back", () => {
+    state.forYou = queue({ waiting_on_you: [waitingItem] });
+    state.layout = { panels: [{ id: "tasks", size: "third" }] };
     const html = render();
-    const spanAt = html.indexOf("xl:col-span-2");
-    expect(spanAt).toBeGreaterThan(-1);
-    const stackAt = html.indexOf("space-y-7 lg:space-y-6", spanAt);
-    expect(stackAt).toBeGreaterThan(spanAt);
-    // The primary's rows come before the stack opens; both remaining queues'
-    // rows come after it. So neither of them is a grid cell of its own, which
-    // is what left the empty tracks.
-    expect(html.indexOf(TASK_ROW)).toBeLessThan(stackAt);
-    expect(html.indexOf(WAITING_ROW)).toBeGreaterThan(stackAt);
-    expect(html.indexOf(UNREAD_ROW)).toBeGreaterThan(stackAt);
+    expect(html).not.toContain(WAITING_ROW);
+    expect(html).toContain("Waiting on you: 1 waiting, not on your page");
+    expect(html).toContain("Put it back");
   });
 
-  it("gives the measures their own row rather than four full-width bands", () => {
-    state.forYou = {
-      waiting_on_you: [],
-      my_tasks: [],
-      unread: [],
-      triage: null,
-    };
-    // One row, and as many columns as actually have a card. A FIXED column count
-    // is what this asserted first, and it was wrong in real pixels: two of these
-    // cards decide for themselves whether to render, so a four-column row on a
-    // workspace with three cards left an empty track — the dead space this issue
-    // opened with, one card at a time. `auto-fit` collapses it.
-    expect(render()).toContain("repeat(auto-fit,minmax(15rem,1fr))");
+  it("says nothing about a removed queue with nothing in it", () => {
+    state.forYou = queue({ waiting_on_you: [waitingItem] });
+    state.layout = { panels: [{ id: "waiting", size: "third" }] };
+    expect(render()).not.toContain("not on your page");
+  });
+
+  it("offers to arrange the page from its header", () => {
+    state.forYou = queue({ waiting_on_you: [waitingItem] });
+    expect(render()).toContain("Edit layout");
   });
 });
 
@@ -875,23 +826,6 @@ describe("ForYouView customising (#540)", () => {
     const html = render();
     expect(html).toContain("Waiting on you");
     expect(html).toContain("Wendy Lead");
-  });
-
-  it("marks the control when something is put away, and not before", () => {
-    state.forYou = queue({ waiting_on_you: [waitingItem] });
-    // The dot is the only way somebody finds out why their dashboard is shorter
-    // than a colleague's months after they trimmed it.
-    expect(render()).toContain("Customise this screen");
-    expect(render()).not.toContain("put away");
-
-    state.hidden = ["pipeline", "recent_calls"];
-    expect(render()).toContain("2 panels put away");
-  });
-
-  it("says panel, not panels, for one", () => {
-    state.forYou = queue({ waiting_on_you: [waitingItem] });
-    state.hidden = ["pipeline"];
-    expect(render()).toContain("1 panel put away");
   });
 
   it("draws no empty grid when every measure is off", () => {

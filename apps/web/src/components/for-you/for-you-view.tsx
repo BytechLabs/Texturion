@@ -1,12 +1,18 @@
 "use client";
 
-import { ArrowRight, Check, Search } from "lucide-react";
+import { ArrowRight, Check, LayoutGrid, Plus, RotateCcw, Search } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useLeaveTransition } from "@/components/ui/motion";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,7 +26,12 @@ import {
   useForYou,
   useSpamReview,
 } from "@/lib/api/for-you";
-import { useHiddenPanels } from "@/lib/api/me-company";
+import {
+  useDashboardLayout,
+  useHiddenPanels,
+  useSetDashboardLayout,
+  useSetHiddenPanels,
+} from "@/lib/api/me-company";
 import type {
   Call,
   ForYou,
@@ -37,7 +48,12 @@ import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 import { formatTimestamp } from "@/lib/format/time";
-import { CustomiseDashboard } from "@/components/for-you/customise-dashboard";
+import { BentoLayout, type BentoEditing } from "@/components/for-you/bento-layout";
+import {
+  PANEL_LABEL_KEYS,
+  PANEL_NOTE_KEYS,
+  PANEL_SIZE_KEYS,
+} from "@/components/for-you/panel-catalogue";
 import { OutstandingQuotesSection } from "@/components/for-you/outstanding-quotes-section";
 import { Section } from "@/components/for-you/section";
 import { LeadSourcesCard } from "@/components/for-you/lead-sources-card";
@@ -47,11 +63,25 @@ import { ResponseTimeCard } from "@/components/for-you/response-time-card";
 import { SatisfactionCard } from "@/components/for-you/satisfaction-card";
 import { WhileYouWait } from "@/components/for-you/while-you-wait";
 import {
+  addPanel,
+  avatarInitials,
+  DASHBOARD_PANEL_IDS,
   DASHBOARD_TILE_LABELS,
+  type DashboardLayout,
+  type DashboardPanelId,
   dashboardTiles,
   type DashboardTile,
   type DashboardTileId,
-  avatarInitials,
+  defaultDashboardLayout,
+  LAYOUT_PANEL_IDS,
+  type LayoutPanelId,
+  movePanel,
+  movePanelTo,
+  nextPanelSize,
+  normaliseHiddenPanels,
+  QUEUE_PANEL_IDS,
+  removePanel,
+  resizePanel,
 } from "@loonext/shared";
 import { cn } from "@/lib/utils";
 
@@ -677,6 +707,8 @@ export function ForYouView() {
   // #306: and not how many rows the SERVER sent either — that was capped at 20,
   // so the busiest crews were told they were the least busy.
   const total = forYou.data ? headlineWork(forYou.data) : 0;
+  // #736: arranging the page is a mode, entered and left from the header.
+  const [editing, setEditing] = useState(false);
 
   // #540: the strip, ordered by what to do first and carrying the age that makes
   // a count mean something.
@@ -740,7 +772,7 @@ export function ForYouView() {
         </div>
         {/* Desktop hosts search + bell in the top bar; keep those two here only
             on mobile (which has no top bar) so they aren't duplicated on lg+.
-            #540's Customise is NOT one of them — it belongs to this screen
+            #736's Edit layout is NOT one of them: it belongs to this screen
             rather than to the shell, so it stays at every width. */}
         <div className="flex items-center gap-1 pt-0.5">
           <button
@@ -757,9 +789,19 @@ export function ForYouView() {
           </span>
           {/* Last in the row, and quiet: it is the control you go looking for,
               not one that should compete with the queue.
-              *Applying: Zen of Clarity — a secondary action collapsed behind one
+              *Applying: Zen of Clarity, a secondary action behind one
               affordance.* */}
-          <CustomiseDashboard />
+          {forYou.data && (
+            <Button
+              variant={editing ? "default" : "outline"}
+              size="sm"
+              aria-pressed={editing}
+              onClick={() => setEditing((on) => !on)}
+            >
+              <LayoutGrid className="size-4" strokeWidth={1.75} aria-hidden />
+              {editing ? t("inbox.forYouDoneEditing") : t("inbox.forYouEditLayout")}
+            </Button>
+          )}
         </div>
       </header>
 
@@ -806,9 +848,10 @@ export function ForYouView() {
         </div>
       ) : (
         <ForYouSections
-            data={forYou.data}
-            order={strip.map((tile) => tile.id)}
-          />
+          data={forYou.data}
+          order={strip.map((tile) => tile.id)}
+          editing={editing}
+        />
       )}
     </div>
   );
@@ -925,402 +968,325 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
   );
 }
 
-/**
- * #540 — how the measures share a row: as many columns as actually have a card.
- *
- * A fixed `xl:grid-cols-4` was wrong for a reason that only showed up in real
- * pixels. Two of these cards decide for THEMSELVES whether to render — the
- * pipeline says nothing until there are quotes, and lead sources says nothing
- * until a source exists — so a four-column row on a workspace with three cards
- * left an empty track, which is a hole in the middle of the screen. Exactly the
- * dead space this issue was opened about, reintroduced one card at a time.
- *
- * `auto-fit` is the fix rather than counting the cards, because the parent CANNOT
- * count them: a card's decision to render nothing is made inside the card. Empty
- * tracks collapse, so whatever renders shares the row equally — four cards, three,
- * or one — and the same rule covers a member who put two away from Customise.
- *
- * The 15rem floor is what keeps it one column on a phone and stops a lone card
- * from stretching across a desktop.
- */
-const MEASURES_ROW = "grid gap-4 grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]";
+/** #540's hidden set is still honoured for the five panels the phones can put away. */
+function isHideablePanel(id: LayoutPanelId): id is DashboardPanelId {
+  return (DASHBOARD_PANEL_IDS as readonly string[]).includes(id);
+}
 
 /**
- * #540 — the four measures, in one place, honouring what the member put away.
- *
- * ONE component rather than the same four tags written twice, because the
- * dashboard renders them in two states (a working queue, and a caught-up
- * morning) and the preference has to apply identically in both. Two copies is
- * how one of them quietly stops honouring it.
- *
- * Renders nothing at all when every measure is hidden — an empty grid still
- * carries its gap and leaves a band of space that reads as a panel failing to
- * load.
+ * The calm, kind empty state (PORTAL-UX §3.1 / §6): every queue is clear. The
+ * measures and the call history still show below it, because a caught-up
+ * morning is the best moment to look at how the business is doing (#540).
  */
-function Measures({
-  hidden,
-  className,
+function CaughtUpCard() {
+  const t = useT();
+  return (
+    <div className="flex flex-col items-center gap-4 rounded-app-card border border-app-line bg-app-paper px-6 py-16 text-center">
+      <span className="grid size-12 place-items-center rounded-full bg-app-tint">
+        <Check className="size-6 text-app-olive-deep" strokeWidth={2} aria-hidden />
+      </span>
+      <div className="space-y-1">
+        <p className="text-[15px] font-semibold text-app-ink">{t("inbox.forYouAllCaughtUp")}</p>
+        <p className="text-sm text-app-muted">{t("inbox.forYouNewLeadsHere")}</p>
+      </div>
+      <Button asChild variant="outline" size="sm">
+        <Link href="/inbox">{t("inbox.forYouOpenInbox")}</Link>
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * #736: a queue taken off the page that still has work in it. Taking a panel
+ * away is the member's choice; a customer nobody answered going quiet is not,
+ * so the count stays on the page and one tap puts the panel back.
+ */
+function OffPageWork({
+  items,
+  onShow,
 }: {
-  hidden: readonly string[];
-  className?: string;
+  items: readonly { id: LayoutPanelId; count: number }[];
+  onShow: (id: LayoutPanelId) => void;
 }) {
-  const shown = (
-    [
-      ["response_time", <ResponseTimeCard key="response_time" />],
-      // #354: beside its neighbour, and absent entirely until there is
-      // something true to say.
-      ["pipeline", <PipelineCard key="pipeline" />],
-      // #313: "satisfaction alongside response time is the beginnings of an
-      // honest picture". Next to the speed number on purpose — how fast you
-      // answered and whether it landed are one thought, and separating them is
-      // how a business optimises the first while the second quietly slides.
-      ["satisfaction", <SatisfactionCard key="satisfaction" />],
-      // #301: last of the four, because it answers a slower question. Response
-      // time and satisfaction are about this week's work; where the customers
-      // came from is about next month's spending.
-      ["lead_sources", <LeadSourcesCard key="lead_sources" />],
-    ] as const
-  ).filter(([id]) => !hidden.includes(id));
+  const t = useT();
+  if (items.length === 0) return null;
+  return (
+    <ul className="divide-y divide-app-line-soft rounded-app-card border border-app-line bg-app-paper">
+      {items.map((item) => (
+        <li key={item.id} className="flex items-center gap-3 px-4 py-2.5">
+          <span className="min-w-0 flex-1 truncate text-[13px] text-app-ink">
+            {t("inbox.forYouHiddenQueue", {
+              panel: t(PANEL_LABEL_KEYS[item.id]),
+              count: item.count,
+            })}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => onShow(item.id)}>
+            {t("inbox.forYouShowPanel")}
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-  if (shown.length === 0) return null;
-  return <div className={className}>{shown.map(([, node]) => node)}</div>;
+/** #736: what arranging the page offers beyond each panel's own controls. */
+function LayoutToolbar({
+  addable,
+  onAdd,
+  onReset,
+}: {
+  addable: readonly LayoutPanelId[];
+  onAdd: (id: LayoutPanelId) => void;
+  onReset: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-app-card border border-dashed border-app-line bg-app-inset px-4 py-3">
+      <p className="mr-auto min-w-0 text-[13px] text-app-muted">{t("inbox.forYouEditingHint")}</p>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm">
+            <Plus className="size-4" strokeWidth={1.75} aria-hidden />
+            {t("inbox.forYouAddPanel")}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-72">
+          {addable.length === 0 ? (
+            <DropdownMenuItem disabled>{t("inbox.forYouAddPanelNone")}</DropdownMenuItem>
+          ) : (
+            addable.map((id) => (
+              <DropdownMenuItem key={id} onSelect={() => onAdd(id)} className="flex-col items-start gap-0.5">
+                <span className="text-[13px] font-medium text-app-ink">{t(PANEL_LABEL_KEYS[id])}</span>
+                <span className="text-[12px] text-app-muted">{t(PANEL_NOTE_KEYS[id])}</span>
+              </DropdownMenuItem>
+            ))
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Button variant="ghost" size="sm" onClick={onReset}>
+        <RotateCcw className="size-4" strokeWidth={1.75} aria-hidden />
+        {t("inbox.forYouResetLayout")}
+      </Button>
+    </div>
+  );
 }
 
 function ForYouSections({
   data,
   order,
+  editing,
 }: {
   data: ForYou;
-  /** #540: the shared order, so the sections match the strip above them. */
+  /** #540: the urgency order, which the default layout follows. */
   order: readonly DashboardTileId[];
+  /** #736: the member is arranging the page. */
+  editing: boolean;
 }) {
   const t = useT();
-  // #540: which measures this member has put away. Read from the /v1/me payload
-  // the shell already holds, so the decision is known before this paints —
-  // rendering four cards and then removing two looks like a broken page.
+  // Read off the /v1/me payload the shell already holds, so the page is laid
+  // out before it paints rather than rearranged after.
   const hidden = useHiddenPanels();
+  const stored = useDashboardLayout();
+  const saveLayout = useSetDashboardLayout();
+  const saveHidden = useSetHiddenPanels();
+  const [announcement, setAnnouncement] = useState("");
+
   const { waiting_on_you, my_tasks, unread, triage } = data;
-  // #293: absent from an older Worker, which is "no reminders" — the state
-  // every client written before this shipped was already rendering.
+  // #293: absent from an older Worker, which is "no reminders".
   const followUps = data.follow_ups ?? [];
-  // Named `totals` rather than `t`: `t` is the catalogue lookup everywhere in
-  // this file now, and a one-letter alias for the payload's counts beside it is
-  // the kind of shadowing that compiles somewhere else and reads as a bug here.
+  // #306: the heading count is what the section HOLDS; the rows are a page of it.
   const totals = data.totals;
-  // #306: the header count is what the section HOLDS; the rows are a page of
-  // it. Falling back to the row count keeps a client running ahead of the
-  // Worker on today's behaviour rather than a new wrong number.
   const waitingTotal = totals?.waiting_on_you ?? waiting_on_you.length;
   const tasksTotal = totals?.my_tasks ?? my_tasks.length;
   const unreadTotal = totals?.unread ?? unread.length;
-  const triageConvTotal =
-    totals?.triage_conversations ?? triage?.conversations.length ?? 0;
+  const triageConvTotal = totals?.triage_conversations ?? triage?.conversations.length ?? 0;
   const triageTaskTotal = totals?.triage_tasks ?? triage?.tasks.length ?? 0;
   const triageCount = triageConvTotal + triageTaskTotal;
   const followUpTotal = totals?.follow_ups ?? followUps.length;
 
-  const everythingEmpty =
+  const queuesEmpty =
     followUps.length === 0 &&
     waiting_on_you.length === 0 &&
     my_tasks.length === 0 &&
     unread.length === 0 &&
     triageCount === 0;
 
-  if (everythingEmpty) {
-    // The calm, kind empty state (PORTAL-UX §3.1 / §6). Recent calls are
-    // ambient history, not to-dos — they render BELOW the caught-up card
-    // without disturbing it (#133).
-    return (
-      <div className="space-y-7">
-        {/* #342: before the caught-up card, because "you're all caught up" is
-            not true if somebody has been texting a thread nobody can see. */}
-        <SpamReviewSection />
-        <div className="flex flex-col items-center gap-4 rounded-app-card border border-app-line bg-app-paper px-6 py-16 text-center">
-          <span className="grid size-12 place-items-center rounded-full bg-app-tint">
-            <Check className="size-6 text-app-olive-deep" strokeWidth={2} aria-hidden />
-          </span>
-          <div className="space-y-1">
-            <p className="text-[15px] font-semibold text-app-ink">
-              {t("inbox.forYouAllCaughtUp")}
-            </p>
-            <p className="text-sm text-app-muted">
-              {t("inbox.forYouNewLeadsHere")}
-            </p>
-          </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/inbox">{t("inbox.forYouOpenInbox")}</Link>
-          </Button>
-        </div>
-        {/* #540: THE MEASURES BELONG HERE TOO, and their absence was backwards.
-            A caught-up morning is the best moment an owner gets to look at how
-            the business is doing — and it was the one state that showed them
-            nothing. The queue being empty is not a reason to hide the result of
-            having cleared it.
+  const layout = stored ?? defaultDashboardLayout(order);
+  const entries = layout.panels.filter((entry) => !(isHideablePanel(entry.id) && hidden.includes(entry.id)));
+  const onPage = new Set(entries.map((entry) => entry.id));
 
-            Below the caught-up card rather than above it, on the same reasoning
-            as the queue: what needs doing leads, and "nothing does" is still the
-            first thing to say. */}
-        <Measures hidden={hidden} className={MEASURES_ROW} />
-        {/* #288: after the numbers, never before them. A caught-up morning with
-            a good month behind it is the best moment this product gets to ask
-            for a recommendation — and the ask still has to come second to the
-            work and to the owner's own results. */}
-        <ReferralAsk />
-        {!hidden.includes("recent_calls") && <RecentCallsSection />}
-      </div>
+  const queueCounts: Partial<Record<LayoutPanelId, number>> = {
+    follow_ups: followUps.length > 0 ? followUpTotal : 0,
+    unassigned: triageCount,
+    waiting: waiting_on_you.length > 0 ? waitingTotal : 0,
+    tasks: my_tasks.length > 0 ? tasksTotal : 0,
+    unread: unread.length > 0 ? unreadTotal : 0,
+  };
+  const offPage = QUEUE_PANEL_IDS.filter((id) => !onPage.has(id) && (queueCounts[id] ?? 0) > 0).map(
+    (id) => ({ id, count: queueCounts[id] ?? 0 }),
+  );
+
+  const name = (id: LayoutPanelId) => t(PANEL_LABEL_KEYS[id]);
+  const commit = (next: DashboardLayout, message: string) => {
+    saveLayout.mutate(next);
+    setAnnouncement(message);
+  };
+  const moved = (next: DashboardLayout, id: LayoutPanelId) =>
+    commit(
+      next,
+      t("inbox.forYouPanelMoved", {
+        panel: name(id),
+        position: next.panels.findIndex((entry) => entry.id === id) + 1,
+        count: next.panels.length,
+      }),
     );
-  }
-
-  // #540: which queues have anything in them. The same expressions the sections
-  // below guard on — used here so the LAYOUT can tell an empty queue from a full
-  // one without rendering it first, which is what lets the widest slot go to the
-  // first queue that actually has work rather than to an empty one.
-  const queueHasContent: Record<DashboardTileId, boolean> = {
-    unassigned: triageCount > 0,
-    waiting: waiting_on_you.length > 0,
-    tasks: my_tasks.length > 0,
-    unread: unread.length > 0,
+  const show = (id: LayoutPanelId) => {
+    if (!layout.panels.some((entry) => entry.id === id)) {
+      commit(addPanel(layout, id), t("inbox.forYouPanelAdded", { panel: name(id) }));
+    } else {
+      setAnnouncement(t("inbox.forYouPanelAdded", { panel: name(id) }));
+    }
+    if (isHideablePanel(id) && hidden.includes(id)) {
+      saveHidden.mutate(hidden.filter((panel) => panel !== id));
+    }
+  };
+  const editingHandlers: BentoEditing = {
+    onMove: (id, delta) => moved(movePanel(layout, id, delta), id),
+    onMoveTo: (id, target) => moved(movePanelTo(layout, id, target), id),
+    onResize: (id) => {
+      const current = layout.panels.find((entry) => entry.id === id);
+      if (!current) return;
+      const size = nextPanelSize(current.size);
+      commit(
+        resizePanel(layout, id, size),
+        t("inbox.forYouPanelResized", { panel: name(id), size: t(PANEL_SIZE_KEYS[size]) }),
+      );
+    },
+    onRemove: (id) => {
+      commit(removePanel(layout, id), t("inbox.forYouPanelRemoved", { panel: name(id) }));
+      // The phones still read the hidden set, so they put it away too.
+      if (isHideablePanel(id) && !hidden.includes(id)) {
+        saveHidden.mutate(normaliseHiddenPanels([...hidden, id]));
+      }
+    },
   };
 
-  // #540: the queues that will actually be laid out, in the shared order. Split
-  // here rather than inside the JSX because the FIRST one decides the shape of
-  // the whole grid — it takes the wide slot, and whether there is anything to
-  // put beside it decides whether that slot is two columns or all three.
-  const liveQueues = order.filter((id) => queueHasContent[id]);
-  const [primaryQueue, ...secondaryQueues] = liveQueues;
-
-  // #540: built once, rendered in the order the shared rule gives.
-  const queueSections: Record<DashboardTileId, React.ReactNode> = {
-    unassigned: (
-      <>
-        {triageCount > 0 && (
-          <Section
-            id="for-you-unassigned"
-            label={t("inbox.forYouSectionUnassigned")}
-            count={triageCount}
-          >
-            {triage?.conversations.map((item) => (
-              <TriageConvRow key={item.conversation_id} item={item} />
-            ))}
-            {/* Triage carries two kinds of thing under one heading, so it gets
-                two footers — one "view all" cannot land a reader on the rows
-                they are missing when only the other half is truncated. */}
-            <Overflow
-              shown={triage?.conversations.length ?? 0}
-              total={triageConvTotal}
-              href="/inbox"
-              label={t("inbox.forYouOverflowUnassignedConversations")}
-            />
-            {triage?.tasks.map((task) => (
-              <TriageTaskRow key={task.task_id} task={task} />
-            ))}
-            <Overflow
-              shown={triage?.tasks.length ?? 0}
-              total={triageTaskTotal}
-              href="/tasks"
-              label={t("inbox.forYouOverflowAllTasks")}
-            />
-          </Section>
-        )}
-      </>
+  const panels: Record<LayoutPanelId, React.ReactNode> = {
+    // #293: only ever here because the member asked to be reminded.
+    follow_ups: followUps.length > 0 && (
+      <Section label={t("inbox.forYouSectionChaseThese")} count={followUpTotal}>
+        {followUps.map((item) => (
+          <FollowUpRow key={item.conversation_id} item={item} />
+        ))}
+      </Section>
     ),
-    waiting: (
-      <>
-        {waiting_on_you.length > 0 && (
-          <Section
-            id="for-you-waiting"
-            label={t("inbox.forYouSectionWaiting")}
-            count={waitingTotal}
-          >
-            {waiting_on_you.map((item) => (
-              <WaitingRow key={item.conversation_id} item={item} />
-            ))}
-            {/* /inbox?assignee=me is a SUPERSET of this section — the Mine
-                segment carries no status filter — so the link is offered as a
-                place to continue, not as "the other 43". */}
-            <Overflow
-              shown={waiting_on_you.length}
-              total={waitingTotal}
-              href="/inbox?assignee=me"
-              label={t("inbox.forYouOverflowRestInInbox")}
-            />
-          </Section>
-        )}
-
-      </>
+    unassigned: triageCount > 0 && (
+      <Section id="for-you-unassigned" label={t("inbox.forYouSectionUnassigned")} count={triageCount}>
+        {triage?.conversations.map((item) => (
+          <TriageConvRow key={item.conversation_id} item={item} />
+        ))}
+        {/* Two kinds of thing under one heading, so two footers: one "view
+            all" cannot land a reader on the rows they are missing when only
+            the other half is truncated. */}
+        <Overflow
+          shown={triage?.conversations.length ?? 0}
+          total={triageConvTotal}
+          href="/inbox"
+          label={t("inbox.forYouOverflowUnassignedConversations")}
+        />
+        {triage?.tasks.map((task) => (
+          <TriageTaskRow key={task.task_id} task={task} />
+        ))}
+        <Overflow
+          shown={triage?.tasks.length ?? 0}
+          total={triageTaskTotal}
+          href="/tasks"
+          label={t("inbox.forYouOverflowAllTasks")}
+        />
+      </Section>
     ),
-    tasks: (
-      <>
-        {my_tasks.length > 0 && (
-          <Section
-            id="for-you-tasks"
-            label={t("inbox.forYouSectionTasks")}
-            count={tasksTotal}
-          >
-            {my_tasks.map((task) => (
-              <TaskRow key={task.task_id} task={task} />
-            ))}
-            {/* Bare /tasks, which is List · Open · Mine — the exact match for
-                this section. `?tab=mine` drops the status filter and would land
-                the reader in a list that includes everything they finished. */}
-            <Overflow
-              shown={my_tasks.length}
-              total={tasksTotal}
-              href="/tasks"
-              label={t("inbox.forYouOverflowOpenTasks")}
-            />
-          </Section>
-        )}
-
-      </>
+    waiting: waiting_on_you.length > 0 && (
+      <Section id="for-you-waiting" label={t("inbox.forYouSectionWaiting")} count={waitingTotal}>
+        {waiting_on_you.map((item) => (
+          <WaitingRow key={item.conversation_id} item={item} />
+        ))}
+        {/* /inbox?assignee=me is a SUPERSET of this section, so the link is a
+            place to continue, not "the other 43". */}
+        <Overflow
+          shown={waiting_on_you.length}
+          total={waitingTotal}
+          href="/inbox?assignee=me"
+          label={t("inbox.forYouOverflowRestInInbox")}
+        />
+      </Section>
     ),
-    unread: (
-      <>
-        {unread.length > 0 && (
-          <Section
-            id="for-you-unread"
-            label={t("inbox.forYouSectionUnread")}
-            count={unreadTotal}
-          >
-            {unread.map((item) => (
-              <UnreadRow key={item.conversation_id} item={item} />
-            ))}
-            <Overflow
-              shown={unread.length}
-              total={unreadTotal}
-              href="/inbox?assignee=me&unread=true"
-              label={t("inbox.forYouOverflowRestInInbox")}
-            />
-          </Section>
-        )}
-
-      </>
+    tasks: my_tasks.length > 0 && (
+      <Section id="for-you-tasks" label={t("inbox.forYouSectionTasks")} count={tasksTotal}>
+        {my_tasks.map((task) => (
+          <TaskRow key={task.task_id} task={task} />
+        ))}
+        {/* Bare /tasks is List · Open · Mine, the exact match for this section. */}
+        <Overflow
+          shown={my_tasks.length}
+          total={tasksTotal}
+          href="/tasks"
+          label={t("inbox.forYouOverflowOpenTasks")}
+        />
+      </Section>
     ),
+    unread: unread.length > 0 && (
+      <Section id="for-you-unread" label={t("inbox.forYouSectionUnread")} count={unreadTotal}>
+        {unread.map((item) => (
+          <UnreadRow key={item.conversation_id} item={item} />
+        ))}
+        <Overflow
+          shown={unread.length}
+          total={unreadTotal}
+          href="/inbox?assignee=me&unread=true"
+          label={t("inbox.forYouOverflowRestInInbox")}
+        />
+      </Section>
+    ),
+    // #287: money a customer was asked for and has not answered.
+    outstanding_quotes: <OutstandingQuotesSection />,
+    recent_calls: <RecentCallsSection />,
+    // #239: the claim we sell, measured.
+    response_time: <ResponseTimeCard />,
+    // #354: absent entirely until there is something true to say.
+    pipeline: <PipelineCard />,
+    // #313: whether the answers landed, beside how fast they came.
+    satisfaction: <SatisfactionCard />,
+    // #301: where customers came from, the slower question.
+    lead_sources: <LeadSourcesCard />,
   };
+
   return (
-    // A dashboard on a wide screen: sections sit as panels in two columns
-    // instead of one long scroll. `items-start` keeps a short panel short
-    // rather than stretching it to its neighbour's height, and the columns
-    // collapse back to a single stack on a phone, where stacked IS right.
-    // #540 — a bento rather than two equal columns. One stack on a phone, two
-    // panels from lg, three from xl, and the queue that needs doing first takes
-    // a double-width slot: giving equal weight to unequal things is what made a
-    // wide screen read as a wall of identical boxes with dead space beside it.
-    <div className="space-y-7 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0 xl:grid-cols-3">
-      {/* #342: the one strip whose absence is the whole problem it solves —
-          nothing else anywhere reports a spam thread that is still receiving
-          messages. It spans both columns so it is read before the queue. */}
-      <div className="lg:col-span-2 xl:col-span-3">
-        <SpamReviewSection />
-      </div>
-
-      {/* #239 — the claim we sell, measured. Placed high because the arc is the
-          reason a contractor stays, and below the spam strip because that strip
-          is a problem to fix while this is a result to read.
-          *Applying: Prioritize Intent — the core action first; a highlight the
-          owner reads, not a control they operate.* */}
-      {/* #540: the four measures as a row of cards, not four full-width bands.
-          They are ONE group answering one question — how the business is doing —
-          and stacking them at full width across a wide screen made them read as
-          four unrelated strips and left the space beside them empty.
-          *Applying: Chunking, and Relationship Strength — one group, spaced as
-          one.* */}
-      {/* #540: and each one can be put away from Customise. The grid classes
-          live here rather than inside `Measures` because they are this layout's
-          business — the caught-up screen places the same four cards in a
-          narrower shell. */}
-      <Measures hidden={hidden} className={MEASURES_ROW + " lg:col-span-2 xl:col-span-3"} />
-
-      {/* #288: below the measures, for the same reason as on the caught-up
-          screen — the ask is earned by the numbers above it, and reading them
-          first is what makes it land as earned rather than as an interruption. */}
-      <div className="lg:col-span-2 xl:col-span-3">
-        <ReferralAsk />
-      </div>
-
-      {/* #416/D53: shown to EVERY member, not owners and admins only. The
-          company already pages the whole crew when a lead lands unclaimed, so
-          gating the queue behind a role sent people a notification about a
-          screen they could not open. Position, ordering and treatment are
-          unchanged — only who sees it.
-          *Applying: the Safety Principle — the fix must not move an owner's
-          dashboard around while it widens the audience.* */}
-      {/* #540: the four queue sections render in the SAME order as the strip
-          above them, from one shared decision. Before this the strip could
-          reorder while the sections stayed put, so the index and the page it
-          indexed disagreed — which is worse than a strip that never moved.
-
-          "Chase these" is NOT in the reorderable set and stays pinned at the
-          top of the queue: it is the only section that exists because the
-          member asked to be reminded, which outranks whatever is merely urgent
-          today. */}
-      {/* #293: ABOVE "Waiting on you". A quote nobody answered is the most
-          valuable thing in the business to be reminded about, and unlike the
-          sections below it, this one only ever appears because the member
-          asked for it — so it has earned the top of the queue. */}
-      {followUps.length > 0 && (
-        <Section
-          label={t("inbox.forYouSectionChaseThese")}
-          count={followUpTotal}
-        >
-          {followUps.map((item) => (
-            <FollowUpRow key={item.conversation_id} item={item} />
-          ))}
-        </Section>
+    <div className="space-y-6">
+      {/* #342: the one strip whose absence is the whole problem it solves;
+          read before anything else. */}
+      <SpamReviewSection />
+      {queuesEmpty && <CaughtUpCard />}
+      <OffPageWork items={offPage} onShow={show} />
+      {editing && (
+        <LayoutToolbar
+          addable={LAYOUT_PANEL_IDS.filter((id) => !onPage.has(id))}
+          onAdd={show}
+          onReset={() => {
+            saveLayout.mutate(null);
+            if (hidden.length > 0) saveHidden.mutate([]);
+          }}
+        />
       )}
-
-      {/* #540: the FIRST queue with anything in it takes the double-width slot at
-          xl. That is the bento's whole point — the thing to do first is bigger,
-          rather than every panel being the same size and the eye having to read
-          all of them to find out which matters. Only sections with content are
-          laid out, so an empty queue never holds a grid cell open.
-
-          The rest STACK in the remaining column rather than each taking a grid
-          cell of their own. That is the fix for the largest piece of dead space
-          on this screen: a CSS grid quantises into rows, so a two-row-tall
-          primary queue beside a one-row panel left roughly 300px of empty
-          column, and three live queues left two empty tracks on the second row.
-          Stacking fills the column with the next thing to do instead of air —
-          and it is what makes the bento a bento rather than a grid with one big
-          tile in it.
-          *Applying: Prioritize Intent — the layout is built around the work,
-          and Zen of Clarity — no space that reads as a panel failing to load.* */}
-      {primaryQueue && (
-        <div
-          className={
-            // Alone, it takes the whole row: spanning two of three columns with
-            // nothing to put in the third is the same void by another route.
-            secondaryQueues.length > 0
-              ? "xl:col-span-2"
-              : "lg:col-span-2 xl:col-span-3"
-          }
-        >
-          {queueSections[primaryQueue]}
-        </div>
-      )}
-      {secondaryQueues.length > 0 && (
-        // Same rhythm as the outer stack, so a queue does not change spacing
-        // by virtue of being second.
-        <div className="space-y-7 lg:space-y-6">
-          {secondaryQueues.map((id) => (
-            <div key={id}>{queueSections[id]}</div>
-          ))}
-        </div>
-      )}
-      {/* #287: above the call history, because money a customer was asked for
-          and has not answered outranks a list of calls that already happened. */}
-      <div className="lg:col-span-2 xl:col-span-3">
-        <OutstandingQuotesSection />
-      </div>
-
-      {/* #540: hideable, unlike everything above it in the queue. Calls already
-          happened — this is history a member reads, not work they owe anybody,
-          so it is the one section on this screen that can come off. */}
-      {!hidden.includes("recent_calls") && (
-        <div className="lg:col-span-2 xl:col-span-3">
-          <RecentCallsSection />
-        </div>
-      )}
+      <BentoLayout
+        cells={entries.map((entry) => ({ id: entry.id, size: entry.size, node: panels[entry.id] }))}
+        editing={editing ? editingHandlers : undefined}
+      />
+      {/* #288: after the work and the owner's own results, so the ask lands
+          as earned rather than as an interruption. */}
+      <ReferralAsk />
+      <p className="sr-only" aria-live="polite">
+        {announcement}
+      </p>
     </div>
   );
 }

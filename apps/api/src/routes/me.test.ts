@@ -118,6 +118,8 @@ describe("GET /v1/me", () => {
           // #540: the empty set for a member who has put nothing away, which is
           // everybody until they open Customise.
           dashboard_hidden: [],
+          // #736: null until the member arranges their page.
+          dashboard_layout: null,
         },
       ],
     });
@@ -746,6 +748,77 @@ describe("PUT /v1/me/dashboard (#540: a member puts a panel away)", () => {
       },
     );
     expect(res.status).toBe(403);
+  });
+});
+
+describe("PUT /v1/me/dashboard-layout (#736: a member arranges their own page)", () => {
+  function layoutStub(): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on("POST", AUTHORIZE_RPC, membershipResponder(MEMBER_ID, "member"));
+    return sb;
+  }
+
+  it("saves the CALLER's layout, cleaned, and answers with what was stored", async () => {
+    const sb = layoutStub();
+    const stored = { panels: [{ id: "recent_calls", size: "two_thirds" }] };
+    sb.on("POST", "/rest/v1/rpc/api_set_dashboard_layout", () => stored);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me/dashboard-layout", {
+      method: "PUT",
+      companyId: COMPANY_ID,
+      body: {
+        layout: {
+          panels: [
+            { id: "recent_calls", size: "two_thirds" },
+            { id: "recent_calls", size: "third" },
+          ],
+        },
+      },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ layout: stored });
+    const call = sb.find("POST", "/rest/v1/rpc/api_set_dashboard_layout")[0];
+    expect(call.body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+      p_layout: stored,
+    });
+  });
+
+  it("puts the default back for null", async () => {
+    const sb = layoutStub();
+    sb.on("POST", "/rest/v1/rpc/api_set_dashboard_layout", () => null);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me/dashboard-layout", {
+      method: "PUT",
+      companyId: COMPANY_ID,
+      body: { layout: null },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ layout: null });
+    expect(sb.find("POST", "/rest/v1/rpc/api_set_dashboard_layout")[0].body).toMatchObject({
+      p_layout: null,
+    });
+  });
+
+  it("refuses a panel or a size that does not exist", async () => {
+    const sb = layoutStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    for (const panels of [
+      [{ id: "not_a_panel", size: "third" }],
+      [{ id: "pipeline", size: "huge" }],
+    ]) {
+      const res = await apiRequest(app, env, await auth.token(), "/v1/me/dashboard-layout", {
+        method: "PUT",
+        companyId: COMPANY_ID,
+        body: { layout: { panels } },
+      });
+      expect(res.status).toBe(422);
+    }
+    expect(sb.find("POST", "/rest/v1/rpc/api_set_dashboard_layout")).toHaveLength(0);
   });
 });
 

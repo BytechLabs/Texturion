@@ -1,5 +1,7 @@
 import {
+  type DashboardLayout,
   type DashboardPanelId,
+  normaliseDashboardLayout,
   normaliseHiddenPanels,
 } from "@loonext/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -176,6 +178,64 @@ export function useSetHiddenPanels() {
       return { snapshot };
     },
     onError: (_error, _hidden, context) => {
+      for (const [key, data] of context?.snapshot ?? []) {
+        queryClient.setQueryData(key, data);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["me"] });
+    },
+  });
+}
+
+/**
+ * #736 — this member's arranged For you page, or null for the default. Off the
+ * /v1/me payload the shell already holds, like the hidden set, so the page is
+ * laid out before it paints.
+ */
+export function useDashboardLayout(): DashboardLayout | null {
+  const companyId = useCompanyId();
+  const me = useMeCompany();
+  const membership = me.data?.memberships?.find((m) => m.company_id === companyId);
+  return useMemo(
+    () => normaliseDashboardLayout(membership?.dashboard_layout),
+    [membership?.dashboard_layout],
+  );
+}
+
+/**
+ * PUT /v1/me/dashboard-layout — save the whole layout, or null for the default.
+ * Optimistic for the reason the hidden set is: the member is watching the
+ * panel move, and a failed save rolls the screen back to what the server holds.
+ */
+export function useSetDashboardLayout() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (layout: DashboardLayout | null) =>
+      apiFetch<{ layout: DashboardLayout | null }>("/v1/me/dashboard-layout", {
+        method: "PUT",
+        companyId,
+        body: { layout },
+      }),
+    onMutate: async (layout) => {
+      await queryClient.cancelQueries({ queryKey: ["me"] });
+      const snapshot = queryClient.getQueriesData<Me>({ queryKey: ["me"] });
+      for (const [key] of snapshot) {
+        queryClient.setQueryData<Me>(key, (old) =>
+          old
+            ? {
+                ...old,
+                memberships: old.memberships.map((m) =>
+                  m.company_id === companyId ? { ...m, dashboard_layout: layout } : m,
+                ),
+              }
+            : old,
+        );
+      }
+      return { snapshot };
+    },
+    onError: (_error, _layout, context) => {
       for (const [key, data] of context?.snapshot ?? []) {
         queryClient.setQueryData(key, data);
       }

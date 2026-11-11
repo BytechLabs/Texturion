@@ -60,6 +60,15 @@ const DRAG_SURFACES: Record<
       "with two pointer-downs and no movement — for a tremor, a trackpad, or a " +
       "touch that never registers as a drag.",
   },
+  "components/for-you/bento-layout.tsx": {
+    pointerAlternative: [
+      "editing.onMove(cell.id, -1)",
+      "editing.onMove(cell.id, 1)",
+    ],
+    why:
+      "#736: every panel being arranged has Move earlier and Move later " +
+      "buttons beside its drag handle, each one click.",
+  },
   "components/tasks/views/board-view.tsx": {
     pointerAlternative: ["onClick={onMove}"],
     why: "A visible 'Move to To do / Move to Done' button on every card.",

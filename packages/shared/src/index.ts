@@ -1057,6 +1057,30 @@ export {
   normaliseHiddenPanels,
 } from "./dashboard-panels";
 
+// #736: the For you page as panels a member arranges, packed without holes.
+export {
+  type DashboardLayout,
+  defaultDashboardLayout,
+  LAYOUT_PANEL_IDS,
+  type LayoutEntry,
+  type LayoutPanelId,
+  addPanel,
+  movePanel,
+  movePanelTo,
+  nextPanelSize,
+  normaliseDashboardLayout,
+  PANEL_SIZES,
+  PANEL_SPAN,
+  type PanelBox,
+  type PanelPlacement,
+  type PanelSize,
+  panelsNotInLayout,
+  placePanels,
+  QUEUE_PANEL_IDS,
+  removePanel,
+  resizePanel,
+} from "./dashboard-layout";
+
 // #539: one instant, two wall clocks — say both, but only when they differ.
 // The rule and the words live here; formatting stays with each client's own
 // date formatter.

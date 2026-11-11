@@ -227,6 +227,8 @@ export interface Membership {
    * nothing hidden, which is the same as the default.
    */
   dashboard_hidden?: string[];
+  /** #736: this member's arranged For you page; null or absent for the default. */
+  dashboard_layout?: unknown;
   /**
    * #228: the language the WORKSPACE works in — the last step of the app's own
    * locale chain, before English.
