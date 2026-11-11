@@ -317,7 +317,7 @@ private struct ActivityRowContent: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: symbol)
-                .font(.scaled(15))
+                .font(.scaled(IconSize.standard))
                 .foregroundStyle(BrandColor.muted500)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 2) {

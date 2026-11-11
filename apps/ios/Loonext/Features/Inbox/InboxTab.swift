@@ -729,6 +729,12 @@ private final class InboxController {
         )
     }
 
+    /// A change the product can put back: one Undo (`Toast.undoable`).
+    private func notifyUndoable(_ text: String, undo: @escaping @MainActor () -> Void) {
+        noticeSeq += 1
+        notice = Toast.undoable(id: noticeSeq, text: text, locale: locale, undo: undo)
+    }
+
     // MARK: Row swipe mutations — the EXACT calls the thread header makes.
 
     /// Done/Reopen/Close: PATCH /v1/conversations/:id {status} (the thread
@@ -762,9 +768,8 @@ private final class InboxController {
                 guard announce else { return }
                 if let previous,
                    let undoTo = InboxStatusSwipe.undoTarget(to: status, from: previous) {
-                    notify(
-                        InboxStatusSwipe.notice(to: status, locale: locale),
-                        actionLabel: AppStrings.translate(locale, "inbox.undo")
+                    notifyUndoable(
+                        InboxStatusSwipe.notice(to: status, locale: locale)
                     ) { [weak self] in
                         // The revert itself announces nothing: a toast for the
                         // undo of a toast is noise.
@@ -950,9 +955,8 @@ private final class InboxController {
                 do {
                     try await deletion.deleteConversation(companyId: companyId, conversationId: row.id)
                     await refreshFirstPage()
-                    notify(
-                        AppStrings.translate(locale, "thread.conversationDeleted"),
-                        actionLabel: AppStrings.translate(locale, "inbox.undo")
+                    notifyUndoable(
+                        AppStrings.translate(locale, "thread.conversationDeleted")
                     ) { [weak self] in
                         Task {
                             do {
@@ -1086,10 +1090,7 @@ private final class InboxController {
                     locale: locale
                 )
                 if let plan = bulkUndoPlan(result) {
-                    notify(
-                        message,
-                        actionLabel: AppStrings.translate(locale, "inbox.undo")
-                    ) { [weak self] in
+                    notifyUndoable(message) { [weak self] in
                         self?.runBulkUndo(plan)
                     }
                 } else {
@@ -1254,24 +1255,10 @@ private struct InboxList: View {
                 }
             }
             if let visibleNotice {
-                HStack(spacing: 12) {
-                    Text(visibleNotice.text)
-                        .font(.golos(12.5))
-                        .lineLimit(2)
-                    if let label = visibleNotice.actionLabel {
-                        Button(label) {
-                            visibleNotice.action?()
-                            self.visibleNotice = nil
-                        }
-                        .font(.golos(12.5, weight: .semibold))
-                        .foregroundStyle(BrandColor.olive)
-                    }
+                ToastView(notice: visibleNotice) {
+                    self.visibleNotice = nil
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(.regularMaterial, in: Capsule())
                 .padding(.bottom, 12)
-                .onTapGesture { self.visibleNotice = nil }
             }
         }
         .background(BrandColor.canvas)
@@ -1299,7 +1286,7 @@ private struct InboxList: View {
                 // follows a deliberate click with a mouse, a phone undo follows a
                 // gesture you can make by accident. The platform difference is
                 // the point, not a drift. See docs/UNDO-AUDIT.md.
-                try? await Task.sleep(for: .seconds(notice.actionLabel == nil ? 3 : 10))
+                try? await Task.sleep(for: .seconds(notice.seconds))
                 if !Task.isCancelled { visibleNotice = nil }
             }
         }
@@ -1853,7 +1840,7 @@ private struct ConversationRow: View {
                         // stops making noise.
                         if row.muted == true {
                             Image(systemName: "bell.slash")
-                                .font(.scaled(10, weight: .semibold))
+                                .font(.scaled(IconSize.small, weight: .semibold))
                                 .foregroundStyle(BrandColor.muted600)
                                 .accessibilityLabel(
                                     AppStrings.translate(appLocale, "thread.mutedBadge")
@@ -2558,7 +2545,7 @@ private struct BulkSelectionBar: View {
                     controller.clearBulkSelection()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.scaled(13, weight: .semibold))
+                        .font(.scaled(IconSize.small, weight: .semibold))
                 }
                 .buttonStyle(.plain)
                 .disabled(controller.bulkRunning)
@@ -2592,7 +2579,7 @@ private struct BulkSelectionBar: View {
                         )
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.scaled(13, weight: .semibold))
+                            .font(.scaled(IconSize.small, weight: .semibold))
                     }
                     .disabled(controller.bulkRunning)
                     .accessibilityLabel(
@@ -2647,7 +2634,7 @@ private struct BulkSelectionBar: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.scaled(13, weight: .semibold))
+                        .font(.scaled(IconSize.small, weight: .semibold))
                 }
                 .disabled(controller.bulkRunning)
                 .accessibilityLabel(

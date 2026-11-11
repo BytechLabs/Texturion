@@ -218,7 +218,7 @@ struct AttachmentFileChip: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: kind.symbolName)
-                    .font(.scaled(13, weight: .medium))
+                    .font(.scaled(IconSize.small, weight: .medium))
                     .foregroundStyle(BrandColor.muted700)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(attachmentLabel(kind: kind, count: 1))
@@ -236,7 +236,7 @@ struct AttachmentFileChip: View {
                     ProgressView().controlSize(.small)
                 } else {
                     Image(systemName: "arrow.down.circle")
-                        .font(.scaled(13))
+                        .font(.scaled(IconSize.small))
                         .foregroundStyle(BrandColor.muted500)
                 }
             }

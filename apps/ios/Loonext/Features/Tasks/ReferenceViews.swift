@@ -370,7 +370,7 @@ struct ReferencePickerSheet: View {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: icon(pick.kind))
-                                    .font(.scaled(15, weight: .medium))
+                                    .font(.scaled(IconSize.standard, weight: .medium))
                                     .foregroundStyle(BrandColor.muted700)
                                     .frame(width: 24)
                                     .accessibilityHidden(true)

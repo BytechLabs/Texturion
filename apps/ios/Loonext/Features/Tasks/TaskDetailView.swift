@@ -618,9 +618,6 @@ struct TaskDetailView: View {
                         metaExtras(detail)
                     }
                     createdLine(detail)
-                    if !noAccess {
-                        onwardLinks(detail)
-                    }
                     if noAccess {
                         noAccessCard
                         // #214: the address is a task column (not conversation-
@@ -693,7 +690,7 @@ struct TaskDetailView: View {
     }
 
     private func header(_ detail: TaskDetail) -> some View {
-        HStack(alignment: .top, spacing: 13) {
+        RecordHeader(showsActions: !noAccess && detail.contact?.id != nil) {
             if !noAccess {
                 // The big derived-done ring: 28pt outline → lime fill + ink
                 // check (spec 23).
@@ -704,7 +701,7 @@ struct TaskDetailView: View {
                         if detail.done {
                             Circle().fill(BrandColor.lime)
                             Image(systemName: "checkmark")
-                                .font(.scaled(13, weight: .bold))
+                                .font(.scaled(IconSize.small, weight: .bold))
                                 .foregroundStyle(BrandColor.onLime)
                         } else {
                             Circle().strokeBorder(BrandColor.muted250, lineWidth: 2)
@@ -723,11 +720,14 @@ struct TaskDetailView: View {
                     )
                 )
             }
-            VStack(alignment: .leading, spacing: 2) {
-                // #690: the number people say out loud.
-                TaskNumberTag(number: detail.number)
-                titleField(detail)
-            }
+        } content: {
+            // #690: the number people say out loud.
+            TaskNumberTag(number: detail.number)
+            titleField(detail)
+        } trailing: {
+            EmptyView()
+        } actions: {
+            onwardLinks(detail)
         }
     }
 
@@ -946,7 +946,7 @@ struct TaskDetailView: View {
                 metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.repeat"))
                 if let rule, live {
                     Image(systemName: "repeat")
-                        .font(.scaled(12, weight: .semibold))
+                        .font(.scaled(IconSize.small, weight: .semibold))
                         .foregroundStyle(BrandColor.muted500)
                     Text(taskRepeatDetailLine(rule, locale: appLocale))
                         .font(.golos(13, weight: .semibold))
@@ -1078,7 +1078,7 @@ struct TaskDetailView: View {
 
     private var metaRowChevron: some View {
         Image(systemName: "chevron.down")
-            .font(.scaled(12, weight: .medium))
+            .font(.scaled(IconSize.small, weight: .medium))
             .foregroundStyle(BrandColor.muted250)
     }
 
@@ -1086,19 +1086,12 @@ struct TaskDetailView: View {
     /// here, not icons in a corner.
     @ViewBuilder
     private func onwardLinks(_ detail: TaskDetail) -> some View {
-        let contactId = detail.contact?.id
-        if contactId != nil {
-            HStack(spacing: 4) {
-                if let contactId {
-                    RecordOpenLink(
-                        label: AppStrings.translate(appLocale, "contactsTasks.openContact")
-                    ) {
-                        AppRouter.shared.openContactId = contactId
-                    }
-                }
-                Spacer(minLength: 0)
+        if let contactId = detail.contact?.id {
+            RecordOpenLink(
+                label: AppStrings.translate(appLocale, "contactsTasks.openContact")
+            ) {
+                AppRouter.shared.openContactId = contactId
             }
-            .padding(.leading, -6)
         }
     }
 
@@ -1565,7 +1558,7 @@ private struct TaskAddressSection: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "mappin.and.ellipse")
-                            .font(.scaled(13, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
                         Text(AppStrings.translate(appLocale, "contactsTasks.address"))
                             .font(.golos(13.5, weight: .semibold))
@@ -1601,7 +1594,7 @@ private struct TaskAddressSection: View {
                 // The disclosure chevron stays the trailing affordance (parity
                 // with Android/web); tapping it toggles like the label.
                 Image(systemName: "chevron.down")
-                    .font(.scaled(12, weight: .medium))
+                    .font(.scaled(IconSize.small, weight: .medium))
                     .foregroundStyle(BrandColor.muted250)
                     .rotationEffect(.degrees(open ? 180 : 0))
                     .onTapGesture {
@@ -1886,7 +1879,7 @@ private struct NoteCard: View {
             // Spec 23: internal note = dashed inset well, lock + AUTHOR · TIME.
             HStack(spacing: 6) {
                 Image(systemName: "lock")
-                    .font(.scaled(10, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted600)
                 Text("\(author) · \(relativeTime(createdAt))".uppercased())
                     .font(.golos(10, weight: .bold))
@@ -2167,7 +2160,7 @@ private struct NoteComposer: View {
                     post()
                 } label: {
                     Image(systemName: "arrow.up")
-                        .font(.scaled(15, weight: .semibold))
+                        .font(.scaled(IconSize.standard, weight: .semibold))
                         .foregroundStyle(BrandColor.paper)
                         .frame(width: 38, height: 38)
                         .background(BrandColor.ink, in: Circle())

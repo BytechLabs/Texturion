@@ -19,7 +19,7 @@ struct TaskPriorityMark: View {
         if priority.isFlagged {
             HStack(spacing: 3) {
                 Image(systemName: "flag.fill")
-                    .font(.scaled(10, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                 Text(AppStrings.translate(appLocale, priority.labelKey))
                     .font(.golos(11, weight: .semibold))
             }
@@ -36,7 +36,7 @@ struct TaskRepeatMark: View {
 
     var body: some View {
         Image(systemName: "repeat")
-            .font(.scaled(11, weight: .semibold))
+            .font(.scaled(IconSize.small, weight: .semibold))
             .foregroundStyle(BrandColor.muted500)
             .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.repeatingTask"))
     }
@@ -180,7 +180,7 @@ struct TaskLabelsEditor: View {
                     .lineLimit(1)
                 if !disabled {
                     Image(systemName: "xmark")
-                        .font(.scaled(10, weight: .semibold))
+                        .font(.scaled(IconSize.small, weight: .semibold))
                 }
             }
             .padding(.horizontal, 11)
@@ -208,7 +208,7 @@ struct TaskLabelsEditor: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "plus")
-                    .font(.scaled(10, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                 Text(AppStrings.translate(appLocale, "contactsTasks.labelAdd"))
                     .font(.golos(13))
             }

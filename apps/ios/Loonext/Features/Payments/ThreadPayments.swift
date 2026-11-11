@@ -197,7 +197,7 @@ struct ThreadPaymentsPane: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "dollarsign.circle")
-                    .font(.scaled(13))
+                    .font(.scaled(IconSize.small))
                 Text(AppStrings.translate(appLocale, "payments.askAction"))
                     .font(.golos(12.5, weight: .semibold))
                 Spacer(minLength: 0)
@@ -408,7 +408,7 @@ private struct PaymentStripRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: symbol)
-                .font(.scaled(12))
+                .font(.scaled(IconSize.small))
                 .foregroundStyle(tint)
                 .padding(.top, 2)
 
@@ -452,7 +452,7 @@ private struct PaymentStripRow: View {
             if canCancel {
                 Button(action: onCancel) {
                     Image(systemName: "xmark")
-                        .font(.scaled(12))
+                        .font(.scaled(IconSize.small))
                         .foregroundStyle(BrandColor.muted500)
                 }
                 .buttonStyle(.plain)

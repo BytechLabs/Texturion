@@ -73,7 +73,7 @@ struct TaskRepeatSheet: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.scaled(13, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted700)
                     .frame(width: 44, height: 44)
                     .background(Circle().fill(BrandColor.inset))
@@ -117,7 +117,7 @@ struct TaskRepeatSheet: View {
         } label: {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .font(.scaled(20))
+                    .font(.scaled(IconSize.large))
                     .foregroundStyle(selected ? BrandColor.ink : BrandColor.muted250)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(t(titleKey))
@@ -378,7 +378,7 @@ struct TaskRepeatSheet: View {
                     .foregroundStyle(BrandColor.canvas)
                 Spacer()
                 Image(systemName: "checkmark")
-                    .font(.scaled(15, weight: .bold))
+                    .font(.scaled(IconSize.standard, weight: .bold))
                     .foregroundStyle(BrandColor.onLime)
                     .frame(width: 42, height: 42)
                     .background(Circle().fill(BrandColor.lime))
@@ -464,7 +464,7 @@ struct TaskDraftMetaSection: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "repeat")
-                        .font(.scaled(13, weight: .medium))
+                        .font(.scaled(IconSize.small, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
                     Text(repeatValue)
                         .font(.golos(14, weight: meta.repeatDraft == nil ? .regular : .semibold))
@@ -474,7 +474,7 @@ struct TaskDraftMetaSection: View {
                         .multilineTextAlignment(.leading)
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right")
-                        .font(.scaled(12, weight: .medium))
+                        .font(.scaled(IconSize.small, weight: .medium))
                         .foregroundStyle(BrandColor.muted250)
                 }
                 .padding(.horizontal, 15)

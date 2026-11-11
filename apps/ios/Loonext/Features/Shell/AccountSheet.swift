@@ -140,7 +140,7 @@ struct AccountSheet: View {
                         UIPasteboard.general.string = number.number_e164 ?? ""
                     } label: {
                         Image(systemName: "doc.on.doc")
-                            .font(.scaled(14))
+                            .font(.scaled(IconSize.standard))
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .buttonStyle(.plain)
@@ -274,7 +274,7 @@ struct AccountSheet: View {
             HStack(spacing: 12) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: icon)
-                        .font(.scaled(15))
+                        .font(.scaled(IconSize.standard))
                         .foregroundStyle(destructive ? BrandColor.destructive : BrandColor.muted900)
                         .frame(width: 36, height: 36)
                         .background(
@@ -299,7 +299,7 @@ struct AccountSheet: View {
                         )
                 } else if !destructive {
                     Image(systemName: "chevron.right")
-                        .font(.scaled(12, weight: .semibold))
+                        .font(.scaled(IconSize.small, weight: .semibold))
                         .foregroundStyle(BrandColor.muted250)
                 }
             }

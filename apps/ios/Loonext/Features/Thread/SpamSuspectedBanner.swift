@@ -30,7 +30,7 @@ struct SpamSuspectedBanner: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.shield")
-                    .font(.scaled(12, weight: .medium))
+                    .font(.scaled(IconSize.small, weight: .medium))
                     .foregroundStyle(BrandColor.muted500)
                 Text(AppStrings.translate(appLocale, "thread.spamTitle"))
                     .font(.golos(12.5, weight: .semibold))

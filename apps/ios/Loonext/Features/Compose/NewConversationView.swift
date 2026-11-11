@@ -264,7 +264,7 @@ private struct NewConversationLoaded: View {
         HStack(spacing: 8) {
             Button(action: onBack) {
                 Image(systemName: "xmark")
-                    .font(.scaled(15, weight: .medium))
+                    .font(.scaled(IconSize.standard, weight: .medium))
                     .foregroundStyle(BrandColor.ink)
                     .frame(width: 44, height: 44)
                     .background(Circle().fill(BrandColor.paper))
@@ -308,7 +308,7 @@ private struct NewConversationLoaded: View {
                         // is coming so the dialog is not a surprise.
                         HStack(alignment: .top, spacing: 8) {
                             Image(systemName: "clock")
-                                .font(.scaled(13, weight: .medium))
+                                .font(.scaled(IconSize.small, weight: .medium))
                                 .foregroundStyle(BrandColor.overdueAmber)
                                 .padding(.top, 1)
                             Text(
@@ -354,7 +354,7 @@ private struct NewConversationLoaded: View {
                         photosPickerOpen = true
                     } label: {
                         Image(systemName: "photo")
-                            .font(.scaled(15, weight: .regular))
+                            .font(.scaled(IconSize.standard, weight: .regular))
                             .foregroundStyle(BrandColor.ink)
                             .frame(width: 44, height: 44)
                             .background(Circle().fill(BrandColor.paper))
@@ -370,7 +370,7 @@ private struct NewConversationLoaded: View {
                         fileImporterOpen = true
                     } label: {
                         Image(systemName: "paperclip")
-                            .font(.scaled(15, weight: .regular))
+                            .font(.scaled(IconSize.standard, weight: .regular))
                             .foregroundStyle(BrandColor.ink)
                             .frame(width: 44, height: 44)
                             .background(Circle().fill(BrandColor.paper))
@@ -440,7 +440,7 @@ private struct NewConversationLoaded: View {
                             onContactChange(nil)
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.scaled(11, weight: .semibold))
+                                .font(.scaled(IconSize.small, weight: .semibold))
                                 .foregroundStyle(BrandColor.muted600)
                         }
                         .accessibilityLabel(t("thread.clearRecipient"))
@@ -605,7 +605,7 @@ private struct NewConversationLoaded: View {
                     .foregroundStyle(canSend ? BrandColor.paper : BrandColor.muted500)
                 Spacer()
                 Image(systemName: "arrow.up")
-                    .font(.scaled(16, weight: .semibold))
+                    .font(.scaled(IconSize.standard, weight: .semibold))
                     .foregroundStyle(canSend ? BrandColor.onLime : BrandColor.muted500)
                     .frame(width: 42, height: 42)
                     .background(

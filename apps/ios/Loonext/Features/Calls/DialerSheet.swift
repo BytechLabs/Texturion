@@ -253,7 +253,7 @@ struct DialerSheet: View {
                             }
                         } label: {
                             Image(systemName: "message")
-                                .font(.scaled(20, weight: .regular))
+                                .font(.scaled(IconSize.large, weight: .regular))
                                 .foregroundStyle(BrandColor.muted500)
                         }
                         .disabled(dialable == nil && picked == nil)
@@ -288,7 +288,7 @@ struct DialerSheet: View {
                         digits = String(digits.dropLast())
                     } label: {
                         Image(systemName: "delete.left")
-                            .font(.scaled(20, weight: .regular))
+                            .font(.scaled(IconSize.large, weight: .regular))
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .disabled(digits.isEmpty)

@@ -58,7 +58,7 @@ private struct DoneMark: View {
 
     var body: some View {
         Image(systemName: done ? "checkmark.circle.fill" : "circle")
-            .font(.scaled(15, weight: .medium))
+            .font(.scaled(IconSize.standard, weight: .medium))
             .foregroundStyle(done ? BrandColor.olive : BrandColor.muted500)
             .accessibilityLabel(
                 AppStrings.translate(appLocale, done ? "taskRefs.stateDone" : "taskRefs.stateOpen")
@@ -156,7 +156,7 @@ struct TaskLinksSection: View {
                     remove(row)
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.scaled(12, weight: .semibold))
+                        .font(.scaled(IconSize.small, weight: .semibold))
                         .foregroundStyle(BrandColor.muted500)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())

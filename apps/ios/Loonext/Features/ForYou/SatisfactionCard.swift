@@ -134,7 +134,7 @@ struct SatisfactionCard: View {
                             .font(.golos(13, weight: .medium))
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Image(systemName: "arrow.right")
-                            .font(.scaled(12, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .contentShape(Rectangle())
@@ -223,7 +223,7 @@ struct SatisfactionCard: View {
                         .font(.golos(13))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Image(systemName: "arrow.right")
-                        .font(.scaled(12, weight: .medium))
+                        .font(.scaled(IconSize.small, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
                 }
                 .padding(.horizontal, 14)
@@ -256,7 +256,7 @@ struct SatisfactionCard: View {
                     .foregroundStyle(BrandColor.muted600)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "chevron.down")
-                    .font(.scaled(11, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted600)
                     // Points down when closed and up when open, so the glyph
                     // says which way the control goes.

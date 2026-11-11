@@ -72,7 +72,7 @@ struct LeadSourcesCard: View {
                                     )
                                 )
                                 Image(systemName: "arrow.right")
-                                    .font(.scaled(12, weight: .semibold))
+                                    .font(.scaled(IconSize.small, weight: .semibold))
                             }
                             .font(.subheadline)
                             .foregroundStyle(BrandColor.olive)

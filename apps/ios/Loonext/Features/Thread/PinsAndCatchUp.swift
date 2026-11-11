@@ -175,7 +175,7 @@ struct PinnedStack: View {
     private func collapsedRow(_ newest: Message, older: Int) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "pin.fill")
-                .font(.scaled(12))
+                .font(.scaled(IconSize.small))
                 .foregroundStyle(BrandColor.muted700)
             Text(pinnedPreview(newest))
                 .font(.golos(12.5, weight: .semibold))
@@ -185,7 +185,7 @@ struct PinnedStack: View {
             if older > 0 {
                 CountPill("+\(older)")
                 Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                    .font(.scaled(12, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted700)
             }
         }

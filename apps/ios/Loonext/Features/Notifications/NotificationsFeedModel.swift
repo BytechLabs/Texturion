@@ -185,7 +185,7 @@ final class NotificationsFeedModel {
         toastTask?.cancel()
         toastKey = key
         toastTask = Task {
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(Toast.plainSeconds))
             if !Task.isCancelled {
                 toastKey = nil
             }

@@ -422,26 +422,26 @@ struct ContactDetailView: View {
         }
     }
 
-    /// Spec 07 identity header: centered soft-square avatar, display name,
-    /// tabular number with the copy affordance, and the action pill row.
+    /// #733: the shared record header: avatar, name, the number with its copy
+    /// affordance, the customer's history, the overflow menu beside the title and the
+    /// action row under it.
     private func identityHeader(_ contact: Contact) -> some View {
         let name = (contact.name?.isBlank ?? true)
             ? formatPhone(contact.phone_e164)
             : (contact.name ?? "")
-        return VStack(spacing: 3) {
+        return RecordHeader {
             ContactSquareAvatar(
                 name: name,
-                size: 78,
-                cornerRadius: 26,
-                fontSize: 24,
+                size: 56,
+                cornerRadius: 18,
+                fontSize: 18,
                 tint: BrandColor.insetDeep
             )
+        } content: {
             Text(name)
                 .font(.display(24))
                 .kerning(-0.2)
                 .foregroundStyle(BrandColor.ink)
-                .multilineTextAlignment(.center)
-                .padding(.top, 10)
             HStack(spacing: 6) {
                 Text(formatPhone(contact.phone_e164))
                     .font(.golos(12.5))
@@ -451,7 +451,7 @@ struct ContactDetailView: View {
                     UIPasteboard.general.string = contact.phone_e164
                 } label: {
                     Image(systemName: "doc.on.doc")
-                        .font(.scaled(11))
+                        .font(.scaled(IconSize.small))
                         .foregroundStyle(BrandColor.muted400)
                 }
                 .buttonStyle(.borderless)
@@ -463,8 +463,7 @@ struct ContactDetailView: View {
                 }
             }
             // #410: how long they have been a customer, and how often. Quiet
-            // metadata under the number rather than a section of its own —
-            // two facts do not earn a heading.
+            // metadata under the number rather than a section of its own.
             if let line = contactRelationshipLine(
                 contact.conversation_count,
                 contact.first_conversation_at,
@@ -473,13 +472,20 @@ struct ContactDetailView: View {
                 Text(line)
                     .font(.golos(11.5))
                     .foregroundStyle(BrandColor.muted500)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 3)
             }
+        } trailing: {
+            contactMenu(contact)
+        } actions: {
             actionPills(contact)
-                .padding(.top, 10)
         }
-        .frame(maxWidth: .infinity)
+        // On the header, not the pill, so the row can wrap without presenting twice.
+        .newTaskSheet(
+            isPresented: $newTaskOpen,
+            graph: graph,
+            companyId: companyId,
+            contactId: contact.id,
+            contactName: name
+        )
     }
 
     /// Spec 07 action row: the ink "Text" pill (contextual, #82 — opens the
@@ -487,7 +493,7 @@ struct ContactDetailView: View {
     /// button that goes nowhere would be a lie) and the paper "Call" pill.
     @ViewBuilder
     private func actionPills(_ contact: Contact) -> some View {
-        HStack(spacing: 10) {
+        Group {
             if let conversationId, let onOpenConversation {
                 Button {
                     onOpenConversation(conversationId)
@@ -516,7 +522,7 @@ struct ContactDetailView: View {
                             .controlSize(.mini)
                     } else {
                         Image(systemName: "phone")
-                            .font(.scaled(13, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                     }
                     Text(
                         placingCall
@@ -544,7 +550,7 @@ struct ContactDetailView: View {
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "text.badge.plus")
-                        .font(.scaled(13, weight: .medium))
+                        .font(.scaled(IconSize.small, weight: .medium))
                     Text(t("thread.newTask"))
                         .font(.golos(12, weight: .semibold))
                 }
@@ -554,47 +560,41 @@ struct ContactDetailView: View {
                 .background(BrandColor.paper, in: Capsule())
             }
             .buttonStyle(.plain)
-            .newTaskSheet(
-                isPresented: $newTaskOpen,
-                graph: graph,
-                companyId: companyId,
-                contactId: contact.id,
-                contactName: (contact.name?.isBlank ?? true)
-                    ? formatPhone(contact.phone_e164)
-                    : (contact.name ?? "")
-            )
-            // #712: the contact's own menu, the one list every surface draws.
-            let menuActions = contactMenuActions(contact)
-            if !menuActions.visible.isEmpty {
-                Menu {
-                    RecordMenuContent(actions: menuActions) { actionId, _ in
-                        performContactAction(actionId, contact)
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.scaled(13, weight: .semibold))
-                        .foregroundStyle(BrandColor.ink)
-                        .frame(width: 38, height: 38)
-                        .background(BrandColor.paper, in: Circle())
-                }
-                .accessibilityLabel(
-                    AppStrings.translate(
-                        appLocale,
-                        "recordMenu.moreActionsFor",
-                        ["name": (contact.name?.isBlank ?? true)
-                            ? formatPhone(contact.phone_e164)
-                            : (contact.name ?? "")]
-                    )
-                )
-            }
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    /// #712: the contact's own menu, the one list every surface draws.
+    @ViewBuilder
+    private func contactMenu(_ contact: Contact) -> some View {
+        let menuActions = contactMenuActions(contact)
+        if !menuActions.visible.isEmpty {
+            Menu {
+                RecordMenuContent(actions: menuActions) { actionId, _ in
+                    performContactAction(actionId, contact)
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.scaled(IconSize.small, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                    .frame(width: 38, height: 38)
+                    .background(BrandColor.paper, in: Circle())
+            }
+            .accessibilityLabel(
+                AppStrings.translate(
+                    appLocale,
+                    "recordMenu.moreActionsFor",
+                    ["name": (contact.name?.isBlank ?? true)
+                        ? formatPhone(contact.phone_e164)
+                        : (contact.name ?? "")]
+                )
+            )
+        }
     }
 
     private var textPillLabel: some View {
         HStack(spacing: 7) {
             Image(systemName: "message")
-                .font(.scaled(13, weight: .medium))
+                .font(.scaled(IconSize.small, weight: .medium))
             Text(t("contactsTasks.textAction"))
                 .font(.golos(12, weight: .semibold))
         }
@@ -867,7 +867,7 @@ struct ContactDetailView: View {
                     .foregroundStyle(BrandColor.muted500)
                 HStack(spacing: 6) {
                     Image(systemName: "clock")
-                        .font(.scaled(11))
+                        .font(.scaled(IconSize.small))
                         .foregroundStyle(BrandColor.muted500)
                     Text(localReading(zone))
                         .font(.golos(12.5))
@@ -982,7 +982,7 @@ struct ContactDetailView: View {
                 .foregroundStyle(BrandColor.muted500)
             HStack(spacing: 6) {
                 Image(systemName: "character.bubble")
-                    .font(.scaled(11))
+                    .font(.scaled(IconSize.small))
                     .foregroundStyle(BrandColor.muted500)
                 Text(MessageLocale.label(resolved))
                     .font(.golos(12.5))
@@ -1079,7 +1079,7 @@ struct ContactDetailView: View {
         HStack(alignment: .center, spacing: 9) {
             if contact.consent_source != nil {
                 Image(systemName: "checkmark")
-                    .font(.scaled(11, weight: .bold))
+                    .font(.scaled(IconSize.small, weight: .bold))
                     .foregroundStyle(BrandColor.onLime)
                     .frame(width: 22, height: 22)
                     .background(BrandColor.lime, in: Circle())
@@ -1127,7 +1127,7 @@ struct ContactDetailView: View {
                                 .foregroundStyle(BrandColor.ink)
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .font(.scaled(12, weight: .medium))
+                                .font(.scaled(IconSize.small, weight: .medium))
                                 .foregroundStyle(BrandColor.muted250)
                         }
                         .padding(.horizontal, 15)
@@ -1768,7 +1768,7 @@ private struct ContactCallRow: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 11) {
                 Image(systemName: directionIcon)
-                    .font(.scaled(14, weight: .medium))
+                    .font(.scaled(IconSize.standard, weight: .medium))
                     .foregroundStyle(metaColor)
                     .frame(width: 20)
                 Text(callOutcomeLabel(call))
@@ -1861,7 +1861,7 @@ private struct ContactVoicemailPlayerRow: View {
                                 .tint(BrandColor.paper)
                         } else {
                             Image(systemName: playing ? "pause.fill" : "play.fill")
-                                .font(.scaled(11, weight: .bold))
+                                .font(.scaled(IconSize.small, weight: .bold))
                                 .foregroundStyle(BrandColor.paper)
                         }
                     }

@@ -41,7 +41,7 @@ struct EmptyState: View {
         return VStack(spacing: page ? 12 : 8) {
             if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.scaled(20))
+                    .font(.scaled(IconSize.large))
                     .foregroundStyle(BrandColor.muted700)
                     .frame(width: 44, height: 44)
                     .background(BrandColor.inset, in: Circle())

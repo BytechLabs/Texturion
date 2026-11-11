@@ -35,7 +35,7 @@ struct AddressList: View {
             ForEach(addresses) { entry in
                 HStack(spacing: 8) {
                     Image(systemName: "mappin.and.ellipse")
-                        .font(.scaled(12, weight: .medium))
+                        .font(.scaled(IconSize.small, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
                     Text(line(for: entry))
                         .font(.golos(13))
@@ -56,7 +56,7 @@ struct AddressList: View {
                         onRemove(entry.id)
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.scaled(11, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .buttonStyle(.plain)
@@ -120,7 +120,7 @@ struct AddressList: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "plus")
-                            .font(.scaled(11, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                         Text(AppStrings.translate(appLocale, "contactsTasks.addressAddAnother"))
                             .font(.golos(13))
                     }

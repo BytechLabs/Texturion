@@ -300,7 +300,7 @@ struct ContactsTab: View {
                     // Undo (docs/UNDO-AUDIT.md). Undo is the unmerge of the
                     // record that was folded in.
                     if let folded = undoableMerge, notice == mergeNotice {
-                        Button(t("inbox.undo")) { undoMerge(folded) }
+                        Button(Toast.undoLabel(appLocale)) { undoMerge(folded) }
                             .buttonStyle(.plain)
                             .font(.golos(11.5, weight: .semibold))
                             .foregroundStyle(BrandColor.muted700)
@@ -366,8 +366,8 @@ struct ContactsTab: View {
             // The notice line is a transient snackbar equivalent — it clears
             // itself; a new notice restarts the clock.
             guard notice != nil else { return }
-            // #295: an undoable notice stays up twice as long (UNDO-AUDIT §3).
-            try? await Task.sleep(for: .seconds(notice == mergeNotice ? 10 : 5))
+            // #295: an undoable notice stays up longer (UNDO-AUDIT §3).
+            try? await Task.sleep(for: .seconds(Toast.seconds(undoable: notice == mergeNotice)))
             if Task.isCancelled { return }
             notice = nil
         }
@@ -769,7 +769,7 @@ struct ContactsTab: View {
                 addFromDevice = row
             } label: {
                 Image(systemName: "person.badge.plus")
-                    .font(.scaled(15, weight: .regular))
+                    .font(.scaled(IconSize.standard, weight: .regular))
                     .foregroundStyle(BrandColor.muted500)
             }
             .buttonStyle(.plain)
@@ -1053,7 +1053,7 @@ private struct ContactRow: View {
             Spacer(minLength: 8)
             // Decorative doorway glyph — the whole row opens the contact.
             Image(systemName: "message")
-                .font(.scaled(15, weight: .medium))
+                .font(.scaled(IconSize.standard, weight: .medium))
                 .foregroundStyle(BrandColor.muted900)
                 .frame(width: 34, height: 34)
                 .background(BrandColor.inset, in: Circle())
@@ -1298,7 +1298,7 @@ private struct ImportReportSheet: View {
                     // correction is what makes the two read as one line.
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "hand.raised.fill")
-                            .font(.scaled(11, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(BrandColor.destructive)
                         Text(consent.localizedHeading(locale: appLocale))
                             .font(.golos(12.5, weight: .semibold))
@@ -1424,7 +1424,7 @@ private struct ImportRefusedSheet: View {
                 PaperCard {
                     HStack(alignment: .top, spacing: 11) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.scaled(13, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(BrandColor.destructive)
                         Text(refusal.message)
                             .font(.golos(12))

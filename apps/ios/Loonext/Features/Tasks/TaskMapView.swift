@@ -260,7 +260,7 @@ private struct TaskMapContent: View {
     private var countLine: some View {
         HStack(spacing: 5) {
             Image(systemName: "mappin")
-                .font(.scaled(11, weight: .medium))
+                .font(.scaled(IconSize.small, weight: .medium))
                 .foregroundStyle(BrandColor.muted500)
             Text(countText)
                 .font(.golos(11.5))
@@ -456,7 +456,7 @@ private struct PinPeekCard: View {
                 Spacer(minLength: 0)
                 Button(action: onDismiss) {
                     Image(systemName: "xmark")
-                        .font(.scaled(12, weight: .semibold))
+                        .font(.scaled(IconSize.small, weight: .semibold))
                         .foregroundStyle(BrandColor.muted500)
                         .frame(width: 30, height: 30)
                 }

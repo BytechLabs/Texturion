@@ -86,7 +86,7 @@ struct DuplicateContactsCard: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "person.2")
-                .font(.scaled(14, weight: .medium))
+                .font(.scaled(IconSize.standard, weight: .medium))
                 .foregroundStyle(BrandColor.muted500)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {

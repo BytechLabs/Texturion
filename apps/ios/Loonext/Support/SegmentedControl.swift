@@ -103,7 +103,7 @@ struct SegmentedControl<Value: Hashable>: View {
         return HStack(spacing: 5) {
             if let systemImage = option.systemImage {
                 Image(systemName: systemImage)
-                    .font(.scaled(tight ? 13 : 15, weight: .medium))
+                    .font(.scaled(tight ? IconSize.small : IconSize.standard, weight: .medium))
             }
             if let title = option.title {
                 Text(title)

@@ -596,7 +596,7 @@ struct ShellView: View {
                     Circle().fill(BrandColor.paperFixed)
                 }
                 Image(systemName: icon)
-                    .font(.scaled(20, weight: .regular))
+                    .font(.scaled(IconSize.large, weight: .regular))
                     .foregroundStyle(
                         tab == value
                             ? BrandColor.inkFixed

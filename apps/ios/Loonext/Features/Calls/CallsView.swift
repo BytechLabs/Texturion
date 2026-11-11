@@ -71,7 +71,6 @@ struct CallsView: View {
     @State private var noticeDismissTask: Task<Void, Never>?
 
     @Environment(\.appLocale) private var appLocale
-    @Environment(\.openURL) private var openURL
 
     private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
@@ -388,11 +387,7 @@ struct CallsView: View {
                 }
                 refreshKey += 1
                 let key = kind == .voicemail ? "thread.voicemailDeleted" : "thread.callDeleted"
-                showNotice(
-                    t(key),
-                    actionLabel: t("thread.undo"),
-                    trashLabel: t("trash.viewTrash")
-                ) {
+                showUndoable(t(key), trashLabel: t("trash.viewTrash")) {
                     restoreRecord(call, kind: kind)
                 }
             } catch {
@@ -418,25 +413,35 @@ struct CallsView: View {
         }
     }
 
-    private func showNotice(
+    private func showNotice(_ text: String) {
+        noticeSeq += 1
+        present(ThreadNotice(id: noticeSeq, text: text))
+    }
+
+    /// A change the product can put back: one Undo (`Toast.undoable`).
+    private func showUndoable(
         _ text: String,
-        actionLabel: String? = nil,
         trashLabel: String? = nil,
-        action: (@MainActor () -> Void)? = nil
+        undo: @escaping @MainActor () -> Void
     ) {
         noticeSeq += 1
-        notice = ThreadNotice(
-            id: noticeSeq,
-            text: text,
-            actionLabel: actionLabel,
-            action: action,
-            trashLabel: trashLabel
+        present(
+            Toast.undoable(
+                id: noticeSeq,
+                text: text,
+                locale: appLocale,
+                trashLabel: trashLabel,
+                undo: undo
+            )
         )
+    }
+
+    private func present(_ shown: ThreadNotice) {
+        notice = shown
         noticeDismissTask?.cancel()
-        let shownSeq = noticeSeq
+        let shownSeq = shown.id
         noticeDismissTask = Task {
-            // An undoable notice stays up longer (docs/UNDO-AUDIT.md).
-            try? await Task.sleep(for: .seconds(actionLabel == nil ? 3 : 10))
+            try? await Task.sleep(for: .seconds(shown.seconds))
             if !Task.isCancelled, noticeSeq == shownSeq { notice = nil }
         }
     }
@@ -444,34 +449,8 @@ struct CallsView: View {
     @ViewBuilder
     private var noticeToast: some View {
         if let shown = notice {
-            HStack(spacing: 12) {
-                Text(shown.text)
-                    .font(.golos(12.5))
-                    .foregroundStyle(BrandColor.ink)
-                    .lineLimit(2)
-                if let label = shown.actionLabel {
-                    Button(label) {
-                        shown.action?()
-                        notice = nil
-                    }
-                    .font(.golos(12.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.olive)
-                }
-                // #710: a delete notice also leads to the Trash.
-                if let trashLabel = shown.trashLabel {
-                    Button(trashLabel) {
-                        openURL(RecordDeletion.trashURL)
-                        notice = nil
-                    }
-                    .font(.golos(12.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.olive)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.regularMaterial, in: Capsule())
-            .padding(.bottom, 12)
-            .onTapGesture { notice = nil }
+            ToastView(notice: shown) { notice = nil }
+                .padding(.bottom, 12)
         }
     }
 
@@ -915,7 +894,7 @@ private struct CallRow: View {
                         .lineLimit(1)
                     HStack(spacing: 6) {
                         Image(systemName: directionIcon)
-                            .font(.scaled(11, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(metaColor)
                         // #566: the screening mark comes BEFORE the outcome and
                         // holds its size. It is a judgement about the CALLER, not
@@ -1057,7 +1036,7 @@ private struct CallRowActionBar: View {
                         onAction?(action)
                     } label: {
                         Image(systemName: symbol(action))
-                            .font(.scaled(15, weight: .medium))
+                            .font(.scaled(IconSize.standard, weight: .medium))
                             .foregroundStyle(BrandColor.muted600)
                             .frame(width: 48, height: 48)
                             .contentShape(Rectangle())
@@ -1089,7 +1068,7 @@ private struct ReasonChip: View {
                     onRemove()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.scaled(11, weight: .semibold))
+                        .font(.scaled(IconSize.small, weight: .semibold))
                         .foregroundStyle(BrandColor.muted600)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
@@ -1153,7 +1132,7 @@ struct VoicemailPlayerRow: View {
                                 .tint(BrandColor.paper)
                         } else {
                             Image(systemName: playing ? "pause.fill" : "play.fill")
-                                .font(.scaled(11, weight: .bold))
+                                .font(.scaled(IconSize.small, weight: .bold))
                                 .foregroundStyle(BrandColor.paper)
                         }
                     }

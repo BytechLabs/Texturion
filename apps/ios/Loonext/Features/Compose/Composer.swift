@@ -1512,7 +1512,7 @@ struct StagedMediaChip: View {
     var body: some View {
         VStack(spacing: 2) {
             Image(systemName: media.kind.symbolName)
-                .font(.scaled(17))
+                .font(.scaled(IconSize.standard))
                 .foregroundStyle(BrandColor.muted600)
             Text(media.name ?? attachmentLabel(kind: media.kind, count: 1))
                 .font(.golos(8.5, weight: .semibold))
@@ -1566,7 +1566,7 @@ struct PhotoChipsRow: View {
                             onRemove(photo.id)
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.scaled(16))
+                                .font(.scaled(IconSize.standard))
                                 .foregroundStyle(BrandColor.ink, BrandColor.paper)
                         }
                         .accessibilityLabel(
@@ -1612,7 +1612,7 @@ struct FileChipsRow: View {
                             onRemove(file.id)
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.scaled(11, weight: .semibold))
+                                .font(.scaled(IconSize.small, weight: .semibold))
                                 .foregroundStyle(BrandColor.muted500)
                         }
                         .accessibilityLabel(

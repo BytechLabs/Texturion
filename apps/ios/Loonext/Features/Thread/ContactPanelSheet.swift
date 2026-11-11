@@ -339,7 +339,7 @@ private struct PreferencesSection: View {
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     Image(systemName: open ? "chevron.up" : "chevron.down")
-                        .font(.scaled(11, weight: .semibold))
+                        .font(.scaled(IconSize.small, weight: .semibold))
                         .foregroundStyle(BrandColor.muted500)
                 }
                 .padding(.horizontal, 6)

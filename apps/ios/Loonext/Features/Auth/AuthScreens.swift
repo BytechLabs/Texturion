@@ -357,7 +357,7 @@ private struct SentNote: View {
                     .fill(BrandColor.lime)
                     .frame(width: 22, height: 22)
                 Image(systemName: "checkmark")
-                    .font(.scaled(10, weight: .bold))
+                    .font(.scaled(IconSize.small, weight: .bold))
                     .foregroundStyle(BrandColor.onLime)
             }
             Text(text)
@@ -706,7 +706,7 @@ struct PrimaryButton: View {
                         .fill(BrandColor.lime)
                         .frame(width: 42, height: 42)
                     Image(systemName: "arrow.right")
-                        .font(.scaled(16, weight: .semibold))
+                        .font(.scaled(IconSize.standard, weight: .semibold))
                         .foregroundStyle(BrandColor.onLime)
                 }
             }

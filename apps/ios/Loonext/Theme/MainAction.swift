@@ -25,7 +25,7 @@ struct MainActionButton: View {
             action()
         } label: {
             Image(systemName: systemImage)
-                .font(.scaled(20, weight: .medium))
+                .font(.scaled(IconSize.large, weight: .medium))
                 .foregroundStyle(BrandColor.paper)
                 .frame(width: MainAction.size, height: MainAction.size)
                 .background(BrandColor.ink, in: Circle())

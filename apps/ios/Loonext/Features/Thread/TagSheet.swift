@@ -66,7 +66,7 @@ struct ThreadTagsRow: View {
                             onRemove(tag)
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.scaled(10, weight: .semibold))
+                                .font(.scaled(IconSize.small, weight: .semibold))
                                 .foregroundStyle(BrandColor.muted500)
                                 .frame(width: 18, height: 18)
                         }
@@ -85,7 +85,7 @@ struct ThreadTagsRow: View {
                 Button(action: onManage) {
                     HStack(spacing: 4) {
                         Image(systemName: "tag")
-                            .font(.scaled(11))
+                            .font(.scaled(IconSize.small))
                         Text(
                             AppStrings.translate(
                                 appLocale,

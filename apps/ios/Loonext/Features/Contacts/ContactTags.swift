@@ -42,7 +42,7 @@ struct ContactTagsRow: View {
                                 Text(tag.name)
                                     .font(.golos(13))
                                 Image(systemName: "xmark")
-                                    .font(.scaled(10, weight: .semibold))
+                                    .font(.scaled(IconSize.small, weight: .semibold))
                             }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
@@ -68,7 +68,7 @@ struct ContactTagsRow: View {
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: "plus")
-                                .font(.scaled(10, weight: .semibold))
+                                .font(.scaled(IconSize.small, weight: .semibold))
                             Text(AppStrings.translate(appLocale, "contactsTasks.tagAdd"))
                                 .font(.golos(13))
                         }

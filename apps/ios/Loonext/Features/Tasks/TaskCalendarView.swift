@@ -264,7 +264,7 @@ struct TaskCalendarView: View {
                 stepMonth(-1)
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.scaled(15, weight: .semibold))
+                    .font(.scaled(IconSize.standard, weight: .semibold))
                     .foregroundStyle(BrandColor.muted500)
                     .frame(width: 40, height: 40)
             }
@@ -295,7 +295,7 @@ struct TaskCalendarView: View {
                 stepMonth(1)
             } label: {
                 Image(systemName: "chevron.right")
-                    .font(.scaled(15, weight: .semibold))
+                    .font(.scaled(IconSize.standard, weight: .semibold))
                     .foregroundStyle(BrandColor.muted500)
                     .frame(width: 40, height: 40)
             }
@@ -658,7 +658,7 @@ private struct CalendarTaskRow: View {
                     if task.done {
                         Circle().fill(BrandColor.lime)
                         Image(systemName: "checkmark")
-                            .font(.scaled(11, weight: .bold))
+                            .font(.scaled(IconSize.small, weight: .bold))
                             .foregroundStyle(BrandColor.onLime)
                     } else {
                         Circle().strokeBorder(BrandColor.muted250, lineWidth: 1.8)

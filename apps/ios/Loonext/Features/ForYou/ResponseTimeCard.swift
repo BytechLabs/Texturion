@@ -165,7 +165,7 @@ struct ResponseTimeCard: View {
                     )
                 }
                 Image(systemName: "clock")
-                    .font(.scaled(12, weight: .medium))
+                    .font(.scaled(IconSize.small, weight: .medium))
                     .foregroundStyle(BrandColor.muted500)
                 Text(ResponseTimeFormat.format(report.median_seconds))
                     .font(.golos(24, weight: .semibold))
@@ -211,7 +211,7 @@ struct ResponseTimeCard: View {
                         .font(.golos(13))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Image(systemName: "arrow.right")
-                        .font(.scaled(12, weight: .medium))
+                        .font(.scaled(IconSize.small, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
                 }
                 .padding(.horizontal, 14)
@@ -244,7 +244,7 @@ struct ResponseTimeCard: View {
                     .foregroundStyle(BrandColor.muted600)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "chevron.down")
-                    .font(.scaled(11, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted600)
                     // Points down when closed and up when open, so the glyph
                     // says which way the control goes.

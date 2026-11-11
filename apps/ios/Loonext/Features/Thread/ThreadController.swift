@@ -206,6 +206,28 @@ final class ThreadController {
         )
     }
 
+    /// A change the product can put back: one Undo (`Toast.undoable`).
+    private func notifyUndoable(
+        _ text: String,
+        trashLabel: String? = nil,
+        undo: @escaping @MainActor () -> Void
+    ) {
+        noticeSeq += 1
+        notice = Toast.undoable(
+            id: noticeSeq,
+            text: text,
+            locale: locale,
+            trashLabel: trashLabel,
+            undo: undo
+        )
+    }
+
+    /// Something made elsewhere: one Open (`Toast.created`).
+    private func notifyCreated(_ text: String, open: @escaping @MainActor () -> Void) {
+        noticeSeq += 1
+        notice = Toast.created(id: noticeSeq, text: text, locale: locale, open: open)
+    }
+
     /// UI-originated notices (copy confirmations, picker rejections) ride the
     /// same toast channel as controller notices.
     func notifyExternally(
@@ -1147,7 +1169,7 @@ final class ThreadController {
                 )
                 // #724: Open goes to the task that was just made.
                 let taskId = task.id
-                notify(t("thread.taskCreated"), actionLabel: t("common.open")) {
+                notifyCreated(t("thread.taskCreated")) {
                     AppRouter.shared.openTaskId = taskId
                 }
             } catch {
@@ -1368,9 +1390,8 @@ final class ThreadController {
                 messages = messages.filter { $0.id != message.id }
                 pinnedMessages = pinnedMessages.filter { $0.id != message.id }
                 try? await refreshEvents()
-                notify(
+                notifyUndoable(
                     t(RecordDeletion.messageDeletedKey(message)),
-                    actionLabel: t("thread.undo"),
                     trashLabel: t("trash.viewTrash")
                 ) { [weak self] in
                     self?.restoreMessage(message.id)
@@ -1450,10 +1471,7 @@ final class ThreadController {
                 )
                 try? await refreshEvents()
                 if spam {
-                    notify(
-                        t("thread.markedAsSpam"),
-                        actionLabel: t("thread.undo")
-                    ) { [weak self] in
+                    notifyUndoable(t("thread.markedAsSpam")) { [weak self] in
                         self?.setSpam(false)
                     }
                 } else {

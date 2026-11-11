@@ -218,7 +218,7 @@ private struct NotificationRow: View {
         Button(action: onTap) {
             HStack(alignment: .top, spacing: 11) {
                 Image(systemName: iconFor(row.type))
-                    .font(.scaled(15))
+                    .font(.scaled(IconSize.standard))
                     .foregroundStyle(iconTint(row.type))
                     .frame(width: 38, height: 38)
                     .background(iconWell(row.type), in: Circle())

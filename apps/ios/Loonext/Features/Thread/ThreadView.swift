@@ -178,7 +178,7 @@ private struct ThreadBody: View {
             visibleNotice = notice
             noticeDismissTask?.cancel()
             noticeDismissTask = Task {
-                try? await Task.sleep(for: .seconds(notice.actionLabel == nil ? 3 : 5))
+                try? await Task.sleep(for: .seconds(notice.seconds))
                 if !Task.isCancelled { visibleNotice = nil }
             }
         }
@@ -236,7 +236,7 @@ private struct ThreadBody: View {
                 .foregroundStyle(BrandColor.muted500)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-            Button(AppStrings.translate(appLocale, "thread.undo")) {
+            Button(Toast.undoLabel(appLocale)) {
                 controller.restoreConversation()
             }
             .buttonStyle(.bordered)
@@ -889,7 +889,7 @@ private struct ThreadBody: View {
                                     )
                                     .font(.golos(12, weight: .semibold))
                                     Image(systemName: "chevron.down")
-                                        .font(.scaled(12, weight: .semibold))
+                                        .font(.scaled(IconSize.small, weight: .semibold))
                                 }
                                 .foregroundStyle(BrandColor.canvas)
                                 .padding(.horizontal, 14)
@@ -1690,7 +1690,7 @@ private struct ThreadHeader: View {
                             .frame(width: 44, height: 44)
                     } else {
                         Image(systemName: "phone")
-                            .font(.scaled(17, weight: .medium))
+                            .font(.scaled(IconSize.standard, weight: .medium))
                             .foregroundStyle(BrandColor.canvas)
                             .frame(width: 44, height: 44)
                             .background(Circle().fill(BrandColor.ink))
@@ -2163,7 +2163,7 @@ private struct ConversationSheet: View {
             HStack(spacing: 10) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.scaled(14, weight: .regular))
+                        .font(.scaled(IconSize.standard, weight: .regular))
                         .foregroundStyle(BrandColor.muted500)
                         .frame(width: 20, alignment: .leading)
                 }
@@ -2201,7 +2201,7 @@ private struct ConversationSheet: View {
             HStack(spacing: 10) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.scaled(14, weight: .regular))
+                        .font(.scaled(IconSize.standard, weight: .regular))
                         .foregroundStyle(on ? BrandColor.olive : BrandColor.muted500)
                         .frame(width: 20, alignment: .leading)
                 }
@@ -2213,7 +2213,7 @@ private struct ConversationSheet: View {
                 // appears only when on leaves an unchecked row pixel-identical
                 // to the plain action rows around it, which is the complaint.
                 Image(systemName: on ? "checkmark.square.fill" : "square")
-                    .font(.scaled(15, weight: .regular))
+                    .font(.scaled(IconSize.standard, weight: .regular))
                     .foregroundStyle(on ? BrandColor.olive : BrandColor.muted400)
             }
             .padding(.horizontal, 15)
@@ -2340,7 +2340,7 @@ private struct SnoozedBanner: View {
         Button(action: onBringBack) {
             HStack(spacing: 8) {
                 Image(systemName: "clock")
-                    .font(.scaled(12))
+                    .font(.scaled(IconSize.small))
                     .foregroundStyle(BrandColor.muted700)
                 Text(label)
                     .font(.golos(11.5, weight: .semibold))
@@ -2364,45 +2364,6 @@ private struct SnoozedBanner: View {
         .accessibilityHint(
             AppStrings.translate(appLocale, "thread.bringBackHint")
         )
-    }
-}
-
-/// One-line transient notice with an optional action — the Android snackbar's
-/// calm iOS stand-in.
-private struct ToastView: View {
-    let notice: ThreadNotice
-    let onDismiss: @MainActor () -> Void
-    @Environment(\.openURL) private var openURL
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Text(notice.text)
-                .font(.golos(12.5))
-                .foregroundStyle(BrandColor.ink)
-                .lineLimit(2)
-            if let label = notice.actionLabel {
-                Button(label) {
-                    notice.action?()
-                    onDismiss()
-                }
-                .font(.golos(12.5, weight: .semibold))
-                .foregroundStyle(BrandColor.olive)
-            }
-            // #710: a delete notice also leads to the Trash.
-            if let trashLabel = notice.trashLabel {
-                Button(trashLabel) {
-                    openURL(RecordDeletion.trashURL)
-                    onDismiss()
-                }
-                .font(.golos(12.5, weight: .semibold))
-                .foregroundStyle(BrandColor.olive)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.regularMaterial, in: Capsule())
-        .padding(.horizontal, 24)
-        .onTapGesture { onDismiss() }
     }
 }
 
@@ -2591,7 +2552,7 @@ struct MakeTaskSheet: View {
             Spacer()
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
-                    .font(.scaled(13, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted700)
                     .frame(width: 34, height: 34)
                     .background(Circle().fill(BrandColor.inset))
@@ -2762,7 +2723,7 @@ struct MakeTaskSheet: View {
                             .foregroundStyle(due == nil ? BrandColor.muted500 : BrandColor.ink)
                         Spacer(minLength: 0)
                         Image(systemName: "calendar")
-                            .font(.scaled(13))
+                            .font(.scaled(IconSize.small))
                             .foregroundStyle(BrandColor.muted400)
                     }
                     .padding(.horizontal, 15)
@@ -2779,7 +2740,7 @@ struct MakeTaskSheet: View {
                         dueSuggested = false
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.scaled(20))
+                            .font(.scaled(IconSize.large))
                             .foregroundStyle(BrandColor.muted300)
                     }
                     .buttonStyle(.borderless)
@@ -2808,7 +2769,7 @@ struct MakeTaskSheet: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "mappin.and.ellipse")
-                            .font(.scaled(13, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
                         Text(AppStrings.translate(locale, "thread.addressSection"))
                             .font(.golos(13.5, weight: .semibold))
@@ -2846,7 +2807,7 @@ struct MakeTaskSheet: View {
                 // Disclosure chevron stays the trailing affordance (parity with
                 // Android/web); tapping it toggles like the label.
                 Image(systemName: "chevron.down")
-                    .font(.scaled(12, weight: .medium))
+                    .font(.scaled(IconSize.small, weight: .medium))
                     .foregroundStyle(BrandColor.muted250)
                     .rotationEffect(.degrees(addrOpen ? 180 : 0))
                     .onTapGesture { addrOpen.toggle() }
@@ -2945,7 +2906,7 @@ struct MakeTaskSheet: View {
                     .foregroundStyle(BrandColor.canvas)
                 Spacer()
                 Image(systemName: "checkmark")
-                    .font(.scaled(15, weight: .bold))
+                    .font(.scaled(IconSize.standard, weight: .bold))
                     .foregroundStyle(BrandColor.onLime)
                     .frame(width: 42, height: 42)
                     .background(Circle().fill(BrandColor.lime))

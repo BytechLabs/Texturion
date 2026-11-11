@@ -258,7 +258,7 @@ struct CallTaskButton: View {
                     ProgressView().controlSize(.small)
                 } else {
                     Image(systemName: "text.badge.plus")
-                        .font(.scaled(14, weight: .medium))
+                        .font(.scaled(IconSize.standard, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
                 }
             }
@@ -279,25 +279,7 @@ struct CallTaskButton: View {
                 )
             }
         }
-        .alert(
-            notice ?? "",
-            isPresented: Binding(
-                get: { notice != nil },
-                set: { if !$0 { notice = nil } }
-            )
-        ) {
-            if let taskId = noticeTaskId {
-                Button(AppStrings.translate(appLocale, "common.open")) {
-                    notice = nil
-                    noticeTaskId = nil
-                    AppRouter.shared.openTaskId = taskId
-                }
-            }
-            Button(AppStrings.translate(appLocale, "common.close"), role: .cancel) {
-                notice = nil
-                noticeTaskId = nil
-            }
-        }
+        .createdAlert(notice: $notice, openTaskId: $noticeTaskId)
     }
 
     private func open() {

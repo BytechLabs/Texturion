@@ -92,7 +92,7 @@ struct ListFilterButton: View {
         Button(action: onTap) {
             HStack(spacing: 5) {
                 Image(systemName: "line.3.horizontal.decrease")
-                    .font(.scaled(14, weight: .semibold))
+                    .font(.scaled(IconSize.standard, weight: .semibold))
                 if count > 0 {
                     CountPill(count, tone: .primary)
                 }
@@ -157,7 +157,7 @@ struct ListViewsMenu: View {
             }
         } label: {
             Image(systemName: "bookmark")
-                .font(.scaled(14, weight: .semibold))
+                .font(.scaled(IconSize.standard, weight: .semibold))
                 .foregroundStyle(model.activeId != nil ? BrandColor.paper : BrandColor.muted700)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)

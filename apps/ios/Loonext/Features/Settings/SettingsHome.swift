@@ -417,7 +417,7 @@ struct SettingsHome: View {
         } label: {
             HStack(spacing: 9) {
                 Image(systemName: "rectangle.portrait.and.arrow.right")
-                    .font(.scaled(15))
+                    .font(.scaled(IconSize.standard))
                     .foregroundStyle(BrandColor.muted600)
                 Text(HandOverPhone.localizedAction(locale: appLocale))
                     .font(.golos(13))
@@ -477,7 +477,7 @@ struct SettingsHome: View {
                             .font(.golos(11, weight: .semibold))
                             .monospacedDigit()
                         Image(systemName: "doc.on.doc")
-                            .font(.scaled(10))
+                            .font(.scaled(IconSize.small))
                     }
                     .foregroundStyle(BrandColor.paper)
                     .padding(.horizontal, 12)
@@ -663,7 +663,7 @@ private struct SettingsSectionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: section.icon)
-                .font(.scaled(15))
+                .font(.scaled(IconSize.standard))
                 .foregroundStyle(BrandColor.muted900)
                 .frame(width: 36, height: 36)
                 .background(
@@ -690,7 +690,7 @@ private struct SettingsSectionRow: View {
                     .frame(width: 8, height: 8)
             }
             Image(systemName: "chevron.right")
-                .font(.scaled(12, weight: .semibold))
+                .font(.scaled(IconSize.small, weight: .semibold))
                 .foregroundStyle(BrandColor.muted250)
                 .accessibilityHidden(true)
         }

@@ -45,7 +45,7 @@ struct CountryField: View {
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.down")
-                    .font(.scaled(12, weight: .medium))
+                    .font(.scaled(IconSize.small, weight: .medium))
                     .foregroundStyle(BrandColor.muted400)
             }
             .padding(.horizontal, 12)

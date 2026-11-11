@@ -20,7 +20,7 @@ struct ChoiceChip: View {
             HStack(spacing: 4) {
                 if chosen {
                     Image(systemName: "checkmark")
-                        .font(.scaled(10, weight: .bold))
+                        .font(.scaled(IconSize.small, weight: .bold))
                         .accessibilityHidden(true)
                 }
                 Text(label)

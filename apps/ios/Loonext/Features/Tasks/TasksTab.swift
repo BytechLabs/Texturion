@@ -902,7 +902,7 @@ private struct TaskListRow: View {
                     if task.done {
                         Circle().fill(BrandColor.lime)
                         Image(systemName: "checkmark")
-                            .font(.scaled(11, weight: .bold))
+                            .font(.scaled(IconSize.small, weight: .bold))
                             .foregroundStyle(BrandColor.onLime)
                     } else {
                         Circle().strokeBorder(BrandColor.muted250, lineWidth: 1.8)
@@ -1269,7 +1269,7 @@ extension TasksTab {
                 bulkSelection = .empty
             } label: {
                 Image(systemName: "xmark")
-                    .font(.scaled(13, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
             }
             .buttonStyle(.plain)
             .disabled(bulkRunning)
@@ -1304,7 +1304,7 @@ extension TasksTab {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.scaled(13, weight: .semibold))
+                        .font(.scaled(IconSize.small, weight: .semibold))
                 }
                 .disabled(bulkRunning)
                 .accessibilityLabel(
@@ -1353,7 +1353,7 @@ extension TasksTab {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.scaled(13, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
             }
             .disabled(bulkRunning)
             .accessibilityLabel(

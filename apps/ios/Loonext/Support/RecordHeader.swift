@@ -13,13 +13,16 @@ struct RecordHeader<Leading: View, Content: View, Trailing: View, Actions: View>
     private let content: Content
     private let trailing: Trailing
     private let actions: Actions
+    private let showsActions: Bool
 
     /// - leading: an avatar, or a task's done circle.
     /// - content: the title, then quiet lines under it (a number, an outcome, a
     ///   relationship).
     /// - trailing: icon toggles and the overflow menu, beside the title.
     /// - actions: the action row: call, copy, open.
+    /// - showsActions: false leaves the action row out, and its gap with it.
     init(
+        showsActions: Bool = true,
         @ViewBuilder leading: () -> Leading,
         @ViewBuilder content: () -> Content,
         @ViewBuilder trailing: () -> Trailing,
@@ -29,6 +32,7 @@ struct RecordHeader<Leading: View, Content: View, Trailing: View, Actions: View>
         self.content = content()
         self.trailing = trailing()
         self.actions = actions()
+        self.showsActions = showsActions
     }
 
     var body: some View {
@@ -42,9 +46,11 @@ struct RecordHeader<Leading: View, Content: View, Trailing: View, Actions: View>
                 trailing
             }
             // The row wraps to a column rather than clipping at large type.
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) { actions }
-                VStack(alignment: .leading, spacing: 4) { actions }
+            if showsActions {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { actions }
+                    VStack(alignment: .leading, spacing: 4) { actions }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -64,7 +70,7 @@ struct RecordOpenLink: View {
                 Text(label)
                     .font(.golos(13, weight: .semibold))
                 Image(systemName: "chevron.right")
-                    .font(.scaled(11, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
             }
             .foregroundStyle(BrandColor.olive)
             .padding(.vertical, 8)

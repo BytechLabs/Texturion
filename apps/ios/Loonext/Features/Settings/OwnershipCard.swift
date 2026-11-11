@@ -461,7 +461,7 @@ private struct PendingHandoverNotice: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.shield")
-                .font(.scaled(17))
+                .font(.scaled(IconSize.standard))
                 .foregroundStyle(BrandColor.overdueAmber)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 6) {
@@ -527,7 +527,7 @@ private struct PickerLabel: View {
                 .foregroundStyle(BrandColor.ink)
             Spacer()
             Image(systemName: "chevron.up.chevron.down")
-                .font(.scaled(11))
+                .font(.scaled(IconSize.small))
                 .foregroundStyle(BrandColor.muted600)
         }
         .padding(.horizontal, 12)

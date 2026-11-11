@@ -88,7 +88,7 @@ private struct SoftphoneNotice: View {
             Spacer(minLength: 4)
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
-                    .font(.scaled(11, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted500)
                     .frame(width: 28, height: 28)
             }
@@ -167,7 +167,7 @@ struct CallChip: View {
                 manager.hangup(call.id)
             } label: {
                 Image(systemName: "phone.down")
-                    .font(.scaled(14, weight: .semibold))
+                    .font(.scaled(IconSize.standard, weight: .semibold))
                     .foregroundStyle(BrandColor.paperFixed)
                     .frame(width: 34, height: 34)
                     .background(BrandColor.destructive, in: Circle())
@@ -178,7 +178,7 @@ struct CallChip: View {
                 answerWithMicPreflight(call.id)
             } label: {
                 Image(systemName: "phone")
-                    .font(.scaled(14, weight: .semibold))
+                    .font(.scaled(IconSize.standard, weight: .semibold))
                     .foregroundStyle(BrandColor.onLime)
                     .frame(width: 34, height: 34)
                     .background(BrandColor.lime, in: Circle())
@@ -190,7 +190,7 @@ struct CallChip: View {
                 manager.dismiss(call.id)
             } label: {
                 Image(systemName: "xmark")
-                    .font(.scaled(13, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted600)
                     .frame(width: 34, height: 34)
                     .background(BrandColor.inset, in: Circle())
@@ -202,7 +202,7 @@ struct CallChip: View {
                 manager.hangup(call.id)
             } label: {
                 Image(systemName: "phone.down")
-                    .font(.scaled(14, weight: .semibold))
+                    .font(.scaled(IconSize.standard, weight: .semibold))
                     .foregroundStyle(BrandColor.paperFixed)
                     .frame(width: 34, height: 34)
                     .background(BrandColor.destructive, in: Circle())

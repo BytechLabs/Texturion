@@ -732,7 +732,7 @@ struct ContactImportConsentSheet: View {
         PaperCard {
             HStack(spacing: 11) {
                 Image(systemName: candidate.kind.icon)
-                    .font(.scaled(15, weight: .medium))
+                    .font(.scaled(IconSize.standard, weight: .medium))
                     .foregroundStyle(BrandColor.muted900)
                     .frame(width: 34, height: 34)
                     .background(BrandColor.inset, in: Circle())
@@ -763,7 +763,7 @@ struct ContactImportConsentSheet: View {
                     // The box is drawn in BOTH states — an unticked row that
                     // looked like plain copy is a row nobody reads as a choice.
                     Image(systemName: attested ? "checkmark.square.fill" : "square")
-                        .font(.scaled(17, weight: .regular))
+                        .font(.scaled(IconSize.standard, weight: .regular))
                         .foregroundStyle(attested ? BrandColor.olive : BrandColor.muted400)
                     Text(attestation)
                         .font(.golos(13.5, weight: .medium))
@@ -800,7 +800,7 @@ struct ContactImportConsentSheet: View {
                     // correction is what makes the two read as one line.
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "tablecells.badge.ellipsis")
-                            .font(.scaled(11, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(BrandColor.muted900)
                         Text(ContactColumns.localizedColumnsHeading(appLocale))
                             .font(.golos(12.5, weight: .semibold))
@@ -961,7 +961,7 @@ struct ContactImportConsentSheet: View {
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: "minus.circle")
-                    .font(.scaled(11, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                 Text(ContactColumns.ignoreRestLabel(unansweredColumns, locale: appLocale))
                     .font(.golos(11.5, weight: .semibold))
                 Spacer(minLength: 0)
@@ -988,7 +988,7 @@ struct ContactImportConsentSheet: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: "list.bullet.rectangle")
-                            .font(.scaled(11, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(BrandColor.muted900)
                         Text(VCardProperties.localizedHeading(appLocale))
                             .font(.golos(12.5, weight: .semibold))
@@ -1117,7 +1117,7 @@ struct ContactImportConsentSheet: View {
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: "minus.circle")
-                    .font(.scaled(11, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                 Text(VCardProperties.ignoreRestLabel(unansweredProperties, locale: appLocale))
                     .font(.golos(11.5, weight: .semibold))
                 Spacer(minLength: 0)
@@ -1144,7 +1144,7 @@ struct ContactImportConsentSheet: View {
     private func answerChip(icon: String?, label: String?, answered: Bool) -> some View {
         HStack(spacing: 5) {
             Image(systemName: icon ?? "questionmark")
-                .font(.scaled(10, weight: .semibold))
+                .font(.scaled(IconSize.small, weight: .semibold))
             Text(label ?? unansweredLabel)
                 .font(.golos(11.5, weight: .semibold))
                 .lineLimit(1)
@@ -1169,7 +1169,7 @@ struct ContactImportConsentSheet: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.scaled(11, weight: .medium))
+                        .font(.scaled(IconSize.small, weight: .medium))
                         .foregroundStyle(BrandColor.destructive)
                     Text(blocker.localizedTitle(appLocale))
                         .font(.golos(12.5, weight: .semibold))
@@ -1207,7 +1207,7 @@ struct ContactImportConsentSheet: View {
     private func consequence(_ icon: String, _ key: String) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: icon)
-                .font(.scaled(12, weight: .medium))
+                .font(.scaled(IconSize.small, weight: .medium))
                 .foregroundStyle(BrandColor.muted400)
                 .frame(width: 16, alignment: .center)
             Text(AppStrings.translate(appLocale, key))
@@ -1227,7 +1227,7 @@ struct ContactImportConsentSheet: View {
     private func gateLine(_ reason: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             Image(systemName: "arrow.up.circle")
-                .font(.scaled(11, weight: .medium))
+                .font(.scaled(IconSize.small, weight: .medium))
                 .foregroundStyle(BrandColor.overdueAmber)
             Text(reason)
                 .font(.golos(11.5, weight: .medium))

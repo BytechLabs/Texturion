@@ -37,7 +37,7 @@ struct PhoneList: View {
             ForEach(phones) { entry in
                 HStack(spacing: 8) {
                     Image(systemName: "phone")
-                        .font(.scaled(12, weight: .medium))
+                        .font(.scaled(IconSize.small, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
                     Text(line(for: entry))
                         .font(.golos(13))
@@ -46,7 +46,7 @@ struct PhoneList: View {
                         onRemove(entry.id)
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.scaled(11, weight: .medium))
+                            .font(.scaled(IconSize.small, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .buttonStyle(.plain)
@@ -115,7 +115,7 @@ struct PhoneList: View {
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "plus")
-                            .font(.scaled(10, weight: .semibold))
+                            .font(.scaled(IconSize.small, weight: .semibold))
                         Text(AppStrings.translate(appLocale, "contactsTasks.phoneAddAnother"))
                             .font(.golos(13))
                     }

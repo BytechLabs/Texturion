@@ -629,7 +629,7 @@ struct ForYouList: View {
             // nothing in it.
             Button(action: onOpenNotifications) {
                 Image(systemName: "bell")
-                    .font(.scaled(15, weight: .medium))
+                    .font(.scaled(IconSize.standard, weight: .medium))
                     .foregroundStyle(BrandColor.muted700)
                     .frame(width: 40, height: 40)
                     .background(BrandColor.paper, in: Circle())
@@ -666,7 +666,7 @@ struct ForYouList: View {
             Button(action: onToggleEditing) {
                 Image(systemName: "slider.horizontal.3")
                     // Scaled, so the glyph grows with the reader's font setting.
-                    .font(.scaled(15, weight: .medium))
+                    .font(.scaled(IconSize.standard, weight: .medium))
                     .foregroundStyle(BrandColor.muted700)
                     .frame(width: 44, height: 44)
                     .background(BrandColor.paper, in: Circle())
@@ -1327,7 +1327,7 @@ private struct RecentCallRow: View {
                     .lineLimit(1)
                 HStack(spacing: 5) {
                     Image(systemName: directionIcon)
-                        .font(.scaled(10, weight: .medium))
+                        .font(.scaled(IconSize.small, weight: .medium))
                         .foregroundStyle(metaColor)
                     // #566: the same unbounded label as the /calls row —
                     // "Answered by <display_name> · 4m 32s", with display_name
@@ -1393,7 +1393,7 @@ private struct PersonRow: View {
                     AttentionDot()
                 }
                 Image(systemName: "arrow.right")
-                    .font(.scaled(15, weight: .medium))
+                    .font(.scaled(IconSize.standard, weight: .medium))
                     .foregroundStyle(BrandColor.muted250)
             }
             .padding(.horizontal, 16)
@@ -1437,7 +1437,7 @@ private struct TaskLineRow: View {
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "arrow.right")
-                    .font(.scaled(15, weight: .medium))
+                    .font(.scaled(IconSize.standard, weight: .medium))
                     .foregroundStyle(BrandColor.muted250)
             }
             .padding(.horizontal, 16)

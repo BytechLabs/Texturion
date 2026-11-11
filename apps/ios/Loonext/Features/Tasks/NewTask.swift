@@ -202,25 +202,7 @@ private struct NewTaskSheetModifier: ViewModifier {
                     onDismiss: { isPresented = false }
                 )
             }
-            .alert(
-                notice ?? "",
-                isPresented: Binding(
-                    get: { notice != nil },
-                    set: { if !$0 { notice = nil } }
-                )
-            ) {
-                if let taskId = noticeTaskId {
-                    Button(AppStrings.translate(appLocale, "common.open")) {
-                        notice = nil
-                        noticeTaskId = nil
-                        AppRouter.shared.openTaskId = taskId
-                    }
-                }
-                Button(AppStrings.translate(appLocale, "common.close"), role: .cancel) {
-                    notice = nil
-                    noticeTaskId = nil
-                }
-            }
+            .createdAlert(notice: $notice, openTaskId: $noticeTaskId)
     }
 }
 

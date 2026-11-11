@@ -59,7 +59,6 @@ struct CallDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header(call)
-                onward(call)
                 wordsCard(call)
                 factsCard(call)
                 activitySection(call)
@@ -71,25 +70,29 @@ struct CallDetailView: View {
 
     private func header(_ call: Call) -> some View {
         let when = TimestampFormat.exact(call.started_at, locale: appLocale)
-        return VStack(alignment: .leading, spacing: 4) {
+        return RecordHeader(
+            showsActions: call.conversation_id != nil || call.contact_id != nil
+        ) {
+            EmptyView()
+        } content: {
             ScreenTitle(text: callerDisplayName(call))
             Text(t(callOutcomeLineKey(call)) + " · " + when)
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.muted500)
+        } trailing: {
+            EmptyView()
+        } actions: {
+            onward(call)
         }
     }
 
     @ViewBuilder
     private func onward(_ call: Call) -> some View {
-        if call.conversation_id != nil || call.contact_id != nil {
-            HStack(spacing: 8) {
-                if let id = call.conversation_id {
-                    onwardButton(t("shell.openConversation")) { onOpenConversation(id) }
-                }
-                if let id = call.contact_id {
-                    onwardButton(t("shell.viewContact")) { onOpenContact(id) }
-                }
-            }
+        if let id = call.conversation_id {
+            onwardButton(t("shell.openConversation")) { onOpenConversation(id) }
+        }
+        if let id = call.contact_id {
+            onwardButton(t("shell.viewContact")) { onOpenContact(id) }
         }
     }
 

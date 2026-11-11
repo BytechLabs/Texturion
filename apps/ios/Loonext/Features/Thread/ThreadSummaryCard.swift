@@ -136,7 +136,7 @@ struct ThreadSummaryCard: View {
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
-                    .font(.scaled(11, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.muted400)
             }
             .contentShape(Rectangle())
@@ -259,7 +259,7 @@ struct ThreadSummaryCard: View {
         // read as one sentence rather than an icon with a paragraph beside it.
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "hand.raised.fill")
-                .font(.scaled(11, weight: .medium))
+                .font(.scaled(IconSize.small, weight: .medium))
                 .foregroundStyle(BrandColor.destructive)
             Text(notice)
                 .font(.golos(12, weight: .semibold))

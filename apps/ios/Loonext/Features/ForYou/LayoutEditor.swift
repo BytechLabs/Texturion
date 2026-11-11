@@ -88,7 +88,7 @@ struct PanelEditBar: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.scaled(14, weight: .semibold))
+                .font(.scaled(IconSize.standard, weight: .semibold))
                 .foregroundStyle(BrandColor.muted700)
                 .frame(width: 44, height: 44)
         }
@@ -201,7 +201,7 @@ struct LayoutToolbar: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "plus")
-                    .font(.scaled(13, weight: .semibold))
+                    .font(.scaled(IconSize.small, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
             }
             .padding(.horizontal, 12)

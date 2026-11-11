@@ -33,7 +33,7 @@ struct SearchField: View {
     var body: some View {
         HStack(spacing: 9) {
             Image(systemName: "magnifyingglass")
-                .font(.scaled(14, weight: .medium))
+                .font(.scaled(IconSize.standard, weight: .medium))
                 .foregroundStyle(BrandColor.muted700)
                 .accessibilityHidden(true)
             TextField(placeholder, text: $query)
@@ -54,7 +54,7 @@ struct SearchField: View {
                     focused = true
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.scaled(15))
+                        .font(.scaled(IconSize.standard))
                         .foregroundStyle(BrandColor.muted700)
                 }
                 .buttonStyle(.borderless)
