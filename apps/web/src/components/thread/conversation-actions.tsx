@@ -98,6 +98,8 @@ export interface ConversationActionsInput {
     snoozedUntil: string | null;
     snoozeKind: DeferralKind | null;
     assignedUserId: string | null;
+    /** #722: the server's status moves for this member; absent on a list row. */
+    allowedActions?: readonly string[];
   };
   members: { id: string; name: string; isYou: boolean }[];
   viewer: {
@@ -143,6 +145,42 @@ export interface ConversationActionsInput {
 
 function CatchUpIcon() {
   return <AiOrb size={16} />;
+}
+
+/** The status each conversation action moves a thread to. */
+const STATUS_MOVES: Record<string, ConversationStatus> = {
+  mark_open: "open",
+  reopen: "open",
+  mark_waiting: "waiting",
+  close: "closed",
+};
+
+/**
+ * #722: whether this member may make a status move. The server's list decides
+ * where it was sent; a surface without one (a list row) falls back to the role.
+ */
+export function statusMoveAllowed(
+  allowed: readonly string[] | undefined,
+  action: string,
+  canWrite: boolean,
+): boolean {
+  return allowed ? allowed.includes(action) : canWrite;
+}
+
+/**
+ * #722: the statuses a status picker offers: the current one, and each one an
+ * allowed move reaches. Without the server's list, every status for a member
+ * who can write.
+ */
+export function statusChoices(
+  current: ConversationStatus,
+  allowed: readonly string[] | undefined,
+  canWrite: boolean,
+): ConversationStatus[] {
+  const all: ConversationStatus[] = ["new", "open", "waiting", "closed"];
+  if (!allowed) return canWrite ? all : [current];
+  const reachable = new Set(allowed.map((action) => STATUS_MOVES[action]));
+  return all.filter((status) => status === current || reachable.has(status));
 }
 
 export function buildConversationActions(
@@ -237,7 +275,7 @@ export function buildConversationActions(
           label: t("recordMenu.reopenConversation"),
           icon: RotateCcw,
           group: "state",
-          allowed: viewer.canWrite,
+          allowed: statusMoveAllowed(state.allowedActions, "reopen", viewer.canWrite),
           onSelect: () => run.setStatus("open"),
         }
       : {
@@ -245,7 +283,7 @@ export function buildConversationActions(
           label: t("recordMenu.closeConversation"),
           icon: CircleCheck,
           group: "state",
-          allowed: viewer.canWrite,
+          allowed: statusMoveAllowed(state.allowedActions, "close", viewer.canWrite),
           onSelect: () => run.setStatus("closed"),
         },
     {
@@ -429,6 +467,7 @@ export interface ConversationLike {
   snoozed_until?: string | null;
   snooze_kind?: DeferralKind | null;
   unread?: boolean;
+  allowed_actions?: readonly string[];
   contact: { name: string | null; phone_e164: string };
 }
 
@@ -617,6 +656,7 @@ export function useConversationActions({
       snoozedUntil,
       snoozeKind,
       assignedUserId: conversation.assigned_user_id,
+      allowedActions: conversation.allowed_actions,
     },
     members: (members.data?.data ?? [])
       .filter((member) => member.deactivated_at === null)
@@ -753,6 +793,11 @@ export function useConversationActions({
     actions,
     dialogs,
     setStatus,
+    statusChoices: statusChoices(
+      conversation.status,
+      conversation.allowed_actions,
+      canWrite,
+    ),
     assignTo,
     bringBack,
     updating: update.isPending,

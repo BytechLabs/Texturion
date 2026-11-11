@@ -881,6 +881,8 @@ export interface ConversationDetail
   /** #106: the caller's access level on this conversation's number — 'note'
    *  means read + internal notes only (the composer hides its SMS mode). */
   viewer_level: "text" | "note";
+  /** #722: the status moves this member may make now (close, reopen, ...). */
+  allowed_actions?: readonly string[];
   /**
    * #244: an after-hours page on this thread that nobody has claimed. Null on
    * nearly every thread — and null once somebody takes it, because an

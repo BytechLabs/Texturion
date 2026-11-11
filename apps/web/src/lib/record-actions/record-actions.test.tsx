@@ -14,7 +14,10 @@ import { buildCallActions } from "@/components/calls/call-actions";
 import { buildContactActions } from "@/components/contacts/contact-record-actions";
 import { buildScheduledActions } from "@/components/scheduled/scheduled-view";
 import { buildTaskActions } from "@/components/tasks/task-actions";
-import { buildConversationActions } from "@/components/thread/conversation-actions";
+import {
+  buildConversationActions,
+  statusChoices,
+} from "@/components/thread/conversation-actions";
 import { buildMessageActions } from "@/components/thread/message-actions";
 import {
   RecordContextMenu,
@@ -161,6 +164,33 @@ describe("#712 conversation", () => {
     expect(listed).toContain("carrier-stop");
     expect(listed).not.toContain("opt-out");
     expect(listed).not.toContain("opt-in");
+  });
+
+  it("#722: offers Close and Reopen only when the server's list has them", () => {
+    const withMoves = (status: "open" | "closed", allowedActions: string[]) =>
+      actionIds(
+        buildConversationActions({
+          ...base,
+          state: { ...base.state, status, allowedActions },
+          viewer: { canWrite: true, canDelete: false },
+        }),
+      );
+    expect(withMoves("open", ["mark_waiting", "close"])).toContain("close");
+    expect(withMoves("open", ["mark_waiting"])).not.toContain("close");
+    expect(withMoves("closed", ["reopen"])).toContain("reopen");
+    expect(withMoves("closed", [])).not.toContain("reopen");
+  });
+
+  it("#722: the status picker offers the current status and each allowed move's target", () => {
+    expect(statusChoices("open", ["mark_waiting", "close"], true)).toEqual([
+      "open", "waiting", "closed",
+    ]);
+    expect(statusChoices("closed", ["reopen"], true)).toEqual(["open", "closed"]);
+    expect(statusChoices("open", [], true)).toEqual(["open"]);
+    expect(statusChoices("open", undefined, true)).toEqual([
+      "new", "open", "waiting", "closed",
+    ]);
+    expect(statusChoices("open", undefined, false)).toEqual(["open"]);
   });
 });
 

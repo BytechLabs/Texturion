@@ -66,8 +66,6 @@ import {
   type ThreadFilter,
 } from "./thread-filter";
 
-const STATUSES: ConversationStatus[] = ["new", "open", "waiting", "closed"];
-
 /** Stands in for a null assignee: a radio group's value must be a string.
  *  User ids are UUIDs, so this sentinel cannot collide with one. */
 const UNASSIGNED_VALUE = "__unassigned__";
@@ -108,7 +106,7 @@ export function ThreadHeader({
 }) {
   const t = useT();
   const navigate = useNavigate();
-  const { actions, dialogs, setStatus, assignTo, bringBack, updating } =
+  const { actions, dialogs, setStatus, statusChoices, assignTo, bringBack, updating } =
     useConversationActions({
       conversation,
       optOut: contact
@@ -413,7 +411,7 @@ export function ThreadHeader({
               value={conversation.status}
               onValueChange={(next) => setStatus(next as ConversationStatus)}
             >
-              {STATUSES.map((status) => (
+              {statusChoices.map((status) => (
                 <DropdownMenuChoiceItem key={status} value={status}>
                   <StatusPill status={status} />
                 </DropdownMenuChoiceItem>
