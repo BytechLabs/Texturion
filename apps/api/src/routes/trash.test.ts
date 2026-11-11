@@ -209,14 +209,36 @@ describe("#691 delete", () => {
 });
 
 describe("#691 trash, restore, delete forever", () => {
-  it("lists the trash as a page", async () => {
+  it("lists the trash as a page, each row's details under its kind", async () => {
+    // The function's real shape: details flat beside the id.
     const rows = [
-      { kind: "conversation", id: CONV_ID, deleted_at: "2026-11-10T10:00:00Z" },
+      {
+        kind: "conversation",
+        id: CONV_ID,
+        deleted_at: "2026-11-10T10:00:00Z",
+        deleted_by_user_id: null,
+        purge_after: "2026-12-10T10:00:00Z",
+        contact_name: "Sam",
+        contact_phone: "+14165550100",
+        message_count: 3,
+      },
     ];
     const sb = world("admin", { api_list_trash: () => rows });
     const res = await call(sb, "GET", "/trash");
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ data: rows, next_cursor: null });
+    expect(await res.json()).toEqual({
+      data: [
+        {
+          kind: "conversation",
+          id: CONV_ID,
+          deleted_at: "2026-11-10T10:00:00Z",
+          deleted_by_user_id: null,
+          purge_after: "2026-12-10T10:00:00Z",
+          conversation: { contact_name: "Sam", contact_phone: "+14165550100", message_count: 3 },
+        },
+      ],
+      next_cursor: null,
+    });
   });
 
   it("restores, and says so when the conversation is still in the trash", async () => {

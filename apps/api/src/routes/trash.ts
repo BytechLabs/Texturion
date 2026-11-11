@@ -239,8 +239,27 @@ trashRoutes.get("/trash", requireCapability("records.delete"), async (c) => {
     }),
     "trash list",
   );
-  return c.json(buildPage(rows, limit, "deleted_at"));
+  return c.json(buildPage(rows.map(nestTrashDetails), limit, "deleted_at"));
 });
+
+const TRASH_ROW_FIELDS = new Set(["kind", "id", "deleted_at", "deleted_by_user_id", "purge_after"]);
+
+/**
+ * `api_list_trash` returns each row's details flat beside its id; every client
+ * reads them under the row's kind (`row.conversation.contact_name`). Reading
+ * the flat row crashed the web Trash page on its first conversation.
+ */
+export function nestTrashDetails<T extends { id: string; deleted_at: string } & Record<string, unknown>>(
+  row: T,
+): T {
+  const base: Record<string, unknown> = {};
+  const details: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (TRASH_ROW_FIELDS.has(key)) base[key] = value;
+    else details[key] = value;
+  }
+  return { ...base, [String(row.kind)]: details } as T;
+}
 
 /** POST /v1/trash/restore — put one item back. */
 trashRoutes.post(
