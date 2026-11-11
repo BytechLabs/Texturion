@@ -34,7 +34,7 @@
 | `webhook_delivery` | `webhook_deliveries.status` | 4 | internal | check | web, Android, iOS (Webhooks settings) |
 | `subscription` | `companies.subscription_status` | 6 | provider | enum + forward-only trigger (per subscription id) | web, Android, iOS |
 | `conversation` | `conversations.status` | 4 | internal | enum (every move is real, by decision) | web, Android, iOS |
-| `conversation_visibility` | `conversations.is_spam`, `deleted_at` | 3 | derived | none | web, Android, iOS |
+| `conversation_visibility` | `conversations.is_spam`, `deleted_at` | 3 | derived | none needed (every move is legal) | web, Android, iOS |
 | `message` | `messages.status` | 5 | provider | enum | web, Android, iOS |
 | `registration` | `messaging_registrations.status` | 6 | provider | enum | web, Android, iOS |
 | `number_health` | `number_health.state` | 2 | internal | check + transition trigger | web, Android, iOS |
@@ -45,12 +45,12 @@
 | `quote` | `quotes.status` | 6 | internal | none (length check only) | web, Android, iOS |
 | `text_enablement` | `text_enablement_orders.status` | 6 | provider | enum | web, Android, iOS |
 | `data_export` | `data_exports.status` | 4 | internal | check | web, Android, iOS |
-| `consent` | `contact_consent_events.state` | 3 | internal | check (an evidence ledger; the opt-out gate enforces it) | server only |
+| `consent` | `contact_consent_events.state` | 3 | internal | check + no-downgrade trigger (an evidence ledger) | server only |
 | `geocode` | `contacts.geocode_status`, `tasks.geocode_status` | 4 | internal | check + transition triggers | server only |
 | `billing_dispute` | `billing_disputes.status` | 7 | provider | forward-only trigger | server and ops only |
-| `task` | `tasks.done_at`, `deleted_at` | 3 | derived | none | web, Android, iOS |
-| `invite` | `invites.accepted_at`, `revoked_at`, `expires_at` | 4 | derived | none | web, Android, iOS (team) |
-| `workspace` | `companies.paused_at`, `deleted_at`, `purged_at` | 4 | derived | none | pause on all three; closure and trash on web only |
+| `task` | `tasks.done_at`, `deleted_at` | 3 | derived | none needed (every move is legal) | web, Android, iOS |
+| `invite` | `invites.accepted_at`, `revoked_at`, `expires_at` | 4 | derived | transition trigger | web, Android, iOS (team) |
+| `workspace` | `companies.paused_at`, `deleted_at`, `purged_at` | 4 | derived | transition trigger | pause on all three; closure and trash on web only |
 
 Client columns are by search for the state's literal values in `apps/web/src`, `apps/android/app/src/main` and `apps/ios`; they say a client reads the value, not that it renders every state correctly. Phase 3 enumerates each client's switch.
 
@@ -167,6 +167,8 @@ Each entry lists the transitions the definition allows, the guards that exist to
 
 ### conversation_visibility (derived)
 
+- **Enforced:** none needed. Restoring a trashed spam conversation brings it back as spam, so `trashed -> spam` is an edge and every move is legal.
+
 - `live`, `spam` (`is_spam`), `trashed` (`deleted_at`). Trash remembers the status in `deleted_prior_status` so restore puts it back; trashing cancels the thread's scheduled texts and hides its tasks (`api_trash_conversations`, `supabase/migrations/20261110180000_trash_hides_tasks.sql:80`). Marking spam closes the thread.
 - Snooze and mute: there is no snooze column anywhere; mute is per member in `conversation_member_prefs.muted` and `muted_until`, a preference, not a lifecycle. Not modelled.
 - **Entry-only proof:** stamps only. `spam` closes the thread and `trashed` stamps `deleted_at`, cancels pending texts and hides tasks, all guarded by `deleted_at is null`; it stops sends and never makes one.
@@ -249,6 +251,8 @@ Each entry lists the transitions the definition allows, the guards that exist to
 
 ### consent
 
+- **Enforced:** `contact_consent_events_no_downgrade` skips an `implied` row for a number that already has `express` consent or a STOP, because only the customer lifts a STOP and a vouched yes outranks an inbound text. The row is skipped rather than refused, so the contact save that carried it still succeeds. Production had none.
+
 - **No trigger, by decision (phase 2):** the ledger is evidence, written by two triggers when a contact is created, and a raising guard could block creating a contact whose earlier opt-out is recorded first. The rule that matters, only the customer lifts a STOP, is enforced where sends happen (`runPreSendGates`, `opt_outs`). Production's 12 events follow the machine (2026-11-11).
 - The consent ledger: `implied`, `express`, `revoked`. Each row is the state a contact entered; the latest row wins. Revoked leaves only for `express`, and only the customer lifts a STOP (opt-out is carrier truth, gate in `runPreSendGates`). Written by `supabase/migrations/20260728002100_consent_ledger.sql` and its follow-ups; no client renders it.
 - **Entry-only proof:** stamps only. A `revoked` row only makes the pre-send gate refuse; it sends nothing, so a second one cannot reach anyone.
@@ -268,6 +272,8 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Recorded:** PostHog by `state_transition_billing_dispute` and `state_entered_billing_dispute` on `billing_disputes`. Activity: audit log `billing.dispute_status_changed`, written by a trigger in `supabase/migrations/20261111420000_every_state_transition_is_recorded.sql` (actor null: the system); `billing.disputed` already records the opening.
 
 ### task, invite, workspace (derived)
+
+- **Enforced:** `invites_transition_guard` and `companies_workspace_transition_guard` (`supabase/migrations/20261111440000_invites_workspaces_and_consent_keep_their_lifecycles.sql`) refuse a move outside the definition with `check_violation`: an accepted or revoked invite never comes back, and only a closed workspace is purged, after which it stays purged. A workspace that was paused when it closed reopens paused, so `closed -> paused` is an edge. Task needs no guard: open, done and trashed each move to either of the others.
 
 - **task:** `open`, `done`, `trashed` (`deleted_at`, wins over done: one such row on production). Done is `task_done_at(tasks)`: the source message's `done_at` when the task was promoted from a message, else the task's own `done_at`, so two columns on two tables decide it. Restore returns to `open` or `done`. Writers: bulk and single changes go through `api_bulk_tasks` (`apps/api/src/routes/tasks.ts:1996`); `apps/api/src/tasks/due-notice.ts:179` and `apps/api/src/tasks/overdue-notice.ts:84` stamp notice timestamps, not state.
 - **invite:** `pending`, `accepted`, `revoked`, `expired` from `accepted_at`, `revoked_at`, `expires_at`. Writers `apps/api/src/routes/team.ts:886,1071,1113` (accept, resend, revoke). No REST route resends an invite today, so `expired` is left only by a new invite and the `resend` action was removed.

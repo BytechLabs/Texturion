@@ -195,6 +195,7 @@ as $$
     ('conversation_visibility', 'spam', 'live'),
     ('conversation_visibility', 'spam', 'trashed'),
     ('conversation_visibility', 'trashed', 'live'),
+    ('conversation_visibility', 'trashed', 'spam'),
     ('message', null::text, 'received'),
     ('message', null::text, 'queued'),
     ('message', 'queued', 'sent'),
@@ -373,6 +374,7 @@ as $$
     ('workspace', 'paused', 'active'),
     ('workspace', 'paused', 'closed'),
     ('workspace', 'closed', 'active'),
+    ('workspace', 'closed', 'paused'),
     ('workspace', 'closed', 'purged')
     ) e(machine, from_state, to_state)
     where e.machine = p_machine

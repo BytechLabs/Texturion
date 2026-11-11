@@ -3,7 +3,7 @@
  * allows exactly the moves its shared definition allows. The trigger is read
  * from the migration that defines it, so changing one without the other fails.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -34,6 +34,7 @@ import { taskMachine } from "./task";
 import { textEnablementMachine } from "./text-enablement";
 import { webhookDeliveryMachine } from "./webhook-delivery";
 import { workspaceMachine } from "./workspace";
+import { ALL_MACHINES } from "./index";
 
 const MIGRATIONS = join(__dirname, "..", "..", "..", "..", "supabase", "migrations");
 
@@ -157,5 +158,104 @@ describe("#722 enforced machines", () => {
     const body = sql.slice(start, sql.indexOf("$$;", sql.indexOf("$$", start) + 2));
     const returned = [...body.matchAll(/(?:then|else) '([\w-]+)'/g)].map((m) => m[1]!).sort();
     expect(returned).toEqual([...(machine.states as readonly string[])].sort());
+  });
+});
+
+const DERIVED_GUARDS = "20261111440000_invites_workspaces_and_consent_keep_their_lifecycles.sql";
+
+/** The `(v_from = 'x' and v_to in (...))` pairs in a derived machine's guard. */
+function derivedGuardEdges(fn: string): Map<string, string[]> {
+  const sql = readFileSync(join(MIGRATIONS, DERIVED_GUARDS), "utf8");
+  const start = sql.indexOf(`function public.${fn}()`);
+  const body = sql.slice(start, sql.indexOf("$$;", start));
+  const edges = new Map<string, string[]>();
+  for (const match of body.matchAll(/v_from = '([\w-]+)' and v_to in \(([^)]*)\)/g)) {
+    edges.set(match[1]!, [...match[2]!.matchAll(/'([\w-]+)'/g)].map((m) => m[1]!).sort());
+  }
+  return edges;
+}
+
+/**
+ * How the database holds each machine to its edges: the SQL function that
+ * refuses (or keeps the old state on) a move outside the definition, or, for a
+ * machine where every move between its states is legal, why it needs none. A
+ * new machine fails here until it says which.
+ */
+const DATABASE_GUARDS: Record<string, { guard: string } | { none: string }> = {
+  call: { guard: "calls_transition_guard" },
+  call_leg: { guard: "call_member_legs_transition_guard" },
+  scheduled_message: { guard: "scheduled_messages_transition_guard" },
+  calendar_connection: { guard: "calendar_connections_transition_guard" },
+  calendar_outbox: { guard: "calendar_outbox_transition_guard" },
+  calendar_reminder_replan: { guard: "calendar_reminder_replans_transition_guard" },
+  calendar_link: { guard: "task_calendar_links_transition_guard" },
+  calendar_push_subscription: { guard: "webhook_subscriptions_transition_guard" },
+  webhook_delivery: { guard: "webhook_deliveries_transition_guard" },
+  subscription: { guard: "companies_subscription_status_forward_only" },
+  conversation: { none: "a person may set any status, and an inbound text or call reopens a closed one" },
+  conversation_visibility: { none: "a restored spam conversation comes back as spam, so every move is legal" },
+  message: { guard: "messages_status_forward_only" },
+  registration: { guard: "messaging_registrations_status_forward_only" },
+  number_health: { guard: "number_health_transition_guard" },
+  payment_request: { guard: "payment_requests_transition_guard" },
+  phone_number: { guard: "phone_numbers_transition_guard" },
+  port: { guard: "port_requests_status_forward_only" },
+  port_messaging: { guard: "port_requests_messaging_forward_only" },
+  quote: { guard: "quotes_transition_guard" },
+  text_enablement: { guard: "text_enablement_orders_status_forward_only" },
+  data_export: { guard: "data_exports_transition_guard" },
+  consent: { guard: "contact_consent_events_no_downgrade" },
+  geocode: { guard: "contacts_geocode_transition_guard" },
+  billing_dispute: { guard: "billing_disputes_status_forward_only" },
+  task: { none: "open, done and trashed each move to either of the others" },
+  invite: { guard: "invites_transition_guard" },
+  workspace: { guard: "companies_workspace_transition_guard" },
+};
+
+describe("#722 every machine is held by the database", () => {
+  it.each([
+    ["invite", inviteMachine, "invites_transition_guard"],
+    ["workspace", workspaceMachine, "companies_workspace_transition_guard"],
+  ] as const)("%s: the derived guard allows exactly the defined moves", (_name, machine, fn) => {
+    const edges = derivedGuardEdges(fn);
+    expect(edges.size, "the guard was not found or has no edges").toBeGreaterThan(0);
+    for (const state of machine.states as readonly string[]) {
+      const defined = (machine.transitions as Record<string, readonly string[]>)[state]!
+        .filter((to) => to !== state)
+        .sort();
+      expect(edges.get(state) ?? [], state).toEqual(defined);
+    }
+  });
+
+  it("names a guard for every machine, or shows it has nothing to refuse", () => {
+    const ids = ALL_MACHINES.map((machine) => machine.id).sort();
+    expect(ids.length, "no machines were found").toBeGreaterThan(0);
+    expect(Object.keys(DATABASE_GUARDS).sort()).toEqual(ids);
+
+    const migrations = readdirSync(MIGRATIONS)
+      .filter((name) => name.endsWith(".sql"))
+      .map((name) => readFileSync(join(MIGRATIONS, name), "utf8"))
+      .join("\n");
+    const problems: string[] = [];
+    for (const machine of ALL_MACHINES) {
+      const held = DATABASE_GUARDS[machine.id]!;
+      if ("guard" in held) {
+        if (!migrations.includes(`function public.${held.guard}()`)) {
+          problems.push(`${machine.id}: no migration defines ${held.guard}()`);
+        }
+        continue;
+      }
+      // "Nothing to refuse" has to be true of the definition: every state reaches every other.
+      const states = machine.states as readonly string[];
+      const transitions = machine.transitions as Record<string, readonly string[]>;
+      for (const from of states) {
+        for (const to of states) {
+          if (from !== to && !transitions[from]!.includes(to)) {
+            problems.push(`${machine.id}: ${from} -> ${to} is not an edge, so it needs a guard`);
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
   });
 });
