@@ -124,7 +124,10 @@ async function finalize(
       : null;
   const cost = Number(payload.cost?.amount);
 
-  const { error: updateError } = await db
+  // #722: only a text still on its way moves. A replay or a late event for a
+  // text already delivered or failed changes nothing, and its effects below do
+  // not fire, whatever an earlier read said.
+  const { data: moved, error: updateError } = await db
     .from("messages")
     .update({
       status: finalStatus,
@@ -140,19 +143,19 @@ async function finalize(
         ? (firstError.detail || firstError.title || null)
         : null,
     })
-    .eq("telnyx_message_id", telnyxMessageId);
+    .eq("telnyx_message_id", telnyxMessageId)
+    .in("status", ["queued", "sent"])
+    .select("id");
   if (updateError) {
     throw new Error(`finalized update failed: ${updateError.message}`);
   }
+  const entered = (moved ?? []).length > 0 && message.status !== finalStatus;
 
   if (message.direction !== "outbound") return;
 
   // D146: the fleet's delivery rate per destination country, in PostHog. Once
   // per transition, so a replay of the same final status counts nothing.
-  if (
-    (finalStatus === "delivered" || finalStatus === "failed") &&
-    message.status !== finalStatus
-  ) {
+  if ((finalStatus === "delivered" || finalStatus === "failed") && entered) {
     void captureEvent(env, "message_outcome", message.company_id, {
       status: finalStatus,
       country: destinationCountry(payload),
@@ -162,7 +165,7 @@ async function finalize(
   // #243: a send that came back refused is the event an integration most wants
   // — it is the one that needs a human. Only on the transition, never on a
   // replay of a row that was already failed.
-  if (finalStatus === "failed" && message.status !== "failed") {
+  if (finalStatus === "failed" && entered) {
     await enqueueWebhookEvent(db, {
       companyId: message.company_id,
       type: "message.failed",

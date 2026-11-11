@@ -210,6 +210,8 @@ const SUITES = [
   "automated_texts",
   // #722: an ended call closes its ring legs and has an end time.
   "call_lifecycle_cleanup",
+  // #722: a text only moves forward along the message machine.
+  "message_lifecycle",
 ];
 
 const args = process.argv.slice(2);

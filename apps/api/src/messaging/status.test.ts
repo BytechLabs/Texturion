@@ -110,7 +110,7 @@ describe("message.finalized", () => {
     /** The row's status before this webhook. */
     status?: string;
     usageInsert?: (call: unknown) => Response | unknown;
-  } = {}) {
+  } = {}, moved = true) {
     const lookup = stubRoute(restMatch(env, "GET", "messages"), () => [
       {
         id: MESSAGE_ID,
@@ -119,8 +119,9 @@ describe("message.finalized", () => {
         status: options.status ?? "sent",
       },
     ]);
+    // The row the guarded update moved; empty when it was already final.
     const update = stubRoute(restMatch(env, "PATCH", "messages"), () =>
-      new Response(null, { status: 204 }),
+      moved ? [{ id: "m-1" }] : [],
     );
     const usageInsert = stubRoute(
       restMatch(env, "POST", "usage_events"),
@@ -224,6 +225,14 @@ describe("message.finalized", () => {
         status: "failed",
         country: "CA",
       });
+    });
+
+    it("#722: sends nothing when a late event moves nothing", async () => {
+      // The row was finalized by another delivery between the read and the
+      // update, so the guarded update matched no queued or sent row.
+      routes(baseStubs({}, false));
+      await handleStatusEvent(env, finalizedEvent());
+      expect(eventsCaptured("message_outcome")).toEqual([]);
     });
 
     it("sends nothing for a replay of the same final status", async () => {

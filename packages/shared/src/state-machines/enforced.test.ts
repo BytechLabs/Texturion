@@ -8,6 +8,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { messageMachine } from "./message";
 import { scheduledMessageMachine } from "./scheduled-message";
 
 const MIGRATIONS = join(__dirname, "..", "..", "..", "..", "supabase", "migrations");
@@ -39,6 +40,17 @@ describe("#722 enforced machines", () => {
       const defined = scheduledMessageMachine.transitions[state]
         .filter((to) => to !== state)
         .sort();
+      expect(edges.get(state) ?? [], state).toEqual(defined);
+    }
+  });
+  it("message: the trigger allows exactly the defined moves", () => {
+    const edges = triggerEdges(
+      "20261111310000_messages_never_go_backwards.sql",
+      "messages_status_forward_only",
+    );
+    expect(edges.size, "the trigger was not found or has no edges").toBeGreaterThan(0);
+    for (const state of messageMachine.states) {
+      const defined = messageMachine.transitions[state].filter((to) => to !== state).sort();
       expect(edges.get(state) ?? [], state).toEqual(defined);
     }
   });
