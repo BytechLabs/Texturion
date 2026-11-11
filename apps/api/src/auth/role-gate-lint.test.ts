@@ -118,6 +118,9 @@ const SELF_SCOPED_WRITES = new Set([
   // Gating it on anything higher would mean a member cannot tidy their own
   // screen, which is the whole feature.
   "PUT /me/dashboard",
+  // #736: the same member's own page layout, scoped the same way: one column
+  // of the caller's own membership row, set from the verified session.
+  "PUT /me/dashboard-layout",
   // #537: asking for a confirmation code to be emailed TO YOURSELF. It proves
   // nothing and unlocks nothing on its own — the code is only worth anything
   // presented alongside a handover step the SQL already gates. Deliberately open
