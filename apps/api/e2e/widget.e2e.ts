@@ -15,6 +15,8 @@ import { join } from "node:path";
 import { chromium, type Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+// The line Settings hands an owner to paste, built by the web app's own code.
+import { widgetSnippet } from "../../web/src/lib/marketing/widget-snippet";
 import { deleteCompaniesSql } from "./company-cleanup";
 import { startHarness, type Harness } from "./harness";
 
@@ -112,7 +114,7 @@ beforeAll(async () => {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>Harbour Plumbing</title></head><body><h1>Harbour Plumbing</h1>
-<script src="${loonextOrigin}/widget.js" data-key="${widgetKey}" defer></script>
+${widgetSnippet(loonextOrigin, widgetKey)}
 </body></html>`);
   });
   customerOrigin = await listen(customerSite);

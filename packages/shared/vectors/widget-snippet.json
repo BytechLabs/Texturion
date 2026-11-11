@@ -1,0 +1,17 @@
+[
+  {
+    "key": "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+    "locale": null,
+    "snippet": "<script src=\"https://app.loonext.com/widget.js\" data-key=\"aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa\" defer></script>"
+  },
+  {
+    "key": "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+    "locale": "en",
+    "snippet": "<script src=\"https://app.loonext.com/widget.js\" data-key=\"aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa\" defer></script>"
+  },
+  {
+    "key": "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+    "locale": "fr-CA",
+    "snippet": "<script src=\"https://app.loonext.com/widget.js\" data-key=\"aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa\" data-lang=\"fr-CA\" defer></script>"
+  }
+]

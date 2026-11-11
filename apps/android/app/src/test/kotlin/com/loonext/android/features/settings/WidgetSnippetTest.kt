@@ -1,6 +1,12 @@
 package com.loonext.android.features.settings
 
 import com.loonext.android.BuildConfig
+import java.io.File
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -34,6 +40,28 @@ class WidgetSnippetTest {
                 "data-key=\"aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa\" defer></script>",
             widgetSnippet("aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa"),
         )
+    }
+
+    @Test
+    fun `builds every line the shared vectors hold`() {
+        assumeFalse(BuildConfig.BUILD_TYPE.startsWith("nonprod"))
+        var dir: File? = File("").absoluteFile
+        var text: String? = null
+        while (dir != null && text == null) {
+            val candidate = File(dir, "packages/shared/vectors/widget-snippet.json")
+            if (candidate.exists()) text = candidate.readText()
+            dir = dir.parentFile
+        }
+        val cases = Json.parseToJsonElement(checkNotNull(text) { "widget-snippet.json not found" }).jsonArray
+        assertTrue("no snippet vectors", cases.isNotEmpty())
+        for (case in cases.map { it.jsonObject }) {
+            val locale = case["locale"]?.jsonPrimitive?.contentOrNull
+            assertEquals(
+                "locale $locale",
+                case.getValue("snippet").jsonPrimitive.content,
+                widgetSnippet(case.getValue("key").jsonPrimitive.content, locale),
+            )
+        }
     }
 
     @Test

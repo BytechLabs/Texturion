@@ -110,6 +110,7 @@ import { CALL_ROUTINGS } from "../packages/shared/src/call-routing.ts";
 import { CALL_END_REASONS } from "../packages/shared/src/call-end-reasons.ts";
 import { tagSelectionState, tagToggleAction } from "../packages/shared/src/tag-selection.ts";
 import { timestampShape } from "../packages/shared/src/timestamp-shape.ts";
+import { widgetSnippet } from "../apps/web/src/lib/marketing/widget-snippet.ts";
 import {
   paymentAmountProblem,
   paymentRequestCancellable,
@@ -731,6 +732,16 @@ function callEndReasonVectors() {
   }));
 }
 
+/** #748: the one line an owner pastes, as each client builds it for production. */
+function widgetSnippetVectors() {
+  const key = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
+  return [null, "en", "fr-CA"].map((locale) => ({
+    key,
+    locale,
+    snippet: widgetSnippet("https://app.loonext.com", key, locale ?? undefined),
+  }));
+}
+
 function screeningVectors() {
   return SCREENING_INPUTS.map(([result, callerName]) => ({
     result,
@@ -813,6 +824,7 @@ const FILES = {
   "call-end-reasons.json": callEndReasonVectors,
   "tag-selection.json": tagSelectionVectors,
   "timestamp-shape.json": timestampShapeVectors,
+  "widget-snippet.json": widgetSnippetVectors,
 };
 
 const check = process.argv.includes("--check");
