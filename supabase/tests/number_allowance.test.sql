@@ -143,6 +143,8 @@ begin
   raise notice 'A3 OK: a bigger allowance reinstates the held number';
 end $$;
 
+-- (Every bulk suspend below touches only working or held numbers, as the
+-- grace suspend does: #722's number machine has no provisioning -> suspended.)
 -- ==========================================================================
 -- A4. An unreadable plan restores everything and touches no capacity. A deploy
 --     missing STRIPE_STARTER_PRICE_ID must not hold a paying customer's
@@ -150,7 +152,8 @@ end $$;
 -- ==========================================================================
 update public.phone_numbers
    set status = 'suspended', suspended_at = now()
- where company_id = '52300000-0000-4000-8000-523000000000';
+ where company_id = '52300000-0000-4000-8000-523000000000'
+   and status in ('active', 'suspended');
 update public.companies set paid_extra_numbers = 3
  where id = '52300000-0000-4000-8000-523000000000';
 
@@ -190,7 +193,8 @@ end $$;
 -- ==========================================================================
 update public.phone_numbers
    set status = 'suspended', suspended_at = now()
- where company_id = '52300000-0000-4000-8000-523000000000';
+ where company_id = '52300000-0000-4000-8000-523000000000'
+   and status in ('active', 'suspended');
 update public.companies
    set paid_extra_numbers = 0, paid_capacity_epoch = 7
  where id = '52300000-0000-4000-8000-523000000000';
@@ -226,7 +230,8 @@ declare res jsonb; pen int; epoch bigint;
 begin
   update public.phone_numbers
      set status = 'suspended', suspended_at = now()
-   where company_id = '52300000-0000-4000-8000-523000000000';
+   where company_id = '52300000-0000-4000-8000-523000000000'
+     and status in ('active', 'suspended');
   select paid_capacity_epoch into epoch from public.companies
    where id = '52300000-0000-4000-8000-523000000000';
   res := public.claim_number_allowance(
@@ -252,7 +257,8 @@ declare res jsonb; act int; sus int;
 begin
   update public.phone_numbers
      set status = 'suspended', suspended_at = now()
-   where company_id = '52300000-0000-4000-8000-523000000000';
+   where company_id = '52300000-0000-4000-8000-523000000000'
+     and status in ('active', 'suspended');
   update public.companies set paid_extra_numbers = 0
    where id = '52300000-0000-4000-8000-523000000000';
   insert into public.phone_numbers
@@ -369,7 +375,8 @@ declare res jsonb; pen int; epoch bigint; before_epoch bigint; act int;
 begin
   update public.phone_numbers
      set status = 'suspended', suspended_at = now()
-   where company_id = '52300000-0000-4000-8000-523000000000';
+   where company_id = '52300000-0000-4000-8000-523000000000'
+     and status in ('active', 'suspended');
   update public.companies
      set paid_extra_numbers = 0, paid_capacity_epoch = 30
    where id = '52300000-0000-4000-8000-523000000000';
@@ -433,7 +440,8 @@ declare res jsonb; pen int; act int;
 begin
   update public.phone_numbers
      set status = 'suspended', suspended_at = now()
-   where company_id = '52300000-0000-4000-8000-523000000000';
+   where company_id = '52300000-0000-4000-8000-523000000000'
+     and status in ('active', 'suspended');
   delete from public.phone_numbers
    where company_id = '52300000-0000-4000-8000-523000000000'
      and id not in ('52300000-0000-4000-8000-523000000101',

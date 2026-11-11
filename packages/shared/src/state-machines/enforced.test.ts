@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import { dataExportMachine } from "./data-export";
 import { messageMachine } from "./message";
 import { paymentRequestMachine } from "./payment-request";
+import { phoneNumberMachine } from "./phone-number";
 import { quoteMachine } from "./quote";
 import { scheduledMessageMachine } from "./scheduled-message";
 import { webhookDeliveryMachine } from "./webhook-delivery";
@@ -63,9 +64,12 @@ describe("#722 enforced machines", () => {
     ["quote", quoteMachine, "quotes_transition_guard"],
     ["data_export", dataExportMachine, "data_exports_transition_guard"],
     ["webhook_delivery", webhookDeliveryMachine, "webhook_deliveries_transition_guard"],
+    ["phone_number", phoneNumberMachine, "phone_numbers_transition_guard"],
   ] as const)("%s: the trigger allows exactly the defined moves", (_name, machine, fn) => {
     const edges = triggerEdges(
-      "20261111320000_payments_quotes_exports_and_webhooks_keep_their_lifecycles.sql",
+      fn === "phone_numbers_transition_guard"
+        ? "20261111330000_a_number_keeps_its_lifecycle.sql"
+        : "20261111320000_payments_quotes_exports_and_webhooks_keep_their_lifecycles.sql",
       fn,
     );
     expect(edges.size, "the trigger was not found or has no edges").toBeGreaterThan(0);
