@@ -162,7 +162,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.phoneNumberClipLabel" to "Phone number",
         "settingsMore.copyNumber" to "Copy number",
         "settingsMore.numberCopied" to "Number copied.",
-        "settingsMore.releasedAgo" to "Released {ago} ago.",
+        "settingsMore.releasedAgo" to "Released {ago}.",
         "settingsMore.numberUnreliable" to
             "Messages from this number aren't arriving reliably",
         "settingsMore.chooseNumber" to "Choose a number",
@@ -498,8 +498,8 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.regInReview" to "In review",
         "settingsMore.regDraft" to "Draft",
         "settingsMore.regDraftLine" to "Draft · not submitted yet",
-        "settingsMore.agoSuffix" to " {ago} ago",
-        "settingsMore.submittedSuffix" to " · submitted {ago} ago",
+        "settingsMore.agoSuffix" to " {ago}",
+        "settingsMore.submittedSuffix" to " · submitted {ago}",
         "settingsMore.solePropPin" to
             "One more step: the registry texted a 6-digit PIN to your registered " +
             "mobile to confirm it's really you.",
@@ -718,8 +718,8 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.makeMeRole" to "Make me {role}",
         "settingsMore.keepMyAccess" to "Keep my access",
         "settingsMore.nameYou" to "{name} (you)",
-        "settingsMore.deactivatedAgo" to "Deactivated {ago} ago",
-        "settingsMore.joinedAgo" to "Joined {ago} ago",
+        "settingsMore.deactivatedAgo" to "Deactivated {ago}",
+        "settingsMore.joinedAgo" to "Joined {ago}",
         "settingsMore.numbersLink" to "Numbers",
         "settingsMore.deactivate" to "Deactivate",
         "settingsMore.deactivateTitle" to "Deactivate {name}?",
@@ -775,7 +775,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.createTemplate" to "Create template",
         "settingsMore.savedReply" to "Saved reply",
         "settingsMore.updatedJustNow" to "Updated just now",
-        "settingsMore.updatedAgo" to "Updated {ago} ago",
+        "settingsMore.updatedAgo" to "Updated {ago}",
         "settingsMore.updatedOn" to "Updated {when}",
         "settingsMore.updatedBy" to "{line} by {editor}",
         "settingsMore.templateName" to "Name",
@@ -1438,7 +1438,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.phoneNumberClipLabel" to "Numéro de téléphone",
         "settingsMore.copyNumber" to "Copier le numéro",
         "settingsMore.numberCopied" to "Numéro copié.",
-        "settingsMore.releasedAgo" to "Libéré il y a {ago}.",
+        "settingsMore.releasedAgo" to "Libéré {ago}.",
         "settingsMore.numberUnreliable" to
             "Les textos de ce numéro n'arrivent pas de façon fiable",
         "settingsMore.chooseNumber" to "Choisir un numéro",
@@ -1784,8 +1784,8 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.regInReview" to "En révision",
         "settingsMore.regDraft" to "Brouillon",
         "settingsMore.regDraftLine" to "Brouillon · pas encore soumis",
-        "settingsMore.agoSuffix" to " il y a {ago}",
-        "settingsMore.submittedSuffix" to " · soumis il y a {ago}",
+        "settingsMore.agoSuffix" to " {ago}",
+        "settingsMore.submittedSuffix" to " · soumis {ago}",
         "settingsMore.solePropPin" to
             "Une dernière étape : le registre a envoyé un NIP à 6 chiffres par texto " +
             "à votre mobile inscrit pour confirmer que c'est bien vous.",
@@ -1967,7 +1967,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.tagNeverUsed" to "jamais utilisée",
         "settingsMore.tagOneThread" to "1 conversation",
         "settingsMore.tagThreads" to "{count} conversations",
-        "settingsMore.tagLastUsed" to " · dernière il y a {ago}",
+        "settingsMore.tagLastUsed" to " · dernière fois {ago}",
         "settingsMore.mergeTitle" to "Fusionner « {tag} » avec une autre étiquette",
         "settingsMore.mergeBody" to
             "Chaque conversation étiquetée « {tag} » garde sa place sous " +
@@ -2017,8 +2017,8 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.makeMeRole" to "Faites de moi un {role}",
         "settingsMore.keepMyAccess" to "Garder mon accès",
         "settingsMore.nameYou" to "{name} (vous)",
-        "settingsMore.deactivatedAgo" to "Désactivé il y a {ago}",
-        "settingsMore.joinedAgo" to "Arrivé il y a {ago}",
+        "settingsMore.deactivatedAgo" to "Désactivé {ago}",
+        "settingsMore.joinedAgo" to "Arrivé {ago}",
         "settingsMore.numbersLink" to "Numéros",
         "settingsMore.deactivate" to "Désactiver",
         "settingsMore.deactivateTitle" to "Désactiver {name} ?",
@@ -2082,7 +2082,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.createTemplate" to "Créer le modèle",
         "settingsMore.savedReply" to "Réponse enregistrée",
         "settingsMore.updatedJustNow" to "Mis à jour à l'instant",
-        "settingsMore.updatedAgo" to "Mis à jour il y a {ago}",
+        "settingsMore.updatedAgo" to "Mis à jour {ago}",
         "settingsMore.updatedOn" to "Mis à jour le {when}",
         "settingsMore.updatedBy" to "{line} par {editor}",
         "settingsMore.templateName" to "Nom",

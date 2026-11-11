@@ -163,3 +163,19 @@ describe("no settings heading calls the audit log history", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// {ago} and {when} are filled with a timestamp label ("5m", "Yesterday",
+// "Jul 14"), so a sentence that adds "ago" reads "Joined Jul 14 ago".
+const TIMESTAMP_SLOT = /\{(?:ago|when)\}/;
+const SAYS_AGO = /\bago\b|\bil y a\b/i;
+
+describe("a timestamp label is not a duration", () => {
+  it("no value with {ago} or {when} also says ago", () => {
+    const slots = [...entries(EN), ...entries(FR_CA)].filter(([, value]) => TIMESTAMP_SLOT.test(value));
+    expect(slots.length, "no value carries a timestamp slot").toBeGreaterThan(0);
+    const offenders = slots
+      .filter(([, value]) => SAYS_AGO.test(readable(value)))
+      .map(([key, value]) => `${key}: ${value}`);
+    expect(offenders).toEqual([]);
+  });
+});

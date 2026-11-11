@@ -153,7 +153,7 @@ private let settingsMoreNumbersEn: [String: String] = [
     "settingsMore.release": "Release",
     "settingsMore.releaseConfirm": "Release number",
     "settingsMore.releaseTitle": "Release {number}?",
-    "settingsMore.releasedAgo": "Released {ago} ago.",
+    "settingsMore.releasedAgo": "Released {ago}.",
     "settingsMore.setupRestarted": "Setup restarted. You won't be charged again.",
     "settingsMore.sourceHosted": "Text-enabled landline",
     "settingsMore.sourceLoonext": "Loonext number",
@@ -218,7 +218,7 @@ private let settingsMoreNumbersFr: [String: String] = [
     "settingsMore.release": "Libérer",
     "settingsMore.releaseConfirm": "Libérer le numéro",
     "settingsMore.releaseTitle": "Libérer {number} ?",
-    "settingsMore.releasedAgo": "Libéré il y a {ago}.",
+    "settingsMore.releasedAgo": "Libéré {ago}.",
     "settingsMore.setupRestarted":
         "Configuration relancée. Vous ne serez pas facturé de nouveau.",
     "settingsMore.sourceHosted": "Ligne fixe activée pour les textos",
@@ -656,7 +656,7 @@ private let settingsMoreOwnershipFr: [String: String] = [
 // --------------------------------------------------------------------------
 
 private let settingsMoreRegistrationEn: [String: String] = [
-    "settingsMore.agoSuffix": " {ago} ago",
+    "settingsMore.agoSuffix": " {ago}",
     "settingsMore.businessIdentity": "Business identity",
     "settingsMore.messagingCampaign": "Messaging campaign",
     "settingsMore.newPinSent": "A new PIN is on its way.",
@@ -677,7 +677,7 @@ private let settingsMoreRegistrationEn: [String: String] = [
     "settingsMore.solePropPin":
         "One more step: the registry texted a 6-digit PIN to your registered "
         + "mobile to confirm it's really you.",
-    "settingsMore.submittedSuffix": " · submitted {ago} ago",
+    "settingsMore.submittedSuffix": " · submitted {ago}",
     "settingsMore.textingRegistration": "Texting registration",
     "settingsMore.textingRegistrationDesc":
         "US carriers require every business texter to register (10DLC). "
@@ -687,7 +687,7 @@ private let settingsMoreRegistrationEn: [String: String] = [
 ]
 
 private let settingsMoreRegistrationFr: [String: String] = [
-    "settingsMore.agoSuffix": " il y a {ago}",
+    "settingsMore.agoSuffix": " {ago}",
     "settingsMore.businessIdentity": "Identité de l'entreprise",
     "settingsMore.messagingCampaign": "Campagne de messagerie",
     "settingsMore.newPinSent": "Un nouveau NIP est en route.",
@@ -710,7 +710,7 @@ private let settingsMoreRegistrationFr: [String: String] = [
     "settingsMore.solePropPin":
         "Une dernière étape : le registre a envoyé un NIP à 6 chiffres par "
         + "texto à votre mobile inscrit pour confirmer que c'est bien vous.",
-    "settingsMore.submittedSuffix": " · soumis il y a {ago}",
+    "settingsMore.submittedSuffix": " · soumis {ago}",
     "settingsMore.textingRegistration": "Inscription pour les textos",
     "settingsMore.textingRegistrationDesc":
         "Les fournisseurs américains exigent que chaque entreprise qui texte "
@@ -1520,7 +1520,7 @@ private let settingsMoreIosTeamEn: [String: String] = [
         + "and messages they worked on stay put.",
     "settingsMore.deactivateTitle": "Deactivate {name}?",
     "settingsMore.deactivated": "{name} deactivated. Their seat is free.",
-    "settingsMore.deactivatedAgo": "Deactivated {ago} ago",
+    "settingsMore.deactivatedAgo": "Deactivated {ago}",
     "settingsMore.deactivatedHeading": "Deactivated",
     "settingsMore.done": "Done",
     "settingsMore.email": "Email",
@@ -1543,7 +1543,7 @@ private let settingsMoreIosTeamEn: [String: String] = [
     "settingsMore.inviteTeammate": "Invite a teammate",
     "settingsMore.invites": "Invites",
     "settingsMore.inviting": "Inviting…",
-    "settingsMore.joinedAgo": "Joined {ago} ago",
+    "settingsMore.joinedAgo": "Joined {ago}",
     "settingsMore.makeMeRole": "Make me {role}",
     "settingsMore.memberAccessFailed": "Couldn't load their access. Try again.",
     "settingsMore.memberNumbersDesc":
@@ -1587,7 +1587,7 @@ private let settingsMoreIosTeamFr: [String: String] = [
         + "restent en place.",
     "settingsMore.deactivateTitle": "Désactiver {name} ?",
     "settingsMore.deactivated": "{name} désactivé. Sa place est libre.",
-    "settingsMore.deactivatedAgo": "Désactivé il y a {ago}",
+    "settingsMore.deactivatedAgo": "Désactivé {ago}",
     "settingsMore.deactivatedHeading": "Désactivés",
     "settingsMore.done": "Terminé",
     "settingsMore.email": "Courriel",
@@ -1610,7 +1610,7 @@ private let settingsMoreIosTeamFr: [String: String] = [
     "settingsMore.inviteTeammate": "Inviter un coéquipier",
     "settingsMore.invites": "Invitations",
     "settingsMore.inviting": "Invitation…",
-    "settingsMore.joinedAgo": "Arrivé il y a {ago}",
+    "settingsMore.joinedAgo": "Arrivé {ago}",
     "settingsMore.makeMeRole": "Faites de moi un {role}",
     "settingsMore.memberAccessFailed": "Impossible de charger son accès. Réessayez.",
     "settingsMore.memberNumbersDesc":
@@ -1697,7 +1697,7 @@ private let settingsMoreIosTagsFr: [String: String] = [
     "settingsMore.mergedInto": "Fusionnée avec « {target} ».",
     "settingsMore.merging": "Fusion…",
     "settingsMore.tagDescribePlaceholder": "Qu'est-ce que celle-ci veut dire ?",
-    "settingsMore.tagLastUsed": " · dernière il y a {ago}",
+    "settingsMore.tagLastUsed": " · dernière fois {ago}",
     "settingsMore.tagLockDesc":
         "Par défaut, toute l'équipe peut ajouter une étiquette. Verrouillez "
         + "une fois que votre liste est la bonne.",
@@ -1756,7 +1756,7 @@ private let settingsMoreIosTemplatesEn: [String: String] = [
     "settingsMore.templatesIntro":
         "Replies you type all the time, saved once. Tap Templates in the "
         + "composer to insert one. Anyone on the crew can add or change them.",
-    "settingsMore.updatedAgo": "Updated {ago} ago",
+    "settingsMore.updatedAgo": "Updated {ago}",
     "settingsMore.updatedBy": "{line} by {editor}",
     "settingsMore.updatedJustNow": "Updated just now",
     "settingsMore.updatedOn": "Updated {when}",
@@ -1799,7 +1799,7 @@ private let settingsMoreIosTemplatesFr: [String: String] = [
         "Les réponses que vous tapez tout le temps, enregistrées une fois. "
         + "Touchez Modèles dans le composeur pour en insérer une. Toute "
         + "l'équipe peut en ajouter ou les modifier.",
-    "settingsMore.updatedAgo": "Mis à jour il y a {ago}",
+    "settingsMore.updatedAgo": "Mis à jour {ago}",
     "settingsMore.updatedBy": "{line} par {editor}",
     "settingsMore.updatedJustNow": "Mis à jour à l'instant",
     "settingsMore.updatedOn": "Mis à jour le {when}",

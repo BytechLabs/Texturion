@@ -142,4 +142,19 @@ class RetiredWordsTest {
             .map { "${it.key}: ${it.value}" }
         assertEquals("a settings heading says history", emptyList<String>(), offenders)
     }
+
+    /**
+     * {ago} is filled with a timestamp label ("5m", "Yesterday", "Jul 14"), so a
+     * sentence that adds "ago" reads "Joined Jul 14 ago".
+     */
+    @Test
+    fun `no value with an ago slot also says ago`() {
+        val saysAgo = Regex("""\bago\b|\bil y a\b""", RegexOption.IGNORE_CASE)
+        val slots = (AppStrings.en.entries + AppStrings.frCA.entries).filter { it.value.contains("{ago}") }
+        assertTrue("no value carries an {ago} slot", slots.isNotEmpty())
+        val offenders = slots
+            .filter { saysAgo.containsMatchIn(readable(it.value)) }
+            .map { "${it.key}: ${it.value}" }
+        assertEquals("a timestamp label is read as a duration", emptyList<String>(), offenders)
+    }
 }

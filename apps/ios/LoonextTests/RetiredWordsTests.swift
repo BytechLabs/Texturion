@@ -159,4 +159,19 @@ final class RetiredWordsTests: XCTestCase {
             .sorted()
         XCTAssertEqual(offenders, [], "a settings heading says history")
     }
+
+    /// {ago} is filled with a timestamp label ("5m", "Yesterday", "Jul 14"), so a
+    /// sentence that adds "ago" reads "Joined Jul 14 ago".
+    func testNoValueWithAnAgoSlotAlsoSaysAgo() {
+        let slots = (Array(AppStrings.en) + Array(AppStrings.frCA)).filter { $0.value.contains("{ago}") }
+        XCTAssertFalse(slots.isEmpty, "no value carries an {ago} slot")
+        let offenders = slots
+            .filter { entry in
+                let all = words(in: entry.value)
+                return all.contains("ago") || all.joined(separator: " ").contains("il y a")
+            }
+            .map { "\($0.key): \($0.value)" }
+            .sorted()
+        XCTAssertEqual(offenders, [], "a timestamp label is read as a duration")
+    }
 }
