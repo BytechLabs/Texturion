@@ -106,6 +106,11 @@ insert into public.opt_outs (id, company_id, phone_e164, source)
 values ('a9000000-0000-4000-8000-000000000070','a9000000-0000-4000-8000-000000000001',
         '+14155559999','stop_keyword');
 
+-- Every closure writes workspace.closed, so a real purge always meets an audit
+-- row, and the audit log refuses deletes outside the purge and the prune.
+insert into public.audit_log (company_id, action, target_type)
+values ('a9000000-0000-4000-8000-000000000001', 'workspace.closed', 'company');
+
 -- ---------------------------------------------------------------------------
 -- PW-1. A workspace that is not past its window CANNOT be erased — not while
 --       live, and not during the 30 days the customer can still change their
