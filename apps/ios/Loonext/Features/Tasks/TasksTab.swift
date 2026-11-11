@@ -12,6 +12,15 @@ struct TasksTab: View {
     let companyId: String
     let me: Me
 
+    /// `initialView` opens the tab on a view other than the list; the accessibility audit
+    /// host uses it to land on the calendar and the map.
+    init(graph: AppGraph, companyId: String, me: Me, initialView: TaskViewKind = .list) {
+        self.graph = graph
+        self.companyId = companyId
+        self.me = me
+        _view = State(initialValue: initialView)
+    }
+
     @State private var tab: TasksTabKind = .open
     @State private var view: TaskViewKind = .list
     @State private var assigneeChip: String?

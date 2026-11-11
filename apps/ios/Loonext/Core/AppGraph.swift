@@ -217,10 +217,12 @@ final class AppGraph {
     ///   because the handover funnel SAVES a refreshed session through `graph.sessionStore`
     ///   — so a test whose repository used a different store would look signed out and
     ///   never reach the code under test.
-    init(sessionStore: SessionStore = SessionStore()) {
+    /// - Parameter transport: the audit host's canned `/v1` answers (`A11yAuditFixtures`);
+    ///   production passes nothing and keeps `URLSession`.
+    init(sessionStore: SessionStore = SessionStore(), transport: HTTPClient = URLSessionHTTPClient()) {
         let prefs = AppPrefs()
         let supabaseAuth = SupabaseAuth()
-        let api = ApiClient(sessionStore: sessionStore, auth: supabaseAuth)
+        let api = ApiClient(sessionStore: sessionStore, auth: supabaseAuth, transport: transport)
         let realtime = RealtimeClient()
         let meApi = MeApi(api: api)
 

@@ -76,6 +76,162 @@ final class AccessibilityAuditUITests: XCTestCase {
         }
     }
 
+    // MARK: Evidence screenshots
+
+    /// Screenshots only, no audit: the screens of #739 #740 #744 #746 #749 #752 on
+    /// fixture data (`A11yAuditFixtures`), in each theme, so a person can look at them.
+    /// They stay out of the enforced audit lists above on purpose: a finding on a new
+    /// fixture must not block the build for an evidence shot.
+    func testEvidenceScreens() throws {
+        for theme in ["light", "dark"] {
+            evidenceTaskCalendar(theme)
+            evidenceContactDetail(theme)
+            evidenceCalendarSettings(theme)
+            evidenceTeam(theme)
+            evidenceTaskMap(theme)
+            evidenceCallingSettings(theme)
+        }
+    }
+
+    /// #739: tap an empty day, then New task on that day opens with the date filled in.
+    private func evidenceTaskCalendar(_ theme: String) {
+        let app = launchEvidence("taskCalendar", theme)
+        defer { app.terminate() }
+        // Day 17 holds no task in the fixture. The calendar names its cells in the
+        // workspace's zone, so the label is built in that zone too.
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Toronto") ?? .current
+        var parts = calendar.dateComponents([.year, .month], from: Date())
+        parts.day = 17
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "MMMM d"
+        let day = formatter.string(from: calendar.date(from: parts) ?? Date())
+
+        let cell = element(app, labelContains: "\(day), 0 tasks")
+        XCTAssertTrue(cell.waitForExistence(timeout: 40), "the empty day \(day) never appeared")
+        attach(app, "taskCalendar month", theme)
+        cell.tap()
+        let create = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "New task on")
+        ).firstMatch
+        XCTAssertTrue(create.waitForExistence(timeout: 10), "New task on the day never appeared")
+        create.tap()
+        sleep(3)
+        attach(app, "taskCalendar create", theme)
+    }
+
+    /// #740: the contact page on a long history, then its Calls and Tasks lists.
+    private func evidenceContactDetail(_ theme: String) {
+        let app = launchEvidence("contactDetail", theme)
+        defer { app.terminate() }
+        XCTAssertTrue(
+            element(app, labelContains: "Dana Whitcomb").waitForExistence(timeout: 40),
+            "the contact never appeared"
+        )
+        sleep(2)
+        attach(app, "contactDetail details", theme)
+        for (tab, name) in [("Activity", ""), ("Calls", "calls"), ("Tasks", "tasks")] {
+            let button = app.buttons[tab]
+            guard button.waitForExistence(timeout: 10) else { continue }
+            button.tap()
+            sleep(2)
+            if !name.isEmpty { attach(app, "contactDetail \(name)", theme) }
+        }
+    }
+
+    /// #744: the one Calendar section.
+    private func evidenceCalendarSettings(_ theme: String) {
+        let app = launchEvidence("calendarSettings", theme)
+        defer { app.terminate() }
+        XCTAssertTrue(
+            element(app, labelContains: "Calendar").waitForExistence(timeout: 40),
+            "the Calendar section never appeared"
+        )
+        sleep(2)
+        attach(app, "calendarSettings", theme)
+    }
+
+    /// #746: Members and Invites share the role control; open its menu. The on-call
+    /// picker lives in Hours, not Team, so it has a screen of its own.
+    private func evidenceTeam(_ theme: String) {
+        let app = launchEvidence("team", theme)
+        XCTAssertTrue(
+            element(app, labelContains: "Alex Mason").waitForExistence(timeout: 40),
+            "the team never appeared"
+        )
+        sleep(2)
+        attach(app, "team members", theme)
+        let role = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "role")
+        ).firstMatch
+        if role.waitForExistence(timeout: 10) {
+            role.tap()
+            sleep(1)
+            attach(app, "team role menu", theme)
+        }
+        app.terminate()
+
+        let onCall = launchEvidence("onCall", theme)
+        defer { onCall.terminate() }
+        XCTAssertTrue(
+            element(onCall, labelContains: "On call").waitForExistence(timeout: 40),
+            "the on-call card never appeared"
+        )
+        sleep(2)
+        attach(onCall, "onCall", theme)
+    }
+
+    /// #752: the map and its pins. MapKit tiles need a moment to draw.
+    private func evidenceTaskMap(_ theme: String) {
+        let app = launchEvidence("taskMap", theme)
+        defer { app.terminate() }
+        XCTAssertTrue(
+            element(app, labelContains: "Map view").waitForExistence(timeout: 40),
+            "the map view never appeared"
+        )
+        sleep(8)
+        attach(app, "taskMap", theme)
+    }
+
+    /// #749: after-hours calls on voicemail, with the note naming who chose it.
+    private func evidenceCallingSettings(_ theme: String) {
+        let app = launchEvidence("callingSettings", theme)
+        defer { app.terminate() }
+        let note = element(app, labelContains: "chose this on")
+        for _ in 0..<14 where !note.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(note.waitForExistence(timeout: 20), "the choice note never appeared")
+        attach(app, "callingSettings", theme)
+    }
+
+    private func launchEvidence(_ surface: String, _ theme: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += ["-a11yAuditSurface", surface, "-theme", theme]
+        app.launch()
+        XCTAssertTrue(
+            app.wait(for: .runningForeground, timeout: 30),
+            "\(surface): the app never reached the foreground"
+        )
+        return app
+    }
+
+    private func element(_ app: XCUIApplication, labelContains text: String) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", text))
+            .firstMatch
+    }
+
+    private func attach(_ app: XCUIApplication, _ name: String, _ theme: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "\(name) (\(theme))"
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
     // MARK: Large text
 
     /// The same screens at the largest accessibility text size, where controls

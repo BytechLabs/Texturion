@@ -18,6 +18,21 @@ enum A11yAuditSurface: String, CaseIterable {
     case settingsSearch
     case account
     case trash
+    /// #739: the Tasks calendar, month view, on dated fixture tasks.
+    case taskCalendar
+    /// #740: a contact with a long history on the redesigned contact page.
+    case contactDetail
+    /// #744: the Calendar settings card with both ways to connect.
+    case calendarSettings
+    /// #746: team settings, with the shared role control.
+    case team
+    /// #746: the on-call picker, which lives in Hours rather than Team.
+    case onCall
+    /// #752: the Tasks map with pinned jobs around downtown Toronto.
+    case taskMap
+    /// #749: the Calling settings, with after-hours calls on voicemail and the note
+    /// saying who chose it.
+    case callingSettings
 
     /// The surface this launch asked for, if any.
     static var requested: A11yAuditSurface? {
@@ -78,6 +93,20 @@ struct A11yAuditHost: View {
             accountSheetFixture()
         case .trash:
             trashListFixture()
+        case .taskCalendar:
+            A11yTasksSurface(initialView: .calendar)
+        case .taskMap:
+            A11yTasksSurface(initialView: .map)
+        case .contactDetail:
+            A11yContactSurface()
+        case .calendarSettings:
+            A11ySettingsSurface(kind: .calendar)
+        case .team:
+            A11ySettingsSurface(kind: .team)
+        case .onCall:
+            A11ySettingsSurface(kind: .onCall)
+        case .callingSettings:
+            A11ySettingsSurface(kind: .calling)
         }
     }
 }
