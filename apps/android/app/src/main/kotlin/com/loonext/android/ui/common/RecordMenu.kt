@@ -1,6 +1,7 @@
 package com.loonext.android.ui.common
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -51,13 +52,27 @@ fun RecordMenu(
     onSelect: (actionId: String, subId: String?) -> Unit,
     exactTime: String? = null,
 ) {
-    val shown = actions.visible()
-    if (shown.isEmpty()) return
-    var choosing by remember { mutableStateOf<RecordAction?>(null) }
-    LaunchedEffect(expanded) { if (!expanded) choosing = null }
-    val locale = LocalAppLocale.current
-
+    if (actions.visible().isEmpty()) return
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        RecordMenuItems(actions, onDismiss, onSelect, exactTime)
+    }
+}
+
+/**
+ * What the menu holds, apart from the popup that floats it, so a screenshot can
+ * draw the same items without a window of their own.
+ */
+@Composable
+internal fun ColumnScope.RecordMenuItems(
+    actions: List<RecordAction>,
+    onDismiss: () -> Unit,
+    onSelect: (actionId: String, subId: String?) -> Unit,
+    exactTime: String? = null,
+) {
+    val shown = actions.visible()
+    var choosing by remember { mutableStateOf<RecordAction?>(null) }
+    val locale = LocalAppLocale.current
+    run {
         val pending = choosing
         if (pending != null) {
             DropdownMenuItem(
@@ -86,7 +101,7 @@ fun RecordMenu(
                     },
                 )
             }
-            return@DropdownMenu
+            return
         }
 
         if (exactTime != null) {

@@ -3374,7 +3374,7 @@ private fun SaveViewSheet(
  * audit inspects the real atoms rather than a second drawing of them.
  */
 @Composable
-internal fun InboxAuditBody(rows: List<ConversationListItem>) {
+internal fun InboxAuditBody(rows: List<ConversationListItem>, views: ListViews? = null) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
         Spacer(Modifier.height(8.dp))
         InboxHeader(
@@ -3384,10 +3384,16 @@ internal fun InboxAuditBody(rows: List<ConversationListItem>) {
             onScheduled = {},
         )
         Spacer(Modifier.height(14.dp))
-        ListFilterRow(filterCount = 1, onFilter = {}) {
-            InboxStatusTab.entries.forEachIndexed { index, item ->
-                FilterPill(text = t(item.labelKey), selected = index == 0, onClick = {})
-            }
+        ListFilterRow(
+            filterCount = 1,
+            onFilter = {},
+            views = views,
+        ) {
+            SegmentedControl(
+                segments = InboxStatusTab.entries.map { Segment(it, t(it.labelKey)) },
+                selected = InboxStatusTab.Open,
+                onSelect = {},
+            )
         }
         Spacer(Modifier.height(14.dp))
         rows.forEachIndexed { index, row ->

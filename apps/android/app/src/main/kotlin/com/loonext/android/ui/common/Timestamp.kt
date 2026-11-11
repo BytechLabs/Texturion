@@ -118,20 +118,26 @@ fun ExactTimePress(
                 shown = false
             }
             Popup(alignment = Alignment.TopEnd, onDismissRequest = { shown = false }) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.inverseSurface,
-                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-                    shadowElevation = 4.dp,
-                    modifier = Modifier.padding(vertical = 4.dp),
-                ) {
-                    Text(
-                        exact,
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    )
-                }
+                ExactTimeTip(exact)
             }
         }
+    }
+}
+
+/** The small dark tip that shows the exact time, apart from the popup that floats it. */
+@Composable
+internal fun ExactTimeTip(exact: String) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        shadowElevation = 4.dp,
+        modifier = Modifier.padding(vertical = 4.dp),
+    ) {
+        Text(
+            exact,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        )
     }
 }
