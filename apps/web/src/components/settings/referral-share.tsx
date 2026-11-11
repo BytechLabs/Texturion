@@ -135,7 +135,7 @@ export function ReferralShare({
           ) : (
             <Copy strokeWidth={1.75} aria-hidden />
           )}
-          {copied ? REFERRAL_SHARE_COPIED : REFERRAL_SHARE_COPY}
+          {say(copied ? REFERRAL_SHARE_COPIED : REFERRAL_SHARE_COPY)}
         </Button>
       </div>
     </div>

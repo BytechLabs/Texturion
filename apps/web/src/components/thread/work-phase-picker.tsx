@@ -72,7 +72,7 @@ export function WorkPhasePicker({
           </button>
         );
       })}
-      <span className="text-[12px] text-muted-foreground">{WORK_PHASE_HINT}</span>
+      <span className="text-[12px] text-muted-foreground">{t(WORK_PHASE_HINT)}</span>
     </div>
   );
 }

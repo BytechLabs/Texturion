@@ -246,13 +246,13 @@ export function PhotoMarkupDialog({
               disabled={marks.length === 0}
               onClick={() => setMarks((current) => current.slice(0, -1))}
             >
-              {MARKUP_UNDO}
+              {t(MARKUP_UNDO)}
             </Button>
             {/* The hint changes to name the half-finished mark, because a person
                 who tapped once needs to know the app is waiting for them rather
                 than that nothing happened. */}
             <span className="text-[12px] text-muted-foreground">
-              {anchor === null ? MARKUP_HINT : MARKUP_HINT_SECOND_TAP}
+              {t(anchor === null ? MARKUP_HINT : MARKUP_HINT_SECOND_TAP)}
             </span>
           </div>
         </div>
