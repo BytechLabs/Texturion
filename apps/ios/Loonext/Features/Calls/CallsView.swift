@@ -928,14 +928,16 @@ private struct CallRow: View {
                         // is capped at 80 characters (routes/me.ts), so it reaches
                         // ~100. With no lineLimit it wrapped to two or three lines,
                         // grew the row, and floated the avatar and timestamp to the
-                        // middle of it.
+                        // middle of it. #725: two lines at most, not one, because
+                        // the line now carries how the call ended and a cut ending
+                        // ("Nobody an…") tells nobody anything. Android does the same.
                         Text(callOutcomeLabel(call))
                             .font(.golos(
                                 11.5,
                                 weight: isActionableMiss(call) ? .semibold : .regular
                             ))
                             .foregroundStyle(metaColor)
-                            .lineLimit(1)
+                            .lineLimit(2)
                             .truncationMode(.tail)
                     }
                 }
