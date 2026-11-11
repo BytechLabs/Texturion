@@ -43,6 +43,16 @@ final class AccessibilityAuditUITests: XCTestCase {
         }
     }
 
+    // MARK: Dark theme
+
+    /// The same screens in the dark theme, where contrast is measured against
+    /// the dark palette.
+    func testDarkTheme() throws {
+        for surface in ["login", "inbox", "thread", "calls", "dialer", "settings"] {
+            try audit(surface, theme: "dark")
+        }
+    }
+
     // MARK: Harness
 
     /// Findings that fail the build. The two it leaves out are logged instead:
@@ -60,11 +70,14 @@ final class AccessibilityAuditUITests: XCTestCase {
         .elementDetection, .hitRegion, .sufficientElementDescription, .trait,
     ]
 
-    private func audit(_ surface: String, contentSize: String? = nil) throws {
+    private func audit(_ surface: String, contentSize: String? = nil, theme: String? = nil) throws {
         let app = XCUIApplication()
         app.launchArguments += ["-a11yAuditSurface", surface]
         if let contentSize {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize]
+        }
+        if let theme {
+            app.launchArguments += ["-theme", theme]
         }
         app.launch()
         XCTAssertTrue(
@@ -77,12 +90,20 @@ final class AccessibilityAuditUITests: XCTestCase {
             "\(surface): nothing on screen to audit"
         )
 
+        let label = (contentSize == nil ? surface : "\(surface) at large text")
+            + (theme.map { " (\($0))" } ?? "")
+        // Kept for a person to look at; CI exports every attachment.
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = label
+        shot.lifetime = .keepAlways
+        add(shot)
+
         var failures: [String] = []
         var advice: [String] = []
         let enforced = contentSize == nil ? Self.enforced : Self.enforcedAtLargeText
         // A busy runner can run the OS audit out of time (code -56) on a long
-        // screen; that says nothing about the screen, so it gets one more go.
-        for attempt in 1...2 {
+        // screen; that says nothing about the screen, so it gets two more goes.
+        for attempt in 1...3 {
             failures = []
             advice = []
             do {
@@ -97,12 +118,11 @@ final class AccessibilityAuditUITests: XCTestCase {
                     return true
                 }
                 break
-            } catch let error as NSError where error.code == -56 && attempt == 1 {
+            } catch let error as NSError where error.code == -56 && attempt < 3 {
                 continue
             }
         }
 
-        let label = contentSize == nil ? surface : "\(surface) at large text"
         if !advice.isEmpty {
             let note = "\(label): \(advice.count) advisory finding(s)\n" + advice.joined(separator: "\n")
             print("A11Y-AUDIT " + note)
