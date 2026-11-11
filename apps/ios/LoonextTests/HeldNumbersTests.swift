@@ -989,7 +989,7 @@ final class HeldNumbersTests: XCTestCase {
                 "the tracker's hold sentence stopped saying that the TRANSFER is "
                     + "fine, so 'On hold' reads as a stalled transfer: \(line)"
             )
-            XCTAssertTrue(line.contains("the line that's on hold"))
+            XCTAssertTrue(line.contains("the number that's on hold"))
             // Byte-identical to the number card's tail: two cards, one line, one
             // account of what a hold is.
             XCTAssertTrue(

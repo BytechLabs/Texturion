@@ -115,7 +115,7 @@ final class TagSimilarityTests: XCTestCase {
     /// before an irreversible operation.
     func testUsesLabelReadsAsAVerdictNotALoadingState() {
         XCTAssertEqual(usesLabel(0), "never used")
-        XCTAssertEqual(usesLabel(1), "1 thread")
-        XCTAssertEqual(usesLabel(12), "12 threads")
+        XCTAssertEqual(usesLabel(1), "1 conversation")
+        XCTAssertEqual(usesLabel(12), "12 conversations")
     }
 }

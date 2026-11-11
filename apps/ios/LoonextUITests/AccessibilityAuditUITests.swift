@@ -147,8 +147,11 @@ final class AccessibilityAuditUITests: XCTestCase {
         sleep(2)
         attach(app, "contactDetail details", theme)
         for (tab, name) in [("Activity", ""), ("Calls", "calls"), ("Tasks", "tasks")] {
-            let button = app.buttons[tab]
-            guard button.waitForExistence(timeout: 10) else { continue }
+            guard app.buttons[tab].firstMatch.waitForExistence(timeout: 10) else { continue }
+            // "Calls" is also the bottom tab; the page's segment is the one nearer the top.
+            let matches = app.buttons.matching(NSPredicate(format: "label == %@", tab))
+                .allElementsBoundByIndex
+            guard let button = matches.min(by: { $0.frame.minY < $1.frame.minY }) else { continue }
             button.tap()
             sleep(2)
             if !name.isEmpty { attach(app, "contactDetail \(name)", theme) }

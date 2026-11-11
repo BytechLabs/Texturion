@@ -313,7 +313,7 @@ final class ThreadSummaryTests: XCTestCase {
 
     func testEveryFailureLeavesTheReaderSomewhereTheyCanStillAct() {
         // The whole failure posture: a catch-up is a shortcut, never a
-        // precondition. Every dead end has to end at the thread, which is
+        // precondition. Every dead end has to end at the conversation, which is
         // directly underneath the card.
         let reasons: [String?] = [
             "disabled", "spam", "too_short", "over_cap", "rate_limited",
@@ -327,7 +327,7 @@ final class ThreadSummaryTests: XCTestCase {
         for reason in reasons {
             let message = threadCatchUpMessage(reason).lowercased()
             XCTAssertTrue(
-                message.contains("thread") || message.contains("try again")
+                message.contains("conversation") || message.contains("try again")
                     || message.contains("settings"),
                 "\(reason ?? "nil") leaves nowhere to go: \(message)"
             )
@@ -411,10 +411,10 @@ final class ThreadSummaryTests: XCTestCase {
 
     func testAnUnknownReasonStillLandsSomewhereUseful() {
         // A reason the server adds later must degrade to a sentence that still
-        // points at the thread, never to a blank card.
+        // points at the conversation, never to a blank card.
         let unknown = threadCatchUpMessage("something_new_from_the_server")
         XCTAssertEqual(unknown, threadCatchUpMessage(nil))
-        XCTAssertTrue(unknown.contains("thread"))
+        XCTAssertTrue(unknown.contains("conversation"))
     }
 
     // MARK: - Carrier truth
