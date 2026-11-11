@@ -4,7 +4,7 @@
  * #129 Calls — the call-log surface. Composes the shipped vocabulary only:
  * the for-you Section card (uppercase 11px header, one bordered card,
  * hairline row separators), the shared CallRow (call-row.tsx — #205 also
- * renders it on the contact detail's call history), and CalmEmptyState.
+ * renders it on the contact detail's call history), and EmptyState.
  * Filters are All | Missed | Voicemail, matching both phone apps: the weekly
  * question is "who called and do I need to act?", and the other one is "what
  * did they say?". #133 polish: a muted
@@ -27,7 +27,7 @@ import {
   OngoingCalls,
 } from "@/components/calls/ongoing-call-card";
 import { SoftphoneStatus } from "@/components/calls/softphone-status";
-import { CalmEmptyState } from "@/components/settings/empty-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type MessageKey } from "@/i18n/provider";
@@ -200,7 +200,7 @@ export function CallsView() {
               ))}
             </div>
           ) : calls.isError ? (
-            <CalmEmptyState
+            <EmptyState
               icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
               title={t("shell.callsLoadFailed")}
               description={t("shell.checkConnection")}
@@ -211,7 +211,7 @@ export function CallsView() {
               }
             />
           ) : rows.length === 0 ? (
-            <CalmEmptyState
+            <EmptyState
               icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
               title={
                 outcome === "missed"

@@ -4,11 +4,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { DeviceRow } from "@/components/settings/device-row";
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

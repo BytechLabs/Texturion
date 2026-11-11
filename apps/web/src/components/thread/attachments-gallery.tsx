@@ -18,6 +18,8 @@ import type { GalleryItem } from "@/lib/api/types";
 import { Timestamp } from "@/components/ui/timestamp";
 import { formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
 
 import {
   fileLabel,
@@ -109,18 +111,11 @@ export function AttachmentsGallery({
             {gallery.isPending ? (
               <GallerySkeleton />
             ) : gallery.isError ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-                <p className="text-sm text-muted-foreground">
-                  {t("thread.galleryLoadFailed")}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => gallery.refetch()}
-                  className="text-[13px] font-medium text-primary underline-offset-2 hover:underline"
-                >
-                  {t("common.retry")}
-                </button>
-              </div>
+              <LoadError
+                variant="fill"
+                message={t("thread.galleryLoadFailed")}
+                onRetry={() => void gallery.refetch()}
+              />
             ) : tabItems.length === 0 && !hasNext ? (
               // Only truly empty once there are no more pages to load. With
               // items still unfetched (hasNext), fall through so the "Load more"
@@ -305,18 +300,11 @@ function Lightbox({
 function GalleryEmpty({ tab }: { tab: GalleryTab }) {
   const t = useT();
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-      <Images
-        className="size-6 text-muted-foreground"
-        strokeWidth={1.5}
-        aria-hidden
-      />
-      <p className="text-sm text-muted-foreground">
-        {tab === "images"
-          ? t("thread.noPhotosYet")
-          : t("thread.noFilesYet")}
-      </p>
-    </div>
+    <EmptyState
+      size="panel"
+      icon={<Images strokeWidth={1.75} />}
+      title={tab === "images" ? t("thread.noPhotosYet") : t("thread.noFilesYet")}
+    />
   );
 }
 

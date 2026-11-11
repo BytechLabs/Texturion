@@ -18,7 +18,7 @@ import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { LoadError } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
 import {

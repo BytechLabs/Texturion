@@ -6,15 +6,12 @@ import { Gauge, OctagonPause, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 import { CapControl } from "@/components/settings/cap-control";
-import { CalmEmptyState } from "@/components/settings/empty-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { AiUsage } from "@/components/settings/ai-usage";
 import { StorageBreakdown } from "@/components/settings/storage-breakdown";
 import { ExportUsage } from "@/components/settings/export-usage";
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type Translate } from "@/i18n/provider";
@@ -623,7 +620,7 @@ export default function UsageSettingsPage() {
         />
       ) : usage.data.period_start === null ? (
         <SettingsCard>
-          <CalmEmptyState
+          <EmptyState
             icon={<Gauge strokeWidth={1.5} aria-hidden />}
             title={t("appShell.usageNoPlanTitle")}
             description={t("appShell.usageNoPlanDescription")}

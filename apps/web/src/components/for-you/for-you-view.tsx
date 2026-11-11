@@ -51,6 +51,7 @@ import { Timestamp } from "@/components/ui/timestamp";
 import { formatTimestamp } from "@/lib/format/time";
 import { BentoLayout, type BentoEditing } from "@/components/for-you/bento-layout";
 import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   PANEL_LABEL_KEYS,
   PANEL_NOTE_KEYS,
@@ -86,6 +87,7 @@ import {
   resizePanel,
 } from "@loonext/shared";
 import { cn } from "@/lib/utils";
+import { LoadError } from "@/components/ui/load-error";
 
 /** Open the shared command-K palette (the search glyph in the header). */
 function openCommand() {
@@ -828,14 +830,7 @@ export function ForYouView() {
       )}
 
       {forYou.isError ? (
-        <div className="flex flex-col items-center gap-3 rounded-app-card border border-app-line bg-app-paper px-6 py-12 text-center">
-          <p className="text-sm text-app-muted">
-            {t("inbox.forYouLoadFailed")}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => forYou.refetch()}>
-            {t("common.retry")}
-          </Button>
-        </div>
+        <LoadError message={t("inbox.forYouLoadFailed")} onRetry={() => void forYou.refetch()} />
       ) : forYou.isPending ? (
         <div className="space-y-7">
           <SectionSkeleton />
@@ -976,17 +971,17 @@ function isHideablePanel(id: LayoutPanelId): id is DashboardPanelId {
 function CaughtUpCard() {
   const t = useT();
   return (
-    <div className="flex flex-col items-center gap-4 rounded-app-card border border-app-line bg-app-paper px-6 py-16 text-center">
-      <span className="grid size-12 place-items-center rounded-full bg-app-tint">
-        <Check className="size-6 text-app-olive-deep" strokeWidth={2} aria-hidden />
-      </span>
-      <div className="space-y-1">
-        <p className="text-[15px] font-semibold text-app-ink">{t("inbox.forYouAllCaughtUp")}</p>
-        <p className="text-sm text-app-muted">{t("inbox.forYouNewLeadsHere")}</p>
-      </div>
-      <Button asChild variant="outline" size="sm">
-        <Link href="/inbox">{t("inbox.forYouOpenInbox")}</Link>
-      </Button>
+    <div className="rounded-app-card border border-app-line bg-app-paper">
+      <EmptyState
+        icon={<Check strokeWidth={1.75} />}
+        title={t("inbox.forYouAllCaughtUp")}
+        description={t("inbox.forYouNewLeadsHere")}
+        action={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/inbox">{t("inbox.forYouOpenInbox")}</Link>
+          </Button>
+        }
+      />
     </div>
   );
 }

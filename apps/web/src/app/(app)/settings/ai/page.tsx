@@ -3,11 +3,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";

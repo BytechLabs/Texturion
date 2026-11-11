@@ -17,11 +17,8 @@ import {
   type WebhookEventType,
 } from "@loonext/shared";
 
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {

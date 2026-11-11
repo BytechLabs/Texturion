@@ -14,11 +14,8 @@ import { LanguageCard } from "@/components/settings/language-card";
 import { LeaveWorkspaceCard } from "@/components/settings/leave-workspace-card";
 import { ExportDataCard } from "@/components/settings/export-data-card";
 import { TimezoneSelect } from "@/components/settings/timezone-select";
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import {
   Form,

@@ -38,7 +38,7 @@ import {
   scheduledHoldText,
 } from "@loonext/shared";
 
-import { CalmEmptyState } from "@/components/settings/empty-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sendAtLabel } from "@/components/thread/scheduled-strip";
@@ -90,7 +90,7 @@ export function ScheduledView() {
           ))}
         </div>
       ) : scheduled.isError ? (
-        <CalmEmptyState
+        <EmptyState
           icon={<CalendarClock className="size-7" strokeWidth={1.5} />}
           title={t("tasks.scheduledLoadFailed")}
           description={t("tasks.scheduledLoadFailedHint")}
@@ -103,10 +103,10 @@ export function ScheduledView() {
         // #228: the heading used to be made by splitting the shared sentence on
         // ". " at render time. That works in both languages today and is one
         // abbreviation away from working in neither, with the second half
-        // coming back undefined. CalmEmptyState wanting two slots is a web
+        // coming back undefined. EmptyState wanting two slots is a web
         // layout fact, so the heading is web copy and the shared sentence the
         // phones say stays whole underneath it.
-        <CalmEmptyState
+        <EmptyState
           icon={<CalendarClock className="size-7" strokeWidth={1.5} />}
           title={t("domain.scheduledEmptyTitle")}
           description={t(SCHEDULED_SEND_COPY.nothing_scheduled)}

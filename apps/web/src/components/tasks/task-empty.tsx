@@ -2,6 +2,7 @@ import { ListChecks } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useT } from "@/i18n/provider";
 
 import { hasActiveChips, serializeTaskState, type TaskPageState } from "./task-view-url";
@@ -21,46 +22,28 @@ export function EmptyTasks({ state }: { state: TaskPageState }) {
   const t = useT();
   const filtered = hasActiveChips(state);
   const mine = !filtered && state.tab !== "all";
-  return (
-    <div className="mx-auto flex max-w-sm flex-col items-center gap-3 px-6 py-20 text-center">
-      <span className="flex size-11 items-center justify-center rounded-full bg-muted">
-        <ListChecks
-          className="size-5 text-muted-foreground"
-          strokeWidth={1.75}
-          aria-hidden
-        />
-      </span>
-      {filtered ? (
-        <p className="text-[15px] text-muted-foreground">
-          {t("tasks.emptyFiltered")}
-        </p>
-      ) : mine ? (
-        <div className="space-y-3">
-          <p className="text-[15px] font-medium text-foreground">
-            {t(
-              state.tab === "done"
-                ? "tasks.emptyMineDone"
-                : state.tab === "mine"
-                  ? "tasks.emptyMineAny"
-                  : "tasks.emptyMine",
-            )}
-          </p>
+  const icon = <ListChecks strokeWidth={1.75} />;
+  if (filtered) return <EmptyState icon={icon} title={t("tasks.emptyFiltered")} />;
+  if (mine) {
+    return (
+      <EmptyState
+        icon={icon}
+        title={t(
+          state.tab === "done"
+            ? "tasks.emptyMineDone"
+            : state.tab === "mine"
+              ? "tasks.emptyMineAny"
+              : "tasks.emptyMine",
+        )}
+        action={
           <Button asChild variant="outline" size="sm">
             <Link href={`/tasks${serializeTaskState({ ...state, tab: "all" })}`}>
               {t("tasks.emptySeeAll")}
             </Link>
           </Button>
-        </div>
-      ) : (
-        <div className="space-y-1">
-          <p className="text-[15px] font-medium text-foreground">
-            {t("tasks.emptyTitle")}
-          </p>
-          <p className="text-[13px] leading-relaxed text-muted-foreground">
-            {t("tasks.emptyBody")}
-          </p>
-        </div>
-      )}
-    </div>
-  );
+        }
+      />
+    );
+  }
+  return <EmptyState icon={icon} title={t("tasks.emptyTitle")} description={t("tasks.emptyBody")} />;
 }

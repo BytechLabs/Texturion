@@ -4,7 +4,8 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { LoadError, SettingsPage } from "@/components/settings/section";
+import { SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { cn } from "@/lib/utils";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { TagManagementCard } from "@/components/settings/tag-management-card";

@@ -5,6 +5,7 @@ import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
+import { EmptyState } from "@/components/ui/empty-state";
 
 import { reportBoundaryError } from "../error";
 
@@ -36,19 +37,16 @@ export default function AppError({
   }, [error]);
 
   return (
-    <div className="flex min-h-full flex-1 flex-col items-center justify-center gap-4 px-6 py-16 text-center">
-      <div className="max-w-sm space-y-1.5">
-        <p className="text-base font-semibold text-app-ink">
-          {t("appShell.segmentErrorTitle")}
-        </p>
-        <p className="text-sm text-app-muted">
-          {t("appShell.segmentErrorBody")}
-        </p>
-      </div>
-      <Button variant="outline" size="sm" onClick={reset}>
-        <RotateCw className="size-4" strokeWidth={1.75} aria-hidden />
-        {t("common.retry")}
-      </Button>
-    </div>
+    <EmptyState
+      className="min-h-full flex-1"
+      title={t("appShell.segmentErrorTitle")}
+      description={t("appShell.segmentErrorBody")}
+      action={
+        <Button variant="outline" size="sm" onClick={reset}>
+          <RotateCw className="size-4" strokeWidth={1.75} aria-hidden />
+          {t("common.retry")}
+        </Button>
+      }
+    />
   );
 }

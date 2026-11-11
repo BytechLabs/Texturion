@@ -4,7 +4,8 @@ import { Trash2, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { LoadError, SettingsCard } from "@/components/settings/section";
+import { SettingsCard } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,6 +29,7 @@ import {
 } from "@/lib/api/trash";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatTimestamp } from "@/lib/format/time";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   daysLeftLabel,
   detailLabel,
@@ -70,17 +72,12 @@ export function TrashList() {
   if (rows.length === 0) {
     return (
       <SettingsCard>
-        <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
-          <Trash2
-            className="size-6 text-muted-foreground"
-            strokeWidth={1.5}
-            aria-hidden
-          />
-          <p className="text-sm font-medium">{t("trash.emptyTitle")}</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            {t("trash.emptyBody")}
-          </p>
-        </div>
+        <EmptyState
+          size="panel"
+          icon={<Trash2 strokeWidth={1.75} />}
+          title={t("trash.emptyTitle")}
+          description={t("trash.emptyBody")}
+        />
       </SettingsCard>
     );
   }

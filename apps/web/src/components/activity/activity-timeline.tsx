@@ -18,7 +18,7 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { CalmEmptyState } from "@/components/settings/empty-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
 import { ChoiceChip } from "@/components/ui/choice-chip";
@@ -175,7 +175,7 @@ export function ActivityTimeline({
     );
   } else if (activity.isError) {
     body = (
-      <CalmEmptyState
+      <EmptyState
         className="py-8"
         icon={<MessageSquare className="size-7" strokeWidth={1.5} />}
         title={t("activity.loadFailed")}
@@ -184,7 +184,7 @@ export function ActivityTimeline({
     );
   } else if (entries.length === 0) {
     body = (
-      <CalmEmptyState
+      <EmptyState
         className="py-8"
         icon={<MessageSquare className="size-7" strokeWidth={1.5} />}
         title={filter === "all" ? t("activity.empty") : t("activity.emptyFiltered")}

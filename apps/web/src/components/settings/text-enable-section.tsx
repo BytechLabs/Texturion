@@ -1,6 +1,7 @@
 "use client";
 
-import { LoadError, SettingsCard } from "@/components/settings/section";
+import { SettingsCard } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { StartTextEnableDialog } from "@/components/settings/start-text-enable-dialog";
 import { TextEnableCard } from "@/components/settings/text-enable-card";
 import { splitHostedNumbers } from "@/components/settings/text-enable-state";

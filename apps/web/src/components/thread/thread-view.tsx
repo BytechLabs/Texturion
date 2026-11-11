@@ -47,6 +47,7 @@ import {
 } from "@/lib/inbox/thread-href";
 import { useIsXl } from "@/lib/use-is-xl";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
+import { LoadError } from "@/components/ui/load-error";
 
 import { AttachmentsGallery } from "./attachments-gallery";
 import {
@@ -161,22 +162,19 @@ export function ThreadView({ conversationId }: { conversationId: string }) {
     const notFound =
       detail.error instanceof ApiError && detail.error.code === "not_found";
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <p className="text-sm text-muted-foreground">
-          {notFound
-            ? t("thread.conversationNotFound")
-            : t("thread.conversationLoadFailed")}
-        </p>
-        {notFound ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href="/inbox">{t("thread.backToInbox")}</Link>
-          </Button>
-        ) : (
-          <Button variant="outline" size="sm" onClick={() => detail.refetch()}>
-            {t("common.retry")}
-          </Button>
-        )}
-      </div>
+      <LoadError
+        variant="fill"
+        className="h-full"
+        message={notFound ? t("thread.conversationNotFound") : t("thread.conversationLoadFailed")}
+        onRetry={() => void detail.refetch()}
+        action={
+          notFound ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/inbox">{t("thread.backToInbox")}</Link>
+            </Button>
+          ) : undefined
+        }
+      />
     );
   }
 

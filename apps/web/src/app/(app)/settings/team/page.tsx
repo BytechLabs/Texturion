@@ -20,11 +20,8 @@ import {
 } from "@/components/settings/give-up-access-dialog";
 import { OwnershipCard } from "@/components/settings/ownership-card";
 import { RequireTwoFactorCard } from "@/components/settings/require-two-factor-card";
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

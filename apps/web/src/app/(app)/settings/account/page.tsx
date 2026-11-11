@@ -8,11 +8,8 @@ import { ChangeEmailCard } from "@/components/settings/change-email-card";
 import { ChangePasswordCard } from "@/components/settings/change-password-card";
 import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { DeleteAccountCard } from "@/components/settings/delete-account-card";
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";

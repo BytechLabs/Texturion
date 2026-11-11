@@ -11,11 +11,8 @@ import {
 } from "@loonext/shared";
 import { Lightbulb, LifeBuoy, Mail } from "lucide-react";
 
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sayEnglish, sayWith, useT } from "@/i18n/provider";

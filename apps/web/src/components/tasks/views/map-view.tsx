@@ -5,12 +5,13 @@ import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { LoadError } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useGeocodeProgress, useAllTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Task } from "@/lib/api/types";
+import { EmptyState } from "@/components/ui/empty-state";
 
 import { EmptyTasks } from "../task-empty";
 import type { TaskPageState } from "../task-view-url";
@@ -149,11 +150,12 @@ export function MapView({ state }: { state: TaskPageState }) {
         </p>
       )}
       {located.length === 0 ? (
-        <div className="flex h-[320px] flex-col items-center justify-center gap-2 rounded-xl border border-border bg-secondary/20 text-center">
-          <MapPin className="size-6 text-muted-foreground" strokeWidth={1.75} aria-hidden />
-          <p className="max-w-xs text-[13px] text-muted-foreground">
-            {t("tasks.mapNoMappedAddress")}
-          </p>
+        <div className="flex h-[320px] items-center justify-center rounded-xl border border-border bg-secondary/20">
+          <EmptyState
+            size="panel"
+            icon={<MapPin strokeWidth={1.75} />}
+            title={t("tasks.mapNoMappedAddress")}
+          />
         </div>
       ) : (
         <MapIsland tasks={located} nearMe={nearMe} />

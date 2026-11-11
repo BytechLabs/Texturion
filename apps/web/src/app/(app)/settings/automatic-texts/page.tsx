@@ -1,6 +1,7 @@
 "use client";
 
-import { LoadError, SettingsPage } from "@/components/settings/section";
+import { SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { AutomaticTextsGroups } from "@/components/settings/automatic-texts-groups";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";

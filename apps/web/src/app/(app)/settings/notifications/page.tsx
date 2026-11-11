@@ -8,11 +8,8 @@ import { DeliveryModesCard } from "@/components/settings/delivery-modes-card";
 import { QuietHoursRow } from "@/components/settings/quiet-hours-row";
 import { PermissionCard } from "@/components/notifications/permission-card";
 import { EmailReachabilityCard } from "@/components/settings/email-reachability-card";
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";

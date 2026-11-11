@@ -3,6 +3,7 @@
 import { MessagesSquare } from "lucide-react";
 
 import { useT } from "@/i18n/provider";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * The quiet placeholder in the thread region when no conversation is open.
@@ -16,16 +17,10 @@ export function EmptyThreadPane() {
   const t = useT();
   return (
     <div className="hidden h-full items-center justify-center md:flex">
-      <div className="flex flex-col items-center gap-3 text-center">
-        <MessagesSquare
-          className="size-8 text-muted-foreground/50"
-          strokeWidth={1.75}
-          aria-hidden
-        />
-        <p className="text-sm text-muted-foreground">
-          {t("appShell.inboxPickAThread")}
-        </p>
-      </div>
+      <EmptyState
+        icon={<MessagesSquare strokeWidth={1.75} />}
+        title={t("appShell.inboxPickAThread")}
+      />
     </div>
   );
 }

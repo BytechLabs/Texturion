@@ -3,11 +3,8 @@
 import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { Ban } from "lucide-react";
 
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

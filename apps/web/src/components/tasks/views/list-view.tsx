@@ -3,7 +3,7 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
-import { LoadError } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useState } from "react";
 import { toast } from "sonner";

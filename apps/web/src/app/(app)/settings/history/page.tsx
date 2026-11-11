@@ -5,11 +5,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +32,7 @@ import {
 } from "@/lib/settings/audit-sentence";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { getAccessToken } from "@/lib/supabase/browser";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /** Everyone / all actions. Sentinel values, since a Select cannot hold "". */
 const ANY = "any";
@@ -239,19 +237,12 @@ export default function HistorySettingsPage() {
         </SettingsCard>
       ) : entries.length === 0 ? (
         <SettingsCard>
-          <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
-            <ShieldCheck
-              className="size-6 text-muted-foreground"
-              strokeWidth={1.5}
-              aria-hidden
-            />
-            <p className="text-sm font-medium">
-              {t("appShell.historyEmptyTitle")}
-            </p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              {t("appShell.historyEmptyBody")}
-            </p>
-          </div>
+          <EmptyState
+            size="panel"
+            icon={<ShieldCheck strokeWidth={1.75} />}
+            title={t("appShell.historyEmptyTitle")}
+            description={t("appShell.historyEmptyBody")}
+          />
         </SettingsCard>
       ) : (
         <SettingsCard>

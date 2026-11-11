@@ -5,7 +5,8 @@ import { toast } from "sonner";
 
 import { payoutRequirementCopy } from "@loonext/shared";
 
-import { LoadError, SettingsCard } from "@/components/settings/section";
+import { SettingsCard } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useT, type Translate } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";

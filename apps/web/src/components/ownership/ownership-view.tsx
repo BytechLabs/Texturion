@@ -11,7 +11,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { LoadError, SettingsCard } from "@/components/settings/section";
+import { SettingsCard } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

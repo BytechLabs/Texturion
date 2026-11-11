@@ -108,6 +108,7 @@ import {
 } from "./use-task-mutations";
 import { TaskCommentComposer, TaskFeed } from "./task-feed";
 import { ShareJobPhotos } from "@/components/tasks/share-job-photos";
+import { LoadError } from "@/components/ui/load-error";
 
 /** Sentinel <Select> value for "unassigned" (Radix forbids an empty string). */
 
@@ -159,18 +160,11 @@ export function TaskDetailPanel({
     const notFound =
       query.error instanceof ApiError && query.error.code === "not_found";
     return (
-      <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-        <p className="text-sm text-app-muted">
-          {notFound
-            ? t("tasks.detailNotFound")
-            : t("tasks.detailLoadFailed")}
-        </p>
-        {!notFound && (
-          <Button variant="outline" size="sm" onClick={() => query.refetch()}>
-            {t("common.retry")}
-          </Button>
-        )}
-      </div>
+      <LoadError
+        variant="fill"
+        message={notFound ? t("tasks.detailNotFound") : t("tasks.detailLoadFailed")}
+        onRetry={notFound ? undefined : () => void query.refetch()}
+      />
     );
   }
 

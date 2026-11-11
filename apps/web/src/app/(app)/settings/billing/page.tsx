@@ -33,11 +33,8 @@ import {
 import { PlanModulesCard } from "@/components/settings/plan-modules-card";
 import { PrepaidYearCard } from "@/components/settings/prepaid-year-card";
 import { ReferralCard } from "@/components/settings/referral-card";
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

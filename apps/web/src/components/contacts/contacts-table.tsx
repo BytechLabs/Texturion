@@ -7,8 +7,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { roleHasCapability } from "@loonext/shared";
 
-import { CalmEmptyState } from "@/components/settings/empty-state";
-import { LoadError } from "@/components/settings/section";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -180,12 +180,12 @@ export function ContactsTable({
           </div>
         ) : rows.length === 0 ? (
           searching ? (
-            <CalmEmptyState
+            <EmptyState
               title={t("contacts.noMatchesFor", { query: query.trim() })}
               description={t("contacts.noMatchesDetail")}
             />
           ) : tagFilter !== undefined ? (
-            <CalmEmptyState
+            <EmptyState
               title={t("contacts.tagFilteredEmptyTitle")}
               description={t("contacts.tagFilteredEmptyDetail")}
             />
@@ -194,14 +194,14 @@ export function ContactsTable({
             // here on their own" under an active filter reads as "you have no
             // customers", which is alarming and wrong — they are excluded, not
             // missing.
-            <CalmEmptyState
+            <EmptyState
               title={t("contacts.filteredEmptyTitle")}
               description={t("contacts.filteredEmptyDetail")}
             />
           ) : (
             // The §5 kind empty state (delight moment #2): one warm line, one
             // action, generous air — never a generic "No data".
-            <CalmEmptyState
+            <EmptyState
               icon={<Users strokeWidth={1.5} aria-hidden />}
               title={t("contacts.emptyTitle")}
               description={t("contacts.emptyDetail")}

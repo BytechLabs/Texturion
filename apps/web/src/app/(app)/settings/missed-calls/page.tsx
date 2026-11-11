@@ -17,11 +17,8 @@ import { AfterHoursCallsCard } from "@/components/settings/after-hours-calls-car
 import { RingCard } from "@/components/settings/ring-card";
 import { VoiceGreetingCard } from "@/components/settings/voice-greeting-card";
 
-import {
-  LoadError,
-  SettingsCard,
-  SettingsPage,
-} from "@/components/settings/section";
+import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { onlyHostedNumbers } from "@/components/settings/text-enable-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

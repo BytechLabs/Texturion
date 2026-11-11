@@ -3,7 +3,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
 import {
   useConversations,
@@ -35,6 +34,7 @@ import { toast } from "sonner";
 
 import { DeleteConversationsDialog } from "@/components/thread/delete-conversations-dialog";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
+import { LoadError } from "@/components/ui/load-error";
 
 import { BulkBar } from "./bulk-bar";
 import { useInboxShortcuts } from "./use-inbox-shortcuts";
@@ -276,14 +276,11 @@ export function ConversationList({
   // twice on a surface a crew reads all day.
   if (query.isError && rows.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-        <p className="text-sm text-muted-foreground">
-          {t("inbox.listLoadFailed")}
-        </p>
-        <Button variant="outline" size="sm" onClick={() => query.refetch()}>
-          {t("common.retry")}
-        </Button>
-      </div>
+      <LoadError
+        variant="fill"
+        message={t("inbox.listLoadFailed")}
+        onRetry={() => void query.refetch()}
+      />
     );
   }
 

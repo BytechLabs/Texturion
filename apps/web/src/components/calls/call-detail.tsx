@@ -8,7 +8,7 @@ import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { CallActions } from "@/components/calls/call-actions";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
-import { LoadError } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { RecordHeader } from "@/components/ui/record-header";
 import { Skeleton } from "@/components/ui/skeleton";

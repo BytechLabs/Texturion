@@ -95,30 +95,3 @@ export function SettingsCard({
     </section>
   );
 }
-
-/** Inline error with a retry — the shared query-failure state. */
-export function LoadError({
-  message,
-  onRetry,
-}: {
-  /** Defaulted inside the body rather than in the signature, because the
-   *  default is now a lookup and a hook cannot run in a parameter list. */
-  message?: string;
-  onRetry: () => void;
-}) {
-  const t = useT();
-  return (
-    <div className="flex flex-col items-start gap-2 rounded-lg border bg-card px-4 py-4">
-      <p className="text-sm text-muted-foreground">
-        {message ?? t("common.loadFailed")}
-      </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-      >
-        {t("common.retry")}
-      </button>
-    </div>
-  );
-}

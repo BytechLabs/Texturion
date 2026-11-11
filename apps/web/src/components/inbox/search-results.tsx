@@ -1,10 +1,9 @@
 "use client";
 
-import { Lock } from "lucide-react";
+import { Lock, SearchX } from "lucide-react";
 import Link from "next/link";
 import { Fragment } from "react";
 
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useSearch } from "@/lib/api/search";
@@ -13,6 +12,8 @@ import { Timestamp } from "@/components/ui/timestamp";
 
 import { StatusPill } from "./status-pill";
 import { threadHref } from "@/lib/inbox/thread-href";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
 
 /**
  * ts_headline emits <b>…</b> around matches (api_search SQL). Parse just
@@ -48,14 +49,11 @@ export function SearchResults({ q }: { q: string }) {
   }
   if (search.isError) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-        <p className="text-sm text-muted-foreground">
-          {t("inbox.searchFailed")}
-        </p>
-        <Button variant="outline" size="sm" onClick={() => search.refetch()}>
-          {t("common.retry")}
-        </Button>
-      </div>
+      <LoadError
+        variant="fill"
+        message={t("inbox.searchFailed")}
+        onRetry={() => void search.refetch()}
+      />
     );
   }
   if (!search.data) return <SearchSkeleton />;
@@ -63,11 +61,11 @@ export function SearchResults({ q }: { q: string }) {
   const { conversations, contacts } = search.data;
   if (conversations.length === 0 && contacts.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center p-8">
-        <p className="text-sm text-muted-foreground">
-          {t("inbox.searchNoMatches", { query: q.trim() })}
-        </p>
-      </div>
+      <EmptyState
+        className="flex-1"
+        icon={<SearchX strokeWidth={1.75} />}
+        title={t("inbox.searchNoMatches", { query: q.trim() })}
+      />
     );
   }
 

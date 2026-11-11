@@ -9,7 +9,8 @@ import { pauseQueryEnabled } from "@/components/settings/pause-plan";
 import { pauseReadOf } from "@/components/settings/pause-read";
 import { RegistrationFixForm } from "@/components/settings/registration-fix-form";
 import { RejectionNotice } from "@/components/settings/rejection-notice";
-import { LoadError, SettingsCard } from "@/components/settings/section";
+import { SettingsCard } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import {
   usRegistrationFee,
   usRegistrationPausedTerms,

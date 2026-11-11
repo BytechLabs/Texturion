@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { LoadError } from "@/components/settings/section";
+import { LoadError } from "@/components/ui/load-error";
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
