@@ -319,13 +319,17 @@ describe("the definitions agree with the explicit tables that already exist", ()
     }
   });
 
-  it("registration: matches ALLOWED_TRANSITIONS in registration.ts, plus the submit route's draft edge", () => {
+  it("registration: matches ALLOWED_TRANSITIONS in registration.ts, plus the submit route's edges", () => {
     const table = literalTable("apps/api/src/telnyx/registration.ts", "ALLOWED_TRANSITIONS");
     expect(asSet(Object.keys(table))).toEqual(asSet(registrationMachine.states));
+    // The submit route, not a carrier webhook, sends a registration to review:
+    // the first submission, a resubmit after a fix, and a reactivation.
+    const SUBMITTED_FROM = new Set(["draft", "rejected", "suspended"]);
     for (const state of registrationMachine.states) {
-      // draft is left by the submit route, not by a carrier webhook, so the
-      // webhook table lists nothing for it. Everything else must agree.
-      const expected = state === "draft" ? ["submitted"] : (table[state] ?? []);
+      const expected = [
+        ...(table[state] ?? []),
+        ...(SUBMITTED_FROM.has(state) ? ["submitted"] : []),
+      ];
       expect(asSet(nextStates(registrationMachine, state)), state).toEqual(asSet(expected));
     }
   });

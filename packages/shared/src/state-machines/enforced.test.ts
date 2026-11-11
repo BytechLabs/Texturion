@@ -13,7 +13,9 @@ import { messageMachine } from "./message";
 import { paymentRequestMachine } from "./payment-request";
 import { phoneNumberMachine } from "./phone-number";
 import { quoteMachine } from "./quote";
+import { registrationMachine } from "./registration";
 import { scheduledMessageMachine } from "./scheduled-message";
+import { textEnablementMachine } from "./text-enablement";
 import { webhookDeliveryMachine } from "./webhook-delivery";
 
 const MIGRATIONS = join(__dirname, "..", "..", "..", "..", "supabase", "migrations");
@@ -24,10 +26,10 @@ function triggerEdges(file: string, fn: string): Map<string, string[]> {
   const start = sql.indexOf(`function public.${fn}()`);
   const body = sql.slice(start, sql.indexOf("$$;", start));
   const edges = new Map<string, string[]>();
-  for (const match of body.matchAll(/old\.status = '(\w+)' and new\.status in \(([^)]*)\)/g)) {
+  for (const match of body.matchAll(/old\.status = '([\w-]+)' and new\.status in \(([^)]*)\)/g)) {
     edges.set(
       match[1]!,
-      [...match[2]!.matchAll(/'(\w+)'/g)].map((m) => m[1]!).sort(),
+      [...match[2]!.matchAll(/'([\w-]+)'/g)].map((m) => m[1]!).sort(),
     );
   }
   return edges;
@@ -65,11 +67,15 @@ describe("#722 enforced machines", () => {
     ["data_export", dataExportMachine, "data_exports_transition_guard"],
     ["webhook_delivery", webhookDeliveryMachine, "webhook_deliveries_transition_guard"],
     ["phone_number", phoneNumberMachine, "phone_numbers_transition_guard"],
+    ["registration", registrationMachine, "messaging_registrations_status_forward_only"],
+    ["text_enablement", textEnablementMachine, "text_enablement_orders_status_forward_only"],
   ] as const)("%s: the trigger allows exactly the defined moves", (_name, machine, fn) => {
     const edges = triggerEdges(
       fn === "phone_numbers_transition_guard"
         ? "20261111330000_a_number_keeps_its_lifecycle.sql"
-        : "20261111320000_payments_quotes_exports_and_webhooks_keep_their_lifecycles.sql",
+        : fn.endsWith("_status_forward_only")
+          ? "20261111340000_registrations_and_text_enablement_keep_their_lifecycles.sql"
+          : "20261111320000_payments_quotes_exports_and_webhooks_keep_their_lifecycles.sql",
       fn,
     );
     expect(edges.size, "the trigger was not found or has no edges").toBeGreaterThan(0);

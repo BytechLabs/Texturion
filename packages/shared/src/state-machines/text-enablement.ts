@@ -25,7 +25,8 @@ export const textEnablementMachine = defineMachine<TextEnablementState>({
     pending: ["in-progress", "action-required", "completed", "failed", "cancelled"],
     "action-required": ["pending", "in-progress", "completed", "failed", "cancelled"],
     "in-progress": ["action-required", "completed", "failed", "cancelled"],
-    completed: [],
+    // Releasing the number ends its hosted order, completed or not.
+    completed: ["cancelled"],
     failed: ["pending", "cancelled"],
     cancelled: [],
   },

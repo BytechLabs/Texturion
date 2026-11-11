@@ -29,8 +29,11 @@ export const registrationMachine = defineMachine<RegistrationState>({
     submitted: ["pending", "approved", "rejected"],
     pending: ["approved", "rejected"],
     approved: ["suspended"],
-    rejected: [],
-    suspended: ["approved", "rejected"],
+    // A fixed registration is resubmitted (the rejected-resubmit path, capped
+    // by MAX_CAMPAIGN_SUBMISSIONS), and a suspended one is reactivated after a
+    // paid resubscribe (MAX_CAMPAIGN_REACTIVATIONS). Both send it back to review.
+    rejected: ["submitted"],
+    suspended: ["approved", "rejected", "submitted"],
   },
   entryEffects: {
     approved: ["stamp_approved_at", "submit_campaign_after_brand"],
