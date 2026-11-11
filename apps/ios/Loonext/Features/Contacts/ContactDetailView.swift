@@ -980,16 +980,13 @@ struct ContactDetailView: View {
                     )
                 }
                 if editingTimezone {
-                    Menu {
-                        ForEach(northAmericanTimeZoneIdentifiers(), id: \.self) { candidate in
-                            Button(zoneLabel(candidate)) { saveTimezone(candidate) }
-                        }
-                    } label: {
-                        Text(zoneLabel(zone))
-                            .font(.golos(12.5))
-                            .foregroundStyle(BrandColor.olive)
-                    }
-                    .disabled(working)
+                    SearchablePicker(
+                        options: timezoneOptions(including: zone),
+                        selected: zone,
+                        label: t("contactsTasks.changeTimezone"),
+                        enabled: !working,
+                        onSelect: { saveTimezone($0) }
+                    )
                     if contact.timezone != nil {
                         Button(t("contactsTasks.useAreaCode")) { saveTimezone(nil) }
                             .font(.golos(11))
@@ -1007,6 +1004,14 @@ struct ContactDetailView: View {
 
     private func localReading(_ zone: String) -> String {
         TimestampFormat.clock(Date(), timeZone: TimeZone(identifier: zone) ?? .current)
+    }
+
+    /// Every North American zone, found by typing a city or the full name. The zone in
+    /// force is added when the list does not hold it, so the field never goes blank.
+    private func timezoneOptions(including zone: String) -> [PickerOption<String>] {
+        var zones = northAmericanTimeZoneIdentifiers()
+        if !zones.contains(zone) { zones.append(zone) }
+        return zones.map { PickerOption($0, title: zoneLabel($0), searchText: $0) }
     }
 
     private func zoneLabel(_ zone: String) -> String {
@@ -1098,43 +1103,13 @@ struct ContactDetailView: View {
                 )
             }
             if editingLanguage {
-                Menu {
-                    // Inherit first: it is the default every contact starts
-                    // on, and the one an override needs a way back to.
-                    Button(
-                        inheritedLocaleLabel(
-                            companyLocale: companyLocale, locale: appLocale
-                        )
-                    ) {
-                        saveLocale(nil)
-                    }
-                    // #717: the workspace's own language is the inherit
-                    // choice above, so it is offered a second time only when
-                    // this contact is already set to it.
-                    ForEach(
-                        choicesBesideDefault(
-                            MessageLocale.all,
-                            default: companyLocale.flatMap {
-                                MessageLocale.all.contains($0) ? $0 : nil
-                            },
-                            stored: contact.locale
-                        ),
-                        id: \.self
-                    ) { candidate in
-                        Button(MessageLocale.label(candidate)) { saveLocale(candidate) }
-                    }
-                } label: {
-                    Text(
-                        contact.locale == nil
-                            ? inheritedLocaleLabel(
-                                companyLocale: companyLocale, locale: appLocale
-                            )
-                            : MessageLocale.label(resolved)
-                    )
-                    .font(.golos(12.5))
-                    .foregroundStyle(BrandColor.olive)
-                }
-                .disabled(working)
+                SelectField(
+                    options: languageOptions(contact),
+                    selected: contact.locale,
+                    label: t("contactsTasks.changeLanguage"),
+                    enabled: !working,
+                    onSelect: { saveLocale($0) }
+                )
                 Text(AppStrings.translate(appLocale, "contactsTasks.localeContactScopeNote"))
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted500)
@@ -1143,6 +1118,27 @@ struct ContactDetailView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Inherit first: it is the default every contact starts on, and the one an override
+    /// needs a way back to. #717: the workspace's own language is that inherit choice, so
+    /// it is offered a second time only when this contact is already set to it.
+    private func languageOptions(_ contact: Contact) -> [SelectOption<String?>] {
+        var options: [SelectOption<String?>] = [
+            SelectOption<String?>(
+                nil,
+                title: inheritedLocaleLabel(companyLocale: companyLocale, locale: appLocale)
+            )
+        ]
+        let beside = choicesBesideDefault(
+            MessageLocale.all,
+            default: companyLocale.flatMap { MessageLocale.all.contains($0) ? $0 : nil },
+            stored: contact.locale
+        )
+        for candidate in beside {
+            options.append(SelectOption<String?>(candidate, title: MessageLocale.label(candidate)))
+        }
+        return options
     }
 
     private func saveLocale(_ locale: String?) {

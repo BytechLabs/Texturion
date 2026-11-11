@@ -15,7 +15,8 @@ import {
 import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ChoiceCards } from "@/components/ui/choice-cards";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useT } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
@@ -273,47 +274,26 @@ export default function NumberStepPage() {
             <legend className="sr-only">
               {t("onboarding.numberTypeLegend")}
             </legend>
-            <RadioGroup
+            <ChoiceCards
               value={mode}
-              onValueChange={(v) => {
-                setMode(v as NumberMode);
+              onChange={(v) => {
+                setMode(v);
                 setFormError(null);
               }}
-              className="grid gap-3"
-            >
-              {(
-                [
-                  [
-                    "new",
-                    t("onboarding.modeNewLabel"),
-                    t("onboarding.modeNewHint"),
-                  ],
-                  [
-                    "port",
-                    t("onboarding.modePortLabel"),
-                    t("onboarding.modePortHint"),
-                  ],
-                ] as const
-              ).map(([value, label, hint]) => (
-                <Label
-                  key={value}
-                  className={cn(
-                    "flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 text-sm transition-colors duration-150 ease-out",
-                    mode === value
-                      ? "border-primary bg-primary/5"
-                      : "border-border bg-card hover:bg-accent",
-                  )}
-                >
-                  <RadioGroupItem value={value} className="mt-0.5" />
-                  <span className="space-y-0.5">
-                    <span className="block font-medium">{label}</span>
-                    <span className="block text-[13px] text-muted-foreground">
-                      {hint}
-                    </span>
-                  </span>
-                </Label>
-              ))}
-            </RadioGroup>
+              ariaLabel={t("onboarding.numberTypeLegend")}
+              options={[
+                {
+                  value: "new",
+                  label: t("onboarding.modeNewLabel"),
+                  description: t("onboarding.modeNewHint"),
+                },
+                {
+                  value: "port",
+                  label: t("onboarding.modePortLabel"),
+                  description: t("onboarding.modePortHint"),
+                },
+              ]}
+            />
             {/* Path B (keep number AND carrier) is deliberately not a third
                 wizard fork — it's a Settings flow after signup. One honest
                 mention here so landline owners know it exists. */}
@@ -327,31 +307,16 @@ export default function NumberStepPage() {
           <legend className="text-sm font-medium">
             {t("onboarding.countryLegend")}
           </legend>
-          <RadioGroup
+          <SegmentedControl
             value={country}
-            onValueChange={(v) => pickCountry(v as "US" | "CA")}
-            className="grid grid-cols-2 gap-3"
-          >
-            {(
-              [
-                ["US", t("onboarding.countryUs")],
-                ["CA", t("onboarding.countryCa")],
-              ] as const
-            ).map(([value, label]) => (
-              <Label
-                key={value}
-                className={cn(
-                  "flex h-12 cursor-pointer items-center gap-3 rounded-lg border px-4 text-sm font-medium transition-colors duration-150 ease-out",
-                  country === value
-                    ? "border-primary bg-primary/5"
-                    : "border-border bg-card hover:bg-accent",
-                )}
-              >
-                <RadioGroupItem value={value} />
-                {label}
-              </Label>
-            ))}
-          </RadioGroup>
+            onChange={pickCountry}
+            fill
+            ariaLabel={t("onboarding.countryLegend")}
+            options={[
+              { value: "US", label: t("onboarding.countryUs") },
+              { value: "CA", label: t("onboarding.countryCa") },
+            ]}
+          />
         </fieldset>
 
         {/* Choose-your-number: search an area code, then pick a real available
@@ -377,31 +342,16 @@ export default function NumberStepPage() {
             <legend className="text-sm font-medium">
               {t("onboarding.usTextingLegend")}
             </legend>
-            <RadioGroup
+            <SegmentedControl
               value={usTexting ? "yes" : "no"}
-              onValueChange={(v) => setUsTexting(v === "yes")}
-              className="grid gap-3"
-            >
-              {(
-                [
-                  ["yes", t("onboarding.usTextingYes")],
-                  ["no", t("onboarding.usTextingNo")],
-                ] as const
-              ).map(([value, label]) => (
-                <Label
-                  key={value}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium transition-colors duration-150 ease-out",
-                    (usTexting ? "yes" : "no") === value
-                      ? "border-primary bg-primary/5"
-                      : "border-border bg-card hover:bg-accent",
-                  )}
-                >
-                  <RadioGroupItem value={value} />
-                  {label}
-                </Label>
-              ))}
-            </RadioGroup>
+              onChange={(v) => setUsTexting(v === "yes")}
+              fill
+              ariaLabel={t("onboarding.usTextingLegend")}
+              options={[
+                { value: "yes", label: t("onboarding.usTextingYes") },
+                { value: "no", label: t("onboarding.usTextingNo") },
+              ]}
+            />
             <p className="text-[13px] text-muted-foreground">
               {t("onboarding.usTextingFeeNote", {
                 fee: formatMoney(

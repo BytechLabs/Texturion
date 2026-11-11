@@ -26,11 +26,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ChoiceCards } from "@/components/ui/choice-cards";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useT, type Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
-import { cn } from "@/lib/utils";
 
 import { crewFitCopy, crewFitPrompt } from "../crew-copy";
 import { writeOnboardingDraft } from "../local-draft";
@@ -174,37 +173,16 @@ export default function CompanyNamePage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{t("onboarding.crewSizeLabel")}</FormLabel>
-                <FormControl>
-                  <RadioGroup
-                    value={field.value ?? ""}
-                    onValueChange={field.onChange}
-                    className="grid grid-cols-2 gap-3"
-                  >
-                    {CREW_SIZE_BUCKETS.map((bucket) => (
-                      <Label
-                        key={bucket}
-                        className={cn(
-                          "flex h-11 cursor-pointer items-center justify-center rounded-lg border px-3 text-center text-sm font-medium transition-colors duration-150 ease-out",
-                          // The radio is visually hidden, so the chip has to
-                          // wear its focus ring. Without this a keyboard user
-                          // arrowing through the row sees nothing move.
-                          "focus-within:ring-[3px] focus-within:ring-ring",
-                          field.value === bucket
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-card hover:bg-accent",
-                        )}
-                      >
-                        {/* The radio itself carries the keyboard and screen
-                            reader behaviour; the chip carries the looks. Four
-                            visible dots beside four short labels is clutter the
-                            two-option fork on the business step can afford and
-                            this row cannot. */}
-                        <RadioGroupItem value={bucket} className="sr-only" />
-                        {t(CREW_SIZE_LABELS[bucket])}
-                      </Label>
-                    ))}
-                  </RadioGroup>
-                </FormControl>
+                <SegmentedControl
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  fill
+                  ariaLabel={t("onboarding.crewSizeLabel")}
+                  options={CREW_SIZE_BUCKETS.map((bucket) => ({
+                    value: bucket,
+                    label: t(CREW_SIZE_LABELS[bucket]),
+                  }))}
+                />
                 <FormDescription>
                   {chosenCrew ? crewFitCopy(chosenCrew, t) : crewFitPrompt(t)}
                 </FormDescription>
@@ -234,29 +212,15 @@ export default function CompanyNamePage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{t(SIGNUP_SOURCE_PROMPT)}</FormLabel>
-                <FormControl>
-                  <RadioGroup
-                    value={field.value ?? ""}
-                    onValueChange={field.onChange}
-                    className="grid grid-cols-2 gap-3"
-                  >
-                    {SIGNUP_SOURCES.map((source) => (
-                      <Label
-                        key={source}
-                        className={cn(
-                          "flex h-11 cursor-pointer items-center justify-center rounded-lg border px-3 text-center text-sm font-medium transition-colors duration-150 ease-out",
-                          "focus-within:ring-[3px] focus-within:ring-ring",
-                          field.value === source
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-card hover:bg-accent",
-                        )}
-                      >
-                        <RadioGroupItem value={source} className="sr-only" />
-                        {t(SIGNUP_SOURCE_LABELS[source])}
-                      </Label>
-                    ))}
-                  </RadioGroup>
-                </FormControl>
+                <ChoiceCards
+                  value={field.value ?? null}
+                  onChange={field.onChange}
+                  ariaLabel={t(SIGNUP_SOURCE_PROMPT)}
+                  options={SIGNUP_SOURCES.map((source) => ({
+                    value: source,
+                    label: t(SIGNUP_SOURCE_LABELS[source]),
+                  }))}
+                />
                 <FormDescription>{t(SIGNUP_SOURCE_HINT)}</FormDescription>
                 <FormMessage />
               </FormItem>

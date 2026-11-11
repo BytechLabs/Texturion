@@ -159,6 +159,39 @@ struct OwnershipCard: View {
 
     // MARK: - Sections
 
+    /// "Nobody" first, then every teammate who could hold the backup. A stored backup who
+    /// has since left stays in the list, so the field never goes blank.
+    private var backupOptions: [SelectOption<String?>] {
+        var options: [SelectOption<String?>] = [
+            SelectOption<String?>(nil, title: AppStrings.translate(appLocale, "settingsMore.nobody"))
+        ]
+        for member in others {
+            options.append(SelectOption<String?>(member.id, title: capitalName(for: member)))
+        }
+        if let stored = state.backup_member_id, !others.contains(where: { $0.id == stored }) {
+            options.append(SelectOption<String?>(stored, title: name(for: stored)))
+        }
+        return options
+    }
+
+    /// Until somebody is chosen the prompt is the field's own text: shown, never choosable.
+    private var offerOptions: [SelectOption<String?>] {
+        var options: [SelectOption<String?>] = []
+        if offerTo == nil {
+            options.append(
+                SelectOption<String?>(
+                    nil,
+                    title: AppStrings.translate(appLocale, "settingsMore.chooseTeammate"),
+                    isDisabled: true
+                )
+            )
+        }
+        for member in others {
+            options.append(SelectOption<String?>(member.id, title: capitalName(for: member)))
+        }
+        return options
+    }
+
     private var backupSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -183,22 +216,15 @@ struct OwnershipCard: View {
                     AppStrings.translate(appLocale, "settingsMore.inviteBackupFirst")
                 )
             } else {
-                Menu {
-                    Button(AppStrings.translate(appLocale, "settingsMore.nobody")) {
-                        setBackup(nil)
+                SelectField(
+                    options: backupOptions,
+                    selected: state.backup_member_id,
+                    label: AppStrings.translate(appLocale, "settingsMore.backupOwner"),
+                    enabled: !busy,
+                    onSelect: { id in
+                        setBackup(id.flatMap { chosen in others.first { $0.id == chosen } })
                     }
-                    ForEach(others, id: \.id) { member in
-                        Button(capitalName(for: member)) {
-                            setBackup(member)
-                        }
-                    }
-                } label: {
-                    PickerLabel(
-                        text: state.backup_member_id.map { name(for: $0) }
-                            ?? AppStrings.translate(appLocale, "settingsMore.nobody")
-                    )
-                }
-                .disabled(busy)
+                )
             }
         }
     }
@@ -209,19 +235,15 @@ struct OwnershipCard: View {
                 .font(.golos(13, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
             ReadOnlyLine(AppStrings.translate(appLocale, "settingsMore.handOverNote"))
-            Menu {
-                ForEach(others, id: \.id) { member in
-                    Button(capitalName(for: member)) {
-                        offerTo = member
-                    }
+            SelectField(
+                options: offerOptions,
+                selected: offerTo?.id,
+                label: AppStrings.translate(appLocale, "settingsMore.handOverTitle"),
+                enabled: !busy,
+                onSelect: { id in
+                    offerTo = id.flatMap { chosen in others.first { $0.id == chosen } }
                 }
-            } label: {
-                PickerLabel(
-                    text: offerTo.map { capitalName(for: $0) }
-                        ?? AppStrings.translate(appLocale, "settingsMore.chooseTeammate")
-                )
-            }
-            .disabled(busy)
+            )
             Button(AppStrings.translate(appLocale, "settingsMore.handItOver")) {
                 guard let target = offerTo else { return }
                 confirming = HandoverConfirm(

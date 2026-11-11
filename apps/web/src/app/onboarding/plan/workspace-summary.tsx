@@ -13,13 +13,11 @@ import {
 import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useOnboardingUpdateCompany } from "@/lib/api/onboarding";
 import { formatPhone } from "@/lib/format/phone";
-import { cn } from "@/lib/utils";
 
 import { areaCodeHint } from "../area-codes";
 
@@ -269,31 +267,18 @@ export function WorkspaceSummary({
                   <legend className="text-[13px] text-muted-foreground">
                     {t("onboarding.countryLegend")}
                   </legend>
-                  <RadioGroup
+                  <SegmentedControl
                     value={draftCountry}
-                    onValueChange={(v) => pickCountry(v as Country)}
-                    className="mt-1 grid grid-cols-2 gap-2"
-                  >
-                    {(
-                      [
-                        ["US", t("onboarding.countryUs")],
-                        ["CA", t("onboarding.countryCa")],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <Label
-                        key={value}
-                        className={cn(
-                          "flex h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors",
-                          draftCountry === value
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-card hover:bg-accent",
-                        )}
-                      >
-                        <RadioGroupItem value={value} />
-                        {label}
-                      </Label>
-                    ))}
-                  </RadioGroup>
+                    onChange={pickCountry}
+                    fill
+                    size="sm"
+                    className="mt-1"
+                    ariaLabel={t("onboarding.countryLegend")}
+                    options={[
+                      { value: "US", label: t("onboarding.countryUs") },
+                      { value: "CA", label: t("onboarding.countryCa") },
+                    ]}
+                  />
                 </fieldset>
 
                 <NumberPicker

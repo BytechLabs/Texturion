@@ -19,8 +19,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useT, type Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { useCreateCompany } from "@/lib/api/companies";
@@ -38,7 +37,6 @@ import {
   firstTouchForCreate,
 } from "@/lib/marketing/first-touch";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
-import { cn } from "@/lib/utils";
 
 import { regionNames } from "../area-codes";
 import { clearOnboardingDraft } from "../local-draft";
@@ -408,33 +406,21 @@ export default function BusinessIdentityPage() {
                         : t("onboarding.einQuestionCa"),
                   })}
                 </FormLabel>
-                <FormControl>
-                  <RadioGroup
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    className="grid grid-cols-2 gap-3"
-                  >
-                    {(
-                      [
-                        ["yes", t("onboarding.yes")],
-                        ["no", t("onboarding.no")],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <Label
-                        key={value}
-                        className={cn(
-                          "flex h-11 cursor-pointer items-center gap-3 rounded-lg border px-4 text-sm font-medium transition-colors duration-150 ease-out",
-                          field.value === value
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-card hover:bg-accent",
-                        )}
-                      >
-                        <RadioGroupItem value={value} />
-                        {label}
-                      </Label>
-                    ))}
-                  </RadioGroup>
-                </FormControl>
+                <SegmentedControl
+                  value={field.value}
+                  onChange={field.onChange}
+                  fill
+                  ariaLabel={t("onboarding.hasEinLabel", {
+                    idName:
+                      country === "US"
+                        ? t("onboarding.einNameUs")
+                        : t("onboarding.einQuestionCa"),
+                  })}
+                  options={[
+                    { value: "yes", label: t("onboarding.yes") },
+                    { value: "no", label: t("onboarding.no") },
+                  ]}
+                />
                 <FormDescription>
                   {country === "US"
                     ? t("onboarding.einHintUs")

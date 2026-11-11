@@ -549,19 +549,19 @@ private struct NewConversationLoaded: View {
     private var fromNumberPicker: some View {
         // From-number picker (only when there's a real choice).
         if numbers.count > 1 {
-            let selected = numbers.first { $0.id == fromNumberId }
-            Menu {
-                ForEach(numbers, id: \.id) { number in
-                    Button(formatPhone(number.number_e164)) {
-                        fromNumberId = number.id
-                    }
-                }
-            } label: {
-                Text(
-                    t("thread.fromNumber", ["number": formatPhone(selected?.number_e164)])
-                )
+            HStack(spacing: 8) {
+                Text(t("thread.fromNumberLabel"))
                     .font(.golos(12, weight: .semibold))
-                    .foregroundStyle(BrandColor.olive)
+                    .foregroundStyle(BrandColor.muted600)
+                    .accessibilityHidden(true)
+                SelectField(
+                    options: numbers.map {
+                        SelectOption($0.id, title: formatPhone($0.number_e164))
+                    },
+                    selected: fromNumberId ?? numbers.first?.id ?? "",
+                    label: t("thread.fromNumberLabel"),
+                    onSelect: { fromNumberId = $0 }
+                )
             }
             .padding(.top, 12)
         }

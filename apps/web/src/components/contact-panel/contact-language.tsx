@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { LOCALES, LOCALE_LABELS, isLocale, type Locale } from "@loonext/shared";
 
-import { ChoiceChip } from "@/components/ui/choice-chip";
+import { ChoiceCards } from "@/components/ui/choice-cards";
 import { useT, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useUpdateContact } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
 import type { ContactDetail } from "@/lib/api/types";
 import { offeredBesideDefault } from "@/lib/default-choice";
+
+/** The choice that follows the workspace: ChoiceCards values are strings, the stored one is null. */
+const INHERIT = "inherit";
 
 function workspaceDefaultLabel(companyLocale: Locale | null, t: Translate) {
   return companyLocale
@@ -60,7 +63,6 @@ export function ContactLanguage({ contact }: { contact: ContactDetail }) {
   const t = useT();
   const company = useCompany();
   const update = useUpdateContact(contact.id);
-  const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Guarded rather than read straight off the view: a workspace loaded from a
   // server without this column would otherwise render "Same as workspace
@@ -116,62 +118,20 @@ export function ContactLanguage({ contact }: { contact: ContactDetail }) {
     );
   }
 
-  // The same roving-tabindex radiogroup contract the settings screens teach:
-  // one Tab stop for the group, arrows move focus and selection together.
-  // Always found, and that is why there is no "nothing selected" branch here:
-  // `current` is normalised above to null or a known language, and each has
-  // a chip: the workspace's own language only when it is the stored one. Following the workspace is a state, not the absence of one.
-  const currentIndex = choices.findIndex((choice) => choice.value === current);
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    const from = currentIndex;
-    let next = from;
-    switch (event.key) {
-      case "ArrowDown":
-      case "ArrowRight":
-        next = (from + 1) % choices.length;
-        break;
-      case "ArrowUp":
-      case "ArrowLeft":
-        next = (from - 1 + choices.length) % choices.length;
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    radioRefs.current[next]?.focus();
-    choose(choices[next].value);
-  }
-
   return (
     // No padding or heading of its own: the panel supplies both from its quiet
     // group, and the contact page from its field stack. Two callers, one
     // control, so a language can be set from either place a contact is read.
     <div className="space-y-1.5">
-      <div
-        role="radiogroup"
-        aria-label={t("contacts.languageGroupLabel")}
-        onKeyDown={onKeyDown}
-        className="flex flex-wrap gap-1.5"
-      >
-        {choices.map((choice, i) => {
-          const selected = choice.value === current;
-          return (
-            <ChoiceChip
-              key={choice.value ?? "inherit"}
-              ref={(el) => {
-                radioRefs.current[i] = el;
-              }}
-              chosen={selected}
-              role="radio"
-              aria-checked={selected}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => choose(choice.value)}
-            >
-              {choice.label}
-            </ChoiceChip>
-          );
-        })}
-      </div>
+      <ChoiceCards<Locale | typeof INHERIT>
+        value={current ?? INHERIT}
+        onChange={(value) => choose(value === INHERIT ? null : value)}
+        ariaLabel={t("contacts.languageGroupLabel")}
+        options={choices.map((choice) => ({
+          value: choice.value ?? INHERIT,
+          label: choice.label,
+        }))}
+      />
       {/* The one sentence that stops this being read as a translator. Said here
           rather than only in Settings, because this is where somebody picks
           French for a customer and then waits for their own typing to arrive

@@ -21,8 +21,7 @@ import {
 import { SettingsCard } from "@/components/settings/section";
 import { makeTranslate, sayWith, useT, type MessageKey } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ChoiceCards } from "@/components/ui/choice-cards";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useBillingPortal,
@@ -432,26 +431,17 @@ export function CancelSubscriptionCard({
             {t("settings.cancelQuestion")} {t("settings.cancelQuestionNote")}
           </p>
 
-          <RadioGroup
+          <ChoiceCards
             // Controlled, with no initial value: nothing is selected until
             // somebody selects it.
-            value={reason ?? ""}
-            onValueChange={(next) => setReason(next as CancellationReasonCode)}
-            className="gap-2.5"
-            aria-label={t("settings.cancelReasonGroupAria")}
-          >
-            {CANCELLATION_REASONS.map(({ code, labelKey }) => (
-              <div key={code} className="flex items-center gap-2">
-                <RadioGroupItem value={code} id={`cancel-reason-${code}`} />
-                <Label
-                  htmlFor={`cancel-reason-${code}`}
-                  className="cursor-pointer text-sm font-normal"
-                >
-                  {t(labelKey)}
-                </Label>
-              </div>
-            ))}
-          </RadioGroup>
+            value={reason}
+            onChange={setReason}
+            ariaLabel={t("settings.cancelReasonGroupAria")}
+            options={CANCELLATION_REASONS.map(({ code, labelKey }) => ({
+              value: code,
+              label: t(labelKey),
+            }))}
+          />
 
           {reason !== null && (
             // A radio cannot be un-picked, and an answer given by accident

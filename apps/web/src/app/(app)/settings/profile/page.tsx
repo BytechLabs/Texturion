@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useSingleKeyShortcuts } from "@/lib/inbox/shortcut-preference";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useT, type Translate } from "@/i18n/provider";
 import { keys } from "@/lib/api/keys";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -182,47 +182,29 @@ export default function ProfileSettingsPage() {
 
         <SettingsCard id="theme" title={t("appShell.profileTheme")}>
           {mounted ? (
-            <RadioGroup
-              value={theme ?? "system"}
-              onValueChange={setTheme}
-              className="gap-3"
-              aria-label={t("appShell.profileTheme")}
-            >
-              {(
-                [
-                  {
-                    value: "system",
-                    label: t("appShell.profileThemeSystem"),
-                    icon: Monitor,
-                  },
-                  {
-                    value: "light",
-                    label: t("appShell.profileThemeLight"),
-                    icon: Sun,
-                  },
-                  {
-                    value: "dark",
-                    label: t("appShell.profileThemeDark"),
-                    icon: Moon,
-                  },
-                ] as const
-              ).map(({ value, label, icon: Icon }) => (
-                <div key={value} className="flex items-center gap-2">
-                  <RadioGroupItem value={value} id={`theme-${value}`} />
-                  <Label
-                    htmlFor={`theme-${value}`}
-                    className="flex cursor-pointer items-center gap-1.5 text-sm font-normal"
-                  >
-                    <Icon
-                      className="size-4 text-muted-foreground"
-                      strokeWidth={1.75}
-                      aria-hidden
-                    />
-                    {label}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
+            <SegmentedControl
+              value={(theme ?? "system") as "system" | "light" | "dark"}
+              onChange={setTheme}
+              ariaLabel={t("appShell.profileTheme")}
+              className="w-fit"
+              options={[
+                {
+                  value: "system",
+                  label: t("appShell.profileThemeSystem"),
+                  icon: <Monitor className="size-4" strokeWidth={1.75} aria-hidden />,
+                },
+                {
+                  value: "light",
+                  label: t("appShell.profileThemeLight"),
+                  icon: <Sun className="size-4" strokeWidth={1.75} aria-hidden />,
+                },
+                {
+                  value: "dark",
+                  label: t("appShell.profileThemeDark"),
+                  icon: <Moon className="size-4" strokeWidth={1.75} aria-hidden />,
+                },
+              ]}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">
               {t("appShell.profileThemeLoading")}

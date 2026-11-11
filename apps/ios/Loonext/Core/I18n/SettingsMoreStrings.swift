@@ -1050,6 +1050,7 @@ private let settingsMoreIosRemindersEn: [String: String] = [
     "settingsMore.discard": "Discard",
     "settingsMore.loading": "Loading…",
     "settingsMore.remindersAddAnother": "Add another",
+    "settingsMore.remindersOffsetLabel": "How long before the job",
     "settingsMore.remindersBodyLabel": "What it says",
     "settingsMore.remindersCap":
         "Two is the most we send. Past that, customers stop reading them.",
@@ -1068,6 +1069,7 @@ private let settingsMoreIosRemindersFr: [String: String] = [
     "settingsMore.discard": "Abandonner",
     "settingsMore.loading": "Chargement…",
     "settingsMore.remindersAddAnother": "Ajouter un autre rappel",
+    "settingsMore.remindersOffsetLabel": "Combien de temps avant la tâche",
     "settingsMore.remindersBodyLabel": "Ce que dit le rappel",
     "settingsMore.remindersCap":
         "Deux, c'est le maximum que nous envoyons. Au-delà, les clients "

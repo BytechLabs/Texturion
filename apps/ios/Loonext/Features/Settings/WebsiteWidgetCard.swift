@@ -88,6 +88,17 @@ struct WebsiteWidgetCard: View {
         return routable.filter { offered.contains($0.id) }
     }
 
+    /// Named, not blank. "Your first number" is what the server actually does with an
+    /// unset choice, and a default that does not say what it resolves to is a setting
+    /// somebody has to test to understand. *Applying: Smart Defaults.*
+    private var lineOptions: [SelectOption<String?>] {
+        var options: [SelectOption<String?>] = [SelectOption<String?>(nil, title: defaultLineLabel)]
+        for number in explicitLines {
+            options.append(SelectOption<String?>(number.id, title: formatPhone(number.number_e164)))
+        }
+        return options
+    }
+
     var body: some View {
         SettingsCard(
             title: t("settings.widgetTitle"), anchor: "website-widget",
@@ -187,22 +198,13 @@ struct WebsiteWidgetCard: View {
             Text(t("settings.widgetLineHelp"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            Menu {
-                // Named, not blank. "Your first number" is what the server
-                // actually does with an unset choice, and a default that does
-                // not say what it resolves to is a setting somebody has to test
-                // to understand. *Applying: Smart Defaults.*
-                Button(defaultLineLabel) { saveLine(nil) }
-                ForEach(explicitLines, id: \.id) { number in
-                    Button(formatPhone(number.number_e164)) { saveLine(number.id) }
-                }
-            } label: {
-                Text(
-                    chosen.map { formatPhone($0.number_e164) }
-                        ?? defaultLineLabel
-                )
-            }
-            .disabled(busy)
+            SelectField(
+                options: lineOptions,
+                selected: chosen?.id,
+                label: t("settings.widgetLineLabel"),
+                enabled: !busy,
+                onSelect: { saveLine($0) }
+            )
             .padding(.top, 6)
         }
 

@@ -5,11 +5,15 @@ struct SelectOption<Value: Hashable> {
     let value: Value
     let title: String
     var detail: String?
+    /// Shown in the open list but not choosable: a value another row already holds, or the
+    /// "not answered yet" placeholder.
+    var isDisabled: Bool
 
-    init(_ value: Value, title: String, detail: String? = nil) {
+    init(_ value: Value, title: String, detail: String? = nil, isDisabled: Bool = false) {
         self.value = value
         self.title = title
         self.detail = detail
+        self.isDisabled = isDisabled
     }
 }
 
@@ -61,7 +65,9 @@ struct SelectField<Value: Hashable>: View {
                 selection: Binding(get: { selected }, set: { next in onSelect(next) })
             ) {
                 ForEach(options.indices, id: \.self) { index in
-                    Text(options[index].title).tag(options[index].value)
+                    Text(options[index].title)
+                        .tag(options[index].value)
+                        .disabled(options[index].isDisabled)
                 }
             }
             .pickerStyle(.menu)

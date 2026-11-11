@@ -43,7 +43,7 @@ export interface Segment<T extends string> {
  * #733: the one segmented control: a stone track with the chosen option lifted
  * to a paper pill. One choice among a few, so it is a radio group: arrow keys
  * move the choice, Home and End jump to the ends, and only the chosen option is
- * in the tab order. `md` sits in a page's filter row (44px tall on a phone);
+ * in the tab order (the first, while nothing is chosen yet). `md` sits in a page's filter row (44px tall on a phone);
  * `sm` sits inside a card, such as a measure's 7d / 30d / 90d.
  */
 export function SegmentedControl<T extends string>({
@@ -70,6 +70,7 @@ export function SegmentedControl<T extends string>({
   className?: string;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const nothingChosen = !options.some((option) => option.value === value);
 
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const at = options.findIndex((option) => option.value === value);
@@ -106,7 +107,7 @@ export function SegmentedControl<T extends string>({
             aria-checked={chosen}
             aria-label={iconOnly ? option.label : undefined}
             title={iconOnly ? option.label : undefined}
-            tabIndex={chosen ? 0 : -1}
+            tabIndex={chosen || (nothingChosen && index === 0) ? 0 : -1}
             disabled={disabled}
             onClick={() => onChange(option.value)}
             className={cn(

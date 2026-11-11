@@ -185,29 +185,38 @@ private struct ReminderRuleRow: View {
         AppStrings.translate(appLocale, key)
     }
 
+    /// Two rules at the same offset is the same reminder arriving twice, which is the
+    /// failure a customer notices and blames the business for, so a taken offset is shown
+    /// and not choosable. A stored offset outside the list stays in it.
+    private var offsetOptions: [SelectOption<Int>] {
+        var minutes = AppointmentReminders.offsetChoices
+        if !minutes.contains(rule.offset_minutes) { minutes.append(rule.offset_minutes) }
+        return minutes.map { choice in
+            SelectOption(
+                choice,
+                title: AppointmentReminders.offsetLabel(choice, locale: appLocale),
+                isDisabled: choice != rule.offset_minutes && takenOffsets.contains(choice)
+            )
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 // A fixed list rather than a free number field: "how many
                 // minutes before?" is a question nobody in a van wants to
                 // answer, and the ones that matter are already the industry's.
-                Menu(AppointmentReminders.offsetLabel(rule.offset_minutes, locale: appLocale)) {
-                    ForEach(AppointmentReminders.offsetChoices, id: \.self) { minutes in
-                        Button(AppointmentReminders.offsetLabel(minutes, locale: appLocale)) {
-                            var updated = rule
-                            updated.offset_minutes = minutes
-                            onChange(updated)
-                        }
-                        // Two rules at the same offset is the same reminder
-                        // arriving twice, which is the failure a customer
-                        // notices and blames the business for.
-                        .disabled(
-                            minutes != rule.offset_minutes
-                                && takenOffsets.contains(minutes)
-                        )
+                SelectField(
+                    options: offsetOptions,
+                    selected: rule.offset_minutes,
+                    label: t("settingsMore.remindersOffsetLabel"),
+                    enabled: canEdit,
+                    onSelect: { minutes in
+                        var updated = rule
+                        updated.offset_minutes = minutes
+                        onChange(updated)
                     }
-                }
-                .disabled(!canEdit)
+                )
 
                 Toggle(
                     "",

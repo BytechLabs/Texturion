@@ -44,7 +44,6 @@ describe("nextOptionIndex (#11, #733 keyboard)", () => {
  * matching anything fails too.
  */
 const RADIO_CARD_LISTS: Record<string, string> = {
-  "components/contact-panel/contact-language.tsx": "radio chips: a contact's language",
   "app/onboarding/plan/page.tsx": "radio cards: the plan choice",
   "components/thread/thread-filter-bar.tsx":
     "multi-select toggles (aria-pressed): several categories can be on at once, not one choice",

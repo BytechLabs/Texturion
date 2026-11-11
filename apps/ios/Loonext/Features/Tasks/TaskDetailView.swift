@@ -893,9 +893,16 @@ struct TaskDetailView: View {
 
     private func priorityRow(_ detail: TaskDetail) -> some View {
         let current = detail.priorityValue
-        return Menu {
-            ForEach(TaskPriority.allCases) { priority in
-                Button {
+        let title = AppStrings.translate(appLocale, "contactsTasks.priority")
+        return HStack(spacing: 11) {
+            metaRowLabel(title)
+            SelectField(
+                options: TaskPriority.allCases.map {
+                    SelectOption($0, title: AppStrings.translate(appLocale, $0.labelKey))
+                },
+                selected: current,
+                label: title,
+                onSelect: { priority in
                     if priority != current {
                         runScopedPatch { scope in
                             try await mutations.setPriority(
@@ -906,34 +913,12 @@ struct TaskDetailView: View {
                             )
                         }
                     }
-                } label: {
-                    if priority == current {
-                        Label(
-                            AppStrings.translate(appLocale, priority.labelKey),
-                            systemImage: "checkmark"
-                        )
-                    } else {
-                        Text(AppStrings.translate(appLocale, priority.labelKey))
-                    }
                 }
-            }
-        } label: {
-            HStack(spacing: 11) {
-                metaRowLabel(AppStrings.translate(appLocale, "contactsTasks.priority"))
-                if current.isFlagged {
-                    TaskPriorityMark(priority: current)
-                } else {
-                    Text(AppStrings.translate(appLocale, current.labelKey))
-                        .font(.golos(13, weight: .semibold))
-                        .foregroundStyle(BrandColor.ink)
-                }
-                Spacer(minLength: 0)
-                metaRowChevron
-            }
-            .padding(.horizontal, 15)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            )
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 15)
+        .frame(minHeight: 44)
     }
 
     private func repeatRow(_ detail: TaskDetail) -> some View {

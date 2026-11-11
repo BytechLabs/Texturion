@@ -917,29 +917,33 @@ struct ContactImportConsentSheet: View {
 
     private func columnMenu(_ column: ContactImportColumn) -> some View {
         let chosen = columnAnswers[column.index]
-        return Menu {
-            ForEach(ContactImportColumnAction.answers, id: \.self) { action in
-                Button {
-                    columnAnswers[column.index] = action
-                } label: {
-                    Label(action.localizedLabel(appLocale), systemImage: action.icon)
-                }
-            }
-        } label: {
-            answerChip(
-                icon: chosen?.icon,
-                label: chosen?.localizedLabel(appLocale),
-                answered: chosen != nil
+        var options: [SelectOption<ContactImportColumnAction?>] = []
+        // The placeholder is the field's own text while a column is unanswered: shown,
+        // never choosable, so an answer cannot be taken back to a blank.
+        if chosen == nil {
+            options.append(
+                SelectOption<ContactImportColumnAction?>(nil, title: unansweredLabel, isDisabled: true)
             )
         }
-        .accessibilityLabel(
-            AppStrings.translate(
+        for answer in ContactImportColumnAction.answers {
+            options.append(
+                SelectOption<ContactImportColumnAction?>(
+                    answer, title: answer.localizedLabel(appLocale)
+                )
+            )
+        }
+        return SelectField(
+            options: options,
+            selected: chosen,
+            label: AppStrings.translate(
                 appLocale,
                 "contactsTasks.importColumnAccessibility",
                 ["title": column.localizedTitle(appLocale)]
-            )
+            ),
+            onSelect: { answer in
+                if let answer { columnAnswers[column.index] = answer }
+            }
         )
-        .accessibilityValue(chosen?.localizedLabel(appLocale) ?? unansweredLabel)
     }
 
     /// The bulk answer, and the ONLY one this app offers.
@@ -1084,29 +1088,29 @@ struct ContactImportConsentSheet: View {
 
     private func propertyMenu(_ property: VCardProperty) -> some View {
         let chosen = propertyAnswers[property.name]
-        return Menu {
-            ForEach(VCardPropertyAction.allCases, id: \.self) { action in
-                Button {
-                    propertyAnswers[property.name] = action
-                } label: {
-                    Label(action.localizedLabel(appLocale), systemImage: action.icon)
-                }
-            }
-        } label: {
-            answerChip(
-                icon: chosen?.icon,
-                label: chosen?.localizedLabel(appLocale),
-                answered: chosen != nil
+        var options: [SelectOption<VCardPropertyAction?>] = []
+        if chosen == nil {
+            options.append(
+                SelectOption<VCardPropertyAction?>(nil, title: unansweredLabel, isDisabled: true)
             )
         }
-        .accessibilityLabel(
-            AppStrings.translate(
+        for action in VCardPropertyAction.allCases {
+            options.append(
+                SelectOption<VCardPropertyAction?>(action, title: action.localizedLabel(appLocale))
+            )
+        }
+        return SelectField(
+            options: options,
+            selected: chosen,
+            label: AppStrings.translate(
                 appLocale,
                 "contactsTasks.importPropertyAccessibility",
                 ["title": property.localizedTitle(appLocale)]
-            )
+            ),
+            onSelect: { answer in
+                if let answer { propertyAnswers[property.name] = answer }
+            }
         )
-        .accessibilityValue(chosen?.localizedLabel(appLocale) ?? unansweredLabel)
     }
 
     private var ignoreRestPropertiesButton: some View {
@@ -1137,26 +1141,6 @@ struct ContactImportConsentSheet: View {
     }
 
     // MARK: - Shared pieces
-
-    /// One answer, as a chip. Amber while it is still a question, lime once it
-    /// carries a field, plain grey once somebody has dismissed it — a fill and
-    /// its label per state, never a colour doing both jobs.
-    private func answerChip(icon: String?, label: String?, answered: Bool) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon ?? "questionmark")
-                .font(.scaled(IconSize.small, weight: .semibold))
-            Text(label ?? unansweredLabel)
-                .font(.golos(11.5, weight: .semibold))
-                .lineLimit(1)
-            Image(systemName: "chevron.down")
-                .font(.scaled(8, weight: .semibold))
-        }
-        .foregroundStyle(answered ? BrandColor.muted900 : BrandColor.overdueAmber)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(answered ? BrandColor.inset : BrandColor.amberBg, in: Capsule())
-        .contentShape(Capsule())
-    }
 
     /// A file that cannot be imported however the rest is answered.
     ///

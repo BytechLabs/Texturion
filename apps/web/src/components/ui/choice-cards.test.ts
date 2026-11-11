@@ -18,25 +18,11 @@ import { ChoiceCards } from "./choice-cards";
  * that stops matching anything fails too.
  */
 const OPEN_EXCEPTIONS: Record<string, string> = {
-  "app/(app)/settings/profile/page.tsx":
-    "the theme: three radios with an icon each, beside the profile fields (open: a segmented control)",
-  "app/onboarding/business/page.tsx":
-    "onboarding: the EIN yes / no pair (open: a segmented control)",
-  "app/onboarding/name/page.tsx":
-    "onboarding: size and source chips drawn as visually hidden radios (open)",
-  "app/onboarding/number/page.tsx":
-    "onboarding: new or port, the country and US texting, in the step's own cards (open: ChoiceCards)",
   "app/onboarding/plan/page.tsx": "radio cards with a price and a feature list: the plan choice",
-  "app/onboarding/plan/workspace-summary.tsx":
-    "onboarding: the summary's radios (open)",
-  "components/contact-panel/contact-language.tsx":
-    "radio chips: a contact's language, whose 'follows the workspace' label wraps in a narrow panel",
   "components/contacts/duplicate-contacts-card.tsx":
     "which record survives a merge: a radio per row of a table, not a stack of options",
   "components/numbers/number-picker.tsx":
     "rows of live numbers and area codes: results to pick from, not options with consequences",
-  "components/settings/cancel-subscription-card.tsx":
-    "the cancel reasons: a survey list, not a setting (open)",
 };
 
 const BUILT_BY_HAND =
@@ -101,6 +87,10 @@ describe("#746 one ChoiceCards", () => {
         "components/settings/after-hours-calls-card.tsx",
         "components/settings/number-access-dialog.tsx",
         "app/(app)/settings/missed-calls/page.tsx",
+        "app/onboarding/number/page.tsx",
+        "app/onboarding/name/page.tsx",
+        "components/settings/cancel-subscription-card.tsx",
+        "components/contact-panel/contact-language.tsx",
       ]),
     );
   });
