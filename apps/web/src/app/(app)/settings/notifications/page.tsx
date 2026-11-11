@@ -2,6 +2,7 @@
 
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LeadChaseRow } from "@/components/settings/lead-chase-row";
 import { PushContentRow } from "@/components/settings/push-content-row";
 import { DeliveryModesCard } from "@/components/settings/delivery-modes-card";
@@ -21,15 +22,6 @@ import {
 } from "@loonext/shared";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
@@ -94,39 +86,24 @@ export default function NotificationsSettingsPage() {
         Every other irreversible-ish action in settings already named its
         consequence; going quiet while on call did not, and it is the one where
         silence IS the failure. */}
-    <Dialog
+    <ConfirmDialog
       open={silencing !== null}
       onOpenChange={(open) => !open && setSilencing(null)}
-    >
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("appShell.notifOnCallTitle")}</DialogTitle>
-          <DialogDescription>
-            {onCallSilenceWarning(
-              true,
-              true,
-              silencing === "push_enabled" ? "push" : "email",
-              t,
-            )}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setSilencing(null)}>
-            {t(ON_CALL_SILENCE_CANCEL)}
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              const key = silencing;
-              setSilencing(null);
-              if (key) save(key, false);
-            }}
-          >
-            {t(ON_CALL_SILENCE_CONFIRM)}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      title={t("appShell.notifOnCallTitle")}
+      description={onCallSilenceWarning(
+        true,
+        true,
+        silencing === "push_enabled" ? "push" : "email",
+        t,
+      )}
+      cancelLabel={t(ON_CALL_SILENCE_CANCEL)}
+      confirmLabel={t(ON_CALL_SILENCE_CONFIRM)}
+      onConfirm={() => {
+        const key = silencing;
+        setSilencing(null);
+        if (key) save(key, false);
+      }}
+    />
     <SettingsPage
       title={t("appShell.notifTitle")}
       description={t("appShell.notifDescription")}

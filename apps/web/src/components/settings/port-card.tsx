@@ -9,6 +9,7 @@ import { AlertTriangle, Check, CircleDashed, Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   PORT_PRE_CUTOVER_CHECKLIST,
   PORT_STATE_COPY,
@@ -26,14 +27,6 @@ import { mayReleaseNumber } from "@/components/settings/release-number";
 import { ReleaseNumberDialog } from "@/components/settings/release-number-dialog";
 import { RejectionNotice } from "@/components/settings/rejection-notice";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { sayWith, useT, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
@@ -177,51 +170,37 @@ function CancelPortDialog({ port }: { port: PortRequest }) {
       >
         {t("settingsMore.portCancelAction")}
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("settingsMore.portCancelTitle", { number: display })}
-            </DialogTitle>
-            <DialogDescription>
-              {t("settingsMore.portCancelDescription")}
-            </DialogDescription>
-          </DialogHeader>
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              {t("settingsMore.portKeepTransferring")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={cancel.isPending}
-              onClick={() => {
-                setError(null);
-                cancel.mutate(undefined, {
-                  onSuccess: () => {
-                    setOpen(false);
-                    toast.success(t("settingsMore.portCancelled"));
-                  },
-                  onError: (cause) =>
-                    setError(
-                      cause instanceof ApiError
-                        ? cause.message
-                        : t("settingsMore.portCancelFailed"),
-                    ),
-                });
-              }}
-            >
-              {cancel.isPending
-                ? t("settingsMore.portCancelling")
-                : t("settingsMore.portCancelConfirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={t("settingsMore.portCancelTitle", { number: display })}
+        description={t("settingsMore.portCancelDescription")}
+        cancelLabel={t("settingsMore.portKeepTransferring")}
+        confirmLabel={t("settingsMore.portCancelConfirm")}
+        pendingLabel={t("settingsMore.portCancelling")}
+        pending={cancel.isPending}
+        onConfirm={() => {
+          setError(null);
+          cancel.mutate(undefined, {
+            onSuccess: () => {
+              setOpen(false);
+              toast.success(t("settingsMore.portCancelled"));
+            },
+            onError: (cause) =>
+              setError(
+                cause instanceof ApiError
+                  ? cause.message
+                  : t("settingsMore.portCancelFailed"),
+              ),
+          });
+        }}
+      >
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </ConfirmDialog>
     </>
   );
 }

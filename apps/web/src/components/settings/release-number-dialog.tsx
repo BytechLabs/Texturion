@@ -3,17 +3,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { NumberHoldState } from "@/components/settings/number-hold";
 import { releaseNumberBody } from "@/components/settings/release-number";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/provider";
@@ -107,48 +99,37 @@ export function ReleaseNumberDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={close}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {t("settingsMore.releaseTitle", { number: display })}
-          </DialogTitle>
-          <DialogDescription>{releaseNumberBody(hold, t)}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-1.5">
-          <Label htmlFor="release-confirm">
-            {t("settingsMore.releaseTypeToConfirm", { number: display })}
-          </Label>
-          <Input
-            id="release-confirm"
-            value={typed}
-            onChange={(event) => setTyped(event.target.value)}
-            placeholder={display}
-            autoComplete="off"
-            inputMode="tel"
-          />
-        </div>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => close(false)}>
-            {t("settingsMore.releaseKeep")}
-          </Button>
-          <Button
-            variant="destructive"
-            disabled={!matches || release.isPending}
-            onClick={() => attempt()}
-          >
-            {release.isPending
-              ? t("settingsMore.releasing")
-              : t("settingsMore.releaseConfirm")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={close}
+      title={t("settingsMore.releaseTitle", { number: display })}
+      description={releaseNumberBody(hold, t)}
+      cancelLabel={t("settingsMore.releaseKeep")}
+      confirmLabel={t("settingsMore.releaseConfirm")}
+      pendingLabel={t("settingsMore.releasing")}
+      pending={release.isPending}
+      confirmDisabled={!matches}
+      onConfirm={() => attempt()}
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor="release-confirm">
+          {t("settingsMore.releaseTypeToConfirm", { number: display })}
+        </Label>
+        <Input
+          id="release-confirm"
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+          placeholder={display}
+          autoComplete="off"
+          inputMode="tel"
+        />
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </ConfirmDialog>
 
     {/* #537 audit: the proof the server asks for before the number is gone for
         good. A sibling rather than a child, so it stacks over this dialog and

@@ -3,18 +3,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DeviceRow } from "@/components/settings/device-row";
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
@@ -184,40 +177,20 @@ function MyDevices() {
       {/* Ethical friction, once: one device is a small, reversible act (they
           sign back in). Everything at once is not, so it gets a pause and a
           sentence about what it actually does. */}
-      <Dialog open={confirmAll} onOpenChange={setConfirmAll}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("appShell.devicesSignOutEverywhereElseTitle")}
-            </DialogTitle>
-            <DialogDescription>
-              {t("appShell.devicesSignOutEverywhereElseBody", {
-                subject:
-                  others === 1
-                    ? t("appShell.devicesOneOther")
-                    : t("appShell.devicesNOthers", { count: others }),
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmAll(false)}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={revoke.isPending}
-              onClick={signOutEverywhereElse}
-            >
-              {t("appShell.devicesSignThemOut")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmAll}
+        onOpenChange={setConfirmAll}
+        title={t("appShell.devicesSignOutEverywhereElseTitle")}
+        description={t("appShell.devicesSignOutEverywhereElseBody", {
+          subject:
+            others === 1
+              ? t("appShell.devicesOneOther")
+              : t("appShell.devicesNOthers", { count: others }),
+        })}
+        confirmLabel={t("appShell.devicesSignThemOut")}
+        pending={revoke.isPending}
+        onConfirm={signOutEverywhereElse}
+      />
     </SettingsCard>
   );
 }
@@ -331,39 +304,19 @@ function CrewDevices() {
         </div>
       )}
 
-      <Dialog open={target !== null} onOpenChange={() => setTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("appShell.devicesSignMemberOutTitle", {
-                name: target?.name ?? "",
-              })}
-            </DialogTitle>
-            <DialogDescription>
-              {t("appShell.devicesSignMemberOutBody", {
-                count: target ? (countByMember.get(target.id) ?? 0) : 0,
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setTarget(null)}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={revoke.isPending}
-              onClick={signOutMember}
-            >
-              {t("appShell.devicesSignThemOut")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={target !== null}
+        onOpenChange={() => setTarget(null)}
+        title={t("appShell.devicesSignMemberOutTitle", {
+          name: target?.name ?? "",
+        })}
+        description={t("appShell.devicesSignMemberOutBody", {
+          count: target ? (countByMember.get(target.id) ?? 0) : 0,
+        })}
+        confirmLabel={t("appShell.devicesSignThemOut")}
+        pending={revoke.isPending}
+        onConfirm={signOutMember}
+      />
     </SettingsCard>
   );
 }

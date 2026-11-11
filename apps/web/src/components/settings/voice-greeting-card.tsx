@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/components/settings/section";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -457,37 +458,20 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(next) => {
           if (!next) setPendingDelete(null);
         }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {t("settingsMore.greetingDeleteTitle", {
-                name: pendingDelete?.name ?? "",
-              })}
-            </DialogTitle>
-            <DialogDescription>
-              {t("settingsMore.greetingDeleteBody")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setPendingDelete(null)}>
-              {t("settingsMore.greetingKeepIt")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={remove.isPending}
-              onClick={() => void runDelete()}
-            >
-              {t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title={t("settingsMore.greetingDeleteTitle", {
+          name: pendingDelete?.name ?? "",
+        })}
+        description={t("settingsMore.greetingDeleteBody")}
+        cancelLabel={t("settingsMore.greetingKeepIt")}
+        confirmLabel={t("common.delete")}
+        pending={remove.isPending}
+        onConfirm={() => void runDelete()}
+      />
     </SettingsCard>
   );
 }

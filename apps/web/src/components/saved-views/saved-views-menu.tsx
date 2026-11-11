@@ -5,6 +5,7 @@ import { Bookmark, Check, Pencil, Star, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -404,31 +405,21 @@ function ManageViewsDialog({
         </DialogContent>
       </Dialog>
       <RenameViewDialog view={renaming} surface={surface} onClose={() => setRenaming(null)} />
-      <Dialog open={deleting !== null} onOpenChange={(next) => !next && setDeleting(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("inbox.viewDeleteTitle", { name: deleting?.name ?? "" })}</DialogTitle>
-            <DialogDescription>{t("inbox.viewDeleteBody")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeleting(null)}>
-              {t("inbox.viewDeleteKeep")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={remove.isPending}
-              onClick={() => {
-                if (!deleting) return;
-                void remove
-                  .mutateAsync({ id: deleting.id, surface })
-                  .finally(() => setDeleting(null));
-              }}
-            >
-              {t("inbox.viewDeleteConfirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(next) => !next && setDeleting(null)}
+        title={t("inbox.viewDeleteTitle", { name: deleting?.name ?? "" })}
+        description={t("inbox.viewDeleteBody")}
+        cancelLabel={t("inbox.viewDeleteKeep")}
+        confirmLabel={t("inbox.viewDeleteConfirm")}
+        pending={remove.isPending}
+        onConfirm={() => {
+          if (!deleting) return;
+          void remove
+            .mutateAsync({ id: deleting.id, surface })
+            .finally(() => setDeleting(null));
+        }}
+      />
     </>
   );
 }

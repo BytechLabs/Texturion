@@ -10,18 +10,11 @@ import {
   type ApiKeyScope,
 } from "@loonext/shared";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -274,34 +267,25 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
       </ul>
 
       {/* Ethical Friction: this breaks a live integration and cannot be undone. */}
-      <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("apiKeys.revokeTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("apiKeys.revokeBody")}
-              {apiKey.last_used_at
-                ? ` ${t("apiKeys.revokeUsedWarning", { when: when(apiKey.last_used_at) })}`
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
-              {t("apiKeys.keepIt")}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                revoke.mutate(apiKey.id);
-                setConfirming(false);
-              }}
-            >
-              {t("apiKeys.revokeConfirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t("apiKeys.revokeTitle")}
+        description={
+          <>
+            {t("apiKeys.revokeBody")}
+            {apiKey.last_used_at
+              ? ` ${t("apiKeys.revokeUsedWarning", { when: when(apiKey.last_used_at) })}`
+              : ""}
+          </>
+        }
+        cancelLabel={t("apiKeys.keepIt")}
+        confirmLabel={t("apiKeys.revokeConfirm")}
+        onConfirm={() => {
+          revoke.mutate(apiKey.id);
+          setConfirming(false);
+        }}
+      />
     </SettingsCard>
   );
 }

@@ -17,18 +17,11 @@ import {
   type WebhookEventType,
 } from "@loonext/shared";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -513,63 +506,33 @@ function EndpointCard({ endpoint }: { endpoint: WebhookEndpoint }) {
       </div>
 
       {/* Ethical Friction: both of these break something that is working. */}
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("webhooks.deleteTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("webhooks.deleteBody", { url: endpoint.url })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setConfirmDelete(false)}
-            >
-              {t("webhooks.keepIt")}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                remove.mutate(endpoint.id);
-                setConfirmDelete(false);
-              }}
-            >
-              {t("webhooks.deleteConfirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={t("webhooks.deleteTitle")}
+        description={t("webhooks.deleteBody", { url: endpoint.url })}
+        cancelLabel={t("webhooks.keepIt")}
+        confirmLabel={t("webhooks.deleteConfirm")}
+        onConfirm={() => {
+          remove.mutate(endpoint.id);
+          setConfirmDelete(false);
+        }}
+      />
 
-      <Dialog open={confirmRotate} onOpenChange={setConfirmRotate}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("webhooks.rotateTitle")}</DialogTitle>
-            <DialogDescription>{t("webhooks.rotateBody")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setConfirmRotate(false)}
-            >
-              {t("webhooks.cancelAction")}
-            </Button>
-            <Button
-              type="button"
-              onClick={async () => {
-                setConfirmRotate(false);
-                const result = await rotate.mutateAsync(endpoint.id);
-                setRotated(result.secret_once);
-              }}
-            >
-              {t("webhooks.rotateConfirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmRotate}
+        onOpenChange={setConfirmRotate}
+        tone="default"
+        title={t("webhooks.rotateTitle")}
+        description={t("webhooks.rotateBody")}
+        cancelLabel={t("webhooks.cancelAction")}
+        confirmLabel={t("webhooks.rotateConfirm")}
+        onConfirm={async () => {
+          setConfirmRotate(false);
+          const result = await rotate.mutateAsync(endpoint.id);
+          setRotated(result.secret_once);
+        }}
+      />
     </SettingsCard>
   );
 }

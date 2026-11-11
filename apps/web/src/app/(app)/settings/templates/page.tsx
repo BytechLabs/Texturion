@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SettingsPage } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { cn } from "@/lib/utils";
@@ -11,14 +12,6 @@ import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { TagManagementCard } from "@/components/settings/tag-management-card";
 import { Button } from "@/components/ui/button";
 import { useActiveCompany } from "@/lib/company/provider";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
@@ -197,53 +190,35 @@ export default function TemplatesSettingsPage() {
         template={editing}
       />
 
-      <Dialog
+      <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => {
           if (!open) setDeleting(null);
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("appShell.templateDeleteTitle", {
-                name: deleting?.name ?? "",
-              })}
-            </DialogTitle>
-            <DialogDescription>
-              {t("appShell.templateDeleteBody")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleting(null)}>
-              {t("appShell.templateKeepIt")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={deleteTemplate.isPending}
-              onClick={() => {
-                if (!deleting) return;
-                deleteTemplate.mutate(deleting.id, {
-                  onSuccess: () => {
-                    setDeleting(null);
-                    toast.success(t("appShell.templateDeleted"));
-                  },
-                  onError: (cause) =>
-                    toast.error(
-                      cause instanceof ApiError
-                        ? cause.message
-                        : t("appShell.templateDeleteFailed"),
-                    ),
-                });
-              }}
-            >
-              {deleteTemplate.isPending
-                ? t("appShell.templateDeleting")
-                : t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title={t("appShell.templateDeleteTitle", {
+          name: deleting?.name ?? "",
+        })}
+        description={t("appShell.templateDeleteBody")}
+        cancelLabel={t("appShell.templateKeepIt")}
+        confirmLabel={t("common.delete")}
+        pendingLabel={t("appShell.templateDeleting")}
+        pending={deleteTemplate.isPending}
+        onConfirm={() => {
+          if (!deleting) return;
+          deleteTemplate.mutate(deleting.id, {
+            onSuccess: () => {
+              setDeleting(null);
+              toast.success(t("appShell.templateDeleted"));
+            },
+            onError: (cause) =>
+              toast.error(
+                cause instanceof ApiError
+                  ? cause.message
+                  : t("appShell.templateDeleteFailed"),
+              ),
+          });
+        }}
+      />
 
       {/* #298: the tag list, ordered by use. The near-duplicates sit next to
           each other with wildly different counts, and the dead ones collect at

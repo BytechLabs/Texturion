@@ -6,16 +6,8 @@ import {
   selfDowngradeWarning,
 } from "@loonext/shared";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useT } from "@/i18n/provider";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 /**
  * #538 — does this role change have to stop and ask first?
@@ -58,28 +50,21 @@ export function GiveUpAccessDialog({
   const warning = to ? selfDowngradeWarning(from, to, t) : null;
 
   return (
-    <Dialog open={to !== null} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("settings.giveUpAccessTitle")}</DialogTitle>
-          <DialogDescription>{warning}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onCancel} disabled={pending}>
-            {t("settings.giveUpAccessKeep")}
-          </Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={pending}>
-            {pending
-              ? t("settings.giveUpAccessChanging")
-              : t("settings.giveUpAccessMakeMe", {
-                  role:
-                    to === "admin"
-                      ? t("settings.roleAdminWord")
-                      : t("settings.roleMemberWord"),
-                })}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={to !== null}
+      onOpenChange={(open) => !open && onCancel()}
+      title={t("settings.giveUpAccessTitle")}
+      description={warning}
+      cancelLabel={t("settings.giveUpAccessKeep")}
+      confirmLabel={t("settings.giveUpAccessMakeMe", {
+        role:
+          to === "admin"
+            ? t("settings.roleAdminWord")
+            : t("settings.roleMemberWord"),
+      })}
+      pendingLabel={t("settings.giveUpAccessChanging")}
+      pending={pending}
+      onConfirm={onConfirm}
+    />
   );
 }

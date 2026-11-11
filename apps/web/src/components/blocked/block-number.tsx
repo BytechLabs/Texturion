@@ -3,15 +3,7 @@
 import { roleHasCapability } from "@loonext/shared";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useT } from "@/i18n/provider";
 import {
   useBlockedSenders,
@@ -71,37 +63,23 @@ export function BlockNumberDialog({
   const t = useT();
   const block = useBlockSender();
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>
-            {t("blockedNumbers.blockTitle", { number: formatPhone(phone) })}
-          </DialogTitle>
-          <DialogDescription>{t("blockedNumbers.blockBody")}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button
-            variant="destructive"
-            disabled={block.isPending}
-            onClick={() =>
-              block.mutate(phone, {
-                onSuccess: () => {
-                  onOpenChange(false);
-                  toast.success(t("blockedNumbers.blocked"));
-                },
-                onError: (e) => onApiError(e, t("blockedNumbers.blockFailed")),
-              })
-            }
-          >
-            {block.isPending
-              ? t("blockedNumbers.blocking")
-              : t("blockedNumbers.blockConfirm")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t("blockedNumbers.blockTitle", { number: formatPhone(phone) })}
+      description={t("blockedNumbers.blockBody")}
+      confirmLabel={t("blockedNumbers.blockConfirm")}
+      pendingLabel={t("blockedNumbers.blocking")}
+      pending={block.isPending}
+      onConfirm={() =>
+        block.mutate(phone, {
+          onSuccess: () => {
+            onOpenChange(false);
+            toast.success(t("blockedNumbers.blocked"));
+          },
+          onError: (e) => onApiError(e, t("blockedNumbers.blockFailed")),
+        })
+      }
+    />
   );
 }

@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { TaskAttachments } from "@/components/attachments/task-attachments";
@@ -28,14 +29,6 @@ import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
 import { RecordHeader } from "@/components/ui/record-header";
 import { CountryDatalist } from "@/components/ui/country-datalist";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -868,42 +861,22 @@ function TaskDetailLoaded({
 
       {/* #89: destructive-delete confirm — opened only for a task that carries
           notes or files (an empty task deletes straight from the menu). */}
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("tasks.deleteConfirmTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("tasks.deleteConfirmBody", {
-                summary: taskDeleteSummary(
-                  deleteContent.notes,
-                  deleteContent.attachments,
-                  t,
-                ),
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfirmDelete(false)}
-              disabled={del.isPending}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => runDelete(deleteScope)}
-              disabled={del.isPending}
-            >
-              {del.isPending ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              ) : (
-                t("tasks.deleteTask")
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={t("tasks.deleteConfirmTitle")}
+        description={t("tasks.deleteConfirmBody", {
+          summary: taskDeleteSummary(
+            deleteContent.notes,
+            deleteContent.attachments,
+            t,
+          ),
+        })}
+        confirmLabel={t("tasks.deleteTask")}
+        pendingLabel={<Loader2 className="size-4 animate-spin" aria-hidden />}
+        pending={del.isPending}
+        onConfirm={() => runDelete(deleteScope)}
+      />
     </div>
   );
 }

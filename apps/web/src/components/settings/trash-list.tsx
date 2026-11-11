@@ -4,17 +4,10 @@ import { Trash2, Undo2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SettingsCard } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -207,69 +200,60 @@ function PurgeDialog({
   };
 
   return (
-    <Dialog open={row !== null} onOpenChange={(open) => !open && close()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("trash.deleteForeverTitle")}</DialogTitle>
-          <DialogDescription>
-            {row
-              ? t("trash.deleteForeverBody", {
-                  what: `${kindLabel(row, t)} · ${whoLabel(row, t)}`,
-                })
-              : null}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-1.5">
-          <Label htmlFor="purge-confirm">
-            {t("trash.deleteForeverType", { word })}
-          </Label>
-          <Input
-            id="purge-confirm"
-            value={typed}
-            onChange={(event) => setTyped(event.target.value)}
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-          />
-        </div>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={close}>
-            {t("trash.keep")}
-          </Button>
-          <Button
-            variant="destructive"
-            disabled={!matches || purge.isPending || row === null}
-            onClick={() => {
-              if (!row) return;
-              setError(null);
-              purge.mutate(
-                { kind: row.kind, id: row.id },
-                {
-                  onSuccess: () => {
-                    toast.success(t("trash.deletedForever"));
-                    close();
-                  },
-                  onError: (cause) =>
-                    setError(
-                      cause instanceof ApiError
-                        ? cause.message
-                        : t("trash.deleteForeverFailed"),
-                    ),
-                },
-              );
-            }}
-          >
-            {purge.isPending
-              ? t("trash.deleteForeverWorking")
-              : t("trash.deleteForeverConfirm")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={row !== null}
+      onOpenChange={(open) => !open && close()}
+      title={t("trash.deleteForeverTitle")}
+      description={
+        row
+          ? t("trash.deleteForeverBody", {
+              what: `${kindLabel(row, t)} · ${whoLabel(row, t)}`,
+            })
+          : null
+      }
+      cancelLabel={t("trash.keep")}
+      confirmLabel={t("trash.deleteForeverConfirm")}
+      pendingLabel={t("trash.deleteForeverWorking")}
+      pending={purge.isPending}
+      confirmDisabled={!matches || row === null}
+      onConfirm={() => {
+        if (!row) return;
+        setError(null);
+        purge.mutate(
+          { kind: row.kind, id: row.id },
+          {
+            onSuccess: () => {
+              toast.success(t("trash.deletedForever"));
+              close();
+            },
+            onError: (cause) =>
+              setError(
+                cause instanceof ApiError
+                  ? cause.message
+                  : t("trash.deleteForeverFailed"),
+              ),
+          },
+        );
+      }}
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor="purge-confirm">
+          {t("trash.deleteForeverType", { word })}
+        </Label>
+        <Input
+          id="purge-confirm"
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+        />
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </ConfirmDialog>
   );
 }

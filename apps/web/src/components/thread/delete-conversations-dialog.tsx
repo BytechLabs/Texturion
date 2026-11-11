@@ -2,15 +2,7 @@
 
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useDeleteConversations } from "@/lib/api/trash";
@@ -83,29 +75,20 @@ export function DeleteConversationsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {count === 1
-              ? t("trash.deleteConversationTitle")
-              : t("trash.deleteConversationsTitle", { count })}
-          </DialogTitle>
-          <DialogDescription>{t("trash.deleteConversationBody")}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("trash.keep")}
-          </Button>
-          <Button
-            variant="destructive"
-            disabled={remove.isPending || count === 0}
-            onClick={confirm}
-          >
-            {t("trash.moveToTrash")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        count === 1
+          ? t("trash.deleteConversationTitle")
+          : t("trash.deleteConversationsTitle", { count })
+      }
+      description={t("trash.deleteConversationBody")}
+      cancelLabel={t("trash.keep")}
+      confirmLabel={t("trash.moveToTrash")}
+      pending={remove.isPending}
+      confirmDisabled={count === 0}
+      onConfirm={confirm}
+    />
   );
 }

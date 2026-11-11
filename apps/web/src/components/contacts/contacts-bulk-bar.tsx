@@ -4,19 +4,10 @@ import { Download, MoreHorizontal, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  MergeDialog,
-} from "@/components/contacts/duplicate-contacts-card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { MergeDialog } from "@/components/contacts/duplicate-contacts-card";
 import { Button } from "@/components/ui/button";
 import { TagChecklist } from "@/components/ui/tag-checklist";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -217,36 +208,21 @@ export function ContactsBulkBar({
 
       <MergeDialog pair={merging} onClose={() => setMerging(null)} />
 
-      <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {t("contacts.bulkDeleteTitle", { count: selected.length })}
-            </DialogTitle>
-            <DialogDescription>{t("contacts.bulkDeleteBody")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmingDelete(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={bulk.isPending}
-              onClick={() =>
-                run({ action: "delete", ids }, (applied) => {
-                  setConfirmingDelete(false);
-                  toast.success(
-                    t("contacts.bulkDeleted", { count: applied.length }),
-                  );
-                  onClear();
-                })
-              }
-            >
-              {t("contacts.bulkDeleteConfirm", { count: selected.length })}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title={t("contacts.bulkDeleteTitle", { count: selected.length })}
+        description={t("contacts.bulkDeleteBody")}
+        confirmLabel={t("contacts.bulkDeleteConfirm", { count: selected.length })}
+        pending={bulk.isPending}
+        onConfirm={() =>
+          run({ action: "delete", ids }, (applied) => {
+            setConfirmingDelete(false);
+            toast.success(t("contacts.bulkDeleted", { count: applied.length }));
+            onClear();
+          })
+        }
+      />
     </div>
   );
 }

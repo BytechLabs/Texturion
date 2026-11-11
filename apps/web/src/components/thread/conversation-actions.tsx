@@ -39,15 +39,7 @@ import {
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { DeleteConversationsDialog } from "@/components/thread/delete-conversations-dialog";
 import { AiOrb } from "@/components/ui/ai-orb";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { useT, type Translate } from "@/i18n/provider";
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
@@ -735,38 +727,24 @@ export function useConversationActions({
         />
       )}
       {confirmOptOut && (
-        <Dialog open onOpenChange={setConfirmOptOut}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>{t("thread.optOutTitle", { name })}</DialogTitle>
-              <DialogDescription>
-                {t("thread.optOutDescription")}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirmOptOut(false)}>
-                {t("common.cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={optOutContact.isPending}
-                onClick={() =>
-                  optOutContact.mutate(conversation.contact_id, {
-                    onSuccess: () => {
-                      setConfirmOptOut(false);
-                      toast.success(t("thread.contactOptedOut"));
-                    },
-                    onError: (e) => onApiError(e, t("thread.optOutFailed")),
-                  })
-                }
-              >
-                {optOutContact.isPending
-                  ? t("thread.optingOut")
-                  : t("thread.optOut")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+          open
+          onOpenChange={setConfirmOptOut}
+          title={t("thread.optOutTitle", { name })}
+          description={t("thread.optOutDescription")}
+          confirmLabel={t("thread.optOut")}
+          pendingLabel={t("thread.optingOut")}
+          pending={optOutContact.isPending}
+          onConfirm={() =>
+            optOutContact.mutate(conversation.contact_id, {
+              onSuccess: () => {
+                setConfirmOptOut(false);
+                toast.success(t("thread.contactOptedOut"));
+              },
+              onError: (e) => onApiError(e, t("thread.optOutFailed")),
+            })
+          }
+        />
       )}
     </>
   );

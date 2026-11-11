@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
 import {
@@ -30,14 +31,6 @@ import { Button } from "@/components/ui/button";
 import { RecordHeader } from "@/components/ui/record-header";
 import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { useContactActions } from "@/components/contacts/contact-record-actions";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -674,83 +667,56 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
         onOpenChange={setConfirmingBlock}
       />
 
-      <Dialog open={confirmingOptOut} onOpenChange={setConfirmingOptOut}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("appShell.contactOptOutTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("appShell.contactOptOutBody", {
-                phone: formatPhone(contact.phone_e164),
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmingOptOut(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={optOut.isPending}
-              onClick={() =>
-                optOut.mutate(contact.id, {
-                  onSuccess: () => {
-                    setConfirmingOptOut(false);
-                    toast.success(t("appShell.contactOptedOut"));
-                  },
-                  onError: (cause) =>
-                    toast.error(
-                      cause instanceof ApiError
-                        ? cause.message
-                        : t("appShell.contactOptOutFailed"),
-                    ),
-                })
-              }
-            >
-              {optOut.isPending
-                ? t("appShell.contactWorking")
-                : t("appShell.contactOptOutConfirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmingOptOut}
+        onOpenChange={setConfirmingOptOut}
+        title={t("appShell.contactOptOutTitle")}
+        description={t("appShell.contactOptOutBody", {
+          phone: formatPhone(contact.phone_e164),
+        })}
+        confirmLabel={t("appShell.contactOptOutConfirm")}
+        pendingLabel={t("appShell.contactWorking")}
+        pending={optOut.isPending}
+        onConfirm={() =>
+          optOut.mutate(contact.id, {
+            onSuccess: () => {
+              setConfirmingOptOut(false);
+              toast.success(t("appShell.contactOptedOut"));
+            },
+            onError: (cause) =>
+              toast.error(
+                cause instanceof ApiError
+                  ? cause.message
+                  : t("appShell.contactOptOutFailed"),
+              ),
+          })
+        }
+      />
 
-      <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("appShell.contactDeleteTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("appShell.contactDeleteBody")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmingDelete(false)}>
-              {t("appShell.contactKeepContact")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={deleteContact.isPending}
-              onClick={() =>
-                deleteContact.mutate(contact.id, {
-                  onSuccess: () => {
-                    toast.success(t("appShell.contactDeleted"));
-                    router.push("/contacts");
-                  },
-                  onError: (cause) =>
-                    toast.error(
-                      cause instanceof ApiError
-                        ? cause.message
-                        : t("appShell.contactDeleteFailed"),
-                    ),
-                })
-              }
-            >
-              {deleteContact.isPending
-                ? t("appShell.contactDeleting")
-                : t("common.delete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title={t("appShell.contactDeleteTitle")}
+        description={t("appShell.contactDeleteBody")}
+        cancelLabel={t("appShell.contactKeepContact")}
+        confirmLabel={t("common.delete")}
+        pendingLabel={t("appShell.contactDeleting")}
+        pending={deleteContact.isPending}
+        onConfirm={() =>
+          deleteContact.mutate(contact.id, {
+            onSuccess: () => {
+              toast.success(t("appShell.contactDeleted"));
+              router.push("/contacts");
+            },
+            onError: (cause) =>
+              toast.error(
+                cause instanceof ApiError
+                  ? cause.message
+                  : t("appShell.contactDeleteFailed"),
+              ),
+          })
+        }
+      />
       {menuDialogs}
     </div>
   );

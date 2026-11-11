@@ -4,17 +4,9 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { groupJobPhotos } from "@loonext/shared";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useT } from "@/i18n/provider";
 import { useDeleteAttachment } from "@/lib/api/attachments";
 import type { TaskAttachmentItem } from "@/lib/api/types";
@@ -135,45 +127,24 @@ export function TaskAttachments({
         ))}
       </div>
 
-      <Dialog
+      <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
           if (!open && !del.isPending) setPendingDelete(null);
         }}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("misc.deleteFileTitle")}</DialogTitle>
-            <DialogDescription>
-              {pendingDelete?.file_name
-                ? t("misc.deleteFileNamedBody", {
-                    name: pendingDelete.file_name,
-                  })
-                : t("misc.deleteFileBody")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPendingDelete(null)}
-              disabled={del.isPending}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={runDelete}
-              disabled={del.isPending}
-            >
-              {del.isPending ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              ) : (
-                t("misc.deleteFileAction")
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title={t("misc.deleteFileTitle")}
+        description={
+          pendingDelete?.file_name
+            ? t("misc.deleteFileNamedBody", {
+                name: pendingDelete.file_name,
+              })
+            : t("misc.deleteFileBody")
+        }
+        confirmLabel={t("misc.deleteFileAction")}
+        pendingLabel={<Loader2 className="size-4 animate-spin" aria-hidden />}
+        pending={del.isPending}
+        onConfirm={runDelete}
+      />
     </>
   );
 }

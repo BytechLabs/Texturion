@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { contactRelationshipLine , avatarInitials } from "@loonext/shared";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CallButton } from "@/components/calls/call-button";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useMemberNames } from "@/components/inbox/member-avatar";
@@ -23,14 +24,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Popover,
   PopoverContent,
@@ -381,42 +374,26 @@ export function ContactPanel({
         </div>
       )}
 
-      <Dialog open={confirmOptOut} onOpenChange={setConfirmOptOut}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>
-              {t("contacts.optOutTitle", {
-                name: contactDisplayName(contact),
-              })}
-            </DialogTitle>
-            <DialogDescription>
-              {t("contacts.optOutConfirmBody")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOptOut(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={optOut.isPending}
-              onClick={() =>
-                optOut.mutate(contact.id, {
-                  onSuccess: () => {
-                    setConfirmOptOut(false);
-                    toast.success(t("contacts.contactOptedOut"));
-                  },
-                  onError: (e) => onApiError(e, t("contacts.optOutFailed")),
-                })
-              }
-            >
-              {optOut.isPending
-                ? t("contacts.optingOut")
-                : t("contacts.optOut")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmOptOut}
+        onOpenChange={setConfirmOptOut}
+        title={t("contacts.optOutTitle", {
+          name: contactDisplayName(contact),
+        })}
+        description={t("contacts.optOutConfirmBody")}
+        confirmLabel={t("contacts.optOut")}
+        pendingLabel={t("contacts.optingOut")}
+        pending={optOut.isPending}
+        onConfirm={() =>
+          optOut.mutate(contact.id, {
+            onSuccess: () => {
+              setConfirmOptOut(false);
+              toast.success(t("contacts.contactOptedOut"));
+            },
+            onError: (e) => onApiError(e, t("contacts.optOutFailed")),
+          })
+        }
+      />
     </div>
   );
 }

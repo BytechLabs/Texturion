@@ -4,15 +4,7 @@ import { Check, CalendarClock, Link2, SquareArrowOutUpRight, Trash2 } from "luci
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useT, type Translate } from "@/i18n/provider";
 import { useDeleteTask } from "@/lib/api/tasks";
 import type { Task } from "@/lib/api/types";
@@ -180,44 +172,29 @@ export function useTaskRowActions(task: Task) {
   });
 
   const dialogs = confirmDelete ? (
-    <Dialog open onOpenChange={setConfirmDelete}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{t("tasks.deleteConfirmTitle")}</DialogTitle>
-          <DialogDescription>{t("recordMenu.taskDeleteBody")}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setConfirmDelete(false)}
-            disabled={del.isPending}
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button
-            variant="destructive"
-            disabled={del.isPending}
-            onClick={() =>
-              del.mutate(
-                { taskId: task.id },
-                {
-                  onSuccess: () => {
-                    setConfirmDelete(false);
-                    toast.success(t("tasks.deleted"));
-                  },
-                  onError: () => {
-                    setConfirmDelete(false);
-                    toast.error(t("tasks.deleteFailed"));
-                  },
-                },
-              )
-            }
-          >
-            {t("tasks.deleteTask")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open
+      onOpenChange={setConfirmDelete}
+      title={t("tasks.deleteConfirmTitle")}
+      description={t("recordMenu.taskDeleteBody")}
+      confirmLabel={t("tasks.deleteTask")}
+      pending={del.isPending}
+      onConfirm={() =>
+        del.mutate(
+          { taskId: task.id },
+          {
+            onSuccess: () => {
+              setConfirmDelete(false);
+              toast.success(t("tasks.deleted"));
+            },
+            onError: () => {
+              setConfirmDelete(false);
+              toast.error(t("tasks.deleteFailed"));
+            },
+          },
+        )
+      }
+    />
   ) : null;
 
   return { actions, dialogs };

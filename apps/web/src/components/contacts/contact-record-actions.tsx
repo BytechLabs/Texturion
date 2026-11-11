@@ -12,20 +12,12 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   BlockNumberDialog,
   useBlockedNumber,
 } from "@/components/blocked/block-number";
 import { usePlaceCall } from "@/components/calls/call-button";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useT, type Translate } from "@/i18n/provider";
 import {
   useDeleteContact,
@@ -248,77 +240,48 @@ export function useContactActions({
         />
       )}
       {confirmOptOut && (
-        <Dialog open onOpenChange={setConfirmOptOut}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t("appShell.contactOptOutTitle")}</DialogTitle>
-              <DialogDescription>
-                {t("appShell.contactOptOutBody", {
-                  phone: formatPhone(contact.phone_e164),
-                })}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirmOptOut(false)}>
-                {t("common.cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={optOut.isPending}
-                onClick={() =>
-                  optOut.mutate(contact.id, {
-                    onSuccess: () => {
-                      setConfirmOptOut(false);
-                      toast.success(t("appShell.contactOptedOut"));
-                    },
-                    onError: (e) =>
-                      failure(e, t("appShell.contactOptOutFailed")),
-                  })
-                }
-              >
-                {optOut.isPending
-                  ? t("appShell.contactWorking")
-                  : t("appShell.contactOptOutConfirm")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+          open
+          onOpenChange={setConfirmOptOut}
+          title={t("appShell.contactOptOutTitle")}
+          description={t("appShell.contactOptOutBody", {
+            phone: formatPhone(contact.phone_e164),
+          })}
+          confirmLabel={t("appShell.contactOptOutConfirm")}
+          pendingLabel={t("appShell.contactWorking")}
+          pending={optOut.isPending}
+          onConfirm={() =>
+            optOut.mutate(contact.id, {
+              onSuccess: () => {
+                setConfirmOptOut(false);
+                toast.success(t("appShell.contactOptedOut"));
+              },
+              onError: (e) => failure(e, t("appShell.contactOptOutFailed")),
+            })
+          }
+        />
       )}
       {confirmDelete && (
-        <Dialog open onOpenChange={setConfirmDelete}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t("appShell.contactDeleteTitle")}</DialogTitle>
-              <DialogDescription>
-                {t("appShell.contactDeleteBody")}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirmDelete(false)}>
-                {t("appShell.contactKeepContact")}
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={deleteContact.isPending}
-                onClick={() =>
-                  deleteContact.mutate(contact.id, {
-                    onSuccess: () => {
-                      setConfirmDelete(false);
-                      toast.success(t("appShell.contactDeleted"));
-                      onDeleted?.();
-                    },
-                    onError: (e) =>
-                      failure(e, t("appShell.contactDeleteFailed")),
-                  })
-                }
-              >
-                {deleteContact.isPending
-                  ? t("appShell.contactDeleting")
-                  : t("common.delete")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+          open
+          onOpenChange={setConfirmDelete}
+          title={t("appShell.contactDeleteTitle")}
+          description={t("appShell.contactDeleteBody")}
+          cancelLabel={t("appShell.contactKeepContact")}
+          confirmLabel={t("common.delete")}
+          pendingLabel={t("appShell.contactDeleting")}
+          pending={deleteContact.isPending}
+          onConfirm={() =>
+            deleteContact.mutate(contact.id, {
+              onSuccess: () => {
+                setConfirmDelete(false);
+                toast.success(t("appShell.contactDeleted"));
+                onDeleted?.();
+              },
+              onError: (e) => failure(e, t("appShell.contactDeleteFailed")),
+            })
+          }
+        />
       )}
     </>
   );
