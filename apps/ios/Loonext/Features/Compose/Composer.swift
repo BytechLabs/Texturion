@@ -486,11 +486,15 @@ struct ThreadComposerView: View {
         // product creates the race on purpose — an unassigned inbound notifies
         // everyone, which is right for "never miss a lead". So this is a pause
         // at the moment the mistake becomes irreversible, not a lock.
-        .alert(t("thread.collisionTitle"), isPresented: $confirmCollision) {
-            Button(t("thread.letMeLook"), role: .cancel) {}
-            Button(t("thread.sendAnyway")) { submit() }
-        } message: {
-            Text(collisionMessage)
+        .confirmDialog(
+            t("thread.collisionTitle"),
+            isPresented: $confirmCollision,
+            message: collisionMessage,
+            confirmLabel: t("thread.sendAnyway"),
+            cancelLabel: t("thread.letMeLook"),
+            tone: .standard
+        ) {
+            submit()
         }
         .photosPicker(
             isPresented: $photosPickerOpen,
@@ -575,27 +579,24 @@ struct ThreadComposerView: View {
         .sheet(isPresented: $pickTimeOpen) {
             SendLaterPicker(clock: destinationClock) { at in scheduleFor(at) }
         }
-        .alert(
+        .confirmDialog(
             t("thread.quietHoursTitle"),
             isPresented: Binding(
                 get: { quietConfirmFor != nil },
                 set: { if !$0 { quietConfirmFor = nil } }
-            )
+            ),
+            message: quietHoursScheduleMessage(
+                localHour: destinationClock?.local_hour,
+                locale: appLocale
+            ),
+            confirmLabel: t("thread.scheduleAnyway"),
+            cancelLabel: t("thread.pickAnotherTime"),
+            tone: .standard
         ) {
-            Button(t("thread.pickAnotherTime"), role: .cancel) { quietConfirmFor = nil }
-            Button(t("thread.scheduleAnyway")) {
-                if let pending = quietConfirmFor {
-                    quietConfirmFor = nil
-                    scheduleFor(pending, quietHoursConfirmed: true)
-                }
+            if let pending = quietConfirmFor {
+                quietConfirmFor = nil
+                scheduleFor(pending, quietHoursConfirmed: true)
             }
-        } message: {
-            Text(
-                quietHoursScheduleMessage(
-                    localHour: destinationClock?.local_hour,
-                    locale: appLocale
-                )
-            )
         }
         // #507: a recording must not outlive the composer that started it.
         .onDisappear { cancelWrapUp() }
@@ -1680,17 +1681,12 @@ struct TemplatePickerSheet: View {
     private var content: some View {
         switch state {
         case .loading:
-            CenteredLoading()
+            ListSkeleton(rows: 4, avatar: true, lines: 1)
         case .failed(let message):
-            CenteredError(message: message) { retryKey += 1 }
+            LoadError(message: message) { retryKey += 1 }
         case .ready(let templates):
             if templates.isEmpty {
-                Text(t("thread.noTemplates"))
-                    .font(.golos(12.5))
-                    .foregroundStyle(BrandColor.muted600)
-                    .multilineTextAlignment(.center)
-                    .padding(24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                EmptyState(title: t("thread.noTemplates"), size: .panel, fill: true)
             } else {
                 let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
                 let matches = templates.filter { template in
@@ -1701,11 +1697,7 @@ struct TemplatePickerSheet: View {
                 searchField
                 ScrollView {
                     if matches.isEmpty {
-                        Text(t("thread.nothingMatches"))
-                            .font(.golos(12.5))
-                            .foregroundStyle(BrandColor.muted600)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 24)
+                        EmptyState(title: t("thread.nothingMatches"), size: .panel)
                     } else {
                         PaperCard {
                             ForEach(matches, id: \.id) { template in
@@ -1754,20 +1746,7 @@ struct TemplatePickerSheet: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 9) {
-            Image(systemName: "magnifyingglass")
-                .font(.scaled(14, weight: .medium))
-                .foregroundStyle(BrandColor.muted300)
-            TextField(t("thread.searchTemplates"), text: $query)
-                .font(.golos(13))
-                .foregroundStyle(BrandColor.ink)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-        }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 11)
-        .background(BrandColor.paper, in: Capsule())
-        .overlay(Capsule().strokeBorder(BrandColor.insetDeep, lineWidth: 1.5))
+        SearchField(query: $query, placeholder: t("thread.searchTemplates"))
     }
 }
 
@@ -1870,7 +1849,7 @@ struct MentionPickerSheet: View {
                 }
             }
         } else {
-            CenteredLoading()
+            ListSkeleton(rows: 4, avatar: true, lines: 1)
         }
     }
 

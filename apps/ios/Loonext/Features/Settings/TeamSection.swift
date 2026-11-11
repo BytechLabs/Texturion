@@ -85,10 +85,10 @@ struct TeamSectionView: View {
         Group {
             switch state {
             case .loading:
-                CenteredLoading()
+                ListSkeleton(rows: 3, avatar: true, lines: 2, inset: 0)
                     .frame(height: 200)
             case .failed(let message):
-                CenteredError(message: message) { refreshKey += 1 }
+                LoadError(message: message) { refreshKey += 1 }
                     .frame(height: 200)
             case .ready(let data):
                 MembersCard(scope: scope, members: data.members) { refreshKey += 1 }

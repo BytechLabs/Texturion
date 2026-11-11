@@ -169,9 +169,9 @@ struct TagManageSheet: View {
     private var content: some View {
         switch allTags {
         case .loading:
-            CenteredLoading()
+            ListSkeleton(rows: 5)
         case .failed(let message):
-            CenteredError(message: message) { retryKey += 1 }
+            LoadError(message: message) { retryKey += 1 }
         case .ready(let tags):
             let plan = resolveTagInput(input, existing: tags)
             // #298: the tag this typing probably means, if one already exists.

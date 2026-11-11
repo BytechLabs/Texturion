@@ -36,7 +36,7 @@ struct CallDetailView: View {
         case .loading:
             CenteredLoading()
         case .failed(let message):
-            CenteredError(message: message) { refreshKey += 1 }
+            LoadError(message: message) { refreshKey += 1 }
         case .ready(let call):
             detail(call)
         }

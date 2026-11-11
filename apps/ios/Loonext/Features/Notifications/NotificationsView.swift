@@ -45,10 +45,10 @@ struct NotificationsView: View {
         Group {
             switch model.state {
             case .loading:
-                CenteredLoading()
+                ListSkeleton(rows: 6, avatar: true, lines: 2)
 
             case .failed(let message):
-                CenteredError(message: message) {
+                LoadError(message: message) {
                     model.prepareRetry()
                     refreshKey += 1
                 }
@@ -127,10 +127,11 @@ struct NotificationsView: View {
             NotificationPauseNotice(pause: model.alertPause)
 
             if model.items.isEmpty {
-                Text(AppStrings.translate(appLocale, "inbox.notifCaughtUp"))
-                    .font(.golos(13))
-                    .foregroundStyle(BrandColor.muted600)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyState(
+                    title: AppStrings.translate(appLocale, "inbox.notifCaughtUp"),
+                    systemImage: "bell",
+                    fill: true
+                )
             } else {
                 ScrollView {
                     LazyVStack(spacing: 13) {

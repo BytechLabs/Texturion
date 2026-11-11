@@ -102,23 +102,6 @@ struct PanelEditBar: View {
     }
 }
 
-/// What an empty panel shows while it is being arranged, so it can still be
-/// moved or taken off.
-struct PanelEmptyStub: View {
-    @Environment(\.appLocale) private var appLocale
-
-    var body: some View {
-        PaperCard {
-            Text(AppStrings.translate(appLocale, "inbox.forYouPanelEmpty"))
-                .font(.golos(12))
-                .foregroundStyle(BrandColor.muted500)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
 /// "Waiting on you: 4 waiting, not on your page" and the way to bring it back.
 @MainActor
 struct OffPageLine: View {

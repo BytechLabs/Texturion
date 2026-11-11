@@ -372,51 +372,40 @@ struct ContactsTab: View {
             if Task.isCancelled { return }
             notice = nil
         }
-        .alert(
+        .confirmDialog(
             t("contactsTasks.optOutTitle"),
-            isPresented: Binding(
-                get: { listConfirmOptOut != nil },
-                set: { if !$0 { listConfirmOptOut = nil } }
-            ),
-            presenting: listConfirmOptOut
+            item: $listConfirmOptOut,
+            message: { contact in
+                t("contactsTasks.optOutBody", ["number": formatPhone(contact.phone_e164)])
+            },
+            confirmLabel: t("contactsTasks.optOut")
         ) { contact in
-            Button(t("contactsTasks.optOut"), role: .destructive) {
-                Haptics.reject()
-                Task {
-                    do {
-                        _ = try await mutations.optOut(companyId: companyId, contactId: contact.id)
-                        refreshKey += 1
-                    } catch {
-                        notice = error.userMessage
-                    }
+            Haptics.reject()
+            Task {
+                do {
+                    _ = try await mutations.optOut(companyId: companyId, contactId: contact.id)
+                    refreshKey += 1
+                } catch {
+                    notice = error.userMessage
                 }
             }
-            Button(t("common.cancel"), role: .cancel) {}
-        } message: { contact in
-            Text(t("contactsTasks.optOutBody", ["number": formatPhone(contact.phone_e164)]))
         }
-        .alert(
+        .confirmDialog(
             t("contactsTasks.deleteContactTitle"),
-            isPresented: Binding(
-                get: { listConfirmDelete != nil },
-                set: { if !$0 { listConfirmDelete = nil } }
-            ),
-            presenting: listConfirmDelete
+            item: $listConfirmDelete,
+            message: { _ in t("contactsTasks.deleteContactBody") },
+            confirmLabel: t("common.delete"),
+            cancelLabel: t("contactsTasks.keepContact")
         ) { contact in
-            Button(t("common.delete"), role: .destructive) {
-                Haptics.reject()
-                Task {
-                    do {
-                        try await mutations.delete(companyId: companyId, contactId: contact.id)
-                        refreshKey += 1
-                    } catch {
-                        notice = error.userMessage
-                    }
+            Haptics.reject()
+            Task {
+                do {
+                    try await mutations.delete(companyId: companyId, contactId: contact.id)
+                    refreshKey += 1
+                } catch {
+                    notice = error.userMessage
                 }
             }
-            Button(t("contactsTasks.keepContact"), role: .cancel) {}
-        } message: { _ in
-            Text(t("contactsTasks.deleteContactBody"))
         }
         .sheet(isPresented: $createOpen) {
             CreateContactSheet(mutations: mutations, companyId: companyId) { created in
@@ -491,10 +480,7 @@ struct ContactsTab: View {
                 // The spec count is the total — only honest once every page
                 // has loaded (no server-side total on the wire).
                 if case .ready = state, nextCursor == nil, !rows.isEmpty {
-                    Text("\(rows.count)")
-                        .font(.golos(12, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(BrandColor.muted500)
+                    CountPill(rows.count)
                 }
             }
             Spacer()
@@ -504,33 +490,12 @@ struct ContactsTab: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 9) {
-            Image(systemName: "magnifyingglass")
-                .font(.scaled(15, weight: .medium))
-                .foregroundStyle(BrandColor.muted300)
-            TextField(t("contactsTasks.searchNameOrNumber"), text: $query)
-                .font(.golos(13.5))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .onChange(of: query) { _, next in
-                    if next.count > 200 {
-                        query = String(next.prefix(200))
-                    }
-                }
-            if !query.isEmpty {
-                Button {
-                    query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(BrandColor.muted300)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(t("contactsTasks.clearSearch"))
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .background(BrandColor.paper, in: Capsule())
+        SearchField(
+            query: $query,
+            placeholder: t("contactsTasks.searchNameOrNumber"),
+            maxLength: 200,
+            clearLabel: t("contactsTasks.clearSearch")
+        )
     }
 
     private var contactFilterCount: Int {
@@ -626,22 +591,16 @@ struct ContactsTab: View {
     private var content: some View {
         switch state {
         case .loading:
-            CenteredLoading()
+            ListSkeleton(rows: 7, avatar: true, lines: 2)
         case .failed(let message):
-            CenteredError(message: message) { refreshKey += 1 }
+            LoadError(message: message) { refreshKey += 1 }
         case .ready:
             if rows.isEmpty {
                 // #459: still a ScrollView, because the phone's own contacts
                 // render below — and an empty shared book is exactly when
                 // somebody needs them most.
                 ScrollView {
-                    Text(emptyMessage)
-                    .font(.golos(13))
-                    .foregroundStyle(BrandColor.muted500)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-                    .padding(.top, 40)
-                    .frame(maxWidth: .infinity)
+                    EmptyState(title: emptyMessage)
 
                     devicePhoneSection
                 }

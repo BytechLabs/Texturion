@@ -93,7 +93,7 @@ struct TwoFactorCard: View {
             case .loading:
                 CenteredLoading().frame(height: 120)
             case .failed(let message):
-                CenteredError(message: message) { refreshKey += 1 }
+                LoadError(message: message) { refreshKey += 1 }
                     .frame(height: 120)
             case .ready(let mfa):
                 card(mfa)

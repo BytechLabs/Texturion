@@ -50,6 +50,12 @@ enum CommonStrings {
             "common.back": "Back",
             "common.retry": "Try again",
             "common.loadFailed": "Couldn't load this. Check your connection and try again.",
+            "common.clearSearch": "Clear search",
+            "common.loading": "Loading",
+            "common.working": "Working…",
+            "common.themeSystem": "System",
+            "common.themeLight": "Light",
+            "common.themeDark": "Dark",
             "common.somethingWentWrong": "Something went wrong. Try again.",
 
             /*
@@ -96,6 +102,12 @@ enum CommonStrings {
             "common.back": "Retour",
             "common.retry": "Réessayer",
             "common.loadFailed": "Impossible de charger. Vérifiez votre connexion et réessayez.",
+            "common.clearSearch": "Effacer la recherche",
+            "common.loading": "Chargement",
+            "common.working": "En cours…",
+            "common.themeSystem": "Système",
+            "common.themeLight": "Clair",
+            "common.themeDark": "Sombre",
             "common.somethingWentWrong": "Une erreur s'est produite. Réessayez.",
 
             "common.bulkSelectedCount": "{count} sélectionnées",

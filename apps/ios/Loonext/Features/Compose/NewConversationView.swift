@@ -39,7 +39,7 @@ struct NewConversationView: View {
             case .loading:
                 CenteredLoading()
             case .failed(let message):
-                CenteredError(message: message) { bootKey += 1 }
+                LoadError(message: message) { bootKey += 1 }
             case .ready(let numbers):
                 NewConversationLoaded(
                     repo: MessagingRepository(api: graph.api),
@@ -239,27 +239,24 @@ private struct NewConversationLoaded: View {
                 }
             )
         }
-        .alert(
+        .confirmDialog(
             t("thread.lateThereTitle"),
             isPresented: Binding(
                 get: { quietHoursPrompt != nil },
                 set: { if !$0 { quietHoursPrompt = nil } }
-            )
+            ),
+            message: t(
+                "thread.lateThereBody",
+                ["time": localTimeLabel ?? t("thread.lateThereUnknown")]
+            ),
+            confirmLabel: t("thread.sendAnyway"),
+            cancelLabel: t("thread.wait"),
+            tone: .standard
         ) {
-            Button(t("thread.wait"), role: .cancel) { quietHoursPrompt = nil }
-            Button(t("thread.sendAnyway")) {
-                if let pending = quietHoursPrompt {
-                    quietHoursPrompt = nil
-                    send(resend: pending)
-                }
+            if let pending = quietHoursPrompt {
+                quietHoursPrompt = nil
+                send(resend: pending)
             }
-        } message: {
-            Text(
-                t(
-                    "thread.lateThereBody",
-                    ["time": localTimeLabel ?? t("thread.lateThereUnknown")]
-                )
-            )
         }
     }
 

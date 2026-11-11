@@ -43,14 +43,13 @@ struct ScheduledSheet: View {
                     // Reassurance IS the honest empty answer: the question this
                     // sheet exists to settle is "is something about to go out
                     // that I don't know about", and "no" is a complete reply.
-                    ContentUnavailableView(
-                        AppStrings.translate(appLocale, "inbox.scheduledEmptyTitle"),
+                    EmptyState(
+                        title: AppStrings.translate(appLocale, "inbox.scheduledEmptyTitle"),
+                        description: ScheduledSend.copyLine(
+                            "nothing_scheduled", locale: appLocale
+                        ),
                         systemImage: "calendar.badge.clock",
-                        description: Text(
-                            ScheduledSend.copyLine(
-                                "nothing_scheduled", locale: appLocale
-                            )
-                        )
+                        fill: true
                     )
                 } else {
                     List {

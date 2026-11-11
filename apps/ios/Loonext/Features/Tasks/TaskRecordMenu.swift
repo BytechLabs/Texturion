@@ -181,20 +181,13 @@ private struct TaskMenuDeleteDialog: ViewModifier {
     @Environment(\.appLocale) private var appLocale
 
     func body(content: Content) -> some View {
-        content.alert(
+        content.confirmDialog(
             AppStrings.translate(appLocale, "contactsTasks.deleteTaskTitle"),
-            isPresented: Binding(
-                get: { controller.confirmingDelete != nil },
-                set: { if !$0 { controller.confirmingDelete = nil } }
-            ),
-            presenting: controller.confirmingDelete
+            item: $controller.confirmingDelete,
+            message: { _ in AppStrings.translate(appLocale, "contactsTasks.deleteTaskBody") },
+            confirmLabel: AppStrings.translate(appLocale, "contactsTasks.deleteTask")
         ) { task in
-            Button(AppStrings.translate(appLocale, "contactsTasks.deleteTask"), role: .destructive) {
-                controller.confirmDelete(task)
-            }
-            Button(AppStrings.translate(appLocale, "common.cancel"), role: .cancel) {}
-        } message: { _ in
-            Text(AppStrings.translate(appLocale, "contactsTasks.deleteTaskBody"))
+            controller.confirmDelete(task)
         }
     }
 }

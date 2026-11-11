@@ -77,7 +77,7 @@ struct TaskDetailView: View {
                         .padding(24)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else {
-                    CenteredError(message: message) { refreshKey += 1 }
+                    LoadError(message: message) { refreshKey += 1 }
                 }
             case .ready(let detail):
                 readyBody(detail)
@@ -212,23 +212,15 @@ struct TaskDetailView: View {
             // Dismissed without a choice (a tap outside): that is a cancel.
             if !open { answerScope(.cancelled) }
         }
-        .alert(
+        .confirmDialog(
             AppStrings.translate(appLocale, "contactsTasks.deleteTaskTitle"),
-            isPresented: $confirmDelete
+            isPresented: $confirmDelete,
+            message: detail.map { deleteWarning($0) } ?? "",
+            confirmLabel: AppStrings.translate(appLocale, "common.delete"),
+            cancelLabel: AppStrings.translate(appLocale, "contactsTasks.keepTask"),
+            confirmDisabled: deleting
         ) {
-            Button(
-                AppStrings.translate(appLocale, "common.delete"),
-                role: .destructive
-            ) { deleteTask() }
-                .disabled(deleting)
-            Button(
-                AppStrings.translate(appLocale, "contactsTasks.keepTask"),
-                role: .cancel
-            ) {}
-        } message: {
-            if let detail {
-                Text(deleteWarning(detail))
-            }
+            deleteTask()
         }
     }
 

@@ -276,9 +276,9 @@ struct CallsView: View {
     private var content: some View {
         switch state {
         case .loading:
-            CenteredLoading()
+            ListSkeleton(rows: 7, avatar: true, lines: 2)
         case .failed(let message):
-            CenteredError(message: message) { refreshKey += 1 }
+            LoadError(message: message) { refreshKey += 1 }
         case .ready(let calls):
             // #210: in-flight rows live in the pinned card above, not the log;
             // each drops back in here the moment its outcome is stamped.
@@ -532,12 +532,7 @@ struct CallsView: View {
     private func callLog(_ calls: [Call]) -> some View {
         if calls.isEmpty {
             if ongoing.isEmpty {
-                Text(emptyCopy)
-                    .font(.golos(13))
-                    .foregroundStyle(BrandColor.muted500)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyState(title: emptyCopy, fill: true)
             } else {
                 // With a live call pinned above, "No calls yet" would
                 // contradict the screen — stay quiet and let the card talk.

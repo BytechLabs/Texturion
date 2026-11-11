@@ -196,10 +196,7 @@ struct SectionHeader: View {
                 .kerning(SectionHeadingStyle.kerning)
                 .foregroundStyle(BrandColor.muted500)
             if let count, count > 0 {
-                Text("\(count)")
-                    .font(.golos(10.5, weight: .bold))
-                    .monospacedDigit()
-                    .foregroundStyle(BrandColor.olive)
+                CountPill(count)
             }
         }
         .padding(.horizontal, 6)

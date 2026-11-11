@@ -107,7 +107,7 @@ struct ContactDetailView: View {
                         .padding(24)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 } else {
-                    CenteredError(message: message) { refreshKey += 1 }
+                    LoadError(message: message) { refreshKey += 1 }
                 }
             case .ready(let contact):
                 readyBody(contact)
@@ -163,44 +163,43 @@ struct ContactDetailView: View {
                 .blockedSenders(companyId: companyId)
                 .first { $0.phone_e164 == phone }
         }
-        .alert(t("thread.blockTitle"), isPresented: $confirmBlock) {
-            Button(t("thread.blockConfirm"), role: .destructive) {
-                guard let phone = contact?.phone_e164 else { return }
-                runAction {
-                    blockedSender = try await MessagingRepository(api: graph.api)
-                        .blockSender(companyId: companyId, phoneE164: phone)
-                }
+        .confirmDialog(
+            t("thread.blockTitle"),
+            isPresented: $confirmBlock,
+            message: t("thread.blockBody"),
+            confirmLabel: t("thread.blockConfirm")
+        ) {
+            guard let phone = contact?.phone_e164 else { return }
+            runAction {
+                blockedSender = try await MessagingRepository(api: graph.api)
+                    .blockSender(companyId: companyId, phoneE164: phone)
             }
-            Button(t("common.cancel"), role: .cancel) {}
-        } message: {
-            Text(t("thread.blockBody"))
         }
-        .alert(t("contactsTasks.optOutTitle"), isPresented: $confirmOptOut) {
-            Button(t("contactsTasks.optOut"), role: .destructive) {
-                runAction {
-                    _ = try await mutations.optOut(companyId: companyId, contactId: contactId)
-                    refreshKey += 1
-                }
+        .confirmDialog(
+            t("contactsTasks.optOutTitle"),
+            isPresented: $confirmOptOut,
+            message: t(
+                "contactsTasks.optOutBody",
+                ["number": formatPhone(contact?.phone_e164)]
+            ),
+            confirmLabel: t("contactsTasks.optOut")
+        ) {
+            runAction {
+                _ = try await mutations.optOut(companyId: companyId, contactId: contactId)
+                refreshKey += 1
             }
-            Button(t("common.cancel"), role: .cancel) {}
-        } message: {
-            Text(
-                t(
-                    "contactsTasks.optOutBody",
-                    ["number": formatPhone(contact?.phone_e164)]
-                )
-            )
         }
-        .alert(t("contactsTasks.deleteContactTitle"), isPresented: $confirmDelete) {
-            Button(t("common.delete"), role: .destructive) {
-                runAction {
-                    try await mutations.delete(companyId: companyId, contactId: contactId)
-                    dismiss()
-                }
+        .confirmDialog(
+            t("contactsTasks.deleteContactTitle"),
+            isPresented: $confirmDelete,
+            message: t("contactsTasks.deleteContactBody"),
+            confirmLabel: t("common.delete"),
+            cancelLabel: t("contactsTasks.keepContact")
+        ) {
+            runAction {
+                try await mutations.delete(companyId: companyId, contactId: contactId)
+                dismiss()
             }
-            Button(t("contactsTasks.keepContact"), role: .cancel) {}
-        } message: {
-            Text(t("contactsTasks.deleteContactBody"))
         }
     }
 
@@ -1611,16 +1610,8 @@ private struct ContactCallsSection: View {
             }
             .padding(.vertical, 12)
         case .failed(let message):
-            VStack(alignment: .leading, spacing: 4) {
-                Text(message)
-                    .font(.golos(12))
-                    .foregroundStyle(BrandColor.muted500)
-                Button(AppStrings.translate(appLocale, "common.retry")) { refreshKey += 1 }
-                    .font(.golos(12, weight: .semibold))
-                    .foregroundStyle(BrandColor.olive)
-                    .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 6)
+            LoadError(message: message, variant: .inline) { refreshKey += 1 }
+                .padding(.horizontal, 6)
         case .ready(let calls):
             if calls.isEmpty {
                 // The quiet one-line empty state.

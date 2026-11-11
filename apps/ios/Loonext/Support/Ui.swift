@@ -156,27 +156,6 @@ struct CenteredLoading: View {
     }
 }
 
-/// Calm inline error: one sentence what happened + retry.
-struct CenteredError: View {
-    let message: String
-    let onRetry: @MainActor () -> Void
-
-    @Environment(\.appLocale) private var appLocale
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            Button(AppStrings.translate(appLocale, "common.retry"), action: onRetry)
-                .buttonStyle(.bordered)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
 /// Flat single-tone avatar: avatar-tint fill, muted-ink initials (Paper & Olive).
 ///
 /// The one initials badge in the app. Its glyph is bounded to its frame

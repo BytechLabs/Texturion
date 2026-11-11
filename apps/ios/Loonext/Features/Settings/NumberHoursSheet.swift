@@ -45,15 +45,8 @@ struct NumberHoursSheet: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 20)
                     case .failed(let message):
-                        Text(message)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        LoadError(message: message, variant: .inline) { retryKey += 1 }
                             .padding(.top, 12)
-                        Button(AppStrings.translate(appLocale, "common.retry")) {
-                            retryKey += 1
-                        }
-                            .buttonStyle(.bordered)
-                            .padding(.top, 8)
                     case .ready(let identity):
                         inheritHeader(
                             title: AppStrings.translate(appLocale, "settingsMore.timezone"),

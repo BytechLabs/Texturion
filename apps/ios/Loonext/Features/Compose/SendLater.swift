@@ -158,12 +158,11 @@ struct SendLaterPicker: View {
                     // Two buttons, not a zone picker. The question a sender has is
                     // "did I mean 8am here or 8am there"; offering 400 IANA zones
                     // to answer it would be a worse version of the same confusion.
-                    Picker(t("thread.whichClock"), selection: $choice) {
-                        ForEach(TwoClocks.Choice.allCases) { option in
-                            Text(option.localisedLabel(appLocale)).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    SegmentedControl(
+                        options: clockOptions,
+                        selection: $choice,
+                        label: t("thread.whichClock")
+                    )
                 }
                 Text(clockNote)
                     .font(.footnote)
@@ -194,6 +193,12 @@ struct SendLaterPicker: View {
 
     /// The destination's zone, or the device's when there is nothing to resolve.
     private var theirZone: TimeZone { destinationZone(clock) }
+
+    private var clockOptions: [SegmentedOption<TwoClocks.Choice>] {
+        TwoClocks.Choice.allCases.map { option in
+            SegmentedOption(option, title: option.localisedLabel(appLocale))
+        }
+    }
 
     /// #539: only offered when it would change the answer.
     ///

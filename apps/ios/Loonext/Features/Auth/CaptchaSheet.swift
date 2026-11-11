@@ -24,19 +24,13 @@ struct CaptchaSheet: View {
         NavigationStack {
             ZStack {
                 if failed {
-                    VStack(spacing: 16) {
-                        Text(AppStrings.translate(appLocale, "shell.captchaLoadFailed"))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                        Button(AppStrings.translate(appLocale, "common.retry")) {
-                            // Leaving and re-entering the else branch below
-                            // rebuilds the web view from scratch.
-                            failed = false
-                            loading = true
-                        }
-                        .buttonStyle(.bordered)
+                    LoadError(
+                        message: AppStrings.translate(appLocale, "shell.captchaLoadFailed")
+                    ) {
+                        // Leaving and re-entering the else branch below
+                        // rebuilds the web view from scratch.
+                        failed = false
+                        loading = true
                     }
                 } else {
                     CaptchaWebView(

@@ -149,12 +149,7 @@ private struct BusinessIdentificationCard: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             case .failed(let message):
-                Text(message)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Button(t("common.retry")) { refreshKey += 1 }
-                    .buttonStyle(.bordered)
-                    .padding(.top, 8)
+                LoadError(message: message, variant: .inline) { refreshKey += 1 }
             case .ready(let pair):
                 if let brand = pair.brand {
                     if SettingsRoleGate.canEditWorkspace(scope.role) {

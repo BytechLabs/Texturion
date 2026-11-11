@@ -159,7 +159,7 @@ struct ForYouTab: View {
                 CenteredLoading()
                     .background(BrandColor.canvas)
             case .failed(let message):
-                CenteredError(message: message) { refreshKey += 1 }
+                LoadError(message: message) { refreshKey += 1 }
                     .background(BrandColor.canvas)
             case .ready(let forYou):
                 ForYouList(
@@ -750,7 +750,12 @@ struct ForYouList: View {
                 if hasContent(entry.id) {
                     panelContent(entry.id)
                 } else {
-                    PanelEmptyStub()
+                    PaperCard {
+                        EmptyState(
+                            title: AppStrings.translate(appLocale, "inbox.forYouPanelEmpty"),
+                            size: .panel
+                        )
+                    }
                 }
             }
         } else {

@@ -39,17 +39,18 @@ struct LeaveWorkspaceCard: View {
                 .buttonStyle(.bordered)
                 .disabled(leaving)
         }
-        .alert(
+        .confirmDialog(
             AppStrings.translate(
                 appLocale, "settings.leaveConfirmTitle", ["workspace": company.name]
             ),
-            isPresented: $confirming
+            isPresented: $confirming,
+            message: t("settings.leaveConfirmBody"),
+            confirmLabel: leaving ? t("settings.leavePending") : t("settings.leaveAction"),
+            cancelLabel: t("settings.leaveStay"),
+            tone: .standard,
+            confirmDisabled: leaving
         ) {
-            Button(t("settings.leaveStay"), role: .cancel) {}
-            Button(leaving ? t("settings.leavePending") : t("settings.leaveAction")) { leave() }
-                .disabled(leaving)
-        } message: {
-            Text(t("settings.leaveConfirmBody"))
+            leave()
         }
     }
 

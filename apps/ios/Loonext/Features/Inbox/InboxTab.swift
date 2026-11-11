@@ -1250,7 +1250,7 @@ private struct InboxList: View {
                 if let controller {
                     listBody(controller)
                 } else {
-                    CenteredLoading()
+                    ListSkeleton(rows: 7, avatar: true, lines: 2)
                 }
             }
             if let visibleNotice {
@@ -1441,9 +1441,9 @@ private struct InboxList: View {
 
                 switch controller.state {
                 case .loading:
-                    CenteredLoading()
+                    ListSkeleton(rows: 7, avatar: true, lines: 2)
                 case .failed(let message):
-                    CenteredError(message: message) { controller.reload(showLoading: true) }
+                    LoadError(message: message) { controller.reload(showLoading: true) }
                 case .ready:
                     ConversationListPane(
                         controller: controller,
@@ -1525,68 +1525,28 @@ private struct InboxList: View {
 
     private func searchField(_ controller: InboxController) -> some View {
         @Bindable var controller = controller
-        return HStack(spacing: 9) {
-            Image(systemName: "magnifyingglass")
-                .font(.scaled(15, weight: .medium))
-                .foregroundStyle(BrandColor.muted700)
-            TextField(
-                AppStrings.translate(appLocale, "inbox.searchPlaceholder"),
-                text: $controller.query
-            )
-                .font(.golos(13.5))
-                .foregroundStyle(BrandColor.ink)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .onChange(of: controller.query) { _, next in
-                    if next.count > 200 {
-                        controller.query = String(next.prefix(200))
-                    }
-                }
-            if !controller.query.isEmpty {
-                Button {
-                    controller.query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(BrandColor.muted400)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(
-                    AppStrings.translate(appLocale, "inbox.clearSearchAria")
-                )
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .background(BrandColor.paper, in: Capsule())
+        return SearchField(
+            query: $controller.query,
+            placeholder: AppStrings.translate(appLocale, "inbox.searchPlaceholder"),
+            maxLength: 200,
+            clearLabel: AppStrings.translate(appLocale, "inbox.clearSearchAria")
+        )
     }
 
-    /// Spec 20's segmented pills: selected = ink pill with paper text, idle =
-    /// paper pill with muted text. Same `selectTab` mutation as the old
-    /// segmented Picker.
+    /// Spec 20's status tabs, drawn by the shared segmented control. Same
+    /// `selectTab` mutation as before.
     private func statusTabs(_ controller: InboxController) -> some View {
-        ForEach(InboxStatusTab.allCases) { item in
-            statusPill(item, selected: controller.tab == item) {
-                controller.selectTab(item)
-            }
+        let options: [SegmentedOption<InboxStatusTab>] = InboxStatusTab.allCases.map { item in
+            SegmentedOption(item, title: item.title(appLocale))
         }
-    }
-
-    private func statusPill(
-        _ item: InboxStatusTab,
-        selected: Bool,
-        onTap: @escaping @MainActor () -> Void
-    ) -> some View {
-        Button(action: onTap) {
-            Text(item.title(appLocale))
-                .font(.golos(12.5, weight: selected ? .semibold : .medium))
-                .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
+        return SegmentedControl(
+            options: options,
+            selected: controller.tab,
+            size: .compact,
+            fill: false
+        ) { next in
+            controller.selectTab(next)
         }
-        .buttonStyle(.plain)
-        // Expose selected state so VoiceOver announces the active status tab.
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -1606,13 +1566,8 @@ private struct ConversationListPane: View {
         if empty {
             // A List so pull-to-refresh works from the empty state too.
             List {
-                Text(emptyLabel)
-                    .font(.golos(13))
-                    .foregroundStyle(BrandColor.muted600)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 32)
-                    .padding(.top, 120)
+                EmptyState(title: emptyLabel)
+                    .padding(.top, 72)
                     .listRowSeparator(.hidden)
                     .listRowBackground(BrandColor.canvas)
             }
@@ -2127,9 +2082,9 @@ private struct SearchResultsPane: View {
     var body: some View {
         switch controller.searchState {
         case nil, .loading?:
-            CenteredLoading()
+            ListSkeleton(rows: 7, avatar: true, lines: 2)
         case .failed(let message)?:
-            CenteredError(message: message) { controller.runSearch() }
+            LoadError(message: message) { controller.runSearch() }
         case .ready(let result)?:
             resultsList(result)
         }
@@ -2141,16 +2096,14 @@ private struct SearchResultsPane: View {
             result.tasks.isEmpty && result.attachments.isEmpty && result.templates.isEmpty
             && result.voicemails.isEmpty
         if empty {
-            Text(
-                AppStrings.translate(
+            EmptyState(
+                title: AppStrings.translate(
                     appLocale,
                     "inbox.searchNoMatches",
                     ["query": controller.query.trimmingCharacters(in: .whitespaces)]
-                )
+                ),
+                fill: true
             )
-                .font(.golos(13))
-                .foregroundStyle(BrandColor.muted600)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List(selection: $selection) {
                 if !result.conversations.isEmpty {

@@ -319,13 +319,14 @@ private struct ApiKeyCard: View {
             }
         }
         // Ethical Friction: this breaks a live integration and cannot be undone.
-        .alert(words("apiKeys.revokeTitle"), isPresented: $confirming) {
-            Button(words("apiKeys.keepIt"), role: .cancel) {}
-            Button(words("apiKeys.revokeConfirm"), role: .destructive) {
-                Task { await revoke() }
-            }
-        } message: {
-            Text(confirmBody)
+        .confirmDialog(
+            words("apiKeys.revokeTitle"),
+            isPresented: $confirming,
+            message: confirmBody,
+            confirmLabel: words("apiKeys.revokeConfirm"),
+            cancelLabel: words("apiKeys.keepIt")
+        ) {
+            Task { await revoke() }
         }
     }
 

@@ -62,11 +62,14 @@ struct DeleteAccountCard: View {
         // The typed gate lives in the card, not in this alert: SwiftUI ignores
         // most modifiers on alert buttons, so a `.disabled` confirm there would
         // look gated and not be. The alert is the last plain "are you sure".
-        .alert(t("settings.deleteConfirmTitle"), isPresented: $confirming) {
-            Button(t("settings.deleteKeep"), role: .cancel) {}
-            Button(t("settings.deleteAction"), role: .destructive) { remove() }
-        } message: {
-            Text(t("settings.deleteConfirmBody"))
+        .confirmDialog(
+            t("settings.deleteConfirmTitle"),
+            isPresented: $confirming,
+            message: t("settings.deleteConfirmBody"),
+            confirmLabel: t("settings.deleteAction"),
+            cancelLabel: t("settings.deleteKeep")
+        ) {
+            remove()
         }
     }
 

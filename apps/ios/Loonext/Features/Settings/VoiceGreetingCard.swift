@@ -89,20 +89,18 @@ struct VoiceGreetingCard: View {
         }
         .task { await refresh() }
         .onDisappear { recorder.discard() }
-        .alert(
+        .confirmDialog(
             t("settingsMore.deleteGreetingTitle", ["name": confirmDelete?.name ?? ""]),
             isPresented: Binding(
                 get: { confirmDelete != nil },
                 set: { if !$0 { confirmDelete = nil } }
-            )
+            ),
+            message: t("settingsMore.deleteGreetingBody"),
+            confirmLabel: t("common.delete"),
+            cancelLabel: t("settingsMore.keepIt")
         ) {
-            Button(t("settingsMore.keepIt"), role: .cancel) { confirmDelete = nil }
-            Button(t("common.delete"), role: .destructive) {
-                if let target = confirmDelete { remove(target) }
-                confirmDelete = nil
-            }
-        } message: {
-            Text(t("settingsMore.deleteGreetingBody"))
+            if let target = confirmDelete { remove(target) }
+            confirmDelete = nil
         }
         .sheet(
             isPresented: Binding(

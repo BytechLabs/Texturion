@@ -156,17 +156,15 @@ struct MergedFromRow: View {
             }
         }
         .padding(.horizontal, 4)
-        .alert(
+        .confirmDialog(
             AppStrings.translate(appLocale, "contactsTasks.unmergeTitle", ["name": name]),
-            isPresented: $confirming
+            isPresented: $confirming,
+            message: AppStrings.translate(appLocale, "contactsTasks.unmergeBody", ["name": name]),
+            confirmLabel: AppStrings.translate(appLocale, "contactsTasks.unmergeConfirm"),
+            tone: .standard
         ) {
-            Button(AppStrings.translate(appLocale, "contactsTasks.unmergeConfirm")) {
-                Haptics.confirm()
-                onUnmerge()
-            }
-            Button(AppStrings.translate(appLocale, "common.cancel"), role: .cancel) {}
-        } message: {
-            Text(AppStrings.translate(appLocale, "contactsTasks.unmergeBody", ["name": name]))
+            Haptics.confirm()
+            onUnmerge()
         }
     }
 }

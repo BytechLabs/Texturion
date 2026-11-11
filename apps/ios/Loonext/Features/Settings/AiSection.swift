@@ -32,7 +32,7 @@ struct AiSectionView: View {
                 CenteredLoading()
                     .frame(maxWidth: .infinity, minHeight: 220)
             case .failed(let message):
-                CenteredError(message: message) { reloadKey += 1 }
+                LoadError(message: message) { reloadKey += 1 }
                     .frame(maxWidth: .infinity, minHeight: 220)
             case .ready(let settings):
                 content(settings)

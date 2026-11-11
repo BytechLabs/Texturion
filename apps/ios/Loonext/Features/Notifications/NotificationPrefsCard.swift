@@ -65,16 +65,10 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
                 .padding(.vertical, 24)
 
             case .failed(let message):
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(message)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Button(AppStrings.translate(appLocale, "common.retry")) {
-                        Haptics.tap()
-                        state = .loading
-                        retryKey += 1
-                    }
-                    .font(.subheadline)
+                LoadError(message: message, variant: .inline) {
+                    Haptics.tap()
+                    state = .loading
+                    retryKey += 1
                 }
                 .padding(.top, 8)
 
@@ -180,38 +174,28 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
         // nothing. Every other irreversible-ish action in settings already named
         // its consequence; going quiet while on call did not, and it is the one
         // where silence IS the failure.
-        .alert(
+        .confirmDialog(
             AppStrings.translate(appLocale, "inbox.notifOnCallTitle"),
-            isPresented: silencingBinding
+            isPresented: silencingBinding,
+            message: OnCallSilence.warning(
+                onCall: true,
+                turningOff: true,
+                channel: silencing?.id ?? "push",
+                locale: appLocale
+            ) ?? "",
+            confirmLabel: AppStrings.translate(appLocale, OnCallSilence.confirmKey),
+            cancelLabel: AppStrings.translate(appLocale, OnCallSilence.cancelKey)
         ) {
-            Button(
-                AppStrings.translate(appLocale, OnCallSilence.cancelKey),
-                role: .cancel
-            ) { silencing = nil }
-            Button(
-                AppStrings.translate(appLocale, OnCallSilence.confirmKey),
-                role: .destructive
-            ) {
-                // #556: reject(). Silencing your own on-call channel is the one
-                // press here somebody can regret, and Android gives the same
-                // weight to the same class of decision.
-                Haptics.reject()
-                let channel = silencing?.id
-                silencing = nil
-                guard case .ready(let prefs) = state, let channel else { return }
-                var next = prefs
-                if channel == "push" { next.push_enabled = false } else { next.email_enabled = false }
-                save(next, previous: prefs)
-            }
-        } message: {
-            Text(
-                OnCallSilence.warning(
-                    onCall: true,
-                    turningOff: true,
-                    channel: silencing?.id ?? "push",
-                    locale: appLocale
-                ) ?? ""
-            )
+            // #556: reject(). Silencing your own on-call channel is the one
+            // press here somebody can regret, and Android gives the same
+            // weight to the same class of decision.
+            Haptics.reject()
+            let channel = silencing?.id
+            silencing = nil
+            guard case .ready(let prefs) = state, let channel else { return }
+            var next = prefs
+            if channel == "push" { next.push_enabled = false } else { next.email_enabled = false }
+            save(next, previous: prefs)
         }
     }
 

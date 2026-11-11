@@ -469,25 +469,28 @@ private struct WebhookEndpointCard: View {
             }
         }
         // Ethical Friction: both of these break something that is working.
-        .alert(words("webhooks.deleteTitle"), isPresented: $confirmDelete) {
-            Button(words("webhooks.keepIt"), role: .cancel) {}
-            Button(words("webhooks.deleteConfirm"), role: .destructive) {
-                Task { await remove() }
-            }
-        } message: {
-            Text(
-                AppStrings.translate(
-                    appLocale,
-                    "webhooks.deleteBody",
-                    ["url": endpoint.url]
-                )
-            )
+        .confirmDialog(
+            words("webhooks.deleteTitle"),
+            isPresented: $confirmDelete,
+            message: AppStrings.translate(
+                appLocale,
+                "webhooks.deleteBody",
+                ["url": endpoint.url]
+            ),
+            confirmLabel: words("webhooks.deleteConfirm"),
+            cancelLabel: words("webhooks.keepIt")
+        ) {
+            Task { await remove() }
         }
-        .alert(words("webhooks.rotateTitle"), isPresented: $confirmRotate) {
-            Button(words("webhooks.cancelAction"), role: .cancel) {}
-            Button(words("webhooks.rotateConfirm")) { Task { await rotate() } }
-        } message: {
-            Text(words("webhooks.rotateBody"))
+        .confirmDialog(
+            words("webhooks.rotateTitle"),
+            isPresented: $confirmRotate,
+            message: words("webhooks.rotateBody"),
+            confirmLabel: words("webhooks.rotateConfirm"),
+            cancelLabel: words("webhooks.cancelAction"),
+            tone: .standard
+        ) {
+            Task { await rotate() }
         }
     }
 

@@ -79,19 +79,21 @@ struct AttachmentsGalleryView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.appLocale) private var appLocale
 
+    private var viewOptions: [SegmentedOption<GalleryViewMode>] {
+        GalleryViewMode.allCases.map { mode in
+            SegmentedOption(mode, title: mode.label(appLocale))
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 header
-                Picker(
-                    AppStrings.translate(appLocale, "thread.galleryView"),
-                    selection: $view
-                ) {
-                    ForEach(GalleryViewMode.allCases) { mode in
-                        Text(mode.label(appLocale)).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
+                SegmentedControl(
+                    options: viewOptions,
+                    selection: $view,
+                    label: AppStrings.translate(appLocale, "thread.galleryView")
+                )
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
 
@@ -114,32 +116,19 @@ struct AttachmentsGalleryView: View {
         // customer's photo out of the whole crew's view is worth confirming;
         // anything longer and the person hesitates, and hesitating is how
         // somebody opens the file instead of flagging it.
-        .confirmationDialog(
+        .confirmDialog(
             AppStrings.translate(appLocale, "thread.reportFileTitle"),
-            isPresented: Binding(
-                get: { reporting != nil },
-                set: { if !$0 { reporting = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button(
-                AppStrings.translate(appLocale, "thread.reportFile"),
-                role: .destructive
-            ) { confirmReport() }
-            Button(
-                AppStrings.translate(appLocale, "common.cancel"),
-                role: .cancel
-            ) { reporting = nil }
-        } message: {
-            if let reporting {
-                Text(
-                    AppStrings.translate(
-                        appLocale,
-                        "thread.reportFileBody",
-                        ["name": galleryFileName(reporting)]
-                    )
+            item: $reporting,
+            message: { file in
+                AppStrings.translate(
+                    appLocale,
+                    "thread.reportFileBody",
+                    ["name": galleryFileName(file)]
                 )
-            }
+            },
+            confirmLabel: AppStrings.translate(appLocale, "thread.reportFile")
+        ) { _ in
+            confirmReport()
         }
         .task(id: "\(conversationId)|\(refreshKey)") {
             if case .ready = state {} else { state = .loading }
@@ -188,7 +177,7 @@ struct AttachmentsGalleryView: View {
         case .loading:
             CenteredLoading()
         case .failed(let message):
-            CenteredError(message: message) { refreshKey += 1 }
+            LoadError(message: message) { refreshKey += 1 }
         case .ready(let items):
             let rows = galleryItemsFor(view, items)
             if rows.isEmpty {

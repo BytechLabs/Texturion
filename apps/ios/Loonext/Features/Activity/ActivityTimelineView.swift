@@ -156,38 +156,22 @@ struct ActivityTimelineView: View {
     }
 
     private var failedView: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(t("activity.loadFailed"))
-                .font(.golos(14))
-                .foregroundStyle(BrandColor.ink)
-            Text(t("activity.loadFailedDetail"))
-                .font(.golos(12))
-                .foregroundStyle(BrandColor.muted500)
-            Button(t("common.retry")) {
-                state = .loading
-                refreshKey += 1
-            }
-            .font(.golos(12, weight: .semibold))
-            .foregroundStyle(BrandColor.olive)
-            .frame(minHeight: 44)
-            .buttonStyle(.plain)
+        LoadError(
+            message: t("activity.loadFailed") + " " + t("activity.loadFailedDetail"),
+            variant: .inline
+        ) {
+            state = .loading
+            refreshKey += 1
         }
         .padding(.horizontal, 6)
     }
 
     private var emptyView: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(t(category == nil ? "activity.empty" : "activity.emptyFiltered"))
-                .font(.golos(14))
-                .foregroundStyle(BrandColor.ink)
-            if category == nil {
-                Text(t("activity.emptyDetail"))
-                    .font(.golos(12))
-                    .foregroundStyle(BrandColor.muted500)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 6)
+        EmptyState(
+            title: t(category == nil ? "activity.empty" : "activity.emptyFiltered"),
+            description: category == nil ? t("activity.emptyDetail") : nil,
+            size: .panel
+        )
     }
 
     // MARK: - The list

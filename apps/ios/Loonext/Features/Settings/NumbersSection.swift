@@ -30,10 +30,10 @@ struct NumbersSectionView: View {
         Group {
             switch state {
             case .loading:
-                CenteredLoading()
+                ListSkeleton(rows: 3, lines: 2, inset: 0)
                     .frame(height: 200)
             case .failed(let message):
-                CenteredError(message: message) { refreshKey += 1 }
+                LoadError(message: message) { refreshKey += 1 }
                     .frame(height: 200)
             case .ready(let data):
                 let refresh: @MainActor () -> Void = {
@@ -695,14 +695,7 @@ private struct NumberAccessSheet: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 20)
                     case .failed(let message):
-                        Text(message)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                        Button(AppStrings.translate(appLocale, "common.retry")) {
-                            retryKey += 1
-                        }
-                            .buttonStyle(.bordered)
-                            .padding(.top, 8)
+                        LoadError(message: message, variant: .inline) { retryKey += 1 }
                     case .ready(let members):
                         modeOptions
                         if mode == .users {

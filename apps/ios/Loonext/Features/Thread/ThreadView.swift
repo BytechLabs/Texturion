@@ -208,7 +208,7 @@ private struct ThreadBody: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                CenteredError(message: message) { controller.retryInitialLoad() }
+                LoadError(message: message) { controller.retryInitialLoad() }
             }
         case .ready:
             if controller.conversationDeleted {
@@ -673,50 +673,31 @@ private struct ThreadBody: View {
                     onBack: { galleryOpen = false }
                 )
             }
-            .alert(
+            .confirmDialog(
                 AppStrings.translate(appLocale, "thread.optOutTitle"),
-                isPresented: $confirmOptOut
+                isPresented: $confirmOptOut,
+                message: AppStrings.translate(appLocale, "thread.optOutBody"),
+                confirmLabel: AppStrings.translate(appLocale, "thread.optOut"),
+                tone: .standard
             ) {
-                Button(
-                    AppStrings.translate(appLocale, "common.cancel"),
-                    role: .cancel
-                ) {}
-                Button(AppStrings.translate(appLocale, "thread.optOut")) {
-                    controller.optOutContact()
-                }
-            } message: {
-                Text(AppStrings.translate(appLocale, "thread.optOutBody"))
+                controller.optOutContact()
             }
-            .alert(
+            .confirmDialog(
                 AppStrings.translate(appLocale, "thread.blockTitle"),
-                isPresented: $confirmBlock
+                isPresented: $confirmBlock,
+                message: AppStrings.translate(appLocale, "thread.blockBody"),
+                confirmLabel: AppStrings.translate(appLocale, "thread.blockConfirm")
             ) {
-                Button(
-                    AppStrings.translate(appLocale, "common.cancel"),
-                    role: .cancel
-                ) {}
-                Button(
-                    AppStrings.translate(appLocale, "thread.blockConfirm"),
-                    role: .destructive
-                ) {
-                    controller.blockNumber()
-                }
-            } message: {
-                Text(AppStrings.translate(appLocale, "thread.blockBody"))
+                controller.blockNumber()
             }
-            .alert(
+            .confirmDialog(
                 AppStrings.translate(appLocale, "thread.revokeTitle"),
-                isPresented: $confirmRevoke
+                isPresented: $confirmRevoke,
+                message: AppStrings.translate(appLocale, "thread.revokeBody"),
+                confirmLabel: AppStrings.translate(appLocale, "thread.removeOptOut"),
+                tone: .standard
             ) {
-                Button(
-                    AppStrings.translate(appLocale, "common.cancel"),
-                    role: .cancel
-                ) {}
-                Button(AppStrings.translate(appLocale, "thread.removeOptOut")) {
-                    controller.revokeOptOut()
-                }
-            } message: {
-                Text(AppStrings.translate(appLocale, "thread.revokeBody"))
+                controller.revokeOptOut()
             }
             // #234: deleting a queued message throws away words the person
             // wrote and that nothing else holds — the draft is long gone by
@@ -724,34 +705,21 @@ private struct ThreadBody: View {
             // worth the friction.
             // *Applying: Ethical Friction — a deliberate pause before the
             // irreversible.*
-            .alert(
+            .confirmDialog(
                 AppStrings.translate(appLocale, "thread.deleteQueuedTitle"),
-                isPresented: Binding(
-                    get: { confirmDiscardQueued != nil },
-                    set: { if !$0 { confirmDiscardQueued = nil } }
-                ),
-                presenting: confirmDiscardQueued
-            ) { pending in
-                Button(
-                    AppStrings.translate(appLocale, "thread.keepIt"),
-                    role: .cancel
-                ) { confirmDiscardQueued = nil }
-                Button(
-                    AppStrings.translate(appLocale, "common.delete"),
-                    role: .destructive
-                ) {
-                    controller.discardQueued(pending.localId)
-                    confirmDiscardQueued = nil
-                }
-            } message: { pending in
+                item: $confirmDiscardQueued,
                 // Quoting it back is the point: a queued row shows a couple of
                 // lines, and the person is about to lose whichever ones they
                 // cannot see. The quotation marks are punctuation around the
                 // customer's own words, so they stay out of the catalogue.
-                Text(
+                message: { pending in
                     AppStrings.translate(appLocale, "thread.deleteQueuedBody")
                         + "\n\n“\(pending.body)”"
-                )
+                },
+                confirmLabel: AppStrings.translate(appLocale, "common.delete"),
+                cancelLabel: AppStrings.translate(appLocale, "thread.keepIt")
+            ) { pending in
+                controller.discardQueued(pending.localId)
             }
             .modifier(
                 ThreadDeleteAlertsModifier(
@@ -1532,56 +1500,33 @@ private struct ThreadDeleteAlertsModifier: ViewModifier {
 
     @Environment(\.appLocale) private var appLocale
 
-    private var sentTextShown: Binding<Bool> {
-        Binding(
-            get: { sentText != nil },
-            set: { if !$0 { sentText = nil } }
-        )
-    }
-
     func body(content: Content) -> some View {
         content
             // No undo on the carrier's copy, so the pause says so.
             // *Applying: Ethical Friction.*
-            .alert(
+            .confirmDialog(
                 AppStrings.translate(appLocale, "thread.deleteSentTitle"),
-                isPresented: sentTextShown,
-                presenting: sentText
+                item: $sentText,
+                message: { _ in
+                    AppStrings.translate(appLocale, "thread.deleteSentBody")
+                },
+                confirmLabel: AppStrings.translate(appLocale, "common.delete"),
+                cancelLabel: AppStrings.translate(appLocale, "thread.keepIt")
             ) { pending in
-                Button(
-                    AppStrings.translate(appLocale, "thread.keepIt"),
-                    role: .cancel
-                ) { sentText = nil }
-                Button(
-                    AppStrings.translate(appLocale, "common.delete"),
-                    role: .destructive
-                ) {
-                    controller.deleteMessage(pending)
-                    sentText = nil
-                }
-            } message: { _ in
-                Text(AppStrings.translate(appLocale, "thread.deleteSentBody"))
+                controller.deleteMessage(pending)
             }
-            .alert(
+            .confirmDialog(
                 AppStrings.translate(
                     appLocale,
                     "thread.deleteConversationTitle",
                     ["name": contactName]
                 ),
-                isPresented: $conversation
+                isPresented: $conversation,
+                message: AppStrings.translate(appLocale, "thread.deleteConversationBody"),
+                confirmLabel: AppStrings.translate(appLocale, "common.delete"),
+                cancelLabel: AppStrings.translate(appLocale, "thread.keepIt")
             ) {
-                Button(
-                    AppStrings.translate(appLocale, "thread.keepIt"),
-                    role: .cancel
-                ) {}
-                Button(
-                    AppStrings.translate(appLocale, "common.delete"),
-                    role: .destructive
-                ) {
-                    controller.deleteConversation()
-                }
-            } message: {
-                Text(AppStrings.translate(appLocale, "thread.deleteConversationBody"))
+                controller.deleteConversation()
             }
     }
 }
@@ -1882,27 +1827,22 @@ private struct ConversationSheet: View {
                 .kerning(0.6)
                 .foregroundStyle(BrandColor.muted500)
                 .padding(.leading, 6)
-            HStack(spacing: 7) {
-                ForEach(statuses, id: \.self) { status in
-                    let selected = detail.status == status
-                    Button {
-                        if !selected { controller.setStatus(status) }
-                        onDismiss()
-                    } label: {
-                        Text(statusLabel(status, locale: appLocale))
-                            .font(.golos(11.5, weight: .semibold))
-                            .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
-                            .padding(.horizontal, 13)
-                            .padding(.vertical, 8)
-                            .background(
-                                selected ? BrandColor.ink : BrandColor.paper,
-                                in: Capsule()
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer(minLength: 0)
-            }
+            statusControl
+        }
+    }
+
+    private var statusControl: some View {
+        let options = statuses.map { status in
+            SegmentedOption(status, title: statusLabel(status, locale: appLocale))
+        }
+        return SegmentedControl(
+            options: options,
+            selected: detail.status,
+            size: .compact,
+            fill: false
+        ) { next in
+            if detail.status != next { controller.setStatus(next) }
+            onDismiss()
         }
     }
 

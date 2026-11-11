@@ -95,10 +95,10 @@ struct TemplatesSectionView: View {
         Group {
             switch state {
             case .loading:
-                CenteredLoading()
+                ListSkeleton(rows: 4, lines: 2, inset: 0)
                     .frame(maxWidth: .infinity, minHeight: 220)
             case .failed(let message):
-                CenteredError(message: message) { refreshKey += 1 }
+                LoadError(message: message) { refreshKey += 1 }
                     .frame(maxWidth: .infinity, minHeight: 220)
             case .ready(let templates):
                 content(templates)

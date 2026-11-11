@@ -231,14 +231,7 @@ struct CalendarFeedCard: View {
     /// silently REPLACE a live feed on somebody whose network dropped for a
     /// second, and they would never learn why their calendar went quiet.
     private func loadFailed(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(message)
-                .font(.golos(12))
-                .foregroundStyle(BrandColor.muted600)
-                .fixedSize(horizontal: false, vertical: true)
-            Button(t("common.retry")) { Task { await load() } }
-                .buttonStyle(.bordered)
-        }
+        LoadError(message: message, variant: .inline) { Task { await load() } }
     }
 
     // MARK: - Calls

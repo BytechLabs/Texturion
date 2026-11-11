@@ -38,7 +38,7 @@ struct TagsCard: View {
             case .loading:
                 CenteredLoading().frame(maxWidth: .infinity, minHeight: 120)
             case .failed(let message):
-                CenteredError(message: message) { refreshKey += 1 }
+                LoadError(message: message) { refreshKey += 1 }
                     .frame(maxWidth: .infinity, minHeight: 120)
             case .ready(let rows):
                 content(rows)

@@ -1,43 +1,5 @@
 import SwiftUI
 
-/// #719: the search field at the top of the settings home.
-struct SettingsSearchField: View {
-    @Binding var query: String
-
-    @Environment(\.appLocale) private var appLocale
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.scaled(14))
-                .foregroundStyle(BrandColor.muted600)
-                .accessibilityHidden(true)
-            TextField(
-                AppStrings.translate(appLocale, "settingsMore.searchPlaceholder"),
-                text: $query
-            )
-            .font(.golos(14))
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .submitLabel(.search)
-            if !query.isEmpty {
-                Button {
-                    query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.scaled(15))
-                        .foregroundStyle(BrandColor.muted600)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(AppStrings.translate(appLocale, "settingsMore.searchClear"))
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(BrandColor.paper, in: Capsule())
-    }
-}
-
 /// What the search found: each setting with where it lives, "Group › Section".
 /// A tap opens the section scrolled to the setting.
 struct SettingsSearchResults: View {
@@ -50,17 +12,14 @@ struct SettingsSearchResults: View {
     var body: some View {
         let results = searchPhoneSettings(query, locale: appLocale, visible: visible)
         if results.isEmpty {
-            Text(
-                AppStrings.translate(
+            EmptyState(
+                title: AppStrings.translate(
                     appLocale,
                     "settingsMore.searchEmpty",
                     ["query": query.trimmingCharacters(in: .whitespaces)]
-                )
+                ),
+                size: .panel
             )
-            .font(.golos(13))
-            .foregroundStyle(BrandColor.muted600)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 8)
         } else {
             PaperCard {
                 ForEach(Array(results.enumerated()), id: \.element.id) { index, result in

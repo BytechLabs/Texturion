@@ -183,10 +183,7 @@ struct PinnedStack: View {
                 .lineLimit(1)
             Spacer(minLength: 8)
             if older > 0 {
-                Text("+\(older)")
-                    .font(.golos(11.5, weight: .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(BrandColor.muted700)
+                CountPill("+\(older)")
                 Image(systemName: expanded ? "chevron.up" : "chevron.down")
                     .font(.scaled(12, weight: .semibold))
                     .foregroundStyle(BrandColor.muted700)

@@ -32,10 +32,10 @@ struct DevicesSectionView: View {
         Group {
             switch state {
             case .loading:
-                CenteredLoading()
+                ListSkeleton(rows: 3, lines: 2, inset: 0)
                     .frame(height: 200)
             case .failed(let message):
-                CenteredError(message: message) { refreshKey += 1 }
+                LoadError(message: message) { refreshKey += 1 }
                     .frame(height: 200)
             case .ready(let data):
                 // #289/#330: the two settings about THIS phone, above the device

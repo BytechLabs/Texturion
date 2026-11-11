@@ -25,21 +25,10 @@ struct MemberPickerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.scaled(14, weight: .medium))
-                    .foregroundStyle(BrandColor.muted400)
-                TextField(
-                    AppStrings.translate(appLocale, "contactsTasks.searchTeammates"),
-                    text: $query
-                )
-                    .font(.golos(13))
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-            }
-            .padding(.horizontal, 15)
-            .padding(.vertical, 10)
-            .background(BrandColor.paper, in: Capsule())
+            SearchField(
+                query: $query,
+                placeholder: AppStrings.translate(appLocale, "contactsTasks.searchTeammates")
+            )
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
 

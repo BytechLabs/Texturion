@@ -329,20 +329,12 @@ struct TasksTab: View {
         HStack(alignment: .center, spacing: 8) {
             ScreenTitle(text: AppStrings.translate(appLocale, "contactsTasks.tasksTitle"))
             Spacer(minLength: 8)
-            HStack(spacing: 6) {
-                viewToggle(kind: .list, icon: "list.bullet", labelKey: "contactsTasks.viewList")
-                viewToggle(
-                    kind: .board,
-                    icon: "square.grid.2x2",
-                    labelKey: "contactsTasks.viewBoard"
-                )
-                viewToggle(
-                    kind: .calendar,
-                    icon: "calendar",
-                    labelKey: "contactsTasks.viewCalendar"
-                )
-                viewToggle(kind: .map, icon: "map", labelKey: "contactsTasks.viewMap")
-            }
+            SegmentedControl(
+                options: viewOptions,
+                selection: $view,
+                size: .compact,
+                fill: false
+            )
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
@@ -371,80 +363,57 @@ struct TasksTab: View {
         }
     }
 
-    private func viewToggle(
-        kind: TaskViewKind,
+    private var viewOptions: [SegmentedOption<TaskViewKind>] {
+        [
+            viewOption(.list, icon: "list.bullet", labelKey: "contactsTasks.viewList"),
+            viewOption(.board, icon: "square.grid.2x2", labelKey: "contactsTasks.viewBoard"),
+            viewOption(.calendar, icon: "calendar", labelKey: "contactsTasks.viewCalendar"),
+            viewOption(.map, icon: "map", labelKey: "contactsTasks.viewMap"),
+        ]
+    }
+
+    private func viewOption(
+        _ kind: TaskViewKind,
         icon: String,
         labelKey: String
-    ) -> some View {
-        let selected = view == kind
-        return Button {
-            if view != kind { view = kind }
-        } label: {
-            Image(systemName: icon)
-                .font(.scaled(15, weight: .medium))
-                .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
-                .frame(width: 38, height: 38)
-                .background(selected ? BrandColor.ink : BrandColor.paper, in: Circle())
-                .shadow(color: Color.black.opacity(0.06), radius: 2, y: 1)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(AppStrings.translate(appLocale, labelKey))
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    ) -> SegmentedOption<TaskViewKind> {
+        SegmentedOption(
+            kind,
+            systemImage: icon,
+            accessibilityLabel: AppStrings.translate(appLocale, labelKey)
+        )
     }
 
     /// The status tabs: ink-filled selected pill, paper idle pills (spec 24/31). Board
     /// mode keeps the existing Mine/All reduction. They sit in the shared filter row.
+    @ViewBuilder
     private var tabPills: some View {
-        ForEach(visibleTabs) { item in
-            let selected = tab == item
-            Button {
-                tab = item
+        if !visibleTabs.isEmpty {
+            SegmentedControl(
+                options: tabOptions,
+                selected: tab,
+                size: .compact,
+                fill: false
+            ) { next in
+                tab = next
                 statusOnlyFilter = nil
-            } label: {
-                Text(AppStrings.translate(appLocale, item.labelKey))
-                    .font(.golos(12, weight: selected ? .semibold : .medium))
-                    .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 10)
-                    .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
             }
-            .buttonStyle(.plain)
+        }
+    }
+
+    private var tabOptions: [SegmentedOption<TasksTabKind>] {
+        visibleTabs.map { item in
+            SegmentedOption(item, title: AppStrings.translate(appLocale, item.labelKey))
         }
     }
 
     private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.scaled(14, weight: .medium))
-                .foregroundStyle(BrandColor.muted400)
-            TextField(
-                AppStrings.translate(appLocale, "contactsTasks.searchTaskTitles"),
-                text: $search
-            )
-                .font(.golos(13))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .onChange(of: search) { _, next in
-                    if next.count > taskSearchMax {
-                        search = String(next.prefix(taskSearchMax))
-                    }
-                }
-            if !search.isEmpty {
-                Button {
-                    search = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(BrandColor.muted300)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(
-                    AppStrings.translate(appLocale, "contactsTasks.clearSearch")
-                )
-            }
-        }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 10)
-        .background(BrandColor.paper, in: Capsule())
+        SearchField(
+            query: $search,
+            placeholder: AppStrings.translate(appLocale, "contactsTasks.searchTaskTitles"),
+            maxLength: taskSearchMax,
+            clearLabel: AppStrings.translate(appLocale, "contactsTasks.clearSearch")
+        )
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
     }
@@ -718,24 +687,20 @@ struct TasksTab: View {
     private var listContent: some View {
         switch state {
         case .loading:
-            CenteredLoading()
+            ListSkeleton(rows: 6, lines: 2)
         case .failed(let message):
-            CenteredError(message: message) { refreshKey += 1 }
+            LoadError(message: message) { refreshKey += 1 }
         case .ready:
             if rows.isEmpty {
-                Text(
-                    AppStrings.translate(
+                EmptyState(
+                    title: AppStrings.translate(
                         appLocale,
                         filtersActive || tab != .open
                             ? "contactsTasks.listEmptyFiltered"
                             : "contactsTasks.listEmpty"
-                    )
+                    ),
+                    fill: true
                 )
-                .font(.golos(13))
-                .foregroundStyle(BrandColor.muted500)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 if !bulkSelection.isEmpty {
                     taskBulkBar

@@ -69,7 +69,7 @@ struct RootView: View {
                 )
 
             case .failed(let message):
-                CenteredError(message: message, onRetry: model.retry)
+                LoadError(message: message, onRetry: model.retry)
 
             case .ready(let me, let companyId):
                 ShellView(graph: graph, me: me, companyId: companyId, root: model)

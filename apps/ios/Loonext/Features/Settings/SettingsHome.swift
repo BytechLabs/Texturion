@@ -250,7 +250,7 @@ struct SettingsHome: View {
                 case .loading:
                     CenteredLoading()
                 case .failed(let message):
-                    CenteredError(message: message) { refreshKey += 1 }
+                    LoadError(message: message) { refreshKey += 1 }
                 case .ready(let company):
                     indexList(company)
                         .navigationDestination(for: SettingsSection.self) { section in
@@ -331,7 +331,11 @@ struct SettingsHome: View {
                 // #719: finds a setting by what it does ("time zone"), not by
                 // guessing which section holds it. Results replace the list
                 // while there is a query.
-                SettingsSearchField(query: $query)
+                SearchField(
+                    query: $query,
+                    placeholder: AppStrings.translate(appLocale, "settingsMore.searchPlaceholder"),
+                    clearLabel: AppStrings.translate(appLocale, "settingsMore.searchClear")
+                )
                 if !query.trimmingCharacters(in: .whitespaces).isEmpty {
                     SettingsSearchResults(
                         query: query,
@@ -425,21 +429,18 @@ struct SettingsHome: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .alert(HandOverPhone.localizedTitle(locale: appLocale), isPresented: $askingToHandOver) {
-            Button(HandOverPhone.localizedCancel(locale: appLocale), role: .cancel) {}
-            Button(
-                HandOverPhone.localizedConfirm(locale: appLocale),
-                // Destructive only when something would actually be lost. Colouring a
-                // clean handover as a danger teaches people to ignore the colour on
-                // the day it means something.
-                role: HandOverPhone.costs(unsent: unsentAtHandover)
-                    ? ButtonRole.destructive
-                    : nil
-            ) {
-                onSignOut()
-            }
-        } message: {
-            Text(HandOverPhone.body(unsent: unsentAtHandover, locale: appLocale))
+        .confirmDialog(
+            HandOverPhone.localizedTitle(locale: appLocale),
+            isPresented: $askingToHandOver,
+            message: HandOverPhone.body(unsent: unsentAtHandover, locale: appLocale),
+            confirmLabel: HandOverPhone.localizedConfirm(locale: appLocale),
+            cancelLabel: HandOverPhone.localizedCancel(locale: appLocale),
+            // Destructive only when something would actually be lost. Colouring a
+            // clean handover as a danger teaches people to ignore the colour on
+            // the day it means something.
+            tone: HandOverPhone.costs(unsent: unsentAtHandover) ? .destructive : .standard
+        ) {
+            onSignOut()
         }
     }
 

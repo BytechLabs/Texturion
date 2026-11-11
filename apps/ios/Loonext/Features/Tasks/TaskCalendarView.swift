@@ -185,7 +185,7 @@ struct TaskCalendarView: View {
             case .loading:
                 CenteredLoading()
             case .failed(let message):
-                CenteredError(message: message) { localRefresh += 1 }
+                LoadError(message: message) { localRefresh += 1 }
             case .ready:
                 readyContent
             }

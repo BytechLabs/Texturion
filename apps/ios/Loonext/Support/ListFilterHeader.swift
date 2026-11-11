@@ -94,14 +94,13 @@ struct ListFilterButton: View {
                 Image(systemName: "line.3.horizontal.decrease")
                     .font(.scaled(14, weight: .semibold))
                 if count > 0 {
-                    Text(String(count))
-                        .font(.golos(12, weight: .semibold))
+                    CountPill(count, tone: .primary)
                 }
             }
-            .foregroundStyle(count > 0 ? BrandColor.paper : BrandColor.muted700)
+            .foregroundStyle(BrandColor.muted700)
             .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .background(count > 0 ? BrandColor.ink : BrandColor.paper, in: Capsule())
+            .background(BrandColor.paper, in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -222,32 +221,20 @@ private struct ManageViewsSheet: View {
                     renaming = nil
                 }
             }
-            .confirmationDialog(
+            .confirmDialog(
                 AppStrings.translate(appLocale, "inbox.viewDeleteTitle"),
-                isPresented: Binding(
-                    get: { deleting != nil },
-                    set: { if !$0 { deleting = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button(
-                    AppStrings.translate(appLocale, "inbox.viewDeleteConfirm"),
-                    role: .destructive
-                ) {
-                    if let entry = deleting { model.onDelete(entry.id) }
-                    deleting = nil
-                }
-                Button(AppStrings.translate(appLocale, "inbox.viewDeleteKeep"), role: .cancel) {
-                    deleting = nil
-                }
-            } message: {
-                Text(
+                item: $deleting,
+                message: { entry in
                     AppStrings.translate(
                         appLocale,
                         "inbox.viewDeleteBody",
-                        ["name": deleting?.name ?? ""]
+                        ["name": entry.name]
                     )
-                )
+                },
+                confirmLabel: AppStrings.translate(appLocale, "inbox.viewDeleteConfirm"),
+                cancelLabel: AppStrings.translate(appLocale, "inbox.viewDeleteKeep")
+            ) { entry in
+                model.onDelete(entry.id)
             }
         }
         .presentationDetents([.medium, .large])

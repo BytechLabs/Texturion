@@ -343,21 +343,10 @@ struct ReferencePickerSheet: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.scaled(14, weight: .medium))
-                .foregroundStyle(BrandColor.muted400)
-            TextField(
-                AppStrings.translate(appLocale, "taskRefs.pickerSearch"),
-                text: $query
-            )
-            .font(.golos(14))
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-        }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 10)
-        .background(BrandColor.paper, in: Capsule())
+        SearchField(
+            query: $query,
+            placeholder: AppStrings.translate(appLocale, "taskRefs.pickerSearch")
+        )
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
     }
@@ -365,15 +354,13 @@ struct ReferencePickerSheet: View {
     @ViewBuilder
     private var results: some View {
         if loading && picks.isEmpty {
-            CenteredLoading()
+            ListSkeleton(rows: 5, lines: 2)
         } else if shown.isEmpty {
-            Text(AppStrings.translate(appLocale, "taskRefs.pickerEmpty"))
-                .font(.golos(13))
-                .foregroundStyle(BrandColor.muted500)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-                .padding(.top, 24)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            EmptyState(
+                title: AppStrings.translate(appLocale, "taskRefs.pickerEmpty"),
+                size: .panel,
+                fill: true
+            )
         } else {
             ScrollView {
                 VStack(spacing: 0) {

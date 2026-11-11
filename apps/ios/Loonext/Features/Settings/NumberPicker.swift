@@ -108,14 +108,7 @@ struct NumberPickerSheet: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 28)
                         case .failed(let message):
-                            Text(message)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                            Button(AppStrings.translate(appLocale, "common.retry")) {
-                                fetchKey += 1
-                            }
-                                .buttonStyle(.bordered)
-                                .padding(.top, 8)
+                            LoadError(message: message, variant: .inline) { fetchKey += 1 }
                         case .ready(let result):
                             pickerResults(result)
                         }

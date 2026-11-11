@@ -657,17 +657,8 @@ private struct TransferSheet: View {
                 }
                 .padding(.vertical, 24)
             case .failed(let message):
-                VStack(spacing: 12) {
-                    Text(message)
-                        .font(.golos(12.5))
-                        .foregroundStyle(BrandColor.muted500)
-                        .multilineTextAlignment(.center)
-                    Button(t("common.retry")) { reloadKey += 1 }
-                        .font(.golos(12, weight: .semibold))
-                        .foregroundStyle(BrandColor.olive)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+                LoadError(message: message, variant: .inline) { reloadKey += 1 }
+                    .padding(.vertical, 12)
             case .ready(let rows):
                 if rows.isEmpty {
                     Text(t("contactsTasks.noTeammatesAvailable"))
