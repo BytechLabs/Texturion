@@ -35,7 +35,7 @@ struct TaskMenuHost {
 }
 
 private struct TaskMenuHostKey: EnvironmentKey {
-    static let defaultValue: TaskMenuHost? = nil
+    static var defaultValue: TaskMenuHost? { nil }
 }
 
 extension EnvironmentValues {
@@ -79,7 +79,7 @@ final class TaskMenuController {
     /// The task awaiting a delete confirmation.
     var confirmingDelete: TaskItem?
 
-    private let api: TasksApi
+    private let api: TaskMutations
     private let companyId: String
     private let canDelete: Bool
     private let onOpen: @MainActor (String) -> Void
@@ -88,7 +88,7 @@ final class TaskMenuController {
     private let onError: @MainActor (String) -> Void
 
     init(
-        api: TasksApi,
+        api: TaskMutations,
         companyId: String,
         canDelete: Bool,
         onOpen: @escaping @MainActor (String) -> Void,

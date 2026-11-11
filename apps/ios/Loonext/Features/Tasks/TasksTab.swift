@@ -920,7 +920,7 @@ struct TasksTab: View {
     private func installMenuController() {
         guard menuController == nil else { return }
         menuController = TaskMenuController(
-            api: graph.tasksApi,
+            api: TaskMutations(api: graph.api),
             companyId: companyId,
             canDelete: canDeleteTasks,
             onOpen: { AppRouter.shared.openTaskId = $0 },
