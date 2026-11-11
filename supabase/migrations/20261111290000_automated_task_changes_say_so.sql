@@ -42,6 +42,9 @@ create trigger task_events_stamp_origin
   before insert on public.task_events
   for each row execute function public.task_events_stamp_origin();
 
+revoke execute on function public.task_events_stamp_origin()
+  from public, anon, authenticated;
+
 do $mig$
 declare
   v_def text;
