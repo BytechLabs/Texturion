@@ -178,7 +178,7 @@ extension View {
             ConfirmItemDialogModifier(
                 title: title,
                 item: item,
-                message: message,
+                messageFor: message,
                 confirmLabel: confirmLabel,
                 cancelLabel: cancelLabel,
                 tone: tone,
@@ -221,7 +221,8 @@ private struct ConfirmDialogModifier: ViewModifier {
 private struct ConfirmItemDialogModifier<Item>: ViewModifier {
     let title: String
     let item: Binding<Item?>
-    let message: (Item) -> String
+    /// The caller's sentence for this item, already in the reader's language.
+    let messageFor: (Item) -> String
     let confirmLabel: String
     let cancelLabel: String?
     let tone: ConfirmTone
@@ -248,7 +249,7 @@ private struct ConfirmItemDialogModifier<Item>: ViewModifier {
             ) {}
             Button(confirmLabel, role: role) { onConfirm(data) }
         } message: { data in
-            Text(message(data))
+            Text(messageFor(data))
         }
     }
 }
