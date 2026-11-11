@@ -21,7 +21,7 @@ the public job-photo page keep their own type scale and are out of scope).
 | Load error | `LoadError` in `apps/web/src/components/ui/load-error.tsx`, `card` or `fill`, outline Retry | | | `empty-state.test.ts` catches the centred shape | done on web for the inbox list, search, For you, the task and thread panes and the gallery; the settings copy is gone and its 31 users import the shared one. Inline sentence-and-link retries inside cards (response time, satisfaction, attachments, the bell) are still open |
 | List loading skeleton | none | | | none yet | **open**: a dozen inline skeletons of different row shapes |
 | Confirm dialog (destructive) | none; about 35 hand-built `Dialog`s | | | none yet | **open** |
-| Search field | none; inbox and tasks share a hand-copied shape | | | none yet | **open**: contacts and settings differ in padding and lack the clear button |
+| Search field | `SearchField` in `apps/web/src/components/ui/search-field.tsx` | | | `search-field.test.ts` | done on web: inbox, tasks, contacts and settings share one box with a clear button |
 | Segmented control | none; inbox and calls share a copied shape | | | none yet | **open**: tasks, calendar and the measure cards use three other shapes and three ARIA patterns |
 | Count pill | `Badge` for status; no count pill | | | none yet | **open**: six class strings |
 | Record menu | `RecordMenu` / `RecordOverflowMenu` (#712) | `RecordMenu.kt` | `RecordMenu.swift` | `record-actions.test.tsx`, `RecordActionsTest(s)` | done |

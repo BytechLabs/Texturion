@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -12,7 +12,6 @@ import { LoadError } from "@/components/ui/load-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -35,6 +34,7 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { flattenPages } from "@/lib/api/pagination";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
+import { SearchField } from "@/components/ui/search-field";
 
 /**
  * #712: right-click, long-press or the menu key on a contact row opens the
@@ -140,21 +140,13 @@ export function ContactsTable({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <div className="relative min-w-0 max-w-sm flex-1">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            strokeWidth={1.75}
-            aria-hidden
-          />
-          <Input
-            type="search"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder={t("contacts.searchPlaceholder")}
-            aria-label={t("contacts.searchLabel")}
-            className="pl-9"
-          />
-        </div>
+        <SearchField
+          containerClassName="min-w-0 max-w-sm flex-1"
+          value={input}
+          onValueChange={setInput}
+          placeholder={t("contacts.searchPlaceholder")}
+          aria-label={t("contacts.searchLabel")}
+        />
         {/* #291 / #711: beside the search box, because both answer "show me
             less", behind the same Filter button every list uses. */}
         <ContactListFilter

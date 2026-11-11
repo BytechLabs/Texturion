@@ -18,6 +18,8 @@ export const commonEn = {
   close: "Close",
   back: "Back",
   retry: "Try again",
+  /** #733: the search box's clear button. */
+  clearSearch: "Clear search",
   loadFailed: "Couldn't load this. Check your connection and try again.",
   somethingWentWrong: "Something went wrong. Try again.",
 } as const;
@@ -32,6 +34,7 @@ export const commonFr: Translated<typeof commonEn> = {
   close: "Fermer",
   back: "Retour",
   retry: "Réessayer",
+  clearSearch: "Effacer la recherche",
   loadFailed: "Impossible de charger. Vérifiez votre connexion et réessayez.",
   somethingWentWrong: "Une erreur s'est produite. Réessayez.",
 };

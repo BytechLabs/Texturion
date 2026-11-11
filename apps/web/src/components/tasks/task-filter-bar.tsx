@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Search, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -27,6 +27,7 @@ import { useMembers } from "@/lib/api/team";
 import type { TaskPriority } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
+import { SearchField } from "@/components/ui/search-field";
 
 import { PRIORITY_PICKER, priorityLabelKey } from "./task-planning";
 import {
@@ -105,7 +106,7 @@ export function TaskFilterBar({
   };
   return (
     <div className="space-y-2.5">
-      <SearchField state={state} onChange={onChange} />
+      <TaskSearch state={state} onChange={onChange} />
       <div className="flex flex-wrap items-center gap-1.5">
         <div
           role="tablist"
@@ -191,7 +192,7 @@ function clearTaskFilters(state: TaskPageState): TaskPageState {
 }
 
 /** Debounced title search (250ms → `q`). */
-function SearchField({
+function TaskSearch({
   state,
   onChange,
 }: {
@@ -232,31 +233,14 @@ function SearchField({
   );
 
   return (
-    <div className="relative max-w-md">
-      <Search
-        aria-hidden
-        className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-        strokeWidth={1.75}
-      />
-      <Input
-        type="search"
-        value={text}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t("tasks.searchPlaceholder")}
-        aria-label={t("tasks.searchAria")}
-        className="h-9 pl-8"
-      />
-      {text !== "" && (
-        <button
-          type="button"
-          onClick={() => setSearch("")}
-          aria-label={t("tasks.clearSearch")}
-          className="tap-target absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
-        >
-          <X className="size-3.5" strokeWidth={1.75} />
-        </button>
-      )}
-    </div>
+    <SearchField
+      containerClassName="max-w-md"
+      value={text}
+      onValueChange={setSearch}
+      placeholder={t("tasks.searchPlaceholder")}
+      aria-label={t("tasks.searchAria")}
+      clearLabel={t("tasks.clearSearch")}
+    />
   );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Search, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/command";
 import { SavedViewsMenu } from "@/components/saved-views/saved-views-menu";
 import { FilterButton } from "@/components/ui/filter-button";
-import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -27,6 +26,7 @@ import { useMembers } from "@/lib/api/team";
 import type { ConversationStatus } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
+import { SearchField } from "@/components/ui/search-field";
 
 import {
   activeChips,
@@ -97,7 +97,7 @@ export function FilterBar({
 
   return (
     <div className="space-y-2 border-b border-app-line px-3.5 pb-2.5 pt-3">
-      <SearchField filters={filters} onChange={onChange} />
+      <InboxSearch filters={filters} onChange={onChange} />
       {/* Elevated segment (mockup .segment): a pill track with the selected tab
           lifted to a white pill. Behavior unchanged — these are the real inbox
           segments (Open/Mine/All/Closed), just crafted. */}
@@ -201,7 +201,7 @@ function useOpenCount(): number {
 }
 
 /** Debounced search (§2.4): 250ms → URL `q`; ≥2 chars swaps the list for /v1/search. */
-function SearchField({
+function InboxSearch({
   filters,
   onChange,
 }: {
@@ -244,38 +244,15 @@ function SearchField({
   );
 
   return (
-    <div className="relative">
-      <Search
-        aria-hidden
-        className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-        strokeWidth={1.75}
-      />
-      <Input
-        ref={inputRef}
-        data-inbox-search
-        type="search"
-        value={searchText}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t("inbox.searchPlaceholder")}
-        aria-label={t("inbox.searchAria")}
-        className="h-9 pl-8 pr-8"
-      />
-      {searchText !== "" && (
-        <button
-          type="button"
-          onClick={() => {
-            setSearch("");
-            // The clear button unmounts once the field is empty — move focus
-            // back to the input so keyboard users don't get dropped to <body>.
-            inputRef.current?.focus();
-          }}
-          aria-label={t("inbox.clearSearchAria")}
-          className="tap-target absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <X className="size-3.5" strokeWidth={1.75} />
-        </button>
-      )}
-    </div>
+    <SearchField
+      ref={inputRef}
+      data-inbox-search
+      value={searchText}
+      onValueChange={setSearch}
+      placeholder={t("inbox.searchPlaceholder")}
+      aria-label={t("inbox.searchAria")}
+      clearLabel={t("inbox.clearSearchAria")}
+    />
   );
 }
 

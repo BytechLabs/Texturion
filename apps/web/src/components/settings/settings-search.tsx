@@ -1,6 +1,5 @@
 "use client";
 
-import { Search, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -13,9 +12,9 @@ import {
 } from "@loonext/shared";
 
 import { GROUP_LABELS, settingsSectionOf } from "@/components/settings/settings-nav";
-import { Input } from "@/components/ui/input";
 import { useT, type MessageKey } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
+import { SearchField } from "@/components/ui/search-field";
 
 /** #719: tells the settings shell to scroll to a setting and mark it. */
 export const SETTINGS_ANCHOR_EVENT = "loonext:settings-anchor";
@@ -171,53 +170,35 @@ export function SettingsSearchPanel({ children }: { children: React.ReactNode })
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-          strokeWidth={1.75}
-          aria-hidden
-        />
-        <Input
-          type="search"
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setActive(0);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && query) {
+      <SearchField
+        value={query}
+        onValueChange={(next) => {
+          setQuery(next);
+          setActive(0);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && query) {
+            event.preventDefault();
+            setQuery("");
+          } else if (event.key === "ArrowDown" && hits.length > 0) {
+            event.preventDefault();
+            setActive((i) => Math.min(i + 1, hits.length - 1));
+          } else if (event.key === "ArrowUp" && hits.length > 0) {
+            event.preventDefault();
+            setActive((i) => Math.max(i - 1, 0));
+          } else if (event.key === "Enter") {
+            const hit = hits[active];
+            if (hit) {
               event.preventDefault();
-              setQuery("");
-            } else if (event.key === "ArrowDown" && hits.length > 0) {
-              event.preventDefault();
-              setActive((i) => Math.min(i + 1, hits.length - 1));
-            } else if (event.key === "ArrowUp" && hits.length > 0) {
-              event.preventDefault();
-              setActive((i) => Math.max(i - 1, 0));
-            } else if (event.key === "Enter") {
-              const hit = hits[active];
-              if (hit) {
-                event.preventDefault();
-                open(hit);
-              }
+              open(hit);
             }
-          }}
-          placeholder={t("settingsMore.settingsSearchPlaceholder")}
-          aria-label={t("settingsMore.settingsSearchLabel")}
-          autoComplete="off"
-          className="pl-9 pr-9 [&::-webkit-search-cancel-button]:hidden"
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => setQuery("")}
-            aria-label={t("settingsMore.settingsSearchClear")}
-            className="absolute right-1 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <X className="size-4" strokeWidth={1.75} aria-hidden />
-          </button>
-        )}
-      </div>
+          }
+        }}
+        placeholder={t("settingsMore.settingsSearchPlaceholder")}
+        aria-label={t("settingsMore.settingsSearchLabel")}
+        clearLabel={t("settingsMore.settingsSearchClear")}
+        autoComplete="off"
+      />
 
       {!searching ? (
         children
