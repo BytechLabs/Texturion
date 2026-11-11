@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.20.0...shared-v0.21.0) (2026-11-11)
+
+
+### Features
+
+* **db:** every derived record state has one definition in the database ([786df84](https://github.com/BytechLabs/Texturion/commit/786df84390f94c8ed7d0a4e28fb35688bf22dbd3))
+
 ## [0.20.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.19.0...shared-v0.20.0) (2026-11-11)
 
 

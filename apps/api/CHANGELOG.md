@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.29.0](https://github.com/BytechLabs/Texturion/compare/api-v0.28.0...api-v0.29.0) (2026-11-11)
+
+
+### Features
+
+* **api:** a conversation says which status moves the reader may make ([7405d12](https://github.com/BytechLabs/Texturion/commit/7405d12fcdfa58c6b9d00bf4995f7b641e8d42ec))
+* **billing:** every subscription move Stripe makes is reported once ([ca5482e](https://github.com/BytechLabs/Texturion/commit/ca5482e69bcd538672ead81cff17e2786dac829d))
+* **web:** a scheduled text offers Cancel only to someone who can cancel it ([e12b364](https://github.com/BytechLabs/Texturion/commit/e12b364e9d735c49efb73f5bb3601b5a1598ce5f))
+* **web:** quote and payment controls follow what the server allows ([0ef3342](https://github.com/BytechLabs/Texturion/commit/0ef3342bb18bf8d13f99e50f3361c66548f9f148))
+
+
+### Bug Fixes
+
+* **api:** setting up Stripe payments works again ([204e6ae](https://github.com/BytechLabs/Texturion/commit/204e6ae08efda9ad772bdcc9d5cff45fedcc1de0))
+* **api:** the {my_name} template token fills in the sender's name ([4bd1bd4](https://github.com/BytechLabs/Texturion/commit/4bd1bd4785873f008c122ec3df23d5c5262004b9))
+* **api:** the calendar subscription link opens your schedule ([d3af2ca](https://github.com/BytechLabs/Texturion/commit/d3af2cae50e01cf0a5f177105bd344d50502315a))
+* **api:** the trash page opens instead of crashing on its first item ([6484b74](https://github.com/BytechLabs/Texturion/commit/6484b743a4f53e5fe82dad1c1dbc85efb4b38132))
+* **api:** the welcome note for someone joining names the owner ([0b15af3](https://github.com/BytechLabs/Texturion/commit/0b15af3f50c6c660a7f4be36594d28767ccfde2d))
+* exporting tasks downloads the list instead of queueing an export ([da9cb84](https://github.com/BytechLabs/Texturion/commit/da9cb8483b90f95f7a92db59f1e69bf51251f05d))
+* the tasks map loads again ([93bcdf3](https://github.com/BytechLabs/Texturion/commit/93bcdf3880a570dd8946a30e59d2c2e1bd91e170))
+
 ## [0.28.0](https://github.com/BytechLabs/Texturion/compare/api-v0.27.0...api-v0.28.0) (2026-11-11)
 
 
