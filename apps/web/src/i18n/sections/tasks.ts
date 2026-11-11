@@ -353,6 +353,10 @@ export const tasksEn = {
   exportStarted:
     "Being put together now. It will appear in Settings › Data export.",
   exportFailed: "That could not be started.",
+  exportList: "Export this list",
+  exportListNote:
+    "Downloads a spreadsheet of the tasks in this view, with the filters you have set.",
+  exportDownloadFailed: "The export could not be downloaded. Try again.",
 
   // -------------------------------------------------------------------------
   // What the write paths say when they roll back.
@@ -963,6 +967,10 @@ export const tasksFr: Translated<typeof tasksEn> = {
     "En cours de préparation. Il apparaîtra dans Paramètres › Exportation des " +
     "données.",
   exportFailed: "Impossible de démarrer l'opération.",
+  exportList: "Exporter cette liste",
+  exportListNote:
+    "Télécharge un tableur des tâches de cette vue, avec les filtres que vous avez réglés.",
+  exportDownloadFailed: "L'export n'a pas pu être téléchargé. Réessayez.",
 
   // -------------------------------------------------------------------------
   // Ce que disent les écritures quand elles reculent.

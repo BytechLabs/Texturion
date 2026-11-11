@@ -15,6 +15,7 @@ import {
   coerceTabForView,
   parseTaskSearchParams,
   serializeTaskState,
+  toTaskFilters,
   TASK_VIEWS,
   type TaskPageState,
   type TaskView,
@@ -82,8 +83,8 @@ export function TasksPage() {
           <TaskFilterBar state={state} onChange={setState} />
           {/* #304: quiet, beside the filters that already say what it covers.
               Absent for anybody without `contacts.bulk` — every task names a
-              customer. */}
-          <ExportTasks tab={state.tab} />
+              customer. Downloads the current view at once (#745). */}
+          <ExportTasks filters={toTaskFilters(state)} />
         </div>
       </header>
 

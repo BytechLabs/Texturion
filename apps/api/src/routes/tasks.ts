@@ -72,6 +72,10 @@ import {
   loadAiSettings,
 } from "../ai/settings";
 import { requireCapability } from "../auth/company";
+import { alarmOnBulkContactAccess } from "../audit/bulk-contact-alarm";
+import { recordAuditFromRequest } from "../audit/log";
+import { readTaskEntries, taskCsvRows } from "../workspace/tasks-export";
+import { csvResponse } from "./core/csv";
 import {
   requireConversationAccess,
   resolveConversationLevel,
@@ -1428,16 +1432,11 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
 });
 
 /**
- * GET /v1/tasks — flat filtered list (T6.1). The derived status filter runs on
- * the joined messages.done_at via an inner-embedded messages resource.
+ * The list's query string, read and validated. One function for `GET /v1/tasks`
+ * and `GET /v1/tasks/export.csv`, so a filter added to the list cannot be
+ * forgotten by the export: the file holds what the list shows.
  */
-tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => {
-  const companyId = c.get("companyId");
-  const userId = c.get("userId");
-  const limit = parseLimit(c, 25, 100);
-  const rawCursor = c.req.query("cursor");
-  const db = getDb(getEnv(c.env));
-
+function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
   const status = c.req.query("status");
   if (status !== undefined && !STATUS_VALUES.includes(status as never)) {
     throw new ApiError("validation_failed", "status must be open or done.");
@@ -1545,6 +1544,51 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
       ? userId
       : rawAssignee ?? (anyFilter || unassigned ? undefined : userId);
 
+  return {
+    status,
+    overdue,
+    hasLocation,
+    dueBefore,
+    dueAfter,
+    conversationId,
+    unassigned,
+    rawQ,
+    priorities,
+    tagId,
+    sort,
+    extraInput,
+    anyExtra,
+    effectiveStatus,
+    assignee,
+  };
+}
+
+/**
+ * GET /v1/tasks — flat filtered list (T6.1). The derived status filter runs on
+ * the joined messages.done_at via an inner-embedded messages resource.
+ */
+tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => {
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const limit = parseLimit(c, 25, 100);
+  const rawCursor = c.req.query("cursor");
+  const db = getDb(getEnv(c.env));
+
+  const {
+    overdue,
+    hasLocation,
+    dueBefore,
+    dueAfter,
+    conversationId,
+    unassigned,
+    rawQ,
+    priorities,
+    tagId,
+    sort,
+    extraInput,
+    effectiveStatus,
+    assignee,
+  } = parseTaskListQuery(c, userId);
   // Due-sorted views (overdue / due filters / explicit due sort) key on
   // (due_at NULLS LAST, id); otherwise newest-first (created_at, id) DESC. Each
   // ordering has its OWN cursor shape, so decode the token against the shape
@@ -1778,6 +1822,93 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
   );
 
   return c.json({ data, next_cursor: nextCursor });
+});
+
+/**
+ * GET /v1/tasks/export.csv (#745) — the tasks in the current view, as a download.
+ *
+ * Takes the list's own query string and answers with the CSV at once. There is
+ * no queue, no `data_exports` row and nothing in Settings: the regulatory
+ * workspace export is a separate, scheduled thing for the whole workspace, and
+ * a person who wants today's open jobs should not be handed a job to wait on.
+ *
+ * GATED ON `contacts.bulk`, as the queued export was: every task names a
+ * customer. #106 number access is applied while reading, and what was withheld
+ * or capped is stated in headers, because a file silently missing a job is one
+ * somebody puts in front of a customer believing it is whole.
+ *
+ * Registered BEFORE `/tasks/:id` so "export.csv" is never read as an id.
+ */
+tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (c) => {
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const db = getDb(getEnv(c.env));
+  const q = parseTaskListQuery(c, userId);
+  if (q.rawQ !== undefined && q.rawQ.length > 200) {
+    throw new ApiError("validation_failed", "q: too long (max 200).");
+  }
+  const extra = await resolveExtraTaskFilters(c, db, q.extraInput);
+  const embeds =
+    (q.tagId === undefined ? "" : ",task_tags!inner(tag_id)") +
+    (q.assignee === undefined ? "" : ",task_assignees!inner(user_id)") +
+    (extra.referencedHidden === undefined ? "" : REFERENCE_EMBED) +
+    `,${CALENDAR_HOLD_EMBED}`;
+
+  const { entries, withheld, capped } = await readTaskEntries(db, {
+    companyId,
+    requestedBy: userId,
+    filters: {},
+    embeds,
+    refine: (query) => {
+      let next = excludeCalendarAttentionHolds(query, companyId);
+      next = applyTaskFilters(next, {
+        doneAtCol: TASK_DONE_AT,
+        effectiveStatus: q.effectiveStatus,
+        assignee: q.assignee,
+        unassigned: q.unassigned,
+        conversationId: q.conversationId,
+        dueBefore: q.dueBefore,
+        dueAfter: q.dueAfter,
+        overdue: q.overdue,
+        priorities: q.priorities as TaskPriority[] | undefined,
+        tagId: q.tagId,
+        ...extra,
+      });
+      if (q.rawQ !== undefined && q.rawQ !== "") {
+        const asNumber = /^#?t?-?(\d{1,9})$/i.exec(q.rawQ);
+        const search = next as never as {
+          ilike(col: string, pattern: string): typeof search;
+          or(filters: string): typeof search;
+        };
+        next =
+          asNumber === null
+            ? (search.ilike("title", `%${escapeLike(q.rawQ)}%`) as never as typeof next)
+            : (search.or(
+                `title.ilike.%${asNumber[1]}%,number.eq.${Number(asNumber[1])}`,
+              ) as never as typeof next);
+      }
+      return next;
+    },
+  });
+
+  await recordAuditFromRequest(db, c, {
+    companyId,
+    action: "contacts.exported",
+    targetType: "task",
+    after: { scope: "tasks", count: entries.length, withheld, capped },
+  });
+  alarmOnBulkContactAccess(c, getEnv(c.env), db, {
+    companyId,
+    actorUserId: userId,
+    event: "history_exported",
+    count: entries.length,
+  });
+
+  const response = csvResponse(taskCsvRows(entries), "tasks.csv");
+  response.headers.set("X-Export-Withheld", String(withheld));
+  response.headers.set("X-Export-Capped", capped ? "true" : "false");
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 });
 
 /**

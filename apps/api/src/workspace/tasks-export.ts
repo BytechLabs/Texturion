@@ -91,22 +91,33 @@ export interface TaskExportResult {
   capped: boolean;
 }
 
-export async function buildTaskExport(
+/** What a task export reads, before it becomes a file. */
+export interface TaskEntries {
+  entries: TaskEntry[];
+  withheld: number;
+  capped: boolean;
+}
+
+/**
+ * The tasks a person may take away, as rows. Shared by the queued builder below
+ * and the direct download (`GET /v1/tasks/export.csv`), so the two cannot
+ * disagree about what a task is, who may see it, or what "done" means.
+ *
+ * `refine` and `embeds` let the direct route narrow the read with the SAME
+ * filter function the task list uses, without this module knowing the list's
+ * filters. The queued builder passes neither.
+ */
+export async function readTaskEntries(
   db: SupabaseClient,
   args: {
     companyId: string;
     requestedBy: string;
     filters: TaskExportFilters;
-    prefix: string;
-    now: Date;
+    /** Extra select terms the refinement filters on, e.g. `task_tags!inner(tag_id)`. */
+    embeds?: string;
+    refine?: <Q>(query: Q) => Q;
   },
-  put: (
-    path: string,
-    // #587: bytes, so the CSV part can carry its byte-order mark.
-    body: string | Uint8Array,
-    contentType: string,
-  ) => Promise<void>,
-): Promise<TaskExportResult> {
+): Promise<TaskEntries> {
   // The requester's role NOW, for the same reason the history export reads it:
   // an export produced today is read today, and access is a question about
   // today. Somebody who has left does not get a link that still works.
@@ -152,12 +163,14 @@ export async function buildTaskExport(
         "conversations(phone_number_id,contact_phone_e164,contacts(name))," +
         // A standalone task (#689) names its customer through its own link.
         "linked_contact:contacts!contact_id(name)," +
-        "crew:task_assignees(user_id)",
+        "crew:task_assignees(user_id)" +
+        (args.embeds ?? ""),
     )
     .eq("company_id", args.companyId)
     // Soft-deleted work is deleted work. A file that resurrected it would be
     // the one artifact contradicting what the product shows.
     .is("deleted_at", null);
+  if (args.refine) query = args.refine(query);
   if (args.filters.from) query = query.gte("created_at", args.filters.from);
   if (args.filters.to) query = query.lte("created_at", args.filters.to);
 
@@ -189,20 +202,46 @@ export async function buildTaskExport(
     // column. Doing it in SQL would silently return everything.
     .filter((entry) => matchesState(entry, args.filters.state));
 
+  return { entries, withheld, capped };
+}
+
+/** The file's rows, header first. Every free-text column is guarded. */
+export function taskCsvRows(entries: TaskEntry[]): string[][] {
+  return [
+    ["raised", "customer", "task", "detail", "due", "assigned to", "state"],
+    ...entries.map((entry) => [
+      entry.raised,
+      csvSafeText(entry.customer),
+      csvSafeText(entry.title),
+      csvSafeText(entry.detail),
+      entry.due,
+      csvSafeText(entry.assignedTo),
+      entry.state,
+    ]),
+  ];
+}
+
+export async function buildTaskExport(
+  db: SupabaseClient,
+  args: {
+    companyId: string;
+    requestedBy: string;
+    filters: TaskExportFilters;
+    prefix: string;
+    now: Date;
+  },
+  put: (
+    path: string,
+    // #587: bytes, so the CSV part can carry its byte-order mark.
+    body: string | Uint8Array,
+    contentType: string,
+  ) => Promise<void>,
+): Promise<TaskExportResult> {
+  const { entries, withheld, capped } = await readTaskEntries(db, args);
+
   await put(
     `${args.prefix}/tasks.csv`,
-    csvBytes([
-      ["raised", "customer", "task", "detail", "due", "assigned to", "state"],
-      ...entries.map((entry) => [
-        entry.raised,
-        csvSafeText(entry.customer),
-        csvSafeText(entry.title),
-        csvSafeText(entry.detail),
-        entry.due,
-        csvSafeText(entry.assignedTo),
-        entry.state,
-      ]),
-    ]),
+    csvBytes(taskCsvRows(entries)),
     "text/csv; charset=utf-8",
   );
   await put(
