@@ -45,6 +45,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.util.Locale
@@ -412,6 +413,12 @@ private fun ScreeningCard(
             Spacer(Modifier.height(4.dp))
             ReadOnlyLine(t("settings.screeningReadOnly"))
         }
+        SettingChoiceNote(
+            scope,
+            "call_screening",
+            JsonPrimitive(company.call_screening),
+            t("settings.screeningFlag"),
+        )
         CallEffectNote(scope, "screened")
     }
 }
@@ -533,6 +540,18 @@ private fun RingCard(
             Spacer(Modifier.height(4.dp))
             ReadOnlyLine(t("settings.ringReadOnly"))
         }
+        SettingChoiceNote(
+            scope,
+            "ring_strategy",
+            JsonPrimitive(company.ring_strategy),
+            t("settings.ringAll"),
+        )
+        SettingChoiceNote(
+            scope,
+            "ring_seconds",
+            JsonPrimitive(company.ring_seconds),
+            ringSecondsLabel(45),
+        )
         CallEffectNote(scope, "no_answer_in_time")
     }
 }
@@ -646,6 +665,12 @@ private fun AfterHoursCard(
             Spacer(Modifier.height(4.dp))
             ReadOnlyLine(t("settings.afterHoursReadOnly"))
         }
+        SettingChoiceNote(
+            scope,
+            "after_hours_calls",
+            JsonPrimitive(company.after_hours_calls),
+            t("settings.afterHoursRingEveryone"),
+        )
         CallEffectNote(scope, "after_hours")
     }
 }

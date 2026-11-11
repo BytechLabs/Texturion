@@ -140,6 +140,12 @@ struct EmergencyCard: View {
                 .disabled(!canEdit || saving)
                 .onChange(of: replyEnabled) { _, next in saveReplyEnabled(next) }
                 .padding(.top, 4)
+            SettingChoiceNote(
+                scope: scope,
+                settingKey: "emergency_reply_enabled",
+                current: .bool(company.emergency_reply_enabled),
+                defaultLabel: settingOnOffLabel(true, locale: appLocale)
+            )
             Text(t("settings.emergencyTextBackHelp"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)

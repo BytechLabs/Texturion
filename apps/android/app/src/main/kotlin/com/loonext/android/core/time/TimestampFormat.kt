@@ -105,6 +105,16 @@ object TimestampFormat {
         }
     }
 
+    /** A plain calendar date, "Aug 8, 2026" or "8 août 2026", in the reader's zone; blank when unparseable. */
+    fun calendarDate(
+        iso: String?,
+        locale: String? = null,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): String {
+        val instant = parse(iso) ?: return ""
+        return draw(instant.atZone(zone), tagOf(locale), "MMM d, yyyy", "d MMM yyyy")
+    }
+
     /** "Tue, Nov 10, 2026, 3:42 PM EST": weekday, date, time and zone. */
     fun exact(
         iso: String?,

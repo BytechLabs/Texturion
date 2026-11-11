@@ -407,6 +407,12 @@ private struct CapCard: View {
                 .onAppear { pending = current }
                 .onChange(of: current) { _, value in pending = value }
             }
+            SettingChoiceNote(
+                scope: scope,
+                settingKey: "overage_cap_multiplier",
+                current: company.overage_cap_multiplier ?? .null,
+                defaultLabel: capLabel(3)
+            )
             CallEffectNote(scope: scope, reason: "over_cap")
         }
     }

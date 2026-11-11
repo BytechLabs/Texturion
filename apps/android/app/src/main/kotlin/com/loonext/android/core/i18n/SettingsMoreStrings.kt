@@ -963,6 +963,10 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.callEffectOne" to "This touched {count} call in the last {days} days.",
         "settingsMore.callEffectOther" to "This touched {count} calls in the last {days} days.",
         "settingsMore.callEffectView" to "See them",
+        "settingsMore.choiceChosenBy" to "{name} chose this on {date}. The default is {default}.",
+        "settingsMore.choiceChangedFromDefault" to "Changed from the default, which is {default}.",
+        "settingsMore.choiceOn" to "on",
+        "settingsMore.choiceOff" to "off",
         "settingsMore.nearCapTitle" to "Approaching your spending cap",
         "settingsMore.atCapBody" to
             "You've reached the spending cap you set. Sending and calling " +
@@ -2297,6 +2301,10 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.callEffectOne" to "Ce réglage a touché {count} appel ces {days} derniers jours.",
         "settingsMore.callEffectOther" to "Ce réglage a touché {count} appels ces {days} derniers jours.",
         "settingsMore.callEffectView" to "Les voir",
+        "settingsMore.choiceChosenBy" to "{name} a fait ce choix le {date}. Par défaut : {default}.",
+        "settingsMore.choiceChangedFromDefault" to "Différent du réglage par défaut : {default}.",
+        "settingsMore.choiceOn" to "activé",
+        "settingsMore.choiceOff" to "désactivé",
         "settingsMore.nearCapTitle" to "Proche de votre plafond de dépenses",
         "settingsMore.atCapBody" to
             "Vous avez atteint le plafond de dépenses que vous avez fixé. Les " +

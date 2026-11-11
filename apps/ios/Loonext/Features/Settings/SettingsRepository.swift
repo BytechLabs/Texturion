@@ -20,6 +20,12 @@ struct SettingsRepository: Sendable {
         try await api.get("/v1/company", companyId: companyId)
     }
 
+    /// #749: the attributed settings currently off their default, with who
+    /// chose each and when. settings.manage only; anyone else gets a 403.
+    func settingChoices(_ companyId: String) async throws -> SettingChoices {
+        try await api.get("/v1/company/setting-choices", companyId: companyId)
+    }
+
     /// PATCH /v1/company — returns the updated scalar columns as a view.
     /// #490: the calls that reached a line which could not take them. Asked
     /// only when the subscription is not active — it is an aggregate over the

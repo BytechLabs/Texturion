@@ -494,7 +494,8 @@ data class CompanyView(
     val current_period_start: String? = null,
     val current_period_end: String? = null,
     /** Wire union number|string|null — parse via [overageCapMultiplier]. */
-    val overage_cap_multiplier: kotlinx.serialization.json.JsonPrimitive? = null,
+    val overage_cap_multiplier: kotlinx.serialization.json.JsonPrimitive? =
+        kotlinx.serialization.json.JsonPrimitive(3),
     val registration_fee_paid_at: String? = null,
     val canceled_at: String? = null,
     /**
@@ -648,9 +649,9 @@ data class CompanyView(
     /** #278: how long they ring before the caller gets the greeting. 45 is the
      *  ceiling — the call legs themselves end there. */
     val ring_seconds: Int = 45,
-    val call_screening: String = "off",
+    val call_screening: String = "flag",
     val cnam_display_name: String? = null,
-    val caller_id_lookup: Boolean = false,
+    val caller_id_lookup: Boolean = true,
     /** #193: the outbound caller ID actually in effect (server-resolved:
      *  the explicit override, else the company name in the carrier
      *  alphabet). Null only when neither yields a listable name. */

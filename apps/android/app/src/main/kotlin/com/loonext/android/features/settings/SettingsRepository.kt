@@ -10,6 +10,7 @@ import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.HeldNumbers
 import com.loonext.android.core.model.HostedUrl
 import com.loonext.android.core.model.PrepayOffer
+import com.loonext.android.core.model.SettingChoices
 import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.ReinstateResult
 import com.loonext.android.core.model.Member
@@ -87,6 +88,10 @@ class SettingsRepository(
      */
     suspend fun missedWhileOff(companyId: String): MissedWhileOff =
         api.get("/v1/billing/missed-while-off", companyId = companyId)
+
+    /** #749: attributed settings off their default, with who chose them (settings.manage). */
+    suspend fun settingChoices(companyId: String): SettingChoices =
+        api.get("/v1/company/setting-choices", companyId = companyId)
 
     /** PATCH /v1/company — returns the updated scalar columns as a view. */
     suspend fun updateCompany(companyId: String, patch: JsonObject): CompanyView =

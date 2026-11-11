@@ -53,6 +53,9 @@ object CacheKeys {
     /** #725: 30-day call counts per reason, one read for every settings note. */
     fun callEffects(companyId: String) = "callEffects/$companyId"
 
+    /** #749: who chose each attributed setting that is off its default. */
+    fun settingChoices(companyId: String) = "settingChoices/$companyId"
+
     fun call(companyId: String, sessionId: String) = "call/$companyId/$sessionId"
     fun voicemail(companyId: String) = "voicemail/$companyId"
     fun thread(companyId: String, conversationId: String) = "thread/$companyId/$conversationId"

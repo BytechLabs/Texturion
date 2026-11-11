@@ -33,6 +33,7 @@ import com.loonext.android.core.model.CompanyView
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -252,6 +253,12 @@ fun EmergencyCard(
             },
             supporting = t("settings.emergencyTextBackHelp"),
             modifier = Modifier.padding(top = 4.dp),
+        )
+        SettingChoiceNote(
+            scope,
+            "emergency_reply_enabled",
+            JsonPrimitive(company.emergency_reply_enabled),
+            onOffLabel(true),
         )
         Text(
             t("settings.emergencyReplyHelp"),

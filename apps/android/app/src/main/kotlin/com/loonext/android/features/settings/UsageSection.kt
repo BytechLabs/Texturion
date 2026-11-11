@@ -53,6 +53,7 @@ import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant
@@ -364,6 +365,12 @@ private fun CapCard(
                 }
             }
         }
+        SettingChoiceNote(
+            scope,
+            "overage_cap_multiplier",
+            company.overage_cap_multiplier ?: JsonNull,
+            capLabel(3.0),
+        )
         CallEffectNote(scope, "over_cap")
     }
 

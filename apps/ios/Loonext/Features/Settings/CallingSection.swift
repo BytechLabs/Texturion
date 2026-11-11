@@ -417,6 +417,12 @@ private struct AfterHoursCard: View {
                 enabled: canEdit && !saving,
                 onSelect: { save($0) }
             )
+            SettingChoiceNote(
+                scope: scope,
+                settingKey: "after_hours_calls",
+                current: .string(company.after_hours_calls),
+                defaultLabel: t("settings.afterHoursRingEveryone")
+            )
             InlineError(error)
             if !canEdit {
                 Spacer().frame(height: 4)
@@ -539,6 +545,12 @@ private struct ScreeningCard: View {
                 selected: company.call_screening,
                 enabled: canEdit && !saving,
                 onSelect: { save($0) }
+            )
+            SettingChoiceNote(
+                scope: scope,
+                settingKey: "call_screening",
+                current: .string(company.call_screening),
+                defaultLabel: t("settings.screeningFlag")
             )
             InlineError(error)
             if !canEdit {

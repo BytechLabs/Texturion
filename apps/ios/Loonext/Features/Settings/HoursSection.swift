@@ -225,6 +225,12 @@ private struct AwayReplyCard: View {
                 isOn: enabled,
                 enabled: canEdit && !saving
             ) { enabled = $0 }
+            SettingChoiceNote(
+                scope: scope,
+                settingKey: "away_enabled",
+                current: .bool(company.away_enabled),
+                defaultLabel: settingOnOffLabel(false, locale: appLocale)
+            )
             // The send gates refuse a US destination until the campaign is
             // approved, and the away reply is best-effort: a refusal is
             // swallowed so it never breaks inbound ingest. A switch reading ON
@@ -290,6 +296,12 @@ private struct AwayReplyCard: View {
                 isOn: emergency,
                 enabled: canEdit && !saving
             ) { emergency = $0 }
+            SettingChoiceNote(
+                scope: scope,
+                settingKey: "emergency_keyword_enabled",
+                current: .bool(company.emergency_keyword_enabled),
+                defaultLabel: settingOnOffLabel(true, locale: appLocale)
+            )
             // #453: which sentence appears is decided in SettingsLogic,
             // mirroring shared, so this screen, web and Android cannot drift
             // into three wordings of the same warning. Only the tone-to-colour

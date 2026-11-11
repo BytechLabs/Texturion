@@ -157,6 +157,15 @@ enum TimestampFormat {
         }
     }
 
+    /// A plain calendar date, "Aug 8, 2026" or "8 août 2026", in the reader's zone.
+    /// Never a relative label. Blank when the timestamp does not parse.
+    static func calendarDate(
+        _ iso: String?, locale: String? = nil, timeZone: TimeZone = .current
+    ) -> String {
+        guard let date = parseWireTimestamp(iso) else { return "" }
+        return draw(date, locale, timeZone, english: "MMM d, yyyy", french: "d MMM yyyy")
+    }
+
     /// "Tue, Nov 10, 2026, 3:42 PM EST": weekday, date, time and zone.
     static func exact(
         _ iso: String?, locale: String? = nil, timeZone: TimeZone = .current

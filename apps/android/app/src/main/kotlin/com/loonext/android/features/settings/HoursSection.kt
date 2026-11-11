@@ -34,6 +34,7 @@ import com.loonext.android.core.model.DayHours
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -266,6 +267,12 @@ private fun AwayReplyCard(
             onCheckedChange = { enabled = it },
             enabled = canEdit && !saving,
         )
+        SettingChoiceNote(
+            scope,
+            "away_enabled",
+            JsonPrimitive(company.away_enabled),
+            onOffLabel(false),
+        )
         // The send gates refuse a US destination until the campaign is
         // approved, and the away reply is best-effort: a refusal is swallowed
         // so it never breaks inbound ingest. A switch reading ON while every
@@ -320,6 +327,12 @@ private fun AwayReplyCard(
             checked = emergency,
             onCheckedChange = { emergency = it },
             enabled = canEdit && !saving,
+        )
+        SettingChoiceNote(
+            scope,
+            "emergency_keyword_enabled",
+            JsonPrimitive(company.emergency_keyword_enabled),
+            onOffLabel(true),
         )
         // #453: which sentence appears is decided in SettingsLogic, mirroring
         // shared, so this screen, web and iOS cannot drift into three wordings
