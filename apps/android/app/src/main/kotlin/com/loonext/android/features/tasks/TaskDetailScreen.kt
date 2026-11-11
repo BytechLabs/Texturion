@@ -1,6 +1,14 @@
 package com.loonext.android.features.tasks
 
 import android.content.Intent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalFocusManager
 import com.loonext.android.ui.common.ConfirmDialog
 import com.loonext.android.ui.common.PaperCard
 import android.net.Uri
@@ -746,6 +754,7 @@ private fun TaskDetailBody(
                             maxLength = TASK_TITLE_MAX,
                             placeholder = t("contactsTasks.taskTitlePlaceholder"),
                             singleLine = true,
+                            growToLines = 4,
                             allowEmpty = false,
                             textStyle = MaterialTheme.typography.titleLarge.copy(
                                 fontSize = 21.sp,
@@ -1007,6 +1016,8 @@ private fun TaskDetailBody(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
+                                // Wraps before the switch instead of running under it.
+                                modifier = Modifier.weight(4f, fill = false).padding(end = 8.dp),
                             )
                         }
                     }
@@ -2042,7 +2053,10 @@ private fun InlineEditField(
     modifier: Modifier = Modifier,
     /** #690: when set, `#` opens the picker and a read view draws chips. */
     references: ReferenceSource? = null,
+    /** When set the field wraps and grows to this many lines; Done still saves. Null keeps [singleLine]. */
+    growToLines: Int? = null,
 ) {
+    val focusManager = LocalFocusManager.current
     var field by remember(key) { mutableStateOf(TextFieldValue(initial)) }
     val value = field.text
     var focused by remember(key) { mutableStateOf(false) }
@@ -2087,7 +2101,8 @@ private fun InlineEditField(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 )
             },
-            singleLine = singleLine,
+            singleLine = growToLines == null && singleLine,
+            maxLines = growToLines ?: if (singleLine) 1 else Int.MAX_VALUE,
             shape = MaterialTheme.shapes.medium,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,
@@ -2095,9 +2110,24 @@ private fun InlineEditField(
                 focusedBorderColor = MaterialTheme.colorScheme.outline,
                 unfocusedBorderColor = Color.Transparent,
             ),
-            keyboardOptions = KeyboardOptions.Default,
+            // A wrapping field would otherwise take Enter as a new line; the title
+            // is one sentence, so Enter and Done save and leave the field as before.
+            keyboardOptions = if (growToLines != null) {
+                KeyboardOptions(imeAction = ImeAction.Done)
+            } else {
+                KeyboardOptions.Default
+            },
+            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             modifier = Modifier
                 .fillMaxWidth()
+                .onPreviewKeyEvent { event ->
+                    if (growToLines != null && event.key == Key.Enter) {
+                        if (event.type == KeyEventType.KeyUp) focusManager.clearFocus()
+                        true
+                    } else {
+                        false
+                    }
+                }
                 .focusRequester(focusRequester)
                 .onFocusChanged { focusState ->
                     val wasFocused = focused
