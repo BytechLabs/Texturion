@@ -60,12 +60,6 @@ export function ContactsActions({
   onImportSourceChange: (source: ImportSource) => void;
 }) {
   const t = useT();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  // #459 ?new=<digits>: the dialer's "Add contact", which lands here rather
-  // than opening a second create form inside the keypad. One create form for
-  // the whole app means one set of validation rules to keep true.
-  const newFromDialer = searchParams.get("new");
   const exportContacts = useExportContacts();
   const [exportError, setExportError] = useState<string | null>(null);
   const setImportSource = onImportSourceChange;
@@ -73,7 +67,6 @@ export function ContactsActions({
   // Feature-detect the Web Contacts Picker on the client only — server render
   // has no `navigator`, and detecting after mount avoids a hydration mismatch
   // (the phone item is simply absent until the effect runs).
-  const [creating, setCreating] = useState(false);
   const [pickerSupported, setPickerSupported] = useState(false);
   useEffect(() => {
     setPickerSupported(contactsPickerSupported());
@@ -134,13 +127,6 @@ export function ContactsActions({
           </DropdownMenu>
         )}
 
-        {/* #732: the page's one main action, last and filled, as on every
-            page. Any member can add one, matching both phone apps; import
-            stays owner/admin. */}
-        <Button size="sm" onClick={() => setCreating(true)}>
-          <UserPlus strokeWidth={1.75} aria-hidden />
-          {t("contacts.newContact")}
-        </Button>
       </div>
 
       {exportError && (
@@ -148,18 +134,6 @@ export function ContactsActions({
           {exportError}
         </p>
       )}
-
-      <NewContactDialog
-        open={creating || newFromDialer !== null}
-        onOpenChange={(next) => {
-          setCreating(next);
-          // #459: closing a dialer-opened dialog drops the query parameter, so
-          // a later reload of /contacts does not reopen a form somebody
-          // already dismissed.
-          if (!next && newFromDialer !== null) router.replace("/contacts");
-        }}
-        prefillPhone={newFromDialer ?? ""}
-      />
 
       {canImport && (
         <>
@@ -180,5 +154,40 @@ export function ContactsActions({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * #732: the page's one main action, passed to PageHeader's primary slot so it
+ * is filled and last as on every page. Any member can add one, matching both
+ * phone apps; import stays owner/admin.
+ */
+export function NewContactAction() {
+  const t = useT();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // #459 ?new=<digits>: the dialer's "Add contact", which lands here rather
+  // than opening a second create form inside the keypad. One create form for
+  // the whole app means one set of validation rules to keep true.
+  const newFromDialer = searchParams.get("new");
+  const [creating, setCreating] = useState(false);
+  return (
+    <>
+      <Button size="sm" onClick={() => setCreating(true)}>
+        <UserPlus strokeWidth={1.75} aria-hidden />
+        {t("contacts.newContact")}
+      </Button>
+      <NewContactDialog
+        open={creating || newFromDialer !== null}
+        onOpenChange={(next) => {
+          setCreating(next);
+          // #459: closing a dialer-opened dialog drops the query parameter, so
+          // a later reload of /contacts does not reopen a form somebody
+          // already dismissed.
+          if (!next && newFromDialer !== null) router.replace("/contacts");
+        }}
+        prefillPhone={newFromDialer ?? ""}
+      />
+    </>
   );
 }

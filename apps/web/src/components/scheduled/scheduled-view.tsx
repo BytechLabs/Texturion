@@ -43,6 +43,7 @@ import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sendAtLabel } from "@/components/thread/scheduled-strip";
 import { RecordContextMenu } from "@/components/ui/record-menu";
+import { PageHeader } from "@/components/ui/page-header";
 import { useT, type Translate } from "@/i18n/provider";
 import {
   scheduledRecipient,
@@ -65,18 +66,16 @@ export function ScheduledView() {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-[17px] font-semibold text-app-ink">
-          {t("tasks.scheduledTitle")}
-        </h1>
-        {rows.length > 0 && (
-          <p className="text-[12.5px] text-app-muted">
-            {rows.length === 1
+      <PageHeader
+        title={t("tasks.scheduledTitle")}
+        description={
+          rows.length === 0
+            ? undefined
+            : rows.length === 1
               ? t("tasks.scheduledOneWaiting")
-              : t("tasks.scheduledManyWaiting", { count: rows.length })}
-          </p>
-        )}
-      </div>
+              : t("tasks.scheduledManyWaiting", { count: rows.length })
+        }
+      />
 
       {scheduled.isPending ? (
         <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">

@@ -50,6 +50,7 @@ import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 import { formatTimestamp } from "@/lib/format/time";
 import { BentoLayout, type BentoEditing } from "@/components/for-you/bento-layout";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   PANEL_LABEL_KEYS,
   PANEL_NOTE_KEYS,
@@ -757,54 +758,47 @@ export function ForYouView() {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8 lg:max-w-5xl xl:max-w-7xl">
-      <header className="mb-6 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-app-ink">
-            {t("inbox.forYouTitle")}
-          </h1>
-          <p className="mt-1 text-[13px] text-app-muted">
-            {total > 0
-              ? t(
-                  total === 1 ? "inbox.forYouWorkOne" : "inbox.forYouWorkMany",
-                  { count: total },
-                )
-              : t("inbox.forYouAllCaughtUp")}
-          </p>
-        </div>
-        {/* Desktop hosts search + bell in the top bar; keep those two here only
-            on mobile (which has no top bar) so they aren't duplicated on lg+.
-            #736's Edit layout is NOT one of them: it belongs to this screen
-            rather than to the shell, so it stays at every width. */}
-        <div className="flex items-center gap-1 pt-0.5">
-          <button
-            type="button"
-            onClick={openCommand}
-            aria-label={t("inbox.forYouSearchAria")}
-            aria-keyshortcuts="Meta+K Control+K"
-            className="grid size-8 place-items-center rounded-[9px] border border-app-line bg-app-paper text-app-muted transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
-          >
-            <Search className="size-[15px]" strokeWidth={1.9} aria-hidden />
-          </button>
-          <span className="lg:hidden">
-            <NotificationBell />
-          </span>
-          {/* Last in the row, and quiet: it is the control you go looking for,
-              not one that should compete with the queue.
-              *Applying: Zen of Clarity, a secondary action behind one
-              affordance.* */}
-          {forYou.data && (
-            <Button
-              variant={editing ? "default" : "outline"}
-              size="sm"
-              aria-pressed={editing}
-              onClick={() => setEditing((on) => !on)}
+      <PageHeader
+        className="mb-6"
+        title={t("inbox.forYouTitle")}
+        description={
+          total > 0
+            ? t(total === 1 ? "inbox.forYouWorkOne" : "inbox.forYouWorkMany", { count: total })
+            : t("inbox.forYouAllCaughtUp")
+        }
+        secondary={
+          <>
+            {/* Desktop hosts search + bell in the top bar; keep those two here
+                only on mobile (which has no top bar) so they aren't duplicated
+                on lg+. */}
+            <button
+              type="button"
+              onClick={openCommand}
+              aria-label={t("inbox.forYouSearchAria")}
+              aria-keyshortcuts="Meta+K Control+K"
+              className="grid size-8 place-items-center rounded-[9px] border border-app-line bg-app-paper text-app-muted transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
             >
-              <LayoutGrid className="size-4" strokeWidth={1.75} aria-hidden />
-              {editing ? t("inbox.forYouDoneEditing") : t("inbox.forYouEditLayout")}
-            </Button>
-          )}
-        </div>
-      </header>
+              <Search className="size-4" strokeWidth={1.75} aria-hidden />
+            </button>
+            <span className="lg:hidden">
+              <NotificationBell />
+            </span>
+            {/* #736: arranging the page belongs to this screen, so it stays at
+                every width. Outline: For you has no main action of its own. */}
+            {forYou.data && (
+              <Button
+                variant={editing ? "default" : "outline"}
+                size="sm"
+                aria-pressed={editing}
+                onClick={() => setEditing((on) => !on)}
+              >
+                <LayoutGrid className="size-4" strokeWidth={1.75} aria-hidden />
+                {editing ? t("inbox.forYouDoneEditing") : t("inbox.forYouEditLayout")}
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {/* #310: only while the carriers have it. Above the queue because during
           the wait the queue is empty by definition — texting is the thing that

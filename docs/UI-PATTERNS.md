@@ -1,5 +1,7 @@
 # UI patterns
 
+**Status: CURRENT DIRECTION (#733).** Describes how each pattern is drawn today and which ones are still open. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 One job, drawn one way, on every screen and every client (#733). Each pattern
 below has one component per client and a guard that fails when a screen draws
 the pattern by hand. A pattern marked **open** still has hand-rolled copies,
@@ -13,8 +15,8 @@ the public job-photo page keep their own type scale and are out of scope).
 | Pattern | Web | Android | iOS | Guard | Status |
 |---|---|---|---|---|---|
 | Section label (small uppercase heading over a group, column or list) | `SECTION_LABEL_CLASS` / `SectionLabel` in `apps/web/src/components/ui/section-label.tsx` | `SectionHeadingStyle` (`ui/common/Ds.kt`) | `SectionHeadingStyle` (`Theme/DesignSystem.swift`) | `section-label.test.ts` | done on web: 23 labels in 22 files moved onto one class |
-| Page header (title, main action, secondary actions) | `PageHeader` in `apps/web/src/components/ui/page-header.tsx` | `MainActionButton` (`ui/common/MainAction.kt`) | `.mainAction(...)` (`Theme/MainAction.swift`) | `page-header.test.ts`, `MainActionWiringTest(s)` | **open** on web: For you, Scheduled, Ownership, the settings page title (`SettingsPage`), the settings index and the call page still draw their own `h1`; `PageHeader` needs a description slot first |
-| One filled primary per view | `PageHeader`'s `primary` slot | the main action button | the main action button | `page-header.test.ts` | **open**: the Contacts and Inbox empty states add a second filled button |
+| Page header (title, main action, secondary actions) | `PageHeader` in `apps/web/src/components/ui/page-header.tsx` | `MainActionButton` (`ui/common/MainAction.kt`) | `.mainAction(...)` (`Theme/MainAction.swift`) | `page-header.test.ts`, `MainActionWiringTest(s)` | done on web: every in-app page title, with its one-line description, goes through `PageHeader`; record pages title themselves in their record header |
+| One filled primary per view | `PageHeader`'s `primary` slot | the main action button | the main action button | `page-header.test.ts` | done on web: New contact moved into the primary slot, and the Contacts and Inbox empty-state actions are outline |
 | Empty state | `CalmEmptyState` (`components/settings/empty-state.tsx`) | none yet | none yet | none yet | **open**: tasks, history, trash, attachments, map and inbox panes hand-roll theirs with five paddings and four icon sizes |
 | Load error | `LoadError` (`components/settings/section.tsx`) | | | none yet | **open**: inbox list, search, For you, calls, activity and several cards hand-roll it with different retry buttons |
 | List loading skeleton | none | | | none yet | **open**: a dozen inline skeletons of different row shapes |

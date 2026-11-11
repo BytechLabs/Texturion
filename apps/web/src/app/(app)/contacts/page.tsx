@@ -7,6 +7,7 @@ import { useCallback, useState } from "react";
 import {
   ContactsActions,
   type ImportSource,
+  NewContactAction,
 } from "@/components/contacts/contacts-actions";
 import { ContactsTable } from "@/components/contacts/contacts-table";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,7 @@ export default function ContactsPage() {
   // The empty-state action stays a single obvious "Import CSV" — the fuller
   // import menu lives in the toolbar (owner/admin only).
   const emptyImportButton = canImport ? (
-    <Button onClick={() => setImportSource("csv")}>
+    <Button variant="outline" onClick={() => setImportSource("csv")}>
       <Upload strokeWidth={1.75} aria-hidden />
       {t("appShell.contactsImportCsv")}
     </Button>
@@ -57,6 +58,7 @@ export default function ContactsPage() {
             onImportSourceChange={setImportSource}
           />
         }
+        primary={<NewContactAction />}
       />
       {/* #246: above the table, and only when there is something to act on.
           Somebody who does not know they have duplicates will not navigate to

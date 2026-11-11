@@ -35,6 +35,7 @@ import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-d
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
+import { PageHeader } from "@/components/ui/page-header";
 
 /**
  * /ownership (#515) — the handover surface for whoever is reading it.
@@ -148,14 +149,10 @@ export function OwnershipView() {
     // per page, and a paragraph somebody has to actually read before they
     // press anything. Zen of Clarity.
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6 md:px-6 md:py-8">
-      <header className="space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {t("misc.ownershipTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("misc.ownershipSubtitle", { workspace })}
-        </p>
-      </header>
+      <PageHeader
+        title={t("misc.ownershipTitle")}
+        description={t("misc.ownershipSubtitle", { workspace })}
+      />
 
       {ownership.isPending && <Skeleton className="h-48 w-full rounded-lg" />}
       {ownership.isError && (

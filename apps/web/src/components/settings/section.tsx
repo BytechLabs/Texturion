@@ -14,6 +14,7 @@ import Link from "next/link";
 
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
 
 /**
  * Shared scaffolding for every settings detail page (G8): mobile back link
@@ -45,11 +46,7 @@ export function SettingsPage({
           <ChevronLeft className="size-4" strokeWidth={1.75} aria-hidden />
           {t("settingsMore.settingsHeading")}
         </Link>
-        {/* Screen heading — 24px/600, the §2.2 page-title rung. */}
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {description && (
-          <p className="text-sm text-muted-foreground">{description}</p>
-        )}
+        <PageHeader title={title} description={description} />
       </div>
       {children}
     </div>

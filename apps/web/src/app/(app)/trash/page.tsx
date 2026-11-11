@@ -18,10 +18,7 @@ export default function TrashPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-8 md:px-6">
-      <div className="space-y-1">
-        <PageHeader title={t("trash.title")} />
-        <p className="text-sm text-muted-foreground">{t("trash.description")}</p>
-      </div>
+      <PageHeader title={t("trash.title")} description={t("trash.description")} />
       {canDelete ? (
         <TrashList />
       ) : (

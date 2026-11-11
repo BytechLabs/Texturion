@@ -89,7 +89,7 @@ export function ActivationEmptyState() {
               : t("inbox.activationCheckoutMember")}
           </p>
           {canAct && (
-            <Button asChild size="sm">
+            <Button asChild variant="outline" size="sm">
               {/* /onboarding resumes at the exact step left off (G7). */}
               <Link href="/onboarding">{t("inbox.activationFinishSetup")}</Link>
             </Button>

@@ -10,6 +10,7 @@ import {
 import { VersionFooter } from "@/components/settings/version-footer";
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
 
 /**
  * Left-nav settings shell (G8) — the client body of the settings layout (it
@@ -33,9 +34,7 @@ export function SettingsShell({
           atIndex ? "block" : "hidden",
         )}
       >
-        <h1 className="mb-4 px-1 text-2xl font-semibold tracking-tight lg:mb-5">
-          {t("settingsMore.settingsHeading")}
-        </h1>
+        <PageHeader className="mb-4 px-1 lg:mb-5" title={t("settingsMore.settingsHeading")} />
         {/* #719: the search field, and its results in place of the groups. */}
         <SettingsSearchPanel>
           {/* Desktop link list */}
