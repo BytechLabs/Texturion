@@ -41,7 +41,7 @@ export const workspaceMachine = defineMachine<WorkspaceState>({
   transitions: {
     active: ["paused", "closed"],
     paused: ["active", "closed"],
-    closed: ["active", "purged"],
+    closed: ["active", "paused", "purged"],
     purged: [],
   },
   entryEffects: {

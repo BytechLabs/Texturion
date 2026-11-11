@@ -7,7 +7,8 @@ import { capabilityActions, defineMachine } from "./define-machine";
  * the status in deleted_prior_status so restore puts it back. Per-member mute
  * lives in conversation_member_prefs and is a preference, not a lifecycle.
  *
- * Phase 1 of #722: definition only, no runtime behaviour. See docs/STATE-MACHINES.md.
+ * Restoring a trashed spam conversation brings it back as spam, so every move is
+ * legal and the database has nothing to refuse (#722).
  */
 export type ConversationVisibilityState = "live" | "spam" | "trashed";
 
@@ -25,7 +26,7 @@ export const conversationVisibilityMachine = defineMachine<ConversationVisibilit
   transitions: {
     live: ["spam", "trashed"],
     spam: ["live", "trashed"],
-    trashed: ["live"],
+    trashed: ["live", "spam"],
   },
   entryEffects: {
     spam: ["close_conversation"],
