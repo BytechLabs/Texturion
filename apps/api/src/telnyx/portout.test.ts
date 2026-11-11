@@ -8,8 +8,23 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import { parsePortOutEvent } from "./portout";
+import { completeEnv } from "../test/support";
+import { handlePortOutEvent, parsePortOutEvent } from "./portout";
 import type { TelnyxEvent } from "../messaging/types";
+
+const world = vi.hoisted(() => ({
+  db: null as unknown,
+  sendEmail: vi.fn(async () => undefined),
+  opsNotice: vi.fn(),
+}));
+
+vi.mock("../db", () => ({ getDb: () => world.db }));
+vi.mock("../email/resend", () => ({ sendEmail: world.sendEmail }));
+vi.mock("../observability/capture", () => ({ opsNotice: world.opsNotice }));
+vi.mock("../audit/log", () => ({ recordAudit: vi.fn(async () => undefined) }));
+vi.mock("../billing/recipients", () => ({
+  billingRecipients: vi.fn(async () => ["owner@acme.test"]),
+}));
 
 function event(payload: Record<string, unknown>): TelnyxEvent {
   return { data: { event_type: "portout.status_changed", payload } } as TelnyxEvent;
@@ -86,5 +101,59 @@ describe("reading a port-out notice", () => {
       }),
     );
     expect(notice?.phoneNumbers).toEqual(["+16135551005"]);
+  });
+});
+
+describe("a port-out webhook delivered twice (#722)", () => {
+  /** The ledger the claim RPC keeps: the first delivery wins, a replay loses. */
+  function ledgerDb() {
+    const seen = new Set<string>();
+    const numbers: Record<string, unknown>[] = [];
+    return {
+      numbers,
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            limit: async () => ({
+              data: [{ id: "n-1", company_id: "c-1", status: "active", companies: { name: "Acme" } }],
+              error: null,
+            }),
+          }),
+        }),
+        update: (patch: Record<string, unknown>) => ({
+          eq: async () => {
+            numbers.push(patch);
+            return { error: null };
+          },
+        }),
+      }),
+      rpc: async (_fn: string, args: Record<string, string>) => {
+        const key = `${args.p_portout_id}|${args.p_status}|${args.p_phone_e164}`;
+        const first = !seen.has(key);
+        seen.add(key);
+        return { data: first, error: null };
+      },
+    };
+  }
+
+  it("marks the number gone, alerts ops and emails the customer once", async () => {
+    const db = ledgerDb();
+    world.db = db;
+    const env = completeEnv();
+    const completed = event({
+      portout_id: "po-9",
+      status: "ported",
+      phone_numbers: ["+16135551009"],
+    });
+
+    await handlePortOutEvent(env, completed);
+    expect(db.numbers).toHaveLength(1);
+    expect(world.opsNotice).toHaveBeenCalledTimes(1);
+    expect(world.sendEmail).toHaveBeenCalledTimes(1);
+
+    await handlePortOutEvent(env, completed);
+    expect(db.numbers).toHaveLength(1);
+    expect(world.opsNotice, "ops was alerted again on the replay").toHaveBeenCalledTimes(1);
+    expect(world.sendEmail, "the customer was emailed again on the replay").toHaveBeenCalledTimes(1);
   });
 });

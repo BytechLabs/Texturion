@@ -573,6 +573,42 @@ describe("#224 calling it off", () => {
     expect(harness.rest.rows("payment_requests")[0].status).toBe("cancelled");
   });
 
+  it("the same cancel applied twice writes one thread event and calls Stripe once", async () => {
+    const harness = buildHarness({
+      requests: [
+        {
+          id: "55555555-0000-4000-8000-000000000059",
+          company_id: COMPANY_ID,
+          conversation_id: CONVERSATION_ID,
+          contact_id: CONTACT_ID,
+          amount_cents: 25_000,
+          currency: "usd",
+          description: "Deposit",
+          stripe_account_id: ACCOUNT_ID,
+          stripe_payment_link_id: "plink_0002",
+          public_link_id: "link-0002",
+          status: "requested",
+          expires_at: "2026-09-01T00:00:00Z",
+        },
+      ],
+    });
+    const cancel = () =>
+      harness.request("/v1/payment-requests/55555555-0000-4000-8000-000000000059/cancel", {
+        method: "POST",
+      });
+    const cancelledEvents = () =>
+      harness.rest.rows("conversation_events").filter((event) => event.type === "payment_cancelled");
+
+    expect((await cancel()).status).toBe(200);
+    expect(cancelledEvents()).toHaveLength(1);
+    const stripeCalls = harness.stripeCalls.length;
+    expect(stripeCalls).toBeGreaterThan(0);
+
+    expect((await cancel()).status).toBe(200);
+    expect(cancelledEvents(), "the thread was told twice").toHaveLength(1);
+    expect(harness.stripeCalls, "Stripe was asked again").toHaveLength(stripeCalls);
+  });
+
   it("refuses a request belonging to another workspace as a 404", async () => {
     const harness = buildHarness({
       requests: [

@@ -269,6 +269,27 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
     expect(sb.find("GET", "/rest/v1/phone_numbers")).toHaveLength(0);
   });
 
+  it("the same close applied twice cancels billing and mails the receipt once", async () => {
+    // The RPC answers the way the database does: the first call closes the
+    // workspace, every later one finds it already closed.
+    let asked = 0;
+    const { routes, stripe, emails } = world({
+      get close() {
+        asked += 1;
+        return asked === 1 ? closed() : { outcome: "already", purge_after: PURGE_AFTER };
+      },
+    });
+
+    expect((await close(routes)).status).toBe(200);
+    expect(stripe.length).toBeGreaterThan(0);
+    expect(emails).toHaveLength(1);
+    const cancelled = stripe.length;
+
+    expect((await close(routes)).status).toBe(200);
+    expect(stripe, "billing was cancelled again").toHaveLength(cancelled);
+    expect(emails, "the receipt was mailed again").toHaveLength(1);
+  }, 15_000);
+
   it("keeps push for a member who is still in another workspace", async () => {
     // Push registrations are per person, not per workspace. Closing one must
     // not silence another workspace's customer messages on the same phone.

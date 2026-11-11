@@ -71,6 +71,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Other writers of `calls`:** `apps/api/src/messaging/inbound-ring.ts:385`, `apps/api/src/messaging/voice-webhook.ts:1141`, `apps/api/src/routes/live-calls.ts:820,847`, `apps/api/src/routes/calls.ts:523,570`, `apps/api/src/workspace/retention-enforce.ts:290`, the backfill in `supabase/migrations/20260717000000_calls_v3_state.sql`.
 - **Clients:** `apps/web/src/components/calls/ongoing-call-card.tsx`, `apps/android/app/src/main/kotlin/com/loonext/android/core/model/Calls.kt`, `apps/ios/Loonext/Core/Model/Calls.swift`. The web softphone has its own reducer, `apps/web/src/lib/softphone/state.ts` (not inventoried here).
 - **Production:** see "Production check". Eight terminal rows have no `ended_at`, one `ended_voicemail` row has outcome `missed`.
+- **Entry-only proof:** `apps/api/src/calls/transitions.test.ts`, "T14: a second inbound hangup after the call ended". Also `T1 replay guard` in the same file and the redelivered hangup in `session-do-capture.test.ts`.
 
 ### call_leg
 
@@ -90,6 +91,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Entry-only status (phase 2 done):** `api_hold_scheduled_message` and the held branch of `api_fire_scheduled_message` return `entered`, true only when the row was not already held for that reason, and `apps/api/src/messaging/scheduled-send.ts` tells the owner only then. The caller-side comparison is gone.
 - **Enforced (phase 2 done):** the trigger `scheduled_messages_transition_guard` (`supabase/migrations/20261111240000_scheduled_messages_enforce_their_lifecycle.sql`) refuses any status change outside the edges above, whoever writes it; `packages/shared/src/state-machines/enforced.test.ts` fails if the trigger and the shared definition differ. The reschedule in `apps/api/src/routes/scheduled-messages.ts` now also clears `held_reason_key`.
 - **Clients:** `apps/web/src/components/scheduled/scheduled-view.tsx`, `apps/android/app/src/main/kotlin/com/loonext/android/features/inbox/ScheduledSheet.kt`, `apps/ios/Loonext/Core/Model/Messaging.swift`. Reason texts are rostered by `packages/shared/src/scheduled-send.ts`.
+- **Entry-only proof:** `apps/api/src/messaging/scheduled-send.test.ts`, "tells people once, not every minute it stays held".
 
 ### calendar_connection
 
@@ -101,6 +103,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Route and worker:** disconnect is `api_revoke_calendar_connection` called at `apps/api/src/routes/calendar-connections.ts:885`; connect completes at `apps/api/src/routes/calendar-oauth.ts:328`; the retry and cleanup RPCs are called from `apps/api/src/calendar/worker.ts:2077,2132,2210,2255`.
 - **Clients:** web only, `apps/web/src/components/settings/calendar-connections-card.tsx` (lines 180, 189, 198: `cleaningUp = status === "disconnected"`). Android and iOS do not render it.
 - **Flag:** four files to learn when Connect returns. `allowedActions(calendarConnectionMachine, state, role)` answers it: `connect` only at `revoked`.
+- **Entry-only proof:** `supabase/tests/calendar_sync.test.sql`, "CS-13 FAILED: delivered disclosure repeated same episode". The cleanup effects are state changes; the owner notice is the one that reaches a person.
 
 ### calendar_outbox and calendar_reminder_replan
 
@@ -109,6 +112,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Effects (E):** completed advances the task link; no notice fires from these tables.
 - **Writers (SQL only):** claim `api_claim_calendar_outbox` (`supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:4029`), `api_commit_calendar_outbox_created/sent/scrubbed`, `api_retry_calendar_outbox`, `api_cancel_calendar_outbox`, `api_apply_calendar_provider_snapshot`, `calendar_reconcile_number_access`, and for replans `api_claim_calendar_reminder_replans` (4918), `api_complete_calendar_reminder_replan`, `api_retry_calendar_reminder_replan`. Later versions are in `supabase/migrations/20261111140000_task_assignees_readers.sql`.
 - **Implicit machines on the same rows:** `lease_owner` + `lease_expires_at` + `lease_generation` (lease), `attempts` (retry counter, no cap in the table), `provider_effect_ambiguous` (an uncertain provider write that gates re-send).
+- **Entry-only proof:** stamps only. `completed` and `cancelled` stamp `completed_at` or `cancelled_at` under the lease, and no notice fires from these tables.
 
 ### calendar_link
 
@@ -117,6 +121,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Writers (SQL only):** `api_apply_calendar_provider_snapshot`, `api_mark_calendar_conflict` (`supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:5547`), `api_mark_calendar_event_removed`, `api_mark_calendar_refusal` (5970), `api_resolve_calendar_conflict`, `api_resolve_calendar_event_removed`, `api_commit_calendar_outbox_*`.
 - **Routes:** `apps/api/src/routes/calendar-connections.ts:632,729,771` (resolve). **Client:** web card only.
 - **Derived from the edge table, not from a single guard:** the edges above are what the SQL writes; no function checks the from-state against a table. Phase 2 adds that check.
+- **Entry-only proof:** stamps only. `conflict`, `event_removed` and `refused` cancel queued outbox rows and write the snapshots the card reads; nothing is sent and each write is guarded by the link's current state.
 
 ### calendar_push_subscription
 
@@ -124,6 +129,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Edges:** `active -> error | revoking | revoked`; `error -> active | revoking | revoked`; `revoking -> revoked`.
 - **Writers (SQL only):** `api_retry_calendar_webhook_renewal` (`supabase/migrations/20260825020000_two_way_calendar_sync_outbox.sql:3322,3332`), `api_commit_calendar_webhook_revocation` (3425), `calendar_begin_connection_disconnect` (2191), `api_complete_calendar_connection` (`supabase/migrations/20261111140000_task_assignees_readers.sql:1138`).
 - **Name trap:** the table `webhook_subscriptions` is the calendar push channel. Our outbound webhooks are `webhook_deliveries`.
+- **Entry-only proof:** `supabase/tests/calendar_sync.test.sql`, "CS-13 FAILED: a stopped watch was claimed for a second stopWatch". `revoking` is the one that reaches the provider, and a revoked watch is never claimed again.
 
 ### webhook_delivery
 
@@ -147,11 +153,13 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - `closed_at` is set for every closed row on production (3 of 3).
 - **Other writers:** `apps/api/src/messaging/spam-flag.ts:63` (closes on spam), `apps/api/src/messaging/inbound.ts:455`, `apps/api/src/messaging/off-ramp.ts:128`, `apps/api/src/messaging/auto-send.ts:171`, `apps/api/src/routes/compose.ts:330` (insert `open`).
 - **Clients:** `apps/web/src/components/inbox/filter-bar.tsx`, `apps/android/app/src/main/kotlin/com/loonext/android/core/model/Messaging.kt`, `apps/ios/Loonext/Core/Model/Messaging.swift`.
+- **Entry-only proof:** stamps only. `closed` stamps `closed_at` in the write that sets the status; nothing is sent.
 
 ### conversation_visibility (derived)
 
 - `live`, `spam` (`is_spam`), `trashed` (`deleted_at`). Trash remembers the status in `deleted_prior_status` so restore puts it back; trashing cancels the thread's scheduled texts and hides its tasks (`api_trash_conversations`, `supabase/migrations/20261110180000_trash_hides_tasks.sql:80`). Marking spam closes the thread.
 - Snooze and mute: there is no snooze column anywhere; mute is per member in `conversation_member_prefs.muted` and `muted_until`, a preference, not a lifecycle. Not modelled.
+- **Entry-only proof:** stamps only. `spam` closes the thread and `trashed` stamps `deleted_at`, cancels pending texts and hides tasks, all guarded by `deleted_at is null`; it stops sends and never makes one.
 
 ### message
 
@@ -159,6 +167,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Edges:** `queued -> sent | delivered | failed`; `sent -> delivered | failed`; `failed -> queued` (retry claim, `claim_message_retry` in `supabase/migrations/20260805060000_paid_pause.sql:369,387`). `fail_stuck_outbound_sends` flips a queued row with no carrier id to `failed` (`supabase/migrations/20260707130000_send_retry_hardening.sql:213`).
 - **Writers:** `apps/api/src/messaging/status.ts:54` (`message.sent`, guarded by `.eq("status","queued")`), `apps/api/src/messaging/status.ts:128` (`message.finalized`, **keyed on `telnyx_message_id` with no from-state guard**: a late replay can regress `delivered` to `sent`), `apps/api/src/messaging/send.ts:604,854,875` (persist patch, interrupted sends), `apps/api/src/messaging/media.ts:319`.
 - **Effects (E):** PostHog outcome and the `message.failed` webhook fire only when the row read earlier differs from the final status (`apps/api/src/messaging/status.ts:150,163`). That is read-then-act, not a claim: two concurrent finalized deliveries can both read `queued`. Usage metering is idempotent through a unique key (`usage_events_message_uq`).
+- **Entry-only proof:** `apps/api/src/messaging/status.test.ts`, "a failed delivery applied twice is one outcome and one message.failed webhook". Also `sends nothing for a replay of the same final status` and `meters exactly once under duplicate finalized delivery`; a refused retry that loses the claim never reaches the carrier (`a concurrent duplicate retry loses the atomic claim` in `routes/messages.test.ts`).
 
 ### registration
 
@@ -167,15 +176,18 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Effects (E):** suspension notice to owner and ops (#423), rejection notice, approval push and the one-per-workspace PostHog capture, campaign submission after brand approval.
 - **Open question (see Unclassified):** `rejected` is terminal in the table, yet clients have a fix form (`apps/android/app/src/main/kotlin/com/loonext/android/features/settings/RegistrationFixForm.kt`).
 - **Writers:** `apps/api/src/telnyx/registration.ts:177,211,514,1832`, `apps/api/src/routes/registration.ts:155,161`.
+- **Entry-only proof:** `apps/api/src/telnyx/registration.test.ts`, "tells the owner, sends ops one notice". Approval is `a duplicate approval event neither re-assigns nor re-emails`.
 
 ### number_health
 
 - **Enforced (phase 2):** `number_health_transition_guard`.
 - **States:** `healthy`, `degraded`. `api_assess_number_health` returns only numbers whose state changed and the caller announces only those (`apps/api/src/messaging/number-health.ts`): the entry-only pattern already in place.
+- **Entry-only proof:** `supabase/tests/number_reputation.test.sql`, "re-assessing unchanged data reported". The caller announces only what `api_assess_number_health` returns.
 
 ### payment_request
 
 - **States:** `requested`, `paid`, `cancelled`, `expired`. `paid` by `api_mark_payment_request_paid` (`supabase/migrations/20260813060000_a_business_can_be_paid_over_the_thread.sql:248`), `expired` by `expire_payment_requests` (386), `cancelled` by two direct updates (`apps/api/src/routes/payments.ts:654,957`; **bypass**, the route does not use an RPC). Refund and dispute are thread events, not statuses.
+- **Entry-only proof:** `apps/api/src/webhooks/stripe-connect.test.ts`, "writes one timeline row however many times the event is delivered". The cancel is `the same cancel applied twice writes one thread event and calls Stripe once` in `routes/payments.test.ts`.
 
 ### phone_number
 
@@ -183,6 +195,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Edges:** `provisioning -> active | provision_failed | released`; `provision_failed -> provisioning (remediate) | released`; `active -> suspended | released | ported_out`; `suspended -> active | released | ported_out`.
 - **Writers (seven, no owner):** provisioning saga `apps/api/src/telnyx/provisioning.ts:446,545,756,917,1105,1201,1237`; remediation `apps/api/src/routes/numbers.ts:1506` (atomic re-arm guarded by `.eq("status","provision_failed")`); hosted number `apps/api/src/telnyx/text-enablement.ts:341,371`; port activation `apps/api/src/telnyx/porting.ts:867`; port-out `apps/api/src/telnyx/portout.ts:216`; billing suspension `apps/api/src/routes/billing.ts:2297` (**direct write**); SQL `claim_number_allowance` (`supabase/migrations/20260805120000_number_allowance_claim.sql:241`) and `close_out_dead_provisioning` (`supabase/migrations/20260805140000_close_out_dead_provisioning.sql:106`).
 - `provisioning.ts` funnels most writes through a generic `updateNumberRow(db, rowId, patch)`, so the status is not visible at the call site.
+- **Entry-only proof:** `apps/api/src/telnyx/portout.test.ts`, "marks the number gone, alerts ops and emails the customer once". The other entry effects are timestamp stamps.
 
 ### port and port_messaging
 
@@ -192,6 +205,8 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Effects (E):** `ported` activates the number and emails; `exception` emails; messaging `exception` sends the "texting is delayed" notice.
 - **Writers:** `apps/api/src/telnyx/porting.ts:229,251`, `apps/api/src/routes/porting.ts:721,849`, `apps/api/src/webhooks/stripe.ts:1031`.
 - **Clients:** `apps/web/src/components/porting/port-ui-state.ts`, `apps/ios/Loonext/Features/Settings/PortCards.swift`, Android in `apps/android/app/src/main/kotlin/com/loonext/android/features/foryou/ForYouTab.kt`.
+- **Entry-only proof:** `port`: `apps/api/src/telnyx/porting.test.ts`, "emails once when two deliveries of the same exception overlap".
+- **Entry-only proof:** `port_messaging`: `apps/api/src/telnyx/porting.test.ts`, "delivered twice sends one texting-delayed email". The `ported` side is `does not re-fire the completion email on a duplicate messaging_changed`.
 
 ### quote
 
@@ -199,6 +214,7 @@ Each entry lists the transitions the definition allows, the guards that exist to
 - **Writers:** `apps/api/src/routes/quotes.ts` (send, after the text goes), `apps/api/src/routes/quotes-public.ts:161` (viewed), `274` (accepted, guarded in the WHERE clause by `.in("status", ["sent","viewed"])`).
 - **Fixed (phase 2):** a send claims the draft with a lease (`quotes.sending_at`, `supabase/migrations/20261111250000_quotes_claim_a_send_with_a_lease.sql`) and writes `sent` only after the text has gone, so nothing returns to draft. A failed send releases the lease; a lease older than two minutes can be taken over.
 - **Gaps:** nothing writes `declined` or `expired` (expiry is folded in on read by `effectiveQuoteStatus`). Clients render `effective_status`, not `status`.
+- **Entry-only proof:** `apps/api/src/routes/quotes-send.test.ts`, "the same send applied twice texts the customer once". The acceptance is `the same acceptance applied twice tells the thread once` in `routes/quotes-public.test.ts`.
 
 ### text_enablement
 
@@ -209,11 +225,13 @@ Each entry lists the transitions the definition allows, the guards that exist to
 ### data_export
 
 - `pending -> running -> ready | failed`; `running -> running` on each resumable pass. All writes are in `apps/api/src/workspace/export.ts:198,220,309,335,354,382,400,419,437` (direct). `reaped_at` (bucket sweep) is a timestamp, not a state.
+- **Entry-only proof:** `apps/api/src/workspace/export.test.ts`, "a second run after the export is ready emails the person once".
 
 ### consent
 
 - **No trigger, by decision (phase 2):** the ledger is evidence, written by two triggers when a contact is created, and a raising guard could block creating a contact whose earlier opt-out is recorded first. The rule that matters, only the customer lifts a STOP, is enforced where sends happen (`runPreSendGates`, `opt_outs`). Production's 12 events follow the machine (2026-11-11).
 - The consent ledger: `implied`, `express`, `revoked`. Each row is the state a contact entered; the latest row wins. Revoked leaves only for `express`, and only the customer lifts a STOP (opt-out is carrier truth, gate in `runPreSendGates`). Written by `supabase/migrations/20260728002100_consent_ledger.sql` and its follow-ups; no client renders it.
+- **Entry-only proof:** stamps only. A `revoked` row only makes the pre-send gate refuse; it sends nothing, so a second one cannot reach anyone.
 
 ### geocode
 
@@ -224,12 +242,16 @@ Each entry lists the transitions the definition allows, the guards that exist to
 
 - **Enforced (phase 2):** `billing_disputes_status_forward_only` keeps the old status on a move outside Stripe's lifecycle rather than failing the webhook. An inquiry may skip to any later status (a missed escalation event still arrives as `under_review`, `won` or `lost`), so only a backward move is refused.
 - Free text copied from Stripe through `record_billing_dispute` (`apps/api/src/billing/disputes.ts:76`). Seven Stripe statuses; losing a closed dispute revokes a prepaid year, once. No constraint, table empty on production.
+- **Entry-only proof:** `apps/api/src/billing/disputes.test.ts`, "a lost dispute delivered twice takes the prepaid year back once". The notice is `does not send the notice twice for the same dispute`.
 
 ### task, invite, workspace (derived)
 
 - **task:** `open`, `done`, `trashed` (`deleted_at`, wins over done: one such row on production). Done is `task_done_at(tasks)`: the source message's `done_at` when the task was promoted from a message, else the task's own `done_at`, so two columns on two tables decide it. Restore returns to `open` or `done`. Writers: bulk and single changes go through `api_bulk_tasks` (`apps/api/src/routes/tasks.ts:1996`); `apps/api/src/tasks/due-notice.ts:179` and `apps/api/src/tasks/overdue-notice.ts:84` stamp notice timestamps, not state.
 - **invite:** `pending`, `accepted`, `revoked`, `expired` from `accepted_at`, `revoked_at`, `expires_at`. Writers `apps/api/src/routes/team.ts:886,1071,1113` (accept, resend, revoke). Resend extends `expires_at`, so `expired -> pending`.
 - **workspace:** `active`, `paused` (`paused_at`; subscription status stays `active` on purpose, `apps/api/src/billing/pause.ts`), `closed` (`deleted_at` + `purge_after`, `close_workspace` in `supabase/migrations/20260726000400_workspace_closure.sql:49`, `reopen_workspace` at 123), `purged` (`purged_at`, `purge_workspace_step`). Pause writers: `apps/api/src/routes/billing.ts:1635` and `apps/api/src/webhooks/stripe.ts:1170,1198` (the Stripe mirror also sets and clears `paused_at`, so two writers share one flag).
+- **Entry-only proof:** `task`: `supabase/tests/task_history_and_comments.test.sql`, "TH-2 FAILED: a repeated done wrote". A repeated done writes nothing, so the reminders and the calendar removal it queues are not queued again.
+- **Entry-only proof:** `invite`: `apps/api/src/routes/team.test.ts`, "the same acceptance applied twice creates one membership and sends one note".
+- **Entry-only proof:** `workspace`: `apps/api/src/routes/workspace-closure.test.ts`, "the same close applied twice cancels billing and mails the receipt once". The erasure receipt is `a second sweep after the erasure sends no second receipt` in `workspace/purge.test.ts`; a second pause is refused (`refuses a workspace that is already paused` in `billing/pause.test.ts`).
 
 ---
 

@@ -648,6 +648,21 @@ describe("handlePortingEvent — §5.1 transitions", () => {
       expect(emails).toHaveLength(0);
     });
 
+    it("the same messaging 'exception' delivered twice sends one texting-delayed email", async () => {
+      const { env, rest, emails } = setup({
+        telnyx_porting_order_id: ORDER_ID,
+        status: "ported",
+        messaging_port_status: "pending",
+      });
+
+      await handlePortingEvent(env, messagingEvent("exception"));
+      expect(portRow(rest).messaging_port_status).toBe("exception");
+      expect(emails).toHaveLength(1);
+
+      await handlePortingEvent(env, messagingEvent("exception"));
+      expect(emails, "the customer was told again on the second delivery").toHaveLength(1);
+    });
+
     it("late 'pending' / 'activating' replays after ported are no-ops", async () => {
       const { env, rest, emails } = setupPorted();
 

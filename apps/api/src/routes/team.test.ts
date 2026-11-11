@@ -570,6 +570,47 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     ).toBe("string");
   });
 
+  it("the same acceptance applied twice creates one membership and sends one note", async () => {
+    const resend: Record<string, unknown>[] = [];
+    const resendRoute: FetchRoute = async (url, request) => {
+      if (url.href !== "https://api.resend.com/emails") return undefined;
+      resend.push((await request.clone().json()) as Record<string, unknown>);
+      return Response.json({ id: "email_1" });
+    };
+    // The invite row the route reads is the one the accept stamp updates.
+    const invite: Record<string, unknown> = pendingInvite({
+      role: "admin",
+      note: "You are covering the north side.",
+    });
+    const sb = acceptStub(invite, authUser(), { plan: "pro", active: 2, pending: 1 });
+    sb.on("POST", "/rest/v1/company_members", (call) => [
+      { ...(call.body as Record<string, unknown>), id: "m-1" },
+    ]);
+    sb.on("POST", "/rest/v1/notification_prefs", () => new Response(null, { status: 201 }));
+    sb.on("PATCH", "/rest/v1/invites", (call) => {
+      invite.accepted_at = (call.body as { accepted_at: string }).accepted_at;
+      return new Response(null, { status: 204 });
+    });
+    sb.on("POST", "/rest/v1/rpc/api_claim_backup_owner_prompt", () => []);
+    sb.on("GET", "/rest/v1/companies", () => [{ plan: "pro", name: "Ace Plumbing" }]);
+    stubFetch(jwksRoute(auth), resendRoute, sb.route);
+    const accept = async () =>
+      apiRequest(app, env, await auth.token(), "/v1/invites/accept", {
+        method: "POST",
+        companyId: null,
+        body: { invite_id: INVITE_ID },
+      });
+
+    expect((await accept()).status).toBe(201);
+    expect(sb.find("POST", "/rest/v1/company_members")).toHaveLength(1);
+    expect(resend.length).toBeGreaterThan(0);
+    const mailed = resend.length;
+
+    expect((await accept()).status).toBe(409);
+    expect(sb.find("POST", "/rest/v1/company_members"), "a second membership was created").toHaveLength(1);
+    expect(resend, "the note was mailed again").toHaveLength(mailed);
+  });
+
   it("#521 emails the note to a role the orientation will never show it to", async () => {
     // An admin holds settings.manage, so `shouldShowOrientation` refuses them
     // deliberately: the four screens are about answering customers. Without

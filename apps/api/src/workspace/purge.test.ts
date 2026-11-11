@@ -28,6 +28,10 @@ afterEach(() => {
 
 interface WorldOptions {
   companies?: Record<string, unknown>[];
+  /** Answers the sweep's own query, so a test can model the table's filter. */
+  companiesFor?: (query: URLSearchParams) => Record<string, unknown>[];
+  /** Called when the workspace is anonymised, the last step of an erasure. */
+  onAnonymize?: () => void;
   /** Steps returned in order; the last repeats. */
   steps?: Record<string, unknown>[];
   attachments?: Record<string, string>[];
@@ -48,8 +52,8 @@ function world(options: WorldOptions = {}): {
   emails: { to: string[]; subject: string; text: string }[];
 } {
   const sb = supabaseStub(env);
-  sb.on("GET", "/rest/v1/companies", () =>
-    options.companies ?? [
+  sb.on("GET", "/rest/v1/companies", (call) =>
+    options.companiesFor?.(call.url.searchParams) ?? options.companies ?? [
       {
         id: COMPANY_ID,
         name: "Acme Plumbing",
@@ -67,9 +71,10 @@ function world(options: WorldOptions = {}): {
     index += 1;
     return step;
   });
-  sb.on("POST", "/rest/v1/rpc/anonymize_purged_workspace", () => ({
-    outcome: "anonymized",
-  }));
+  sb.on("POST", "/rest/v1/rpc/anonymize_purged_workspace", () => {
+    options.onAnonymize?.();
+    return { outcome: "anonymized" };
+  });
   // Object sources: only `attachments` has anything unless told otherwise.
   sb.on("GET", "/rest/v1/message_attachments", () => []);
   sb.on("GET", "/rest/v1/attachments", () => options.attachments ?? []);
@@ -342,6 +347,37 @@ describe("purgeClosedWorkspaces", () => {
       expect(emails[0].text).toContain(
         "could not confirm removal of 3 linked calendar copies",
       );
+    });
+
+    it("a second sweep after the erasure sends no second receipt", async () => {
+      // The table answers the filter the sweep sends: an erased workspace
+      // carries purged_at, and the sweep asks only for rows where it is null.
+      let erased = false;
+      const { routes, emails } = world({
+        companiesFor: (query) =>
+          query.get("purged_at") === "is.null" && erased
+            ? []
+            : [
+                {
+                  id: COMPANY_ID,
+                  name: "Acme Plumbing",
+                  stripe_customer_id: "cus_1",
+                  purge_receipt_email: "owner@acme.test",
+                  calendar_cleanup_unconfirmed_at: null,
+                  calendar_cleanup_unconfirmed_count: 0,
+                },
+              ],
+        onAnonymize: () => {
+          erased = true;
+        },
+      });
+      stubFetch(...routes);
+
+      expect(await purgeClosedWorkspaces(env)).toMatchObject({ completed: 1, receiptsSent: 1 });
+      expect(emails).toHaveLength(1);
+
+      expect(await purgeClosedWorkspaces(env)).toMatchObject({ workspaces: 0, receiptsSent: 0 });
+      expect(emails, "the erasure receipt was mailed again").toHaveLength(1);
     });
 
     it("does not send twice, or before the erasure has finished", async () => {

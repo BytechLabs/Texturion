@@ -1172,6 +1172,17 @@ describe("T16 — janitor forced resolution per state", () => {
     });
   }
 
+  it("T14: a second inbound hangup after the call ended fires no second merge, text-back or crew alert", () => {
+    const hangup = { type: "inbound-hangup", tag: "untagged", briAnsweredAtIso: null, payload: {} } as const;
+    const first = reduce(ringingMachine(), hangup, 3_000, KEY);
+    expect(first.machine?.state).toBe("ended_missed");
+    expect(terminalMerge(first.effects)).toBeDefined();
+
+    const second = reduce(first.machine as SessionMachine, hangup, 4_000, KEY);
+    expect(second.machine?.state).toBe("ended_missed");
+    expect(second.effects).toEqual([]);
+  });
+
   it("janitor on a terminal state is a no-op", () => {
     const machine = ringingMachine();
     machine.state = "ended_answered";

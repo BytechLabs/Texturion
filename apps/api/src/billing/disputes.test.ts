@@ -60,7 +60,7 @@ function world(options: { company?: boolean; firstSeen?: boolean } = {}) {
   const audits: Record<string, unknown>[] = [];
 
   sb.on("GET", "/rest/v1/companies", () =>
-    options.company === false ? [] : [{ id: COMPANY_ID }],
+    options.company === false ? [] : [{ id: COMPANY_ID, stripe_subscription_id: "sub_1" }],
   );
   sb.on("POST", "/rest/v1/rpc/record_billing_dispute", (call) => {
     rpcCalls.push(call.body as Record<string, unknown>);
@@ -175,6 +175,49 @@ describe("Stripe redelivers", () => {
 
     expect(w.rpcCalls).toHaveLength(1); // still recorded, for the status advance
     expect(notices()).toEqual([]);
+  });
+
+  it("a lost dispute delivered twice takes the prepaid year back once", async () => {
+    const w = world();
+    // The ledger the revoke RPC keeps: the first call revokes, a later one is a no-op.
+    let revoked = false;
+    w.sb.on("POST", "/rest/v1/rpc/prepayment_for_payment_intent", () => "cs_prepay_1");
+    w.sb.on("POST", "/rest/v1/rpc/revoke_prepayment", () => {
+      if (revoked) return { outcome: "noop" };
+      revoked = true;
+      return { outcome: "revoked", company_id: COMPANY_ID };
+    });
+    const updates: unknown[] = [];
+    const stripeApi = {
+      subscriptions: {
+        retrieve: vi.fn(async () => ({
+          id: "sub_1",
+          schedule: null,
+          items: {
+            data: [{ id: "si_licensed", price: { id: env.STRIPE_STARTER_PRICE_ID }, discounts: [] }],
+          },
+        })),
+        update: vi.fn(async (_id: string, params: unknown) => {
+          updates.push(params);
+          return {};
+        }),
+      },
+    };
+    const stripeModule = await import("./stripe");
+    const spy = vi.spyOn(stripeModule, "getStripe").mockReturnValue(stripeApi as never);
+    try {
+      stubFetch(...w.routes);
+      const lost = dispute({ status: "lost" });
+
+      await handleChargeDispute(env, lost, "charge.dispute.closed");
+      expect(updates).toHaveLength(1);
+
+      await handleChargeDispute(env, lost, "charge.dispute.closed");
+      expect(updates, "the coupon was cleared a second time").toHaveLength(1);
+      expect(stripeApi.subscriptions.retrieve).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("sends nothing when the dispute is merely closing", async () => {

@@ -252,6 +252,20 @@ describe("#287 POST /quotes/:id/send", () => {
     expect(harness.rest.rows("messages")).toHaveLength(0);
   });
 
+  it("the same send applied twice texts the customer once", async () => {
+    const harness = buildHarness();
+
+    expect((await harness.send()).status).toBe(200);
+    expect(harness.rest.rows("messages")).toHaveLength(1);
+    const carrierCalls = harness.telnyxCalls.length;
+    expect(carrierCalls).toBeGreaterThan(0);
+
+    const again = await harness.send();
+    expect(again.status).toBeGreaterThanOrEqual(400);
+    expect(harness.rest.rows("messages"), "a second text carried the same quote").toHaveLength(1);
+    expect(harness.telnyxCalls).toHaveLength(carrierCalls);
+  });
+
   it("refuses to send a quote twice", async () => {
     // Guarded in the WHERE clause: two taps on a slow connection are two
     // requests, and the second must not text the customer the same price again.

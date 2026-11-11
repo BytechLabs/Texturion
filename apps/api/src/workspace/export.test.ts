@@ -50,6 +50,10 @@ interface WorldOptions {
   uploadFails?: boolean;
   /** The write that marks the export ready fails. */
   readyStampFails?: boolean;
+  /** Answers the queue read itself, so a test can model the table's own filter. */
+  queueFor?: (query: URLSearchParams) => Record<string, unknown>[];
+  /** Sees every write to the export row. */
+  onWrite?: (body: { status?: string }) => void;
 }
 
 function world(options: WorldOptions = {}): {
@@ -58,8 +62,8 @@ function world(options: WorldOptions = {}): {
   uploaded: string[];
 } {
   const sb = supabaseStub(env);
-  sb.on("GET", "/rest/v1/data_exports", () =>
-    options.queue ?? [
+  sb.on("GET", "/rest/v1/data_exports", (call) =>
+    options.queueFor?.(call.url.searchParams) ?? options.queue ?? [
       {
         id: EXPORT_ID,
         company_id: COMPANY_ID,
@@ -70,11 +74,12 @@ function world(options: WorldOptions = {}): {
       },
     ],
   );
-  sb.on("PATCH", "/rest/v1/data_exports", (call) =>
-    options.readyStampFails && (call.body as { status?: string }).status === "ready"
+  sb.on("PATCH", "/rest/v1/data_exports", (call) => {
+    options.onWrite?.(call.body as { status?: string });
+    return options.readyStampFails && (call.body as { status?: string }).status === "ready"
       ? pgError("57014", "statement timeout")
-      : [],
-  );
+      : [];
+  });
   sb.on("POST", "/rest/v1/rpc/record_export_table", () => null);
   for (const table of TABLES) {
     sb.on("GET", `/rest/v1/${table}`, () =>
@@ -220,6 +225,44 @@ describe("buildDataExports", () => {
 
     const query = sb.find("GET", "/rest/v1/data_exports")[0].url.searchParams;
     expect(query.get("status")).toBe("in.(pending,running)");
+  });
+
+  it("a second run after the export is ready emails the person once, not twice", async () => {
+    // A queue that behaves like the table: it answers the status filter the
+    // job sends, and the ready stamp moves the row out of it.
+    let status = "pending";
+    const { routes } = world({
+      queueFor: (query) =>
+        (query.get("status") ?? "").includes(status)
+          ? [
+              {
+                id: EXPORT_ID,
+                company_id: COMPANY_ID,
+                requested_by: USER_ID,
+                storage_prefix: null,
+                completed_tables: [],
+                row_counts: {},
+              },
+            ]
+          : [],
+      onWrite: (body) => {
+        if (body.status) status = body.status;
+      },
+    });
+    const mails: string[] = [];
+    stubFetch(
+      (url) => {
+        if (url.hostname === "api.resend.com") mails.push(url.href);
+        return undefined;
+      },
+      ...routes,
+    );
+
+    expect((await buildDataExports(env)).completed).toBe(1);
+    expect(mails).toHaveLength(1);
+
+    expect((await buildDataExports(env)).exports).toBe(0);
+    expect(mails, "the ready email went out again on the next run").toHaveLength(1);
   });
 });
 

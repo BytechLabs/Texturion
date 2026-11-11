@@ -241,6 +241,39 @@ describe("message.finalized", () => {
       expect(eventsCaptured("message_outcome")).toEqual([]);
     });
 
+    it("a failed delivery applied twice is one outcome and one message.failed webhook", async () => {
+      // A row that really moves with the first event, so the second pass reads
+      // the state the first one left behind.
+      let status = "sent";
+      const stubs = baseStubs();
+      const lookup = stubRoute(restMatch(env, "GET", "messages"), () => [
+        { id: MESSAGE_ID, company_id: COMPANY_ID, direction: "outbound", status },
+      ]);
+      const update = stubRoute(restMatch(env, "PATCH", "messages"), (call) => {
+        if (status !== "queued" && status !== "sent") return [];
+        status = (call.body as { status: string }).status;
+        return [{ id: "m-1" }];
+      });
+      const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => []);
+      stubFetch(
+        lookup.route,
+        update.route,
+        endpoints.route,
+        stubs.usageInsert.route,
+        stubs.companyLookup.route,
+        stubs.usageStamp.route,
+        stubs.meter.route,
+      );
+      const failed = finalizedEvent({ toStatus: "delivery_failed", errors: [{ code: "40300" }] });
+
+      await handleStatusEvent(env, failed);
+      expect(status).toBe("failed");
+      await handleStatusEvent(env, failed);
+
+      expect(endpoints.calls, "the webhook fan-out ran on the second pass").toHaveLength(1);
+      expect(eventsCaptured("message_outcome")).toHaveLength(1);
+    });
+
     it("sends nothing for an unconfirmed delivery or an inbound row", async () => {
       routes(baseStubs());
       await handleStatusEvent(env, finalizedEvent({ toStatus: "delivery_unconfirmed" }));

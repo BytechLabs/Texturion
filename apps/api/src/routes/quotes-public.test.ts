@@ -327,6 +327,31 @@ describe("POST /q/:token/accept", () => {
     expect(await res.json()).toEqual({ accepted: true, status: "accepted" });
   });
 
+  it("the same acceptance applied twice tells the thread once", async () => {
+    const sb = stubResolving("quote_accept");
+    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
+    // The write is guarded in the WHERE clause: the first tap moves the row, the
+    // second matches nothing.
+    let moved = false;
+    sb.on("PATCH", "/rest/v1/quotes", () => {
+      if (moved) return [];
+      moved = true;
+      return [{ id: QUOTE_ID }];
+    });
+    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(sb.route);
+
+    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(1);
+
+    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
+    expect(
+      sb.find("POST", "/rest/v1/conversation_events"),
+      "the crew's thread was told twice",
+    ).toHaveLength(1);
+  });
+
   it("guards the write on the answerable statuses", async () => {
     const sb = stubResolving("quote_accept");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);

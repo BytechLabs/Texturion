@@ -2543,6 +2543,16 @@ begin
     end if;
   end loop;
 
+  -- A second pass finds nothing owed: a watch already stopped is never
+  -- claimed again, so the provider is not asked to stop it twice.
+  select * into v_renew
+    from public.api_claim_calendar_webhook_revocations(
+      'disconnect-stop-again', 1, 120
+    );
+  if v_renew.id is not null then
+    raise exception 'CS-13 FAILED: a stopped watch was claimed for a second stopWatch';
+  end if;
+
   loop
     select * into v_retry
       from public.api_claim_calendar_outbox('disconnect-cleanup', 1, 120);

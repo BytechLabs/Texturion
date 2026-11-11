@@ -2004,8 +2004,10 @@ describe("#423 — the carrier takes an approved campaign away", () => {
     expect(JSON.stringify(notices[0])).not.toContain("Excessive opt-out rate");
 
     // The transition happens once, so a second poll sends nothing more.
+    const sentAfterFirst = emails.length;
     await pollRegistrations(env);
     expect(noticesCaptured("registration-suspended")).toHaveLength(1);
+    expect(emails, "the owner was mailed again on the second poll").toHaveLength(sentAfterFirst);
   });
 
   it("treats an EXPIRED lifecycle as suspension even when the status still says accepted", async () => {
