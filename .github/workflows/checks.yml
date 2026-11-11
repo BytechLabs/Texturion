@@ -199,7 +199,9 @@ jobs:
 
       # #748: the website widget test drives a real browser between two origins.
       - name: Install Chromium for the widget test
-        run: pnpm exec playwright install --with-deps chromium
+        # A Ubuntu mirror outage must not stop the gates: the runner image already
+        # carries Chrome's system libraries, so the browser alone is enough.
+        run: timeout 300 pnpm exec playwright install --with-deps chromium || pnpm exec playwright install chromium
 
       - name: Run launch-pass E2E (smoke, golden paths, call journeys)
         run: pnpm --filter @loonext/api test:e2e
@@ -877,7 +879,9 @@ jobs:
       # against a full local stack (`node scripts/theme-audit.mjs`); wiring that
       # combination into CI is the remaining piece, recorded in docs/THEMING.md.
       - name: Install Chromium for the theme audit
-        run: pnpm exec playwright install --with-deps chromium
+        # A Ubuntu mirror outage must not stop the gates: the runner image already
+        # carries Chrome's system libraries, so the browser alone is enough.
+        run: timeout 300 pnpm exec playwright install --with-deps chromium || pnpm exec playwright install chromium
 
       - name: Start the built web app
         run: |
@@ -1009,7 +1013,9 @@ jobs:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:8787
 
       - name: Install Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        # A Ubuntu mirror outage must not stop the gates: the runner image already
+        # carries Chrome's system libraries, so the browser alone is enough.
+        run: timeout 300 pnpm exec playwright install --with-deps chromium || pnpm exec playwright install chromium
 
       - name: Start the Worker and the web app
         run: |
