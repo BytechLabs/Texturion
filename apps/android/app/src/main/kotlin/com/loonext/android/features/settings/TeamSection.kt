@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import com.loonext.android.ui.common.SelectField
 import com.loonext.android.ui.common.SelectOption
@@ -311,79 +312,91 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
         )
     }
 
+    // Two lines, because a phone cannot fit a name, the role field and two links
+    // side by side: the name was squeezed to one letter per line. Who and their
+    // role on the first line; the quieter Numbers and Deactivate links under the
+    // name. *Applying: Zen of Clarity, Relationship Strength.*
     Row(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         InitialsAvatar(name, size = 36.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                if (isSelf) t("settingsMore.nameYou", "name" to name) else name,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            val deactivatedAt = member.deactivated_at
-            Text(
-                if (deactivatedAt != null) {
-                    t("settingsMore.deactivatedAgo", "ago" to relativeTime(deactivatedAt))
-                } else {
-                    t("settingsMore.joinedAgo", "ago" to relativeTime(member.created_at))
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        // #348: the access model was complete and entirely invisible. Quiet and
-        // text-only, because it answers a question rather than being an action.
-        if (member.deactivated_at == null) {
-            LinkButton(onClick = { showingAccess = true }) {
-                Text(t("settingsMore.numbersLink"))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (isSelf) t("settingsMore.nameYou", "name" to name) else name,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    val deactivatedAt = member.deactivated_at
+                    Text(
+                        if (deactivatedAt != null) {
+                            t("settingsMore.deactivatedAgo", "ago" to relativeTime(deactivatedAt))
+                        } else {
+                            t("settingsMore.joinedAgo", "ago" to relativeTime(member.created_at))
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                when {
+                    member.role == MemberRole.OWNER ->
+                        StatusPill(t("settingsMore.roleOwner"), PillTone.Positive)
+
+                    canChangeRole -> RoleField(
+                        role = member.role,
+                        enabled = !busy,
+                        label = t("settingsMore.roleLabel"),
+                        onSelect = { role ->
+                            // #538: TAKING POWERS OFF YOURSELF STOPS AND ASKS.
+                            //
+                            // Picking a lesser role for your own row loses the
+                            // ability to change roles in the same tap, which is
+                            // the ability that would let you change it back. The
+                            // menu gave no sign of that, so an afternoon of
+                            // chasing the owner started with two taps.
+                            //
+                            // Only for this person's own row, and only when it
+                            // takes something away: a confirmation that fires on
+                            // everything is one people learn to dismiss.
+                            if (isSelf && SelfDowngrade.isDowngrade(member.role, role)) {
+                                givingUp = role
+                            } else {
+                                changeRole(role)
+                            }
+                        },
+                    )
+
+                    else -> Text(
+                        roleLabel(member.role),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-        }
-        when {
-            member.role == MemberRole.OWNER ->
-                StatusPill(t("settingsMore.roleOwner"), PillTone.Positive)
-
-            canChangeRole -> RoleField(
-                role = member.role,
-                enabled = !busy,
-                label = t("settingsMore.roleLabel"),
-                onSelect = { role ->
-                    // #538: TAKING POWERS OFF YOURSELF STOPS AND ASKS.
-                    //
-                    // Picking a lesser role for your own row loses the
-                    // ability to change roles in the same tap, which is the
-                    // ability that would let you change it back. The menu gave
-                    // no sign of that, so an afternoon of chasing the owner
-                    // started with two taps.
-                    //
-                    // Only for this person's own row, and only when it takes
-                    // something away: a confirmation that fires on everything
-                    // is one people learn to dismiss.
-                    if (isSelf && SelfDowngrade.isDowngrade(member.role, role)) {
-                        givingUp = role
-                    } else {
-                        changeRole(role)
+            if (member.deactivated_at == null || canDeactivate) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // #348: the access model was complete and entirely invisible.
+                    // Quiet and text-only, because it answers a question rather
+                    // than being an action.
+                    if (member.deactivated_at == null) {
+                        LinkButton(onClick = { showingAccess = true }) {
+                            Text(t("settingsMore.numbersLink"))
+                        }
                     }
-                },
-            )
-
-            else -> Text(
-                roleLabel(member.role),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (canDeactivate) {
-            Spacer(Modifier.width(4.dp))
-            LinkButton(onClick = { confirmingDeactivate = true }, enabled = !busy) {
-                Text(
-                    t("settingsMore.deactivate"),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                    if (canDeactivate) {
+                        LinkButton(onClick = { confirmingDeactivate = true }, enabled = !busy) {
+                            Text(
+                                t("settingsMore.deactivate"),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
