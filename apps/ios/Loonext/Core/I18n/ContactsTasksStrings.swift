@@ -662,6 +662,7 @@ enum ContactsTasksStrings {
 
             // The live call
             "contactsTasks.hide": "Hide",
+            "contactsTasks.hideCallScreen": "Hide call screen",
             "contactsTasks.mute": "Mute",
             "contactsTasks.unmute": "Unmute",
             "contactsTasks.keypad": "Keypad",
@@ -1441,6 +1442,7 @@ enum ContactsTasksStrings {
 
             // L'appel en cours
             "contactsTasks.hide": "Masquer",
+            "contactsTasks.hideCallScreen": "Masquer l'écran d'appel",
             "contactsTasks.mute": "Couper le micro",
             "contactsTasks.unmute": "Réactiver le micro",
             "contactsTasks.keypad": "Clavier",

@@ -585,6 +585,7 @@ object ContactsTasksStrings : AppStrings.Section {
 
         // The live call
         "contactsTasks.hide" to "Hide",
+        "contactsTasks.hideCallScreen" to "Hide call screen",
         "contactsTasks.mute" to "Mute",
         "contactsTasks.unmute" to "Unmute",
         "contactsTasks.keypad" to "Keypad",
@@ -1447,6 +1448,7 @@ object ContactsTasksStrings : AppStrings.Section {
 
         // L'appel en cours
         "contactsTasks.hide" to "Masquer",
+        "contactsTasks.hideCallScreen" to "Masquer l'écran d'appel",
         "contactsTasks.mute" to "Couper le micro",
         "contactsTasks.unmute" to "Réactiver le micro",
         "contactsTasks.keypad" to "Clavier",

@@ -15,6 +15,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import com.loonext.android.LoonextApp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.UiLocale
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.features.calls.CallActivity
 import com.loonext.android.R
 import com.loonext.android.push.ChannelIds
@@ -43,6 +46,19 @@ import com.loonext.android.push.ensureChannels
  */
 internal class CallNotifier(private val context: Context) {
     companion object {
+        /** What a ring is titled before the caller is known; SoftphoneManager registers a push-woken ring under it. */
+        fun unknownCaller(): String = deviceCopy("push.fallbackIncomingTitle")
+
+        /** A ring's title: the caller's name, else their number, else [unknownCaller]. */
+        fun ringTitle(callerName: String, callerNumber: String): String =
+            callerName.ifBlank { callerNumber.ifBlank { unknownCaller() } }
+
+        /**
+         * The line under a ring's title. A ring whose caller is not known yet is already titled
+         * [unknownCaller], so a caption would repeat it.
+         */
+        fun incomingRingText(title: String): String? = unknownCaller().takeUnless { it == title }
+
         private const val CONNECTING_ID = 2103
         private const val INCOMING_ID = 2104
 
@@ -145,7 +161,7 @@ internal class CallNotifier(private val context: Context) {
     fun showIncoming(session: String, callerName: String, callerNumber: String): Boolean {
         if (!canPost()) return false
         ensureChannels(context)
-        val name = callerName.ifBlank { callerNumber.ifBlank { "Incoming call" } }
+        val name = ringTitle(callerName, callerNumber)
         val caller = Person.Builder().setName(name).setImportant(true).build()
         // ANSWER opens the call UI (activity), it does NOT answer silently in the
         // background: a BroadcastReceiver cannot request RECORD_AUDIO, so the old
@@ -158,7 +174,7 @@ internal class CallNotifier(private val context: Context) {
         val builder = NotificationCompat.Builder(context, ChannelIds.INCOMING_CALLS)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(name)
-            .setContentText("Incoming call")
+            .setContentText(incomingRingText(name))
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
             .setAutoCancel(false)
@@ -233,8 +249,8 @@ internal class CallNotifier(private val context: Context) {
         ensureChannels(context)
         val builder = NotificationCompat.Builder(context, ChannelIds.INCOMING_CALLS)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(callerName.ifBlank { "Incoming call" })
-            .setContentText("Connecting…")
+            .setContentTitle(callerName.ifBlank { deviceCopy("contactsTasks.phaseCalling") })
+            .setContentText(deviceCopy("contactsTasks.connecting"))
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -307,3 +323,7 @@ class CallActionReceiver : BroadcastReceiver() {
         SoftphoneManager.get(context.applicationContext, app.graph.api)
     }.getOrNull()
 }
+
+/** A call notice's words, in the device's language: a notice can be posted while no screen is open. */
+internal fun deviceCopy(key: String): String =
+    AppStrings.translate(UiLocale.normalizeDevice(UiLocale.deviceTag()) ?: MessageLocale.DEFAULT, key)

@@ -56,6 +56,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
@@ -90,6 +91,8 @@ import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.loonext.android.ui.common.asButton
+import com.loonext.android.ui.common.announcesChanges
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 /**
  * The live-call surface (specs 26/32): identity halo + Bricolage name + big
@@ -109,11 +112,22 @@ fun InCallScreen(
 ) {
     val snapshot by manager.state.collectAsStateWithLifecycle()
     val live = snapshot.liveCalls
+    // The screen closes itself a beat after the last call ends, so nothing on it is left to be
+    // focused and read: the end of the call is said as an announcement.
+    val announceView = LocalView.current
+    val endedCopy = t("contactsTasks.phaseEnded")
+    var hadLiveCall by remember { mutableStateOf(false) }
     LaunchedEffect(live.isEmpty()) {
         if (live.isEmpty()) {
+            if (announcesCallEnd(hadLiveCall, live.size)) {
+                @Suppress("DEPRECATION")
+                announceView.announceForAccessibility(endedCopy)
+            }
             // A brief beat so "Call ended" registers, then close.
             delay(400)
             onClose()
+        } else {
+            hadLiveCall = true
         }
     }
     val featured = snapshot.activeCall
@@ -238,7 +252,7 @@ fun InCallScreen(
         Row(Modifier.fillMaxWidth()) {
             PaperIconButton(
                 icon = Icons.Outlined.KeyboardArrowDown,
-                contentDescription = t("contactsTasks.hide"),
+                contentDescription = t("contactsTasks.hideCallScreen"),
                 onClick = onClose,
             )
             Spacer(Modifier.weight(1f))
@@ -534,6 +548,9 @@ fun InCallScreen(
     }
 }
 
+/** The reader says "Call ended" once, when the last live call goes, and not when the screen opens on none. */
+internal fun announcesCallEnd(hadLiveCall: Boolean, liveCalls: Int): Boolean = hadLiveCall && liveCalls == 0
+
 /** A ring-screen action: 64-72dp colored disc + tiny label (spec 04). */
 @Composable
 internal fun RingActionCircle(
@@ -571,13 +588,14 @@ internal fun RingActionCircle(
                 Icon(icon, contentDescription = label, modifier = Modifier.size(26.dp))
             }
         }
-        Text(label, fontSize = 11.sp, fontWeight = labelWeight, color = labelColor)
+        // The button above already carries this name; saying it again is a second stop.
+        Text(label, fontSize = 11.sp, fontWeight = labelWeight, color = labelColor, modifier = Modifier.clearAndSetSemantics {})
     }
 }
 
 /** "Call note · saves to the thread" — tap opens the conversation (spec 26). */
 @Composable
-private fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
@@ -586,7 +604,8 @@ private fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
         interactionSource = interaction,
         modifier = modifier
             .fillMaxWidth()
-            .pressScale(interaction),
+            .pressScale(interaction)
+            .asButton(),
     ) {
         Column(Modifier.padding(horizontal = 15.dp, vertical = 12.dp)) {
             Row(
@@ -619,7 +638,7 @@ private fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
 
 /** "Ringing…" / "Connecting…" / the big live timer / "On hold" / "Call ended". */
 @Composable
-private fun CallPhaseLine(call: CallSnapshot, compact: Boolean = false) {
+internal fun CallPhaseLine(call: CallSnapshot, compact: Boolean = false) {
     // Phase swaps cross-animate; the per-second timer tick lives INSIDE the
     // ACTIVE branch so it never retriggers the transition (#194).
     AnimatedContent(targetState = call.phase, label = "callPhase") { phase ->
@@ -661,7 +680,11 @@ private fun CallPhaseLine(call: CallSnapshot, compact: Boolean = false) {
                         FontWeight.Normal
                     },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 10.dp),
+                    // "On hold" is said when it happens. The end of a call is announced by the screen,
+                    // which closes right after, so a live region here would say it twice.
+                    modifier = Modifier
+                        .padding(top = 10.dp)
+                        .then(if (phase == CallPhase.HELD) Modifier.announcesChanges() else Modifier),
                 )
             }
         }
@@ -823,7 +846,8 @@ private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
                         MaterialTheme.colorScheme.onBackground
                     },
                     maxLines = 1,
-                    modifier = Modifier.padding(vertical = 12.dp * scale),
+                    // Pressing a key sends a tone and shows the digit; the reader says it too.
+                    modifier = Modifier.padding(vertical = 12.dp * scale).announcesChanges(),
                 )
                 rows.forEach { row ->
                     Row(
@@ -1070,7 +1094,7 @@ private fun InCallScreenPreview() {
                     Row(Modifier.fillMaxWidth()) {
                         PaperIconButton(
                             icon = Icons.Outlined.KeyboardArrowDown,
-                            contentDescription = t("contactsTasks.hide"),
+                            contentDescription = t("contactsTasks.hideCallScreen"),
                             onClick = {},
                         )
                         Spacer(Modifier.weight(1f))

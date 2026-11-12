@@ -385,7 +385,7 @@ class SoftphoneManager private constructor(
      * an empty calls list. conflict/not_found are swallowed by contract.
      */
     suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null) {
-        runCatching { registry.ensureIncomingCall(sessionId, "Incoming call", callerHint.orEmpty()) }
+        runCatching { registry.ensureIncomingCall(sessionId, CallNotifier.unknownCaller(), callerHint.orEmpty()) }
         core.onIncomingCallPush(sessionId, callerHint)
     }
 

@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.ui.common.boundedGlyph
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.asToggleButton
+import com.loonext.android.ui.common.asButton
 
 /**
  * Paper & Olive atoms shared by the call surfaces (specs 03/04/05/25/26/32):
@@ -144,6 +145,8 @@ fun CallerAvatar(
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.02).em,
                 color = MaterialTheme.colorScheme.onSurface,
+                // The caller's name is the next stop; the initials would be read before it.
+                modifier = Modifier.clearAndSetSemantics {},
             )
             if (badge) {
                 Box(
@@ -288,7 +291,7 @@ fun KeypadKey(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 1.dp,
-        modifier = modifier.size(size),
+        modifier = modifier.size(size).asButton(),
     ) {
         Column(
             Modifier.fillMaxSize(),
@@ -312,6 +315,8 @@ fun KeypadKey(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.14.em,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // The letters are a phone's printed aid, not what the key sends.
+                    modifier = Modifier.clearAndSetSemantics {},
                 )
             }
         }

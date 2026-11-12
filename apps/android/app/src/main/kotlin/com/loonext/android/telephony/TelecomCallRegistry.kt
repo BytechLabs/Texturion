@@ -271,12 +271,13 @@ class TelecomCallRegistry(
         // calls startForeground in InCallServiceCompat, the dialer path), so
         // without this an answer from the notification/lock screen has no mic
         // ("the caller can't hear me") and swiping the app away kills the call.
+        val ringTitle = CallNotifier.ringTitle(callerName, callerNumber)
         CallForegroundService.start(
             appContext,
-            title = callerName.ifBlank { callerNumber.ifBlank { "Incoming call" } },
+            title = ringTitle,
             // Honest during the ring — syncPlatform switches it to "Call in
             // progress" the moment media connects.
-            text = "Incoming call",
+            text = CallNotifier.incomingRingText(ringTitle).orEmpty(),
         )
         launchAddCall(entry, callerName, callerNumber, address = callerNumber)
         armRingWindow(entry)
@@ -395,7 +396,7 @@ class TelecomCallRegistry(
         if (entries.putIfAbsent(key, entry) != null) return
         // Same reason as inbound: our own FGS is what grants the mic in the
         // background and keeps the process alive if the app is swiped away.
-        CallForegroundService.start(appContext, calleeName.ifBlank { "Call" })
+        CallForegroundService.start(appContext, calleeName.ifBlank { deviceCopy("telephony.ongoingCall") })
         launchAddCall(entry, calleeName, calleeNumber, address = calleeNumber)
     }
 

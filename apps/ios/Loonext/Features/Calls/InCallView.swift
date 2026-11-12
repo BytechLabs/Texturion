@@ -215,6 +215,7 @@ struct InCallView: View {
                 Button(t("contactsTasks.hide"), action: onClose)
                     .font(.golos(13, weight: .semibold))
                     .foregroundStyle(BrandColor.muted700)
+                    .accessibilityLabel(t("contactsTasks.hideCallScreen"))
                 Spacer()
                 // Bluetooth/AirPods routing is system-owned on iOS.
                 AudioRoutePicker()

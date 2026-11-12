@@ -450,7 +450,7 @@ class SoftphoneCore(
         // is the business number's CNAM), so it is deliberately skipped.
         val name = headerName
             ?: (if (headerCaller == null) event.callerName?.takeIf { it.isNotBlank() } else null)
-            ?: number.ifBlank { "Unknown caller" }
+            ?: number.ifBlank { uiText("contactsTasks.callUnknownCaller") }
         // §3.2 DETERMINISTIC correlation — the `X-Loonext-Session` header IS the
         // authoritative server session (never a caller/time guess). When present
         // the customer session is known at ring time; the OS call keys on it.
