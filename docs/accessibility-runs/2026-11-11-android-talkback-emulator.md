@@ -75,7 +75,52 @@ With the fixes for 1, 2, 4, 5, 6, 7 and 9 reverted in one build, nine of the new
 - Noise that was heard and left: "or" between Google and the form is a stop; "At least 8 characters." is its own stop after the password; the Material drag handle reads "collapsed, Drag handle"; times read twice in the spoken form ("Yesterday 9:41 PM, Tue, Nov 10, 2026, 9:41 PM GMT"); "Close sheet" (the Material scrim) has no role.
 - French durations read "3m 12s" and "4m 32s"; the call title reads "Call from +14155560111" with the raw number.
 - French was not walked on the sign in, sign up and reset screens, the message menu, the calls tab or the settings screens other than the account sheet.
-- Ringing and in-call: not reached; they need the 04:00-10:00 UTC dial window.
+- Ringing and in-call were reached on 2026-11-12 in the dial window; see the next section for what that pass covered and did not.
+
+## Ringing and in-call (2026-11-12, 06:00 to 09:00 UTC)
+
+**What this is.** The same TalkBack method, on `rig-pixel` again, over a ringing call and a live one. It is an emulator pass, so it does not close #238.
+
+**Setup.** The nonprod app the rig had installed (built from `main` on 2026-11-10, before any fix below), signed in as QA-A's technician. Calls came from the rig's robot (ROBOT-1 to DEV-A1 for the ring; the app's own dialer to ROBOT-1 for the outgoing call) under the guard's lease. TalkBack was on for the ring and for the live call, and its speech was read from its verbose log; the overlay was on in screenshots. The rig's own dial taps (uiautomator) were run with TalkBack off, and TalkBack was switched on once the call was up. The call was kept open for 4 minutes by a VM-only change to D07's run time and audio steps, put back afterwards; those three runs are recorded as D07 passes in the verdict store and are not D07 passes (no audio was judged), so a correcting `infra` verdict (`correction-2026-11-12`, no dials) follows them and D07 stays unresolved. No emulator audio was injected or streamed in any call walked here.
+
+**What was walked, and what was heard.**
+
+| Flow | What TalkBack said | Result |
+|---|---|---|
+| Incoming ring, heads-up notification | **"Call. Incoming call, Incoming call. Double-tap with 2 fingers to answer"**: an unknown caller is titled "Incoming call" and captioned "Incoming call". The notification's own "Decline" and "Answer" read as buttons. A double tap on its body opens the app's ring screen | Fail: same words twice |
+| Incoming ring, the app's ring screen | **"IC"** (the avatar's initials) before the name; "Incoming call"; "(416) 900-4752"; "Decline, Button"; "Answer, Button"; then **"Decline" and "Answer" again** (the captions under the discs). The ring window is about 45 s here, and one slow walk ran out of it | Fail: initials, captions |
+| Answering the ring | Not reached: the ring ended (voicemail answered) before the Answer disc was activated; a later ring was refused by the guard (see "Not reached") | Not run |
+| In call, outgoing (4 min) | **"Pound"** (the avatar's "#" initial) before the number; "(416) 900-4752"; the timer as "1:41"; "Mute"; "Keypad"; "Hold"; "Transfer"; "Add a note in the conversation, disabled"; "Speaker"; "End call"; "Hide". The log printed the role and state fragment after each control as `null`, so whether a lit control said "Selected" was not read from it | Fail: initials |
+| Mute, hold, speaker | Activating Mute said "Unmute" (the name flips); Hold then Resume were heard; the lit Speaker was explored. Keypad read "disabled" while on hold, as it should | Pass |
+| Keypad keys (dialer sheet, which the call's keypad shares) | **"2", then "ABC"**, then "Double-tap to activate" with no "Button"; a press said nothing and the display read "(2" | Fail: letters, role, no echo |
+| The call ending | **Nothing.** The screen closed 400 ms after the last call and TalkBack read only the window title ("Loonext", "Calls") | Fail: silent |
+| Hold or call note card, second call, transfer sheet, DTMF sheet in a call | Not walked | Not run |
+
+## Defects found and fixed
+
+Each has a test in `a11y/InCallTalkBackSemanticsTest.kt` (Robolectric, `@Config(sdk = [34])`).
+
+| # | Defect | Fix | Test |
+|---|---|---|---|
+| 1 | The avatar's initials were a stop before the caller's name, on the ring screen ("IC") and in the call ("Pound") | `CallerAvatar` hides its initials (`features/calls/CallKit.kt`) | `the caller's initials are not a stop before the caller's name` |
+| 2 | Answer and Decline on the ring screen (and in a second ring) were read twice: as a button and as the caption under it | `RingActionCircle` hides the caption (`features/calls/InCallScreen.kt`) | `a ring action is one button, not a button and its caption` |
+| 3 | A keypad key read its letters after the digit and said no "Button" | `KeypadKey` is a button and hides the letters (`features/calls/CallKit.kt`) | `a keypad key is a button named by its digit alone` |
+| 4 | The end of a call was silent | `InCallScreen` announces "Call ended" once, when the last live call goes (`announcesCallEnd`) | `the end of a call is announced once, and not when the screen opens on none` |
+| 5 | A ring from an unknown caller read "Incoming call" as its title and again as its caption | `CallNotifier.ringTitle` and `incomingRingText` title every ring and leave the caption off when the title already says it: the ring notice, the call's foreground notice and a push-woken ring (`telephony/CallNotifications.kt`, `TelecomCallRegistry.kt`, `SoftphoneManager.kt`) | `a ring from an unknown caller is not titled and captioned with the same words` |
+| 6 | The call note card was a clickable with no role | `asButton()` on `CallNoteCard` | `the call note card is a button` |
+| 7 | "On hold" on the phase line, and the digits shown in the call's keypad, were not live regions | `announcesChanges()` on "On hold" and on the DTMF readout. "Call ended" is not one: fix 4 announces it, and both would say it twice | `on hold is said when it appears`, `call ended is not a live region, because the screen announces it`, `the ticking call timer is not a live region` |
+| 8 | Found reading the code for fix 5, not heard (French was not run on a call). The call notices were English in French: "Incoming call", "Connecting…", "Call" and the in-call "Unknown caller" were literals, so TalkBack read them in English in the shade and on the lock screen | They come from the catalogue in the device's language (`deviceCopy`), as the foreground notice's words already did | `the words a call notice shows come from the catalogue` (scans `telephony/`; it flagged all seven literals before the fix) |
+| 9 | The in-call screen's hide control said only "Hide" | "Hide call screen" on Android; on iOS the visible "Hide" stays and VoiceOver reads "Hide call screen" | none: a catalogue word, covered by the catalogue's own checks |
+
+**Proof.** With the app changes reverted and the new test file kept, five of the six Robolectric tests that cover fixes 1, 2, 3, 6 and 7 failed (the timer test is a guard and passes either way); the end-of-call and ring-caption helpers have no pre-fix form to run. Then the fixes were put back and the file passed, and so did the full `:app:testDebugUnitTest` run.
+
+**Not re-heard.** The fixed build was not installed on the rig emulator (the rig installs the nonprod APK built from a ref), so every fix is checked by its test, not by TalkBack. The announcement in fix 4 and the live regions in fix 7 are the least certain: an announcement event, as the thread screen uses, is what spoke on this emulator before, and a live region on text that is already on screen has not been heard here.
+
+## Not reached
+
+- **Answering the ring and the in-call controls of an incoming call.** The one ring walked ended before it was answered, and the third ring (09:00 UTC) was refused by the guard with `budget.tier_amber` before any dial; no budget was bypassed.
+- The keypad sheet in a call, the transfer sheet, a second call ringing in and the call chip above the tab bar. French and large text were not run on any call screen.
+- The ring screen over a locked keyguard (the full-screen intent).
 
 ## What stays open
 
