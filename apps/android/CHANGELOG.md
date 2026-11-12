@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.4](https://github.com/BytechLabs/Texturion/compare/android-v0.26.3...android-v0.26.4) (2026-11-12)
+
+
+### Bug Fixes
+
+* **mobile:** the screen reader reads ringing and in-call screens clearly ([48f5ef0](https://github.com/BytechLabs/Texturion/commit/48f5ef0381e84c30c24b25919e399d86dfb50aee))
+
 ## [0.26.3](https://github.com/BytechLabs/Texturion/compare/android-v0.26.2...android-v0.26.3) (2026-11-11)
 
 
