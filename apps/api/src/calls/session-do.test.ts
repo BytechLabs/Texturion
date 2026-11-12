@@ -1180,3 +1180,162 @@ describe("#617 the ACK does not wait for the cascade", () => {
     );
   });
 });
+
+describe("a saved voicemail is stored beside the FIFO, not in it", () => {
+  /** Ring out to voicemail and record: the state a saved recording arrives in. */
+  async function toRecording(config: FakeConfig) {
+    const made = makeDO(config);
+    await made.instance.onTelnyxEvent(initiatedEvent("e1"));
+    await made.instance.whenIdle();
+    vi.setSystemTime(new Date(Date.now() + 46_000));
+    await made.instance.alarm();
+    await made.instance.onTelnyxEvent(vmiEvent("call.speak.ended"));
+    await made.instance.whenIdle();
+    expect((await snapshot(made.instance))?.state).toBe("voicemail_recording");
+    return made;
+  }
+
+  function held() {
+    let release!: () => void;
+    const until = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return { until, release };
+  }
+
+  it("a hang-up is acked while the voicemail is still being stored", async () => {
+    // Storing reads the audio with two models, which took up to 13s on the rig.
+    // Run inside the FIFO, this ACK would wait for all of it, so the test would
+    // time out rather than fail.
+    const store = held();
+    const { instance, calls } = await toRecording({
+      initiated: ctx(),
+      voicemailPipeline: () => store.until,
+    });
+
+    await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));
+    await expect(instance.onTelnyxEvent(inboundHangupEvent("h1", "vmi"))).resolves.toBe(true);
+    expect(calls.voicemailPipelines).toBe(1);
+    expect((await snapshot(instance))?.state).toBe("ended_voicemail");
+
+    store.release();
+    await instance.whenIdle();
+    expect(calls.voicemailPipelines).toBe(1);
+  });
+
+  it("the job is saved before the cascade moves on, and cleared once it is stored", async () => {
+    const store = held();
+    const { instance, store: storage } = await toRecording({
+      initiated: ctx(),
+      voicemailPipeline: () => store.until,
+    });
+
+    await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));
+    await snapshot(instance);
+    expect(storage.map.has("voicemail")).toBe(true);
+    expect(storage.map.has("journal")).toBe(false);
+
+    store.release();
+    await instance.whenIdle();
+    expect(storage.map.has("voicemail")).toBe(false);
+  });
+
+  it("a run that died with its isolate is run again by its alarm", async () => {
+    const { instance, store } = await toRecording({
+      initiated: ctx(),
+      voicemailPipeline: () => new Promise<void>(() => {}),
+    });
+    await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));
+    await snapshot(instance);
+
+    const revived = reviveDO(store, { initiated: ctx() });
+    vi.setSystemTime(new Date(Date.now() + 31_000));
+    await revived.instance.alarm();
+    await revived.instance.whenIdle();
+
+    expect(revived.calls.voicemailPipelines).toBe(1);
+    expect(store.map.has("voicemail")).toBe(false);
+  });
+
+  it("an alarm during a run that is still going does not start a second", async () => {
+    // Two runs would buy the same transcript twice.
+    const store = held();
+    const { instance, calls, store: storage } = await toRecording({
+      initiated: ctx(),
+      voicemailPipeline: () => store.until,
+    });
+    await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));
+    await snapshot(instance);
+
+    vi.setSystemTime(new Date(Date.now() + 31_000));
+    await instance.alarm();
+    expect(calls.voicemailPipelines).toBe(1);
+
+    store.release();
+    await instance.whenIdle();
+    expect(calls.voicemailPipelines).toBe(1);
+    expect(storage.map.has("voicemail")).toBe(false);
+  });
+
+  it("a failed run is retried until it is stored", async () => {
+    let failures = 2;
+    const { instance, calls, store } = await toRecording({
+      initiated: ctx(),
+      voicemailPipeline: () => {
+        if (failures-- > 0) throw new Error("voicemail store failed: timeout");
+      },
+    });
+    await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));
+    await instance.whenIdle();
+    expect(store.map.has("voicemail")).toBe(true);
+
+    for (let tick = 0; tick < 2; tick += 1) {
+      vi.setSystemTime(new Date(Date.now() + 31_000));
+      await instance.alarm();
+      await instance.whenIdle();
+    }
+
+    expect(calls.voicemailPipelines).toBe(3);
+    expect(store.map.has("voicemail")).toBe(false);
+    expect(calls.warnings.filter((w) => w.includes("voicemail attempt"))).toHaveLength(2);
+    expect(calls.errorCount).toBe(0);
+  });
+
+  it("a run that keeps failing is dropped after ten tries and reported", async () => {
+    const { instance, calls, store } = await toRecording({
+      initiated: ctx(),
+      voicemailPipeline: () => {
+        throw new Error("voicemail store failed: bucket missing");
+      },
+    });
+    await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));
+    await instance.whenIdle();
+
+    for (let tick = 0; tick < 12 && store.map.has("voicemail"); tick += 1) {
+      vi.setSystemTime(new Date(Date.now() + 31_000));
+      await instance.alarm();
+      await instance.whenIdle();
+    }
+
+    expect(calls.voicemailPipelines).toBe(10);
+    expect(store.map.has("voicemail")).toBe(false);
+    expect(calls.errorCount).toBe(1);
+  });
+
+  it("a run that settles after the purge leaves storage empty", async () => {
+    const store = held();
+    const { instance, store: storage } = await toRecording({
+      initiated: ctx(),
+      voicemailPipeline: () => store.until,
+    });
+    await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));
+    await snapshot(instance);
+
+    vi.setSystemTime(new Date(Date.now() + 16 * 60_000));
+    await instance.alarm();
+    store.release();
+    await instance.whenIdle();
+
+    expect([...storage.map.keys()]).toEqual([]);
+  });
+});

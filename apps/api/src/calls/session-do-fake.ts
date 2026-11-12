@@ -104,6 +104,8 @@ export interface FakeConfig {
   pushAudience?: string[];
   mirrorThrows?: () => boolean;
   pushFanoutThrows?: () => boolean;
+  /** May return a promise to hold the voicemail open, or throw to fail it. */
+  voicemailPipeline?: () => void | Promise<void>;
 }
 
 export function makeRuntime(config: FakeConfig = {}) {
@@ -220,6 +222,7 @@ export function makeRuntime(config: FakeConfig = {}) {
     },
     async voicemailPipeline() {
       calls.voicemailPipelines += 1;
+      await config.voicemailPipeline?.();
     },
     warn(message) {
       calls.warnings.push(message);

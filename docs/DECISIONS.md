@@ -10482,3 +10482,20 @@ probe `messages`.
 **Choice.** Not built. A task has a due date and an optional due time, and no duration or end. Dragging across slots asks the person to draw a span that nothing stores or shows, so the drag would either drop its end silently or make a stored end time up. A click or tap on an empty day (month) or an hour slot (week), or Enter on it from the keyboard, opens New task due then. That one gesture covers the whole job and needs no dragging (WCAG 2.5.7).
 
 **Revisit when** a task gains a duration (a job that blocks an afternoon). Then a drag sets due time and length, with the keyboard alternative it was asked with.
+
+## D164 - a saved voicemail is stored beside the call's event queue, not in it (#769)
+
+**Question.** Storing a voicemail fetches and uploads the audio, then reads it with two models: seconds of work. It ran as an effect inside the call session's FIFO, so every later event for the call waited for it. The voicemail leg's own hang-up waited up to 13s for its ACK, and §17.5's 2s drift alarm fired on every voicemail.
+
+**Choice.** The `voicemail-pipeline` effect saves a `voicemail` job and arms a `voicemail` alarm, then the cascade moves on. The run happens outside the FIFO and books its result back through it. The machine is already `ended_voicemail` when the job starts, so no later event depends on it.
+
+- **One run per isolate.** A second run would buy the transcript twice.
+- **The alarm reruns a job whose run died** with its isolate. A run still going is given more time instead.
+- **A failed run retries every 30s.** After 10 tries it is dropped and reported as an error. The last try ends inside Telnyx's 10-minute recording link.
+- **A run that settles after the 15-minute purge writes nothing**, so it cannot bring the purged storage back.
+
+**Rejected.**
+- **Transcribing later, after the timeline line is written.** The line and the `voicemail.received` webhook would lose the words they carry today.
+- **Detaching the run with no saved job.** An eviction would lose the voicemail, which the journal protects today.
+
+**Revisit when** another effect that runs after the call has ended makes a vendor or model call. It belongs beside the FIFO too.

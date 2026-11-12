@@ -98,9 +98,19 @@ interface PendingMirror {
   attempts: number;
 }
 
+/** A saved recording still to be stored, transcribed and threaded. */
+interface VoicemailJob {
+  payload: Record<string, unknown>;
+  /** Failed runs so far. */
+  attempts: number;
+}
+
 const SEEN_CAP = 256;
 const MAX_MIRROR_ATTEMPTS = 12;
 const MIRROR_RETRY_MS = 3_000;
+/** Ten tries 30s apart end inside Telnyx's 10-minute recording link. */
+const MAX_VOICEMAIL_ATTEMPTS = 10;
+const VOICEMAIL_RETRY_MS = 30_000;
 
 /** Minimal Telnyx payload surface the DO parses. */
 interface CallPayload {
@@ -124,12 +134,14 @@ function callPayload(event: TelnyxEvent): CallPayload | undefined {
   return event.data?.payload as unknown as CallPayload | undefined;
 }
 
-/** Alarm bucket keys — the reducer's AlarmKind plus the two shell-owned ones. */
-type AlarmSlot = AlarmKind | "journal-resume" | "mirror-retry";
+/** Alarm bucket keys — the reducer's AlarmKind plus the shell-owned ones. */
+type AlarmSlot = AlarmKind | "journal-resume" | "mirror-retry" | "voicemail";
 
 export class CallSessionDO extends DurableObject<Env> {
   private queue: Promise<unknown> = Promise.resolve();
   private _runtime: SessionRuntime | undefined;
+  /** The voicemail run in this isolate, if one is going. */
+  private voicemailRun: Promise<void> | null = null;
 
   /** Test seam: inject a fake runtime (no Telnyx / no PostgREST). */
   installRuntime(runtime: SessionRuntime): void {
@@ -194,6 +206,11 @@ export class CallSessionDO extends DurableObject<Env> {
     // moves the tail, and one await would settle against the old one.
     await this.queue;
     await this.queue;
+    // A voicemail runs beside the FIFO and settles back through it.
+    if (this.voicemailRun) {
+      await this.voicemailRun;
+      await this.queue;
+    }
   }
   // ---- RPC surface (§7.1) -------------------------------------------------
 
@@ -463,6 +480,7 @@ export class CallSessionDO extends DurableObject<Env> {
       const order: AlarmSlot[] = [
         "journal-resume",
         "mirror-retry",
+        "voicemail",
         "fanout-settle",
         "intent-expiry",
         // #278: the cascade step runs BEFORE the window expiry, so a step and
@@ -493,6 +511,14 @@ export class CallSessionDO extends DurableObject<Env> {
     }
     if (slot === "mirror-retry") {
       await this.retryPendingMirror();
+      return;
+    }
+    if (slot === "voicemail") {
+      // The run died with its isolate, or failed and is due again. One still
+      // going in this isolate is left alone and given more time.
+      if (!(await this.getVoicemailJob())) return;
+      await this.setAlarmSlot("voicemail", Date.now() + VOICEMAIL_RETRY_MS);
+      this.runVoicemail();
       return;
     }
     if (slot === "purge") {
@@ -1050,7 +1076,7 @@ export class CallSessionDO extends DurableObject<Env> {
         return [];
       }
       case "voicemail-pipeline": {
-        await this.rt.voicemailPipeline(effect.payload);
+        await this.startVoicemail(effect.payload);
         return [];
       }
       case "warn": {
@@ -1601,6 +1627,71 @@ export class CallSessionDO extends DurableObject<Env> {
     await this.ctx.storage.put("sessionId", sessionId);
   }
 
+  // ---- Voicemail, beside the FIFO -----------------------------------------
+  //
+  // Storing a voicemail takes seconds: the audio is fetched and uploaded, then
+  // read by two models. Run as an effect, it would hold the FIFO that long, and
+  // the hang-ups it causes would wait for their ACK against the 2s budget (13s
+  // on the rig, #769). So the job is saved, the cascade moves on, and the run
+  // settles back through the FIFO. The `voicemail` alarm reruns a job whose run
+  // died with its isolate.
+
+  private async startVoicemail(payload: Record<string, unknown>): Promise<void> {
+    const job: VoicemailJob = { payload, attempts: 0 };
+    await this.ctx.storage.put("voicemail", job);
+    await this.setAlarmSlot("voicemail", Date.now() + VOICEMAIL_RETRY_MS);
+    this.runVoicemail();
+  }
+
+  /** One run per isolate: a second would buy the transcript twice. */
+  private runVoicemail(): void {
+    if (this.voicemailRun) return;
+    // Nothing awaits a run, so a failure to settle it is reported here. The
+    // job is still saved and its alarm still armed, so it is retried.
+    this.voicemailRun = this.attemptVoicemail()
+      .catch((cause: unknown) => this.rt.reportError(cause))
+      .finally(() => {
+        this.voicemailRun = null;
+      });
+  }
+
+  private async attemptVoicemail(): Promise<void> {
+    const job = await this.getVoicemailJob();
+    if (!job) return;
+    try {
+      await this.rt.voicemailPipeline(job.payload);
+    } catch (cause) {
+      await this.enqueue(() => this.voicemailFailed(cause));
+      return;
+    }
+    await this.enqueue(() => this.voicemailDone());
+  }
+
+  private async voicemailDone(): Promise<void> {
+    // Gone means the purge got here first, and writing now would undo it.
+    if (!(await this.getVoicemailJob())) return;
+    await this.ctx.storage.delete("voicemail");
+    await this.clearAlarmSlot("voicemail");
+  }
+
+  private async voicemailFailed(cause: unknown): Promise<void> {
+    const job = await this.getVoicemailJob();
+    if (!job) return;
+    const attempts = job.attempts + 1;
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    if (attempts >= MAX_VOICEMAIL_ATTEMPTS) {
+      this.rt.reportError(
+        new Error(`calls-v3 voicemail dropped after ${attempts} failed attempts: ${reason}`),
+      );
+      await this.ctx.storage.delete("voicemail");
+      await this.clearAlarmSlot("voicemail");
+      return;
+    }
+    this.rt.warn(`calls-v3 voicemail attempt ${attempts} failed, retrying: ${reason}`);
+    await this.ctx.storage.put("voicemail", { ...job, attempts });
+    await this.setAlarmSlot("voicemail", Date.now() + VOICEMAIL_RETRY_MS);
+  }
+
   // ---- Storage helpers ----------------------------------------------------
 
   private cachedMachine: SessionMachine | null | undefined;
@@ -1681,6 +1772,10 @@ export class CallSessionDO extends DurableObject<Env> {
 
   private async clearPendingMirror(): Promise<void> {
     await this.ctx.storage.delete("pendingMirror");
+  }
+
+  private async getVoicemailJob(): Promise<VoicemailJob | null> {
+    return (await this.ctx.storage.get<VoicemailJob>("voicemail")) ?? null;
   }
 
   // ---- Alarm multiplexing (one platform alarm, many logical deadlines) ----
