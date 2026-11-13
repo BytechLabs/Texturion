@@ -229,10 +229,19 @@ export async function assertEgressWithinAllowance(
    * made within this window still covers it — see EGRESS_DEDUPE_SECONDS.
    */
   ttlSeconds: number = EGRESS_DEDUPE_SECONDS,
+  /**
+   * The company's billing-period anchor when the caller already read it with
+   * {@link companyPlanRow}. `undefined` reads it here; `null` means the company
+   * has no period, the same as the column.
+   */
+  knownPeriodStart?: string | null,
 ): Promise<void> {
   if (objects.length === 0) return;
 
-  const { currentPeriodStart } = await companyPlanRow(db, companyId);
+  const currentPeriodStart =
+    knownPeriodStart !== undefined
+      ? knownPeriodStart
+      : (await companyPlanRow(db, companyId)).currentPeriodStart;
   const limitBytes = EGRESS_ALLOWANCE_BYTES;
   const since = egressPeriodStart(currentPeriodStart);
   const dedupeSince = new Date(Date.now() - ttlSeconds * 1000).toISOString();

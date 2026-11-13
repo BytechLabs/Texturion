@@ -16,6 +16,7 @@ import {
 import {
   completeEnv,
   createTestAuth,
+  type FetchRoute,
   jwksRoute,
   stubFetch,
   type TestAuth,
@@ -491,6 +492,154 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
     // D14: the embedded first page carries the done fields too.
     expect(msgCall.url.searchParams.get("select")).toContain("done_at");
     expect(msgCall.url.searchParams.get("select")).toContain("done_by_user_id");
+  });
+
+  const NUMBER_ID = "eeeeeeee-1111-4222-8333-444444444444";
+  const MESSAGE_ID = "99999999-1111-4222-8333-444444444444";
+
+  /** A member opening a thread with one message and an unclaimed page on it. */
+  function threadWorld(levels: { phone_number_id: string; level: string }[]) {
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => levels);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      {
+        ...conversationRow({ phone_number_id: NUMBER_ID }),
+        // A toll-free number, so the clock falls through to the workspace.
+        contacts: { id: "d", name: "Jo", phone_e164: "+18005551000", timezone: null },
+        conversation_tags: [],
+        companies: { timezone: "America/Vancouver" },
+      },
+    ]);
+    sb.on("GET", "/rest/v1/messages", () => [
+      {
+        id: MESSAGE_ID,
+        conversation_id: CONV_ID,
+        direction: "inbound",
+        body: "hi",
+        status: "received",
+        created_at: "2026-07-01T10:00:00+00:00",
+        message_attachments: [],
+      },
+    ]);
+    sb.on("GET", "/rest/v1/conversation_snoozes", () => []);
+    sb.on("GET", "/rest/v1/alert_escalations", () => [
+      {
+        id: "alert-1",
+        kind: "missed_call",
+        on_call_user_id: ASSIGNEE,
+        created_at: "2026-08-02T03:40:00+00:00",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/tasks", () => []);
+    sb.on("GET", "/rest/v1/profiles", () => [{ display_name: "Dana" }]);
+    return sb;
+  }
+
+  /**
+   * Answers Supabase a beat late and remembers, for each path, what was still
+   * in flight when it was first asked: two reads are one wave only if they
+   * overlap.
+   */
+  function overlapProbe(route: FetchRoute) {
+    const inFlight = new Map<string, number>();
+    const seen = new Map<string, string[]>();
+    const probed: FetchRoute = async (url, request) => {
+      const answer = route(url, request);
+      if (answer === undefined) return undefined;
+      const path = url.pathname;
+      if (!seen.has(path)) seen.set(path, [...inFlight.keys()]);
+      inFlight.set(path, (inFlight.get(path) ?? 0) + 1);
+      try {
+        const response = await answer;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return response;
+      } finally {
+        const left = (inFlight.get(path) ?? 1) - 1;
+        if (left > 0) inFlight.set(path, left);
+        else inFlight.delete(path);
+      }
+    };
+    const together = (a: string, b: string) =>
+      (seen.get(a) ?? []).includes(b) || (seen.get(b) ?? []).includes(a);
+    return { route: probed, together };
+  }
+
+  it("reads the thread in two waves: everything keyed on the id, then what the page needs", async () => {
+    const sb = threadWorld([]);
+    const probe = overlapProbe(sb.route);
+    stubFetch(jwksRoute(auth), probe.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    for (const path of [
+      "/rest/v1/messages",
+      "/rest/v1/conversation_snoozes",
+      "/rest/v1/conversation_member_prefs",
+      "/rest/v1/alert_escalations",
+      "/rest/v1/rpc/member_number_levels",
+    ]) {
+      expect(probe.together("/rest/v1/conversations", path), path).toBe(true);
+    }
+    expect(probe.together("/rest/v1/tasks", "/rest/v1/profiles")).toBe(true);
+    expect(((await res.json()) as { open_alert: unknown }).open_alert).toMatchObject({
+      on_call_name: "Dana",
+    });
+  });
+
+  it("takes the workspace's clock from the row it already read", async () => {
+    const sb = threadWorld([]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.destination_clock).toMatchObject({
+      timezone: "America/Vancouver",
+      source: "company",
+    });
+    expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
+    // The embed is how the clock was answered, not part of the thread.
+    expect(body).not.toHaveProperty("companies");
+  });
+
+  it("#106: a hidden number's thread 404s before its messages are decorated or returned", async () => {
+    // The messages page is read beside the access decision, so this keeps it
+    // from being used before that decision.
+    const sb = threadWorld([{ phone_number_id: NUMBER_ID, level: "none" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error).toEqual({ code: "not_found", message: "No such conversation." });
+    expect(JSON.stringify(body)).not.toContain(MESSAGE_ID);
+    // No message id reached loadMessageTaskFlags, and nothing was looked up
+    // for the page.
+    expect(sb.find("GET", "/rest/v1/tasks")).toHaveLength(0);
+    expect(sb.find("GET", "/rest/v1/profiles")).toHaveLength(0);
   });
 
   it("404s for another company's conversation and malformed ids", async () => {

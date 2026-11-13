@@ -128,6 +128,10 @@ const SELF_SCOPED_WRITES = new Set([
   // a named backup starting a claim is routinely a plain member, and a recipient
   // accepting is by definition not the owner yet.
   "POST /company/ownership/confirm-code",
+  // A read sent as POST because its ids are a body: the batch form of
+  // GET /attachments/:id/url, behind the same gate, writing only the egress
+  // ledger that GET also writes.
+  "POST /attachments/urls",
 ]);
 
 /**

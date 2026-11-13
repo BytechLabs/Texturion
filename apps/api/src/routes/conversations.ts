@@ -83,6 +83,7 @@ import {
 import {
   assertEgressWithinAllowance,
   assertMintRateWithinLimit,
+  companyPlanRow,
 } from "../attachments/egress";
 import { requireCapability } from "../auth/company";
 import { listConversationViewers } from "../auth/conversation-audience";
@@ -97,7 +98,6 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage, encodeCursor, type Cursor } from "../http/pagination";
-import { dispositionOptions } from "../storage/disposition";
 import {
   buildSuggestionMessages,
   envelopeShape,
@@ -150,6 +150,7 @@ import {
   assertConversationPatchAllowed,
   conversationAllowedActions,
 } from "./conversation-actions";
+import { signObjects } from "./attachments";
 import { assertOwnLeadSource } from "./lead-sources";
 import {
   loadMessageTaskFlags,
@@ -711,15 +712,34 @@ conversationsRoutes.get(
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
+    const userId = c.get("userId");
     const db = getDb(getEnv(c.env));
 
     interface ConversationDetailRow {
       [key: string]: unknown;
       contacts: Record<string, unknown> | null;
       conversation_tags: { tags: Record<string, unknown> | null }[];
+      companies?: { timezone?: string | null } | null;
     }
-    const rows = unwrap<ConversationDetailRow[]>(
-      await db
+    const messageLimit = 50;
+    interface MessageRow {
+      id: string;
+      created_at: string;
+      [key: string]: unknown;
+      message_attachments: unknown[];
+    }
+
+    // Every read here needs only the conversation id, so they leave together.
+    // Nothing they return is used until the #106 check below has passed.
+    const [
+      conversationRows,
+      messageRows,
+      snoozeRows,
+      memberPrefRows,
+      alertRows,
+      access,
+    ] = await Promise.all([
+      db
         .from("conversations")
         .select(
           `${CONVERSATION_COLUMNS},` +
@@ -733,38 +753,15 @@ conversationsRoutes.get(
             // every other automated body is picked server-side. Same row, no
             // second query.
             "contacts(id,name,phone_e164,address,notes,consent_source,consent_at,deleted_at,timezone,locale)," +
-            "conversation_tags(tags(id,name,color))",
+            "conversation_tags(tags(id,name,color))," +
+            // The ladder's bottom rung, so the clock never reads companies itself.
+            "companies(timezone)",
         )
         .eq("company_id", companyId)
         .eq("id", id)
         .is("deleted_at", null)
         .limit(1),
-      "conversation lookup",
-    );
-    const row = rows[0];
-    if (!row) {
-      return errorResponse(c, "not_found", "No such conversation.");
-    }
-
-    // #106: hidden numbers 404; the level rides the payload as `viewer_level`
-    // so the composer can gate its SMS mode ('note' = notes-only member).
-    const viewerLevel = await assertNumberLevel(db, {
-      companyId,
-      userId: c.get("userId"),
-      role: c.get("role"),
-      phoneNumberId: row.phone_number_id as string | null,
-      need: "read",
-    });
-
-    const messageLimit = 50;
-    interface MessageRow {
-      id: string;
-      created_at: string;
-      [key: string]: unknown;
-      message_attachments: unknown[];
-    }
-    const messageRows = unwrap<MessageRow[]>(
-      await db
+      db
         .from("messages")
         .select(MESSAGE_COLUMNS)
         .eq("company_id", companyId)
@@ -773,18 +770,88 @@ conversationsRoutes.get(
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .limit(messageLimit + 1),
-      "messages page",
+      // #293: whether THIS member has deferred it, so the header can offer
+      // "bring it back" rather than the thread quietly re-hiding itself the next
+      // time the list loads. Reading it here rather than from the list row means
+      // a thread opened from search or a deep link knows too.
+      db
+        .from("conversation_snoozes")
+        .select("until,note,kind")
+        .eq("company_id", companyId)
+        .eq("conversation_id", id)
+        .eq("user_id", userId)
+        .gt("until", new Date().toISOString())
+        .limit(1),
+      db
+        .from("conversation_member_prefs")
+        .select("user_id,muted,muted_until,followed")
+        .eq("company_id", companyId)
+        .eq("conversation_id", id)
+        .eq("user_id", userId)
+        .limit(1),
+      // #244: an after-hours page on this thread that nobody has claimed.
+      //
+      // Read HERE rather than from a separate endpoint, because the banner is
+      // part of the thread's state: a client that had to ask a second time would
+      // render the thread first and the "somebody needs to call these people
+      // back" strip a moment later, which is the wrong order for the one message
+      // on the screen that is time-critical.
+      //
+      // Only the newest, and only while it is unacknowledged. An acknowledged
+      // alert is history: the crew can see who took it in the timeline, and a
+      // banner that lingers after somebody claimed it trains people to ignore
+      // banners.
+      db
+        .from("alert_escalations")
+        .select("id,kind,on_call_user_id,created_at")
+        .eq("company_id", companyId)
+        .eq("conversation_id", id)
+        .is("acknowledged_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1),
+      resolveNumberAccess(db, { companyId, userId, role: c.get("role") }),
+    ]);
+    const row = unwrap<ConversationDetailRow[]>(
+      conversationRows,
+      "conversation lookup",
+    )[0];
+    if (!row) {
+      return errorResponse(c, "not_found", "No such conversation.");
+    }
+
+    // #106: hidden numbers 404; the level rides the payload as `viewer_level`
+    // so the composer can gate its SMS mode ('note' = notes-only member).
+    const viewerLevel = access.levelFor(row.phone_number_id as string | null);
+    if (viewerLevel === "none") {
+      throw new ApiError("not_found", "No such conversation.");
+    }
+
+    const messagesPage = buildPage(
+      unwrap<MessageRow[]>(messageRows, "messages page"),
+      messageLimit,
+      "created_at",
     );
-    const messagesPage = buildPage(messageRows, messageLimit, "created_at");
-    // Both annotations derive from messagesPage.data and are independent of each
-    // other — one parallel round-trip, not two serial. D17/T5.1: which messages
-    // have a live task over them (the stone task indicator). TASKS-V2 D-D: the
-    // linked task { id, title } for task-linked notes (the "on: <title>" chip).
-    // #293: and whether THIS member has deferred it, so the header can offer
-    // "bring it back" rather than the thread quietly re-hiding itself the next
-    // time the list loads. Reading it here rather than from the list row means
-    // a thread opened from search or a deep link knows too.
-    const [promoted, taskLinks, snoozeRows, memberPrefRows] = await Promise.all([
+    const memberPref = unwrap<ConversationMemberPref[]>(
+      memberPrefRows,
+      "conversation member prefs lookup",
+    )[0];
+    const snooze = unwrap<
+      { until: string; note: string | null; kind: string }[]
+    >(snoozeRows, "conversation snooze lookup")[0];
+    const openAlerts = unwrap<
+      { id: string; kind: string; on_call_user_id: string | null; created_at: string }[]
+    >(alertRows, "open alert lookup");
+
+    const { contacts, conversation_tags, companies, ...conversation } = row;
+    const contact = contacts as
+      | { phone_e164?: string; timezone?: string | null }
+      | null;
+    const pagedUserId = openAlerts[0]?.on_call_user_id;
+
+    const [promoted, taskLinks, clock, pagedProfiles] = await Promise.all([
+      // D17/T5.1: which messages have a live task over them (the stone task
+      // indicator). TASKS-V2 D-D: the linked task { id, title } for task-linked
+      // notes (the "on: <title>" chip).
       loadMessageTaskFlags(
         db,
         companyId,
@@ -797,92 +864,39 @@ conversationsRoutes.get(
           .map((message) => message.task_id)
           .filter((v): v is string => typeof v === "string"),
       ),
-      db
-        .from("conversation_snoozes")
-        .select("until,note,kind")
-        .eq("company_id", companyId)
-        .eq("conversation_id", id)
-        .eq("user_id", c.get("userId"))
-        .gt("until", new Date().toISOString())
-        .limit(1),
-      db
-        .from("conversation_member_prefs")
-        .select("user_id,muted,muted_until,followed")
-        .eq("company_id", companyId)
-        .eq("conversation_id", id)
-        .eq("user_id", c.get("userId"))
-        .limit(1),
+      // #225 / D49: what time it is where they are, resolved by the SAME module
+      // the send gate uses. The composer saying "9:42pm their time" and the gate
+      // deciding whether a send needs confirming must not be able to disagree:
+      // a hint that says one thing while the gate does another is worse than no
+      // hint, because the person stops believing the next one.
+      contact?.phone_e164
+        ? resolveDestinationClock(db, {
+            companyId,
+            phoneE164: contact.phone_e164,
+            contactTimezone: contact.timezone ?? null,
+            companyTimezone: companies?.timezone ?? undefined,
+          })
+        : null,
+      // The paged member's NAME, resolved here (#482). "Dana was told first" is
+      // what makes the banner worth reading; a bare uuid is not, and having three
+      // clients each fetch the roster to answer it would be three requests for
+      // one word on a strip that is absent from almost every thread.
+      //
+      // Only when there IS an alert, so the common path skips it.
+      pagedUserId
+        ? db
+            .from("profiles")
+            .select("display_name")
+            .eq("user_id", pagedUserId)
+            .limit(1)
+        : null,
     ]);
-    const memberPref = unwrap<ConversationMemberPref[]>(
-      memberPrefRows,
-      "conversation member prefs lookup",
-    )[0];
-    const snooze = unwrap<
-      { until: string; note: string | null; kind: string }[]
-    >(snoozeRows, "conversation snooze lookup")[0];
-
-    const { contacts, conversation_tags, ...conversation } = row;
-
-    // #225 / D49: what time it is where they are, resolved by the SAME module
-    // the send gate uses. The composer saying "9:42pm their time" and the gate
-    // deciding whether a send needs confirming must not be able to disagree —
-    // a hint that says one thing while the gate does another is worse than no
-    // hint, because the person stops believing the next one.
-    const phone = (contacts as { phone_e164?: string } | null)?.phone_e164;
-    const clock = phone
-      ? await resolveDestinationClock(db, {
-          companyId,
-          phoneE164: phone,
-          contactTimezone:
-            ((contacts as { timezone?: string | null }).timezone ?? null),
-        })
+    const onCallName = pagedProfiles
+      ? unwrap<{ display_name: string }[]>(
+          pagedProfiles,
+          "alert paged-member name",
+        )[0]?.display_name || null
       : null;
-
-    // #244: an after-hours page on this thread that nobody has claimed.
-    //
-    // Read HERE rather than from a separate endpoint, because the banner is
-    // part of the thread's state: a client that had to ask a second time would
-    // render the thread first and the "somebody needs to call these people
-    // back" strip a moment later, which is the wrong order for the one message
-    // on the screen that is time-critical.
-    //
-    // Only the newest, and only while it is unacknowledged. An acknowledged
-    // alert is history — the crew can see who took it in the timeline, and a
-    // banner that lingers after somebody claimed it trains people to ignore
-    // banners.
-    const openAlerts = unwrap<
-      { id: string; kind: string; on_call_user_id: string | null; created_at: string }[]
-    >(
-      await db
-        .from("alert_escalations")
-        .select("id,kind,on_call_user_id,created_at")
-        .eq("company_id", companyId)
-        .eq("conversation_id", id)
-        .is("acknowledged_at", null)
-        .order("created_at", { ascending: false })
-        .limit(1),
-      "open alert lookup",
-    );
-
-    // The paged member's NAME, resolved here (#482). "Dana was told first" is
-    // what makes the banner worth reading; a bare uuid is not, and having three
-    // clients each fetch the roster to answer it would be three requests for
-    // one word on a strip that is absent from almost every thread.
-    //
-    // Only when there IS an alert, so the common path stays one lookup.
-    let onCallName: string | null = null;
-    const pagedUserId = openAlerts[0]?.on_call_user_id;
-    if (pagedUserId) {
-      const profiles = unwrap<{ display_name: string }[]>(
-        await db
-          .from("profiles")
-          .select("display_name")
-          .eq("user_id", pagedUserId)
-          .limit(1),
-        "alert paged-member name",
-      );
-      onCallName = profiles[0]?.display_name || null;
-    }
 
     return c.json({
       ...conversation,
@@ -3146,7 +3160,6 @@ conversationsRoutes.get(
       .order("id", { ascending: false })
       .limit(fetchCount);
     if (cursor) mmsQuery = mmsQuery.or(keysetFilter("created_at", cursor));
-    const mmsRows = unwrap<MmsArmRow[]>(await mmsQuery, "gallery mms arm");
 
     // Arm 2 — generic: the D19 table denormalizes conversation_id (no join).
     // Supplies both note and task attachments (task attachments for free, T7.2).
@@ -3176,8 +3189,16 @@ conversationsRoutes.get(
       .order("id", { ascending: false })
       .limit(fetchCount);
     if (cursor) genericQuery = genericQuery.or(keysetFilter("created_at", cursor));
+
+    // The period anchor rides along so the egress claim below is one RPC.
+    const [mmsResult, genericResult, { currentPeriodStart }] = await Promise.all([
+      mmsQuery,
+      genericQuery,
+      companyPlanRow(db, companyId),
+    ]);
+    const mmsRows = unwrap<MmsArmRow[]>(mmsResult, "gallery mms arm");
     const genericRows = unwrap<GenericArmRow[]>(
-      await genericQuery,
+      genericResult,
       "gallery generic arm",
     );
 
@@ -3248,44 +3269,52 @@ conversationsRoutes.get(
         sizeBytes: row.renderBytes,
       })),
       MMS_SIGNED_URL_TTL_SECONDS,
+      currentPeriodStart,
     );
 
-    // Sign each item's object (short-lived) — the single authorize+sign point.
-    const data = await Promise.all(
-      pageRows.map(async (row) => {
-        const ttl =
-          row.bucket === MMS_BUCKET
-            ? MMS_SIGNED_URL_TTL_SECONDS
-            : ATTACHMENT_SIGNED_URL_TTL_SECONDS;
-        // #317: the disposition follows the type. This is the gallery for a
-        // thread, so most rows ARE inline images and stay that way — but a PDF
-        // a customer texted in reaches this list too, and it gets a download
-        // like it does on the single-attachment route.
-        const { data: signed, error } = await db.storage
-          .from(row.bucket)
-          .createSignedUrl(row.renderPath, ttl, dispositionOptions(row.content_type));
-        if (error || !signed?.signedUrl) {
-          throw new Error(
-            `gallery signed URL failed (${row.bucket}/${row.renderPath}): ${error?.message ?? "no URL"}`,
-          );
-        }
-        return {
-          id: row.id,
-          source: row.source,
-          kind: attachmentKind(row.content_type),
-          file_name: row.file_name,
-          content_type: row.content_type,
-          size_bytes: row.size_bytes,
-          created_at: row.created_at,
-          url: signed.signedUrl,
-          // #240: which object this URL points at. `size_bytes` stays the
-          // ORIGINAL's — it is what a "12.4 MB" label means and what a download
-          // will cost — so a client opening a lightbox needs this to know the
-          // grid's URL is not the full-size bytes.
-          variant: row.renderPath === row.objectPath ? "original" : "preview",
-        };
-      }),
+    // Sign the page (short-lived), the single authorize+sign point.
+    // #317: the disposition follows the type. This is the gallery for a
+    // thread, so most rows ARE inline images and stay that way, but a PDF
+    // a customer texted in reaches this list too, and it gets a download
+    // like it does on the single-attachment route.
+    const ttlOf = (row: GalleryRow) =>
+      row.bucket === MMS_BUCKET
+        ? MMS_SIGNED_URL_TTL_SECONDS
+        : ATTACHMENT_SIGNED_URL_TTL_SECONDS;
+    const signed = await signObjects(
+      db,
+      pageRows.map((row) => ({
+        bucket: row.bucket,
+        path: row.renderPath,
+        ttlSeconds: ttlOf(row),
+        contentType: row.content_type,
+      })),
     );
+    const data = pageRows.map((row, index) => {
+      const result = signed[index];
+      if ("error" in result) {
+        throw new Error(
+          `gallery signed URL failed (${row.bucket}/${row.renderPath}): ${result.error}`,
+        );
+      }
+      return {
+        id: row.id,
+        source: row.source,
+        kind: attachmentKind(row.content_type),
+        file_name: row.file_name,
+        content_type: row.content_type,
+        size_bytes: row.size_bytes,
+        created_at: row.created_at,
+        url: result.url,
+        expires_at: result.expiresAt,
+        ttl_seconds: ttlOf(row),
+        // #240: which object this URL points at. `size_bytes` stays the
+        // ORIGINAL's (it is what a "12.4 MB" label means and what a download
+        // will cost), so a client opening a lightbox needs this to know the
+        // grid's URL is not the full-size bytes.
+        variant: row.renderPath === row.objectPath ? "original" : "preview",
+      };
+    });
 
     return c.json({ data, next_cursor: nextCursor });
   },

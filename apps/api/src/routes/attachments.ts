@@ -25,12 +25,14 @@
  *   GET  /v1/attachments/:id/url M — mint a short-lived signed Storage URL.
  *        Serves GENERIC (note/legacy-task) attachments AND the existing MMS
  *        `message_attachments` (the MMS path is kept intact): the id is looked
- *        up in the generic `attachments` table first, then falls back to
- *        `message_attachments` — one route, three sources (D19: "there is no
+ *        up in both tables at once, and the generic `attachments` row wins
+ *        when both match: one route, three sources (D19: "there is no
  *        /v1/task-attachments/:id/url"). Every mint atomically claims the
  *        object's size_bytes against the company's #16 monthly egress
  *        allowance (attachments/egress.ts) BEFORE signing — over the allowance
  *        → 402 `usage_cap_reached`; a claim error mints nothing (fail closed).
+ *   POST /v1/attachments/urls M: the same mint for up to 25 ids, answered per
+ *        item in `data` and `errors`.
  *   DELETE /v1/attachments/:id  M — soft-delete a live generic row (note or
  *        legacy task — D28 keeps the delete door open so space can be freed).
  *
@@ -38,12 +40,18 @@
  * bucket) is untouched. Inbound MMS is NEVER blocked on the D30 budget — it is
  * bounded per message instead (messaging/media.ts MAX_INBOUND_MEDIA_ITEMS).
  */
+import {
+  INTERNAL_ERROR_CODE,
+  type ApiErrorCode,
+  type ErrorCode,
+} from "@loonext/shared";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import {
   assertEgressWithinAllowance,
   assertMintRateWithinLimit,
+  companyPlanRow,
 } from "../attachments/egress";
 import {
   MAX_PREVIEW_BYTES,
@@ -58,12 +66,14 @@ import { requireCapability } from "../auth/company";
 import {
   requireConversationAccess,
   resolveNumberAccess,
+  type NumberAccessView,
 } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { recordAuditFromRequest } from "../audit/log";
 import { ApiError, errorResponse } from "../http/errors";
+import { captureException } from "../observability/capture";
 import { dispositionOptions } from "../storage/disposition";
 import {
   ATTACHMENTS_BUCKET,
@@ -82,7 +92,12 @@ import {
   type ConversationEventRow,
   type ConversationEventType,
 } from "./core/events";
-import { assertBodyWithinLimit, pathUuid, unwrap } from "./core/http";
+import {
+  assertBodyWithinLimit,
+  parseJsonBody,
+  pathUuid,
+  unwrap,
+} from "./core/http";
 
 const MMS_BUCKET = "mms-media";
 const MMS_TTL_SECONDS = 3600;
@@ -190,21 +205,16 @@ function parseStorageClaim(data: unknown): z.infer<typeof storageClaimSchema> {
 }
 
 /**
- * #317: the response when a reported file is asked for.
+ * #317: the answer, with code `forbidden`, when a reported file is asked for.
  *
  * `forbidden`, not `not_found`. The file plainly exists — the crew can see it
  * in the gallery — and a 404 would read as "we lost your photo", sending
  * somebody to look for a bug instead of telling them what happened. SPEC §7
  * fixes the code set at ten, so this is the honest member of it.
  */
-function quarantined(c: Context) {
-  return errorResponse(
-    c,
-    "forbidden",
-    "Someone on your team reported this file, so it's on hold. An owner or " +
-      "admin can release it.",
-  );
-}
+const QUARANTINED_MESSAGE =
+  "Someone on your team reported this file, so it's on hold. An owner or " +
+  "admin can release it.";
 
 interface ResolvedAttachment {
   table: "attachments" | "message_attachments";
@@ -274,6 +284,61 @@ const reportSchema = z.object({
    */
   note: z.string().trim().max(280).optional(),
 });
+
+/** The most objects one POST /v1/attachments/urls may ask for. */
+const MAX_URL_BATCH = 25;
+
+const urlBatchSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        id: z.uuid(),
+        variant: z.enum(["preview", "original"]).optional(),
+      }),
+    )
+    .min(1)
+    .max(MAX_URL_BATCH),
+});
+
+/** #240: which of a row's two objects a mint signs. */
+type AttachmentVariant = "preview" | "original";
+
+interface MintRequest {
+  id: string;
+  variant: AttachmentVariant;
+}
+
+type MintOutcome =
+  | {
+      kind: "minted";
+      url: string;
+      expiresAt: string;
+      ttlSeconds: number;
+      variant: AttachmentVariant;
+    }
+  | { kind: "refused"; code: ErrorCode; message: string }
+  | { kind: "failed"; detail: string };
+
+/** One row found for a requested id, in whichever table it lives. */
+interface MintCandidate {
+  bucket: string;
+  ttlSeconds: number;
+  conversationId: string | null;
+  quarantinedAt: string | null;
+  contentType: string | null;
+  original: { path: string; sizeBytes: number | null };
+  preview: { path: string; sizeBytes: number | null } | null;
+}
+
+/** The object a request will be served, once every gate has let it through. */
+interface MintTarget {
+  bucket: string;
+  path: string;
+  sizeBytes: number | null;
+  ttlSeconds: number;
+  contentType: string | null;
+  variant: AttachmentVariant;
+}
 
 export const attachmentsRoutes = new Hono<AppEnv>();
 
@@ -939,141 +1004,348 @@ attachmentsRoutes.get(
     // Defaulting the other way would have been the safer-looking choice and the
     // wrong one: every existing client would have kept fetching originals and
     // the feature would have shipped inert.
-    const wantsOriginal = c.req.query("variant") === "original";
-
-    // Generic (note/task) arm first — the D19 table. Only live rows.
-    const generic = unwrap<
+    const [outcome] = await mintAttachmentUrls(db, c, [
       {
-        storage_path: string;
-        size_bytes: number | null;
-        preview_path: string | null;
-        preview_bytes: number | null;
-        conversation_id: string | null;
-        content_type: string | null;
-        quarantined_at: string | null;
-      }[]
-    >(
-      await db
-        .from("attachments")
-        .select(
-          "storage_path,size_bytes,preview_path,preview_bytes,conversation_id,content_type,quarantined_at",
-        )
-        .eq("company_id", companyId)
-        .eq("id", id)
-        .is("deleted_at", null)
-        .limit(1),
-      "generic attachment lookup",
-    );
-    if (generic[0]) {
-      // #317: a reported file stops downloading for EVERYONE. The mint is the
-      // right place for that because every download in this product goes
-      // through one — there is no side door — and mints are short-lived (D19
-      // §2.5), so the window on any URL already in flight closes on its own.
-      if (generic[0].quarantined_at) return quarantined(c);
-      // #106: gate the mint on access to the owning conversation's number —
-      // a signed URL is the whole payload, so a hidden number must 404 here.
-      await assertConversationVisible(db, c, generic[0].conversation_id);
-      // #240: a row with no preview serves its original, which is what every
-      // row did before this shipped — nothing uploaded earlier, and nothing
-      // uploaded by a client that does not make one, stops working.
-      //
-      // `?? null` rather than a bare `!== null`: PostgREST omits a column
-      // entirely when it has nothing to say about it, so the row arrives with
-      // `preview_path` UNDEFINED rather than null — and `undefined !== null` is
-      // true, which would sign the string "undefined" as an object key.
-      const previewPath = generic[0].preview_path ?? null;
-      const servePreview = !wantsOriginal && previewPath !== null;
-      const servedPath = servePreview ? previewPath : generic[0].storage_path;
-      // The egress claim charges what is actually SERVED. Claiming the
-      // original's size for a 200 KB preview would spend a workspace's
-      // allowance on bytes that never left, which is the opposite of the point.
-      const servedBytes = servePreview
-        ? (generic[0].preview_bytes ?? null)
-        : generic[0].size_bytes;
-      // #16: claim the egress BEFORE signing — over the allowance, no URL.
-      await assertEgressWithinAllowance(
-        db,
-        companyId,
-        [
-          {
-            bucket: ATTACHMENTS_BUCKET,
-            path: servedPath,
-            sizeBytes: servedBytes,
-          },
-        ],
-        ATTACHMENT_SIGNED_URL_TTL_SECONDS,
-      );
-      return c.json({
-        ...(await signObject(
-          db,
-          ATTACHMENTS_BUCKET,
-          servedPath,
-          ATTACHMENT_SIGNED_URL_TTL_SECONDS,
-          generic[0].content_type,
-        )),
-        // Said out loud so a client rendering a lightbox knows whether it is
-        // already holding the full-size bytes or needs a second mint.
-        variant: servePreview ? "preview" : "original",
-      });
+        id,
+        variant: c.req.query("variant") === "original" ? "original" : "preview",
+      },
+    ]);
+    if (outcome.kind === "failed") throw new Error(outcome.detail);
+    if (outcome.kind === "refused") {
+      return errorResponse(c, outcome.code, outcome.message);
     }
+    return c.json({
+      url: outcome.url,
+      expires_at: outcome.expiresAt,
+      ttl_seconds: outcome.ttlSeconds,
+      // Said out loud so a client rendering a lightbox knows whether it is
+      // already holding the full-size bytes or needs a second mint.
+      variant: outcome.variant,
+    });
+  },
+);
 
-    // Fall back to the MMS arm (message_attachments / mms-media) — kept intact.
-    // company_id lives on message_attachments so no join is needed; message_id
-    // gets us to the conversation for the #106 gate.
-    const mms = unwrap<
-      {
-        storage_path: string;
-        size_bytes: number | null;
-        message_id: string;
-        content_type: string | null;
-        quarantined_at: string | null;
-      }[]
-    >(
-      await db
-        .from("message_attachments")
-        .select("storage_path,size_bytes,message_id,content_type,quarantined_at")
-        .eq("company_id", companyId)
-        .eq("id", id)
-        .limit(1),
-      "mms attachment lookup",
+/**
+ * POST /v1/attachments/urls: the GET above for up to 25 objects in one request.
+ * Every gate runs per item and each item answers on its own, so one hidden or
+ * held file does not cost the rest of the thread its pictures.
+ */
+attachmentsRoutes.post(
+  "/attachments/urls",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const body = await parseJsonBody(c, urlBatchSchema);
+    const companyId = c.get("companyId");
+    const env = getEnv(c.env);
+    const db = getDb(env);
+
+    // #261: charged per object, exactly as if each had been its own GET.
+    await Promise.all(
+      body.items.map(() =>
+        assertMintRateWithinLimit(env, companyId, c.get("userId")),
+      ),
     );
-    if (mms[0]) {
-      if (mms[0].quarantined_at) return quarantined(c);
-      // #106: an MMS image on a hidden number must not be signable. Resolve the
-      // media's conversation (message → conversation) only when the caller is
-      // actually restricted — unrestricted callers skip the extra lookup.
-      await assertMmsVisible(db, c, mms[0].message_id);
-      // storage_path may carry the legacy `mms-media/` prefix (SPEC §6) — strip it.
-      const objectPath = mms[0].storage_path.replace(/^mms-media\//, "");
-      // #16: MMS media downloads draw on the same per-company egress pool.
-      // Claim on the STRIPED path, which is what the gallery claims on too —
-      // the same object must not be charged twice under two spellings (#261).
-      await assertEgressWithinAllowance(
-        db,
-        companyId,
-        [{ bucket: MMS_BUCKET, path: objectPath, sizeBytes: mms[0].size_bytes }],
-        MMS_TTL_SECONDS,
-      );
+
+    const requests: MintRequest[] = body.items.map((item) => ({
+      id: item.id,
+      variant: item.variant ?? "preview",
+    }));
+    const outcomes = await mintAttachmentUrls(db, c, requests);
+
+    const data: {
+      id: string;
+      requested_variant: AttachmentVariant;
+      variant: AttachmentVariant;
+      url: string;
+      expires_at: string;
+      ttl_seconds: number;
+    }[] = [];
+    const errors: {
+      id: string;
+      requested_variant: AttachmentVariant;
+      code: ApiErrorCode;
+      message: string;
+    }[] = [];
+    outcomes.forEach((outcome, index) => {
+      const { id, variant: requested_variant } = requests[index];
+      if (outcome.kind === "minted") {
+        data.push({
+          id,
+          requested_variant,
+          variant: outcome.variant,
+          url: outcome.url,
+          expires_at: outcome.expiresAt,
+          ttl_seconds: outcome.ttlSeconds,
+        });
+        return;
+      }
+      if (outcome.kind === "refused") {
+        errors.push({ id, requested_variant, code: outcome.code, message: outcome.message });
+        return;
+      }
+      // The GET leaves this to onError; the batch still answers, so it reports it.
+      void captureException(env, new Error(outcome.detail), {
+        source: "api",
+        route: "POST /v1/attachments/urls",
+        company_id: companyId,
+      });
+      errors.push({
+        id,
+        requested_variant,
+        code: INTERNAL_ERROR_CODE,
+        message: "Something went wrong.",
+      });
+    });
+    return c.json({ data, errors });
+  },
+);
+
+/**
+ * The gates every attachment URL mint passes, for the GET and the batch POST:
+ * one outcome per request, in order. Every claim lands before anything is
+ * signed, and a claim error throws (#16, fail closed).
+ */
+async function mintAttachmentUrls(
+  db: Db,
+  c: Context<AppEnv>,
+  requests: readonly MintRequest[],
+): Promise<MintOutcome[]> {
+  const companyId = c.get("companyId");
+  const ids = [...new Set(requests.map((request) => request.id))];
+
+  const [genericRows, mmsRows, { currentPeriodStart }, access] = await Promise.all([
+    db
+      .from("attachments")
+      .select(
+        "id,storage_path,size_bytes,preview_path,preview_bytes,conversation_id,content_type,quarantined_at",
+      )
+      .eq("company_id", companyId)
+      .in("id", ids)
+      .is("deleted_at", null),
+    // company_id lives on message_attachments so no join is needed for scope;
+    // the message embed carries the conversation the #106 gate asks about.
+    db
+      .from("message_attachments")
+      .select(
+        "id,storage_path,size_bytes,content_type,quarantined_at,messages(conversation_id)",
+      )
+      .eq("company_id", companyId)
+      .in("id", ids),
+    companyPlanRow(db, companyId),
+    resolveNumberAccess(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+    }),
+  ]);
+
+  const candidates = new Map<string, MintCandidate>();
+  for (const row of unwrap<
+    {
+      id: string;
+      storage_path: string;
+      size_bytes: number | null;
+      preview_path?: string | null;
+      preview_bytes?: number | null;
+      conversation_id?: string | null;
+      content_type?: string | null;
+      quarantined_at?: string | null;
+    }[]
+  >(genericRows, "generic attachment lookup")) {
+    // #240: a row with no preview serves its original, which is what every
+    // row did before this shipped: nothing uploaded earlier, and nothing
+    // uploaded by a client that does not make one, stops working.
+    //
+    // `?? null` rather than a bare `!== null`: PostgREST omits a column
+    // entirely when it has nothing to say about it, so the row arrives with
+    // `preview_path` UNDEFINED rather than null, and `undefined !== null` is
+    // true, which would sign the string "undefined" as an object key.
+    const previewPath = row.preview_path ?? null;
+    candidates.set(row.id, {
+      bucket: ATTACHMENTS_BUCKET,
+      ttlSeconds: ATTACHMENT_SIGNED_URL_TTL_SECONDS,
+      conversationId: row.conversation_id ?? null,
+      quarantinedAt: row.quarantined_at ?? null,
+      contentType: row.content_type ?? null,
+      original: { path: row.storage_path, sizeBytes: row.size_bytes },
+      preview:
+        previewPath === null
+          ? null
+          : { path: previewPath, sizeBytes: row.preview_bytes ?? null },
+    });
+  }
+  for (const row of unwrap<
+    {
+      id: string;
+      storage_path: string;
+      size_bytes: number | null;
+      content_type?: string | null;
+      quarantined_at?: string | null;
+      messages?: { conversation_id: string | null } | null;
+    }[]
+  >(mmsRows, "mms attachment lookup")) {
+    // The generic table wins when an id is in both.
+    if (candidates.has(row.id)) continue;
+    candidates.set(row.id, {
+      bucket: MMS_BUCKET,
+      ttlSeconds: MMS_TTL_SECONDS,
+      conversationId: row.messages?.conversation_id ?? null,
+      quarantinedAt: row.quarantined_at ?? null,
+      contentType: row.content_type ?? null,
+      // storage_path may carry the legacy `mms-media/` prefix (SPEC §6); strip
+      // it. The gallery claims on the same stripped spelling, so one object is
+      // never charged twice under two keys (#261).
+      original: {
+        path: row.storage_path.replace(/^mms-media\//, ""),
+        sizeBytes: row.size_bytes,
+      },
       // #240: MMS media has no derivative and does not need one. Every
       // inbound item is already ≤1 MB by carrier limit (D28), which is the
       // founder's own re-derivation on the issue: at that size a second object
       // saves a fraction of a fraction and costs a column, an upload and a
       // sweep rule. The original IS the bounded preview here.
-      return c.json({
-        ...(await signObject(
-          db,
-          MMS_BUCKET,
-          objectPath,
-          MMS_TTL_SECONDS,
-          mms[0].content_type,
-        )),
-        variant: "original",
-      });
-    }
+      preview: null,
+    });
+  }
 
-    return errorResponse(c, "not_found", "No such attachment.");
-  },
-);
+  // #106: a signed URL is the whole payload, so a hidden number's file answers
+  // exactly like a missing one.
+  const hidden = await hiddenConversationIds(
+    db,
+    companyId,
+    access,
+    [...candidates.values()].map((candidate) => candidate.conversationId),
+  );
+
+  const outcomes = requests.map((request): MintOutcome | MintTarget => {
+    const candidate = candidates.get(request.id);
+    if (
+      !candidate ||
+      (candidate.conversationId !== null && hidden.has(candidate.conversationId))
+    ) {
+      return { kind: "refused", code: "not_found", message: "No such attachment." };
+    }
+    // #317: a reported file stops downloading for EVERYONE. The mint is the
+    // right place for that because every download in this product goes
+    // through one (there is no side door) and mints are short-lived (D19
+    // §2.5), so the window on any URL already in flight closes on its own.
+    if (candidate.quarantinedAt) {
+      return { kind: "refused", code: "forbidden", message: QUARANTINED_MESSAGE };
+    }
+    const served =
+      request.variant === "original" || candidate.preview === null
+        ? { ...candidate.original, variant: "original" as const }
+        : { ...candidate.preview, variant: "preview" as const };
+    return {
+      bucket: candidate.bucket,
+      path: served.path,
+      // The egress claim charges what is actually SERVED. Claiming the
+      // original's size for a 200 KB preview would spend a workspace's
+      // allowance on bytes that never left, which is the opposite of the point.
+      sizeBytes: served.sizeBytes,
+      ttlSeconds: candidate.ttlSeconds,
+      contentType: candidate.contentType,
+      variant: served.variant,
+    };
+  });
+
+  const targets = outcomes.filter(
+    (outcome): outcome is MintTarget => !("kind" in outcome),
+  );
+
+  // #16: one claim per URL lifetime, because the lifetime is the window a
+  // repeat claim for the same object still covers (#261).
+  const byTtl = new Map<number, MintTarget[]>();
+  for (const target of targets) {
+    const group = byTtl.get(target.ttlSeconds) ?? [];
+    group.push(target);
+    byTtl.set(target.ttlSeconds, group);
+  }
+  const capped = new Map<number, ApiError>();
+  await Promise.all(
+    [...byTtl].map(async ([ttlSeconds, group]) => {
+      try {
+        await assertEgressWithinAllowance(
+          db,
+          companyId,
+          group.map((target) => ({
+            bucket: target.bucket,
+            path: target.path,
+            sizeBytes: target.sizeBytes,
+          })),
+          ttlSeconds,
+          currentPeriodStart,
+        );
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "usage_cap_reached") {
+          capped.set(ttlSeconds, error);
+          return;
+        }
+        throw error;
+      }
+    }),
+  );
+
+  const signable = targets.filter((target) => !capped.has(target.ttlSeconds));
+  const signed = await signObjects(db, signable);
+  const signedByTarget = new Map(
+    signable.map((target, index) => [target, signed[index]]),
+  );
+
+  return outcomes.map((outcome): MintOutcome => {
+    if ("kind" in outcome) return outcome;
+    const refusal = capped.get(outcome.ttlSeconds);
+    if (refusal) {
+      return { kind: "refused", code: refusal.code, message: refusal.message };
+    }
+    const result = signedByTarget.get(outcome);
+    if (!result || "error" in result) {
+      return {
+        kind: "failed",
+        detail: `signed URL mint failed (${outcome.bucket}/${outcome.path}): ${result?.error ?? "no data"}`,
+      };
+    }
+    return {
+      kind: "minted",
+      url: result.url,
+      expiresAt: result.expiresAt,
+      ttlSeconds: outcome.ttlSeconds,
+      variant: outcome.variant,
+    };
+  });
+}
+
+/**
+ * #106: which of these conversations sit on a number hidden from the caller.
+ * Owner/admin and companies with no hiding rule skip the read. A conversation
+ * the read does not find is visible, as in resolveConversationLevel.
+ */
+async function hiddenConversationIds(
+  db: Db,
+  companyId: string,
+  access: NumberAccessView,
+  conversationIds: readonly (string | null)[],
+): Promise<Set<string>> {
+  const distinct = [
+    ...new Set(conversationIds.filter((id): id is string => id !== null)),
+  ];
+  if (!access.hiddenNumberIds?.length || distinct.length === 0) {
+    return new Set();
+  }
+  const rows = unwrap<{ id: string; phone_number_id: string | null }[]>(
+    await db
+      .from("conversations")
+      .select("id,phone_number_id")
+      .eq("company_id", companyId)
+      .in("id", distinct),
+    "conversation access lookup",
+  );
+  return new Set(
+    rows
+      .filter((row) => access.levelFor(row.phone_number_id) === "none")
+      .map((row) => row.id),
+  );
+}
 
 /**
  * #106 gate for the `/url` route: 404 the mint when the caller can't see the
@@ -1130,35 +1402,75 @@ async function assertMmsVisible(
   await assertConversationVisible(db, c, rows[0]?.conversation_id ?? null);
 }
 
+/** One Storage object to sign, with how long its URL lives and what it holds. */
+export interface SignRequest {
+  bucket: string;
+  path: string;
+  ttlSeconds: number;
+  contentType: string | null | undefined;
+}
+
+export type SignResult = { url: string; expiresAt: string } | { error: string };
+
 /**
- * Mint one short-lived signed Storage URL and its expiry (D19 §2.5 / §7).
+ * Mint short-lived signed Storage URLs (D19 §2.5 / §7): one createSignedUrls
+ * call per bucket, lifetime and disposition, all at once. Results come back in
+ * request order, and a failure is reported per object.
  *
- * #317: the disposition follows the TYPE, which is why `content_type` is selected at
- * both call sites. `dispositionOptions` owns the rule and documents why — anything
- * that is not an allowed image or our own voicemail audio gets
- * `Content-Disposition: attachment`, which is PDF and the OpenXML/ODF family today
- * and automatically the right answer for whatever is added next.
+ * #317: the disposition follows the TYPE. `dispositionOptions` owns the rule and
+ * documents why: anything that is not an allowed image or our own voicemail
+ * audio gets `Content-Disposition: attachment`, which is PDF and the OpenXML/ODF
+ * family today and automatically the right answer for whatever is added next.
  *
  * Scanning the bytes is the expensive half of #317 and needs a subprocessor
  * decision; this is the half that ships without one.
  */
-async function signObject(
+export async function signObjects(
   db: Db,
-  bucket: string,
-  objectPath: string,
-  ttlSeconds: number,
-  contentType: string | null | undefined,
-): Promise<{ url: string; expires_at: string }> {
-  const { data, error } = await db.storage
-    .from(bucket)
-    .createSignedUrl(objectPath, ttlSeconds, dispositionOptions(contentType));
-  if (error || !data?.signedUrl) {
-    throw new Error(
-      `signed URL mint failed (${bucket}/${objectPath}): ${error?.message ?? "no data"}`,
-    );
-  }
-  return {
-    url: data.signedUrl,
-    expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
-  };
+  requests: readonly SignRequest[],
+): Promise<SignResult[]> {
+  const groups = new Map<
+    string,
+    { bucket: string; ttlSeconds: number; options: { download: boolean }; paths: Set<string> }
+  >();
+  const groupKeys = requests.map((request) => {
+    const options = dispositionOptions(request.contentType);
+    const key = `${request.bucket}|${request.ttlSeconds}|${options.download}`;
+    const group = groups.get(key) ?? {
+      bucket: request.bucket,
+      ttlSeconds: request.ttlSeconds,
+      options,
+      paths: new Set<string>(),
+    };
+    group.paths.add(request.path);
+    groups.set(key, group);
+    return key;
+  });
+
+  const answers = new Map<string, Map<string, SignResult>>();
+  await Promise.all(
+    [...groups].map(async ([key, group]) => {
+      const paths = [...group.paths];
+      const { data, error } = await db.storage
+        .from(group.bucket)
+        .createSignedUrls(paths, group.ttlSeconds, group.options);
+      const expiresAt = new Date(Date.now() + group.ttlSeconds * 1000).toISOString();
+      const byPath = new Map<string, SignResult>();
+      for (const path of paths) {
+        const entry = data?.find((signed) => signed.path === path);
+        byPath.set(
+          path,
+          entry?.signedUrl
+            ? { url: entry.signedUrl, expiresAt }
+            : { error: error?.message ?? entry?.error ?? "no URL" },
+        );
+      }
+      answers.set(key, byPath);
+    }),
+  );
+
+  return requests.map(
+    (request, index) =>
+      answers.get(groupKeys[index])?.get(request.path) ?? { error: "no URL" },
+  );
 }

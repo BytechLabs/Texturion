@@ -20,6 +20,7 @@ import {
 import {
   completeEnv,
   createTestAuth,
+  type FetchRoute,
   jwksRoute,
   stubFetch,
   type TestAuth,
@@ -71,11 +72,55 @@ function memberStub(): SupabaseStub {
   return sb;
 }
 
-/** Every createSignedUrl POST returns a token derived from the object path. */
+/** Storage's batch sign endpoint: a token derived from each object path. */
 function stubSigning(sb: SupabaseStub): void {
-  sb.on("POST", /^\/storage\/v1\/object\/sign\//, (call) => ({
-    signedURL: `${call.path.replace("/storage/v1/object/sign", "")}?token=sig`,
-  }));
+  sb.on("POST", /^\/storage\/v1\/object\/sign\/[^/]+$/, (call) => {
+    const bucket = call.path.split("/").pop();
+    const { paths } = call.body as { paths: string[] };
+    return paths.map((path) => ({
+      error: null,
+      path,
+      signedURL: `/object/sign/${bucket}/${path}?token=sig`,
+    }));
+  });
+}
+
+/** Every object signed, as `bucket/path`, across all the batch sign calls. */
+function signedObjects(sb: SupabaseStub): string[] {
+  return sb.find("POST", /^\/storage\/v1\/object\/sign\//).flatMap((call) => {
+    const bucket = call.path.split("/").pop();
+    return (call.body as { paths: string[] }).paths.map(
+      (path) => `${bucket}/${path}`,
+    );
+  });
+}
+
+/**
+ * Answers Supabase a beat late and remembers, for each path, what was still in
+ * flight when it was first asked: two reads are one wave only if they overlap.
+ */
+function overlapProbe(route: FetchRoute) {
+  const inFlight = new Map<string, number>();
+  const seen = new Map<string, string[]>();
+  const probed: FetchRoute = async (url, request) => {
+    const answer = route(url, request);
+    if (answer === undefined) return undefined;
+    const path = url.pathname;
+    if (!seen.has(path)) seen.set(path, [...inFlight.keys()]);
+    inFlight.set(path, (inFlight.get(path) ?? 0) + 1);
+    try {
+      const response = await answer;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return response;
+    } finally {
+      const left = (inFlight.get(path) ?? 1) - 1;
+      if (left > 0) inFlight.set(path, left);
+      else inFlight.delete(path);
+    }
+  };
+  const together = (a: string, b: string) =>
+    (seen.get(a) ?? []).includes(b) || (seen.get(b) ?? []).includes(a);
+  return { route: probed, together };
 }
 
 describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
@@ -168,15 +213,39 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
     expect(genericCall.url.searchParams.get("deleted_at")).toBe("is.null");
 
     // MMS bucket signs mms-media (prefix stripped); generic signs attachments.
-    const signPaths = sb
-      .find("POST", /^\/storage\/v1\/object\/sign\//)
-      .map((call) => call.path);
-    expect(signPaths).toContain(
-      `/storage/v1/object/sign/mms-media/${COMPANY_ID}/msg-1/0`,
+    expect(signedObjects(sb)).toEqual(
+      expect.arrayContaining([
+        `mms-media/${COMPANY_ID}/msg-1/0`,
+        `attachments/${COMPANY_ID}/task/t1/uuid-quote.pdf`,
+        `attachments/${COMPANY_ID}/note/n1/uuid-site.png`,
+      ]),
     );
-    expect(signPaths).toContain(
-      `/storage/v1/object/sign/attachments/${COMPANY_ID}/task/t1/uuid-quote.pdf`,
+    // One Storage call per bucket and disposition, not one per item: the PDF
+    // downloads, the two images render inline.
+    const signs = sb.find("POST", /^\/storage\/v1\/object\/sign\//);
+    expect(signs).toHaveLength(3);
+    expect(signs.map((call) => call.body)).toEqual(
+      expect.arrayContaining([
+        { expiresIn: 3600, paths: [`${COMPANY_ID}/msg-1/0`] },
+        { expiresIn: 300, paths: [`${COMPANY_ID}/task/t1/uuid-quote.pdf`] },
+        { expiresIn: 300, paths: [`${COMPANY_ID}/note/n1/uuid-site.png`] },
+      ]),
     );
+    // Each item says how long its URL lives, so a client can hold it that long.
+    const items = body.data as unknown as {
+      source: string;
+      url: string;
+      ttl_seconds: number;
+      expires_at: string;
+    }[];
+    expect(items.map((item) => item.ttl_seconds)).toEqual([300, 300, 3600]);
+    for (const item of items) {
+      expect(Date.parse(item.expires_at) - Date.now()).toBeGreaterThan(
+        (item.ttl_seconds - 60) * 1000,
+      );
+    }
+    expect(items[0].url).toMatch(/[?&]download(=|$)/);
+    expect(items[1].url).not.toMatch(/[?&]download(=|$)/);
 
     // #16/#261: the whole page's egress was claimed in ONE call, keyed per
     // object, and it landed BEFORE the first sign call. Per object is what
@@ -393,6 +462,106 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ data: [], next_cursor: null });
     expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
+  });
+
+  it("reads both arms and the period anchor in one wave", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
+    sb.on("GET", "/rest/v1/attachments", () => [
+      {
+        id: "20000000-0000-4000-8000-000000000002",
+        owner_type: "note",
+        storage_path: `${COMPANY_ID}/note/n/a.png`,
+        file_name: "a.png",
+        content_type: "image/png",
+        size_bytes: 1,
+        created_at: "2026-07-02T13:00:00+00:00",
+      },
+    ]);
+    stubSigning(sb);
+    const probe = overlapProbe(sb.route);
+    stubFetch(jwksRoute(auth), probe.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/attachments`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(
+      probe.together("/rest/v1/message_attachments", "/rest/v1/attachments"),
+    ).toBe(true);
+    expect(probe.together("/rest/v1/attachments", "/rest/v1/companies")).toBe(true);
+    expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(1);
+  });
+
+  it("signs a file two rows share once, and gives both rows its URL", async () => {
+    // A re-sent file is stored once and pointed at by both rows.
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
+    sb.on("GET", "/rest/v1/attachments", () =>
+      ["20000000-0000-4000-8000-000000000002", "30000000-0000-4000-8000-000000000003"].map(
+        (id, index) => ({
+          id,
+          owner_type: "note",
+          storage_path: `${COMPANY_ID}/note/n/same.png`,
+          file_name: "same.png",
+          content_type: "image/png",
+          size_bytes: 1,
+          created_at: `2026-07-02T1${index}:00:00+00:00`,
+        }),
+      ),
+    );
+    stubSigning(sb);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/attachments`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { url: string }[] };
+    expect(body.data).toHaveLength(2);
+    expect(body.data[0].url).toBe(body.data[1].url);
+    expect(signedObjects(sb)).toEqual([`attachments/${COMPANY_ID}/note/n/same.png`]);
+  });
+
+  it("fails the page when Storage cannot sign one of its objects", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
+    sb.on("GET", "/rest/v1/attachments", () => [
+      {
+        id: "20000000-0000-4000-8000-000000000002",
+        owner_type: "note",
+        storage_path: `${COMPANY_ID}/note/n/gone.png`,
+        file_name: "gone.png",
+        content_type: "image/png",
+        size_bytes: 1,
+        created_at: "2026-07-02T13:00:00+00:00",
+      },
+    ]);
+    sb.on("POST", /^\/storage\/v1\/object\/sign\/[^/]+$/, (call) =>
+      (call.body as { paths: string[] }).paths.map((path) => ({
+        error: "Either the object does not exist",
+        path,
+        signedURL: null,
+      })),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/attachments`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(500);
   });
 });
 

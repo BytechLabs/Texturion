@@ -252,6 +252,44 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
     expect(body.p_objects[0].key).toBe("mms-media/co/msg/photo.jpg");
   });
 
+  it("claims in one RPC when the caller already read the period anchor", async () => {
+    const sb = poolStub();
+    stubFetch(sb.route);
+
+    await assertEgressWithinAllowance(
+      getDb(env),
+      COMPANY_ID,
+      [{ bucket: "attachments", path: "c/a.pdf", sizeBytes: 2048 }],
+      300,
+      "2026-06-15T00:00:00+00:00",
+    );
+
+    expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
+    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
+    expect(claims).toHaveLength(1);
+    expect((claims[0].body as { p_since: string }).p_since).toBe(
+      "2026-06-15T00:00:00+00:00",
+    );
+  });
+
+  it("treats a pre-read null anchor as no billing period, not as unread", async () => {
+    const sb = poolStub();
+    stubFetch(sb.route);
+
+    await assertEgressWithinAllowance(
+      getDb(env),
+      COMPANY_ID,
+      [{ bucket: "attachments", path: "c/a.pdf", sizeBytes: 2048 }],
+      300,
+      null,
+    );
+
+    expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
+    const body = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0]
+      .body as { p_since: string };
+    expect(body.p_since).toBe(egressPeriodStart(null));
+  });
+
   it("does nothing at all for an empty page (no reads, no claims)", async () => {
     const sb = poolStub();
     stubFetch(sb.route);

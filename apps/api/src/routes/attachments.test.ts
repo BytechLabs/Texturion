@@ -72,6 +72,64 @@ function stubWithRole(role: string | null): SupabaseStub {
   return sb;
 }
 
+/** The billing-period anchor every mint reads beside its lookups, hit or miss. */
+function planStub(sb: SupabaseStub): void {
+  sb.on("GET", "/rest/v1/companies", () => [
+    { plan: "starter", current_period_start: "2026-07-01T00:00:00+00:00" },
+  ]);
+}
+
+/** Storage's batch sign endpoint: one token per path, in request order. */
+function stubSigning(sb: SupabaseStub): void {
+  sb.on("POST", /^\/storage\/v1\/object\/sign\/[^/]+$/, (call) => {
+    const bucket = call.path.split("/").pop();
+    const { paths } = call.body as { paths: string[] };
+    return paths.map((path) => ({
+      error: null,
+      path,
+      signedURL: `/object/sign/${bucket}/${path}?token=sig`,
+    }));
+  });
+}
+
+/** Every object signed, as `bucket/path`, across all the batch sign calls. */
+function signedObjects(sb: SupabaseStub): string[] {
+  return sb.find("POST", /^\/storage\/v1\/object\/sign\//).flatMap((call) => {
+    const bucket = call.path.split("/").pop();
+    return (call.body as { paths: string[] }).paths.map(
+      (path) => `${bucket}/${path}`,
+    );
+  });
+}
+
+/**
+ * Answers Supabase a beat late and remembers, for each path, what was still in
+ * flight when it was first asked: two reads are one wave only if they overlap.
+ */
+function overlapProbe(route: FetchRoute) {
+  const inFlight = new Map<string, number>();
+  const seen = new Map<string, string[]>();
+  const probed: FetchRoute = async (url, request) => {
+    const answer = route(url, request);
+    if (answer === undefined) return undefined;
+    const path = url.pathname;
+    if (!seen.has(path)) seen.set(path, [...inFlight.keys()]);
+    inFlight.set(path, (inFlight.get(path) ?? 0) + 1);
+    try {
+      const response = await answer;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return response;
+    } finally {
+      const left = (inFlight.get(path) ?? 1) - 1;
+      if (left > 0) inFlight.set(path, left);
+      else inFlight.delete(path);
+    }
+  };
+  const together = (a: string, b: string) =>
+    (seen.get(a) ?? []).includes(b) || (seen.get(b) ?? []).includes(a);
+  return { route: probed, together };
+}
+
 /** A 1×1 PNG's leading magic bytes (enough for the byte sniff). */
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 function pngBytes(): Uint8Array {
@@ -138,12 +196,15 @@ describe("GET /v1/attachments/:id/url", () => {
   it("mints a short-lived signed URL for a generic (task/note) attachment, claiming egress first", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/attachments", () => [
-      { storage_path: `${COMPANY_ID}/task/${TASK_ID}/uuid-quote.pdf`, size_bytes: 2048 },
+      {
+        id: ATTACHMENT_ID,
+        storage_path: `${COMPANY_ID}/task/${TASK_ID}/uuid-quote.pdf`,
+        size_bytes: 2048,
+      },
     ]);
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
     egressStubs(sb);
-    sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
-      signedURL: `/object/sign/attachments/${COMPANY_ID}/task/x?token=sig`,
-    }));
+    stubSigning(sb);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -154,20 +215,25 @@ describe("GET /v1/attachments/:id/url", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { url: string; expires_at: string };
+    const body = (await res.json()) as {
+      url: string;
+      expires_at: string;
+      ttl_seconds: number;
+    };
     expect(body.url).toContain("token=sig");
+    // Generic TTL is 300s (D19 §2.5), said beside the URL so a client can
+    // cache it for exactly as long as it works.
+    expect(body.ttl_seconds).toBe(300);
 
     // Generic arm is company-scoped and live-only; it signs the `attachments`
-    // bucket and NEVER falls through to message_attachments.
+    // bucket.
     const lookup = sb.find("GET", "/rest/v1/attachments")[0];
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(lookup.url.searchParams.get("deleted_at")).toBe("is.null");
-    expect(sb.find("GET", "/rest/v1/message_attachments")).toHaveLength(0);
+    expect(signedObjects(sb)).toEqual([
+      `attachments/${COMPANY_ID}/task/${TASK_ID}/uuid-quote.pdf`,
+    ]);
     const sign = sb.find("POST", /^\/storage\/v1\/object\/sign\//)[0];
-    expect(sign.path).toBe(
-      `/storage/v1/object/sign/attachments/${COMPANY_ID}/task/${TASK_ID}/uuid-quote.pdf`,
-    );
-    // Generic TTL is 300s (D19 §2.5).
     expect(sign.body).toMatchObject({ expiresIn: 300 });
 
     // #16: the mint claimed the object's bytes against the fixed allowance
@@ -212,6 +278,7 @@ describe("GET /v1/attachments/:id/url", () => {
     function rowWithPreview(sb: SupabaseStub) {
       sb.on("GET", "/rest/v1/attachments", () => [
         {
+          id: ATTACHMENT_ID,
           storage_path: ORIGINAL,
           size_bytes: 20971520,
           preview_path: PREVIEW,
@@ -219,10 +286,9 @@ describe("GET /v1/attachments/:id/url", () => {
           content_type: "image/jpeg",
         },
       ]);
+      sb.on("GET", "/rest/v1/message_attachments", () => []);
       egressStubs(sb);
-      sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
-        signedURL: "/object/sign/attachments/x?token=sig",
-      }));
+      stubSigning(sb);
     }
 
     async function mint(sb: SupabaseStub, query = "") {
@@ -245,9 +311,7 @@ describe("GET /v1/attachments/:id/url", () => {
       const res = await mint(sb);
       expect(res.status).toBe(200);
       expect(await res.json()).toMatchObject({ variant: "preview" });
-      expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)[0].path).toBe(
-        `/storage/v1/object/sign/attachments/${PREVIEW}`,
-      );
+      expect(signedObjects(sb)).toEqual([`attachments/${PREVIEW}`]);
     });
 
     it("charges egress for the bytes it actually serves", async () => {
@@ -273,9 +337,7 @@ describe("GET /v1/attachments/:id/url", () => {
       rowWithPreview(sb);
       const res = await mint(sb, "?variant=original");
       expect(await res.json()).toMatchObject({ variant: "original" });
-      expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)[0].path).toBe(
-        `/storage/v1/object/sign/attachments/${ORIGINAL}`,
-      );
+      expect(signedObjects(sb)).toEqual([`attachments/${ORIGINAL}`]);
       const claim = sb.find(
         "POST",
         "/rest/v1/rpc/claim_signed_url_egress_objects",
@@ -293,18 +355,20 @@ describe("GET /v1/attachments/:id/url", () => {
       // as an object key.
       const sb = stubWithRole("member");
       sb.on("GET", "/rest/v1/attachments", () => [
-        { storage_path: ORIGINAL, size_bytes: 20971520, content_type: "image/jpeg" },
+        {
+          id: ATTACHMENT_ID,
+          storage_path: ORIGINAL,
+          size_bytes: 20971520,
+          content_type: "image/jpeg",
+        },
       ]);
+      sb.on("GET", "/rest/v1/message_attachments", () => []);
       egressStubs(sb);
-      sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
-        signedURL: "/object/sign/attachments/x?token=sig",
-      }));
+      stubSigning(sb);
       const res = await mint(sb);
       expect(res.status).toBe(200);
       expect(await res.json()).toMatchObject({ variant: "original" });
-      expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)[0].path).toBe(
-        `/storage/v1/object/sign/attachments/${ORIGINAL}`,
-      );
+      expect(signedObjects(sb)).toEqual([`attachments/${ORIGINAL}`]);
     });
 
     it("still refuses a quarantined row, whichever variant is asked for", async () => {
@@ -314,6 +378,7 @@ describe("GET /v1/attachments/:id/url", () => {
         const sb = stubWithRole("member");
         sb.on("GET", "/rest/v1/attachments", () => [
           {
+            id: ATTACHMENT_ID,
             storage_path: ORIGINAL,
             size_bytes: 20971520,
             preview_path: PREVIEW,
@@ -322,6 +387,7 @@ describe("GET /v1/attachments/:id/url", () => {
             quarantined_at: "2026-08-01T00:00:00Z",
           },
         ]);
+        sb.on("GET", "/rest/v1/message_attachments", () => []);
         egressStubs(sb);
         const res = await mint(sb, query);
         expect(res.status, query).toBe(403);
@@ -337,16 +403,15 @@ describe("GET /v1/attachments/:id/url", () => {
       sb.on("GET", "/rest/v1/attachments", () => []);
       sb.on("GET", "/rest/v1/message_attachments", () => [
         {
+          id: ATTACHMENT_ID,
           storage_path: "mms-media/co/msg/img.jpg",
           size_bytes: 900000,
-          message_id: NOTE_ID,
           content_type: "image/jpeg",
+          messages: { conversation_id: CONV_ID },
         },
       ]);
       egressStubs(sb);
-      sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
-        signedURL: "/object/sign/mms-media/x?token=sig",
-      }));
+      stubSigning(sb);
       const res = await mint(sb);
       expect(res.status).toBe(200);
       expect(await res.json()).toMatchObject({ variant: "original" });
@@ -384,10 +449,9 @@ describe("GET /v1/attachments/:id/url", () => {
     }
 
     async function mint(sb: SupabaseStub): Promise<Response> {
+      sb.on("GET", "/rest/v1/message_attachments", () => []);
       egressStubs(sb);
-      sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
-        signedURL: `/object/sign/attachments/x?token=sig`,
-      }));
+      stubSigning(sb);
       stubFetch(jwksRoute(auth), sb.route);
       return apiRequest(app, env, await auth.token(), `/v1/attachments/${ATTACHMENT_ID}/url`, {
         companyId: COMPANY_ID,
@@ -397,8 +461,8 @@ describe("GET /v1/attachments/:id/url", () => {
     it("forces a download for a PDF", async () => {
       const sb = stubWithRole("member");
       sb.on("GET", "/rest/v1/attachments", () => [
-        { storage_path: `${COMPANY_ID}/note/x/quote.pdf`, size_bytes: 2048,
-          content_type: "application/pdf" },
+        { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/quote.pdf`,
+          size_bytes: 2048, content_type: "application/pdf" },
       ]);
       expect(await mintedUrl(sb)).toMatch(/[?&]download(=|$)/);
     });
@@ -411,7 +475,8 @@ describe("GET /v1/attachments/:id/url", () => {
       ]) {
         const sb = stubWithRole("member");
         sb.on("GET", "/rest/v1/attachments", () => [
-          { storage_path: `${COMPANY_ID}/note/x/doc`, size_bytes: 10, content_type: type },
+          { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/doc`, size_bytes: 10,
+            content_type: type },
         ]);
         expect(await mintedUrl(sb), type).toMatch(/[?&]download(=|$)/);
       }
@@ -424,8 +489,8 @@ describe("GET /v1/attachments/:id/url", () => {
       // actually executes in a document context, is not in the allow-list.
       const sb = stubWithRole("member");
       sb.on("GET", "/rest/v1/attachments", () => [
-        { storage_path: `${COMPANY_ID}/note/x/photo.jpg`, size_bytes: 2048,
-          content_type: "image/jpeg" },
+        { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/photo.jpg`,
+          size_bytes: 2048, content_type: "image/jpeg" },
       ]);
       expect(await mintedUrl(sb)).not.toMatch(/[?&]download(=|$)/);
     });
@@ -436,9 +501,10 @@ describe("GET /v1/attachments/:id/url", () => {
       // bytes — and an unguarded read of an absent column previously turned the
       // mint into a 500, which is how this assertion earned its place.
       for (const row of [
-        { storage_path: `${COMPANY_ID}/note/x/legacy`, size_bytes: 1 },
-        { storage_path: `${COMPANY_ID}/note/x/odd`, size_bytes: 1, content_type: null },
-        { storage_path: `${COMPANY_ID}/note/x/svg`, size_bytes: 1,
+        { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/legacy`, size_bytes: 1 },
+        { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/odd`, size_bytes: 1,
+          content_type: null },
+        { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/svg`, size_bytes: 1,
           content_type: "image/svg+xml" },
       ]) {
         const sb = stubWithRole("member");
@@ -455,12 +521,14 @@ describe("GET /v1/attachments/:id/url", () => {
     // No generic row → fall through to the MMS table.
     sb.on("GET", "/rest/v1/attachments", () => []);
     sb.on("GET", "/rest/v1/message_attachments", () => [
-      { storage_path: `mms-media/${COMPANY_ID}/msg-1/0`, size_bytes: null },
+      {
+        id: ATTACHMENT_ID,
+        storage_path: `mms-media/${COMPANY_ID}/msg-1/0`,
+        size_bytes: null,
+      },
     ]);
     egressStubs(sb);
-    sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
-      signedURL: `/object/sign/mms-media/${COMPANY_ID}/msg-1/0?token=sig`,
-    }));
+    stubSigning(sb);
     stubFetch(jwksRoute(auth), sb.route);
 
     const before = Date.now();
@@ -472,8 +540,13 @@ describe("GET /v1/attachments/:id/url", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { url: string; expires_at: string };
+    const body = (await res.json()) as {
+      url: string;
+      expires_at: string;
+      ttl_seconds: number;
+    };
     expect(body.url).toContain("token=sig");
+    expect(body.ttl_seconds).toBe(3600);
     const expires = new Date(body.expires_at).getTime();
     expect(expires).toBeGreaterThanOrEqual(before + 3595_000);
     expect(expires).toBeLessThanOrEqual(before + 3605_000);
@@ -481,10 +554,8 @@ describe("GET /v1/attachments/:id/url", () => {
     const lookup = sb.find("GET", "/rest/v1/message_attachments")[0];
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     // Bucket prefix stripped for the Storage sign call.
+    expect(signedObjects(sb)).toEqual([`mms-media/${COMPANY_ID}/msg-1/0`]);
     const sign = sb.find("POST", /^\/storage\/v1\/object\/sign\//)[0];
-    expect(sign.path).toBe(
-      `/storage/v1/object/sign/mms-media/${COMPANY_ID}/msg-1/0`,
-    );
     expect(sign.body).toMatchObject({ expiresIn: 3600 });
     // MMS media draws on the same egress pool; a legacy NULL size claims 0.
     // The key uses the STRIPPED path — the same spelling the gallery claims
@@ -508,10 +579,12 @@ describe("GET /v1/attachments/:id/url", () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/attachments", () => [
       {
+        id: ATTACHMENT_ID,
         storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-photo.png`,
         size_bytes: 25 * 1024 * 1024,
       },
     ]);
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
     // Allowance already fully spent (200 GB burnt, #121) → the claim refuses
     // the mint.
     egressStubs(sb, { usedBytes: EGRESS_ALLOWANCE });
@@ -537,8 +610,13 @@ describe("GET /v1/attachments/:id/url", () => {
   it("mints NO URL when the egress claim errors (fail closed, #16)", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/attachments", () => [
-      { storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-photo.png`, size_bytes: 64 },
+      {
+        id: ATTACHMENT_ID,
+        storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-photo.png`,
+        size_bytes: 64,
+      },
     ]);
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
     sb.on("GET", "/rest/v1/companies", () => [
       { plan: "starter", current_period_start: PERIOD_START },
     ]);
@@ -563,12 +641,15 @@ describe("GET /v1/attachments/:id/url", () => {
   it("falls back to the current UTC calendar month when the company has no billing period", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/attachments", () => [
-      { storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-photo.png`, size_bytes: 64 },
+      {
+        id: ATTACHMENT_ID,
+        storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-photo.png`,
+        size_bytes: 64,
+      },
     ]);
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
     egressStubs(sb, { periodStart: null });
-    sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
-      signedURL: `/object/sign/attachments/x?token=sig`,
-    }));
+    stubSigning(sb);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -590,6 +671,7 @@ describe("GET /v1/attachments/:id/url", () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/attachments", () => []);
     sb.on("GET", "/rest/v1/message_attachments", () => []);
+    planStub(sb);
     stubFetch(jwksRoute(auth), sb.route);
 
     for (const id of [ATTACHMENT_ID, "not-a-uuid"]) {
@@ -620,6 +702,382 @@ describe("GET /v1/attachments/:id/url", () => {
     expect(res.status).toBe(403);
     expect(sb.find("GET", "/rest/v1/attachments")).toHaveLength(0);
     expect(sb.find("GET", "/rest/v1/message_attachments")).toHaveLength(0);
+  });
+
+  it("reads both tables and the period anchor in one wave, so the claim is one RPC", async () => {
+    // Most thread images are texted in, so a generic-then-MMS lookup would
+    // cost each of them an extra round trip.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => []);
+    sb.on("GET", "/rest/v1/message_attachments", () => [
+      {
+        id: ATTACHMENT_ID,
+        storage_path: `mms-media/${COMPANY_ID}/msg-1/0`,
+        size_bytes: 100,
+        content_type: "image/jpeg",
+        messages: { conversation_id: CONV_ID },
+      },
+    ]);
+    egressStubs(sb);
+    stubSigning(sb);
+    const probe = overlapProbe(sb.route);
+    stubFetch(jwksRoute(auth), probe.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/url`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(
+      probe.together("/rest/v1/attachments", "/rest/v1/message_attachments"),
+    ).toBe(true);
+    expect(probe.together("/rest/v1/attachments", "/rest/v1/companies")).toBe(true);
+    expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(1);
+  });
+
+  it("serves the generic row when an id is in both tables", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => [
+      { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/n/a.jpg`, size_bytes: 10 },
+    ]);
+    sb.on("GET", "/rest/v1/message_attachments", () => [
+      { id: ATTACHMENT_ID, storage_path: `mms-media/${COMPANY_ID}/m/0`, size_bytes: 10 },
+    ]);
+    egressStubs(sb);
+    stubSigning(sb);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/url`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(signedObjects(sb)).toEqual([`attachments/${COMPANY_ID}/note/n/a.jpg`]);
+  });
+});
+
+describe("POST /v1/attachments/urls (a thread's attachments in one request)", () => {
+  const PERIOD_START = "2026-07-01T00:00:00+00:00";
+  const VISIBLE_NUMBER = "88888888-7777-4666-8555-444444444444";
+  const HIDDEN_NUMBER = "99999999-8888-4777-8666-555555555555";
+  const HIDDEN_CONV = "44444444-5555-4666-8777-888888888888";
+  const PHOTO = "a1111111-1111-4111-8111-111111111111";
+  const HELD = "a2222222-2222-4222-8222-222222222222";
+  const HIDDEN = "a3333333-3333-4333-8333-333333333333";
+  const TEXTED = "a4444444-4444-4444-8444-444444444444";
+  const MISSING = "a5555555-5555-4555-8555-555555555555";
+  const PHOTO_PREVIEW = `${COMPANY_ID}/note/${NOTE_ID}/preview-roof.jpg`;
+  const TEXTED_PATH = `${COMPANY_ID}/msg-1/0`;
+
+  /**
+   * A member who cannot see HIDDEN_NUMBER, a thread with one of everything,
+   * and an egress pool that mimics the SQL against `usedBytes`.
+   */
+  function threadStub(options: { usedBytes?: number } = {}): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: HIDDEN_NUMBER, level: "none" },
+    ]);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { id: CONV_ID, phone_number_id: VISIBLE_NUMBER },
+      { id: HIDDEN_CONV, phone_number_id: HIDDEN_NUMBER },
+    ]);
+    sb.on("GET", "/rest/v1/attachments", () => [
+      {
+        id: PHOTO,
+        storage_path: `${COMPANY_ID}/note/${NOTE_ID}/roof.jpg`,
+        size_bytes: 20971520,
+        preview_path: PHOTO_PREVIEW,
+        preview_bytes: 184320,
+        conversation_id: CONV_ID,
+        content_type: "image/jpeg",
+        quarantined_at: null,
+      },
+      {
+        id: HELD,
+        storage_path: `${COMPANY_ID}/note/${NOTE_ID}/invoice.pdf`,
+        size_bytes: 2048,
+        conversation_id: CONV_ID,
+        content_type: "application/pdf",
+        quarantined_at: "2026-07-31T00:00:00+00:00",
+      },
+      {
+        id: HIDDEN,
+        storage_path: `${COMPANY_ID}/note/${NOTE_ID}/secret.jpg`,
+        size_bytes: 2048,
+        conversation_id: HIDDEN_CONV,
+        content_type: "image/jpeg",
+        quarantined_at: null,
+      },
+    ]);
+    sb.on("GET", "/rest/v1/message_attachments", () => [
+      {
+        id: TEXTED,
+        storage_path: `mms-media/${TEXTED_PATH}`,
+        size_bytes: 900000,
+        content_type: "image/jpeg",
+        quarantined_at: null,
+        messages: { conversation_id: CONV_ID },
+      },
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => [
+      { plan: "starter", current_period_start: PERIOD_START },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress_objects", (call) => {
+      const p = call.body as { p_objects: { bytes: number }[]; p_limit_bytes: number };
+      const claimed = p.p_objects.reduce((sum, o) => sum + o.bytes, 0);
+      const used = options.usedBytes ?? 0;
+      if (used + claimed > p.p_limit_bytes) {
+        return { allowed: false, used_bytes: used, claimed_bytes: 0 };
+      }
+      return { allowed: true, used_bytes: used + claimed, claimed_bytes: claimed };
+    });
+    return sb;
+  }
+
+  async function mintBatch(
+    sb: SupabaseStub,
+    items: unknown,
+    bindings: typeof env = env,
+  ): Promise<Response> {
+    stubFetch(jwksRoute(auth), sb.route);
+    return apiRequest(app, bindings, await auth.token(), "/v1/attachments/urls", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { items },
+    });
+  }
+
+  const everything = [PHOTO, HELD, HIDDEN, TEXTED, MISSING].map((id) => ({ id }));
+
+  it("answers every item on its own: held, hidden and missing ones do not cost the rest", async () => {
+    const sb = threadStub();
+    stubSigning(sb);
+    const res = await mintBatch(sb, everything);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: Record<string, unknown>[];
+      errors: { id: string; code: string; message: string }[];
+    };
+
+    expect(body.data).toEqual([
+      expect.objectContaining({
+        id: PHOTO,
+        requested_variant: "preview",
+        variant: "preview",
+        ttl_seconds: 300,
+        url: expect.stringContaining("preview-roof.jpg"),
+        expires_at: expect.any(String),
+      }),
+      expect.objectContaining({
+        id: TEXTED,
+        requested_variant: "preview",
+        variant: "original",
+        ttl_seconds: 3600,
+      }),
+    ]);
+    expect(body.errors.map(({ id, code }) => ({ id, code }))).toEqual([
+      // #317: a held file still says why, rather than reading as lost.
+      { id: HELD, code: "forbidden" },
+      // #106: a hidden number's file answers exactly like a missing one.
+      { id: HIDDEN, code: "not_found" },
+      { id: MISSING, code: "not_found" },
+    ]);
+    expect(body.errors[0].message).toContain("on hold");
+    expect(body.errors[1].message).toBe(body.errors[2].message);
+
+    // Only what passed every gate was claimed or signed.
+    expect(signedObjects(sb).sort()).toEqual(
+      [`attachments/${PHOTO_PREVIEW}`, `mms-media/${TEXTED_PATH}`].sort(),
+    );
+    const claimed = sb
+      .find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")
+      .flatMap((call) => (call.body as { p_objects: { key: string }[] }).p_objects)
+      .map((object) => object.key);
+    expect(claimed.sort()).toEqual(
+      [`attachments/${PHOTO_PREVIEW}`, `mms-media/${TEXTED_PATH}`].sort(),
+    );
+
+    // #106 resolved once for the batch, plus one read for its conversations.
+    expect(sb.find("POST", "/rest/v1/rpc/member_number_levels")).toHaveLength(1);
+    const conversations = sb.find("GET", "/rest/v1/conversations");
+    expect(conversations).toHaveLength(1);
+    expect(conversations[0].url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(conversations[0].url.searchParams.get("id")).toContain(HIDDEN_CONV);
+  });
+
+  it("claims once per URL lifetime, and every claim lands before anything is signed", async () => {
+    const sb = threadStub();
+    stubSigning(sb);
+    const before = Date.now();
+    await mintBatch(sb, [{ id: PHOTO }, { id: TEXTED }]);
+
+    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
+    expect(claims).toHaveLength(2);
+    // #261: each claim's dedupe window is the lifetime of the URLs it covers.
+    const windows = claims
+      .map((call) => before - Date.parse((call.body as { p_dedupe_since: string }).p_dedupe_since))
+      .sort((a, b) => a - b);
+    expect(windows[0]).toBeGreaterThanOrEqual(300_000 - 5000);
+    expect(windows[0]).toBeLessThan(300_000 + 5000);
+    expect(windows[1]).toBeGreaterThanOrEqual(3600_000 - 5000);
+    expect(windows[1]).toBeLessThan(3600_000 + 5000);
+    // The anchor was read with the lookups, never once per claim.
+    expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(1);
+
+    const order = sb.calls.map((call) => call.path);
+    const lastClaim = order.lastIndexOf("/rest/v1/rpc/claim_signed_url_egress_objects");
+    const firstSign = order.findIndex((path) => path.startsWith("/storage/v1/object/sign/"));
+    expect(firstSign).toBeGreaterThan(lastClaim);
+  });
+
+  it("signs nothing when a claim errors (fail closed, #16)", async () => {
+    // Not threadStub(): its healthy claim responder would win (registration order).
+    const sb = stubWithRole("member");
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/claim_signed_url_egress_objects",
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    sb.on("GET", "/rest/v1/attachments", () => [
+      { id: PHOTO, storage_path: `${COMPANY_ID}/note/n/a.jpg`, size_bytes: 10 },
+    ]);
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
+    planStub(sb);
+    stubSigning(sb);
+
+    const res = await mintBatch(sb, [{ id: PHOTO }]);
+    expect(res.status).toBe(500);
+    expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
+  });
+
+  it("refuses only the lifetime class that is over the allowance", async () => {
+    // The 20 MB original does not fit; the 900 KB texted photo does.
+    const sb = threadStub({ usedBytes: 200 * 1024 * 1024 * 1024 - 1024 * 1024 });
+    stubSigning(sb);
+    const res = await mintBatch(sb, [{ id: PHOTO, variant: "original" }, { id: TEXTED }]);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { id: string }[];
+      errors: { id: string; requested_variant: string; code: string }[];
+    };
+    expect(body.data.map((item) => item.id)).toEqual([TEXTED]);
+    expect(body.errors).toEqual([
+      expect.objectContaining({
+        id: PHOTO,
+        requested_variant: "original",
+        code: "usage_cap_reached",
+      }),
+    ]);
+    expect(signedObjects(sb)).toEqual([`mms-media/${TEXTED_PATH}`]);
+  });
+
+  it("charges the mint limiter once per item, before reading anything", async () => {
+    const keys: string[] = [];
+    const limiter = {
+      limit: async ({ key }: { key: string }) => {
+        keys.push(key);
+        return { success: true };
+      },
+    };
+    const sb = threadStub();
+    stubSigning(sb);
+    const res = await mintBatch(
+      sb,
+      [{ id: PHOTO }, { id: TEXTED }, { id: MISSING }],
+      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter } as typeof env,
+    );
+    expect(res.status).toBe(200);
+    expect(keys).toEqual(
+      Array(3).fill(`attachment-url:${COMPANY_ID}:${auth.subject}`),
+    );
+  });
+
+  it("429s over the mint limit and reads nothing", async () => {
+    const limiter = { limit: async () => ({ success: false }) };
+    const sb = threadStub();
+    const res = await mintBatch(
+      sb,
+      [{ id: PHOTO }],
+      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter } as typeof env,
+    );
+    expect(res.status).toBe(429);
+    expect(sb.find("GET", "/rest/v1/attachments")).toHaveLength(0);
+    expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
+  });
+
+  it("turns one object Storage could not sign into that item's error", async () => {
+    const sb = threadStub();
+    sb.on("POST", /^\/storage\/v1\/object\/sign\/[^/]+$/, (call) => {
+      const { paths } = call.body as { paths: string[] };
+      return paths.map((path) =>
+        path === TEXTED_PATH
+          ? { error: "Either the object does not exist", path, signedURL: null }
+          : { error: null, path, signedURL: `/object/sign/x/${path}?token=sig` },
+      );
+    });
+    const res = await mintBatch(sb, [{ id: PHOTO }, { id: TEXTED }]);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { id: string }[];
+      errors: { id: string; code: string }[];
+    };
+    expect(body.data.map((item) => item.id)).toEqual([PHOTO]);
+    expect(body.errors).toEqual([
+      expect.objectContaining({ id: TEXTED, code: "internal_error" }),
+    ]);
+  });
+
+  it("signs each bucket and disposition in one Storage call", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => [
+      { id: PHOTO, storage_path: `${COMPANY_ID}/note/n/a.jpg`, size_bytes: 1, content_type: "image/jpeg" },
+      { id: HELD, storage_path: `${COMPANY_ID}/note/n/b.jpg`, size_bytes: 1, content_type: "image/png" },
+      { id: HIDDEN, storage_path: `${COMPANY_ID}/note/n/c.pdf`, size_bytes: 1, content_type: "application/pdf" },
+    ]);
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
+    planStub(sb);
+    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress_objects", () => ({
+      allowed: true,
+      used_bytes: 3,
+      claimed_bytes: 3,
+    }));
+    stubSigning(sb);
+    const res = await mintBatch(sb, [{ id: PHOTO }, { id: HELD }, { id: HIDDEN }]);
+    expect(res.status).toBe(200);
+    const signs = sb.find("POST", /^\/storage\/v1\/object\/sign\//);
+    // Two images inline in one call, the PDF as a download in another.
+    expect(signs).toHaveLength(2);
+    const body = (await res.json()) as { data: { id: string; url: string }[] };
+    const pdf = body.data.find((item) => item.id === HIDDEN);
+    expect(pdf?.url).toMatch(/[?&]download(=|$)/);
+    const photo = body.data.find((item) => item.id === PHOTO);
+    expect(photo?.url).not.toMatch(/[?&]download(=|$)/);
+  });
+
+  it("422s an empty batch, an oversized one and a malformed id", async () => {
+    for (const items of [
+      [],
+      Array.from({ length: 26 }, () => ({ id: PHOTO })),
+      [{ id: "not-a-uuid" }],
+      [{ id: PHOTO, variant: "thumbnail" }],
+    ]) {
+      const sb = threadStub();
+      const res = await mintBatch(sb, items);
+      expect(res.status, JSON.stringify(items).slice(0, 40)).toBe(422);
+      expect(sb.find("GET", "/rest/v1/attachments")).toHaveLength(0);
+    }
   });
 });
 
@@ -1716,16 +2174,18 @@ describe("#106 number access — attachments never leak a hidden number", () => 
       { phone_number_id: HIDDEN_NUMBER, level: "none" },
     ]);
     sb.on("GET", "/rest/v1/conversations", () => [
-      { phone_number_id: HIDDEN_NUMBER },
+      { id: CONV_ID, phone_number_id: HIDDEN_NUMBER },
     ]);
+    planStub(sb);
     return sb;
   }
 
   it("GET /:id/url — generic arm 404s a hidden number's attachment; nothing is signed", async () => {
     const sb = memberHiddenStub();
     sb.on("GET", "/rest/v1/attachments", () => [
-      { storage_path: "p", size_bytes: 2048, conversation_id: CONV_ID },
+      { id: ATTACHMENT_ID, storage_path: "p", size_bytes: 2048, conversation_id: CONV_ID },
     ]);
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -1745,9 +2205,13 @@ describe("#106 number access — attachments never leak a hidden number", () => 
     const sb = memberHiddenStub();
     sb.on("GET", "/rest/v1/attachments", () => []); // fall through to MMS
     sb.on("GET", "/rest/v1/message_attachments", () => [
-      { storage_path: `mms-media/${COMPANY_ID}/msg-1/0`, size_bytes: 100, message_id: NOTE_ID },
+      {
+        id: ATTACHMENT_ID,
+        storage_path: `mms-media/${COMPANY_ID}/msg-1/0`,
+        size_bytes: 100,
+        messages: { conversation_id: CONV_ID },
+      },
     ]);
-    sb.on("GET", "/rest/v1/messages", () => [{ conversation_id: CONV_ID }]);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -1941,6 +2405,7 @@ describe("POST /v1/attachments/:id/report — a member pulls a file back for eve
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/attachments", () => [
       {
+        id: ATTACHMENT_ID,
         storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-invoice.pdf`,
         size_bytes: 2048,
         conversation_id: CONV_ID,
@@ -1948,6 +2413,8 @@ describe("POST /v1/attachments/:id/report — a member pulls a file back for eve
         quarantined_at: "2026-07-31T00:00:00+00:00",
       },
     ]);
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
+    planStub(sb);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
