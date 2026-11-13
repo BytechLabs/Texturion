@@ -1,0 +1,35 @@
+# Cache rules for the files Cloudflare's assets layer answers before the Worker runs.
+# Without this file every one of them is "max-age=0, must-revalidate", so each page
+# load re-asks for all of its 30 JS, CSS and font files.
+# https://developers.cloudflare.com/workers/static-assets/headers
+# /sw.js and /offline.html have no rule on purpose: the browser must keep checking them.
+
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/favicon.svg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/favicon-unread.svg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/favicon.ico
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/apple-touch-icon.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/icons/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/img/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+/shots/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+/og/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+/widget.js
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400

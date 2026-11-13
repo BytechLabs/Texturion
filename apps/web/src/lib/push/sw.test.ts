@@ -569,6 +569,70 @@ describe("offline fallback wiring", () => {
     void sw; // first instance only proves double-evaluation is safe
   });
 
+  it("answers a page load with the browser's preloaded response, without a second fetch", async () => {
+    const listeners = new Map<string, (event: unknown) => void>();
+    const fetch = vi.fn();
+    const sandbox = {
+      self: {
+        addEventListener: (type: string, listener: (event: unknown) => void) =>
+          listeners.set(type, listener),
+        location: { origin: ORIGIN },
+        registration: {},
+        clients: { claim: vi.fn() },
+        skipWaiting: vi.fn(() => Promise.resolve()),
+      },
+      console,
+      URL,
+      Response: class {},
+      caches: { open: vi.fn(), keys: vi.fn(() => Promise.resolve([])), delete: vi.fn() },
+      fetch,
+    };
+    createContext(sandbox);
+    runInContext(SW_SOURCE, sandbox);
+    const page = { page: true };
+    let responded: unknown = null;
+    listeners.get("fetch")?.({
+      request: { mode: "navigate", url: `${ORIGIN}/inbox` },
+      preloadResponse: Promise.resolve(page),
+      respondWith: (value: Promise<unknown>) => {
+        responded = value;
+      },
+    });
+    await expect(responded).resolves.toBe(page);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("turns navigation preload on when it activates", async () => {
+    const listeners = new Map<string, (event: unknown) => void>();
+    const enable = vi.fn(() => Promise.resolve());
+    const claim = vi.fn(() => Promise.resolve());
+    const sandbox = {
+      self: {
+        addEventListener: (type: string, listener: (event: unknown) => void) =>
+          listeners.set(type, listener),
+        location: { origin: ORIGIN },
+        registration: { navigationPreload: { enable } },
+        clients: { claim },
+        skipWaiting: vi.fn(() => Promise.resolve()),
+      },
+      console,
+      URL,
+      Response: class {},
+      caches: {
+        open: vi.fn(),
+        keys: vi.fn(() => Promise.resolve(["loonext-shell-v2"])),
+        delete: vi.fn(() => Promise.resolve(true)),
+      },
+      fetch: vi.fn(),
+    };
+    createContext(sandbox);
+    runInContext(SW_SOURCE, sandbox);
+    await dispatch(listeners, "activate", {});
+    expect(enable).toHaveBeenCalledTimes(1);
+    expect(claim).toHaveBeenCalledTimes(1);
+    expect(sandbox.caches.delete).toHaveBeenCalledWith("loonext-shell-v2");
+  });
+
   it("never intercepts non-navigation requests (API, realtime, assets)", () => {
     const sw = loadServiceWorker();
     const respondWith = vi.fn();

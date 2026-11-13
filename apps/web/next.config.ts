@@ -219,6 +219,12 @@ const nextConfig: NextConfig = {
         source: `/${prefix}/:token*`,
         headers: [{ key: "Cache-Control", value: "no-store, private" }],
       })),
+      // The manifest is a metadata route, so the Worker renders it with no
+      // validator; without this a browser fetched it again on every page load.
+      {
+        source: "/manifest.webmanifest",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400" }],
+      },
     ];
   },
   async redirects() {

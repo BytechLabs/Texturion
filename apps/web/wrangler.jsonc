@@ -55,7 +55,11 @@
   },
   "assets": {
     "directory": ".open-next/assets",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    // Serve public files only at their exact path, as Next does. The default
+    // answered /offline.html with a 307 to /offline, and a service worker that
+    // precaches a redirected response cannot use it for a navigation.
+    "html_handling": "none"
   },
   // #242: the live /status incident line. Writable from the Cloudflare dashboard
   // with no repo, no CI and no deploy, which is the whole point — the page has to

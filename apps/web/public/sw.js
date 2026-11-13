@@ -20,7 +20,7 @@
 "use strict";
 
 /** Bump when the precache list or offline.html changes. */
-const SHELL_CACHE = "loonext-shell-v2";
+const SHELL_CACHE = "loonext-shell-v3";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/favicon.svg"];
 
@@ -227,6 +227,8 @@ self.addEventListener("activate", (event) => {
             .map((key) => caches.delete(key)),
         ),
       )
+      // The page request starts while this worker boots, instead of after.
+      .then(() => self.registration.navigationPreload?.enable())
       .then(() => self.clients.claim()),
   );
 });
@@ -367,19 +369,21 @@ self.addEventListener("fetch", (event) => {
   // realtime, assets) goes straight to the network untouched.
   if (event.request.mode !== "navigate") return;
   event.respondWith(
-    fetch(event.request).catch(() =>
-      caches
-        .open(SHELL_CACHE)
-        .then((cache) => cache.match(OFFLINE_URL))
-        .then(
-          (cached) =>
-            cached ??
-            new Response("You're offline. Loonext needs a connection.", {
-              status: 503,
-              headers: { "Content-Type": "text/plain; charset=utf-8" },
-            }),
-        ),
-    ),
+    Promise.resolve(event.preloadResponse)
+      .then((preloaded) => preloaded ?? fetch(event.request))
+      .catch(() =>
+        caches
+          .open(SHELL_CACHE)
+          .then((cache) => cache.match(OFFLINE_URL))
+          .then(
+            (cached) =>
+              cached ??
+              new Response("You're offline. Loonext needs a connection.", {
+                status: 503,
+                headers: { "Content-Type": "text/plain; charset=utf-8" },
+              }),
+          ),
+      ),
   );
 });
 

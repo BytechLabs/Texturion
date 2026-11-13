@@ -285,6 +285,12 @@ jobs:
       - name: Verify every public page answers
         run: node scripts/ops/verify-public-routes.mjs
 
+      # Cache headers on the files the assets layer serves before the Worker
+      # (public/_headers, wrangler.jsonc), and the public token pages, which
+      # answered 500 for every link a customer opened while every gate passed.
+      - name: Verify the web Worker's caching and link pages
+        run: node scripts/ops/verify-app-edge.mjs
+
       # #581: the zone's TLS floor, asserted rather than remembered.
       #
       # Raised from 1.0 to 1.2 on 2026-08-16 with the operator's go-ahead. That

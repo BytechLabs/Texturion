@@ -12,8 +12,9 @@
  * document/route/redirect response the Worker serves. The one gap is files
  * served directly from the static-assets binding (`.open-next/assets`:
  * `/_next/static/*` + `public/`), which Cloudflare answers before the Worker
- * runs — those are immutable same-origin subresources with correct MIME
- * types, so none of these headers changes their behavior in a browser.
+ * runs. They are same-origin subresources with correct MIME types, so none of
+ * these headers changes their behavior in a browser; their cache rules live
+ * in `public/_headers`.
  */
 export const SECURITY_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
   /*
