@@ -13,7 +13,9 @@
  *
  * Credential-free: unauthenticated GETs of URLs any visitor can open.
  *
- * Usage: node scripts/ops/verify-app-edge.mjs [--app https://app.loonext.com] [--site https://loonext.com]
+ * It also asks whether the API Worker runs beside its database.
+ *
+ * Usage: node scripts/ops/verify-app-edge.mjs [--app https://app.loonext.com] [--site https://loonext.com] [--api https://api.loonext.com]
  */
 const args = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -88,6 +90,18 @@ if (manifest) {
     manifest.status === 200 && /max-age=86400/.test(cache),
     `manifest is cached for a day (${cache})`,
     `${APP}/manifest.webmanifest answered ${manifest.status} with Cache-Control "${cache}"`,
+  );
+}
+
+// The API runs beside its database (placement in apps/api/wrangler.jsonc).
+// Cloudflare names where a placed Worker ran in a cf-placement header.
+const api = await get(`${arg("--api", "https://api.loonext.com")}/health`);
+if (api) {
+  const placed = api.headers.get("cf-placement");
+  check(
+    api.status === 200 && placed !== null,
+    `API answers with placement (cf-placement: ${placed})`,
+    `the API /health answered ${api.status} with no cf-placement header, so it runs at the caller's edge and every database round trip crosses to us-east-1`,
   );
 }
 

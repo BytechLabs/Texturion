@@ -27,6 +27,12 @@
   // answering, still holding whatever bug the release fixed.
   "workers_dev": false,
   "preview_urls": false,
+  // Run beside the database (Supabase, AWS us-east-1). A request makes 2 to 13
+  // database round trips one after another; run at the caller's edge, each one
+  // crossed the continent. Checked against this account on 2026-11-13: the
+  // smart mode's hint takes only Cloudflare regions, targeted takes this one.
+  // The rig drops the key (tools/rig/src/wrangler-config.mjs).
+  "placement": { "mode": "targeted", "region": "aws:us-east-1" },
   // Observability pinned to match the dashboard so `wrangler deploy` (local and
   // CI) never resets it — Cloudflare's "keep settings consistent across
   // deployments" prompt. Net effect: Workers Logs ON (persisted invocation logs
