@@ -140,9 +140,11 @@ struct SignedAudioAttachment: View {
             playing = false
             progress = 0
             player?.seek(to: .zero)
+            releaseMediaPlayback()
         }
         .onDisappear {
             player?.pause()
+            if playing { releaseMediaPlayback() }
             playing = false
         }
     }
@@ -152,6 +154,7 @@ struct SignedAudioAttachment: View {
     /// exactly what made the bug invisible. Dropping the player lets `.task`
     /// re-mint on retry.
     private func markFailed() {
+        if playing { releaseMediaPlayback() }
         playing = false
         progress = 0
         player = nil
@@ -171,14 +174,7 @@ struct SignedAudioAttachment: View {
             playing = false
             return
         }
-        // Without .playback a clip is silenced by the ring/silent switch, which
-        // reads as "the player is broken". Never touch the session while a call
-        // owns it (.playAndRecord) — the softphone's audio comes first.
-        let session = AVAudioSession.sharedInstance()
-        if session.category != .playAndRecord {
-            try? session.setCategory(.playback, mode: .spokenAudio)
-            try? session.setActive(true)
-        }
+        prepareMediaPlayback()
         player.play()
         playing = true
     }

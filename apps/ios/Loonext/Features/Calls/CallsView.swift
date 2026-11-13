@@ -1229,6 +1229,7 @@ struct VoicemailPlayerRow: View {
                                 appLocale, "contactsTasks.voicemailPlayFailed"
                             )
                             playing = false
+                            releaseMediaPlayback()
                         }
                     }
                     if positionMs >= durationMs - 150 {
@@ -1236,6 +1237,7 @@ struct VoicemailPlayerRow: View {
                         positionMs = durationMs
                         playing = false
                         player.pause()
+                        releaseMediaPlayback()
                     }
                 }
                 try? await Task.sleep(for: .milliseconds(200))
@@ -1243,6 +1245,7 @@ struct VoicemailPlayerRow: View {
         }
         .onDisappear {
             player?.pause()
+            if playing { releaseMediaPlayback() }
             player = nil
             playing = false
         }
@@ -1260,6 +1263,7 @@ struct VoicemailPlayerRow: View {
                 player.seek(to: .zero)
                 positionMs = 0
             }
+            prepareMediaPlayback()
             player.play()
             playing = true
             return
@@ -1289,6 +1293,7 @@ struct VoicemailPlayerRow: View {
                 }
                 let next = AVPlayer(url: url)
                 player = next
+                prepareMediaPlayback()
                 next.play()
                 playing = true
             } catch {
