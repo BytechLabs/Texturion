@@ -823,6 +823,54 @@ class SoftphoneCoreTest {
     }
 
     @Test
+    fun `a wake push for a session that stopped ringing says so, so its ring can end`() = runTest {
+        // The push raised a ring that repeats until cancelled; a late push for a call a
+        // teammate already took must not ring on to the 45s window.
+        suspend fun heardFor(session: String, state: (String) -> LiveSessionState): List<String> {
+            sessionStateBehavior = state
+            val heard = mutableListOf<String>()
+            val h = harness()
+            h.core.onWakeSessionOver = { heard += it }
+            h.core.start("company-1")
+            h.core.awaitReady()
+            h.core.onIncomingCallPush(session)
+            h.scope.cancel()
+            return heard
+        }
+
+        assertEquals(
+            listOf("sess-done"),
+            heardFor("sess-done") { LiveSessionState(call_session_id = it, state = "answered") },
+        )
+        assertEquals(
+            listOf("sess-gone"),
+            heardFor("sess-gone") { throw ApiException(ApiErrorCode.NOT_FOUND, "Aged out.", 404) },
+        )
+        assertTrue(
+            "still ringing: the ring stays",
+            heardFor("sess-live") {
+                LiveSessionState(call_session_id = it, state = CallWakePolicy.STATE_RINGING)
+            }.isEmpty(),
+        )
+        assertTrue(
+            "a state the server could not tell is not an ending",
+            heardFor("sess-unknown") { LiveSessionState(call_session_id = it, state = null) }.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `a throwing wake-over hook never breaks the wake path`() = runTest {
+        sessionStateBehavior = { LiveSessionState(call_session_id = it, state = "answered") }
+        val h = harness()
+        h.core.onWakeSessionOver = { throw IllegalStateException("listener blew up") }
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.onIncomingCallPush("sess-done")
+        assertTrue(ringMeNoLocalLeg.isEmpty())
+        h.scope.cancel()
+    }
+
+    @Test
     fun `ring-me request-property 409 is swallowed`() = runTest {
         ringMeBehavior = { throw ApiException(ApiErrorCode.CONFLICT, "Can't take calls.", 409) }
         val h = harness()

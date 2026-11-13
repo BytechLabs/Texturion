@@ -165,6 +165,7 @@ class SoftphoneManager private constructor(
         watchForeground()
         core.onInternalFailure = Telemetry::captureNonFatal
         core.onRingMeSent = { session -> beacon(RingBeaconStage.RING_ME_SENT, session) }
+        core.onWakeSessionOver = { session -> registry.endUnboundRing(session) }
         // #168A: per-emission guards — one bad snapshot must not kill the
         // collector (all future syncs) or the process.
         scope.launch {
@@ -197,6 +198,8 @@ class SoftphoneManager private constructor(
         // cap this client already registers) and bring the in-app leg down.
         PushHooks.callEndHandler = CallEndHandler { content ->
             content.callSessionId?.let { session ->
+                // Directly, so the ring stops without waiting on Telecom to confirm the disconnect.
+                runCatching { CallNotifier.cancelIncomingForSession(appContext, session) }
                 runCatching { registry.disconnect(session) }
                 core.onCallEndPush(session)
             }

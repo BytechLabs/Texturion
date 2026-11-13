@@ -240,6 +240,10 @@ class SoftphoneCore(
      *  (ring beacons); a listener that throws never reaches the wake path. */
     var onRingMeSent: ((String) -> Unit)? = null
 
+    /** Hears each session a wake push named that the server says stopped ringing, so the
+     *  ring the push raised can end now instead of at the ring window. */
+    var onWakeSessionOver: ((String) -> Unit)? = null
+
     var companyId: String? = null
         private set
     private var callerIdName: String = ""
@@ -1422,10 +1426,16 @@ class SoftphoneCore(
         val live = try {
             api.sessionState(company, sessionId)
         } catch (cause: ApiException) {
-            if (cause.code == ApiErrorCode.NOT_FOUND) return
+            if (cause.code == ApiErrorCode.NOT_FOUND) {
+                runCatching { onWakeSessionOver?.invoke(sessionId) }
+                return
+            }
             throw cause
         }
-        if (live.state != CallWakePolicy.STATE_RINGING) return
+        if (live.state != CallWakePolicy.STATE_RINGING) {
+            if (CallWakePolicy.isRingingExit(live.state)) runCatching { onWakeSessionOver?.invoke(sessionId) }
+            return
+        }
         val ack = requestRingMe(company, sessionId) ?: return
         if (ack.rang != false) {
             // rang:true (or a pre-v3 server's bare `ok`) — an INVITE is

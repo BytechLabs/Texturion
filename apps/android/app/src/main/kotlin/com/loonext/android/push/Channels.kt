@@ -16,7 +16,9 @@ import com.loonext.android.core.i18n.UiLocale
 object ChannelIds {
     const val MESSAGES = "messages"
     const val MISSED_CALLS = "missed_calls"
-    const val INCOMING_CALLS = "incoming_calls"
+
+    /** Versioned because a channel's sound and vibration are fixed once it exists. */
+    const val INCOMING_CALLS = "incoming_calls_v2"
 
     /**
      * Task reminders get their own channel because a busy inbox is the first
@@ -59,6 +61,9 @@ object ChannelIds {
      */
     const val PAYMENTS = "payments"
 }
+
+/** The incoming-calls channel from before the ring repeated. */
+private const val RETIRED_INCOMING_CALLS = "incoming_calls"
 
 /**
  * Create (or update in place) the Loonext notification channels.
@@ -146,23 +151,27 @@ fun ensureChannels(context: Context, locale: String? = null) {
         description = say("push.channelPaymentsDesc")
     }
 
+    // What a member chose on the retired ring channel carries over to its replacement.
+    val retired = manager.getNotificationChannel(RETIRED_INCOMING_CALLS)
     val incomingCalls = NotificationChannel(
         ChannelIds.INCOMING_CALLS,
         say("push.channelIncomingCallsName"),
-        NotificationManager.IMPORTANCE_HIGH,
+        retired?.importance ?: NotificationManager.IMPORTANCE_HIGH,
     ).apply {
         description = say("push.channelIncomingCallsDesc")
         setSound(
-            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
+            if (retired != null) retired.sound else RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build(),
         )
-        enableVibration(true)
-        vibrationPattern = longArrayOf(200, 100, 200, 100, 200)
+        // Set before enableVibration: setting a pattern switches vibration back on.
+        vibrationPattern = longArrayOf(0, 1000, 1000)
+        enableVibration(retired?.shouldVibrate() ?: true)
     }
 
+    if (retired != null) manager.deleteNotificationChannel(RETIRED_INCOMING_CALLS)
     manager.createNotificationChannels(
         listOf(
             messages,

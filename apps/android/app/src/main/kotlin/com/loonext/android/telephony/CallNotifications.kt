@@ -198,7 +198,10 @@ internal class CallNotifier(private val context: Context) {
             // Second guard: if this process dies mid-ring, no cancel path survives —
             // let the OS reap the row when the server ring window is over.
             .setTimeoutAfter(TelecomCallReducer.RING_WINDOW_MS)
-        return post("call:$session", INCOMING_ID, builder.build())
+        val notification = builder.build()
+        // A phone rings until the call is picked up or ends; without this the channel plays once.
+        notification.flags = notification.flags or Notification.FLAG_INSISTENT
+        return post("call:$session", INCOMING_ID, notification)
     }
 
     fun cancelIncoming(session: String) = cancelIncomingForSession(context, session)
@@ -301,8 +304,9 @@ class CallActionReceiver : BroadcastReceiver() {
         runCatching {
             val session = intent.getStringExtra(CallNotifier.EXTRA_SESSION)
             if (session != null && intent.action == CallNotifier.ACTION_DECLINE) {
-                softphone(context)?.declineIncoming(session)
+                // First, so the ring stops on the tap even if the decline below throws.
                 CallNotifier.cancelIncomingForSession(context, session)
+                softphone(context)?.declineIncoming(session)
             }
         }
         if (pending != null) {

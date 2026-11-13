@@ -501,6 +501,21 @@ class TelecomCallRegistry(
         disconnectEntry(entry, DisconnectCause(DisconnectCause.REMOTE))
     }
 
+    /** A wake push arrived after [session] stopped ringing: end the ring it raised now,
+     *  unless a leg bound or the user answered meanwhile. Unknown session: no-op. */
+    fun endUnboundRing(session: String) {
+        val entry = entries[session] ?: return
+        val cause = DisconnectCause(DisconnectCause.REMOTE)
+        val plan = claimTerminate(entry, cause) {
+            it.answerRequested ||
+                !TelecomCallReducer.shouldRingWindowDisconnect(it.legBound, it.accepted, it.terminated)
+        }
+        if (plan == TerminatePlan.STAND_DOWN) return
+        CallFlowLog.log("telecom", "ring ended, session no longer ringing sess=${CallFlowLog.tail(session)}")
+        runCatching { bridge.cancelIncomingCall(session) }
+        if (plan == TerminatePlan.DISCONNECT_NOW) disconnectOnScope(entry, cause)
+    }
+
     /**
      * Answer the incoming call for [session] from the app's OWN ring surface (the
      * `CallStyle` notification / [CallActivity]) — self-managed calls have
