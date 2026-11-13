@@ -48,6 +48,9 @@
  *      the same argument and it is the one worth having.
  *   4. It found keys at all. A sweep that greps nothing passes vacuously, which
  *      is how the original defect survived every other check.
+ *   5. Every literal shaped like a key is defined, wherever it sits. A key picked
+ *      by a ternary or held in an array never reaches the CALL pattern, and
+ *      nineteen settings labels rendered their own names that way.
  *
  * NOT CHECKED: unused keys. A key can be reached through a variable — six
  * screens hold one in a local `key` and pass it on — so "defined but never
@@ -94,6 +97,14 @@ const DEFINITION = /"([a-zA-Z]\w*\.\w+)"\s*:/g;
 /** `{name}` placeholders, which both languages must carry identically. */
 const TOKEN = /\{(\w+)\}/g;
 
+/** Literals with a section's prefix that are not catalogue keys, and why. */
+const NOT_KEYS = new Map([
+  [
+    "settings.manage",
+    "a capability name the API sends (Capability.settingsManage); matched against a role, never rendered",
+  ],
+]);
+
 function swiftFiles(dir) {
   return readdirSync(dir).flatMap((entry) => {
     const full = join(dir, entry);
@@ -113,11 +124,15 @@ for (const file of swiftFiles(CATALOGUE)) {
   }
 }
 
+const appSources = swiftFiles(IOS)
+  .filter((file) => !file.replaceAll("\\", "/").includes("/Core/I18n/"))
+  .map((file) => ({
+    relative: file.slice(IOS.length + 1).replaceAll("\\", "/"),
+    source: readFileSync(file, "utf8"),
+  }));
+
 const used = new Map();
-for (const file of swiftFiles(IOS)) {
-  if (file.replaceAll("\\", "/").includes("/Core/I18n/")) continue;
-  const relative = file.slice(IOS.length + 1).replaceAll("\\", "/");
-  const source = readFileSync(file, "utf8");
+for (const { relative, source } of appSources) {
   // Both ways a key reaches the catalogue: named at a call, or carried as data
   // on an error that is rendered later.
   for (const pattern of [CALL, KEY_AS_DATA]) {
@@ -145,6 +160,50 @@ for (const [key, screens] of [...used].sort()) {
       `${key} is asked for by ${[...screens].sort().join(", ")} and defined ` +
         `nowhere. It will render as its own name.`,
     );
+  }
+}
+
+// --- 5: every key-shaped literal is defined ---------------------------------
+
+// Prefixes come from calls as well as definitions, so a section nobody wrote yet is still swept.
+const prefixes = new Set([...defined, ...used.keys()].map((key) => key.split(".")[0]));
+const KEY_LITERAL = new RegExp(String.raw`"((?:${[...prefixes].join("|")})\.[A-Za-z]\w*)"`, "g");
+
+let literalsChecked = 0;
+const seenNotKeys = new Set();
+const undefinedLiterals = new Map();
+for (const { relative, source } of appSources) {
+  for (const match of source.matchAll(KEY_LITERAL)) {
+    literalsChecked += 1;
+    const key = match[1];
+    if (NOT_KEYS.has(key)) {
+      seenNotKeys.add(key);
+      continue;
+    }
+    // A key the CALL pass already reported is not reported twice.
+    if (defined.has(key) || used.has(key)) continue;
+    const line = source.slice(0, match.index).split("\n").length;
+    if (!undefinedLiterals.has(key)) undefinedLiterals.set(key, []);
+    undefinedLiterals.get(key).push(`${relative}:${line}`);
+  }
+}
+
+if (literalsChecked === 0) {
+  failures.push(`no key-shaped literals found in the iOS app. The literal pattern stopped matching.`);
+}
+
+for (const [key, places] of [...undefinedLiterals].sort()) {
+  failures.push(
+    `${key} is written at ${places.join(", ")} and defined nowhere. It will ` +
+      `render as its own name. If it is not a catalogue key, add it to NOT_KEYS with the reason.`,
+  );
+}
+
+for (const key of NOT_KEYS.keys()) {
+  if (defined.has(key)) {
+    failures.push(`NOT_KEYS lists ${key}, which is now a defined key. Remove the entry.`);
+  } else if (!seenNotKeys.has(key)) {
+    failures.push(`NOT_KEYS lists ${key}, which no screen writes any more. Remove the entry.`);
   }
 }
 
@@ -212,6 +271,6 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `iOS catalogue: ${used.size} keys asked for across the app, ${defined.size} ` +
-    `defined, both languages agreeing.`,
+  `iOS catalogue: ${used.size} keys asked for across the app, ${literalsChecked} ` +
+    `key-shaped literals checked, ${defined.size} defined, both languages agreeing.`,
 );

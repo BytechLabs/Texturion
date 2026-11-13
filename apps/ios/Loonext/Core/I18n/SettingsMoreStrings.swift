@@ -560,6 +560,7 @@ private let settingsMorePickerFr: [String: String] = [
 private let settingsMoreOwnershipEn: [String: String] = [
     "settingsMore.aTeammate": "a teammate",
     "settingsMore.aTeammateCapital": "A teammate",
+    "settingsMore.acceptOwnership": "Accept ownership",
     "settingsMore.askTakeOver": "Ask to take over",
     "settingsMore.backupCleared": "Backup owner cleared.",
     "settingsMore.backupOwner": "Backup owner",
@@ -580,7 +581,13 @@ private let settingsMoreOwnershipEn: [String: String] = [
         "If the owner can't act, you can ask to take over. They get a week to "
         + "stop it, and everyone on the team is told straight away.",
     "settingsMore.claimTitle": "Ask to take over this workspace?",
+    "settingsMore.completeTakeover": "Complete the takeover",
     "settingsMore.handItOver": "Hand it over",
+    "settingsMore.handOverBody":
+        "Nothing changes until they accept. When they do, they control "
+        + "billing, the spending cap, and your numbers — and you stay on the team "
+        + "as an admin. You can cancel any time before they accept, and everyone "
+        + "will be told either way.",
     "settingsMore.handOverNote": "They have to accept. You stay on the team as an admin.",
     "settingsMore.handOverTitle": "Hand the workspace over",
     "settingsMore.handToTitle": "Hand this workspace to {name}?",
@@ -589,6 +596,7 @@ private let settingsMoreOwnershipEn: [String: String] = [
     "settingsMore.nobody": "Nobody",
     "settingsMore.nobodyNamed": "Nobody named",
     "settingsMore.nowOwn": "You now own this workspace.",
+    "settingsMore.offerIt": "Offer it",
     "settingsMore.offeredTo": "Offered to {name}. They have 7 days to accept.",
     "settingsMore.owner": "Owner",
     "settingsMore.ownershipCaption": "OWNERSHIP",
@@ -604,6 +612,7 @@ private let settingsMoreOwnershipEn: [String: String] = [
 private let settingsMoreOwnershipFr: [String: String] = [
     "settingsMore.aTeammate": "un coéquipier",
     "settingsMore.aTeammateCapital": "Un coéquipier",
+    "settingsMore.acceptOwnership": "Accepter la propriété",
     "settingsMore.askTakeOver": "Demander à reprendre",
     "settingsMore.backupCleared": "Propriétaire suppléant retiré.",
     "settingsMore.backupOwner": "Propriétaire suppléant",
@@ -627,7 +636,14 @@ private let settingsMoreOwnershipFr: [String: String] = [
         + "reprendre l'espace de travail. Il a une semaine pour l'arrêter, et "
         + "toute l'équipe en est informée sur-le-champ.",
     "settingsMore.claimTitle": "Demander à reprendre cet espace de travail ?",
+    "settingsMore.completeTakeover": "Conclure la reprise",
     "settingsMore.handItOver": "Céder",
+    "settingsMore.handOverBody":
+        "Rien ne change tant que la personne n'a pas accepté. Une fois acceptée, "
+        + "elle contrôle la facturation, le plafond de dépenses et vos numéros — "
+        + "et vous restez dans l'équipe comme admin. Vous pouvez annuler à tout "
+        + "moment avant son acceptation, et tout le monde sera informé dans les "
+        + "deux cas.",
     "settingsMore.handOverNote":
         "La personne doit accepter. Vous restez dans l'équipe comme admin.",
     "settingsMore.handOverTitle": "Céder l'espace de travail",
@@ -639,6 +655,7 @@ private let settingsMoreOwnershipFr: [String: String] = [
     "settingsMore.nobody": "Personne",
     "settingsMore.nobodyNamed": "Personne de désigné",
     "settingsMore.nowOwn": "Vous êtes maintenant propriétaire de cet espace de travail.",
+    "settingsMore.offerIt": "Proposer",
     "settingsMore.offeredTo": "Proposé à {name}. La personne a 7 jours pour accepter.",
     "settingsMore.owner": "Propriétaire",
     "settingsMore.ownershipCaption": "PROPRIÉTÉ",
@@ -673,10 +690,14 @@ private let settingsMoreRegistrationEn: [String: String] = [
         "Registration hasn't started yet. It's created automatically when "
         + "your subscription starts.",
     "settingsMore.registrationResubmitted": "Registration resubmitted.",
+    "settingsMore.resendPin": "Resend the PIN",
+    "settingsMore.resubmitNoChanges": "Resubmit without changes",
+    "settingsMore.resubmitRegistration": "Resubmit registration",
     "settingsMore.sixDigitPin": "6-digit PIN",
     "settingsMore.solePropPin":
         "One more step: the registry texted a 6-digit PIN to your registered "
         + "mobile to confirm it's really you.",
+    "settingsMore.submitRegistration": "Submit registration",
     "settingsMore.submittedSuffix": " · submitted {ago}",
     "settingsMore.textingRegistration": "Texting registration",
     "settingsMore.textingRegistrationDesc":
@@ -706,10 +727,14 @@ private let settingsMoreRegistrationFr: [String: String] = [
         "L'inscription n'a pas encore commencé. Elle est créée "
         + "automatiquement au début de votre abonnement.",
     "settingsMore.registrationResubmitted": "Inscription soumise de nouveau.",
+    "settingsMore.resendPin": "Renvoyer le NIP",
+    "settingsMore.resubmitNoChanges": "Soumettre de nouveau sans changement",
+    "settingsMore.resubmitRegistration": "Soumettre l'inscription de nouveau",
     "settingsMore.sixDigitPin": "NIP à 6 chiffres",
     "settingsMore.solePropPin":
         "Une dernière étape : le registre a envoyé un NIP à 6 chiffres par "
         + "texto à votre mobile inscrit pour confirmer que c'est bien vous.",
+    "settingsMore.submitRegistration": "Soumettre l'inscription",
     "settingsMore.submittedSuffix": " · soumis {ago}",
     "settingsMore.textingRegistration": "Inscription pour les textos",
     "settingsMore.textingRegistrationDesc":
@@ -746,6 +771,9 @@ private let settingsMoreProfileEn: [String: String] = [
     "settingsMore.reauthCodeNote":
         "To confirm it's you, we emailed you a one-time code. Enter it here "
         + "and save again.",
+    "settingsMore.savePassword": "Save password",
+    "settingsMore.sendConfirmLinks": "Send confirmation links",
+    "settingsMore.sending": "Sending…",
     "settingsMore.signOut": "Sign out",
     "settingsMore.signOutThisDevice": "Sign out on this device",
     "settingsMore.signedInAs": "Signed in as {email}.",
@@ -778,6 +806,9 @@ private let settingsMoreProfileFr: [String: String] = [
     "settingsMore.reauthCodeNote":
         "Pour confirmer que c'est bien vous, nous vous avons envoyé un code à "
         + "usage unique par courriel. Entrez-le ici et enregistrez de nouveau.",
+    "settingsMore.savePassword": "Enregistrer le mot de passe",
+    "settingsMore.sendConfirmLinks": "Envoyer les liens de confirmation",
+    "settingsMore.sending": "Envoi…",
     "settingsMore.signOut": "Déconnexion",
     "settingsMore.signOutThisDevice": "Se déconnecter sur cet appareil",
     "settingsMore.signedInAs": "Connecté en tant que {email}.",
@@ -801,7 +832,9 @@ private let settingsMoreNotificationsEn: [String: String] = [
         "This address reported our email as spam, so we've stopped sending to "
         + "it for good. Push notifications still work. To get email again, "
         + "change your account to a different address.",
+    "settingsMore.emailRetryAction": "Try this address again",
     "settingsMore.emailRetryQueued": "We'll try that address again on your next notification.",
+    "settingsMore.emailRetrying": "Trying…",
     "settingsMore.emailUnreachableTitle": "We can't email you at {email}",
     "settingsMore.leadChaseLabel": "Tell the whole crew after {minutes} minutes",
     "settingsMore.leadChaseSupporting":
@@ -819,6 +852,9 @@ private let settingsMoreNotificationsEn: [String: String] = [
         + "Turn this off and they'll still see who it was, but never what a "
         + "customer wrote — useful if phones are out on the job, in other "
         + "people's homes. This one is for the whole workspace, not just you",
+    // The two ways the sentence above finishes, so the long half is written once.
+    "settingsMore.workspaceWideAdminsOnly": " — only owners and admins can change it.",
+    "settingsMore.workspaceWideEnd": ".",
 ]
 
 private let settingsMoreNotificationsFr: [String: String] = [
@@ -832,8 +868,10 @@ private let settingsMoreNotificationsFr: [String: String] = [
         + "avons cessé définitivement d'y écrire. Les notifications poussées "
         + "fonctionnent toujours. Pour recevoir des courriels de nouveau, "
         + "changez l'adresse de votre compte.",
+    "settingsMore.emailRetryAction": "Réessayer cette adresse",
     "settingsMore.emailRetryQueued":
         "Nous réessaierons cette adresse à votre prochaine notification.",
+    "settingsMore.emailRetrying": "Envoi en cours…",
     "settingsMore.emailUnreachableTitle": "Impossible de vous écrire à {email}",
     "settingsMore.leadChaseLabel": "Avertir toute l'équipe après {minutes} minutes",
     "settingsMore.leadChaseSupporting":
@@ -854,6 +892,9 @@ private let settingsMoreNotificationsFr: [String: String] = [
         + "qui a écrit, mais jamais ce que le client a dit — utile si les "
         + "téléphones sortent sur les chantiers, chez les clients. Ce réglage "
         + "vaut pour tout l'espace de travail, pas seulement pour vous",
+    "settingsMore.workspaceWideAdminsOnly":
+        " — seuls les propriétaires et les admins peuvent le changer.",
+    "settingsMore.workspaceWideEnd": ".",
 ]
 
 // --------------------------------------------------------------------------
@@ -900,9 +941,12 @@ private let settingsMoreReferralFr: [String: String] = [
 // Settings -> what iOS says and Android does not
 // ---------------------------------------------------------------------------
 
-/// Seven keys with no twin in `SettingsMoreStrings.kt`, each because the two
+/// Eleven keys with no twin in `SettingsMoreStrings.kt`, each because the two
 /// apps reached the same fact by a different route rather than because they
 /// disagree about it.
+///
+/// Three more `portStep` words join `portStepPorted` on the transfer tracker,
+/// which Android spells as plain English in `PORT_STEPS`, not in its catalogue.
 ///
 /// Four are the #523 transfer pills. Android draws that status through a
 /// different composable and names it elsewhere; here the pill IS the claim, and
@@ -911,32 +955,40 @@ private let settingsMoreReferralFr: [String: String] = [
 /// is the loudest wrong thing this screen could say.
 ///
 /// `onCallWho` labels a SwiftUI `Picker`, a control Android's sheet does not
-/// have. `enableUsConfirmTitle` and `usTextingDesc` belong to the Canadian
-/// turn-on-US-texting card, whose iOS copy was written against #328's rule that
-/// a CA workspace is billed in CAD and must never be quoted a US price.
+/// have. `enableUs`, `enableUsConfirmTitle` and `usTextingDesc` belong to the
+/// Canadian turn-on-US-texting card, whose iOS copy was written against #328's
+/// rule that a CA workspace is billed in CAD and must never be quoted a US price.
 private let settingsMoreIosOnlyEn: [String: String] = [
+    "settingsMore.enableUs": "Turn on US texting",
     "settingsMore.enableUsConfirmTitle": "Enable US texting?",
     "settingsMore.onCallWho": "Who",
     "settingsMore.portCancelling": "Cancelling",
     "settingsMore.portNeedsAttention": "Needs attention",
     "settingsMore.portOnHold": "On hold",
+    "settingsMore.portStepDraft": "Draft",
+    "settingsMore.portStepInProgress": "In progress",
     "settingsMore.portStepPorted": "Ported",
+    "settingsMore.portStepSubmitted": "Submitted",
     "settingsMore.usTextingDesc":
         "Texting Canadian numbers already works. Texting US numbers needs a "
         + "one-time carrier registration.",
 ]
 
-/// The French for the seven above. `portStepPorted` reads "Transfert termine"
+/// The French for the eleven above. `portStepPorted` reads "Transfert termine"
 /// rather than a one-word "Porte": the English "Ported" is a term of art
 /// carriers use and the French is the plain sentence, which is the register the
-/// rest of this catalogue keeps.
+/// rest of this catalogue keeps. "Envoyée" agrees with the transfer request.
 private let settingsMoreIosOnlyFr: [String: String] = [
+    "settingsMore.enableUs": "Activer les textos vers les États-Unis",
     "settingsMore.enableUsConfirmTitle": "Activer la messagerie américaine ?",
     "settingsMore.onCallWho": "Qui",
     "settingsMore.portCancelling": "Annulation en cours",
     "settingsMore.portNeedsAttention": "Intervention requise",
     "settingsMore.portOnHold": "En attente",
+    "settingsMore.portStepDraft": "Brouillon",
+    "settingsMore.portStepInProgress": "En cours",
     "settingsMore.portStepPorted": "Transfert terminé",
+    "settingsMore.portStepSubmitted": "Envoyée",
     "settingsMore.usTextingDesc":
         "L'envoi de textos vers des numéros canadiens fonctionne déjà. Les "
         + "numéros américains exigent une inscription unique auprès des "
