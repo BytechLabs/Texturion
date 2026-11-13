@@ -25,7 +25,7 @@ import { listConversationViewers } from "../auth/conversation-audience";
 import { insertConversationEvents } from "../routes/core/events";
 import type { Env } from "../env";
 import { deliverPush } from "../notifications/deliver";
-import { unwrap } from "../routes/core/http";
+import { expectOk, unwrap, unwrapOptional } from "../routes/core/http";
 import {
   nextSendableInstant,
   resolveDestinationClock,
@@ -58,7 +58,7 @@ export async function askForJobRating(
   const settings = await loadAutomaticTextSettings(db, input.companyId);
   if (!settings.rating_ask_enabled) return { outcome: "disabled" };
 
-  const task = unwrap<{
+  const task = unwrapOptional<{
     conversation_id: string;
     assigned_user_id: string | null;
     conversations: {
@@ -66,7 +66,7 @@ export async function askForJobRating(
       contact_phone_e164: string | null;
     contacts: { timezone: string | null; locale: string | null } | null;
     } | null;
-  } | null>(
+  }>(
     await db
       .from("tasks")
       .select(
@@ -154,7 +154,7 @@ export async function askForJobRating(
     "rating ask inbound watermark",
   );
 
-  unwrap(
+  expectOk(
     await db.from("scheduled_messages").insert({
       company_id: input.companyId,
       conversation_id: task.conversation_id,
@@ -293,7 +293,7 @@ export async function escalatePoorRating(
   );
   if (claimed.length === 0) return;
 
-  const conversation = unwrap<{ phone_number_id: string | null } | null>(
+  const conversation = unwrapOptional<{ phone_number_id: string | null }>(
     await db
       .from("conversations")
       .select("phone_number_id")

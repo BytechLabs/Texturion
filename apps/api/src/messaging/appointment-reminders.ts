@@ -24,7 +24,7 @@ import {
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { insertConversationEvents } from "../routes/core/events";
-import { unwrap } from "../routes/core/http";
+import { unwrap, unwrapOptional } from "../routes/core/http";
 import {
   lastSendableInstantBefore,
   resolveDestinationClock,
@@ -112,7 +112,7 @@ export async function syncTaskReminders(
 ): Promise<{ outcome: string; added?: number; removed?: number }> {
   const now = input.now ?? new Date();
 
-  const task = unwrap<{
+  const task = unwrapOptional<{
     due_at: string | null;
     // Null for a standalone task with no conversation (#689): no thread to text.
     conversation_id: string | null;
@@ -123,7 +123,7 @@ export async function syncTaskReminders(
       contact_phone_e164: string | null;
       contacts: { timezone: string | null } | null;
     } | null;
-  } | null>(
+  }>(
     await db
       .from("tasks")
       .select(

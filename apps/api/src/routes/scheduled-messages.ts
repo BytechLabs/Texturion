@@ -45,7 +45,7 @@ import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
 import { loadAutomaticTextSettings } from "../messaging/automatic-text-settings";
 import { resolveDestinationClock } from "../messaging/destination-clock";
-import { parseJsonBody, unwrap } from "./core/http";
+import { parseJsonBody, unwrap, unwrapOptional } from "./core/http";
 
 export const scheduledMessageRoutes = new Hono<AppEnv>();
 
@@ -101,13 +101,13 @@ scheduledMessageRoutes.post(
     // The destination, and the conversation's own scope. Read before anything
     // else so a thread in another workspace is a 404 rather than a validation
     // message that confirms it exists.
-    const conversation = unwrap<{
+    const conversation = unwrapOptional<{
       // #291: the number this THREAD is with — where the text will actually
       // go when it fires. The contact's timezone still comes from the contact:
       // a second number does not put somebody in a second country.
       contact_phone_e164: string | null;
       contacts: { timezone: string | null } | null;
-    } | null>(
+    }>(
       await db
         .from("conversations")
         .select("contact_phone_e164,contacts(timezone)")
@@ -285,11 +285,11 @@ scheduledMessageRoutes.patch(
 
     const patchBody = await parseJsonBody(c, updateSchema);
 
-    const existing = unwrap<{
+    const existing = unwrapOptional<{
       status: string;
       conversation_id: string;
       conversations: { contacts: { phone_e164: string; timezone: string | null } | null } | null;
-    } | null>(
+    }>(
       await db
         .from("scheduled_messages")
         .select("status,conversation_id,conversations(contacts(phone_e164,timezone))")

@@ -32,7 +32,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
-import { parseJsonBody, unwrap } from "./core/http";
+import { expectOk, parseJsonBody, unwrap } from "./core/http";
 
 export const appointmentReminderRoutes = new Hono<AppEnv>();
 
@@ -109,7 +109,7 @@ appointmentReminderRoutes.put(
     // Replace-all, and the delete comes first so removing a rule really removes
     // it. An upsert-only sync leaves a deleted offset firing forever, which is
     // the same asymmetry `api_sync_task_reminders` avoids by rebuilding.
-    unwrap(
+    expectOk(
       await db
         .from("appointment_reminder_rules")
         .delete()
@@ -118,7 +118,7 @@ appointmentReminderRoutes.put(
     );
 
     if (rules.length > 0) {
-      unwrap(
+      expectOk(
         await db.from("appointment_reminder_rules").insert(
           rules.map((rule) => ({
             company_id: companyId,

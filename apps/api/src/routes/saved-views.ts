@@ -53,7 +53,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
-import { parseJsonBody, pathUuid, unwrap } from "./core/http";
+import { expectOk, parseJsonBody, pathUuid, unwrap } from "./core/http";
 import { roleHasCapability } from "@loonext/shared";
 
 const VIEW_COLUMNS =
@@ -339,7 +339,7 @@ savedViewsRoutes.delete(
     // The membership columns are ON DELETE SET NULL, so deleting a shared view
     // drops it from everybody's landing screen rather than stranding them on a
     // row that no longer exists.
-    unwrap(
+    expectOk(
       await db
         .from("saved_views")
         .delete()
@@ -397,7 +397,7 @@ savedViewsRoutes.put(
       if (seen.length === 0) return errorResponse(c, "not_found", "No such view.");
     }
 
-    unwrap(
+    expectOk(
       await db
         .from("company_members")
         .update({ [defaultColumn(body.surface)]: body.view_id })

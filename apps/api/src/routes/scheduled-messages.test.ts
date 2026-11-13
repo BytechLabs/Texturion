@@ -123,3 +123,38 @@ describe("PATCH /v1/scheduled-messages/:id follows the machine (#722)", () => {
     }
   });
 });
+
+describe("a scheduled text or thread that is not here is a 404, not a failure", () => {
+  function stubs() {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
+    // What PostgREST returns when no row matches.
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("GET", "/rest/v1/scheduled_messages", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+  }
+
+  it("POST for a thread in another workspace", async () => {
+    stubs();
+    const res = await apiRequest(app, env, await auth.token(), "/v1/scheduled-messages", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: {
+        conversation_id: CONVERSATION_ID,
+        body: "Checking in",
+        send_at: new Date(Date.now() + 3 * 24 * 3_600_000).toISOString(),
+      },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("PATCH for a text that does not exist", async () => {
+    stubs();
+    const res = await apiRequest(app, env, await auth.token(), "/v1/scheduled-messages/s1", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { body: "New words" },
+    });
+    expect(res.status).toBe(404);
+  });
+});

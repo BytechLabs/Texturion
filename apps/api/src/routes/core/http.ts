@@ -188,6 +188,17 @@ export function unwrap<T>(
 }
 
 /**
+ * Unwrap a `.maybeSingle()` read, where `data` is null when no row matched.
+ * `unwrap` would report that as a failure.
+ */
+export function unwrapOptional<T>(result: DbResult, what: string): T | null {
+  if (result.error) {
+    throw new Error(`${what} failed: ${result.error.message}`);
+  }
+  return (result.data ?? null) as T | null;
+}
+
+/**
  * Check a supabase-js mutation result that returns no representation
  * (no `.select()` — `data` is legitimately null): only the error matters.
  */

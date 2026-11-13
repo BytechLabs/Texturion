@@ -71,6 +71,7 @@ import {
 } from "./core/events";
 import {
   assertBodyWithinLimit,
+  expectOk,
   keysetFilter,
   orIlikeValue,
   parseCursor,
@@ -3289,7 +3290,7 @@ contactsRoutes.post(
       "merge tag lookup",
     );
     if (loserTags.length > 0) {
-      unwrap(
+      expectOk(
         await db.from("contact_tags").upsert(
           loserTags.map((link) => ({
             company_id: companyId,
@@ -3609,7 +3610,7 @@ contactsRoutes.post(
     if (body.action === "add_tag") {
       const toAdd = liveIds.filter((id) => !hasTag.has(id));
       for (let i = 0; i < toAdd.length; i += IMPORT_CHUNK) {
-        unwrap(
+        expectOk(
           await db.from("contact_tags").upsert(
             toAdd.slice(i, i + IMPORT_CHUNK).map((contactId) => ({
               company_id: companyId,
@@ -3626,7 +3627,7 @@ contactsRoutes.post(
     } else {
       const toRemove = liveIds.filter((id) => hasTag.has(id));
       for (let i = 0; i < toRemove.length; i += IMPORT_CHUNK) {
-        unwrap(
+        expectOk(
           await db
             .from("contact_tags")
             .delete()
@@ -4003,7 +4004,7 @@ contactsRoutes.delete(
         "address promotion lookup",
       );
       if (survivors[0]) {
-        unwrap(
+        expectOk(
           await db
             .from("contact_addresses")
             .update({ is_primary: true })
@@ -4108,7 +4109,7 @@ contactsRoutes.put(
     );
 
     if (body.fields.length > 0) {
-      unwrap(
+      expectOk(
         await db.from("contact_field_defs").insert(
           body.fields.map((field, index) => ({
             company_id: companyId,

@@ -259,6 +259,26 @@ const ambientEmailRoutes: FetchRoute[] = [
       : undefined,
 ];
 
+/** A PostgREST table write that did not ask for its rows back: no `.select()` after it. */
+function returnsNoRows(request: Request, url: URL): boolean {
+  return (
+    ["POST", "PATCH", "DELETE"].includes(request.method) &&
+    url.pathname.startsWith("/rest/v1/") &&
+    !url.pathname.startsWith("/rest/v1/rpc/") &&
+    !(request.headers.get("prefer") ?? "").includes("return=representation")
+  );
+}
+
+/**
+ * PostgREST answers such a write with an empty body, whatever rows a test
+ * stubbed. Answering with the stub's rows hid ten writes that read them and
+ * so failed in production only. A stubbed error and a count header stay.
+ */
+function withoutRows(response: Response, method: string): Response {
+  if (!response.ok) return response;
+  return new Response(null, { status: method === "POST" ? 201 : 204, headers: response.headers });
+}
+
 export function stubFetch(...routes: FetchRoute[]): void {
   vi.stubGlobal(
     "fetch",
@@ -270,7 +290,7 @@ export function stubFetch(...routes: FetchRoute[]): void {
       const url = new URL(request.url);
       for (const route of [...routes, ...ambientEmailRoutes]) {
         const response = await route(url, request);
-        if (response) return response;
+        if (response) return returnsNoRows(request, url) ? withoutRows(response, request.method) : response;
       }
       throw new Error(`Unstubbed fetch in test: ${request.method} ${url.href}`);
     },
