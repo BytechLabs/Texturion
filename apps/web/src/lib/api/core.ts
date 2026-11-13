@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE } from "@loonext/shared";
+import { DEFAULT_LOCALE, INTERNAL_ERROR_CODE } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/translate";
 import { recordClientError } from "@/lib/observability/recent-errors";
@@ -12,7 +12,10 @@ import { ApiError, parseErrorBody } from "./error";
  */
 export interface ApiClientConfig {
   baseUrl: string;
-  /** Resolve the current Supabase access token; null = signed out. */
+  /**
+   * Resolve the current Supabase access token; null = signed out. It throws
+   * auth-js's AuthRetryableFetchError when a refresh was lost to the network.
+   */
   getAccessToken: () => Promise<string | null>;
   /** Injectable fetch for tests; defaults to the global. */
   fetch?: typeof fetch;
@@ -59,7 +62,16 @@ export function createApiClient(config: ApiClientConfig): ApiRequest {
     // the server is a build failure rather than a fallback.
     const t = config.t ?? makeTranslate(DEFAULT_LOCALE);
 
-    const token = await config.getAccessToken();
+    let token: string | null;
+    try {
+      token = await config.getAccessToken();
+    } catch (error) {
+      // auth-js wraps a failed fetch and a 5xx from /token in this one error.
+      if (error instanceof Error && error.name === "AuthRetryableFetchError") {
+        throw new ApiError(INTERNAL_ERROR_CODE, t("misc.apiServerError"), 0);
+      }
+      throw error;
+    }
     if (!token) {
       throw new ApiError("unauthorized", t("misc.apiSignedOut"), 401);
     }

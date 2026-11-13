@@ -1,5 +1,8 @@
 import { createBrowserClient, type CookieOptions } from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  isAuthRetryableFetchError,
+  type SupabaseClient,
+} from "@supabase/supabase-js";
 
 import { publicEnv } from "@/env";
 import { SUPABASE_COOKIE_OPTIONS } from "./cookie-options";
@@ -20,8 +23,15 @@ export function getSupabaseBrowser(): SupabaseClient {
   return client;
 }
 
-/** Current Supabase access token, or null when signed out. */
+/**
+ * Current Supabase access token, or null when signed out.
+ *
+ * Throws getSession()'s error when a token refresh was lost to the network or
+ * a 5xx: auth-js keeps the session in storage then, so the caller should retry
+ * rather than treat the person as signed out.
+ */
 export async function getAccessToken(): Promise<string | null> {
-  const { data } = await getSupabaseBrowser().auth.getSession();
+  const { data, error } = await getSupabaseBrowser().auth.getSession();
+  if (!data.session && error && isAuthRetryableFetchError(error)) throw error;
   return data.session?.access_token ?? null;
 }

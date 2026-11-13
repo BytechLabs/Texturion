@@ -1,3 +1,4 @@
+import { AuthRetryableFetchError } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./core";
@@ -135,6 +136,35 @@ describe("api client request building (G12)", () => {
       status: 401,
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  describe("when reading the token fails", () => {
+    function clientThrowing(error: unknown) {
+      const fetchSpy = vi.fn(async () => jsonResponse(200, {}));
+      const request = createApiClient({
+        baseUrl: "https://api.loonext.test",
+        getAccessToken: async () => {
+          throw error;
+        },
+        fetch: fetchSpy as unknown as typeof fetch,
+      });
+      return { request, fetchSpy };
+    }
+
+    it("throws a retryable error, not unauthorized, when the refresh was lost to the network", async () => {
+      const { request, fetchSpy } = clientThrowing(
+        new AuthRetryableFetchError("Failed to fetch", 0),
+      );
+      const error = await request("/v1/me").catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({ code: "internal_error", status: 0 });
+      expect((error as ApiError).retryable).toBe(true);
+      expect(fetchSpy).not.toHaveBeenCalled();
+
+      // Any other failure passes through untouched.
+      const boom = new TypeError("lock lost");
+      await expect(clientThrowing(boom).request("/v1/me")).rejects.toBe(boom);
+    });
   });
 
   it("does not set a JSON content type for FormData bodies", async () => {

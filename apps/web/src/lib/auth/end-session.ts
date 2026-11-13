@@ -39,6 +39,7 @@
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 import { releasePushOnThisDevice } from "../push/release";
+import { whileEndingSessionHere } from "./use-session-ready";
 
 /**
  * How long sign-out will wait for the revoke.
@@ -68,7 +69,7 @@ export async function endSessionOnThisDevice(
   // tell somebody their sign-out did not land, and `signOut()` can also throw on
   // a network failure. Catching either here would put those two back where they
   // were before — still signed in, with nothing on screen saying so.
-  return getSupabaseBrowser().auth.signOut();
+  return whileEndingSessionHere(() => getSupabaseBrowser().auth.signOut());
 }
 
 async function revokeThisSession(): Promise<void> {

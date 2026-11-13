@@ -11,6 +11,7 @@
  * factories reach the network and (in the browser case) `document`, and neither
  * says anything about what was passed in.
  */
+import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
 import { describe, expect, it, vi, type Mock } from "vitest";
 
 /** Both @supabase/ssr factories, narrowed to the argument this suite reads. */
@@ -20,10 +21,24 @@ type ClientFactory = (
   options?: { cookieOptions?: Record<string, unknown> },
 ) => unknown;
 
-const { browserFactory, serverFactory } = vi.hoisted(() => ({
-  browserFactory: vi.fn<ClientFactory>(() => ({})),
-  serverFactory: vi.fn<ClientFactory>(() => ({})),
-}));
+/** What the browser client's `auth.getSession()` answers. */
+interface SessionRead {
+  data: { session: { access_token: string } | null };
+  error: Error | null;
+}
+
+const { browserFactory, serverFactory, sessionRead } = vi.hoisted(() => {
+  const sessionRead: { current: SessionRead } = {
+    current: { data: { session: null }, error: null },
+  };
+  return {
+    sessionRead,
+    browserFactory: vi.fn<ClientFactory>(() => ({
+      auth: { getSession: async () => sessionRead.current },
+    })),
+    serverFactory: vi.fn<ClientFactory>(() => ({})),
+  };
+});
 
 vi.mock("@supabase/ssr", () => ({
   createBrowserClient: browserFactory,
@@ -36,7 +51,7 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ getAll: () => [], set: () => {} }),
 }));
 
-import { getSupabaseBrowser } from "./browser";
+import { getAccessToken, getSupabaseBrowser } from "./browser";
 import { SUPABASE_COOKIE_OPTIONS } from "./cookie-options";
 import { getSupabaseServer } from "./server";
 
@@ -67,5 +82,26 @@ describe("Supabase auth cookie options (#581)", () => {
     // renaming the cookie and signing every live session out.
     expect(SUPABASE_COOKIE_OPTIONS.maxAge).toBeUndefined();
     expect("name" in SUPABASE_COOKIE_OPTIONS).toBe(false);
+  });
+});
+
+describe("getAccessToken", () => {
+  it("throws getSession()'s error when a refresh was lost to the network, so it is retried", async () => {
+    const error = new AuthRetryableFetchError("Failed to fetch", 0);
+    sessionRead.current = { data: { session: null }, error };
+    await expect(getAccessToken()).rejects.toBe(error);
+
+    // A refresh the server refused ends the session: that is a sign-out.
+    sessionRead.current = {
+      data: { session: null },
+      error: new AuthApiError("Invalid Refresh Token", 400, "refresh_token_not_found"),
+    };
+    await expect(getAccessToken()).resolves.toBeNull();
+
+    sessionRead.current = {
+      data: { session: { access_token: "access-1" } },
+      error: null,
+    };
+    await expect(getAccessToken()).resolves.toBe("access-1");
   });
 });

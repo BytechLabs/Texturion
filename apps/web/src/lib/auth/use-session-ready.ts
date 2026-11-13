@@ -10,6 +10,32 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
  */
 export type SessionState = "pending" | "ready" | "signed-out";
 
+export interface SessionStatus {
+  state: SessionState;
+  /** The signed-in user's id once a session is in hand. */
+  userId: string | null;
+}
+
+const PENDING: SessionStatus = { state: "pending", userId: null };
+
+let endingSessionHere = false;
+
+/**
+ * Runs this tab's own sign-out. Its SIGNED_OUT is not reported as `signed-out`:
+ * the caller goes to /login next, and the expired-session card would flash in
+ * between.
+ */
+export async function whileEndingSessionHere<T>(
+  signOut: () => Promise<T>,
+): Promise<T> {
+  endingSessionHere = true;
+  try {
+    return await signOut();
+  } finally {
+    endingSessionHere = false;
+  }
+}
+
 /**
  * How long to wait before calling a missing session missing.
  *
@@ -35,32 +61,50 @@ const HYDRATION_GRACE_MS = 2_500;
  * back to login, because the middleware fails open and nothing downstream ever
  * enforced. A session that has not arrived within the grace window is reported
  * as `signed-out` so callers can offer a way out; a later SIGNED_IN still wins.
+ * A SIGNED_OUT from another tab or a refresh token the server refused settles
+ * it at once.
  */
-export function useSessionState(): SessionState {
-  const [state, setState] = useState<SessionState>("pending");
+export function useSession(): SessionStatus {
+  const [status, setStatus] = useState<SessionStatus>(PENDING);
   useEffect(() => {
     const supabase = getSupabaseBrowser();
     let active = true;
     let graceTimer: ReturnType<typeof setTimeout> | undefined;
 
+    // Keeps the same object when nothing moved, so an hourly TOKEN_REFRESHED
+    // does not re-render every gate.
+    const settle = (state: SessionState, userId: string | null) =>
+      setStatus((current) =>
+        current.state === state && current.userId === userId
+          ? current
+          : { state, userId },
+      );
+
     void supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       if (data.session) {
-        setState("ready");
+        settle("ready", data.session.user.id);
         return;
       }
       graceTimer = setTimeout(() => {
         if (!active) return;
         // Only settle a state that is STILL pending — a SIGNED_IN that landed
         // during the window has already won.
-        setState((current) => (current === "pending" ? "signed-out" : current));
+        setStatus((current) =>
+          current.state === "pending"
+            ? { state: "signed-out", userId: null }
+            : current,
+        );
       }, HYDRATION_GRACE_MS);
     });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
         if (graceTimer) clearTimeout(graceTimer);
-        setState("ready");
+        settle("ready", session.user.id);
+      } else if (event === "SIGNED_OUT" && !endingSessionHere) {
+        if (graceTimer) clearTimeout(graceTimer);
+        settle("signed-out", null);
       }
     });
 
@@ -70,7 +114,11 @@ export function useSessionState(): SessionState {
       data.subscription.unsubscribe();
     };
   }, []);
-  return state;
+  return status;
+}
+
+export function useSessionState(): SessionState {
+  return useSession().state;
 }
 
 /** Boolean flavour for callers that only gate a query on "do we have a token". */

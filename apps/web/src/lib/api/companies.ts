@@ -17,6 +17,7 @@ import type {
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
+import { meCompanyQueryOptions } from "./me-company";
 import type {
   BusinessHours,
   CompanyView,
@@ -24,12 +25,34 @@ import type {
   WorkspaceClosure,
 } from "./types";
 
-/** GET /v1/company — company + plan/subscription/period/cap + numbers + registration. */
+/**
+ * GET /v1/company — company + plan/subscription/period/cap + numbers + registration.
+ *
+ * The first load takes the view the hydrated /v1/me already carries (and joins
+ * that request when it is still in flight), so boot reads the workspace once.
+ * It asks /v1/company itself when /me left the view out, which is how MfaGate
+ * still gets its error code, and on every refetch, because the settings saves
+ * that invalidate this key need the server's answer rather than /me's copy.
+ */
 export function useCompany() {
   const companyId = useCompanyId();
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: keys.company(companyId),
-    queryFn: () => apiFetch<CompanyView>("/v1/company", { companyId }),
+    queryFn: async () => {
+      if (queryClient.getQueryData(keys.company(companyId)) === undefined) {
+        try {
+          const me = await queryClient.fetchQuery(
+            meCompanyQueryOptions(queryClient, companyId),
+          );
+          if (me.company) return me.company;
+        } catch {
+          // /v1/company below answers with its own error.
+        }
+      }
+      return apiFetch<CompanyView>("/v1/company", { companyId });
+    },
+    staleTime: 2 * 60_000,
   });
 }
 

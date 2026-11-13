@@ -5,7 +5,11 @@ import { useEffect, useRef } from "react";
 
 import { roleHasCapability } from "@loonext/shared";
 
-import { useActiveCompany } from "@/lib/company/provider";
+import {
+  LANDED_KEY,
+  rememberLandingRole,
+  useActiveCompany,
+} from "@/lib/company/provider";
 
 /**
  * D23 default member landing. A member signing in should land on their focus
@@ -20,12 +24,20 @@ import { useActiveCompany } from "@/lib/company/provider";
  * been consumed), and owners/admins are never redirected. A member who was
  * deep-linked to a specific thread (`/inbox/:id`) is also left alone — that is
  * an intentional destination, not the generic landing.
+ *
+ * The role it resolves is remembered per user and workspace, so the next launch
+ * can make the member hop before /v1/me answers (CompanyProvider). A stale hint
+ * costs one landing on For you, and this rewrites it.
  */
 export function LandingGate() {
   const pathname = usePathname();
   const router = useRouter();
-  const { role } = useActiveCompany();
+  const { role, userId, companyId } = useActiveCompany();
   const decidedRef = useRef(false);
+
+  useEffect(() => {
+    rememberLandingRole(userId, companyId, role);
+  }, [userId, companyId, role]);
 
   useEffect(() => {
     if (decidedRef.current) return;
@@ -55,11 +67,10 @@ export function LandingGate() {
 
     // Once per browser session — set the marker as soon as the app renders so a
     // later manual Inbox visit never re-triggers the redirect.
-    const KEY = "jt-landed";
     let alreadyLanded = false;
     try {
-      alreadyLanded = sessionStorage.getItem(KEY) === "1";
-      sessionStorage.setItem(KEY, "1");
+      alreadyLanded = sessionStorage.getItem(LANDED_KEY) === "1";
+      sessionStorage.setItem(LANDED_KEY, "1");
     } catch {
       // Private mode / storage disabled: fall back to the per-mount guard only.
     }

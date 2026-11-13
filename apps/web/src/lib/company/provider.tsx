@@ -1,29 +1,78 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { preconnect } from "react-dom";
 
 import { GateSignOut } from "@/components/shell/gate-escape";
 import { SessionExpiredCard } from "@/components/shell/session-expired";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { publicEnv } from "@/env";
 import { LocaleProvider, useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
+import { meCompanyQueryOptions } from "@/lib/api/me-company";
 import type { MemberRole, Membership } from "@/lib/api/types";
-import { useSessionState } from "@/lib/auth/use-session-ready";
+import { useSession } from "@/lib/auth/use-session-ready";
 
 import {
   readCompanyCookie,
   resolveActiveCompanyId,
   writeCompanyCookie,
 } from "./cookie";
+
+const API_ORIGIN = new URL(publicEnv.NEXT_PUBLIC_API_URL).origin;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Set by LandingGate on the first app screen of a browser session (D23). */
+export const LANDED_KEY = "jt-landed";
+
+function landingRoleKey(userId: string, companyId: string): string {
+  return `loonext:landing-role:${userId}:${companyId}`;
+}
+
+/**
+ * The role LandingGate resolved, kept so the next launch can send a member to
+ * For you while /v1/me is still in flight. A hint only: LandingGate decides.
+ */
+export function rememberLandingRole(
+  userId: string,
+  companyId: string,
+  role: MemberRole,
+): void {
+  try {
+    localStorage.setItem(landingRoleKey(userId, companyId), role);
+  } catch {
+    // Storage disabled: every launch waits for /v1/me, as before.
+  }
+}
+
+function readLandingRole(userId: string, companyId: string): string | null {
+  try {
+    return localStorage.getItem(landingRoleKey(userId, companyId));
+  } catch {
+    return null;
+  }
+}
+
+function hasLanded(): boolean {
+  try {
+    return sessionStorage.getItem(LANDED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export interface CompanyContextValue {
   companyId: string;
@@ -46,8 +95,20 @@ const CompanyContext = createContext<CompanyContextValue | null>(null);
  * single-company users never see a switcher (the shell checks
  * `memberships.length`).
  */
-export function CompanyProvider({ children }: { children: React.ReactNode }) {
+export function CompanyProvider({
+  children,
+  scopeClassName = "",
+}: {
+  children: React.ReactNode;
+  /**
+   * The app's font and token scope, from the (app) layout that owns it, so the
+   * gates drawn before the shell use the shell's face instead of Inter.
+   */
+  scopeClassName?: string;
+}) {
   const router = useRouter();
+  const pathname = usePathname();
+  const queryClient = useQueryClient();
   /*
    * #228: these three sentences read English, and that is not an oversight.
    *
@@ -63,11 +124,34 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   // Gate /v1/me on the resolved Supabase session so the first call after an
   // OAuth redirect carries a token (shared with the onboarding wizard, which
   // loads /me the same way outside this provider).
-  const sessionState = useSessionState();
+  const session = useSession();
+  const sessionState = session.state;
   const me = useMe(sessionState === "ready");
   const [chosen, setChosen] = useState<string | null>(() =>
     readCompanyCookie(),
   );
+
+  // The hydrated /v1/me for the remembered workspace starts beside the plain
+  // one, so RealtimeProvider and useCompany join it instead of waiting for
+  // /v1/me first. A stale cookie's refusal is ignored: the effect below
+  // rewrites the cookie and this follows it. No retry override: the query is
+  // shared, and the last observer to render sets the retries of its refetches.
+  const rememberedId = chosen !== null && UUID_RE.test(chosen) ? chosen : null;
+  useQuery({
+    ...meCompanyQueryOptions(queryClient, rememberedId ?? ""),
+    enabled: sessionState === "ready" && rememberedId !== null,
+  });
+
+  // D23 for a member's launch: the hop to For you overlaps /v1/me, and the
+  // inbox never mounts. LandingGate still checks the real role.
+  const sentToForYou = useRef(false);
+  useEffect(() => {
+    if (sentToForYou.current || me.data || session.userId === null) return;
+    if (rememberedId === null || pathname !== "/inbox" || hasLanded()) return;
+    if (readLandingRole(session.userId, rememberedId) !== "member") return;
+    sentToForYou.current = true;
+    router.replace("/for-you");
+  }, [me.data, session.userId, rememberedId, pathname, router]);
 
   const memberships = useMemo(
     () => me.data?.memberships ?? [],
@@ -132,13 +216,34 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     if (needsCheckout) router.replace("/onboarding");
   }, [needsCheckout, router]);
 
-  if (me.isError) {
+  // The first /v1/me waits on getSession(), so the connection is opened now.
+  // Anonymous, like the uncredentialed fetch that will reuse it.
+  preconnect(API_ORIGIN, { crossOrigin: "anonymous" });
+
+  // A session that resolved to "no session" is NOT loading — it is a dead end.
+  // The middleware fails open, so nothing downstream redirects, and this gate
+  // used to sit on "Loading your workspace…" forever with no sign-out and no
+  // route back to login. Say what happened and offer the way out. It also
+  // replaces a loaded shell whose session ended, since every read now 401s.
+  if (sessionState === "signed-out") {
+    return (
+      <div className={scopeClassName}>
+        <SessionExpiredCard />
+      </div>
+    );
+  }
+
+  // Only a FIRST load that failed. A background refetch that fails keeps the
+  // cached /me, and with it the shell, realtime and the softphone.
+  if (me.isLoadingError) {
     // The last retry-only dead end from the #207 gate-escape audit: with /me
     // failed, memberships are unknowable, so no workspace switcher is possible
     // here - but sign-out must still be reachable (shared GateSignOut, the
     // same escape the gate layouts mount).
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+      <div
+        className={`${scopeClassName} flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center`}
+      >
         <p className="text-sm text-muted-foreground">
           {t("misc.workspaceLoadFailed")}
         </p>
@@ -151,15 +256,12 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }
 
   if (!value || needsCheckout) {
-    // A session that resolved to "no session" is NOT loading — it is a dead
-    // end. The middleware fails open, so nothing downstream redirects, and this
-    // gate used to sit on "Loading your workspace…" forever with no sign-out
-    // and no route back to login. Say what happened and offer the way out.
-    if (sessionState === "signed-out") return <SessionExpiredCard />;
     // Loading (or redirecting to onboarding): named state, never a bare
     // spinner (G1 "no spinners without words").
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6">
+      <div
+        className={`${scopeClassName} flex min-h-screen flex-col items-center justify-center gap-3 px-6`}
+      >
         <Skeleton className="h-8 w-40" />
         <p className="text-sm text-muted-foreground">
           {needsOnboarding || needsCheckout

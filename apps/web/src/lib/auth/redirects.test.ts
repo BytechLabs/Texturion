@@ -104,6 +104,16 @@ describe("middleware redirect logic (SPEC §10, G12)", () => {
     expect(hasSupabaseSessionCookie([])).toBe(false);
   });
 
+  it("hasSupabaseSessionCookie ignores the PKCE code-verifier cookie an abandoned OAuth start leaves", () => {
+    expect(hasSupabaseSessionCookie(["sb-abcdef-auth-token-code-verifier"])).toBe(false);
+    expect(
+      hasSupabaseSessionCookie(["sb-abcdef-auth-token-code-verifier", "theme"]),
+    ).toBe(false);
+    expect(
+      hasSupabaseSessionCookie(["sb-abcdef-auth-token-code-verifier", "sb-abcdef-auth-token.0"]),
+    ).toBe(true);
+  });
+
   describe("isTransientAuthBlip (the intermittent full-reload flash fix)", () => {
     const loginBounce = decideAuthRedirect("/inbox", false); // → /login
 

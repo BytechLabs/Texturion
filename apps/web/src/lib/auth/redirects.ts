@@ -41,6 +41,9 @@ const PROTECTED_PREFIXES = [
 /** Pages that only make sense signed out. */
 const AUTH_PAGES = ["/login", "/signup", "/reset-password"] as const;
 
+/** `sb-<ref>-auth-token`, or one chunk of it. */
+const SESSION_COOKIE_NAME = /^sb-.+-auth-token(\.\d+)?$/;
+
 function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
@@ -81,14 +84,13 @@ export function decideAuthRedirect(
  * True when the request carries a Supabase auth-token cookie (possibly chunked
  * as `sb-<ref>-auth-token.0/.1`). A present cookie means the browser HAS a
  * session — it may just need a refresh — distinct from a genuinely signed-out
- * request that carries none.
+ * request that carries none. The PKCE `sb-<ref>-auth-token-code-verifier`
+ * cookie outlives an abandoned OAuth start and holds no session.
  */
 export function hasSupabaseSessionCookie(
   cookieNames: readonly string[],
 ): boolean {
-  return cookieNames.some(
-    (name) => name.startsWith("sb-") && name.includes("auth-token"),
-  );
+  return cookieNames.some((name) => SESSION_COOKIE_NAME.test(name));
 }
 
 /**

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { LandingGate } from "@/components/for-you/landing-gate";
 import { InviteBanner } from "@/components/invites/invite-banner";
+import { NotificationRouter } from "@/components/notifications/notification-router";
 import { MemberOrientation } from "@/components/onboarding/member-orientation";
 import { HandoverBanner } from "@/components/ownership/handover-banner";
 import { AppShell } from "@/components/shell/app-shell";
@@ -49,7 +50,7 @@ export default function AppLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <AppProviders>
-      <CompanyProvider>
+      <CompanyProvider scopeClassName={`${golosText.variable} app-scope font-sans`}>
         <RealtimeProvider>
           {/* D23: send members to /for-you on their first app screen. */}
           <LandingGate />
@@ -57,6 +58,8 @@ export default function AppLayout({
               below the server-set floor (D71). Mounted here so it covers every
               signed-in screen rather than one route. */}
           <UpdatePrompt />
+          {/* A notification tap routes this tab in place (sw.js asks it to). */}
+          <NotificationRouter />
           {/* #116: portals (sheets, dialogs, menus, the command palette) and
               the Toaster mount into document.body, outside this div — the
               scope must ALSO live on <body> or portaled surfaces lose every

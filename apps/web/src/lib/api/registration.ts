@@ -15,12 +15,13 @@ import type {
 } from "./types";
 
 /** GET /v1/registration — brand + campaign rows (wizard data for O/A only). */
-export function useRegistration() {
+export function useRegistration(enabled = true) {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: keys.registration(companyId),
     queryFn: () =>
       apiFetch<RegistrationState>("/v1/registration", { companyId }),
+    enabled,
   });
 }
 

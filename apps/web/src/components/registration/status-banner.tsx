@@ -38,7 +38,6 @@ export function WorkspaceStatusBanner() {
   const t = useT();
   const canOpen = useCanOpenSettings();
   const company = useCompany();
-  const registration = useRegistration();
   const { role } = useActiveCompany();
   const now = useNow(); // ticks the progressive provisioning copy
 
@@ -53,6 +52,8 @@ export function WorkspaceStatusBanner() {
         campaign: company.data.registration.campaign,
       })
     : null;
+  // Only the code prompt reads the wizard data, for the phone it names.
+  const registration = useRegistration(state?.kind === "otp_pending");
 
   // G7: approval swaps the banner for the green toast — fired only on an
   // observed transition (a session that loads already-approved never toasts;

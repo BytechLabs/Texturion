@@ -74,6 +74,15 @@ describe("gate layouts mount the shared escape hatch (#207)", () => {
     expect(source).toContain('from "@/components/shell/gate-escape"');
     expect(source).toContain("<GateSignOut");
   });
+
+  it("the (app) layout hands CompanyProvider the shell's font scope for its gates", () => {
+    // Without it the loading, failed and expired cards draw in Inter, which
+    // the app never otherwise requests.
+    const source = readFileSync(path.join(APP_DIR, "(app)/layout.tsx"), "utf8");
+    expect(source).toMatch(
+      /<CompanyProvider\s+scopeClassName=\{`\$\{golosText\.variable\} app-scope font-sans`\}>/,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
