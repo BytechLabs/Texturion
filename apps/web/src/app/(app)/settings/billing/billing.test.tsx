@@ -2308,6 +2308,30 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
     expect(pause.asked).toBe(false);
   });
 
+  it("BILL-7: held numbers are asked about only when one could be held", () => {
+    // Owners and admins see every number in the company view, so with none
+    // suspended the read can only answer "nothing held".
+    const live = { subscription_status: "active", canceled_at: null } as const;
+    const suspended = [{ id: "n-2", status: "suspended" }] as unknown as CompanyView["numbers"];
+
+    for (const role of ["owner", "admin"]) {
+      heldNumbers.asked = undefined;
+      renderPage(role, { ...live, numbers: [] });
+      expect(heldNumbers.asked, role).toBe(false);
+      cleanup();
+
+      heldNumbers.asked = undefined;
+      renderPage(role, { ...live, numbers: suspended });
+      expect(heldNumbers.asked, role).toBe(true);
+      cleanup();
+    }
+
+    // A bookkeeper's list can be access-filtered, so an empty one proves nothing.
+    heldNumbers.asked = undefined;
+    renderPage("bookkeeper", { ...live, numbers: [] });
+    expect(heldNumbers.asked).toBe(true);
+  });
+
   it("BILL-4: the refusal names no rank, because ranks go stale", () => {
     // "Only owners and admins can change billing" became false the day the
     // bookkeeper preset shipped. The owner is the safe thing to name: the owner

@@ -493,9 +493,17 @@ export default function BillingSettingsPage() {
               subscription — a cancelled workspace's numbers are suspended for
               the grace window instead, which the win-back card above owns. So
               this predicate is the client half of the same distinction, not a
-              second opinion about it. */}
+              second opinion about it.
+
+              Owners and admins see every number, so none suspended means none
+              held; other billing roles may see a filtered list, so they ask. */}
           <HeldNumbersCard
-            show={canManage && company.data.subscription_status === "active"}
+            show={
+              canManage &&
+              company.data.subscription_status === "active" &&
+              (!(role === "owner" || role === "admin") ||
+                company.data.numbers.some((n) => n.status === "suspended"))
+            }
           />
 
           {/* Add-ons wait for the read, the same as the plan switch above. A

@@ -12,7 +12,7 @@ import {
 import { SettingsCard } from "@/components/settings/section";
 import { sayWith, useT } from "@/i18n/provider";
 import { apiFetch } from "@/lib/api/client";
-import { useCompanyId } from "@/lib/company/provider";
+import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
 
 /**
@@ -53,16 +53,19 @@ export function MyAccessCard() {
   // #228: these clauses are the one place a security rule is put into words,
   // and the shared module names them rather than writing them out.
   const say = sayWith(t);
-  const companyId = useCompanyId();
+  const { companyId, role } = useActiveCompany();
+  const reachesEveryNumber = role === "owner" || role === "admin";
   const access = useQuery({
     queryKey: ["my-number-access", companyId],
     queryFn: () =>
       apiFetch<{ numbers: NumberAccessExplanation[] }>("/v1/numbers/access/me", {
         companyId,
       }),
+    enabled: !reachesEveryNumber,
   });
 
-  const rows = access.data?.numbers ?? [];
+  // A disabled query still returns what was cached before a promotion.
+  const rows = reachesEveryNumber ? [] : (access.data?.numbers ?? []);
   const note = numberAccessSelfNote(rows, say);
   // Nothing restricted — the commonest case, and the one that earns silence.
   if (note === null) return null;

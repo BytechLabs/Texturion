@@ -12,19 +12,31 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { rowsRef } = vi.hoisted(() => ({ rowsRef: { current: [] as unknown[] } }));
+const { rowsRef, roleRef, askedRef } = vi.hoisted(() => ({
+  rowsRef: { current: [] as unknown[] },
+  roleRef: { current: "member" },
+  askedRef: { current: undefined as boolean | undefined },
+}));
 
+// A disabled query still returns cached data, the same as react-query.
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: { numbers: rowsRef.current } }),
+  useQuery: ({ enabled = true }: { enabled?: boolean }) => {
+    askedRef.current = enabled;
+    return { data: { numbers: rowsRef.current } };
+  },
 }));
 vi.mock("@/lib/api/client", () => ({ apiFetch: vi.fn() }));
-vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "c-1" }));
+vi.mock("@/lib/company/provider", () => ({
+  useActiveCompany: () => ({ companyId: "c-1", role: roleRef.current }),
+}));
 
 import { MyAccessCard } from "./my-access-card";
 
 afterEach(cleanup);
 beforeEach(() => {
   rowsRef.current = [];
+  roleRef.current = "member";
+  askedRef.current = undefined;
 });
 
 function row(
@@ -85,6 +97,25 @@ describe("#286 what you can reach", () => {
     render(<MyAccessCard />);
     expect(screen.getByText("Read and notes only")).toBeTruthy();
     expect(screen.queryByText(/9200/)).toBeNull();
+  });
+
+  it("MA-6: owners and admins reach every number, so the card never asks", () => {
+    // Rows cached while they were a member, before a promotion, must not show.
+    rowsRef.current = [row("none", "no-match", "+12125559201")];
+    for (const role of ["owner", "admin"]) {
+      roleRef.current = role;
+      const { container } = render(<MyAccessCard />);
+      expect(askedRef.current, role).toBe(false);
+      expect(container.textContent, role).toBe("");
+      cleanup();
+    }
+
+    for (const role of ["member", "read_only"]) {
+      roleRef.current = role;
+      render(<MyAccessCard />);
+      expect(askedRef.current, role).toBe(true);
+      cleanup();
+    }
   });
 
   it("MA-5: the reason is written for the person reading it", () => {

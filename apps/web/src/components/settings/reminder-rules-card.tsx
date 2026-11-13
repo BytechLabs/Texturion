@@ -57,7 +57,9 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
   const t = useT();
   const query = useReminderRules();
   const save = useSaveReminderRules();
-  const [draft, setDraft] = useState<ReminderRule[] | null>(null);
+  const [draft, setDraft] = useState<ReminderRule[] | null>(
+    () => query.data?.rules ?? null,
+  );
 
   // Seeded once the server answers, and re-seeded whenever it does. Keeping a
   // draft rather than editing the query cache means navigating away discards

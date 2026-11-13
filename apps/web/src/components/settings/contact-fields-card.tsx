@@ -79,7 +79,9 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
   const KIND_LABELS = kindLabels(t);
   const query = useContactFields();
   const save = useSaveContactFields();
-  const [draft, setDraft] = useState<DraftField[] | null>(null);
+  const [draft, setDraft] = useState<DraftField[] | null>(
+    () => query.data?.data ?? null,
+  );
 
   // Re-seeded whenever the server answers. Keeping a draft rather than editing
   // the cache means navigating away discards an unsaved edit.

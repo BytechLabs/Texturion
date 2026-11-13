@@ -14,9 +14,21 @@ vi.mock("@/components/settings/call-effect-note", () => ({ CallEffectNote: () =>
 import type { CompanyView, Usage } from "@/lib/api/types";
 
 // Hoisted mock state the hooks read; tests seed it before rendering.
+type QueryShape = "ready" | "pending" | "error";
 const state: {
   includedMinutes: number;
-} = { includedMinutes: 2500 };
+  company: QueryShape;
+  usage: QueryShape;
+} = { includedMinutes: 2500, company: "ready", usage: "ready" };
+
+function queryOf<T>(shape: QueryShape, data: T) {
+  return {
+    isPending: shape === "pending",
+    isError: shape === "error",
+    data: shape === "ready" ? data : undefined,
+    refetch: vi.fn(),
+  };
+}
 
 // #134/D42: calling is included on every plan — enabled_modules carries no
 // 'voice' anymore, and the page must render its cards regardless.
@@ -82,12 +94,7 @@ const { patchCompany } = vi.hoisted(() => ({ patchCompany: vi.fn() }));
 vi.mock("@/lib/api/companies", async () => {
   const { useMutation } = await import("@tanstack/react-query");
   return {
-    useCompany: () => ({
-      isPending: false,
-      isError: false,
-      data: company,
-      refetch: vi.fn(),
-    }),
+    useCompany: () => queryOf(state.company, company),
     // A real mutation: a new object on every render and every state change,
     // which is what turned the old autosave's unmount flush into a PATCH loop.
     useUpdateCompany: () =>
@@ -97,18 +104,14 @@ vi.mock("@/lib/api/companies", async () => {
   };
 });
 vi.mock("@/lib/api/usage", () => ({
-  useUsage: () => ({
-    isPending: false,
-    isError: false,
-    data: {
+  useUsage: () =>
+    queryOf(state.usage, {
       voice: {
         used_minutes: 0,
         included_minutes: state.includedMinutes,
         overage_billed: true,
       },
-    } as unknown as Usage,
-    refetch: vi.fn(),
-  }),
+    } as unknown as Usage),
 }));
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: "owner" }),
@@ -170,6 +173,44 @@ describe("/settings/missed-calls (Calling) fair-use honesty", () => {
     const html = render();
     expect(html).toContain("555");
     expect(html).not.toContain("2,500 minutes");
+  });
+});
+
+describe("/settings/missed-calls — what the page waits for", () => {
+  afterEach(() => {
+    state.company = "ready";
+    state.usage = "ready";
+  });
+
+  it("shows the cards while the usage read is still in flight, without the footnote", () => {
+    state.usage = "pending";
+    const html = render();
+    expect(html).toContain("Text back a missed call");
+    expect(html).toContain("Caller ID");
+    expect(html).not.toContain("Loading calling settings");
+    expect(html).not.toContain("calling minutes a month");
+  });
+
+  it("shows the cards when the usage read fails, and no load error", () => {
+    state.usage = "error";
+    const html = render();
+    expect(html).toContain("Caller ID");
+    expect(html).not.toContain('role="alert"');
+    expect(html).not.toContain("calling minutes a month");
+  });
+
+  it("holds the skeleton only while the company is loading", () => {
+    state.company = "pending";
+    const html = render();
+    expect(html).toContain("Loading calling settings");
+    expect(html).not.toContain("Caller ID");
+  });
+
+  it("offers a retry when the company read fails", () => {
+    state.company = "error";
+    const html = render();
+    expect(html).toContain('role="alert"');
+    expect(html).not.toContain("Caller ID");
   });
 });
 

@@ -721,15 +721,10 @@ export default function CallingSettingsPage() {
       title={t("appShell.callingTitle")}
       description={t("appShell.callingDescription")}
     >
-      {company.isPending || usage.isPending ? (
+      {company.isPending ? (
         <CallingSkeleton />
-      ) : company.isError || usage.isError ? (
-        <LoadError
-          onRetry={() => {
-            void company.refetch();
-            void usage.refetch();
-          }}
-        />
+      ) : company.isError ? (
+        <LoadError onRetry={() => void company.refetch()} />
       ) : (
         <div className="space-y-6">
           {/* A text-enabled landline's calls ring the owner's existing
@@ -755,15 +750,17 @@ export default function CallingSettingsPage() {
           <ScreeningCard company={company.data} canEdit={canEdit} />
           <CallerIdCard company={company.data} canEdit={canEdit} />
           {/* D36/D38 fair use, one quiet line — the detail lives in Usage. */}
-          <p className="px-1 text-xs text-muted-foreground">
-            {t("appShell.callingMinutesIncluded", {
-              minutes: usage.data.voice.included_minutes.toLocaleString(t.locale),
-            })}
-            {usage.data.voice.overage_billed
-              ? t("appShell.callingMinutesOverage")
-              : ""}{" "}
-            {t("appShell.callingMinutesDetails")}
-          </p>
+          {usage.data && (
+            <p className="px-1 text-xs text-muted-foreground">
+              {t("appShell.callingMinutesIncluded", {
+                minutes: usage.data.voice.included_minutes.toLocaleString(t.locale),
+              })}
+              {usage.data.voice.overage_billed
+                ? t("appShell.callingMinutesOverage")
+                : ""}{" "}
+              {t("appShell.callingMinutesDetails")}
+            </p>
+          )}
         </div>
       )}
     </SettingsPage>

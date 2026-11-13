@@ -7,7 +7,6 @@ import { toast } from "sonner";
 
 import { ModuleCard } from "@/components/billing/module-card";
 import { SettingsCard } from "@/components/settings/section";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { type BillingModule, useModules, useSetModule } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
@@ -45,11 +44,12 @@ export function PlanModulesCard() {
   // regions_ca is inert in today's single-region model (a company's numbers
   // are fixed to its own country), so it isn't offered yet. #134/D42: with
   // voice retired into every plan, this can leave NOTHING to toggle — then
-  // the whole card hides (loading/error states still render: an owner mid-
-  // fetch must not watch a card blink away).
+  // the whole card hides. It also stays out while loading, so a workspace
+  // with nothing to toggle never sees a titled card appear and vanish.
   const visibleModules = (modules.data?.modules ?? []).filter(
     (mod) => mod.available && mod.id !== "regions_ca",
   );
+  if (modules.isPending) return null;
   if (modules.isSuccess && visibleModules.length === 0) return null;
 
   // Derived from `pending` so the dialog copy stays put during the close
@@ -106,12 +106,7 @@ export function PlanModulesCard() {
       title={t("settingsMore.modulesTitle")}
       description={t("settingsMore.modulesDescription")}
     >
-      {modules.isPending ? (
-        <div className="space-y-2" aria-label={t("settingsMore.modulesLoading")}>
-          <Skeleton className="h-16 w-full rounded-lg" />
-          <Skeleton className="h-16 w-full rounded-lg" />
-        </div>
-      ) : modules.isError ? (
+      {modules.isError ? (
         <LoadError
           variant="inline"
           message={t("settingsMore.modulesLoadFailed")}
