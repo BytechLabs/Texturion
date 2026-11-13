@@ -147,7 +147,10 @@ ratios, which fail only when something is genuinely wrong.
   (status, assignee, tag, unread) + search field (fires `/v1/search` ≥2 chars, debounced
   250ms, results grouped Conversations / Contacts with snippet highlights).
 - Sort: `last_message_at` DESC, realtime re-sort animated via FLIP (subtle).
-- Unread = bold name + dot; opening a thread posts `/read` immediately.
+- Unread = bold name + dot; opening a thread marks it read at once. Re-opening an
+  already-read thread does not post `/read` again when the row is read and nothing anyone
+  else sent is newer than your last read. A newer inbound, teammate or automated message
+  always posts.
 - **Empty states (bespoke, not generic):**
   - Brand new (no messages ever): the company number displayed huge (32px, tabular) with a
     copy button and: "This is your business number. Text it from your phone right now — your

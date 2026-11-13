@@ -33,6 +33,14 @@ vi.mock("@/lib/softphone/provider", () => ({
   MicPermissionError: class extends Error {},
 }));
 
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
+    <a data-next-link="" href={href} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
 import { ComposerBannerCard } from "./composer-banners";
 
 const THREAD = {
@@ -76,6 +84,13 @@ describe("ComposerBannerCard", () => {
       "Update payment",
     );
     expect(render({ kind: "usage_cap" })).toContain("Raise cap");
+  });
+
+  it("opens billing and numbers settings in the app, without a page reload", () => {
+    const billing = render({ kind: "subscription", status: "canceled" });
+    expect(billing).toMatch(/<a data-next-link="" href="\/settings\/billing"[^>]*>Go to billing<\/a>/);
+    const numbers = render({ kind: "us_texting_off" });
+    expect(numbers).toMatch(/<a data-next-link="" href="\/settings\/numbers"[^>]*>Add US texting<\/a>/);
   });
 });
 

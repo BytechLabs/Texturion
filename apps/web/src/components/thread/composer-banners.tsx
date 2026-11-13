@@ -5,6 +5,7 @@ import {
   supportSituationKey,
   supportSubjectFor,
 } from "@loonext/shared";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import { CallButton } from "@/components/calls/call-button";
@@ -126,7 +127,7 @@ export function ComposerBannerCard({
         if (isAdminUp) {
           action = (
             <Button size="sm" asChild>
-              <a href="/settings/billing">{t("thread.goToBilling")}</a>
+              <Link href="/settings/billing">{t("thread.goToBilling")}</Link>
             </Button>
           );
         }
@@ -141,7 +142,7 @@ export function ComposerBannerCard({
       if (isAdminUp) {
         action = (
           <Button size="sm" asChild>
-            <a href="/settings/numbers">{t("thread.addUsTexting")}</a>
+            <Link href="/settings/numbers">{t("thread.addUsTexting")}</Link>
           </Button>
         );
       } else if (thread?.canCall) {

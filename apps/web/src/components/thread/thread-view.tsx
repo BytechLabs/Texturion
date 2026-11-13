@@ -1,11 +1,16 @@
 "use client";
 
-import { X } from "lucide-react";
+import { avatarInitials, roleHasCapability } from "@loonext/shared";
+import { useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, UserRound, X } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { ContactPanel } from "@/components/contact-panel/contact-panel";
+import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
+import { StatusPill } from "@/components/inbox/status-pill";
+import { avatarColorClass } from "@/components/shell/avatar-color";
 import {
   PanelOverflowMenu,
   PanelResizeHandle,
@@ -20,8 +25,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
+import { findListRow } from "@/lib/api/cache";
 import { useCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
 import { useMe } from "@/lib/api/me";
@@ -30,20 +35,27 @@ import { useConversationPresence } from "@/lib/realtime/presence";
 import { PresenceStrip } from "@/components/thread/presence-strip";
 import { useContact } from "@/lib/api/contacts";
 import {
+  readCoveredThrough,
   useConversation,
   useMarkConversationRead,
 } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useMessages } from "@/lib/api/messages";
-import type { ConversationDetail } from "@/lib/api/types";
+import type {
+  ConversationDetail,
+  ConversationListItem,
+  Message,
+} from "@/lib/api/types";
 import { useUsage } from "@/lib/api/usage";
-import { contactDisplayName } from "@/lib/format/phone";
+import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import {
   THREAD_CALL_PARAM,
   THREAD_MESSAGE_PARAM,
   THREAD_TASK_PARAM,
 } from "@/lib/inbox/thread-href";
+import { updateSearch } from "@/lib/url/search-state";
 import { useIsXl } from "@/lib/use-is-xl";
+import { cn } from "@/lib/utils";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { LoadError } from "@/components/ui/load-error";
 
@@ -67,6 +79,7 @@ import {
   type ThreadFilter,
 } from "./thread-filter";
 import { ThreadHeader } from "./thread-header";
+import { ThreadBodySkeleton, ThreadSkeleton } from "./thread-skeleton";
 import { useCatchUp } from "./use-catch-up";
 
 const PANEL_PREF_KEY = "loonext:contact-panel-open";
@@ -80,44 +93,87 @@ function readPanelPref(): boolean {
   }
 }
 
+// §5.1 in-thread filter: `?thread=` is the comma list of enabled kinds, absent when all are on.
+function writeThreadFilter(next: ThreadFilter) {
+  const serialized = serializeThreadFilter(next);
+  updateSearch((params) => {
+    if (serialized === null) params.delete("thread");
+    else params.set("thread", serialized);
+  });
+}
+
+function closeThreadTask() {
+  updateSearch((params) => params.delete(THREAD_TASK_PARAM));
+}
+
+// Back to the plain thread: the anchor is dropped and the newest page loads.
+function jumpToLatest() {
+  updateSearch((params) => {
+    params.delete(THREAD_MESSAGE_PARAM);
+    params.delete(THREAD_CALL_PARAM);
+  });
+}
+
+/** The newest loaded message that `userId` did not send, newest page first. */
+function newestNotSentBy(
+  pages: readonly { data: Message[] }[] | undefined,
+  userId: string,
+): Message | undefined {
+  for (const page of pages ?? []) {
+    const message = page.data.find((m) => m.sent_by_user_id !== userId);
+    if (message) return message;
+  }
+  return undefined;
+}
+
+// G4: the server counts a thread unread when the newest message the member did not send is newer than their last read.
+function readIsCurrent({
+  row,
+  newestIsMine,
+  otherAt,
+  otherFromCustomer,
+  coveredThrough,
+}: {
+  row: ConversationListItem | undefined;
+  newestIsMine: boolean;
+  otherAt: string | null;
+  otherFromCustomer: boolean;
+  coveredThrough: string | undefined;
+}): boolean {
+  if (row?.unread !== false) return false;
+  const covered =
+    otherAt !== null &&
+    coveredThrough !== undefined &&
+    Date.parse(otherAt) <= Date.parse(coveredThrough);
+  if (!newestIsMine) return covered;
+  // Realtime flags a row unread for a customer's message only, so a teammate's or an automated one needs this tab's read.
+  return otherAt === null || otherFromCustomer || covered;
+}
+
 /**
  * The G5 thread screen: header → virtualized timeline → composer (or the
  * banner replacing it) with the G6 contact panel on the right (persisted
- * toggle on desktop, bottom sheet on mobile). Skeleton on first load;
+ * toggle on desktop, bottom sheet on mobile). While the detail loads, the
+ * inbox row already in cache draws the header; without one, a skeleton.
  * not_found and network errors are distinct, designed states.
  */
 export function ThreadView({ conversationId }: { conversationId: string }) {
   const t = useT();
+  const queryClient = useQueryClient();
+  const companyId = useCompanyId();
   const detail = useConversation(conversationId);
 
   if (detail.isPending) {
-    return (
-      <div className="flex h-full flex-col" aria-busy>
-        <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-          <Skeleton className="size-8 rounded-full" />
-          <div className="space-y-1.5">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-24" />
-          </div>
-        </div>
-        <div className="flex-1 space-y-4 px-6 py-4" aria-hidden>
-          <div className="flex justify-start">
-            <Skeleton className="h-14 w-3/5 rounded-[10px]" />
-          </div>
-          <div className="flex justify-end">
-            <Skeleton className="h-10 w-2/5 rounded-[10px]" />
-          </div>
-        </div>
-        <div className="border-t border-border p-3">
-          <Skeleton className="h-10 w-full rounded-md" />
-        </div>
-      </div>
-    );
+    const row = findListRow(queryClient, companyId, conversationId);
+    return row ? <ThreadPlaceholder row={row} /> : <ThreadSkeleton />;
   }
 
-  if (detail.isError) {
-    const notFound =
-      detail.error instanceof ApiError && detail.error.code === "not_found";
+  // #299: a failed refetch keeps the open thread on screen; a conversation that is gone does not.
+  const notFound =
+    detail.isError &&
+    detail.error instanceof ApiError &&
+    detail.error.code === "not_found";
+  if (detail.isLoadingError || notFound) {
     return (
       <LoadError
         variant="fill"
@@ -138,9 +194,74 @@ export function ThreadView({ conversationId }: { conversationId: string }) {
   return <ThreadLoaded conversation={detail.data} />;
 }
 
+// No composer, read or presence here: viewer level, opt-out and the clock come only from the detail (#106/#363).
+function ThreadPlaceholder({ row }: { row: ConversationListItem }) {
+  const t = useT();
+  const memberNames = useMemberNames();
+  const name = contactDisplayName(row.contact);
+  const assigneeName = row.assigned_user_id
+    ? memberNames.get(row.assigned_user_id) ?? t("thread.teammate")
+    : null;
+
+  return (
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-app-ground" aria-busy>
+      <header className="flex items-center gap-2 border-b border-app-line bg-app-paper px-2 py-1.5 md:gap-3 md:px-4 md:py-2.5">
+        <Button
+          asChild
+          variant="ghost"
+          size="icon-sm"
+          className="md:hidden"
+          aria-label={t("thread.backToInbox")}
+        >
+          <Link href="/inbox">
+            <ArrowLeft className="size-4" strokeWidth={1.75} />
+          </Link>
+        </Button>
+        <span
+          aria-hidden
+          className={cn(
+            "hidden size-[42px] shrink-0 place-items-center rounded-[13px] text-[14px] font-bold text-app-olive-deep sm:grid",
+            avatarColorClass(row.contact_id || name),
+          )}
+        >
+          {avatarInitials(name)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate px-1 text-[15px] font-bold leading-tight text-app-ink md:leading-normal">
+            {name}
+          </p>
+          {row.contact.name !== null && (
+            <p className="hidden truncate px-1 text-[12.5px] tabular-nums text-app-muted md:block">
+              {formatPhone(row.contact.phone_e164)}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="flex min-h-11 items-center md:min-h-0">
+            <StatusPill status={row.status} />
+          </span>
+          <span className="flex min-h-11 min-w-11 items-center justify-center md:min-h-0 md:min-w-0">
+            {assigneeName ? (
+              <MemberAvatar name={assigneeName} className="size-6" />
+            ) : (
+              <span className="flex size-6 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
+                <UserRound className="size-3.5" strokeWidth={1.75} aria-hidden />
+              </span>
+            )}
+          </span>
+        </div>
+      </header>
+      <ThreadBodySkeleton />
+    </div>
+  );
+}
+
 function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   const t = useT();
   const conversationId = conversation.id;
+  const queryClient = useQueryClient();
+  const companyId = useCompanyId();
+  const { userId, role } = useActiveCompany();
 
   // #302: who else is on this thread, and whether they are replying. The hook
   // owns its own realtime channel (see lib/realtime/presence.ts for why it is
@@ -148,7 +269,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   // when the connection is not healthy — stale presence is worse than none.
   const me = useMe();
   const presence = useConversationPresence({
-    companyId: useCompanyId(),
+    companyId,
     phoneNumberId: conversation.phone_number_id,
     conversationId,
     selfUserId: me.data?.user_id,
@@ -156,30 +277,15 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   });
   const contact = useContact(conversation.contact_id);
   const company = useCompany();
-  const usage = useUsage();
+  // The server sends cap_segments only to billing.manage, so the cap banner needs nobody else's read.
+  const usage = useUsage({ enabled: roleHasCapability(role, "billing.manage") });
   const messages = useMessages(conversationId);
   const markRead = useMarkConversationRead();
 
   // §5.1 in-thread filter — independent Messages · Notes · Events toggles (#89).
-  // URL is the state (`?thread=` — a comma list of the enabled kinds) for
-  // shareability; it defaults to all-on and does not persist.
-  const router = useRouter();
-  const pathname = usePathname();
+  // URL is the state for shareability; it defaults to all-on and does not persist.
   const searchParams = useSearchParams();
   const threadFilter = parseThreadFilter(searchParams.get("thread"));
-  const setThreadFilter = useCallback(
-    (next: ThreadFilter) => {
-      const params = new URLSearchParams(searchParams.toString());
-      const serialized = serializeThreadFilter(next);
-      if (serialized === null) params.delete("thread");
-      else params.set("thread", serialized);
-      const query = params.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, {
-        scroll: false,
-      });
-    },
-    [router, pathname, searchParams],
-  );
 
   // #718: a link can open the thread at a message (`?message=`) or a call
   // (`?call=`) and with a task beside it (`?task=`). The task takes the side
@@ -187,24 +293,6 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   const taskId = searchParams.get(THREAD_TASK_PARAM);
   const callSessionId = searchParams.get(THREAD_CALL_PARAM);
   const wide = useIsXl();
-  const closeTask = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete(THREAD_TASK_PARAM);
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, {
-      scroll: false,
-    });
-  }, [router, pathname, searchParams]);
-  // Back to the plain thread: the anchor is dropped and the newest page loads.
-  const jumpToLatest = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete(THREAD_MESSAGE_PARAM);
-    params.delete(THREAD_CALL_PARAM);
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, {
-      scroll: false,
-    });
-  }, [router, pathname, searchParams]);
 
   // Desktop panel preference persists (G3); mobile uses a bottom sheet.
   const [panelOpen, setPanelOpen] = useState(readPanelPref);
@@ -243,24 +331,44 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
     }
   };
 
-  // Opening a thread marks it read immediately (G4); re-mark as messages
-  // arrive while viewing — inbound, a teammate's reply/note, or your own send
-  // — so last_read_at stays current and the dot stays cleared for this user
-  // on every device (G4: replying never re-flags the thread for you).
-  const newestMessageId = useMemo(
-    () => messages.data?.pages[0]?.data[0]?.id ?? null, // newest-first (SPEC §7)
-    [messages.data],
-  );
+  // G4: opening a thread, and each newer message while viewing, marks it read unless the server already counts it read.
+  const newest = messages.data?.pages[0]?.data[0]; // newest-first (SPEC §7)
+  const newestMessageId = newest?.id ?? null;
+  const newestIsMine = newest !== undefined && newest.sent_by_user_id === userId;
+  const other = newestNotSentBy(messages.data?.pages, userId);
+  const otherAt = other?.created_at ?? null;
+  const otherFromCustomer = other?.direction === "inbound";
+  // #718: an anchored window that stops short of the newest cannot vouch for it.
+  const windowHasNewer = messages.hasPreviousPage === true;
   const markReadMutate = markRead.mutate;
   useEffect(() => {
-    markReadMutate(conversationId);
-  }, [conversationId, newestMessageId, markReadMutate]);
+    const current =
+      !windowHasNewer &&
+      readIsCurrent({
+        row: findListRow(queryClient, companyId, conversationId),
+        newestIsMine,
+        otherAt,
+        otherFromCustomer,
+        coveredThrough: readCoveredThrough(conversationId, userId),
+      });
+    if (!current) markReadMutate(conversationId);
+  }, [
+    conversationId,
+    newestMessageId,
+    newestIsMine,
+    otherAt,
+    otherFromCustomer,
+    windowHasNewer,
+    queryClient,
+    companyId,
+    userId,
+    markReadMutate,
+  ]);
 
   // #716: offered here, so the header menu and the composer's orb can ask and
   // the card above the stream answers.
   const catchUp = useCatchUp(conversationId, me.data?.user_id);
 
-  const { role } = useActiveCompany();
   const banner =
     company.data && contact.data
       ? selectComposerBanner({
@@ -300,7 +408,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           panelOpen={panelOpen}
           onOpenGallery={openGallery}
           filter={threadFilter}
-          onFilterChange={setThreadFilter}
+          onFilterChange={writeThreadFilter}
           onCatchUp={catchUp.offered ? catchUp.ask : undefined}
         />
         {/* #250: above the list and above the filter bar, because a
@@ -325,7 +433,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
               : null
           }
           filter={threadFilter}
-          onFilterChange={setThreadFilter}
+          onFilterChange={writeThreadFilter}
           callSessionId={callSessionId}
           onJumpToLatest={jumpToLatest}
           catchUp={{
@@ -442,7 +550,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             {taskId !== null && (
               <button
                 type="button"
-                onClick={closeTask}
+                onClick={closeThreadTask}
                 aria-label={t("common.close")}
                 className="tap-target grid size-8 place-items-center rounded-full text-app-muted-2 transition-colors hover:bg-app-hover hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -454,7 +562,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             {taskId !== null ? (
               <div className="flex h-full min-h-0 flex-col">
                 <div className="min-h-0 flex-1">
-                  <TaskDetailPanel taskId={taskId} onClose={closeTask} />
+                  <TaskDetailPanel taskId={taskId} onClose={closeThreadTask} />
                 </div>
               </div>
             ) : (

@@ -1,5 +1,6 @@
 "use client";
 
+import { mmsMediaKind } from "@loonext/shared";
 import { LoadError } from "@/components/ui/load-error";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, X } from "lucide-react";
@@ -66,6 +67,23 @@ function itemHasTarget(item: ThreadItem, target: JumpTarget): boolean {
 
 const NEAR_BOTTOM_PX = 96;
 const PREPEND_TRIGGER_PX = 320;
+const MESSAGE_ESTIMATE_PX = 52;
+const IMAGES_PER_ROW = 3;
+const IMAGE_ROW_ESTIMATE_PX = 182;
+const AUDIO_ESTIMATE_PX = 96;
+const FILE_ESTIMATE_PX = 62;
+
+/** A message's estimated height, with its attachments laid out as the bubble draws them. */
+function estimateMessageHeight(message: Message): number {
+  let images = 0;
+  let height = MESSAGE_ESTIMATE_PX;
+  for (const attachment of message.attachments ?? []) {
+    const kind = mmsMediaKind(attachment.content_type);
+    if (kind === "image") images++;
+    else height += kind === "audio" ? AUDIO_ESTIMATE_PX : FILE_ESTIMATE_PX;
+  }
+  return height + Math.ceil(images / IMAGES_PER_ROW) * IMAGE_ROW_ESTIMATE_PX;
+}
 
 function byChronology(a: { created_at: string; id: string }, b: { created_at: string; id: string }): number {
   const at = Date.parse(a.created_at);
@@ -201,6 +219,8 @@ export function MessageList({
     .map((category) => threadCategoryLabel(category, t))
     .join(", ");
 
+  // #718: a link that opens the thread at a message or a call owns the first position.
+  const liveAnchor = (anchorId !== null && !anchorMissing) || callSessionId !== null;
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -210,8 +230,13 @@ export function MessageList({
       if (!item) return 56;
       if (item.kind === "divider") return 36;
       if (item.kind === "event") return 28;
-      return item.messages.length * 52 + 18;
+      return item.messages.reduce(
+        (height, message) => height + estimateMessageHeight(message),
+        18,
+      );
     },
+    // The virtualizer clamps this to the end, so the first rows it mounts are the newest.
+    initialOffset: liveAnchor ? undefined : () => Number.MAX_SAFE_INTEGER,
     overscan: 6,
     getItemKey: (index) => items[index]?.key ?? index,
   });
@@ -228,6 +253,17 @@ export function MessageList({
   const atBottomRef = useRef(true);
   const didInitialScroll = useRef(false);
   const [newWhileScrolledUp, setNewWhileScrolledUp] = useState(false);
+
+  // Initial position: the bottom of the thread, before the first paint.
+  const listPending = messagesQuery.isPending;
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (listPending || didInitialScroll.current || liveAnchor || items.length === 0 || !el) {
+      return;
+    }
+    el.scrollTop = el.scrollHeight;
+    didInitialScroll.current = true;
+  }, [items.length, liveAnchor, listPending]);
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "auto") => {
@@ -418,17 +454,6 @@ export function MessageList({
     loadNewerIfNear();
   }, [messagesQuery, virtualizer, loadNewerIfNear]);
 
-  // Initial position: bottom of the thread (double rAF so measurements land).
-  useEffect(() => {
-    if (didInitialScroll.current || items.length === 0) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        scrollToBottom();
-        didInitialScroll.current = true;
-      });
-    });
-  }, [items.length, scrollToBottom]);
-
   // Stay pinned through layout growth (#101): the initial scroll lands on
   // ESTIMATED row heights; as the virtualizer measures real bubbles (and
   // images load) the total grows and the viewport would drift mid-thread,
@@ -497,7 +522,7 @@ export function MessageList({
   // --- Render ----------------------------------------------------------------
 
   if (messagesQuery.isPending) {
-    return <ThreadSkeleton />;
+    return <MessagesSkeleton />;
   }
   // #299: same rule as the inbox list. A failed refetch on an open thread used
   // to blank the conversation the member was reading mid-sentence; the messages
@@ -733,7 +758,7 @@ export function MessageList({
   );
 }
 
-function ThreadSkeleton() {
+function MessagesSkeleton() {
   return (
     <div aria-hidden className="flex-1 space-y-4 overflow-hidden px-6 py-4">
       <Skeleton className="mx-auto h-3 w-16" />

@@ -23,10 +23,7 @@ const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
 /** Converted by other packages; the lead empties this once they land. */
 const PENDING = new Set([
-  "components/thread/thread-view.tsx",
   "components/inbox/inbox-pane.tsx",
-  "app/(app)/contacts/[id]/page.tsx",
-  "components/calls/calls-view.tsx",
 ]);
 
 function sourceFiles(dir: string): string[] {
