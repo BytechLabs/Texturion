@@ -230,7 +230,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.unfollowTask" to "Unfollow this task",
         "contactsTasks.deleteTask" to "Delete task",
         "contactsTasks.deleteForbidden" to
-            "Only the task's creator or an admin can delete it.",
+            "Only an admin or the owner can delete tasks.",
         "contactsTasks.deleteTaskTitle" to "Delete this task?",
         "contactsTasks.deleteTaskBody" to
             "It carries {what}. The conversation and its messages stay; the done " +
@@ -1085,7 +1085,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.unfollowTask" to "Ne plus suivre cette tâche",
         "contactsTasks.deleteTask" to "Supprimer la tâche",
         "contactsTasks.deleteForbidden" to
-            "Seul le créateur de la tâche ou un administrateur peut la supprimer.",
+            "Seul un administrateur ou le propriétaire peut supprimer des tâches.",
         "contactsTasks.deleteTaskTitle" to "Supprimer cette tâche ?",
         "contactsTasks.deleteTaskBody" to
             "Elle contient {what}. La conversation et ses textos restent ; la " +

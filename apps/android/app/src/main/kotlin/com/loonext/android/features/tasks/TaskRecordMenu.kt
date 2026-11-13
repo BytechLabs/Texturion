@@ -124,7 +124,7 @@ internal fun TaskRecordMenu(
     if (confirmDelete) {
         ConfirmDialog(
             title = t("contactsTasks.deleteTaskTitle"),
-            body = t("contactsTasks.deleteTaskBody"),
+            body = t("recordMenu.taskDeleteBody"),
             confirmLabel = t("contactsTasks.deleteTask"),
             onConfirm = {
                 confirmDelete = false

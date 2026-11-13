@@ -1,6 +1,7 @@
 package com.loonext.android.core.i18n
 
 import com.loonext.android.core.model.MessageLocale
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -155,5 +156,39 @@ class AppStringsTest {
                 )
             }
         }
+    }
+
+    @Test
+    fun `a task row's delete confirmation has no placeholder left to fill`() {
+        for (locale in listOf(MessageLocale.EN, MessageLocale.FR_CA)) {
+            val body = AppStrings.translate(locale, "recordMenu.taskDeleteBody")
+            assertTrue("$locale: the key did not resolve", !body.contains("recordMenu."))
+            assertTrue("$locale: a token is left on screen: $body", !body.contains("{"))
+        }
+        // A row has no notes or files to name, so the menu must not read the detail screen's {what} sentence.
+        val menu = mainSource("features/tasks/TaskRecordMenu.kt").readText()
+        assertTrue("the list menu does not read recordMenu.taskDeleteBody", menu.contains("t(\"recordMenu.taskDeleteBody\")"))
+        assertTrue("the list menu reads the {what} sentence", !menu.contains("\"contactsTasks.deleteTaskBody\""))
+    }
+
+    @Test
+    fun `the delete refusal does not promise the creator can delete`() {
+        // Since #691 a member is refused even on a task they created; only an admin or the owner deletes.
+        val english = AppStrings.translate(MessageLocale.EN, "contactsTasks.deleteForbidden")
+        val french = AppStrings.translate(MessageLocale.FR_CA, "contactsTasks.deleteForbidden")
+        assertTrue("EN still names the creator: $english", !english.contains("creator"))
+        assertTrue("EN does not name the admin: $english", english.contains("admin"))
+        assertTrue("FR still names the creator: $french", !french.contains("créateur"))
+        assertTrue("FR does not name the admin: $french", french.contains("administrateur"))
+    }
+
+    private fun mainSource(path: String): File {
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val file = File(dir, "apps/android/app/src/main/kotlin/com/loonext/android/$path")
+            if (file.isFile) return file
+            dir = dir.parentFile
+        }
+        throw AssertionError("$path not found from ${File("").absolutePath}")
     }
 }

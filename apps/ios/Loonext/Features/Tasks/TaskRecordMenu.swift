@@ -185,7 +185,7 @@ private struct TaskMenuDeleteDialog: ViewModifier {
         content.confirmDialog(
             AppStrings.translate(appLocale, "contactsTasks.deleteTaskTitle"),
             item: $controller.confirmingDelete,
-            message: { _ in AppStrings.translate(appLocale, "contactsTasks.deleteTaskBody") },
+            message: { _ in AppStrings.translate(appLocale, "recordMenu.taskDeleteBody") },
             confirmLabel: AppStrings.translate(appLocale, "contactsTasks.deleteTask")
         ) { task in
             controller.confirmDelete(task)
