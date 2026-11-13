@@ -30,7 +30,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
-import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
+import { fetchWithDeadline } from "../http/deadline";
+import { isDefiniteRefusal, telnyxRequest, TelnyxApiError } from "../telnyx/client";
 import { runAiFeature } from "../ai/run";
 import type { CompanyAiSettings } from "../ai/settings";
 import {
@@ -96,6 +97,9 @@ export const RING_TIMEOUT_SECS = 45;
 
 /** Recordings shorter than this are a hangup-on-the-beep, not a message. */
 const VOICEMAIL_MIN_SECS = 2;
+
+/** Room for a 120s mp3 on a slow link; a download that hangs past it fails and is retried. */
+const VOICEMAIL_FETCH_TIMEOUT_MS = 30_000;
 
 /** The private storage bucket voicemail mp3s live in. */
 export const VOICEMAILS_BUCKET = "voicemails";
@@ -315,7 +319,9 @@ export interface StoredVoicemail {
  * Telnyx's 10-minute presigned window, stamp the calls row, then delete the
  * Telnyx copy. Returns what the caller (voice-webhook) needs to upgrade the
  * outcome + thread the voicemail; null when there is nothing to keep (too
- * short, missing URL, or an expired replay — the call stays an honest miss).
+ * short, missing URL, or a recording that no link can fetch), and the
+ * call stays an honest miss. Throws on a transient fetch failure, keeping
+ * Telnyx's copy, so the voicemail job tries again.
  */
 export async function storeVoicemailRecording(
   env: Env,
@@ -339,16 +345,19 @@ export async function storeVoicemailRecording(
     return null;
   }
 
-  const response = await fetch(url);
+  let response = await fetchRecording(url);
+  let fresh: string | null = null;
   if (!response.ok) {
-    // Expired presigned URL (a replay landing past the 10-minute window) or
-    // a Telnyx storage fault. The recording is unrecoverable — log and leave
-    // the call a miss rather than erroring into a replay loop that can never
-    // succeed. Still DELETE the Telnyx copy: the "recordings must not persist
-    // at Telnyx" decision holds even when we couldn't keep our own copy.
+    // The webhook's link expires after ten minutes; the listing signs a new one.
+    fresh = await freshRecordingUrl(env, sessionId);
+    if (fresh) response = await fetchRecording(fresh);
+  }
+  if (!response.ok) {
     console.error(
-      `voicemail fetch failed for ${sessionId}: HTTP ${response.status}`,
+      `voicemail fetch failed for ${sessionId}: HTTP ${response.status}` +
+        (fresh ? " on a fresh link" : ", no fresh link"),
     );
+    // No link can fetch it, and customer audio must not stay at Telnyx.
     await deleteTelnyxRecording(env, sessionId);
     return null;
   }
@@ -564,6 +573,43 @@ export function recoverStoredVoicemail(
   };
 }
 
+interface RecordingListing {
+  data?: { id?: string; download_urls?: { mp3?: string } }[];
+}
+
+/** Telnyx's recordings for one call session. */
+function listRecordings(env: Env, callSessionId: string): Promise<RecordingListing> {
+  return telnyxRequest<RecordingListing>(env, {
+    method: "GET",
+    path: `/v2/recordings?filter[call_session_id]=${encodeURIComponent(callSessionId)}`,
+  });
+}
+
+/** A 5xx, 429 or 408 throws, keeping Telnyx's copy, so the voicemail job retries. */
+async function fetchRecording(url: string): Promise<Response> {
+  const response = await fetchWithDeadline(url, undefined, VOICEMAIL_FETCH_TIMEOUT_MS);
+  const { status } = response;
+  if (status >= 500 || status === 429 || status === 408) {
+    throw new Error(`voicemail fetch transient: HTTP ${status}`);
+  }
+  return response;
+}
+
+/** A newly signed mp3 link for the session's recording, or null when Telnyx has none. */
+async function freshRecordingUrl(
+  env: Env,
+  callSessionId: string,
+): Promise<string | null> {
+  try {
+    const listing = await listRecordings(env, callSessionId);
+    const recording = listing.data?.find((entry) => entry.download_urls?.mp3);
+    return recording?.download_urls?.mp3 ?? null;
+  } catch (cause) {
+    if (isDefiniteRefusal(cause)) return null;
+    throw cause;
+  }
+}
+
 /** Best-effort removal of Telnyx's copy — customer audio must not persist on
  *  a third party. The webhook payload carries no recording id, so list by
  *  session and delete every match. A failure logs (Telnyx retention is
@@ -573,10 +619,7 @@ export async function deleteTelnyxRecording(
   callSessionId: string,
 ): Promise<void> {
   try {
-    const listing = (await telnyxRequest(env, {
-      method: "GET",
-      path: `/v2/recordings?filter[call_session_id]=${encodeURIComponent(callSessionId)}`,
-    })) as { data?: { id?: string }[] };
+    const listing = await listRecordings(env, callSessionId);
     for (const recording of listing.data ?? []) {
       if (!recording.id) continue;
       await telnyxRequest(env, {
