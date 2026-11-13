@@ -121,6 +121,13 @@ const iosCategories = required(
 
 const values = (pairs) => (pairs ?? []).map(([, value]) => value);
 
+/**
+ * Android fixes a channel's sound and vibration when it is created, so changing
+ * them takes a new id with a version suffix ("incoming_calls_v2"). The
+ * destination is the same one, so it is compared without the suffix.
+ */
+const destination = (channelId) => channelId.replace(/_v\d+$/, "");
+
 // --- The two phones name the same kinds -------------------------------------
 
 if (androidKinds !== null && iosKinds !== null) {
@@ -149,7 +156,7 @@ if (androidKinds !== null && iosKinds !== null) {
 // --- And the same destinations ----------------------------------------------
 
 if (androidChannels !== null && iosCategories !== null) {
-  const channelValues = values(androidChannels);
+  const channelValues = values(androidChannels).map(destination);
   const categoryValues = values(iosCategories);
   for (const channel of channelValues) {
     if (!categoryValues.includes(channel)) {
