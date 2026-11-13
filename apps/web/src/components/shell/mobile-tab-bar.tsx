@@ -15,7 +15,8 @@ import { cn } from "@/lib/utils";
 import { InitialsAvatar } from "./initials-avatar";
 import { MobileAccountSheet } from "./mobile-account-sheet";
 import { isNavActive, MOBILE_NAV } from "./nav";
-import { useNavCounts } from "./use-nav-counts";
+import { useForYouNavCount, useInboxNavCount } from "./use-nav-counts";
+import { NavGlyph } from "./workspace-bits";
 import { avatarInitials } from "@loonext/shared";
 
 /** Counts above this render as `9+` (the calm numeral cap, PORTAL-UX §1.1). */
@@ -36,7 +37,8 @@ function cap(n: number): string {
 export function MobileTabBar() {
   const t = useT();
   const pathname = usePathname();
-  const counts = useNavCounts();
+  const forYouCount = useForYouNavCount();
+  const inboxCount = useInboxNavCount();
   const { membership, displayName } = useActiveCompany();
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -55,13 +57,12 @@ export function MobileTabBar() {
         <div className="grid grid-cols-5">
           {MOBILE_NAV.map((item) => {
             const active = isNavActive(pathname, item.href);
-            const Icon = item.icon;
-            const isForYou = item.href === "/for-you";
-            const count = isForYou
-              ? counts.forYou
-              : item.href === "/inbox"
-                ? counts.inbox
-                : 0;
+            const count =
+              item.href === "/for-you"
+                ? forYouCount
+                : item.href === "/inbox"
+                  ? inboxCount
+                  : 0;
             const showCount = count > 0;
             const label = t(item.labelKey);
             return (
@@ -77,12 +78,14 @@ export function MobileTabBar() {
                 // aria-label says it (WCAG 2.5.3) while the icon still sits on top.
                 className={cn(
                   "flex min-h-12 flex-col-reverse items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors duration-150 ease-out",
-                  active ? "text-app-olive-deep" : "text-app-muted",
+                  active
+                    ? "text-app-olive-deep"
+                    : "text-app-muted has-data-pending:text-app-olive-deep",
                 )}
               >
                 {label}{" "}
                 <span className="relative">
-                  <Icon className="size-5" strokeWidth={1.75} aria-hidden />
+                  <NavGlyph icon={item.icon} className="size-5" />
                   {showCount && (
                     <CountPill
                       size="sm"

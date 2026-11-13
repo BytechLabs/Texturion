@@ -34,7 +34,6 @@ import {
   useMarkAllNotificationsRead,
   useNotificationsUnreadCount,
 } from "@/lib/api/notifications";
-import { useNumbers } from "@/lib/api/numbers";
 import { useActiveCompany } from "@/lib/company/provider";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
@@ -85,7 +84,6 @@ export function MobileAccountSheetBody({
   const t = useT();
   const { membership, memberships, switchCompany, displayName, companyId } =
     useActiveCompany();
-  const numbers = useNumbers();
   const unread = useNotificationsUnreadCount();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
@@ -201,7 +199,7 @@ export function MobileAccountSheetBody({
             aria-label={t("shell.businessNumbers")}
             className="px-4 py-3"
           >
-            <WorkspaceNumbers numbers={numbers.data?.data ?? []} />
+            <WorkspaceNumbers />
           </section>
 
           <section aria-label={t("shell.notifications")}>

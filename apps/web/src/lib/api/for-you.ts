@@ -32,7 +32,9 @@ export function useForYou() {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: keys.forYou(companyId),
-    queryFn: () => apiFetch<ForYou>("/v1/for-you", { companyId }),
+    // Always mounted, so a superseding refetch aborts the running request.
+    queryFn: ({ signal }) =>
+      apiFetch<ForYou>("/v1/for-you", { companyId, signal }),
     staleTime: 30_000,
   });
 }
@@ -41,8 +43,8 @@ export function useForYou() {
  * #342 — GET /v1/spam-review: spam marks that do not look like spam.
  *
  * Its own query rather than a section of /v1/for-you, because it answers a
- * different question and is empty on nearly every day. Same 30s staleness as
- * the queue it renders beside.
+ * different question and is empty on nearly every day. Five minutes stale:
+ * marking and unmarking spam invalidate it, and nothing else changes it.
  */
 export function useSpamReview() {
   const companyId = useCompanyId();
@@ -50,17 +52,23 @@ export function useSpamReview() {
     queryKey: keys.spamReview(companyId),
     queryFn: () =>
       apiFetch<{ data: SpamReviewItem[] }>("/v1/spam-review", { companyId }),
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
   });
 }
 
 /**
- * Remove a task (by id) from every section of a cached ForYou object. Pure so
- * the optimistic-complete and its undo are exact inverses over the cache.
+ * Remove a task (by id) from every section of a cached ForYou object, and from
+ * the totals the nav numerals and the header read, so they move at the click.
+ * The undo does not invert this; the settle-time invalidation restores it.
  */
-function forYouWithoutTask(data: ForYou | undefined, taskId: string): ForYou | undefined {
+export function forYouWithoutTask(
+  data: ForYou | undefined,
+  taskId: string,
+): ForYou | undefined {
   if (!data) return data;
-  return {
+  const inMine = data.my_tasks.some((t) => t.task_id === taskId);
+  const inTriage = data.triage?.tasks.some((t) => t.task_id === taskId) ?? false;
+  const next: ForYou = {
     ...data,
     my_tasks: data.my_tasks.filter((t) => t.task_id !== taskId),
     triage: data.triage
@@ -70,6 +78,15 @@ function forYouWithoutTask(data: ForYou | undefined, taskId: string): ForYou | u
         }
       : data.triage,
   };
+  if (data.totals && (inMine || inTriage)) {
+    next.totals = {
+      ...data.totals,
+      my_tasks: Math.max(0, data.totals.my_tasks - (inMine ? 1 : 0)),
+      triage_tasks: Math.max(0, data.totals.triage_tasks - (inTriage ? 1 : 0)),
+      distinct_work: Math.max(0, data.totals.distinct_work - 1),
+    };
+  }
+  return next;
 }
 
 /**

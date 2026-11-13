@@ -41,13 +41,15 @@ import { useT, type MessageKey, type Translate } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
-import { useNumbers } from "@/lib/api/numbers";
-
 import { InitialsAvatar } from "./initials-avatar";
 import { MemberMenu } from "./member-menu";
 import { isNavActive } from "./nav";
-import { useNavCounts } from "./use-nav-counts";
-import { WorkspaceNumbers, companyInitials } from "./workspace-bits";
+import {
+  useForYouNavCount,
+  useInboxNavCount,
+  useTaskNavCount,
+} from "./use-nav-counts";
+import { NavGlyph, WorkspaceNumbers, companyInitials } from "./workspace-bits";
 
 /** Counts above this render as `9+` (the calm numeral cap, PORTAL-UX §1.1). */
 function cap(n: number): string {
@@ -144,7 +146,6 @@ function NavItem({
   collapsed?: boolean;
   t: Translate;
 }) {
-  const Icon = row.icon;
   const showCount = typeof count === "number" && count > 0;
   const label = t(row.labelKey);
 
@@ -164,16 +165,15 @@ function NavItem({
               "relative flex h-9 items-center justify-center rounded-[9px] transition-colors duration-150 ease-out",
               active
                 ? "bg-app-tint text-app-olive-deep before:absolute before:-left-2 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-olive before:content-['']"
-                : "text-app-ink-soft hover:bg-app-line-soft",
+                : "text-app-ink-soft hover:bg-app-line-soft has-data-pending:bg-app-line-soft",
             )}
           >
-            <Icon
+            <NavGlyph
+              icon={row.icon}
               className={cn(
                 "size-5 shrink-0",
                 active ? "text-app-olive-deep" : "text-app-muted",
               )}
-              strokeWidth={1.75}
-              aria-hidden
             />
             {showCount && (
               <span
@@ -199,16 +199,15 @@ function NavItem({
         "relative flex h-9 items-center gap-[11px] rounded-[9px] px-[11px] text-[13.5px] font-medium transition-colors duration-150 ease-out",
         active
           ? "bg-app-tint font-semibold text-app-olive-deep before:absolute before:-left-3 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-olive before:content-['']"
-          : "text-app-ink-soft hover:bg-app-line-soft",
+          : "text-app-ink-soft hover:bg-app-line-soft has-data-pending:bg-app-line-soft has-data-pending:text-app-olive-deep",
       )}
     >
-      <Icon
+      <NavGlyph
+        icon={row.icon}
         className={cn(
           "size-4 shrink-0",
           active ? "text-app-olive-deep" : "text-app-muted",
         )}
-        strokeWidth={1.75}
-        aria-hidden
       />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {showCount && (
@@ -252,8 +251,9 @@ export function Sidebar({
   const pathname = usePathname();
   const { membership, memberships, switchCompany, displayName, role } =
     useActiveCompany();
-  const counts = useNavCounts();
-  const numbers = useNumbers();
+  const forYouCount = useForYouNavCount();
+  const inboxCount = useInboxNavCount();
+  const taskCount = useTaskNavCount();
 
   const multi = memberships.length > 1;
   // #315: was `role.charAt(0).toUpperCase() + role.slice(1)`, which renders
@@ -292,7 +292,7 @@ export function Sidebar({
   // outside the switcher trigger so its copy buttons never nest in a button.
   const numbersStrip = !collapsed && (
     <div className="shrink-0 border-b border-app-line px-3 py-2">
-      <WorkspaceNumbers numbers={numbers.data?.data ?? []} />
+      <WorkspaceNumbers />
     </div>
   );
 
@@ -456,11 +456,11 @@ export function Sidebar({
                 active={isNavActive(pathname, row.href)}
                 count={
                   row.href === "/for-you"
-                    ? counts.forYou
+                    ? forYouCount
                     : row.href === "/inbox"
-                      ? counts.inbox
+                      ? inboxCount
                       : row.href === "/tasks"
-                        ? counts.tasks
+                        ? taskCount
                         : undefined
                 }
                 collapsed={collapsed}

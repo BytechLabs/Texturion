@@ -29,8 +29,11 @@ vi.mock("@/lib/company/provider", () => ({
     displayName: "Rehman",
   }),
 }));
+// The number strip reads the company view, never GET /v1/numbers.
 vi.mock("@/lib/api/numbers", () => ({
-  useNumbers: () => ({ data: { data: [] } }),
+  useNumbers: () => {
+    throw new Error("the account sheet fetched GET /v1/numbers");
+  },
 }));
 vi.mock("@/lib/api/notifications", () => ({
   useNotificationsUnreadCount: () => ({ data: { count: state.unread } }),

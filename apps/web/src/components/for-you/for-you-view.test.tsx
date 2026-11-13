@@ -19,6 +19,8 @@ const state: {
   hidden: string[];
   /** #736: the member's arranged page, or undefined for the default. */
   layout?: DashboardLayout | null;
+  /** The queue's first request has not answered yet. */
+  pending?: boolean;
 } = {
   forYou: { waiting_on_you: [], my_tasks: [], unread: [], triage: null },
   calls: [],
@@ -63,8 +65,8 @@ vi.mock("@/lib/api/reports", () => ({
 }));
 vi.mock("@/lib/api/for-you", () => ({
   useForYou: () => ({
-    data: state.forYou,
-    isPending: false,
+    data: state.pending ? undefined : state.forYou,
+    isPending: state.pending ?? false,
     isError: false,
     refetch: vi.fn(),
   }),
@@ -201,6 +203,16 @@ function render(): string {
 beforeEach(() => {
   state.hidden = [];
   state.layout = undefined;
+  state.pending = false;
+});
+
+describe("ForYouView while the queue loads", () => {
+  it("holds the header line as a skeleton instead of saying all caught up", () => {
+    state.pending = true;
+    const html = render();
+    expect(html).not.toContain("all caught up");
+    expect(html).toMatch(/<p[^>]*><span[^>]*data-slot="skeleton"/);
+  });
 });
 
 describe("ForYouView follow-up reminders (#293)", () => {

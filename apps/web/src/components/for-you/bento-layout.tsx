@@ -7,7 +7,7 @@ import {
   placePanels,
 } from "@loonext/shared";
 import { ArrowLeft, ArrowRight, Columns3, GripVertical, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
@@ -37,11 +37,24 @@ export interface BentoEditing {
   onRemove: (id: LayoutPanelId) => void;
 }
 
-/** Watches one element's rendered height; the browsers without ResizeObserver report nothing. */
-function useHeight(onHeight: (height: number) => void): React.RefObject<HTMLDivElement | null> {
+/** The width of a frame `span` columns wide, as a share of the container. */
+function spanWidth(span: number, columns: number): string {
+  return `calc((100% + ${BENTO_GAP}px) * ${span} / ${columns} - ${BENTO_GAP}px)`;
+}
+
+/** Reports an element's height before paint whenever `measureKey` changes, then on every resize. */
+function useHeight(
+  onHeight: (height: number) => void,
+  measureKey?: string,
+): React.RefObject<HTMLDivElement | null> {
   const ref = useRef<HTMLDivElement | null>(null);
   const latest = useRef(onHeight);
   latest.current = onHeight;
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element || measureKey === undefined) return;
+    latest.current(Math.round(element.getBoundingClientRect().height));
+  }, [measureKey]);
   useEffect(() => {
     const element = ref.current;
     if (!element || typeof ResizeObserver === "undefined") return;
@@ -58,11 +71,12 @@ function useHeight(onHeight: (height: number) => void): React.RefObject<HTMLDivE
  * #736 — the For you panels, packed by their real heights so no column holds
  * a hole beside a shorter neighbour (`placePanels`).
  *
- * Panels are measured where they stand and then placed absolutely. A panel
- * whose content renders nothing (an empty queue, a measure with nothing true
- * to say yet) takes no place at all, but stays mounted and measured, so it
- * appears the moment it has something. Until every panel has been measured,
- * or on a single column, the panels simply stack.
+ * The container's width is read before the first paint, every panel is then
+ * measured at the width it will have, and only then placed absolutely, so the
+ * first frame anybody sees is the packed one. A panel whose content renders
+ * nothing (an empty queue, a measure with nothing true to say yet) takes no
+ * place at all, but stays mounted and measured, so it appears the moment it
+ * has something. Until there is a width to measure against, the panels stack.
  */
 export function BentoLayout({
   cells,
@@ -74,11 +88,15 @@ export function BentoLayout({
 }) {
   const [width, setWidth] = useState(0);
   const [heights, setHeights] = useState<Partial<Record<LayoutPanelId, number>>>({});
+  // Panels glide only between placements the reader has already seen.
+  const [settled, setSettled] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = containerRef.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
+    if (!element) return;
+    setWidth(Math.round(element.getBoundingClientRect().width));
+    if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(([entry]) => setWidth(Math.round(entry.contentRect.width)));
     observer.observe(element);
     return () => observer.disconnect();
@@ -105,7 +123,15 @@ export function BentoLayout({
     [shown, heights, columns],
   );
   const placed = new Map(layout.placements.map((p) => [p.id as LayoutPanelId, p]));
-  const positioned = measured && width > 0;
+  // After the first placement a panel added later is measured where it lands.
+  const positioned = width > 0 && (measured || settled);
+
+  useEffect(() => {
+    if (!positioned || settled) return;
+    // A frame later, so the re-measuring before the first paint never animates.
+    const frame = requestAnimationFrame(() => setSettled(true));
+    return () => cancelAnimationFrame(frame);
+  }, [positioned, settled]);
 
   return (
     <div
@@ -115,22 +141,29 @@ export function BentoLayout({
     >
       {cells.map((cell, index) => {
         const place = placed.get(cell.id);
-        const style: React.CSSProperties | undefined = !positioned
-          ? undefined
-          : place
-            ? {
-                position: "absolute",
-                top: place.top,
-                left: `calc((100% + ${BENTO_GAP}px) * ${place.column} / ${columns})`,
-                width: `calc((100% + ${BENTO_GAP}px) * ${place.span} / ${columns} - ${BENTO_GAP}px)`,
-              }
-            : {
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: `calc((100% + ${BENTO_GAP}px) / ${columns} - ${BENTO_GAP}px)`,
-                visibility: "hidden",
-              };
+        // The columns this frame is drawn and measured across.
+        const span = !positioned
+          ? Math.min(PANEL_SPAN[cell.size], columns)
+          : (place?.span ?? 1);
+        const style: React.CSSProperties | undefined =
+          width === 0
+            ? undefined
+            : !positioned
+              ? { width: spanWidth(span, columns) }
+              : place
+                ? {
+                    position: "absolute",
+                    top: place.top,
+                    left: `calc((100% + ${BENTO_GAP}px) * ${place.column} / ${columns})`,
+                    width: spanWidth(span, columns),
+                  }
+                : {
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: spanWidth(span, columns),
+                    visibility: "hidden",
+                  };
         return (
           <PanelFrame
             key={cell.id}
@@ -138,7 +171,8 @@ export function BentoLayout({
             position={index}
             count={cells.length}
             style={style}
-            animate={positioned}
+            measureKey={width === 0 ? undefined : `${width}:${columns}:${span}`}
+            animate={settled}
             editing={editing}
             onHeight={(height) =>
               setHeights((previous) =>
@@ -157,6 +191,7 @@ function PanelFrame({
   position,
   count,
   style,
+  measureKey,
   animate,
   editing,
   onHeight,
@@ -165,13 +200,15 @@ function PanelFrame({
   position: number;
   count: number;
   style: React.CSSProperties | undefined;
+  /** Changes with the width the frame is drawn at; undefined before there is one. */
+  measureKey: string | undefined;
   animate: boolean;
   editing: BentoEditing | undefined;
   onHeight: (height: number) => void;
 }) {
   const t = useT();
   const [contentHeight, setContentHeight] = useState<number | null>(null);
-  const frameRef = useHeight(onHeight);
+  const frameRef = useHeight(onHeight, measureKey);
   const contentRef = useHeight(setContentHeight);
   const [dropTarget, setDropTarget] = useState(false);
   const panel = t(PANEL_LABEL_KEYS[cell.id]);
@@ -182,7 +219,7 @@ function PanelFrame({
       ref={frameRef}
       style={style}
       className={cn(
-        animate && "motion-safe:transition-[top,left,width] motion-safe:duration-200 motion-safe:ease-out",
+        animate && "motion-safe:transition-[top,left] motion-safe:duration-200 motion-safe:ease-out",
         editing && "rounded-app-card outline-dashed outline-1 outline-offset-4 outline-app-line",
         dropTarget && "outline-2 outline-app-olive",
       )}

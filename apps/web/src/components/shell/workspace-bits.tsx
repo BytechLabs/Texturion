@@ -1,13 +1,15 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
-import Link from "next/link";
+import { Check, Copy, type LucideIcon } from "lucide-react";
+import Link, { useLinkStatus } from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { useT } from "@/i18n/provider";
+import { useMeCompany } from "@/lib/api/me-company";
 import type { PhoneNumberSummary } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
+import { cn } from "@/lib/utils";
 
 /** The company tile's square logo initials (e.g. "Rivera Plumbing" → "RP"). */
 export function companyInitials(name: string): string {
@@ -15,6 +17,28 @@ export function companyInitials(name: string): string {
   if (words.length === 0) return "?";
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+/** A nav Link's icon, rendered inside it: olive and pulsing from the tap until the new page shows. */
+export function NavGlyph({
+  icon: Icon,
+  className,
+}: {
+  icon: LucideIcon;
+  className?: string;
+}) {
+  const { pending } = useLinkStatus();
+  return (
+    <Icon
+      data-pending={pending ? "" : undefined}
+      className={cn(
+        className,
+        "data-pending:text-app-olive-deep motion-safe:data-pending:animate-pulse",
+      )}
+      strokeWidth={1.75}
+      aria-hidden
+    />
+  );
 }
 
 /**
@@ -81,13 +105,22 @@ function needsNumberChoice(n: PhoneNumberSummary): boolean {
  * copyable active number(s), or an HONEST not-ready line. A stuck provision
  * (no inventory / out of attempts) links to /settings/numbers to choose one —
  * never the passive "Setting up your number…" lie that hid a real failure.
+ * It reads the company view the shell holds; GET /v1/numbers is for Settings.
  */
-export function WorkspaceNumbers({
-  numbers,
-}: {
-  numbers: PhoneNumberSummary[];
-}) {
+export function WorkspaceNumbers() {
   const t = useT();
+  const meCompany = useMeCompany();
+  if (meCompany.isPending) {
+    return (
+      <span aria-hidden className="flex h-6 items-center">
+        <span
+          data-slot="skeleton"
+          className="h-3 w-28 animate-pulse rounded-md bg-accent"
+        />
+      </span>
+    );
+  }
+  const numbers = meCompany.data?.company?.numbers ?? [];
   const active = numbers.filter(
     (n): n is PhoneNumberSummary & { number_e164: string } =>
       n.status === "active" && Boolean(n.number_e164),

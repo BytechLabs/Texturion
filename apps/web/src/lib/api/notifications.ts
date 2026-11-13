@@ -103,8 +103,12 @@ export function useNotificationsUnreadCount() {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: keys.notifications.unreadCount(companyId),
-    queryFn: () =>
-      apiFetch<UnreadCount>("/v1/notifications/unread-count", { companyId }),
+    // Always mounted, so a superseding refetch aborts the running request.
+    queryFn: ({ signal }) =>
+      apiFetch<UnreadCount>("/v1/notifications/unread-count", {
+        companyId,
+        signal,
+      }),
     staleTime: 15_000,
     refetchInterval: UNREAD_POLL_MS,
   });
@@ -119,10 +123,11 @@ export function useNotificationsFeed(enabled: boolean) {
   const companyId = useCompanyId();
   return useInfiniteQuery({
     queryKey: keys.notifications.feed(companyId),
-    queryFn: ({ pageParam }) =>
+    queryFn: ({ pageParam, signal }) =>
       apiFetch<Page<NotificationItem>>("/v1/notifications", {
         companyId,
         searchParams: { cursor: pageParam, limit: 25 },
+        signal,
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,

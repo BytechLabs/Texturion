@@ -88,7 +88,10 @@ import {
   resizePanel,
 } from "@loonext/shared";
 import { cn } from "@/lib/utils";
+import { headlineWork } from "@/lib/for-you/headline";
 import { LoadError } from "@/components/ui/load-error";
+
+export { countDistinctWork, headlineWork } from "@/lib/for-you/headline";
 
 /** Open the shared command-K palette (the search glyph in the header). */
 function openCommand() {
@@ -606,51 +609,6 @@ function SummaryTile({
 }
 
 /**
- * /for-you — the triage home (PORTAL-UX §3.1), the DEFAULT landing. A single
- * scrollable stage of typed cards in labeled sections rendered from api_for_you:
- * Triage (owner/lead), Waiting on you, My tasks, Unread. Each card shows WHY it
- * is here (the concrete signal). The header carries a quiet sub-line, the bell,
- * and the search glyph (opens ⌘K). Calm empty state when the queue clears.
- * #133 adds an ambient "Recent calls" section below everything — history, not
- * workload, so it never touches the header count or the caught-up card.
- */
-/**
- * The number of distinct things needing the reader, for the line above the
- * queue. Conversations are counted once however many sections carry them:
- * "waiting on you" and "unread" overlap by design, since the second is a
- * cross-cut of the first rather than a separate pile of work.
- *
- * #306: this counts the ROWS, and the rows are capped at the section limit, so
- * it is bounded by the page size rather than by the work — a member with 60
- * conversations waiting on them read "20 things need you". The server now
- * sends the real numbers; this stays as the fallback for a client running
- * ahead of the Worker, where an undercount is at least today's behaviour
- * rather than a new wrong answer.
- */
-export function countDistinctWork(data: ForYou): number {
-  const conversations = new Set<string>();
-  for (const row of data.waiting_on_you) conversations.add(row.conversation_id);
-  for (const row of data.unread) conversations.add(row.conversation_id);
-  // #293: a due reminder is work. Leaving it out here made the header say
-  // "You're all caught up" while a section below it listed a quote to chase —
-  // the exact "the count lies in the other direction" this feature is about.
-  // The Set is what keeps it honest when the same thread is also unread.
-  for (const row of data.follow_ups ?? []) conversations.add(row.conversation_id);
-  for (const row of data.triage?.conversations ?? []) {
-    conversations.add(row.conversation_id);
-  }
-  const tasks = new Set<string>();
-  for (const row of data.my_tasks) tasks.add(row.task_id);
-  for (const row of data.triage?.tasks ?? []) tasks.add(row.task_id);
-  return conversations.size + tasks.size;
-}
-
-/** #306: the honest headline, or the row-derived one if the server is older. */
-export function headlineWork(data: ForYou): number {
-  return data.totals?.distinct_work ?? countDistinctWork(data);
-}
-
-/**
  * #306 — the footer a section grows when it is showing a page of something
  * bigger. Without it the queue simply ends at twenty and reads as finished.
  *
@@ -689,6 +647,15 @@ function Overflow({
   );
 }
 
+/**
+ * /for-you — the triage home (PORTAL-UX §3.1), the DEFAULT landing. A single
+ * scrollable stage of typed cards in labeled sections rendered from api_for_you:
+ * Triage (owner/lead), Waiting on you, My tasks, Unread. Each card shows WHY it
+ * is here (the concrete signal). The header carries a quiet sub-line, the bell,
+ * and the search glyph (opens ⌘K). Calm empty state when the queue clears.
+ * #133 adds an ambient "Recent calls" section below everything — history, not
+ * workload, so it never touches the header count or the caught-up card.
+ */
 export function ForYouView() {
   const t = useT();
   const forYou = useForYou();
@@ -754,9 +721,18 @@ export function ForYouView() {
         className="mb-6"
         title={t("inbox.forYouTitle")}
         description={
-          total > 0
-            ? t(total === 1 ? "inbox.forYouWorkOne" : "inbox.forYouWorkMany", { count: total })
-            : t("inbox.forYouAllCaughtUp")
+          forYou.isPending ? (
+            // The Skeleton recipe as a span: the header sets this line in a <p>.
+            <span
+              aria-hidden
+              data-slot="skeleton"
+              className="inline-block h-3.5 w-44 animate-pulse rounded-md bg-accent align-middle"
+            />
+          ) : total > 0 ? (
+            t(total === 1 ? "inbox.forYouWorkOne" : "inbox.forYouWorkMany", { count: total })
+          ) : (
+            t("inbox.forYouAllCaughtUp")
+          )
         }
         secondary={
           <>

@@ -30,7 +30,12 @@ vi.mock("@/lib/realtime/for-you-notifications", () => ({
   useForYouNotificationsRealtime: () => undefined,
 }));
 vi.mock("./use-nav-counts", () => ({
-  useNavCounts: () => ({ forYou: 2, inbox: 3, tasks: 0, numbers: 1 }),
+  useForYouNavCount: () => 2,
+  useInboxNavCount: () => 3,
+  // The tab bar shows no Tasks numeral, so it must not subscribe to one.
+  useTaskNavCount: () => {
+    throw new Error("the tab bar read the Tasks count it never shows");
+  },
 }));
 vi.mock("./mobile-account-sheet", () => ({
   MobileAccountSheet: () => <div data-sheet>sheet</div>,
@@ -55,6 +60,16 @@ describe("MobileTabBar (#100)", () => {
     expect(html).toContain('aria-label="You, account and settings"');
     // The old More → /settings tab is gone (#100); Settings lives in the sheet.
     expect(html).not.toContain(">More<");
+  });
+
+  it("carries the For you and Inbox numerals and no Tasks one", () => {
+    const html = renderToStaticMarkup(<MobileTabBar />);
+    expect(html).toContain('aria-label="For You, 2"');
+    expect(html).toContain('aria-label="Inbox, 3"');
+    // aria-current follows the page that is showing, not a pending tap.
+    const current = html.match(/<a [^>]*aria-current="page"[^>]*>/g) ?? [];
+    expect(current).toHaveLength(1);
+    expect(current[0]).toContain('href="/inbox"');
   });
 
   it("shows a dot on the avatar when there are unread notifications", () => {
