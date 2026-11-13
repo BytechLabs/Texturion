@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.30.2](https://github.com/BytechLabs/Texturion/compare/api-v0.30.1...api-v0.30.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* **api:** a write that returns no row is not reported as a failure ([3d7d2e2](https://github.com/BytechLabs/Texturion/commit/3d7d2e2fc2f0bf1298a435f64d86c13e7bb4c14b))
+* **api:** hanging up a call that already ended logs no error ([c13e198](https://github.com/BytechLabs/Texturion/commit/c13e1989d9b1463df87d74d60716559aa3fd1504))
+* **api:** storing a voicemail no longer holds the call's event queue ([120e3f5](https://github.com/BytechLabs/Texturion/commit/120e3f5e5bd9fdb4ca0b49e1a5ea0ccb9c47268b))
+
+
+### Performance
+
+* **api:** the api runs beside its database instead of at the caller's edge ([679e6cb](https://github.com/BytechLabs/Texturion/commit/679e6cb2d0dc2172c35f757962a4d7baaf912ea3))
+
 ## [0.30.1](https://github.com/BytechLabs/Texturion/compare/api-v0.30.0...api-v0.30.1) (2026-11-11)
 
 

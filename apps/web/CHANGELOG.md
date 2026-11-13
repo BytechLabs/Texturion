@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.30.3](https://github.com/BytechLabs/Texturion/compare/web-v0.30.2...web-v0.30.3) (2026-11-13)
+
+
+### Bug Fixes
+
+* **web:** payment and photo links open instead of answering 500 ([86e4a86](https://github.com/BytechLabs/Texturion/commit/86e4a86700c2b9123589f11b787e729467827b85))
+* **web:** the resizeobserver loop notice is not sent as an exception ([00ece32](https://github.com/BytechLabs/Texturion/commit/00ece32545eb4f75c053d2b8fdbc11afdf5d38df))
+
+
+### Performance
+
+* **web:** hashed files are cached for a year instead of re-asked on every load ([3f8dff5](https://github.com/BytechLabs/Texturion/commit/3f8dff5467dce3a0584b51b322cf5b7e53b84244))
+* **web:** opening a thread no longer refetches the queue and the bell four times ([3d5f510](https://github.com/BytechLabs/Texturion/commit/3d5f5108077f8a5a7c129c13a5201f6411eef7a3))
+* **web:** page changes no longer wait on a supabase auth call ([b7f6dd0](https://github.com/BytechLabs/Texturion/commit/b7f6dd0fb5a2737a3d50eeaeb3debdab97262baf))
+
 ## [0.30.2](https://github.com/BytechLabs/Texturion/compare/web-v0.30.1...web-v0.30.2) (2026-11-11)
 
 
