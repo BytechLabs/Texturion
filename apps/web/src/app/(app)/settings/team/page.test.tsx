@@ -14,29 +14,32 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // `vi.mock` is hoisted above every `const` in this file, so the spies have to
 // be created inside `vi.hoisted` — a plain `const` above the mock is still a
 // temporal-dead-zone reference by the time the factory runs.
-const { createInvite, invites } = vi.hoisted(() => ({
-  createInvite: vi.fn(),
-  // Mutable so a test can put a pending invite in the list; the default is the
-  // empty workspace every other assertion here wants.
-  invites: { rows: [] as Record<string, unknown>[] },
-}));
+const { createInvite, updateRole, invites, members, session } = vi.hoisted(
+  () => ({
+    createInvite: vi.fn(),
+    updateRole: vi.fn(),
+    // Mutable so a test can put a pending invite in the list; the default is
+    // the empty workspace every other assertion here wants.
+    invites: { rows: [] as Record<string, unknown>[] },
+    members: { rows: [] as Record<string, unknown>[] },
+    session: { role: "owner", userId: "u1" },
+  }),
+);
+
+const OWNER = {
+  id: "m1",
+  user_id: "u1",
+  role: "owner",
+  display_name: "Dana",
+  deactivated_at: null,
+  created_at: "2026-01-01T00:00:00Z",
+};
 
 vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({
     isPending: false,
     isError: false,
-    data: {
-      data: [
-        {
-          id: "m1",
-          user_id: "u1",
-          role: "owner",
-          display_name: "Dana",
-          deactivated_at: null,
-          created_at: "2026-01-01T00:00:00Z",
-        },
-      ],
-    },
+    data: { data: members.rows },
     refetch: vi.fn(),
   }),
   useInvites: () => ({
@@ -47,7 +50,7 @@ vi.mock("@/lib/api/team", () => ({
   }),
   useCreateInvite: () => ({ isPending: false, mutate: createInvite }),
   useRevokeInvite: () => ({ isPending: false, mutate: vi.fn() }),
-  useUpdateMemberRole: () => ({ isPending: false, mutate: vi.fn() }),
+  useUpdateMemberRole: () => ({ isPending: false, mutate: updateRole }),
   useDeactivateMember: () => ({ isPending: false, mutate: vi.fn() }),
   useMemberHoldings: () => ({
     isPending: false,
@@ -65,7 +68,7 @@ vi.mock("@/lib/api/companies", () => ({
   }),
 }));
 vi.mock("@/lib/company/provider", () => ({
-  useActiveCompany: () => ({ role: "owner", userId: "u1" }),
+  useActiveCompany: () => session,
   useCompanyId: () => "c_1",
 }));
 vi.mock("sonner", () => ({
@@ -83,6 +86,8 @@ vi.mock("@/components/settings/member-access-dialog", () => ({
   MemberAccessDialog: () => null,
 }));
 
+import { chooseOption, selectedValue } from "@/test/simple-select-driver";
+
 import TeamSettingsPage from "./page";
 
 // This app's vitest does not set `globals`, so testing-library's automatic
@@ -91,7 +96,11 @@ afterEach(cleanup);
 
 beforeEach(() => {
   createInvite.mockReset();
+  updateRole.mockReset();
   invites.rows = [];
+  members.rows = [OWNER];
+  session.role = "owner";
+  session.userId = "u1";
 });
 
 function noteField(): HTMLTextAreaElement {
@@ -221,5 +230,43 @@ describe("the invite note (#521)", () => {
 
     expect(screen.getByText("tech@example.com")).toBeTruthy();
     expect(document.querySelector("blockquote")).toBeNull();
+  });
+});
+
+describe("every role the picker offers (#789)", () => {
+  it.each(["member", "admin", "read_only", "bookkeeper"])(
+    "invites a %s",
+    async (role) => {
+      render(<TeamSettingsPage />);
+      const picker = screen.getByLabelText("Role");
+      chooseOption(picker, role);
+      expect(selectedValue(picker)).toBe(role);
+      inviteSomebody();
+
+      await waitFor(() => expect(createInvite).toHaveBeenCalled());
+      expect(createInvite.mock.calls[0][0]).toEqual({
+        email: "tech@example.com",
+        role,
+        note: null,
+      });
+    },
+  );
+
+  it("names View only on the confirm when an admin gives themselves it", () => {
+    session.role = "admin";
+    session.userId = "u2";
+    members.rows = [
+      OWNER,
+      { ...OWNER, id: "m2", user_id: "u2", role: "admin", display_name: "Sam" },
+    ];
+    render(<TeamSettingsPage />);
+
+    chooseOption(screen.getByLabelText("Role for Sam"), "read_only");
+
+    expect(
+      screen.getByRole("button", { name: "Make me a view only" }),
+    ).toBeTruthy();
+    // Nothing is sent until the admin confirms.
+    expect(updateRole).not.toHaveBeenCalled();
   });
 });

@@ -4,15 +4,14 @@ import { SimpleSelect } from "@/components/ui/simple-select";
 import { type Translate } from "@/i18n/provider";
 import type { Member } from "@/lib/api/types";
 
-export type AssignableRole = "admin" | "member" | "read_only" | "bookkeeper";
-
 /** The roles a person can be given, in the order every list shows them. */
-export const ASSIGNABLE_ROLES: readonly AssignableRole[] = [
+export const ASSIGNABLE_ROLES = [
   "member",
   "admin",
   "read_only",
   "bookkeeper",
-];
+] as const;
+export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
 export function roleLabels(t: Translate): Record<Member["role"], string> {
   return {

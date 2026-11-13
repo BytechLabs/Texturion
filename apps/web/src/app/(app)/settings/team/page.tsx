@@ -19,6 +19,8 @@ import {
   roleChangeNeedsConfirming,
 } from "@/components/settings/give-up-access-dialog";
 import {
+  ASSIGNABLE_ROLES,
+  type AssignableRole,
   RoleSelect,
   roleBlurbs,
   roleLabels,
@@ -90,17 +92,18 @@ function MemberRow({
   const [confirming, setConfirming] = useState(false);
   // #538: the role this person has asked to give themselves, held until they
   // confirm. Null the rest of the time, which is almost always.
-  const [givingUp, setGivingUp] = useState<"admin" | "member" | null>(null);
+  const [givingUp, setGivingUp] = useState<AssignableRole | null>(null);
   // #348: what this person actually reaches, on demand.
   const [showingAccess, setShowingAccess] = useState(false);
   const name = member.display_name || t("appShell.teamFallbackName");
   const deactivated = member.deactivated_at !== null;
 
-  function changeRole(role: "admin" | "member", acknowledged = false) {
+  function changeRole(role: AssignableRole, acknowledged = false) {
     updateRole.mutate(
       {
         memberId: member.id,
-        role,
+        // The API takes all four roles; #789 widens the hook's two-role type.
+        role: role as "admin" | "member",
         ...(acknowledged ? { [SELF_DOWNGRADE_ACK]: true } : {}),
       },
       {
@@ -167,10 +170,7 @@ function MemberRow({
           value={member.role}
           t={t}
           ariaLabel={t("appShell.teamRoleForAria", { name })}
-          onValueChange={(picked) => {
-            // The API types admit two roles, and always have; the cast was here
-            // when this was an inline Select.
-            const role = picked as "admin" | "member";
+          onValueChange={(role) => {
             // #538: TAKING POWERS OFF YOURSELF STOPS AND ASKS.
             //
             // An admin who picks "member" here loses the ability to change roles
@@ -558,7 +558,7 @@ const NOTE_COUNTDOWN_FROM = 50;
 
 /*
  * Mirrors the API invite schema (apps/api/src/routes/team.ts): a real email +
- * role admin|member (owner never assignable) + an optional note.
+ * one of ASSIGNABLE_ROLES (owner never assignable) + an optional note.
  *
  * A factory rather than a module-level constant, because both messages are
  * COPY — the reader meets them under the field, in the same breath as every
@@ -569,7 +569,7 @@ const NOTE_COUNTDOWN_FROM = 50;
 function makeInviteSchema(t: Translate) {
   return z.object({
     email: z.email(t("appShell.teamInviteEmailInvalid")),
-    role: z.enum(["admin", "member"]),
+    role: z.enum(ASSIGNABLE_ROLES),
     /**
      * Optional the whole way down: no minimum, nothing required, and nothing
      * here can hold up an invite that leaves it blank. The cap is the API's,
@@ -633,6 +633,8 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
     createInvite.mutate(
       {
         ...values,
+        // The API takes all four roles; #789 widens the hook's two-role type.
+        role: values.role as "admin" | "member",
         // Blank is no note. The server normalises whitespace to null as well,
         // but sending "" would have this client claiming somebody wrote an
         // empty string, which is a different thing from writing nothing.

@@ -6,6 +6,10 @@ import {
   selfDowngradeWarning,
 } from "@loonext/shared";
 
+import {
+  type AssignableRole,
+  roleLabels,
+} from "@/components/settings/role-select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useT } from "@/i18n/provider";
 
@@ -39,7 +43,7 @@ export function GiveUpAccessDialog({
 }: {
   from: MemberRole;
   /** The role being asked for, or null when nothing is being given up. */
-  to: "admin" | "member" | null;
+  to: AssignableRole | null;
   pending: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -57,10 +61,8 @@ export function GiveUpAccessDialog({
       description={warning}
       cancelLabel={t("settings.giveUpAccessKeep")}
       confirmLabel={t("settings.giveUpAccessMakeMe", {
-        role:
-          to === "admin"
-            ? t("settings.roleAdminWord")
-            : t("settings.roleMemberWord"),
+        // Lowercased inside the sentence, as Android does.
+        role: to ? roleLabels(t)[to].toLowerCase() : "",
       })}
       pendingLabel={t("settings.giveUpAccessChanging")}
       pending={pending}
