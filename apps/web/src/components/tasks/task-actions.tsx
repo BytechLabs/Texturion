@@ -10,7 +10,6 @@ import { useDeleteTask } from "@/lib/api/tasks";
 import type { Task } from "@/lib/api/types";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import type { RecordAction } from "@/lib/record-actions/types";
-import { useNavigate } from "@/lib/use-navigate";
 
 import { taskActionAllowed, taskThreadId } from "./task-format";
 import { movedDueAt, RESCHEDULE_MOVES } from "./task-reschedule";
@@ -121,8 +120,7 @@ export function taskLink(taskId: string): string {
  */
 export function useTaskRowActions(task: Task) {
   const t = useT();
-  const navigate = useNavigate();
-  const { hrefForTask } = useTaskDrawer();
+  const { hrefForTask, openTask } = useTaskDrawer();
   const canDelete = useCanDeleteRecords();
   const done = useTaskDone();
   const reschedule = useTaskReschedule();
@@ -142,7 +140,7 @@ export function useTaskRowActions(task: Task) {
     canCopyLink: true,
     now: new Date(),
     run: {
-      open: () => navigate(href, { scroll: false }),
+      open: () => openTask(task.id),
       copyLink: async () => {
         try {
           await navigator.clipboard.writeText(

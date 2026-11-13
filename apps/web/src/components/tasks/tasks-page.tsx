@@ -3,10 +3,11 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { CalendarDays, LayoutGrid, List, MapPin } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
+import { useMemo } from "react";
 
 import { useT } from "@/i18n/provider";
+import { replaceSearch } from "@/lib/url/search-state";
 
 import { NewTaskButton } from "./new-task";
 import { TaskFilterBar } from "./task-filter-bar";
@@ -32,6 +33,10 @@ const VIEW_ICONS: Record<TaskView, typeof List> = {
   map: MapPin,
 };
 
+function writeTaskState(next: TaskPageState): void {
+  replaceSearch(serializeTaskState(next));
+}
+
 /**
  * The /tasks page (D25) — a URL-state view switcher over the four views (List /
  * Board / Calendar / Map) sharing one filter bar. All state lives in the URL
@@ -42,20 +47,11 @@ const VIEW_ICONS: Record<TaskView, typeof List> = {
  */
 export function TasksPage() {
   const t = useT();
-  const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const state = useMemo(
     () => parseTaskSearchParams(new URLSearchParams(searchParams.toString())),
     [searchParams],
-  );
-
-  const setState = useCallback(
-    (next: TaskPageState) => {
-      router.replace(`${pathname}${serializeTaskState(next)}`, { scroll: false });
-    },
-    [router, pathname],
   );
 
   return (
@@ -69,7 +65,7 @@ export function TasksPage() {
               onChange={(view) =>
                 // #113: keep the tab meaningful for the new view (Board/Map only
                 // support Mine | All, so Open/Done coerce to Mine).
-                setState({
+                writeTaskState({
                   ...state,
                   view,
                   tab: coerceTabForView(state.tab, view),
@@ -80,7 +76,7 @@ export function TasksPage() {
           primary={<NewTaskButton variant="default" size="sm" />}
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <TaskFilterBar state={state} onChange={setState} />
+          <TaskFilterBar state={state} onChange={writeTaskState} />
           {/* #304: quiet, beside the filters that already say what it covers.
               Absent for anybody without `contacts.bulk` — every task names a
               customer. Downloads the current view at once (#745). */}

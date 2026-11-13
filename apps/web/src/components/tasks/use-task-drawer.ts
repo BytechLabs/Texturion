@@ -1,7 +1,9 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useCallback, type MouseEvent } from "react";
+
+import { updateSearch } from "@/lib/url/search-state";
 
 /**
  * The task detail drawer is URL-driven (TASKS-V2 D-A): a `?task=<id>` search
@@ -13,14 +15,48 @@ import { useCallback } from "react";
  *
  * These helpers keep the rest of the current URL intact (they only add/remove
  * the `task` param), so opening a task from a filtered /tasks view or a specific
- * thread and then closing it returns you exactly where you were.
+ * thread and then closing it returns you exactly where you were. Opening and
+ * closing write history directly (lib/url/search-state.ts), so neither waits on
+ * a router navigation.
  */
 
 /** The search-param key that carries the open task id. */
 export const TASK_DRAWER_PARAM = "task";
 
+/** A new history entry, so Back closes the drawer again. */
+function openTask(taskId: string): void {
+  updateSearch((params) => params.set(TASK_DRAWER_PARAM, taskId), "push");
+}
+
+function closeTask(): void {
+  updateSearch((params) => params.delete(TASK_DRAWER_PARAM));
+}
+
+/**
+ * The onClick for a `<Link href={hrefForTask(id)}>`: a plain primary click opens
+ * the drawer in place, while a modified or middle click and "copy link" keep
+ * the href.
+ */
+export function taskLinkClickHandler(taskId: string) {
+  return (event: MouseEvent<HTMLElement>) => {
+    const target = event.currentTarget.getAttribute("target");
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      (target !== null && target !== "_self")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    openTask(taskId);
+  };
+}
+
 export function useTaskDrawer() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -36,20 +72,6 @@ export function useTaskDrawer() {
     },
     [pathname, searchParams],
   );
-
-  const openTask = useCallback(
-    (taskId: string) => {
-      router.push(hrefForTask(taskId), { scroll: false });
-    },
-    [router, hrefForTask],
-  );
-
-  const closeTask = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete(TASK_DRAWER_PARAM);
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [router, pathname, searchParams]);
 
   return { openTaskId, hrefForTask, openTask, closeTask };
 }

@@ -8,7 +8,7 @@ import {
   Upload,
   UserPlus,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { useT } from "@/i18n/provider";
 import { useExportContacts } from "@/lib/api/contacts-export-hook";
 import { ApiError } from "@/lib/api/error";
 import { contactsPickerSupported } from "@/lib/contacts/contacts-picker";
+import { updateSearch } from "@/lib/url/search-state";
 
 import { ImportWizard } from "./import-wizard";
 import { NewContactDialog } from "./new-contact-dialog";
@@ -164,7 +165,6 @@ export function ContactsActions({
  */
 export function NewContactAction() {
   const t = useT();
-  const router = useRouter();
   const searchParams = useSearchParams();
   // #459 ?new=<digits>: the dialer's "Add contact", which lands here rather
   // than opening a second create form inside the keypad. One create form for
@@ -184,7 +184,9 @@ export function NewContactAction() {
           // #459: closing a dialer-opened dialog drops the query parameter, so
           // a later reload of /contacts does not reopen a form somebody
           // already dismissed.
-          if (!next && newFromDialer !== null) router.replace("/contacts");
+          if (!next && newFromDialer !== null) {
+            updateSearch((params) => params.delete("new"));
+          }
         }}
         prefillPhone={newFromDialer ?? ""}
       />
