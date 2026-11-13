@@ -369,4 +369,246 @@ begin
   end if;
 end $$;
 
+-- ===========================================================================
+-- CM-11 to CM-14: the real threading RPCs follow a merge
+-- (20261113120500_a_merged_number_threads_to_the_survivor.sql).
+--
+-- A second workspace that can send, since claim_missed_call_text threads
+-- nothing for one that cannot. Dana texted from 0511 and 0512 and was entered
+-- twice; Sam is never merged.
+-- ===========================================================================
+insert into auth.users (id, email) values
+  ('55000000-0000-4000-8000-00000000000b'::uuid, 'merge-b@test.local');
+
+insert into public.companies
+  (id, name, owner_user_id, country, requested_area_code, aup_accepted_at,
+   subscription_status, plan)
+values
+  ('55000000-0000-4000-8000-0000000000c2'::uuid, 'Merge Heating',
+   '55000000-0000-4000-8000-00000000000b'::uuid, 'US', '415', now(),
+   'active', 'starter');
+
+insert into public.company_members (company_id, user_id, role)
+values ('55000000-0000-4000-8000-0000000000c2'::uuid,
+        '55000000-0000-4000-8000-00000000000b'::uuid, 'owner');
+
+insert into public.phone_numbers
+  (id, company_id, status, provisioning_key, country, number_e164)
+values
+  ('55000000-0000-4000-8000-0000000000f2'::uuid,
+   '55000000-0000-4000-8000-0000000000c2'::uuid, 'active', 'test-merge-2', 'US',
+   '+14155550410');
+
+insert into public.contacts (id, company_id, phone_e164, name) values
+  ('55000000-0000-4000-8000-0000000000d4'::uuid,
+   '55000000-0000-4000-8000-0000000000c2'::uuid, '+14155550511', 'Dana'),
+  ('55000000-0000-4000-8000-0000000000d5'::uuid,
+   '55000000-0000-4000-8000-0000000000c2'::uuid, '+14155550512', 'Dana Reyes'),
+  ('55000000-0000-4000-8000-0000000000d6'::uuid,
+   '55000000-0000-4000-8000-0000000000c2'::uuid, '+14155550513', 'Sam Ortiz');
+
+-- e4 is the thread the merge folds in, open. e5 is the survivor's own, closed,
+-- so the merge has no open thread to collide with and leaves e4 open.
+insert into public.conversations
+  (id, company_id, contact_id, phone_number_id, status, closed_at)
+values
+  ('55000000-0000-4000-8000-0000000000e4'::uuid,
+   '55000000-0000-4000-8000-0000000000c2'::uuid,
+   '55000000-0000-4000-8000-0000000000d4'::uuid,
+   '55000000-0000-4000-8000-0000000000f2'::uuid, 'open', null),
+  ('55000000-0000-4000-8000-0000000000e5'::uuid,
+   '55000000-0000-4000-8000-0000000000c2'::uuid,
+   '55000000-0000-4000-8000-0000000000d5'::uuid,
+   '55000000-0000-4000-8000-0000000000f2'::uuid, 'closed', now() - interval '3 days'),
+  ('55000000-0000-4000-8000-0000000000e6'::uuid,
+   '55000000-0000-4000-8000-0000000000c2'::uuid,
+   '55000000-0000-4000-8000-0000000000d6'::uuid,
+   '55000000-0000-4000-8000-0000000000f2'::uuid, 'open', null);
+
+-- ===========================================================================
+-- CM-11: two texts from the folded number append to the moved open thread
+-- instead of colliding with it on the open-thread index.
+-- ===========================================================================
+do $$
+declare
+  v_merge  jsonb;
+  v_first  jsonb;
+  v_second jsonb;
+  v_count  int;
+begin
+  v_merge := public.api_merge_contacts(
+    '55000000-0000-4000-8000-0000000000c2'::uuid,
+    '55000000-0000-4000-8000-0000000000d4'::uuid,
+    '55000000-0000-4000-8000-0000000000d5'::uuid,
+    '55000000-0000-4000-8000-00000000000b'::uuid);
+  if v_merge->>'outcome' is distinct from 'merged' then
+    raise exception 'CM-11: merge reported %', v_merge->>'outcome';
+  end if;
+  if not exists (
+    select 1 from public.conversations
+     where id = '55000000-0000-4000-8000-0000000000e4'::uuid
+       and contact_id = '55000000-0000-4000-8000-0000000000d5'::uuid
+       and closed_at is null
+  ) then
+    raise exception 'CM-11: the folded thread is not open under the survivor after the merge';
+  end if;
+
+  begin
+    v_first := public.thread_inbound_message(
+      '55000000-0000-4000-8000-0000000000c2'::uuid,
+      '55000000-0000-4000-8000-0000000000f2'::uuid,
+      '+14155550511', 'Is Tuesday still on?', 'tmsg-55-1');
+    v_second := public.thread_inbound_message(
+      '55000000-0000-4000-8000-0000000000c2'::uuid,
+      '55000000-0000-4000-8000-0000000000f2'::uuid,
+      '+14155550511', 'Running ten minutes late', 'tmsg-55-2');
+  exception when others then
+    raise exception 'CM-11: a text from the merged number was refused: %', sqlerrm;
+  end;
+
+  if (v_first->>'conversation_id')::uuid is distinct from '55000000-0000-4000-8000-0000000000e4'::uuid
+     or (v_second->>'conversation_id')::uuid is distinct from '55000000-0000-4000-8000-0000000000e4'::uuid then
+    raise exception 'CM-11: the texts landed on % and %, not the moved thread',
+      v_first->>'conversation_id', v_second->>'conversation_id';
+  end if;
+
+  select count(*) into v_count from public.conversations
+   where company_id = '55000000-0000-4000-8000-0000000000c2'::uuid
+     and contact_phone_e164 = '+14155550511';
+  if v_count is distinct from 1 then
+    raise exception 'CM-11: % threads with the merged number, expected one', v_count;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CM-12: the moved thread closed inside 30 days is reopened, not duplicated.
+-- ===========================================================================
+do $$
+declare
+  v_result jsonb;
+  v_closed timestamptz;
+  v_count  int;
+begin
+  update public.conversations
+     set status = 'closed', closed_at = now() - interval '2 days'
+   where id = '55000000-0000-4000-8000-0000000000e4'::uuid;
+
+  v_result := public.thread_inbound_message(
+    '55000000-0000-4000-8000-0000000000c2'::uuid,
+    '55000000-0000-4000-8000-0000000000f2'::uuid,
+    '+14155550511', 'Can we move it to Thursday?', 'tmsg-55-3');
+
+  if (v_result->>'conversation_id')::uuid is distinct from '55000000-0000-4000-8000-0000000000e4'::uuid then
+    raise exception 'CM-12: the text opened % instead of reopening the moved thread',
+      v_result->>'conversation_id';
+  end if;
+
+  select closed_at into v_closed from public.conversations
+   where id = '55000000-0000-4000-8000-0000000000e4'::uuid;
+  if v_closed is not null then
+    raise exception 'CM-12: the moved thread stayed closed';
+  end if;
+
+  select count(*) into v_count from public.conversations
+   where company_id = '55000000-0000-4000-8000-0000000000c2'::uuid
+     and contact_phone_e164 = '+14155550511';
+  if v_count is distinct from 1 then
+    raise exception 'CM-12: % threads with the merged number, expected one', v_count;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CM-13: a call, and its missed-call text, from the folded number thread under
+-- the survivor.
+-- ===========================================================================
+do $$
+declare
+  v_call jsonb;
+  v_text jsonb;
+begin
+  begin
+    v_call := public.api_thread_call(
+      '55000000-0000-4000-8000-0000000000c2'::uuid,
+      '55000000-0000-4000-8000-0000000000f2'::uuid,
+      '+14155550511', 'call-55-1', 'missed', 0, true);
+  exception when others then
+    raise exception 'CM-13: a call from the merged number was refused: %', sqlerrm;
+  end;
+  if (v_call->>'conversation_id')::uuid is distinct from '55000000-0000-4000-8000-0000000000e4'::uuid then
+    raise exception 'CM-13: the call landed on %, not the moved thread', v_call->>'conversation_id';
+  end if;
+  if (v_call->>'contact_id')::uuid is distinct from '55000000-0000-4000-8000-0000000000d5'::uuid then
+    raise exception 'CM-13: the call was attributed to %, not the survivor', v_call->>'contact_id';
+  end if;
+
+  begin
+    v_text := public.claim_missed_call_text(
+      '55000000-0000-4000-8000-0000000000c2'::uuid,
+      '55000000-0000-4000-8000-0000000000f2'::uuid,
+      '+14155550511', 'call-55-1', 'Sorry we missed you.', 1, 3600);
+  exception when others then
+    raise exception 'CM-13: the missed-call text to the merged number was refused: %', sqlerrm;
+  end;
+  if v_text ? 'skipped' then
+    raise exception 'CM-13: the missed-call text was skipped (%)', v_text->>'skipped';
+  end if;
+  if (v_text->>'conversation_id')::uuid is distinct from '55000000-0000-4000-8000-0000000000e4'::uuid then
+    raise exception 'CM-13: the missed-call text landed on %, not the moved thread',
+      v_text->>'conversation_id';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CM-14: a contact nobody merged threads exactly as before, and so does a
+-- first text from a number nobody has seen.
+-- ===========================================================================
+do $$
+declare
+  v_text    jsonb;
+  v_call    jsonb;
+  v_new     jsonb;
+  v_contact uuid;
+begin
+  if public.live_contact_id('55000000-0000-4000-8000-0000000000d6'::uuid)
+       is distinct from '55000000-0000-4000-8000-0000000000d6'::uuid then
+    raise exception 'CM-14: a contact nobody merged resolved to another';
+  end if;
+  if public.live_contact_id('55000000-0000-4000-8000-0000000000d4'::uuid)
+       is distinct from '55000000-0000-4000-8000-0000000000d5'::uuid then
+    raise exception 'CM-14: the merged contact did not resolve to its survivor';
+  end if;
+
+  v_text := public.thread_inbound_message(
+    '55000000-0000-4000-8000-0000000000c2'::uuid,
+    '55000000-0000-4000-8000-0000000000f2'::uuid,
+    '+14155550513', 'Gate code is 4412', 'tmsg-55-4');
+  if (v_text->>'conversation_id')::uuid is distinct from '55000000-0000-4000-8000-0000000000e6'::uuid then
+    raise exception 'CM-14: Sam''s text landed on %, not his own thread', v_text->>'conversation_id';
+  end if;
+
+  v_call := public.api_thread_call(
+    '55000000-0000-4000-8000-0000000000c2'::uuid,
+    '55000000-0000-4000-8000-0000000000f2'::uuid,
+    '+14155550513', 'call-55-2', 'answered', 30, false);
+  if (v_call->>'conversation_id')::uuid is distinct from '55000000-0000-4000-8000-0000000000e6'::uuid
+     or (v_call->>'contact_id')::uuid is distinct from '55000000-0000-4000-8000-0000000000d6'::uuid then
+    raise exception 'CM-14: Sam''s call landed on % for contact %',
+      v_call->>'conversation_id', v_call->>'contact_id';
+  end if;
+
+  v_new := public.thread_inbound_message(
+    '55000000-0000-4000-8000-0000000000c2'::uuid,
+    '55000000-0000-4000-8000-0000000000f2'::uuid,
+    '+14155550514', 'Do you service boilers?', 'tmsg-55-5');
+  select c.contact_id into v_contact from public.conversations c
+   where c.id = (v_new->>'conversation_id')::uuid;
+  if v_contact is distinct from (
+    select ct.id from public.contacts ct
+     where ct.company_id = '55000000-0000-4000-8000-0000000000c2'::uuid
+       and ct.phone_e164 = '+14155550514'
+  ) then
+    raise exception 'CM-14: a first text from a new number threaded under %', v_contact;
+  end if;
+end $$;
+
 rollback;
