@@ -49,7 +49,11 @@ function makeQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         staleTime: 30_000,
+        // A revisit paints from cache and revalidates behind it.
+        gcTime: 30 * 60_000,
         refetchOnWindowFocus: false,
+        // Realtime's online handler and gap backfill decide what a drop missed.
+        refetchOnReconnect: false,
         retry: (failureCount, error) => {
           if (error instanceof ApiError && !error.retryable) return false;
           return failureCount < 2;

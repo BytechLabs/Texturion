@@ -22,6 +22,7 @@ export function useMembers() {
   return useQuery({
     queryKey: keys.members(companyId),
     queryFn: () => apiFetch<Page<Member>>("/v1/members", { companyId }),
+    staleTime: 5 * 60_000,
   });
 }
 

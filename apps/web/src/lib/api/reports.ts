@@ -17,6 +17,9 @@ import { useCompanyId } from "@/lib/company/provider";
 import { apiFetch } from "./client";
 import { keys } from "./keys";
 
+/** A report over days of history moves slowly and is expensive to compute. */
+const REPORT_CACHE = { staleTime: 10 * 60_000, gcTime: 60 * 60_000 } as const;
+
 /** Windows the API accepts; anything else is clamped server-side to 30. */
 export type ResponseTimeWindow = 7 | 30 | 90;
 
@@ -74,6 +77,7 @@ export function useResponseTime(days: ResponseTimeWindow = 30) {
         companyId,
         searchParams: { days: String(days) },
       }),
+    ...REPORT_CACHE,
   });
 }
 
@@ -163,6 +167,7 @@ export function useLeadSourceReport(days: ResponseTimeWindow = 30) {
         companyId,
         searchParams: { days: String(days) },
       }),
+    ...REPORT_CACHE,
   });
 }
 
@@ -175,6 +180,7 @@ export function usePipelineReport(days: ResponseTimeWindow = 30) {
         companyId,
         searchParams: { days: String(days) },
       }),
+    ...REPORT_CACHE,
   });
 }
 
@@ -228,5 +234,6 @@ export function useSatisfaction(days: ResponseTimeWindow = 30) {
         companyId,
         searchParams: { days: String(days) },
       }),
+    ...REPORT_CACHE,
   });
 }

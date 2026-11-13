@@ -35,6 +35,7 @@ export function useLeadSources(enabled = true) {
     queryFn: () =>
       apiFetch<{ data: LeadSource[] }>("/v1/lead-sources", { companyId }),
     enabled,
+    staleTime: 5 * 60_000,
   });
 }
 

@@ -17,6 +17,8 @@ export function useDataExports() {
   return useQuery({
     queryKey: [companyId, "exports"] as const,
     queryFn: () => apiFetch<Page<DataExport>>("/v1/exports", { companyId }),
+    // Download links are signed for an hour, so ten minutes leaves them most of it.
+    staleTime: 10 * 60_000,
     refetchInterval: (query) => {
       const building = query.state.data?.data.some(
         (row) => row.status === "pending" || row.status === "running",

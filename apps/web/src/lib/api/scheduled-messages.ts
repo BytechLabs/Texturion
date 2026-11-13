@@ -138,21 +138,16 @@ export function useScheduleMessage() {
           },
         },
       ),
-    onSuccess: (result) => {
+    onSuccess: () => {
+      // The workspace key prefixes every thread's, so this one call covers both.
       void queryClient.invalidateQueries({
         queryKey: scheduledKeys.all(companyId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: scheduledKeys.thread(
-          companyId,
-          result.scheduled_message.conversation_id,
-        ),
       });
     },
   });
 }
 
-export function useCancelScheduledMessage(conversationId?: string) {
+export function useCancelScheduledMessage() {
   const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
@@ -166,11 +161,6 @@ export function useCancelScheduledMessage(conversationId?: string) {
       void queryClient.invalidateQueries({
         queryKey: scheduledKeys.all(companyId),
       });
-      if (conversationId) {
-        void queryClient.invalidateQueries({
-          queryKey: scheduledKeys.thread(companyId, conversationId),
-        });
-      }
       // Plain confirmation, not a dialog. Cancelling something that has not
       // gone is reversible in the only sense that matters — you can schedule it
       // again — so friction here would be friction for its own sake.

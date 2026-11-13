@@ -12,11 +12,12 @@ import type { Usage } from "./types";
  * (G8, rendered from the #178 `status` contract), the composer cap gate, and
  * the getting-started first-reply check.
  */
-export function useUsage() {
+export function useUsage({ enabled = true }: { enabled?: boolean } = {}) {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: keys.usage(companyId),
     queryFn: () => apiFetch<Usage>("/v1/usage", { companyId }),
+    enabled,
     staleTime: 60_000,
     refetchInterval: 5 * 60_000, // usage has no realtime event; drift gently
   });

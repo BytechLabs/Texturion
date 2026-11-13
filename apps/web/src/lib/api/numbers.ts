@@ -28,6 +28,7 @@ export function useNumbers() {
         "/v1/numbers",
         { companyId },
       ),
+    staleTime: 5 * 60_000,
   });
 }
 

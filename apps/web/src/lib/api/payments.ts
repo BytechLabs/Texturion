@@ -77,13 +77,18 @@ export interface PaymentRequest {
   created_by: string | null;
 }
 
-/** GET /v1/payments/account — refreshed from Stripe on the server. */
-export function usePayoutAccount(enabled = true) {
+/** GET /v1/payments/account: every read is a Stripe call, so it is trusted for ten minutes. */
+export function usePayoutAccount(
+  enabled = true,
+  { refetchOnMount }: { refetchOnMount?: "always" } = {},
+) {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: keys.payments.account(companyId),
     queryFn: () => apiFetch<PayoutAccount>("/v1/payments/account", { companyId }),
     enabled,
+    staleTime: 10 * 60_000,
+    refetchOnMount,
   });
 }
 

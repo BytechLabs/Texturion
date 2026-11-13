@@ -61,7 +61,7 @@ import {
  */
 export function PaymentsCard() {
   const t = useT();
-  const account = usePayoutAccount();
+  const account = usePayoutAccount(true, { refetchOnMount: "always" });
   const onboarding = useStartPayoutOnboarding();
   const dashboard = useStripeDashboardLink();
 

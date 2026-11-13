@@ -53,6 +53,8 @@ import { cn } from "@/lib/utils";
 const DISMISS_KEY_PREFIX = "loonext:getting-started-dismissed:";
 /** #405: its own key — dismissing one card must not hide the other. */
 const MEMBER_DISMISS_KEY_PREFIX = "loonext:member-started-dismissed:";
+/** A first reply stays sent, so once seen it never needs GET /v1/usage again. */
+const REPLIED_KEY_PREFIX = "loonext:getting-started-replied:";
 
 interface StepItem {
   key: string;
@@ -95,18 +97,11 @@ export function GettingStartedCard() {
 function MemberStartedCard() {
   const t = useT();
   const companyId = useCompanyId();
-  const firsts = useMemberFirsts(true);
-
   const [dismissed, setDismissed] = useState<boolean | null>(null);
   useEffect(() => {
-    try {
-      setDismissed(
-        window.localStorage.getItem(MEMBER_DISMISS_KEY_PREFIX + companyId) === "1",
-      );
-    } catch {
-      setDismissed(false);
-    }
+    setDismissed(readFlag(MEMBER_DISMISS_KEY_PREFIX + companyId));
   }, [companyId]);
+  const firsts = useMemberFirsts(dismissed === false);
 
   if (dismissed !== false || !firsts.data) return null;
 
@@ -139,11 +134,7 @@ function MemberStartedCard() {
   if (items.every((item) => item.done)) return null;
 
   function dismiss() {
-    try {
-      window.localStorage.setItem(MEMBER_DISMISS_KEY_PREFIX + companyId, "1");
-    } catch {
-      // Storage blocked — hide for this visit anyway.
-    }
+    writeFlag(MEMBER_DISMISS_KEY_PREFIX + companyId);
     setDismissed(true);
   }
 
@@ -168,30 +159,70 @@ function MemberStartedCard() {
   );
 }
 
+/** Reads this browser's memory before the checklist mounts, so a dismissed card makes no requests. */
 function OwnerStartedCard() {
-  const t = useT();
   const companyId = useCompanyId();
-  const company = useCompany();
-  const conversations = useConversations({});
-  const usage = useUsage();
-  const members = useMembers();
-
-  const [dismissed, setDismissed] = useState<boolean | null>(null);
+  const [remembered, setRemembered] = useState<{
+    companyId: string;
+    dismissed: boolean;
+    replied: boolean;
+  } | null>(null);
   useEffect(() => {
-    try {
-      setDismissed(
-        window.localStorage.getItem(DISMISS_KEY_PREFIX + companyId) === "1",
-      );
-    } catch {
-      setDismissed(false);
-    }
+    setRemembered({
+      companyId,
+      dismissed: readFlag(DISMISS_KEY_PREFIX + companyId),
+      replied: readFlag(REPLIED_KEY_PREFIX + companyId),
+    });
   }, [companyId]);
 
+  // Another workspace's answers never stand in while this one's are read.
   if (
-    dismissed !== false ||
+    remembered === null ||
+    remembered.companyId !== companyId ||
+    remembered.dismissed
+  ) {
+    return null;
+  }
+
+  return (
+    <OwnerChecklist
+      replied={remembered.replied}
+      onReplied={() => {
+        writeFlag(REPLIED_KEY_PREFIX + companyId);
+        setRemembered({ ...remembered, replied: true });
+      }}
+      onDismiss={() => {
+        writeFlag(DISMISS_KEY_PREFIX + companyId);
+        setRemembered({ ...remembered, dismissed: true });
+      }}
+    />
+  );
+}
+
+function OwnerChecklist({
+  replied,
+  onReplied,
+  onDismiss,
+}: {
+  replied: boolean;
+  onReplied: () => void;
+  onDismiss: () => void;
+}) {
+  const t = useT();
+  const company = useCompany();
+  const conversations = useConversations({});
+  const usage = useUsage({ enabled: !replied });
+  const members = useMembers();
+
+  const replyDone = replied || (usage.data?.used_segments ?? 0) > 0;
+  useEffect(() => {
+    if (replyDone && !replied) onReplied();
+  }, [replyDone, replied, onReplied]);
+
+  if (
     !company.data ||
     !conversations.data ||
-    !usage.data ||
+    (!replied && !usage.data) ||
     !members.data
   ) {
     return null;
@@ -212,7 +243,6 @@ function OwnerStartedCard() {
   const inboundDone = conversations.data.pages.some(
     (page) => page.data.length > 0,
   );
-  const replyDone = usage.data.used_segments > 0;
   const teammateDone =
     members.data.data.filter((m) => m.deactivated_at === null).length > 1;
 
@@ -262,22 +292,29 @@ function OwnerStartedCard() {
 
   if (items.every((item) => item.done)) return null;
 
-  function dismiss() {
-    try {
-      window.localStorage.setItem(DISMISS_KEY_PREFIX + companyId, "1");
-    } catch {
-      // Storage blocked — hide for this visit anyway.
-    }
-    setDismissed(true);
-  }
-
   return (
     <ChecklistCard
       title={t("inbox.startedOwnerTitle")}
       items={items}
-      onDismiss={dismiss}
+      onDismiss={onDismiss}
     />
   );
+}
+
+function readFlag(key: string): boolean {
+  try {
+    return window.localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeFlag(key: string) {
+  try {
+    window.localStorage.setItem(key, "1");
+  } catch {
+    // Storage blocked: the answer holds for this visit only.
+  }
 }
 
 /**

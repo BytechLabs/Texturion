@@ -40,7 +40,7 @@ import { cn } from "@/lib/utils";
  */
 export function ScheduledStrip({ conversationId }: { conversationId: string }) {
   const scheduled = useScheduledMessages(conversationId);
-  const cancel = useCancelScheduledMessage(conversationId);
+  const cancel = useCancelScheduledMessage();
 
   const rows = scheduled.data ?? [];
   // No skeleton and no empty state. This is a strip that is usually absent, and

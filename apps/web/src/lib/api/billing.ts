@@ -165,6 +165,7 @@ export function useReferralMoment(enabled: boolean) {
     queryFn: () =>
       apiFetch<ReferralMomentView>("/v1/referrals/moment", { companyId }),
     enabled,
+    staleTime: 10 * 60_000,
   });
 }
 

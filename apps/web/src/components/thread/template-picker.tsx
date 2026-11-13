@@ -60,7 +60,8 @@ export function TemplatePicker({
   // #274: most-used first. Somebody opening this is about to send, and the
   // reply they send twenty times a day should not be wherever its name falls.
   const t = useT();
-  const templates = useTemplates("use");
+  // Mounted closed on every thread, so it reads nothing until it opens.
+  const templates = useTemplates("use", { enabled: open });
   const rows = templates.data?.data ?? [];
   const coarse = usePointerCoarse();
 

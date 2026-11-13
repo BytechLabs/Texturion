@@ -83,6 +83,7 @@ export function useOutstandingQuotes(enabled = true) {
     queryFn: () =>
       apiFetch<{ data: Quote[] }>("/v1/quotes?status=outstanding", { companyId }),
     enabled,
+    staleTime: 5 * 60_000,
   });
 }
 

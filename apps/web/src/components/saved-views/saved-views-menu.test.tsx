@@ -7,15 +7,18 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { rows } = vi.hoisted(() => ({
+const { rows, useSavedViewCounts } = vi.hoisted(() => ({
   rows: { current: [] as { id: string; name: string; shared: boolean; filters: object }[] },
+  useSavedViewCounts: vi.fn<
+    (surface: string, ids: string[], enabled: boolean) => { data: undefined }
+  >(() => ({ data: undefined })),
 }));
 
 vi.mock("@/lib/api/saved-views", () => ({
   useSavedViews: () => ({
     data: { data: rows.current, defaults: { conversations: null, tasks: null } },
   }),
-  useSavedViewCounts: () => ({ data: undefined }),
+  useSavedViewCounts,
   useCreateSavedView: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useUpdateSavedView: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useDeleteSavedView: () => ({ isPending: false, mutateAsync: vi.fn() }),
@@ -30,9 +33,10 @@ import { SavedViewsMenu } from "./saved-views-menu";
 afterEach(cleanup);
 beforeEach(() => {
   rows.current = [];
+  useSavedViewCounts.mockClear();
 });
 
-function open(props: { current?: string; hasFilters?: boolean; onApply?: () => void } = {}) {
+function mountMenu(props: { current?: string; hasFilters?: boolean; onApply?: () => void } = {}) {
   render(
     <SavedViewsMenu
       surface="conversations"
@@ -45,8 +49,15 @@ function open(props: { current?: string; hasFilters?: boolean; onApply?: () => v
       shareNote=""
     />,
   );
+}
+
+function open(props: Parameters<typeof mountMenu>[0] = {}) {
+  mountMenu(props);
   fireEvent.keyDown(screen.getByRole("button"), { key: "ArrowDown" });
 }
+
+/** Whether the latest render asked for the badges. */
+const countsWanted = () => useSavedViewCounts.mock.lastCall?.[2];
 
 describe("#711 SavedViewsMenu", () => {
   it("SV-1: filters that match no view can be saved", () => {
@@ -72,5 +83,36 @@ describe("#711 SavedViewsMenu", () => {
     open({ onApply });
     fireEvent.click(screen.getByRole("menuitem", { name: /Quote sent/ }));
     expect(onApply).toHaveBeenCalledWith({ id: "v1" });
+  });
+
+  it("SV-5: a closed menu nobody is reaching for asks for no badges", () => {
+    rows.current = [{ id: "v1", name: "Quote sent", shared: false, filters: { id: "v1" } }];
+    mountMenu();
+    expect(useSavedViewCounts).toHaveBeenCalled();
+    expect(useSavedViewCounts.mock.calls.every((call) => call[2] === false)).toBe(true);
+  });
+
+  it("SV-6: pointing at the trigger asks for the badges, leaving stops asking", () => {
+    rows.current = [{ id: "v1", name: "Quote sent", shared: false, filters: { id: "v1" } }];
+    mountMenu();
+    const trigger = screen.getByRole("button");
+    fireEvent.pointerEnter(trigger);
+    expect(countsWanted()).toBe(true);
+    fireEvent.pointerLeave(trigger);
+    expect(countsWanted()).toBe(false);
+  });
+
+  it("SV-7: focusing the trigger asks for the badges", () => {
+    rows.current = [{ id: "v1", name: "Quote sent", shared: false, filters: { id: "v1" } }];
+    mountMenu();
+    fireEvent.focus(screen.getByRole("button"));
+    expect(countsWanted()).toBe(true);
+  });
+
+  it("SV-8: an open menu asks for the badges", () => {
+    rows.current = [{ id: "v1", name: "Quote sent", shared: false, filters: { id: "v1" } }];
+    open();
+    expect(screen.getByRole("menuitem", { name: /Quote sent/ })).toBeTruthy();
+    expect(countsWanted()).toBe(true);
   });
 });

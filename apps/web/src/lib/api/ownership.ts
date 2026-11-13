@@ -44,6 +44,7 @@ export function useOwnership() {
   return useQuery({
     queryKey: keys.ownership(companyId),
     queryFn: () => apiFetch<Ownership>("/v1/company/ownership", { companyId }),
+    staleTime: 5 * 60_000,
   });
 }
 

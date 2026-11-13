@@ -48,6 +48,7 @@ export function useSavedViews(surface: SavedViewSurface) {
       apiFetch<SavedViewList>(`/v1/saved-views?surface=${surface}`, {
         companyId,
       }),
+    staleTime: 5 * 60_000,
   });
 }
 

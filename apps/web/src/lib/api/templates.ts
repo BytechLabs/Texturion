@@ -23,7 +23,10 @@ import type { Page, Template } from "./types";
  * one would have a picker open in whatever order the settings page last
  * fetched.
  */
-export function useTemplates(sort: "name" | "use" = "name") {
+export function useTemplates(
+  sort: "name" | "use" = "name",
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: keys.templatesSorted(companyId, sort),
@@ -32,6 +35,8 @@ export function useTemplates(sort: "name" | "use" = "name") {
         sort === "use" ? "/v1/templates?sort=use" : "/v1/templates",
         { companyId },
       ),
+    enabled,
+    staleTime: 5 * 60_000,
   });
 }
 

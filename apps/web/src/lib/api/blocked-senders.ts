@@ -20,6 +20,7 @@ export function useBlockedSenders() {
     queryKey: keys.blockedSenders(companyId),
     queryFn: () =>
       apiFetch<{ data: BlockedSender[] }>("/v1/blocked-senders", { companyId }),
+    staleTime: 5 * 60_000,
   });
 }
 

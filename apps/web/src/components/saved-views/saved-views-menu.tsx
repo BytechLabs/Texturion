@@ -78,7 +78,14 @@ export function SavedViewsMenu({
   const { role } = useActiveCompany();
   const views = useSavedViews(surface);
   const rows = useMemo(() => views.data?.data ?? [], [views.data]);
-  const counts = useSavedViewCounts(surface, rows.map((view) => view.id), rows.length > 0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // The badges sit inside a closed menu, so they are read only while it is pointed at, focused or open.
+  const [reaching, setReaching] = useState(false);
+  const counts = useSavedViewCounts(
+    surface,
+    rows.map((view) => view.id),
+    rows.length > 0 && (menuOpen || reaching),
+  );
   const [saving, setSaving] = useState(false);
   const [managing, setManaging] = useState(false);
   const canShare = role === "owner" || role === "admin";
@@ -88,7 +95,7 @@ export function SavedViewsMenu({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
@@ -97,6 +104,10 @@ export function SavedViewsMenu({
             aria-label={compact ? t("inbox.viewsMenuAria", { current: label }) : undefined}
             title={compact ? label : undefined}
             className={cn("shrink-0 text-muted-foreground", current && "text-app-ink")}
+            onPointerEnter={() => setReaching(true)}
+            onPointerLeave={() => setReaching(false)}
+            onFocus={() => setReaching(true)}
+            onBlur={() => setReaching(false)}
           >
             <Bookmark
               className="size-4"

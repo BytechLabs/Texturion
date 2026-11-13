@@ -16,6 +16,7 @@ export function useTags() {
   return useQuery({
     queryKey: keys.tags(companyId),
     queryFn: () => apiFetch<Page<Tag>>("/v1/tags", { companyId }),
+    staleTime: 5 * 60_000,
   });
 }
 
