@@ -1,5 +1,11 @@
+/**
+ * @vitest-environment happy-dom
+ */
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, cleanup, fireEvent, render as mount } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // #725: the effect note reads company and query context these tests do not mount.
 vi.mock("@/components/settings/setting-choice-note", () => ({ SettingChoiceNote: () => null }));
@@ -71,15 +77,25 @@ function setCallerId(
   company.cnam_submitted_at = submittedAt;
 }
 
-vi.mock("@/lib/api/companies", () => ({
-  useCompany: () => ({
-    isPending: false,
-    isError: false,
-    data: company,
-    refetch: vi.fn(),
-  }),
-  useUpdateCompany: () => ({ isPending: false, mutate: vi.fn() }),
-}));
+const { patchCompany } = vi.hoisted(() => ({ patchCompany: vi.fn() }));
+
+vi.mock("@/lib/api/companies", async () => {
+  const { useMutation } = await import("@tanstack/react-query");
+  return {
+    useCompany: () => ({
+      isPending: false,
+      isError: false,
+      data: company,
+      refetch: vi.fn(),
+    }),
+    // A real mutation: a new object on every render and every state change,
+    // which is what turned the old autosave's unmount flush into a PATCH loop.
+    useUpdateCompany: () =>
+      useMutation({
+        mutationFn: (patch: Record<string, unknown>) => patchCompany(patch),
+      }),
+  };
+});
 vi.mock("@/lib/api/usage", () => ({
   useUsage: () => ({
     isPending: false,
@@ -116,8 +132,15 @@ vi.mock("@/lib/api/voicemail-greetings", async () => {
 
 import CallingSettingsPage from "./page";
 
+function withClient(children: ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
 function render(): string {
-  return renderToStaticMarkup(<CallingSettingsPage />);
+  return renderToStaticMarkup(withClient(<CallingSettingsPage />));
 }
 
 /**
@@ -230,6 +253,56 @@ describe("/settings/missed-calls — #192 text-back settings contract", () => {
     // The other cards keep their explicit saves — only the text-back card
     // moved to autosave.
     expect(html).toContain("Save greeting");
+  });
+});
+
+describe("/settings/missed-calls — the text-back message autosave, mounted", () => {
+  function messagePatches(): unknown[] {
+    return patchCompany.mock.calls
+      .map(([patch]) => patch as Record<string, unknown>)
+      .filter((patch) => "mctb_message" in patch);
+  }
+
+  function typeMessage(text: string) {
+    const view = mount(withClient(<CallingSettingsPage />));
+    const field = view.container.querySelector("#mctb-message");
+    if (!field) throw new Error("the text-back message field is not on screen");
+    fireEvent.change(field, { target: { value: text } });
+    return view;
+  }
+
+  async function wait(ms: number) {
+    await act(() => vi.advanceTimersByTimeAsync(ms));
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    patchCompany.mockReset();
+    patchCompany.mockImplementation(async (patch: Record<string, unknown>) => patch);
+    setTextBack(true, null);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    setTextBack(false, null);
+  });
+
+  it("sends one PATCH for the typed message while the page stays open", async () => {
+    typeMessage("Back in five");
+    await wait(800);
+    await wait(5000);
+    expect(messagePatches()).toEqual([{ mctb_message: "Back in five" }]);
+  });
+
+  it("sends the last edit once when you leave inside the debounce window", async () => {
+    const view = typeMessage("On a job, text me");
+    await wait(300);
+    view.unmount();
+    await wait(0);
+    expect(messagePatches()).toEqual([{ mctb_message: "On a job, text me" }]);
+    await wait(5000);
+    expect(messagePatches()).toEqual([{ mctb_message: "On a job, text me" }]);
   });
 });
 

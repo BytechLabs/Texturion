@@ -12,7 +12,7 @@ import { ChoiceCards } from "@/components/ui/choice-cards";
 import { SettingChoiceNote } from "@/components/settings/setting-choice-note";
 import { CallEffectNote } from "@/components/settings/call-effect-note";
 import { DEFAULT_MCTB_MESSAGE, resolveLocale } from "@loonext/shared";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { AfterHoursCallsCard } from "@/components/settings/after-hours-calls-card";
@@ -40,6 +40,7 @@ import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { previewMissedCallText } from "@/lib/settings/away-preview";
 import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
+import { useDebouncedAutosave } from "@/lib/hooks/use-debounced-autosave";
 
 /**
  * Mirrors the server's spoken default (inbound-ring.ts `defaultGreeting`).
@@ -86,47 +87,28 @@ function TextBackCard({
 }) {
   const t = useT();
   const update = useUpdateCompany();
+  // A separate mutation, so a message save never swallows a failed toggle's onError revert.
+  const updateMessage = useUpdateCompany();
   const [enabled, setEnabled] = useState(company.mctb_enabled);
-  const [message, setMessage] = useState(company.mctb_message ?? "");
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSaved = useRef(company.mctb_message ?? "");
-  // Latest typed value, so the unmount flush below reads the current draft
-  // (the cleanup closure would otherwise capture a stale `message`).
-  const latestMessage = useRef(message);
-  latestMessage.current = message;
+  const messageField = useDebouncedAutosave({
+    value: company.mctb_message ?? "",
+    normalize: (draft) => draft.trim(),
+    save: (next) =>
+      updateMessage.mutateAsync({ mctb_message: next.length > 0 ? next : null }),
+  });
+  const message = messageField.draft;
+  const messageError =
+    messageField.state !== "error"
+      ? null
+      : messageField.error instanceof ApiError
+        ? messageField.error.message
+        : t("appShell.saveFailed");
 
-  // Another admin's toggle flip always reflects; the message refreshes an
-  // IDLE editor only (never clobber in-flight typing — the PATCH echo lands
-  // in the cache mid-keystroke otherwise).
+  // Another admin's toggle flip always reflects.
   useEffect(() => {
     setEnabled(company.mctb_enabled);
   }, [company.mctb_enabled]);
-  useEffect(() => {
-    if (
-      (company.mctb_message ?? "") !== lastSaved.current &&
-      message === lastSaved.current
-    ) {
-      lastSaved.current = company.mctb_message ?? "";
-      setMessage(company.mctb_message ?? "");
-    }
-  }, [company.mctb_message, message]);
-  useEffect(
-    () => () => {
-      if (!timer.current) return;
-      clearTimeout(timer.current);
-      // Flush a pending autosave so navigating away within the debounce window
-      // doesn't silently drop the last edit. Fire-and-forget — the component is
-      // unmounting, so no success/error setState (the PATCH still completes via
-      // the app-level query client).
-      const trimmed = latestMessage.current.trim();
-      if (trimmed !== lastSaved.current) {
-        update.mutate({ mctb_message: trimmed.length > 0 ? trimmed : null });
-      }
-    },
-    [update],
-  );
 
   function toggle(next: boolean) {
     setError(null);
@@ -144,32 +126,6 @@ function TextBackCard({
         },
       },
     );
-  }
-
-  function onChangeMessage(next: string) {
-    setMessage(next);
-    setSaved(false);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      const trimmed = next.trim();
-      if (trimmed === lastSaved.current) return;
-      update.mutate(
-        { mctb_message: trimmed.length > 0 ? trimmed : null },
-        {
-          onSuccess: () => {
-            lastSaved.current = trimmed;
-            setSaved(true);
-            setTimeout(() => setSaved(false), 2000);
-          },
-          onError: (cause) =>
-            setError(
-              cause instanceof ApiError
-                ? cause.message
-                : t("appShell.saveFailed"),
-            ),
-        },
-      );
-    }, 800);
   }
 
   // previewMissedCallText, not previewAwayMessage: the server sends this with
@@ -228,12 +184,15 @@ function TextBackCard({
                   aria-live="polite"
                   className={
                     "text-[11px] text-muted-foreground transition-opacity duration-150 " +
-                    (update.isPending || saved ? "opacity-100" : "opacity-0")
+                    (messageField.state === "saving" ||
+                    messageField.state === "saved"
+                      ? "opacity-100"
+                      : "opacity-0")
                   }
                 >
-                  {update.isPending
+                  {messageField.state === "saving"
                     ? t("common.saving")
-                    : saved
+                    : messageField.state === "saved"
                       ? t("common.saved")
                       : ""}
                 </p>
@@ -245,7 +204,8 @@ function TextBackCard({
                 maxLength={1000}
                 rows={4}
                 placeholder={DEFAULT_MCTB_MESSAGE}
-                onChange={(e) => onChangeMessage(e.target.value)}
+                onChange={(e) => messageField.setDraft(e.target.value)}
+                onBlur={messageField.onBlur}
               />
               <p className="text-xs text-muted-foreground">
                 {t("appShell.mctbMergeHintBefore")}{" "}
@@ -270,9 +230,9 @@ function TextBackCard({
           </>
         )}
 
-        {error && (
+        {(error ?? messageError) && (
           <p role="alert" className="text-sm text-destructive">
-            {error}
+            {error ?? messageError}
           </p>
         )}
         {!canEdit && (

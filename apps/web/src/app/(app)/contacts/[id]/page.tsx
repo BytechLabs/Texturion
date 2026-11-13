@@ -3,7 +3,7 @@
 import { ChevronLeft, Clock, Copy, Plus, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { use, useEffect, useRef, useState } from "react";
+import { use, useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -64,58 +64,49 @@ import { useMembers } from "@/lib/api/team";
 import type { ContactDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
+import {
+  useDebouncedAutosave,
+  type AutosaveState,
+} from "@/lib/hooks/use-debounced-autosave";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { formatTimestamp } from "@/lib/format/time";
 import { NANP_TIMEZONES } from "@loonext/shared";
 
-type SaveState = "idle" | "saving" | "saved" | "error";
-
 /**
  * Auto-saving field (G6: name inline-editable, notes auto-saving). Saves
- * 800ms after the last keystroke; the status line is aria-live so screen
- * readers hear "Saved".
+ * 800ms after the last keystroke, on blur, and when you leave the page; the
+ * status line is aria-live so screen readers hear "Saved".
  */
 function useAutosave(
   contactId: string,
   key: "name" | "address" | "notes" | "email" | "business_name",
-  initial: string,
+  value: string,
 ) {
   const update = useUpdateContact(contactId);
-  const [value, setValue] = useState(initial);
-  const [state, setState] = useState<SaveState>("idle");
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSaved = useRef(initial);
-
-  useEffect(() => {
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, []);
-
-  function onChange(next: string) {
-    setValue(next);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      const trimmed = next.trim();
-      if (trimmed === lastSaved.current.trim()) return;
-      setState("saving");
-      const patch: ContactPatch = {
-        [key]: trimmed === "" ? null : trimmed,
-      };
-      update.mutate(patch, {
-        onSuccess: () => {
-          lastSaved.current = next;
-          setState("saved");
-        },
-        onError: () => setState("error"),
-      });
-    }, 800);
-  }
-
-  return { value, onChange, state };
+  const field = useDebouncedAutosave({
+    value,
+    normalize: (draft) => draft.trim(),
+    save: (next) => {
+      const patch: ContactPatch = { [key]: next === "" ? null : next };
+      return update.mutateAsync(patch);
+    },
+  });
+  return {
+    value: field.draft,
+    onChange: field.setDraft,
+    onBlur: field.onBlur,
+    state: field.state,
+    error: field.error,
+  };
 }
 
-function SaveStatus({ state }: { state: SaveState }) {
+function SaveStatus({
+  state,
+  error,
+}: {
+  state: AutosaveState;
+  error: unknown;
+}) {
   const t = useT();
   return (
     <p aria-live="polite" className="min-h-4 text-xs text-muted-foreground">
@@ -123,7 +114,9 @@ function SaveStatus({ state }: { state: SaveState }) {
       {state === "saved" && t("common.saved")}
       {state === "error" && (
         <span className="text-destructive">
-          {t("appShell.contactSaveFailed")}
+          {error instanceof ApiError
+            ? error.message
+            : t("appShell.contactSaveFailed")}
         </span>
       )}
     </p>
@@ -582,8 +575,9 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                   maxLength={200}
                   placeholder={t("appShell.contactNamePlaceholder")}
                   onChange={(event) => name.onChange(event.target.value)}
+                  onBlur={name.onBlur}
                 />
-                <SaveStatus state={name.state} />
+                <SaveStatus state={name.state} error={name.error} />
               </div>
               {/* #291: directly under the name, because for a property manager
               or a general contractor it IS the name — "Dave" is not a useful
@@ -604,8 +598,12 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                     onChange={(event) =>
                       businessName.onChange(event.target.value)
                     }
+                    onBlur={businessName.onBlur}
                   />
-                  <SaveStatus state={businessName.state} />
+                  <SaveStatus
+                    state={businessName.state}
+                    error={businessName.error}
+                  />
                 </div>
               )}
               {!hidden("address") && (
@@ -620,8 +618,9 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                     placeholder={t("appShell.contactAddressPlaceholder")}
                     autoComplete="off"
                     onChange={(event) => address.onChange(event.target.value)}
+                    onBlur={address.onBlur}
                   />
-                  <SaveStatus state={address.state} />
+                  <SaveStatus state={address.state} error={address.error} />
                   {/* #291: the OTHER addresses, absent until there are any. The
                 field above stays the one-address case, which is most of them —
                 a property manager with forty is the reason this exists, not
@@ -645,8 +644,9 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                     placeholder={t("appShell.contactEmailPlaceholder")}
                     autoComplete="off"
                     onChange={(event) => email.onChange(event.target.value)}
+                    onBlur={email.onBlur}
                   />
-                  <SaveStatus state={email.state} />
+                  <SaveStatus state={email.state} error={email.error} />
                 </div>
               )}
               {!hidden("notes") && (
@@ -661,8 +661,9 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                     rows={4}
                     placeholder={t("appShell.contactNotesPlaceholder")}
                     onChange={(event) => notes.onChange(event.target.value)}
+                    onBlur={notes.onBlur}
                   />
-                  <SaveStatus state={notes.state} />
+                  <SaveStatus state={notes.state} error={notes.error} />
                 </div>
               )}
               {anyHidden && (

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useUpdateContact, type ContactPatch } from "@/lib/api/contacts";
+import { useDebouncedAutosave } from "@/lib/hooks/use-debounced-autosave";
 import { cn } from "@/lib/utils";
 
 /**
@@ -137,75 +138,31 @@ export function AutoSaveNotes({
 }) {
   const t = useT();
   const update = useUpdateContact(contactId);
-  const [draft, setDraft] = useState(value ?? "");
-  const [saved, setSaved] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The "Saved" flash timer — tracked so it's cleared on unmount + before each
-  // new save (a stray fire would setState after unmount or clobber a fresh save).
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSaved = useRef(value ?? "");
-  // Latest draft, so the unmount flush below reads the current text (the
-  // cleanup closure would otherwise capture a stale `draft`).
-  const latestDraft = useRef(draft);
-  latestDraft.current = draft;
-
-  // Server-side changes (another teammate) refresh an idle editor only.
-  useEffect(() => {
-    if ((value ?? "") !== lastSaved.current && draft === lastSaved.current) {
-      lastSaved.current = value ?? "";
-      setDraft(value ?? "");
-    }
-  }, [value, draft]);
-
-  const onChange = (next: string) => {
-    setDraft(next);
-    setSaved(false);
-    if (timer.current) clearTimeout(timer.current);
-    if (savedTimer.current) clearTimeout(savedTimer.current);
-    timer.current = setTimeout(() => {
-      const trimmed = next.trim() === "" ? null : next;
-      if ((trimmed ?? "") === lastSaved.current) return;
-      update.mutate(
-        { notes: trimmed },
-        {
-          onSuccess: () => {
-            lastSaved.current = trimmed ?? "";
-            setSaved(true);
-            if (savedTimer.current) clearTimeout(savedTimer.current);
-            savedTimer.current = setTimeout(() => setSaved(false), 2000);
-          },
-          onError: (error) =>
-            toast.error(
-              error instanceof ApiError
-                ? error.message
-                : t("contacts.saveNotesFailed"),
-            ),
-        },
-      );
-    }, 800);
-  };
-  useEffect(
-    () => () => {
-      if (savedTimer.current) clearTimeout(savedTimer.current);
-      if (!timer.current) return;
-      clearTimeout(timer.current);
-      // Flush a pending debounced save so closing the panel within the 800ms
-      // window doesn't silently drop the last note edit (fire-and-forget — the
-      // component is unmounting, so no success/error setState).
-      const trimmed =
-        latestDraft.current.trim() === "" ? null : latestDraft.current;
-      if ((trimmed ?? "") !== lastSaved.current) {
-        update.mutate({ notes: trimmed });
-      }
-    },
-    [update],
-  );
+  const notes = useDebouncedAutosave({
+    value: value ?? "",
+    // Notes keep their spacing; only an all-blank note is cleared.
+    normalize: (draft) => (draft.trim() === "" ? "" : draft),
+    // The toast also reports a save sent as the panel closes.
+    save: (next) =>
+      update
+        .mutateAsync({ notes: next === "" ? null : next })
+        .catch((error: unknown) => {
+          toast.error(
+            error instanceof ApiError
+              ? error.message
+              : t("contacts.saveNotesFailed"),
+          );
+          throw error;
+        }),
+  });
+  const showStatus = notes.state === "saving" || notes.state === "saved";
 
   return (
     <div className="space-y-1">
       <textarea
-        value={draft}
-        onChange={(e) => onChange(e.target.value)}
+        value={notes.draft}
+        onChange={(e) => notes.setDraft(e.target.value)}
+        onBlur={notes.onBlur}
         rows={3}
         placeholder={t("contacts.notesPlaceholder")}
         aria-label={t("contacts.notesLabel")}
@@ -218,10 +175,14 @@ export function AutoSaveNotes({
         aria-live="polite"
         className={cn(
           "h-4 text-right text-[11px] text-muted-foreground transition-opacity duration-150",
-          update.isPending || saved ? "opacity-100" : "opacity-0",
+          showStatus ? "opacity-100" : "opacity-0",
         )}
       >
-        {update.isPending ? t("common.saving") : saved ? t("common.saved") : ""}
+        {notes.state === "saving"
+          ? t("common.saving")
+          : notes.state === "saved"
+            ? t("common.saved")
+            : ""}
       </p>
     </div>
   );
