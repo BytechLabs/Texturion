@@ -798,6 +798,35 @@ describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
     );
   });
 
+  it("logs no error for a call that already ended, and still logs a hang-up Telnyx failed", async () => {
+    const hangup = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        /\/v2\/calls\/[^/]+\/actions\/hangup$/.test(url.pathname),
+      (call) =>
+        call.url.pathname.includes("cust-ccid-ended")
+          ? Response.json(
+              { errors: [{ code: "90018", title: "Call has already ended" }] },
+              { status: 422 },
+            )
+          : Response.json({ errors: [{ code: "10007", title: "Unexpected error" }] }, { status: 500 }),
+    );
+    const unstamped = unstampedQueryStub([
+      { call_session_id: "sess-ended", customer_call_control_id: "cust-ccid-ended", direction: "outbound" },
+      { call_session_id: "sess-fault", customer_call_control_id: "cust-ccid-fault", direction: "outbound" },
+    ]);
+    stubFetch(answeredQueryStub().route, unstamped.route, hangup.route, ...tailStubs().map((s) => s.route));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    logged.mockClear();
+
+    await sweepStaleCalls(env);
+
+    expect(hangup.calls).toHaveLength(2);
+    expect(logged.mock.calls.map((args) => String(args[0]))).toEqual([
+      "runaway call hangup failed for cust-ccid-fault:",
+    ]);
+  });
+
   it("hangs up an INBOUND leg WE answered into voicemail — answering to record never stamps answered_at (#581)", async () => {
     // The leg is live and billing on Telnyx: telnyx-answer-vm answered it to
     // play the greeting and record, and the recording webhooks that would have

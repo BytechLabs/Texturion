@@ -37,7 +37,7 @@ import { getDb } from "../db";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
 import type { Env } from "../env";
 import { notifyMissedCall } from "../notifications/missed-call";
-import { telnyxRequest } from "../telnyx/client";
+import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
 import {
   BROWSER_INBOUND_STATE,
   BROWSER_MEMBER_STATE,
@@ -714,6 +714,8 @@ async function telnyxRejectLeg(
       body: {},
     });
   } catch (cause) {
+    // The leg already ended, which is what the hang-up was for.
+    if (isDefiniteRefusal(cause)) return;
     console.error(
       `outbound leg reject hangup failed for ${callControlId}:`,
       cause instanceof Error ? cause.message : String(cause),

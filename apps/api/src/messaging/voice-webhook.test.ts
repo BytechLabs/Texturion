@@ -706,6 +706,33 @@ describe("handleCallEvent — terminal → text-back", () => {
     expect(hangup.calls[0].url.pathname).toContain("unauth-pstn-leg");
   });
 
+  it.each([
+    ["the leg already ended", 422, "90018", 0],
+    ["Telnyx failed the hang-up", 500, "10007", 1],
+  ])("refusing a leg when %s logs %s→%s as %i error(s)", async (_when, status, code, errors) => {
+    const hangup = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        /\/v2\/calls\/[^/]+\/actions\/hangup$/.test(url.pathname),
+      () => Response.json({ errors: [{ code, title: "refused" }] }, { status }),
+    );
+    serve(hangup);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await handleCallEvent(
+      env,
+      event("call.initiated", {
+        call_control_id: "unauth-pstn-leg",
+        direction: "outgoing",
+        to: "+19005551234",
+        client_state: undefined,
+      }),
+    );
+
+    expect(hangup.calls).toHaveLength(1);
+    expect(logged).toHaveBeenCalledTimes(errors);
+  });
+
   it("SECURITY: an OUTGOING leg to a Telnyx credential URI is NOT hung up (our own member/consult/transfer legs)", async () => {
     // Legs WE place (member ring, consult, transfer) dial a credential URI
     // (sip:<username>@sip.telnyx.com, non-numeric user) - allowed. Only PSTN

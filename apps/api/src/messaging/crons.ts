@@ -35,7 +35,7 @@ import { reportSegmentUsage, reportVoiceSeconds } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { captureException } from "../observability/capture";
-import { telnyxRequest } from "../telnyx/client";
+import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
 import { processResendEvent } from "../webhooks/resend";
 import { processStripeEvent } from "../webhooks/stripe";
 import { dispatchTelnyxEvent } from "./dispatch";
@@ -615,6 +615,7 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
     } catch (cause) {
       // Dead leg / already gone (4xx) is the normal case — the stale-outcome
       // RPC below finalizes its row.
+      if (isDefiniteRefusal(cause)) continue;
       console.error(
         `runaway call hangup failed for ${ccid}:`,
         cause instanceof Error ? cause.message : String(cause),
