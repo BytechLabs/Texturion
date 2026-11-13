@@ -645,6 +645,8 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
   it("404s for another company's conversation and malformed ids", async () => {
     const sb = memberStub();
     sb.on("GET", "/rest/v1/conversations", () => []);
+    // The thread's other reads start with the lookup, before it is known to be missing.
+    sb.on("GET", /^\/rest\/v1\/(messages|conversation_snoozes|conversation_member_prefs|alert_escalations)$/, () => []);
     stubFetch(jwksRoute(auth), sb.route);
     for (const id of [CONV_ID, "not-a-uuid"]) {
       const res = await apiRequest(
