@@ -244,6 +244,31 @@ describe("exception capture (D146)", () => {
     ).toBeNull();
   });
 
+  it.each([
+    "ResizeObserver loop completed with undelivered notifications.",
+    "ResizeObserver loop limit exceeded",
+  ])("drops the browser's notice %s", async (value) => {
+    const { scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
+    expect(
+      scrubExceptionEvent({
+        uuid: "u",
+        event: "$exception",
+        properties: { $exception_list: [{ type: "Error", value }] },
+      } as never),
+    ).toBeNull();
+  });
+
+  it("keeps an error that only mentions ResizeObserver", async () => {
+    const { scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
+    expect(
+      scrubExceptionEvent({
+        uuid: "u",
+        event: "$exception",
+        properties: { $exception_list: [{ type: "TypeError", value: "ResizeObserver is not defined" }] },
+      } as never),
+    ).not.toBeNull();
+  });
+
   it("passes every other event through untouched", async () => {
     const { scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
     const pageview = { uuid: "u", event: "$pageview", properties: { $pathname: "/a" } };

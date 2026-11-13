@@ -51,23 +51,26 @@ export function sanitizeEventProperties(
 
 /**
  * `before_send` for `$exception` (D146, D8): drop a bare network failure,
- * which is the visitor's connectivity rather than a bug, and run the message,
- * the stack and everything around them through the scrubber, and say which
- * deployment it came from and, unless the caller did, that it came from the web app. Every other event passes untouched;
+ * which is the visitor's connectivity rather than a bug, and the browser's
+ * ResizeObserver loop notice, which only says some resize callbacks ran a
+ * frame later. Run the message, the stack and everything around them through
+ * the scrubber, and say which deployment it came from and, unless the caller
+ * did, that it came from the web app. Every other event passes untouched;
  * `sanitize_properties` has already seen it.
  */
 export function scrubExceptionEvent(event: CaptureResult | null): CaptureResult | null {
   if (event === null || event.event !== "$exception") return event;
   const list: unknown = event.properties.$exception_list;
-  const networkFailure =
+  const notABug =
     Array.isArray(list) &&
     list.some(
       (entry: { type?: unknown; value?: unknown }) =>
-        entry.type === "TypeError" &&
         typeof entry.value === "string" &&
-        /failed to fetch|load failed|networkerror|network request failed/i.test(entry.value),
+        ((entry.type === "TypeError" &&
+          /failed to fetch|load failed|networkerror|network request failed/i.test(entry.value)) ||
+          /^ResizeObserver loop (completed with undelivered notifications|limit exceeded)/.test(entry.value)),
     );
-  if (networkFailure) return null;
+  if (notABug) return null;
   return {
     ...event,
     properties: {
