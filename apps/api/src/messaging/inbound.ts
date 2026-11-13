@@ -49,6 +49,7 @@ import {
   effectiveEmergencyKeywords,
   isEmergencyKeyword,
   isFrenchHelpKeyword,
+  normaliseKeyword,
   START_KEYWORDS,
   STOP_KEYWORDS,
 } from "./keywords";
@@ -756,7 +757,7 @@ async function handleOptOutKeywords(
     recordEvent: boolean;
   },
 ): Promise<boolean> {
-  const keyword = args.body.trim().toUpperCase();
+  const keyword = normaliseKeyword(args.body);
 
   if (STOP_KEYWORDS.has(keyword)) {
     const { error } = await db.from("opt_outs").upsert(
@@ -777,7 +778,8 @@ async function handleOptOutKeywords(
       conversation_id: args.conversationId,
       actor_user_id: null, // system
       type: "opted_out",
-      payload: { source: "stop_keyword", keyword },
+      // The customer's exact words, because "Stop." matched only after normalising.
+      payload: { source: "stop_keyword", keyword, body: args.body },
     });
     if (eventError) {
       throw new Error(`opted_out event insert failed: ${eventError.message}`);

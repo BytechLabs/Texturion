@@ -1248,3 +1248,170 @@ describe("handleInboundMessage — #243 the workspace's own systems get told", (
     await expect(handleInboundMessage(env, inboundEvent({}))).resolves.toBeUndefined();
   });
 });
+
+describe("handleInboundMessage — a keyword with punctuation is still the keyword", () => {
+  // 2026-07-01 03:00Z is 23:00 on a Tuesday in Toronto, after the hours below.
+  const AFTER_HOURS = new Date("2026-07-01T03:00:00.000Z");
+  const WEEKDAY = { open: "08:00", close: "17:00" };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function keywordStubs(revokedRows: { id: string }[] = []) {
+    return {
+      optOutUpsert: stubRoute(restMatch(env, "POST", "opt_outs"), () =>
+        Response.json([], { status: 201 }),
+      ),
+      optOutRevoke: stubRoute(restMatch(env, "PATCH", "opt_outs"), () => revokedRows),
+      events: stubRoute(restMatch(env, "POST", "conversation_events"), () =>
+        Response.json([], { status: 201 }),
+      ),
+      reminderLookup: stubRoute(restMatch(env, "GET", "scheduled_messages"), () => []),
+    };
+  }
+
+  /** An away reply that WOULD go out: enabled, after hours, an active line. */
+  function awayLiveStubs() {
+    const company = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "companies",
+        (url) => url.searchParams.get("select")?.includes("away_enabled") ?? false,
+      ),
+      () => [
+        {
+          timezone: "America/Toronto",
+          business_hours: { mon: WEEKDAY, tue: WEEKDAY, wed: WEEKDAY, thu: WEEKDAY, fri: WEEKDAY },
+          away_enabled: true,
+          away_message: "We're closed, back at 8.",
+          name: "Ace Plumbing",
+        },
+      ],
+    );
+    const conversation = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "conversations",
+        (url) => url.searchParams.get("select")?.includes("phone_numbers(number_e164") ?? false,
+      ),
+      () => [
+        {
+          id: CONVERSATION_ID,
+          contact_phone_e164: "+16135551000",
+          phone_numbers: { number_e164: "+16135550100", status: "active" },
+          contacts: { name: "Dana Whitfield", locale: null },
+        },
+      ],
+    );
+    const gatesCompany = stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "companies",
+        (url) => url.searchParams.get("select")?.includes("subscription_status") ?? false,
+      ),
+      () => [
+        {
+          id: COMPANY_ID,
+          name: "Ace Plumbing",
+          country: "CA",
+          us_texting_enabled: true,
+          subscription_status: "active",
+        },
+      ],
+    );
+    const registrations = stubRoute(restMatch(env, "GET", "messaging_registrations"), () => []);
+    const gateOptOuts = stubRoute(restMatch(env, "GET", "opt_outs"), () => []);
+    const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), () => ({ skipped: "throttled" }));
+    return { claim, stubs: [company, conversation, gatesCompany, registrations, gateOptOuts, claim] };
+  }
+
+  it("opts out on 'Stop.' and sends no away reply after hours", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER_HOURS);
+    const { optOutUpsert, events } = keywordStubs();
+    const away = awayLiveStubs();
+    serve(numberStub(), threadStub({}), optOutUpsert, events, ...away.stubs);
+
+    await handleInboundMessage(env, inboundEvent({ text: "Stop." }));
+
+    expect(optOutUpsert.calls, "'Stop.' wrote no opt-out").toHaveLength(1);
+    expect(optOutUpsert.calls[0].body).toMatchObject({
+      company_id: COMPANY_ID,
+      phone_e164: "+16135551000",
+      source: "stop_keyword",
+      revoked_at: null,
+    });
+    expect(events.calls).toHaveLength(1);
+    expect(events.calls[0].body).toMatchObject({
+      type: "opted_out",
+      payload: { source: "stop_keyword", keyword: "STOP", body: "Stop." },
+    });
+    expect(away.claim.calls, "the away reply answered an opt-out").toHaveLength(0);
+  });
+
+  it("does send the away reply to an ordinary text at the same hour", async () => {
+    // Without this the assertion above could pass on an away setup that never fires.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER_HOURS);
+    const { optOutUpsert, events } = keywordStubs();
+    const away = awayLiveStubs();
+    serve(numberStub(), threadStub({}), optOutUpsert, events, ...away.stubs);
+
+    await handleInboundMessage(env, inboundEvent({ text: "Are you open tomorrow?" }));
+
+    expect(optOutUpsert.calls).toHaveLength(0);
+    expect(away.claim.calls).toHaveLength(1);
+  });
+
+  it("revokes an active opt-out on 'Yes!' and keeps it from the confirmation parser", async () => {
+    const { optOutUpsert, optOutRevoke, events, reminderLookup } = keywordStubs([
+      { id: "0f0f0f0f-0000-4000-8000-000000000001" },
+    ]);
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      optOutUpsert,
+      optOutRevoke,
+      events,
+      reminderLookup,
+    );
+
+    await handleInboundMessage(env, inboundEvent({ text: "Yes!" }));
+
+    expect(optOutRevoke.calls, "'Yes!' did not lift the opt-out").toHaveLength(1);
+    const query = optOutRevoke.calls[0].url.searchParams;
+    expect(query.get("phone_e164")).toBe("eq.+16135551000");
+    expect(query.get("revoked_at")).toBe("is.null");
+    expect(events.calls).toHaveLength(1);
+    expect(events.calls[0].body).toMatchObject({ type: "opt_out_revoked" });
+    expect(optOutUpsert.calls).toHaveLength(0);
+    expect(reminderLookup.calls, "an opt-in was read as a confirmation").toHaveLength(0);
+  });
+
+  it("treats 'Yes!' with no opt-out on file as an ordinary message", async () => {
+    const { optOutUpsert, optOutRevoke, events, reminderLookup } = keywordStubs([]);
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      optOutUpsert,
+      optOutRevoke,
+      events,
+      reminderLookup,
+    );
+
+    await handleInboundMessage(env, inboundEvent({ text: "Yes!" }));
+
+    // Asked to lift only an active opt-out, found none, and created nothing.
+    expect(optOutRevoke.calls).toHaveLength(1);
+    expect(optOutRevoke.calls[0].url.searchParams.get("revoked_at")).toBe("is.null");
+    expect(optOutUpsert.calls).toHaveLength(0);
+    expect(events.calls).toHaveLength(0);
+    expect(reminderLookup.calls, "the confirmation parser never saw it").toHaveLength(1);
+  });
+});

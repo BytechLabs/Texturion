@@ -14,12 +14,14 @@ import { describe, expect, it } from "vitest";
 import { CARRIER_REPLY_KEYWORDS } from "@loonext/shared";
 
 import {
+  FRENCH_HELP_KEYWORDS,
   HELP_KEYWORDS,
   START_KEYWORDS,
   STOP_KEYWORDS,
   isCarrierKeyword,
   isFrenchHelpKeyword,
   isEmergencyKeyword,
+  normaliseKeyword,
   suppressesAutoReply,
 } from "./keywords";
 
@@ -104,7 +106,7 @@ describe("#228 — a French opt-out is honoured, and nothing behind us catches i
   });
 
   it("does not swallow a sentence that merely contains the word", () => {
-    // Matching is exact on the trimmed body everywhere this set is used. A
+    // Matching is exact on the normalised body everywhere this set is used. A
     // customer writing about an "arret de bus" is not withdrawing consent, and
     // silencing them would be the expensive direction of this change.
     expect(STOP_KEYWORDS.has("ARRET DE BUS")).toBe(false);
@@ -125,10 +127,58 @@ describe("#228 — a French opt-out is honoured, and nothing behind us catches i
     // receive both that and the help reply.
     expect(suppressesAutoReply("AIDE")).toBe(true);
 
-    // Exact match on the trimmed body, like every other keyword here. A
+    // Exact match on the normalised body, like every other keyword here. A
     // customer writing "j'ai besoin d'aide avec la porte" is describing a job.
     expect(isFrenchHelpKeyword("j'ai besoin d'aide")).toBe(false);
     expect(suppressesAutoReply("j'ai besoin d'aide avec la porte")).toBe(false);
+  });
+});
+
+describe("a keyword typed the way people type it is still the keyword", () => {
+  const SETS = {
+    stop: STOP_KEYWORDS,
+    start: START_KEYWORDS,
+    help: HELP_KEYWORDS,
+    frenchHelp: FRENCH_HELP_KEYWORDS,
+  } as const;
+
+  function setsHolding(body: string): string[] {
+    const keyword = normaliseKeyword(body);
+    return Object.entries(SETS)
+      .filter(([, set]) => set.has(keyword))
+      .map(([name]) => name);
+  }
+
+  it.each([
+    ["STOP.", "stop"],
+    ["Stop!", "stop"],
+    ["STOP!!!", "stop"],
+    ['"STOP"', "stop"],
+    ["stop 🙏", "stop"],
+    [" stop\n", "stop"],
+    ["Arret.", "stop"],
+    ["ARRÊT!", "stop"],
+    // The accent typed as a separate combining mark, which NFKC composes.
+    ["arrêt", "stop"],
+    ["Start.", "start"],
+    ["aide?", "frenchHelp"],
+  ])("reads %j as a %s keyword and suppresses the auto-reply", (body, set) => {
+    expect(setsHolding(body)).toEqual([set]);
+    expect(suppressesAutoReply(body)).toBe(true);
+  });
+
+  it.each(["Stop. Never mind", "please stop", "stop by tomorrow", "...", ""])(
+    "leaves %j an ordinary message",
+    (body) => {
+      expect(setsHolding(body)).toEqual([]);
+      expect(isCarrierKeyword(body)).toBe(false);
+      expect(isFrenchHelpKeyword(body)).toBe(false);
+      expect(suppressesAutoReply(body)).toBe(false);
+    },
+  );
+
+  it("keeps the inner text and collapses its whitespace", () => {
+    expect(normaliseKeyword("  Stop.  Never\n mind!! ")).toBe("STOP. NEVER MIND");
   });
 });
 

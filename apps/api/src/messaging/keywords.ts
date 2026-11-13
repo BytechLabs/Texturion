@@ -11,8 +11,8 @@
  * this file: for every other keyword the network is a backstop behind us, and
  * for that one there is nothing behind us. See the note beside it.
  *
- * Matching is a case-insensitive exact match of the TRIMMED body — no Telnyx
- * payload flag is relied on.
+ * Matching is an exact match of the body after {@link normaliseKeyword}; no
+ * Telnyx payload flag is relied on.
  */
 export const STOP_KEYWORDS = new Set([
   "STOP",
@@ -76,9 +76,21 @@ export const HELP_KEYWORDS = new Set(["HELP", "INFO"]);
  */
 export const FRENCH_HELP_KEYWORDS = new Set(["AIDE"]);
 
+/**
+ * The body in the form the keyword sets are written in: "Stop.", "STOP!!!" and
+ * "stop 🙏" all become "STOP", while "Stop. Never mind" keeps its inner text.
+ */
+export function normaliseKeyword(body: string): string {
+  return body
+    .normalize("NFKC")
+    .toUpperCase()
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")
+    .replace(/\s+/g, " ");
+}
+
 /** True when the inbound body is exactly a French request for help. */
 export function isFrenchHelpKeyword(body: string): boolean {
-  return FRENCH_HELP_KEYWORDS.has(body.trim().toUpperCase());
+  return FRENCH_HELP_KEYWORDS.has(normaliseKeyword(body));
 }
 
 /**
@@ -101,7 +113,7 @@ export {
  * after-hours branch must not treat one as a normal "first inbound").
  */
 export function isCarrierKeyword(body: string): boolean {
-  const keyword = body.trim().toUpperCase();
+  const keyword = normaliseKeyword(body);
   return (
     STOP_KEYWORDS.has(keyword) ||
     START_KEYWORDS.has(keyword) ||
