@@ -76,6 +76,10 @@ beforeEach(() => {
     const url = String(input instanceof Request ? input.url : input);
     calls.push(new URL(url).pathname);
     if (url.endsWith("/auth/v1/.well-known/jwks.json")) return Response.json({ keys: [publicJwk] });
+    // A 4xx: the auth library retries a 5xx refresh with backoff, past the test timeout.
+    if (new URL(url).pathname === "/auth/v1/token") {
+      return Response.json({ error: "invalid_grant", error_description: "Invalid Refresh Token" }, { status: 400 });
+    }
     return new Response("unexpected request", { status: 500 });
   });
 });
