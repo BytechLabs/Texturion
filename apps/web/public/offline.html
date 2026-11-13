@@ -114,5 +114,27 @@
       <p>Your conversations will be right here once you're back online.</p>
       <button type="button" onclick="location.reload()">Try again</button>
     </main>
+    <script>
+      // Comes back on its own: reload as soon as the app answers again.
+      (function () {
+        // Opened at its own address, a reload would only bring this page back.
+        if (location.pathname === "/offline.html") return;
+        var probing = false;
+        function probe() {
+          if (probing) return;
+          probing = true;
+          fetch("/app-version.json", { cache: "no-store" })
+            .then(function (response) {
+              if (response.ok) location.reload();
+            })
+            .catch(function () {})
+            .then(function () {
+              probing = false;
+            });
+        }
+        window.addEventListener("online", probe);
+        setInterval(probe, 3000);
+      })();
+    </script>
   </body>
 </html>

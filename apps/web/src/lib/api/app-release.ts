@@ -21,6 +21,18 @@ import { useQuery } from "@tanstack/react-query";
 /** This build, injected from package.json at build time (next.config.ts). */
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? null;
 
+/** A web build as /app-version.json describes it: null where it is not known. */
+export interface WebBuild {
+  version: string | null;
+  build: string | null;
+}
+
+/** This tab's build. The id is the one Next stamps on its pages (next.config.ts). */
+export const THIS_BUILD: WebBuild = {
+  version: APP_VERSION,
+  build: process.env.NEXT_PUBLIC_WEB_BUILD_ID || null,
+};
+
 /**
  * Fetch the policy. Never throws — a rejected promise here would surface as an
  * error state that some consumer eventually renders, and the only correct
@@ -68,47 +80,63 @@ export function useAppRelease() {
 }
 
 /**
- * #710: the version the web app is serving now, from `/app-version.json`.
+ * #710: the build the web app is serving now, from `/app-version.json`.
  * Same failure rule as the policy: anything unreadable is null, and null never
  * asks for an update.
  */
-async function fetchDeployedVersion(): Promise<string | null> {
+async function fetchDeployedBuild(): Promise<WebBuild | null> {
   try {
     const response = await fetch("/app-version.json", { cache: "no-store" });
     if (!response.ok) return null;
-    const body = (await response.json()) as { version?: unknown };
-    return typeof body.version === "string" ? body.version : null;
+    const body = (await response.json()) as { version?: unknown; build?: unknown };
+    const version = typeof body.version === "string" ? body.version : null;
+    const build = typeof body.build === "string" && body.build !== "" ? body.build : null;
+    return version === null && build === null ? null : { version, build };
   } catch {
     return null;
   }
 }
 
-/** Every ten minutes and on returning to the tab: a deploy should not wait an hour to be noticed. */
+/**
+ * Every ten minutes, hidden or not, and on returning to the tab: a hidden tab
+ * is the one that can reload without interrupting anybody.
+ */
 export function useDeployedVersion() {
   return useQuery({
     queryKey: ["app-version", "web"],
-    queryFn: fetchDeployedVersion,
+    queryFn: fetchDeployedBuild,
     staleTime: 10 * 60 * 1000,
     refetchInterval: 10 * 60 * 1000,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
     retry: false,
   });
 }
 
+/**
+ * Whether a different web build is live: compared by build id when both sides
+ * have one, so a redeploy with no version bump counts, otherwise by version.
+ */
+export function isSuperseded(current: WebBuild, deployed: WebBuild | null): boolean {
+  if (!deployed) return false;
+  if (current.build && deployed.build) return current.build !== deployed.build;
+  return isOlderThan(current.version, deployed.version);
+}
+
 /** The policy's demand, or a soft reload when a newer deploy is live (#710); never a block for a deploy. */
 export function requirementFor(
-  current: string | null,
+  current: WebBuild,
   policy: AppReleasePolicy | null,
-  deployed: string | null,
+  deployed: WebBuild | null,
 ): UpdateRequirement {
-  const fromPolicy = updateRequirement(current, policy);
+  const fromPolicy = updateRequirement(current.version, policy);
   if (fromPolicy !== "none") return fromPolicy;
-  return isOlderThan(current, deployed) ? "soft" : "none";
+  return isSuperseded(current, deployed) ? "soft" : "none";
 }
 
 /** What this build should do about itself: "none" | "soft" | "block". */
 export function useUpdateRequirement(): UpdateRequirement {
   const { data } = useAppRelease();
   const { data: deployed } = useDeployedVersion();
-  return requirementFor(APP_VERSION, data ?? null, deployed ?? null);
+  return requirementFor(THIS_BUILD, data ?? null, deployed ?? null);
 }

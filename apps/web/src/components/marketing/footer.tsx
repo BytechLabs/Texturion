@@ -36,6 +36,8 @@ type FooterCopy = ReturnType<typeof footerCopy>;
 interface FooterLinkItem {
   label: string;
   href: string;
+  // False for a page that must be fetched on click: the router keeps a prefetch for 30 minutes.
+  prefetch?: false;
 }
 
 /* Deck §F column inventories, verbatim order. */
@@ -95,7 +97,7 @@ const COMPANY_AND_LEGAL = (copy: FooterCopy): FooterLinkItem[] => [
   { label: copy.deleteData, href: LIVE_ROUTES.deleteMyData },
   { label: copy.guarantee, href: LIVE_ROUTES.refunds },
   { label: copy.security, href: LIVE_ROUTES.security },
-  { label: copy.status, href: LIVE_ROUTES.status },
+  { label: copy.status, href: LIVE_ROUTES.status, prefetch: false },
   { label: copy.contact, href: LIVE_ROUTES.contact },
 ];
 
@@ -142,7 +144,11 @@ function LinkList({
         const href = twin?.locale === "fr-CA" ? twin.path : link.href;
         return (
           <li key={`${link.label}-${href}`}>
-            <Link href={href} className="frf-link font-body-mkt text-sm">
+            <Link
+              href={href}
+              prefetch={link.prefetch}
+              className="frf-link font-body-mkt text-sm"
+            >
               {link.label}
             </Link>
           </li>

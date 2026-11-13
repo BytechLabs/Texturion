@@ -7,10 +7,13 @@ import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
 import {
   APP_VERSION,
+  isSuperseded,
+  THIS_BUILD,
   useAppRelease,
   useDeployedVersion,
   useUpdateRequirement,
 } from "@/lib/api/app-release";
+import { useReloadWhenStale } from "@/lib/app/use-reload-when-stale";
 
 /**
  * #339 — the two things we can say about an old build, and they are not the
@@ -35,7 +38,7 @@ import {
  */
 
 /**
- * Dismissed per RECOMMENDED VERSION, per browser session.
+ * Dismissed per OFFERED VERSION (or build id), per browser session.
  *
  * Keyed on the version rather than a single flag so a click somebody made last
  * week cannot swallow the next release's notice. Exported for its own test:
@@ -51,8 +54,11 @@ export function UpdatePrompt() {
   const { data: policy } = useAppRelease();
   const { data: deployed } = useDeployedVersion();
   // The version being offered: the policy's, or a newer deploy (#710).
-  const offered = policy?.recommended_version ?? deployed ?? null;
+  const offered =
+    policy?.recommended_version ?? deployed?.build ?? deployed?.version ?? null;
   const [dismissed, setDismissed] = useState(false);
+  // While the tab is visible the card below is all that happens.
+  useReloadWhenStale(isSuperseded(THIS_BUILD, deployed ?? null));
 
   // sessionStorage is unavailable during SSR, so the hydrate runs client-side.
   useEffect(() => {

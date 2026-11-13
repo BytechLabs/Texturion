@@ -52,7 +52,11 @@ const UNCACHEABLE_PREFIX_GROUP = `(?:${UNCACHEABLE_TOKEN_PREFIXES.join("|")})`;
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: APP_VERSION,
+    // The update check compares this with /app-version.json.
+    NEXT_PUBLIC_WEB_BUILD_ID: process.env.WEB_BUILD_ID || "",
   },
+  // ship.yml hashes what the web build reads, so an unchanged bundle keeps its id and open tabs navigate in place.
+  generateBuildId: async () => process.env.WEB_BUILD_ID || null,
   // D146: maps for PostHog to unminify browser errors with. Only the deploy
   // workflow asks, and it uploads and deletes them before anything is served.
   productionBrowserSourceMaps: process.env.UPLOAD_SOURCE_MAPS === "1",
@@ -129,6 +133,8 @@ const nextConfig: NextConfig = {
     // longer fits Cloudflare's 10 MB compressed limit (D141). The web Worker
     // size check in checks.yml fails the build if it is turned back on.
     inlineCss: false,
+    // App pages are data-free client shells, so only static shells are reused (30 min).
+    staleTimes: { dynamic: 0, static: 1800 },
   },
   // Security response headers on every route (D8 defense in depth). The list
   // + the proof that headers() survives the OpenNext/Workers adapter live in

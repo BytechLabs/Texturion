@@ -10,8 +10,8 @@
  *                           tag (#265 — a Web Push that displays nothing
  *                           costs the subscription its userVisibleOnly
  *                           budget, and eventually the subscription itself).
- *   3. notificationclick -> focus an open Loonext tab on the deep-linked
- *                           thread, or open one.
+ *   3. notificationclick -> focus an open Loonext tab and route it to the
+ *                           deep link in place, or open one.
  *   4. offline           -> precached app-shell fallback (offline.html) for
  *                           navigations that can't reach the network. No other
  *                           caching: the app is realtime, staleness is worse
@@ -20,9 +20,16 @@
 "use strict";
 
 /** Bump when the precache list or offline.html changes. */
-const SHELL_CACHE = "loonext-shell-v3";
+const SHELL_CACHE = "loonext-shell-v4";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png", "/favicon.svg"];
+
+/** Pages outside the signed-in layout, where no in-app router answers. */
+const NO_ROUTER_PATHS = ["/login", "/onboarding"];
+/** How long a tab's router gets to confirm it took the route. */
+const ROUTE_REPLY_MS = 1500;
+/** Waits before each retry of a failed page load, while a network comes back. */
+const NAVIGATION_RETRY_MS = [1000, 2000, 3000];
 
 /**
  * Map a notification deep link onto an app path on THIS origin.
@@ -256,29 +263,68 @@ self.addEventListener("push", (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-/** Focus a tab already on the thread, else refocus + navigate, else open. */
+/** A window's path and query, or null when its url does not parse. */
+function clientLocation(client) {
+  try {
+    const url = new URL(client.url);
+    return { pathname: url.pathname, path: url.pathname + url.search };
+  } catch {
+    return null;
+  }
+}
+
+function hasInAppRouter(pathname) {
+  return !NO_ROUTER_PATHS.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+/**
+ * Ask an open tab to route itself (notification-router.tsx), which keeps the
+ * page and any call ringing in it. True only when its router confirmed in time.
+ */
+function routeInTab(client, path) {
+  if (
+    typeof MessageChannel !== "function" ||
+    typeof client.postMessage !== "function"
+  ) {
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const finish = (routed) => {
+      clearTimeout(timer);
+      channel.port1.close();
+      resolve(routed);
+    };
+    const timer = setTimeout(() => finish(false), ROUTE_REPLY_MS);
+    channel.port1.onmessage = (event) =>
+      finish(Boolean(event.data && event.data.ok === true));
+    client.postMessage({ type: "loonext:navigate", path }, [channel.port2]);
+  });
+}
+
+/** Focus a tab already there, else focus one and route it, else open one. */
 async function openThread(path) {
   const windows = await self.clients.matchAll({
     type: "window",
     includeUncontrolled: true,
   });
   for (const client of windows) {
-    let clientPath = null;
-    try {
-      clientPath = new URL(client.url).pathname;
-    } catch {
-      clientPath = null;
-    }
-    if (clientPath === path && "focus" in client) {
+    const at = clientLocation(client);
+    if (at && at.path === path && "focus" in client) {
       return client.focus();
     }
   }
-  for (const client of windows) {
-    if ("navigate" in client && "focus" in client) {
-      await client.focus();
-      return client.navigate(path);
-    }
+  const client = windows.find((candidate) => "focus" in candidate);
+  if (!client) return self.clients.openWindow(path);
+  // Focus is only allowed while the click is still being handled.
+  await client.focus();
+  const at = clientLocation(client);
+  if (at && hasInAppRouter(at.pathname) && (await routeInTab(client, path))) {
+    return client;
   }
+  if ("navigate" in client) return client.navigate(path);
   return self.clients.openWindow(path);
 }
 
@@ -364,27 +410,49 @@ self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(handlePushSubscriptionChange(event));
 });
 
+function offlineResponse() {
+  return caches
+    .open(SHELL_CACHE)
+    .then((cache) => cache.match(OFFLINE_URL))
+    .then(
+      (cached) =>
+        cached ??
+        new Response("You're offline. Loonext needs a connection.", {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        }),
+    );
+}
+
+/**
+ * The preloaded page, else the network, retried while a connection comes back
+ * after sleep or a Wi-Fi switch, else the offline page. Only a GET is retried,
+ * because sending a form twice is not safe.
+ */
+async function navigationResponse(event) {
+  try {
+    const preloaded = await event.preloadResponse;
+    if (preloaded) return preloaded;
+  } catch {
+    // A failed preload is the same network failure the retries below cover.
+  }
+  const waits = event.request.method === "GET" ? [0, ...NAVIGATION_RETRY_MS] : [0];
+  for (const wait of waits) {
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    try {
+      return await fetch(event.request);
+    } catch {
+      // Still offline; the next wait, or the offline page.
+    }
+  }
+  return offlineResponse();
+}
+
 self.addEventListener("fetch", (event) => {
   // App-shell fallback for page loads only. Everything else (API calls,
   // realtime, assets) goes straight to the network untouched.
   if (event.request.mode !== "navigate") return;
-  event.respondWith(
-    Promise.resolve(event.preloadResponse)
-      .then((preloaded) => preloaded ?? fetch(event.request))
-      .catch(() =>
-        caches
-          .open(SHELL_CACHE)
-          .then((cache) => cache.match(OFFLINE_URL))
-          .then(
-            (cached) =>
-              cached ??
-              new Response("You're offline. Loonext needs a connection.", {
-                status: 503,
-                headers: { "Content-Type": "text/plain; charset=utf-8" },
-              }),
-          ),
-      ),
-  );
+  event.respondWith(navigationResponse(event));
 });
 
 // Test seam: the pure helpers above are asserted directly by the unit tests,

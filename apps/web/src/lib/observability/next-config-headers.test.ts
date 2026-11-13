@@ -120,6 +120,30 @@ describe("#559 the link stays on the host that minted it", () => {
   });
 });
 
+describe("an open tab survives a deploy", () => {
+  it("takes the build id from WEB_BUILD_ID and inlines the same id for the update check", () => {
+    // ship.yml computes WEB_BUILD_ID. A random id per build made every open
+    // tab's next navigation a full reload, even after an api-only release.
+    expect(CONFIG).toContain(
+      "generateBuildId: async () => process.env.WEB_BUILD_ID || null",
+    );
+    expect(CONFIG).toContain(
+      'NEXT_PUBLIC_WEB_BUILD_ID: process.env.WEB_BUILD_ID || ""',
+    );
+  });
+
+  it("keeps prefetched shells for 30 minutes and reuses no dynamic data", () => {
+    // `dynamic` is written out so Next never reads it as missing.
+    expect(CONFIG).toMatch(/staleTimes: \{ dynamic: 0, static: 1800 \}/);
+  });
+
+  it("caches the manifest for a day", () => {
+    expect(CONFIG).toMatch(
+      /source: "\/manifest\.webmanifest",\n\s*headers: \[\{ key: "Cache-Control", value: "public, max-age=86400" \}\]/,
+    );
+  });
+});
+
 describe("#559 the two token lists agree", () => {
   it("scrubs the token of every link it declares uncacheable", () => {
     // A link that can be revoked is a link whose token is a secret. Two lists

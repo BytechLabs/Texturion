@@ -193,12 +193,36 @@ jobs:
             --var GIT_SHA:"${{ github.sha }}" \
             --var DEPLOY_ENV:production
 
+      # Next's build id: a hash of the tracked files minus trees the web build never reads, the NEXT_PUBLIC_*
+      # values, UPLOAD_SOURCE_MAPS and Node. Excluding by list means a missed input rotates it too often, not too rarely.
+      - name: Compute the web build id
+        shell: bash
+        env:
+          UPLOAD_SOURCE_MAPS: ${{ secrets.POSTHOG_CLI_TOKEN != '' && secrets.POSTHOG_PROJECT_ID != '' && '1' || '' }}
+        run: |
+          id=$(
+            {
+              git ls-tree -r HEAD | awk -F '\t' '
+                $2 ~ /^(apps\/(api|android|ios)|supabase|tools)\// { next }
+                $2 ~ /(^|\/)CHANGELOG\.md$/ { next }
+                $2 == ".release-please-manifest.json" { next }
+                { print }'
+              for name in $(compgen -e | grep '^NEXT_PUBLIC_' | LC_ALL=C sort); do
+                printf '%s=%s\n' "$name" "${!name}"
+              done
+              printf 'UPLOAD_SOURCE_MAPS=%s\n' "$UPLOAD_SOURCE_MAPS"
+              node --version
+            } | sha256sum | cut -d' ' -f1
+          )
+          echo "UPLOAD_SOURCE_MAPS=$UPLOAD_SOURCE_MAPS" >> "$GITHUB_ENV"
+          echo "WEB_BUILD_ID=$id" >> "$GITHUB_ENV"
+          echo "Web build id: $id"
+
       # D146: source maps let PostHog show a browser error's real stack. They
       # are injected with chunk ids and uploaded between the build and the
       # deploy, then deleted, so the Worker serves the injected chunks and no map.
+      # UPLOAD_SOURCE_MAPS comes from the step above, which hashes it into the build id.
       - name: Build web Worker (OpenNext)
-        env:
-          UPLOAD_SOURCE_MAPS: ${{ secrets.POSTHOG_CLI_TOKEN != '' && secrets.POSTHOG_PROJECT_ID != '' && '1' || '' }}
         run: pnpm --filter @loonext/web exec opennextjs-cloudflare build
 
       - name: Upload web source maps to PostHog
@@ -286,8 +310,9 @@ jobs:
         run: node scripts/ops/verify-public-routes.mjs
 
       # Cache headers on the files the assets layer serves before the Worker
-      # (public/_headers, wrangler.jsonc), and the public token pages, which
-      # answered 500 for every link a customer opened while every gate passed.
+      # (public/_headers, wrangler.jsonc), the public token pages, which
+      # answered 500 for every link a customer opened while every gate passed,
+      # and the build id this run computed (WEB_BUILD_ID, from the env above).
       - name: Verify the web Worker's caching and link pages
         run: node scripts/ops/verify-app-edge.mjs
 

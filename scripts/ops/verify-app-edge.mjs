@@ -13,9 +13,10 @@
  *
  * Credential-free: unauthenticated GETs of URLs any visitor can open.
  *
- * It also asks whether the API Worker runs beside its database.
+ * It also asks whether the API Worker runs beside its database, and whether
+ * the pages carry the Next build id ship.yml computed (WEB_BUILD_ID).
  *
- * Usage: node scripts/ops/verify-app-edge.mjs [--app https://app.loonext.com] [--site https://loonext.com] [--api https://api.loonext.com]
+ * Usage: node scripts/ops/verify-app-edge.mjs [--app https://app.loonext.com] [--site https://loonext.com] [--api https://api.loonext.com] [--build-id <id>]
  */
 const args = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -24,6 +25,7 @@ const arg = (name, fallback) => {
 };
 const APP = arg("--app", "https://app.loonext.com");
 const SITE = arg("--site", "https://loonext.com");
+const BUILD_ID = arg("--build-id", process.env.WEB_BUILD_ID ?? "");
 const HEADERS = { "user-agent": "loonext-release-check" };
 
 const failures = [];
@@ -47,6 +49,20 @@ function check(ok, pass, fail) {
 const login = await get(`${APP}/login`);
 if (login) {
   const html = await login.text();
+
+  // Next writes the build id into the page's RSC payload as "b". Inside the
+  // HTML that payload is a JS string, so the quotes may be escaped.
+  if (BUILD_ID) {
+    const escaped = BUILD_ID.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    check(
+      new RegExp(`\\\\?"b\\\\?":\\\\?"${escaped}\\\\?"`).test(html),
+      `the login page carries build id ${BUILD_ID}`,
+      `${APP}/login does not carry "b":"${BUILD_ID}", so generateBuildId in next.config.ts was not used and every deploy still resets open tabs`,
+    );
+  } else {
+    console.log("skip build id: WEB_BUILD_ID is not set and no --build-id was given");
+  }
+
   const chunk = /\/_next\/static\/chunks\/[^"'\s]+\.js/.exec(html)?.[0];
   if (!chunk) {
     failures.push(`${APP}/login names no /_next/static/chunks/*.js file, so the cache rule cannot be checked`);

@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { createContext, runInContext } from "node:vm";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const SW_SOURCE = readFileSync(
   new URL("../../../public/sw.js", import.meta.url),
@@ -17,10 +17,17 @@ const SW_SOURCE = readFileSync(
 
 const ORIGIN = "https://app.loonext.com";
 
+/** The worker's timers, looked up per call so vi.useFakeTimers reaches them. */
+const WORKER_TIMERS = {
+  setTimeout: (callback: () => void, ms: number) => setTimeout(callback, ms),
+  clearTimeout: (id: ReturnType<typeof setTimeout>) => clearTimeout(id),
+};
+
 interface WindowClientStub {
   url: string;
   focus?: ReturnType<typeof vi.fn>;
   navigate?: ReturnType<typeof vi.fn>;
+  postMessage?: ReturnType<typeof vi.fn>;
 }
 
 /** A displayed notification the harness can hand back from getNotifications. */
@@ -32,6 +39,7 @@ interface NotificationStub {
 function loadServiceWorker(
   clients: WindowClientStub[] = [],
   notifications: NotificationStub[] = [],
+  { messageChannel = true }: { messageChannel?: boolean } = {},
 ) {
   const listeners = new Map<string, (event: unknown) => void>();
   const showNotification = vi.fn(() => Promise.resolve());
@@ -72,6 +80,8 @@ function loadServiceWorker(
     self,
     console,
     URL,
+    ...WORKER_TIMERS,
+    ...(messageChannel ? { MessageChannel } : {}),
     Response: class {},
     caches: {
       open: vi.fn(() =>
@@ -462,7 +472,7 @@ describe("notificationclick listener", () => {
     expect(sw.openWindow).not.toHaveBeenCalled();
   });
 
-  it("refocuses an open tab and navigates it to the thread", async () => {
+  it("falls back to navigating a tab it cannot message", async () => {
     const elsewhere = {
       url: `${ORIGIN}/contacts`,
       focus: vi.fn(() => Promise.resolve()),
@@ -474,6 +484,102 @@ describe("notificationclick listener", () => {
     expect(elsewhere.focus).toHaveBeenCalled();
     expect(elsewhere.navigate).toHaveBeenCalledWith("/inbox/t-2");
     expect(sw.openWindow).not.toHaveBeenCalled();
+  });
+
+  /** A tab whose in-app router answers the worker's message, or stays silent. */
+  function appTab(url: string, answers: boolean) {
+    return {
+      url,
+      focus: vi.fn(() => Promise.resolve()),
+      navigate: vi.fn(() => Promise.resolve()),
+      postMessage: vi.fn((_message: unknown, ports: MessagePort[]) => {
+        if (answers) ports[0]?.postMessage({ ok: true });
+      }),
+    };
+  }
+
+  it("focuses an open tab first, then routes it in place when its router answers", async () => {
+    // A full navigate would reload the app and hang up a call ringing in it.
+    const tab = appTab(`${ORIGIN}/contacts`, true);
+    const sw = loadServiceWorker([tab]);
+    await dispatch(sw.listeners, "notificationclick", clickEvent("/inbox/t-2"));
+
+    expect(tab.postMessage).toHaveBeenCalledWith(
+      { type: "loonext:navigate", path: "/inbox/t-2" },
+      [expect.anything()],
+    );
+    expect(tab.focus.mock.invocationCallOrder[0]).toBeLessThan(
+      tab.postMessage.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(tab.navigate).not.toHaveBeenCalled();
+    expect(sw.openWindow).not.toHaveBeenCalled();
+  });
+
+  describe("with no answer", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("navigates the tab after 1.5 s", async () => {
+      vi.useFakeTimers();
+      const tab = appTab(`${ORIGIN}/contacts`, false);
+      const sw = loadServiceWorker([tab]);
+      const clicked = dispatch(
+        sw.listeners,
+        "notificationclick",
+        clickEvent("/inbox/t-2"),
+      );
+
+      await vi.advanceTimersByTimeAsync(1499);
+      expect(tab.postMessage).toHaveBeenCalledOnce();
+      expect(tab.navigate).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      await clicked;
+      expect(tab.navigate).toHaveBeenCalledWith("/inbox/t-2");
+    });
+  });
+
+  it("does not wait on a tab with no in-app router, like the sign-in page", async () => {
+    const tab = appTab(`${ORIGIN}/login`, true);
+    const sw = loadServiceWorker([tab]);
+    await dispatch(sw.listeners, "notificationclick", clickEvent("/inbox/t-2"));
+
+    expect(tab.postMessage).not.toHaveBeenCalled();
+    expect(tab.navigate).toHaveBeenCalledWith("/inbox/t-2");
+  });
+
+  it("navigates without asking when the worker has no MessageChannel", async () => {
+    const tab = appTab(`${ORIGIN}/contacts`, true);
+    const sw = loadServiceWorker([tab], [], { messageChannel: false });
+    await dispatch(sw.listeners, "notificationclick", clickEvent("/inbox/t-2"));
+
+    expect(tab.postMessage).not.toHaveBeenCalled();
+    expect(tab.navigate).toHaveBeenCalledWith("/inbox/t-2");
+  });
+
+  it("counts the query, so a ring for another call is routed rather than only focused", async () => {
+    const onCalls = appTab(`${ORIGIN}/calls`, true);
+    const sw = loadServiceWorker([onCalls]);
+    await dispatch(
+      sw.listeners,
+      "notificationclick",
+      clickEvent("/calls?call=sess-A"),
+    );
+    expect(onCalls.postMessage).toHaveBeenCalledWith(
+      { type: "loonext:navigate", path: "/calls?call=sess-A" },
+      [expect.anything()],
+    );
+
+    const onThatCall = appTab(`${ORIGIN}/calls?call=sess-A`, true);
+    const again = loadServiceWorker([onThatCall]);
+    await dispatch(
+      again.listeners,
+      "notificationclick",
+      clickEvent("/calls?call=sess-A"),
+    );
+    expect(onThatCall.focus).toHaveBeenCalled();
+    expect(onThatCall.postMessage).not.toHaveBeenCalled();
+    expect(onThatCall.navigate).not.toHaveBeenCalled();
   });
 
   it("opens a new window when no tab exists", async () => {
@@ -633,6 +739,100 @@ describe("offline fallback wiring", () => {
     expect(sandbox.caches.delete).toHaveBeenCalledWith("loonext-shell-v2");
   });
 
+  describe("a page load while the network comes back", () => {
+    const OFFLINE_PAGE = { offline: true };
+    const PAGE = { page: true };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** Evaluates sw.js with this fetch and returns a page-load dispatcher. */
+    function navigationWorker(fetch: ReturnType<typeof vi.fn>) {
+      const listeners = new Map<string, (event: unknown) => void>();
+      const cache = { match: vi.fn(() => Promise.resolve(OFFLINE_PAGE)) };
+      const sandbox = {
+        self: {
+          addEventListener: (type: string, listener: (event: unknown) => void) =>
+            listeners.set(type, listener),
+          location: { origin: ORIGIN },
+          registration: {},
+          clients: { claim: vi.fn() },
+          skipWaiting: vi.fn(() => Promise.resolve()),
+        },
+        console,
+        URL,
+        ...WORKER_TIMERS,
+        Response: class {},
+        caches: {
+          open: vi.fn(() => Promise.resolve(cache)),
+          keys: vi.fn(() => Promise.resolve([])),
+          delete: vi.fn(() => Promise.resolve(true)),
+        },
+        fetch,
+      };
+      createContext(sandbox);
+      runInContext(SW_SOURCE, sandbox);
+      return (method: string, preloadResponse?: Promise<unknown>) => {
+        let responded: Promise<unknown> | null = null;
+        listeners.get("fetch")?.({
+          request: { mode: "navigate", method, url: `${ORIGIN}/inbox` },
+          preloadResponse,
+          respondWith: (value: Promise<unknown>) => {
+            responded = value;
+          },
+        });
+        if (!responded) throw new Error("the page load was not answered");
+        return responded as Promise<unknown>;
+      };
+    }
+
+    it("retries after 1, 2 and 3 s before serving the offline page", async () => {
+      vi.useFakeTimers();
+      const fetch = vi.fn(() => Promise.reject(new Error("offline")));
+      const response = navigationWorker(fetch)("GET");
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(fetch).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(fetch).toHaveBeenCalledTimes(4);
+      await expect(response).resolves.toBe(OFFLINE_PAGE);
+    });
+
+    it("serves the page as soon as a retry gets through", async () => {
+      vi.useFakeTimers();
+      const fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("offline"))
+        .mockResolvedValue(PAGE);
+      const response = navigationWorker(fetch)("GET");
+
+      await vi.advanceTimersByTimeAsync(1000);
+      await expect(response).resolves.toBe(PAGE);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("goes to the network when the preload itself failed", async () => {
+      const fetch = vi.fn(() => Promise.resolve(PAGE));
+      const response = navigationWorker(fetch)(
+        "GET",
+        Promise.reject(new Error("preload failed")),
+      );
+      await expect(response).resolves.toBe(PAGE);
+      expect(fetch).toHaveBeenCalledOnce();
+    });
+
+    it("never sends a form post twice", async () => {
+      const fetch = vi.fn(() => Promise.reject(new Error("offline")));
+      await expect(navigationWorker(fetch)("POST")).resolves.toBe(OFFLINE_PAGE);
+      expect(fetch).toHaveBeenCalledOnce();
+    });
+  });
+
   it("never intercepts non-navigation requests (API, realtime, assets)", () => {
     const sw = loadServiceWorker();
     const respondWith = vi.fn();
@@ -643,6 +843,81 @@ describe("offline fallback wiring", () => {
       respondWith,
     });
     expect(respondWith).not.toHaveBeenCalled();
+  });
+});
+
+describe("offline.html", () => {
+  const OFFLINE_HTML = readFileSync(
+    new URL("../../../public/offline.html", import.meta.url),
+    "utf8",
+  );
+
+  /** Runs the page's own script against a stubbed window. */
+  function loadOfflinePage(fetch: ReturnType<typeof vi.fn>, pathname = "/inbox") {
+    const script = /<script>([\s\S]*?)<\/script>/.exec(OFFLINE_HTML)?.[1];
+    if (!script) throw new Error("offline.html has no script");
+    const listeners = new Map<string, () => void>();
+    const intervals: { callback: () => void; ms: number }[] = [];
+    const reload = vi.fn();
+    const sandbox = {
+      window: {
+        addEventListener: (type: string, listener: () => void) =>
+          listeners.set(type, listener),
+      },
+      location: { pathname, reload },
+      fetch,
+      setInterval: (callback: () => void, ms: number) => intervals.push({ callback, ms }),
+    };
+    createContext(sandbox);
+    runInContext(script, sandbox);
+    return { listeners, intervals, reload };
+  }
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("asks the app every 3 s and reloads once it answers", async () => {
+    const fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({ ok: true });
+    const page = loadOfflinePage(fetch);
+    expect(page.intervals.map((interval) => interval.ms)).toEqual([3000]);
+
+    page.intervals[0]?.callback();
+    await settle();
+    expect(page.reload).not.toHaveBeenCalled();
+
+    page.intervals[0]?.callback();
+    await settle();
+    expect(page.reload).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledWith("/app-version.json", { cache: "no-store" });
+  });
+
+  it("asks at once when the browser says it is back online", async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: true });
+    const page = loadOfflinePage(fetch);
+    page.listeners.get("online")?.();
+    await settle();
+    expect(page.reload).toHaveBeenCalledOnce();
+  });
+
+  it("stays put while the app still answers with an error", async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: false });
+    const page = loadOfflinePage(fetch);
+    page.intervals[0]?.callback();
+    await settle();
+    expect(page.reload).not.toHaveBeenCalled();
+  });
+
+  it("never reloads itself when opened at its own address", async () => {
+    // A reload there only brings the offline page back, every 3 s forever.
+    const fetch = vi.fn().mockResolvedValue({ ok: true });
+    const page = loadOfflinePage(fetch, "/offline.html");
+    page.listeners.get("online")?.();
+    for (const interval of page.intervals) interval.callback();
+    await settle();
+    expect(page.reload).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
