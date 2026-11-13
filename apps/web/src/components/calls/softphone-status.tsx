@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils";
 export function SoftphoneStatus({ className }: { className?: string }) {
   const t = useT();
   const softphone = useSoftphone();
+  // A member who cannot call from this workspace has no phone to report on.
+  if (softphone?.entitled === false) return null;
   const ready = softphone?.ready ?? false;
   // `error` is cleared the moment registration succeeds, so this can only be
   // set while the phone is genuinely down.

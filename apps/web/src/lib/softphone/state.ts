@@ -102,6 +102,8 @@ export const INITIAL_SOFTPHONE_STATE: SoftphoneState = {
 export type SoftphoneAction =
   | { type: "ready" }
   | { type: "disconnected" }
+  /** The phone is starting over for another workspace: not ready, no error yet. */
+  | { type: "registration_reset" }
   | { type: "error"; message: string }
   | {
       type: "placing";
@@ -185,6 +187,10 @@ export function softphoneReducer(
       // The socket dropped — the phone can't ring until it re-registers. Recovery
       // (visibility/online/backoff) flips this back to ready.
       return state.ready ? { ...state, ready: false } : state;
+    case "registration_reset":
+      return state.ready || state.error
+        ? { ...state, ready: false, error: null }
+        : state;
     case "error":
       return { ...state, error: action.message };
     case "placing": {

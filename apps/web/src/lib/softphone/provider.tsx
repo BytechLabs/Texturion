@@ -7,7 +7,8 @@
  * hold-and-answer). Mounted once from the app shell.
  *
  * SSR-safe + lazy: the ~65KB SDK is imported dynamically (never at module
- * load, never on the server). Registration is EAGER on mount — an open app
+ * load, never on the server). Registration is EAGER once the app has loaded, for
+ * members who may call from this workspace: an open app
  * is a phone that can RING, and registering is also what creates this
  * member's credential (what makes the ring engine dial them at all). A
  * registration failure is silent: texting is unaffected; the Call button
@@ -19,16 +20,20 @@
  * imperative SDK glue, verified on a real device (mic + WebRTC can't run in
  * the screenshot harness).
  */
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useReducer,
   useRef,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
+
+import { roleHasCapability } from "@loonext/shared";
 
 import { useT, type Translate } from "@/i18n/provider";
 import {
@@ -37,9 +42,10 @@ import {
   useWebrtcToken,
 } from "@/lib/api/calls";
 import { ApiError } from "@/lib/api/error";
-import { useCompanyId } from "@/lib/company/provider";
+import { useActiveCompany } from "@/lib/company/provider";
 
 import { emitRingBeacon } from "./beacons";
+import { setLiveBrowserCall } from "./live-call";
 import {
   INITIAL_SOFTPHONE_STATE,
   isTerminalSdkState,
@@ -120,6 +126,20 @@ const REGISTRATION_FAILED_KEY = "shell.registrationFailed" as const;
  *  timed out, so no INVITE is in flight. The normal INVITE arrives in ~1–3s. */
 const PLACEMENT_TIMEOUT_MS = 48_000;
 
+/** The app's own requests must be quiet this long before the phone registers. */
+const REGISTER_QUIET_MS = 400;
+/** The longest registration waits after mount, so a tab never quiet still rings. */
+const REGISTER_CEILING_MS = 5_000;
+/** How long a placed call waits for registration before giving up without a dial. */
+const READY_WAIT_MS = 10_000;
+
+/** Token refusals that only a change of role, workspace or subscription lifts. */
+const LASTING_REFUSALS: ReadonlySet<string> = new Set([
+  "forbidden",
+  "subscription_inactive",
+  "conflict",
+]);
+
 /** A microphone-permission failure carrying a member-facing, actionable
  *  message (distinguished from an ApiError in the call catch blocks). */
 /**
@@ -166,10 +186,12 @@ async function acquireMicOrThrow(t: Translate): Promise<void> {
 /** Raise an OS notification for a ringing inbound call so a member whose app tab
  *  is backgrounded still notices it. Best-effort: silently no-ops where
  *  Notifications are unsupported or not granted (we never prompt here — the Web
- *  Push flow owns permission). Clicking it focuses the app. */
+ *  Push flow owns permission). Clicking it focuses the app. Tagged by the
+ *  server session, so every tab ringing for one call shares one notification. */
 function showRingNotification(
   notes: Map<string, Notification>,
   id: string,
+  session: string | null,
   name: string,
   number: string,
   t: Translate,
@@ -183,7 +205,7 @@ function showRingNotification(
   try {
     const note = new Notification(t("shell.incomingCall"), {
       body: number && number !== name ? `${name} · ${number}` : name,
-      tag: `call-${id}`, // collapse re-fires for the same call
+      tag: `call-${session ?? id}`,
     });
     note.onclick = () => {
       try {
@@ -212,6 +234,8 @@ function closeRingNotification(notes: Map<string, Notification>, id: string): vo
 }
 
 interface SoftphoneContextValue extends SoftphoneState {
+  /** False when this member cannot call from this workspace: no phone, no status. */
+  entitled: boolean;
   /** The active call's info (audio flowing), if any. */
   activeCall: CallInfo | null;
   /** Place a call from the business number. The destination comes from EXACTLY
@@ -251,19 +275,37 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     INITIAL_SOFTPHONE_STATE,
   );
   const clientRef = useRef<TelnyxClient | null>(null);
+  // The workspace the current client's token was minted for.
+  const clientCompanyRef = useRef<string | null>(null);
   const callsRef = useRef<Map<string, TelnyxCall>>(new Map());
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // The call whose remote stream the audio element is playing.
+  const attachedCallIdRef = useRef<string | null>(null);
   const connectingRef = useRef<Promise<TelnyxClient> | null>(null);
+  const queryClient = useQueryClient();
 
-  const authorize = useAuthorizeBrowserCall();
-  const mintToken = useWebrtcToken();
-  const resolveSession = useResolveLiveSession();
-  const resolveRef = useRef(resolveSession);
-  resolveRef.current = resolveSession;
+  // The mutate functions are stable; the result objects around them are not.
+  const { mutateAsync: authorize } = useAuthorizeBrowserCall();
+  const { mutateAsync: mintToken } = useWebrtcToken();
+  const { mutateAsync: resolveLeg } = useResolveLiveSession();
+  const resolveRef = useRef(resolveLeg);
+  resolveRef.current = resolveLeg;
   // Read by the SDK handlers, which are captured once in ensureClient.
-  const companyId = useCompanyId();
+  const { companyId, role, membership } = useActiveCompany();
   const companyRef = useRef(companyId);
   companyRef.current = companyId;
+  // The token route refuses members who cannot send and inactive subscriptions.
+  const entitled =
+    roleHasCapability(role, "conversations.send") &&
+    membership.subscription_status === "active";
+  const entitledRef = useRef(entitled);
+  entitledRef.current = entitled;
+  const accessRef = useRef("");
+  accessRef.current = `${companyId}:${role}:${membership.subscription_status}`;
+  // The access a lasting token refusal was given for; retries stay off while it matches.
+  const refusedAccessRef = useRef<string | null>(null);
+  // Placed calls waiting for the phone to register.
+  const readyWaitersRef = useRef<Set<() => void>>(new Set());
   // D142 ring beacons: the server session of each genuine inbound ring still
   // unanswered, by SDK call id. The ring leg's own SDK session is not the
   // server's, so this is the X-Loonext-Session header the INVITE carried.
@@ -287,6 +329,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // Holds the latest recovery scheduler so the SDK event handlers (captured
   // once inside ensureClient) can reach it without a callback dependency cycle.
   const scheduleRecoverRef = useRef<(() => void) | null>(null);
+  const rebuildClientRef = useRef<(() => void) | null>(null);
   // #213: outbound placements awaiting their server-dialed placer (op) INVITE,
   // keyed by S (the call_session_id from POST /calls/browser). The op INVITE
   // arrives as an *inbound* SDK call carrying X-Loonext-Session=S; we correlate
@@ -335,6 +378,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   const attachActiveAudio = useCallback((call: TelnyxCall) => {
     if (call.remoteStream && audioRef.current) {
       audioRef.current.srcObject = call.remoteStream;
+      attachedCallIdRef.current = call.id;
       void audioRef.current.play().catch(() => {
         /* autoplay policy — the answer/place gesture covers it */
       });
@@ -371,7 +415,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         // left to address, and dispatching would resurrect a dead chip.
         if (!callsRef.current.has(callId)) return;
         try {
-          const resolved = await resolveRef.current.mutateAsync(legCcid);
+          const resolved = await resolveRef.current(legCcid);
           dispatch({
             type: "session_known",
             id: callId,
@@ -414,17 +458,34 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     if (connectingRef.current) return connectingRef.current;
 
     connectingRef.current = (async () => {
-      const { token } = await mintToken.mutateAsync();
-      const { TelnyxRTC } = await import("@telnyx/webrtc");
+      const mintedFor = companyRef.current;
+      const access = accessRef.current;
+      const [{ token }, { TelnyxRTC }] = await Promise.all([
+        mintToken().catch((cause: unknown) => {
+          if (cause instanceof ApiError && LASTING_REFUSALS.has(cause.code)) {
+            refusedAccessRef.current = access;
+          }
+          throw cause;
+        }),
+        import("@telnyx/webrtc"),
+      ]);
+      refusedAccessRef.current = null;
       const client = new TelnyxRTC({
         login_token: token,
       }) as unknown as TelnyxClient;
 
+      // Events from a client already replaced or dropped must not move the state.
       client.on("telnyx.ready", () => {
+        if (clientRef.current !== client) return;
         readyRef.current = true;
+        // Registered for a workspace being left: the switch replaces it.
+        if (mintedFor !== companyRef.current) return;
         dispatch({ type: "ready" });
+        for (const resolve of readyWaitersRef.current) resolve();
+        readyWaitersRef.current.clear();
       });
       client.on("telnyx.error", () => {
+        if (clientRef.current !== client) return;
         readyRef.current = false;
         dispatch({
           type: "error",
@@ -438,6 +499,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       // The SDK auto-reconnects with backoff; if it exhausts, only a rebuild
       // brings the phone back. Mark down + let the recovery watchdog decide.
       client.on("telnyx.socket.close", () => {
+        if (clientRef.current !== client) return;
         readyRef.current = false;
         dispatch({ type: "disconnected" });
         scheduleRecoverRef.current?.();
@@ -530,6 +592,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             showRingNotification(
               ringNotesRef.current,
               call.id,
+              opSession,
               name,
               number,
               t,
@@ -591,25 +654,41 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           callsRef.current.delete(call.id);
           ringSessionsRef.current.delete(call.id);
           placementSdkIdsRef.current.delete(call.id); // #213 cleanup
-          // A recovery may have been deferred while this call held the client
-          // (#138). Now that the line may be idle, re-arm the watchdog so a
-          // genuinely down socket still gets rebuilt once no call is left.
-          if (!readyRef.current && !hasLiveCall()) {
-            scheduleRecoverRef.current?.();
+          const legCcid = call.telnyxIDs?.telnyxCallControlId;
+          if (legCcid) resolvedRef.current.delete(legCcid);
+          if (attachedCallIdRef.current === call.id) {
+            attachedCallIdRef.current = null;
+            if (audioRef.current) audioRef.current.srcObject = null;
+          }
+          // Finish a switch or recovery deferred while this call held the client (#138).
+          if (!hasLiveCall()) {
+            if (clientCompanyRef.current !== companyRef.current) {
+              rebuildClientRef.current?.();
+            } else if (!readyRef.current) {
+              scheduleRecoverRef.current?.();
+            }
           }
         }
       });
 
-      client.connect();
+      // Set before connect, so a registration the SDK reports at once counts.
       clientRef.current = client;
+      clientCompanyRef.current = mintedFor;
+      client.connect();
       return client;
     })();
 
+    let client: TelnyxClient;
     try {
-      return await connectingRef.current;
+      client = await connectingRef.current;
     } finally {
       connectingRef.current = null;
     }
+    // The workspace changed while this one was being minted.
+    if (clientCompanyRef.current !== companyRef.current) {
+      rebuildClientRef.current?.();
+    }
+    return client;
   }, [attachActiveAudio, mintToken, hasLiveCall, resolveSessionWithRetry, t]);
 
   /** Tear a dead client down and build a fresh one — re-mints the token, so a
@@ -624,18 +703,23 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     if (hasLiveCall()) return;
     const old = clientRef.current;
     clientRef.current = null;
+    clientCompanyRef.current = null;
     readyRef.current = false;
+    dispatch({ type: "disconnected" });
     try {
       old?.disconnect();
     } catch {
       /* already gone */
     }
+    // A workspace this member cannot call from gets no phone at all.
+    if (!entitledRef.current) return;
     void ensureClient().catch(() => {
       // Stays down until the next visibility/online tick retries. Recording it
       // is what stops the indicator claiming the phone is still connecting.
       dispatch({ type: "error", message: t(REGISTRATION_FAILED_KEY) });
     });
   }, [ensureClient, hasLiveCall, t]);
+  rebuildClientRef.current = rebuildClient;
 
   /** If the phone can't currently ring, rebuild it — after a short delay so the
    *  SDK's OWN backoff reconnect wins for transient drops and we only step in
@@ -643,6 +727,8 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
    *  events collapses into one rebuild. No-op while healthy, and deferred while
    *  a call is live (#138) — the call-end handler re-arms it once the line clears. */
   const scheduleRecover = useCallback(() => {
+    if (!entitledRef.current) return;
+    if (refusedAccessRef.current === accessRef.current) return;
     if (readyRef.current || connectingRef.current) return;
     if (recoverTimerRef.current) return;
     recoverTimerRef.current = setTimeout(() => {
@@ -657,33 +743,58 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
 
   // Eager registration: an open app is a phone that can ring.
   //
-  // Deferred to an idle moment rather than fired during boot. Registering pulls
-  // in the WebRTC SDK, by far the largest chunk the app loads, and doing that
-  // on the critical path made every page load carry it before anything was
-  // interactive, for a call that may never come. Idle keeps the phone ready
-  // within moments of arriving without competing with the screen itself; the
-  // timeout is the floor so a permanently busy tab still registers.
+  // Deferred until the app's own requests have gone quiet rather than fired
+  // during boot. Registering mints a token, pulls in the WebRTC SDK (by far the
+  // largest chunk the app loads) and opens a socket, and doing that inside the
+  // start-up burst made every hard load carry it before the screen was ready,
+  // for a call that may never come. The ceiling is the floor so a permanently
+  // busy tab still registers, and a tab opened to answer a call (?call=, D43
+  // push-to-wake) registers at once because the calls page waits on `ready`
+  // before asking the server to ring it.
   useEffect(() => {
-    const canIdle = typeof window.requestIdleCallback === "function";
-    const handle = canIdle
-      ? window.requestIdleCallback(() => void register(), { timeout: 2500 })
-      : window.setTimeout(() => void register(), 300);
-    return () => {
-      if (canIdle) window.cancelIdleCallback(handle);
-      else window.clearTimeout(handle);
-    };
+    if (!entitled) return;
+    const cache = queryClient.getQueryCache();
+    let quietTimer: ReturnType<typeof setTimeout> | undefined;
+    const ceiling = setTimeout(register, REGISTER_CEILING_MS);
+    const unsubscribe = cache.subscribe(check);
+    document.addEventListener("visibilitychange", check);
+    check();
+    return stop;
+
+    function check() {
+      if (new URLSearchParams(window.location.search).has("call")) {
+        register();
+        return;
+      }
+      if (
+        queryClient.isFetching() > 0 ||
+        document.visibilityState !== "visible"
+      ) {
+        clearTimeout(quietTimer);
+        quietTimer = undefined;
+        return;
+      }
+      quietTimer ??= setTimeout(register, REGISTER_QUIET_MS);
+    }
+
+    function stop() {
+      clearTimeout(quietTimer);
+      clearTimeout(ceiling);
+      unsubscribe();
+      document.removeEventListener("visibilitychange", check);
+    }
 
     function register() {
-      return ensureClient().catch(() => {
-      // No toast: texting is unaffected and the Call button retries on use. The
-      // failure is still RECORDED, because the status indicator otherwise reads
-      // "Connecting…" for the rest of the session and a member is left believing
-      // their browser will ring when it never will.
-      dispatch({ type: "error", message: t(REGISTRATION_FAILED_KEY) });
+      stop();
+      void ensureClient().catch(() => {
+        // No toast: texting is unaffected and the Call button retries on use.
+        // The failure is still RECORDED, because the status indicator otherwise
+        // reads "Connecting…" for the rest of the session and a member is left
+        // believing their browser will ring when it never will.
+        dispatch({ type: "error", message: t(REGISTRATION_FAILED_KEY) });
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
-  }, []);
+  }, [entitled, ensureClient, queryClient, t]);
 
   // Keep the phone ring-ready across the real-world drops the SDK can't recover
   // on its own: a tab that was backgrounded (its socket throttled/closed) coming
@@ -691,17 +802,48 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // the phone is actually down (scheduleRecover no-ops while healthy).
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible") scheduleRecover();
+      if (document.visibilityState === "visible") scheduleRecoverRef.current?.();
     };
-    const onOnline = () => scheduleRecover();
+    const onOnline = () => scheduleRecoverRef.current?.();
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onOnline);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", onOnline);
       if (recoverTimerRef.current) clearTimeout(recoverTimerRef.current);
+      recoverTimerRef.current = null;
     };
-  }, [scheduleRecover]);
+  }, []);
+
+  // A phone left registered with the old workspace would keep ringing for it.
+  const followedCompanyRef = useRef(companyId);
+  useEffect(() => {
+    // A language change re-runs this too, and must not clear a shown failure.
+    if (followedCompanyRef.current === companyId) return;
+    followedCompanyRef.current = companyId;
+    if (clientCompanyRef.current === companyId) {
+      if (readyRef.current) dispatch({ type: "ready" });
+      return;
+    }
+    dispatch({ type: "registration_reset" });
+    rebuildClient();
+  }, [companyId, rebuildClient]);
+
+  // A reload would hang up a live call, so the page asks first.
+  const callInProgress = state.calls.some((c) => c.phase !== "ended");
+  useEffect(() => {
+    setLiveBrowserCall(callInProgress);
+    if (!callInProgress) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      setLiveBrowserCall(false);
+    };
+  }, [callInProgress]);
 
   // The reducer state, readable from stable callbacks without re-binding.
   const stateRef = useRef(state);
@@ -718,6 +860,31 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     });
     dispatch({ type: "held", id: activeId, held: true });
   }, []);
+
+  /** Resolves once the phone is registered for this workspace; rejects after timeoutMs. */
+  const waitForReady = useCallback(
+    (timeoutMs: number) =>
+      new Promise<void>((resolve, reject) => {
+        if (
+          readyRef.current &&
+          clientCompanyRef.current === companyRef.current
+        ) {
+          resolve();
+          return;
+        }
+        const waiters = readyWaitersRef.current;
+        const onReady = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        const timer = setTimeout(() => {
+          waiters.delete(onReady);
+          reject(new Error(t("shell.callStartFailed")));
+        }, timeoutMs);
+        waiters.add(onReady);
+      }),
+    [t],
+  );
 
   const placeCall = useCallback(
     async ({
@@ -762,9 +929,17 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         // meant a registration failure surfaced "Couldn't start the call" while
         // the customer's phone was already ringing, with nothing on screen to
         // cancel — the call could only end by the customer answering a silent
-        // line or the ring window lapsing.
+        // line or the ring window lapsing. And wait for the registration to
+        // land: a socket that is still connecting cannot take the placer leg.
+        if (
+          clientRef.current &&
+          clientCompanyRef.current !== companyRef.current
+        ) {
+          rebuildClient();
+        }
         await ensureClient();
-        const auth = await authorize.mutateAsync({
+        await waitForReady(READY_WAIT_MS);
+        const auth = await authorize({
           conversation_id: conversationId,
           contact_id: contactId,
           to,
@@ -820,7 +995,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         throw cause;
       }
     },
-    [authorize, ensureClient, t],
+    [authorize, ensureClient, rebuildClient, waitForReady, t],
   );
 
   const answer = useCallback(
@@ -945,21 +1120,35 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   );
 
   const activeCall = state.calls.find((c) => c.id === state.activeId) ?? null;
+  const value = useMemo<SoftphoneContextValue>(
+    () => ({
+      ...state,
+      entitled,
+      activeCall,
+      placeCall,
+      answer,
+      hangup,
+      toggleHold,
+      toggleMute,
+      sendDtmf,
+      dismiss,
+    }),
+    [
+      state,
+      entitled,
+      activeCall,
+      placeCall,
+      answer,
+      hangup,
+      toggleHold,
+      toggleMute,
+      sendDtmf,
+      dismiss,
+    ],
+  );
 
   return (
-    <SoftphoneContext.Provider
-      value={{
-        ...state,
-        activeCall,
-        placeCall,
-        answer,
-        hangup,
-        toggleHold,
-        toggleMute,
-        sendDtmf,
-        dismiss,
-      }}
-    >
+    <SoftphoneContext.Provider value={value}>
       {children}
       {/* The single remote-audio sink; hidden, always mounted. */}
       <audio ref={audioRef} autoPlay className="sr-only" aria-hidden />

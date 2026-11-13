@@ -6,6 +6,7 @@
  * (a ring the server named, its answer, its decline), so a deleted or
  * misplaced call site fails here. What a beacon carries is beacons.test.ts.
  */
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -37,7 +38,9 @@ vi.mock("@telnyx/webrtc", () => ({
     on(event: string, handler: Handler) {
       this.handlers.set(event, handler);
     }
-    connect() {}
+    connect() {
+      this.handlers.get("telnyx.ready")?.();
+    }
     disconnect() {}
   },
 }));
@@ -63,7 +66,13 @@ vi.mock("@/lib/api/calls", () => ({
 
 const translate = vi.hoisted(() => (key: string) => key);
 vi.mock("@/i18n/provider", () => ({ useT: () => translate }));
-vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "company-1" }));
+vi.mock("@/lib/company/provider", () => ({
+  useActiveCompany: () => ({
+    companyId: "company-1",
+    role: "owner",
+    membership: { company_id: "company-1", role: "owner", subscription_status: "active" },
+  }),
+}));
 
 const { SoftphoneProvider, useSoftphone } = await import("./provider");
 
@@ -133,11 +142,13 @@ beforeEach(async () => {
     value: { getUserMedia: async () => ({ getTracks: () => [] }) },
   });
   render(
-    <SoftphoneProvider>
-      <Probe />
-    </SoftphoneProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <SoftphoneProvider>
+        <Probe />
+      </SoftphoneProvider>
+    </QueryClientProvider>,
   );
-  // Registration waits for an idle moment, as it does in the app.
+  // Registration waits for the app's requests to go quiet, as it does in the app.
   await waitFor(() => expect(sdk.clients).toHaveLength(1), { timeout: 4000 });
 });
 
