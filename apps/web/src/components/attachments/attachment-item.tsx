@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useT } from "@/i18n/provider";
 import {
+  openWithFreshUrl,
   useAttachmentUrl,
   useReportAttachment,
 } from "@/lib/api/attachments";
@@ -28,6 +29,7 @@ import { ApiError } from "@/lib/api/error";
 import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
 
+import { useThumbnailReveal } from "@/components/thread/attachment-image";
 import { formatBytes } from "@/components/thread/gallery-grouping";
 
 import {
@@ -235,14 +237,19 @@ function ImageAttachmentRow({
   attachment: AttachmentLike;
   meta?: string;
 }) {
-  // #240: the 40px chip gets the preview; the lightbox gets the original, and
-  // only once it is opened. `size` below stays the ORIGINAL's — it is what
-  // "12.4 MB" means to somebody deciding whether to open it on mobile data.
+  // #240: the 40px chip gets the preview; the lightbox gets the original, only
+  // once it is opened, and only when the chip was a preview. `size` below stays
+  // the ORIGINAL's: it is what "12.4 MB" means to somebody deciding whether to
+  // open it on mobile data.
   const t = useT();
   const url = useAttachmentUrl(attachment.id);
-  const [loaded, setLoaded] = useState(false);
+  const { loaded, onLoad } = useThumbnailReveal(url.data?.url);
   const [open, setOpen] = useState(false);
-  const fullSize = useAttachmentUrl(attachment.id, open, "original");
+  const fullSize = useAttachmentUrl(
+    attachment.id,
+    open && url.data?.variant !== "original",
+    "original",
+  );
   const label = attachmentLabel(attachment);
   const size = formatBytes(attachment.size_bytes);
 
@@ -284,7 +291,8 @@ function ImageAttachmentRow({
             <img
               src={url.data.url}
               alt=""
-              onLoad={() => setLoaded(true)}
+              decoding="async"
+              onLoad={onLoad}
               className={cn(
                 "size-full object-cover transition-[opacity,filter] duration-200 ease-out",
                 loaded ? "opacity-100 blur-0" : "opacity-0 blur-sm",
@@ -403,6 +411,7 @@ function FileAttachmentRow({
       target="_blank"
       rel="noopener noreferrer"
       download={attachment.file_name ?? undefined}
+      onClick={(event) => openWithFreshUrl(event, url)}
       aria-label={t("misc.attachmentDownloadAria", { name: label })}
       className={cn(className, "hover:bg-app-hover")}
     >

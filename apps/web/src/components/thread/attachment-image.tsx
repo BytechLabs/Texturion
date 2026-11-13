@@ -13,17 +13,60 @@ import { useAttachmentUrl } from "@/lib/api/attachments";
 import type { AttachmentSummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
+/** Thumbnail URLs that have finished loading in this tab, oldest first. */
+const loadedUrls = new Set<string>();
+const LOADED_URLS_KEPT = 500;
+
+function rememberLoaded(src: string): void {
+  loadedUrls.delete(src);
+  loadedUrls.add(src);
+  if (loadedUrls.size > LOADED_URLS_KEPT) {
+    const oldest = loadedUrls.values().next().value;
+    if (oldest !== undefined) loadedUrls.delete(oldest);
+  }
+}
+
+/** A src already loaded in this tab starts revealed, and so does a new src on the same <img>, which keeps its old frame until it decodes. */
+export function useThumbnailReveal(src: string | undefined) {
+  const [state, setState] = useState(() => ({
+    src,
+    loaded: src !== undefined && loadedUrls.has(src),
+    failed: false,
+  }));
+  let current = state;
+  if (state.src !== src) {
+    current = {
+      src,
+      loaded:
+        src !== undefined &&
+        ((state.loaded && state.src !== undefined) || loadedUrls.has(src)),
+      failed: false,
+    };
+    setState(current);
+  }
+  return {
+    loaded: current.loaded,
+    failed: current.failed,
+    onLoad: () => {
+      if (src) rememberLoaded(src);
+      setState({ src, loaded: true, failed: false });
+    },
+    onError: () => setState({ src, loaded: false, failed: true }),
+    reset: () => setState({ src, loaded: false, failed: false }),
+  };
+}
+
 /**
  * MMS thumbnail (G5): fixed 176px square (stable virtual-row measurement),
  * rounded, signed-URL fetch with a blur-up reveal, click → lightbox. The
- * signed URL comes from GET /v1/attachments/:id/url (1h TTL; the hook caches
- * just under it).
+ * signed URL comes from useAttachmentUrl, cached for the lifetime the server
+ * gave it.
  *
- * #240: two fetches, not one. The square gets the PREVIEW — a 25 MB original
- * behind a 176px thumbnail was the single worst egress shape in the product,
- * and it is the tech's own mobile data too (#289). The lightbox gets the
- * ORIGINAL, and only once it is opened, so nobody pays for a full-size image
- * they never looked at.
+ * #240: the square gets the PREVIEW: a 25 MB original behind a 176px
+ * thumbnail was the single worst egress shape in the product, and it is the
+ * tech's own mobile data too (#289). The lightbox gets the ORIGINAL, only once
+ * it is opened, and only when the square was a preview, so nobody pays for a
+ * full-size image they never looked at or for the same file twice.
  *
  * The lightbox shows the preview underneath while the original loads. It is
  * already decoded and in the browser's cache, so the picture appears instantly
@@ -41,20 +84,23 @@ export function AttachmentImage({
 }) {
   const t = useT();
   const url = useAttachmentUrl(attachment.id);
-  const [loaded, setLoaded] = useState(false);
+  // The URL fetch can succeed yet the <img> still fail to render (expired/broken
+  // signed URL, mid-flight network blip); without `failed` the thumbnail is a
+  // permanent pulsing skeleton on a disabled button. Treat it like a url error.
+  const { loaded, failed, onLoad, onError, reset } = useThumbnailReveal(
+    url.data?.url,
+  );
   const [open, setOpen] = useState(false);
-  // Fetched only while the lightbox is open — `enabled` is the whole point.
-  // A row with no preview serves its original for both, so this is a second
-  // mint of the same object rather than a wasted one.
-  const fullSize = useAttachmentUrl(attachment.id, open, "original");
+  // A row with no preview (every MMS) already served its original; an older Worker that does not say still mints it.
+  const fullSize = useAttachmentUrl(
+    attachment.id,
+    open && url.data?.variant !== "original",
+    "original",
+  );
   const [fullSizeLoaded, setFullSizeLoaded] = useState(false);
   // The lightbox's full-size <img> can also fail to render (expired signed URL,
   // network blip) — without this the dialog is a blank frame.
   const [lightboxFailed, setLightboxFailed] = useState(false);
-  // The URL fetch can succeed yet the <img> still fail to render (expired/broken
-  // signed URL, mid-flight network blip) — without this the thumbnail is a
-  // permanent pulsing skeleton on a disabled button. Treat it like a url error.
-  const [failed, setFailed] = useState(false);
 
   if (url.isError || failed) {
     return (
@@ -64,8 +110,7 @@ export function AttachmentImage({
           <button
             type="button"
             onClick={() => {
-              setFailed(false);
-              setLoaded(false);
+              reset();
               void url.refetch();
             }}
             className="text-xs underline-offset-2 hover:underline"
@@ -96,8 +141,9 @@ export function AttachmentImage({
           <img
             src={url.data.url}
             alt={alt}
-            onLoad={() => setLoaded(true)}
-            onError={() => setFailed(true)}
+            decoding="async"
+            onLoad={onLoad}
+            onError={onError}
             className={cn(
               "size-full object-cover transition-[opacity,filter] duration-200 ease-out",
               loaded ? "opacity-100 blur-0" : "opacity-0 blur-sm",

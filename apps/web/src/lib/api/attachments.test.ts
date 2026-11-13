@@ -1,5 +1,10 @@
-import { QueryClient } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vitest";
+/**
+ * @vitest-environment happy-dom
+ */
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildAttachmentForm,
@@ -13,9 +18,21 @@ import { uploadFilesSequentially } from "@/lib/attachments/upload-chain";
 // no dynamic import + env-stub dance, which used to blow the 5s timeout when
 // evaluating that heavy graph under parallel load.
 import { invalidateAfterNoteUpload } from "./attachment-invalidation";
-import { createApiClient } from "./core";
+import {
+  useAttachmentUrl,
+  useDeleteAttachment,
+  useReportAttachment,
+} from "./attachments";
+import { createApiClient, type RequestOptions } from "./core";
+import { useAttachmentGallery } from "./gallery";
 import { keys } from "./keys";
-import type { Attachment } from "./types";
+import type { Attachment, AttachmentUrl } from "./types";
+
+const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
+vi.mock("./client", () => ({
+  apiFetch: (path: string, options?: RequestOptions) => apiFetch(path, options),
+}));
+vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "company-1" }));
 
 /**
  * The upload hook (`useUploadAttachment`) is a thin React wrapper over two pure
@@ -367,5 +384,254 @@ describe("invalidateAfterNoteUpload — the note-file upload invalidation set", 
     expect(spy).toHaveBeenCalledWith({
       queryKey: [companyId, "conversations", "attachments"],
     });
+  });
+});
+
+describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
+  const COMPANY = "company-1";
+  let minted = 0;
+  let refuse = new Set<string>();
+
+  afterEach(cleanup);
+  beforeEach(() => {
+    minted = 0;
+    refuse = new Set();
+    apiFetch.mockReset();
+    apiFetch.mockImplementation(async (path: string, options: RequestOptions = {}) => {
+      if (path !== "/v1/attachments/urls") return undefined;
+      const items = (options.body as { items: { id: string; variant: string }[] }).items;
+      minted += items.length;
+      return {
+        data: items
+          .filter((item) => !refuse.has(item.id))
+          .map((item) => ({
+            id: item.id,
+            requested_variant: item.variant,
+            variant: item.variant,
+            url: `https://storage.test/${item.id}-${item.variant}-${minted}`,
+            expires_at: "2026-11-13T12:00:00.000Z",
+            ttl_seconds: 3600,
+          })),
+        errors: items
+          .filter((item) => refuse.has(item.id))
+          .map((item) => ({
+            id: item.id,
+            requested_variant: item.variant,
+            code: "forbidden",
+            message: "This file is on hold.",
+          })),
+      };
+    });
+  });
+
+  function harness() {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    return { queryClient, wrapper };
+  }
+
+  function seed(
+    queryClient: QueryClient,
+    id: string,
+    url: AttachmentUrl,
+    ageMs: number,
+    variant: "preview" | "original" = "preview",
+  ) {
+    queryClient.setQueryData(keys.attachmentUrl(COMPANY, id, variant), url, {
+      updatedAt: Date.now() - ageMs,
+    });
+  }
+
+  const MMS: AttachmentUrl = {
+    url: "https://storage.test/cached",
+    expires_at: "2026-11-13T12:00:00.000Z",
+    ttl_seconds: 3600,
+    variant: "original",
+  };
+  const batchCalls = () =>
+    apiFetch.mock.calls.filter(([path]) => path === "/v1/attachments/urls");
+
+  it("reuses a 30-minute-old MMS URL without asking again", async () => {
+    const { queryClient, wrapper } = harness();
+    seed(queryClient, "att-1", MMS, 30 * 60_000);
+
+    const { result } = renderHook(() => useAttachmentUrl("att-1"), { wrapper });
+
+    expect(result.current.data?.url).toBe("https://storage.test/cached");
+    expect(result.current.isStale).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(batchCalls()).toHaveLength(0);
+    expect(
+      queryClient.getQueryCache().find({ queryKey: keys.attachmentUrl(COMPANY, "att-1") })
+        ?.options.gcTime,
+    ).toBe(60 * 60_000);
+  });
+
+  it("goes stale a minute before the lifetime, and assumes 300 s when none is sent", async () => {
+    const { queryClient, wrapper } = harness();
+    const oldWorker: AttachmentUrl = { url: "https://storage.test/old", expires_at: "" };
+    seed(queryClient, "mms", MMS, 58 * 60_000);
+    seed(queryClient, "mms-late", MMS, 59 * 60_000 + 5_000);
+    seed(queryClient, "old-worker", oldWorker, 3 * 60_000);
+    seed(queryClient, "old-worker-late", oldWorker, 4 * 60_000 + 5_000);
+
+    const { result } = renderHook(
+      () => ({
+        mms: useAttachmentUrl("mms"),
+        mmsLate: useAttachmentUrl("mms-late"),
+        oldWorker: useAttachmentUrl("old-worker"),
+        oldWorkerLate: useAttachmentUrl("old-worker-late"),
+      }),
+      { wrapper },
+    );
+
+    expect(result.current.mms.isStale).toBe(false);
+    expect(result.current.oldWorker.isStale).toBe(false);
+    // Stale but still inside the lifetime, so it shows while it refreshes.
+    expect(result.current.mmsLate.data?.url).toBe("https://storage.test/cached");
+    expect(result.current.oldWorkerLate.data?.url).toBe("https://storage.test/old");
+    await waitFor(() => expect(batchCalls()).toHaveLength(1));
+    expect((batchCalls()[0][1] as RequestOptions).body).toEqual({
+      items: [
+        { id: "mms-late", variant: "preview" },
+        { id: "old-worker-late", variant: "preview" },
+      ],
+    });
+  });
+
+  it("reports a URL within 30 s of expiry as pending and mints a new one", async () => {
+    const { queryClient, wrapper } = harness();
+    seed(queryClient, "att-1", MMS, 3600_000 - 15_000);
+
+    const { result } = renderHook(() => useAttachmentUrl("att-1"), { wrapper });
+
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.isPending).toBe(true);
+    await waitFor(() =>
+      expect(result.current.data?.url).toBe("https://storage.test/att-1-preview-1"),
+    );
+  });
+
+  it("re-mints a URL that runs out while it is on screen", async () => {
+    const { queryClient, wrapper } = harness();
+    seed(queryClient, "att-1", MMS, 0);
+    const { result, rerender } = renderHook(() => useAttachmentUrl("att-1"), {
+      wrapper,
+    });
+    expect(result.current.data?.url).toBe("https://storage.test/cached");
+
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3600_000 - 10_000);
+    rerender();
+
+    expect(result.current.data).toBeUndefined();
+    await waitFor(() =>
+      expect(result.current.data?.url).toBe("https://storage.test/att-1-preview-1"),
+    );
+  });
+
+  it("stops refreshing a player's URL once the re-mint is refused", async () => {
+    const { queryClient, wrapper } = harness();
+    seed(queryClient, "att-1", MMS, 3600_000 - 45_000, "original");
+    refuse.add("att-1");
+
+    const { result } = renderHook(
+      () => useAttachmentUrl("att-1", true, "original", { refreshBeforeExpiry: true }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.error).toMatchObject({ code: "forbidden" }));
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    expect(batchCalls()).toHaveLength(1);
+  });
+
+  it("delete forgets only that file: its URLs and its row in cached lists", async () => {
+    const { queryClient, wrapper } = harness();
+    const row = (id: string): Attachment => ({ ...ROW, id, owner_id: "note-9" });
+    seed(queryClient, "att-1", MMS, 0);
+    seed(queryClient, "att-1", MMS, 0, "original");
+    seed(queryClient, "att-2", MMS, 0);
+    queryClient.setQueryData(keys.ownerAttachments(COMPANY, "note", "note-9"), {
+      data: [row("att-1"), row("att-2")],
+    });
+    queryClient.setQueryData(keys.conversations.attachments(COMPANY, "conv-3"), {
+      pages: [],
+      pageParams: [],
+    });
+
+    const { result } = renderHook(() => useDeleteAttachment(), { wrapper });
+    await act(() => result.current.mutateAsync({ attachmentId: "att-1" }));
+
+    const find = (queryKey: readonly unknown[]) =>
+      queryClient.getQueryCache().find({ queryKey, exact: true });
+    expect(find(keys.attachmentUrl(COMPANY, "att-1"))).toBeUndefined();
+    expect(find(keys.attachmentUrl(COMPANY, "att-1", "original"))).toBeUndefined();
+    expect(find(keys.attachmentUrl(COMPANY, "att-2"))?.state.isInvalidated).toBe(false);
+    expect(
+      queryClient
+        .getQueryData<{ data: Attachment[] }>(keys.ownerAttachments(COMPANY, "note", "note-9"))
+        ?.data.map((attachment) => attachment.id),
+    ).toEqual(["att-2"]);
+    expect(
+      find(keys.ownerAttachments(COMPANY, "note", "note-9"))?.state.isInvalidated,
+    ).toBe(false);
+    expect(
+      find(keys.conversations.attachments(COMPANY, "conv-3"))?.state.isInvalidated,
+    ).toBe(true);
+  });
+
+  it("report re-mints only that file, so its row turns held at once", async () => {
+    const { queryClient, wrapper } = harness();
+    queryClient.setQueryData(keys.ownerAttachments(COMPANY, "note", "note-9"), {
+      data: [ROW],
+    });
+    const { result } = renderHook(
+      () => ({
+        reported: useAttachmentUrl("att-1"),
+        other: useAttachmentUrl("att-2"),
+        report: useReportAttachment(),
+      }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.other.data).toBeDefined());
+    const otherUrl = result.current.other.data?.url;
+
+    refuse.add("att-1");
+    await act(() => result.current.report.mutateAsync({ attachmentId: "att-1" }));
+
+    await waitFor(() =>
+      expect(result.current.reported.error).toMatchObject({ code: "forbidden" }),
+    );
+    expect(batchCalls()).toHaveLength(2);
+    expect((batchCalls()[1][1] as RequestOptions).body).toEqual({
+      items: [{ id: "att-1", variant: "preview" }],
+    });
+    expect(result.current.other.data?.url).toBe(otherUrl);
+    expect(
+      queryClient.getQueryCache().find({
+        queryKey: keys.ownerAttachments(COMPANY, "note", "note-9"),
+      })?.state.isInvalidated,
+    ).toBe(false);
+  });
+
+  it("the gallery reopened within 4 minutes reuses its page", async () => {
+    const { queryClient, wrapper } = harness();
+    apiFetch.mockImplementation(async () => ({ data: [], next_cursor: null }));
+
+    const first = renderHook(() => useAttachmentGallery("conv-3"), { wrapper });
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    first.unmount();
+    const again = renderHook(() => useAttachmentGallery("conv-3"), { wrapper });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(again.result.current.isSuccess).toBe(true);
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(
+      queryClient
+        .getQueryCache()
+        .find({ queryKey: keys.conversations.attachments(COMPANY, "conv-3") })?.options.gcTime,
+    ).toBe(4 * 60_000);
   });
 });

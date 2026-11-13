@@ -19,10 +19,9 @@ import type { GalleryItem, Page } from "./types";
  * panel's "View all attachments" preview and the header-overflow gallery are the
  * only two places that mount it, and neither should fetch on every thread open.
  *
- * The signed URLs are short-lived; `staleTime: 0` + a modest `gcTime` means a
- * re-open re-signs rather than risking an expired link (the same discipline the
- * MMS thumbnail hook uses, just without the long TTL since these are one page of
- * many freshly signed together).
+ * A page mixes 300 s note/task URLs with 1 h MMS ones, so it is reused for 4
+ * minutes, the shortest lifetime less a minute: reopening the gallery within
+ * that window shows the same page without re-signing it.
  */
 export function useAttachmentGallery(conversationId: string, enabled = true) {
   const companyId = useCompanyId();
@@ -36,8 +35,7 @@ export function useAttachmentGallery(conversationId: string, enabled = true) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
     enabled,
-    // Signed URLs expire; never hand back a stale page from a prior open.
-    staleTime: 0,
-    gcTime: 60_000,
+    staleTime: 4 * 60_000,
+    gcTime: 4 * 60_000,
   });
 }

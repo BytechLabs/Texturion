@@ -1,8 +1,12 @@
 import {
+  queryOptions,
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
+  type UseQueryResult,
 } from "@tanstack/react-query";
+import { useEffect, type MouseEvent } from "react";
 
 import { useT } from "@/i18n/provider";
 import { useCompanyId } from "@/lib/company/provider";
@@ -17,6 +21,7 @@ import {
 } from "@/lib/attachments/validate";
 
 import { invalidateAfterNoteUpload } from "./attachment-invalidation";
+import { createAttachmentUrlBatcher } from "./attachment-url-batcher";
 import { apiFetch } from "./client";
 import { ApiError } from "./error";
 import { keys } from "./keys";
@@ -24,6 +29,7 @@ import type {
   Attachment,
   AttachmentOwnerType,
   AttachmentUrl,
+  AttachmentVariant,
 } from "./types";
 
 // Re-exported for backwards compatibility — the pure invalidation helper now
@@ -31,14 +37,53 @@ import type {
 // hook/client/env graph; see that file for why).
 export { invalidateAfterNoteUpload };
 
+/** Every mint in the app, so one render's thumbnails share a request. */
+export const loadAttachmentUrl = createAttachmentUrlBatcher(apiFetch);
+
+/** The lifetime assumed when an older Worker does not send one: the shorter, generic TTL. */
+const FALLBACK_TTL_SECONDS = 300;
+/** A URL with this little left is refetched on its next use. */
+const STALE_MARGIN_MS = 60_000;
+/** A URL with this little left is never rendered. */
+const SPENT_MARGIN_MS = 30_000;
+/** A file link with this little left is re-minted before it opens. */
+const OPEN_MARGIN_MS = 60_000;
+
+function lifetimeMs(url: AttachmentUrl | undefined): number {
+  return (url?.ttl_seconds ?? FALLBACK_TTL_SECONDS) * 1000;
+}
+
+/** Time left on a cached URL, counted from when this client received it, so server clock skew changes nothing. */
+export function attachmentUrlLifeLeft(
+  url: AttachmentUrl,
+  receivedAt: number,
+  now: number,
+): number {
+  return lifetimeMs(url) - (now - receivedAt);
+}
+
+export function attachmentUrlOptions(
+  companyId: string,
+  attachmentId: string,
+  variant: AttachmentVariant,
+) {
+  return queryOptions({
+    queryKey: keys.attachmentUrl(companyId, attachmentId, variant),
+    queryFn: () => loadAttachmentUrl(companyId, attachmentId, variant),
+    staleTime: (query) =>
+      Math.max(0, lifetimeMs(query.state.data) - STALE_MARGIN_MS),
+    gcTime: 60 * 60_000,
+  });
+}
+
 /**
- * GET /v1/attachments/:id/url — membership-checked signed Storage URL. Serves
- * both the MMS `message_attachments` (TTL 1 h) and the generic note/task
- * `attachments` (TTL 300 s, D19 §2.5) — one route, three sources
- * (routes/attachments.ts), so this is the single open/download signer for both.
- * Cached under the SHORTEST server TTL (the generic 300 s), not the MMS hour:
- * ~4 min stale/gc leaves a safety margin so a thumbnail or download link never
- * renders from a cache entry whose signature has already expired.
+ * A membership-checked signed Storage URL for one attachment, generic or MMS
+ * (one route, three sources in routes/attachments.ts). Mints from one render
+ * go out together as POST /v1/attachments/urls.
+ *
+ * Each URL is cached for the lifetime the server gave it (1 h for MMS, 300 s
+ * for note/task files) less a minute. A cached URL within 30 s of expiring is
+ * reported as pending and re-minted, so an expired URL is never rendered.
  */
 export function useAttachmentUrl(
   attachmentId: string,
@@ -54,20 +99,92 @@ export function useAttachmentUrl(
    * preview serves its original either way, so nothing uploaded before this
    * shipped changes behaviour.
    */
-  variant: "preview" | "original" = "preview",
-) {
+  variant: AttachmentVariant = "preview",
+  /** Re-mint a minute before expiry while mounted, for a player that may be pressed at any time. */
+  { refreshBeforeExpiry = false }: { refreshBeforeExpiry?: boolean } = {},
+): UseQueryResult<AttachmentUrl> {
   const companyId = useCompanyId();
-  return useQuery({
-    queryKey: keys.attachmentUrl(companyId, attachmentId, variant),
-    queryFn: () =>
-      apiFetch<AttachmentUrl>(
-        `/v1/attachments/${attachmentId}/url${variant === "original" ? "?variant=original" : ""}`,
-        { companyId },
-      ),
+  const query = useQuery({
+    ...attachmentUrlOptions(companyId, attachmentId, variant),
     enabled,
-    staleTime: 4 * 60_000,
-    gcTime: 4 * 60_000,
+    refetchInterval: refreshBeforeExpiry
+      ? (q) =>
+          // A refused re-mint keeps its old data, which would otherwise re-mint every second.
+          q.state.data && q.state.status === "success"
+            ? Math.max(
+                1000,
+                attachmentUrlLifeLeft(q.state.data, q.state.dataUpdatedAt, Date.now()) -
+                  STALE_MARGIN_MS,
+              )
+            : false
+      : undefined,
   });
+
+  const spent =
+    query.data !== undefined &&
+    attachmentUrlLifeLeft(query.data, query.dataUpdatedAt, Date.now()) <=
+      SPENT_MARGIN_MS;
+  const { refetch, isFetching, isError } = query;
+  useEffect(() => {
+    // A mount already refetches a stale URL; this covers one that ran out while on screen.
+    if (spent && enabled && !isFetching && !isError) void refetch();
+  }, [spent, enabled, isFetching, isError, refetch]);
+
+  if (!spent) return query;
+  return {
+    ...query,
+    data: undefined,
+    ...(query.status === "success"
+      ? {
+          status: "pending",
+          isPending: true,
+          isSuccess: false,
+          isLoading: query.isFetching,
+        }
+      : {}),
+  } as UseQueryResult<AttachmentUrl>;
+}
+
+/** A file link near expiry re-mints into a tab opened during the click, since one opened after the request is blocked as a popup. */
+export function openWithFreshUrl(
+  event: MouseEvent<HTMLAnchorElement>,
+  url: Pick<UseQueryResult<AttachmentUrl>, "data" | "dataUpdatedAt" | "refetch">,
+): void {
+  if (
+    !url.data ||
+    attachmentUrlLifeLeft(url.data, url.dataUpdatedAt, Date.now()) > OPEN_MARGIN_MS
+  ) {
+    return;
+  }
+  const tab = window.open("", "_blank");
+  if (!tab) return;
+  event.preventDefault();
+  tab.opener = null;
+  void url.refetch().then((result) => {
+    if (result.status === "success") tab.location.href = result.data.url;
+    else tab.close();
+  });
+}
+
+/** One attachment's URL cache entries, both variants. */
+function attachmentUrlsKey(companyId: string, attachmentId: string) {
+  return [companyId, "attachments", attachmentId] as const;
+}
+
+/** A deleted file leaves its signed URLs and every cached owner list at once. */
+export function forgetDeletedAttachment(
+  queryClient: QueryClient,
+  companyId: string,
+  attachmentId: string,
+): void {
+  queryClient.removeQueries({ queryKey: attachmentUrlsKey(companyId, attachmentId) });
+  queryClient.setQueriesData<{ data: Attachment[] }>(
+    { queryKey: [companyId, "attachments", "owner"] },
+    (list) =>
+      list?.data.some((row) => row.id === attachmentId)
+        ? { ...list, data: list.data.filter((row) => row.id !== attachmentId) }
+        : list,
+  );
 }
 
 /**
@@ -212,8 +329,9 @@ export function useUploadNoteFiles() {
  * carrier record stays intact); callers gate the control by source.
  *
  * A deleted row can surface in owner lists, the D28 task unions (detail +
- * checklist count), and the conversation gallery — the roots of all three are
- * invalidated.
+ * checklist count), and the conversation gallery. It leaves the cached owner
+ * lists and its own signed URLs at once; the task and gallery roots are
+ * invalidated. Every other file's URL stays cached.
  */
 export function useDeleteAttachment() {
   const companyId = useCompanyId();
@@ -224,10 +342,8 @@ export function useDeleteAttachment() {
         method: "DELETE",
         companyId,
       }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: [companyId, "attachments"],
-      });
+    onSuccess: (_data, { attachmentId }) => {
+      forgetDeletedAttachment(queryClient, companyId, attachmentId);
       void queryClient.invalidateQueries({ queryKey: [companyId, "tasks"] });
       void queryClient.invalidateQueries({
         queryKey: [companyId, "conversations", "attachments"],
@@ -261,11 +377,9 @@ export function useReportAttachment() {
         body: note ? { note } : {},
       }),
     onSuccess: (_data, { attachmentId }) => {
-      void queryClient.invalidateQueries({
-        queryKey: keys.attachmentUrl(companyId, attachmentId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: [companyId, "attachments"],
+      // Owner lists still list a held file; a reset, unlike a remove, re-mints a mounted row into its held state.
+      void queryClient.resetQueries({
+        queryKey: attachmentUrlsKey(companyId, attachmentId),
       });
       void queryClient.invalidateQueries({ queryKey: [companyId, "tasks"] });
       void queryClient.invalidateQueries({

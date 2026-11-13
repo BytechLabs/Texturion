@@ -13,7 +13,7 @@ import {
 
 import { mmsMediaKind, type MmsMediaKind } from "@loonext/shared";
 import { useT, type MessageKey } from "@/i18n/provider";
-import { useAttachmentUrl } from "@/lib/api/attachments";
+import { openWithFreshUrl, useAttachmentUrl } from "@/lib/api/attachments";
 import type { AttachmentSummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +116,7 @@ export function AttachmentFileChip({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={(event) => openWithFreshUrl(event, url)}
       aria-label={t("thread.openAttachmentAria", {
         kind: label.toLowerCase(),
       })}

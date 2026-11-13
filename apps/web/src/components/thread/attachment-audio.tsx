@@ -1,9 +1,10 @@
 "use client";
 
 import { Download, FileMusic } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { useT } from "@/i18n/provider";
-import { useAttachmentUrl } from "@/lib/api/attachments";
+import { openWithFreshUrl, useAttachmentUrl } from "@/lib/api/attachments";
 import type { AttachmentSummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -35,9 +36,26 @@ export function AttachmentAudio({
   const t = useT();
   // #240: audio never has a preview, and a player needs the whole file. Said
   // explicitly so the default cannot quietly change underneath it.
-  const url = useAttachmentUrl(attachment.id, true, "original");
+  const url = useAttachmentUrl(attachment.id, true, "original", {
+    refreshBeforeExpiry: true,
+  });
   const size = formatBytes(attachment.size_bytes);
   const href = url.data?.url;
+  const audioRef = useRef<HTMLAudioElement>(null);
+  // A new src restarts playback, so a refreshed URL waits for the clip to pause.
+  const [src, setSrc] = useState(href);
+  useEffect(() => {
+    if (!href || href === src) return;
+    const audio = audioRef.current;
+    if (!audio || audio.paused) {
+      setSrc(href);
+      return;
+    }
+    const apply = () => setSrc(href);
+    audio.addEventListener("pause", apply, { once: true });
+    return () => audio.removeEventListener("pause", apply);
+  }, [href, src]);
+  const playable = src ?? href;
 
   if (url.isError) {
     return (
@@ -59,9 +77,9 @@ export function AttachmentAudio({
     <div
       className={cn(
         "flex w-64 max-w-full flex-col gap-1.5 rounded-lg border border-border bg-app-paper px-3 py-2.5",
-        !href && "opacity-70",
+        !playable && "opacity-70",
       )}
-      aria-busy={!href || undefined}
+      aria-busy={!playable || undefined}
     >
       <div className="flex items-center gap-2 text-muted-foreground">
         <FileMusic className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
@@ -76,6 +94,7 @@ export function AttachmentAudio({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(event) => openWithFreshUrl(event, url)}
             aria-label={t("thread.downloadAudioAria", { from: fromLabel })}
             className="shrink-0 rounded-md p-0.5 transition-colors duration-150 ease-out hover:text-foreground"
           >
@@ -85,11 +104,12 @@ export function AttachmentAudio({
       </div>
       {/* `preload="none"` keeps a thread full of clips from pulling every file
           on render — the browser fetches only what someone presses play on. */}
-      {href ? (
+      {playable ? (
         <audio
+          ref={audioRef}
           controls
           preload="none"
-          src={href}
+          src={playable}
           aria-label={t("thread.audioMessageAria", { from: fromLabel })}
           className="w-full"
         />

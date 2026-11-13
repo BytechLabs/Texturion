@@ -2743,10 +2743,20 @@ export interface PushSubscriptionRow {
   created_at: string;
 }
 
-/** GET /v1/attachments/:id/url — signed Storage URL, TTL 1 hour. */
+/** Which of an attachment row's two objects a URL serves (#240). */
+export type AttachmentVariant = "preview" | "original";
+
+/**
+ * GET /v1/attachments/:id/url, and one item of POST /v1/attachments/urls: a
+ * signed Storage URL, 300 s for note/task files and 1 hour for MMS (D19 §2.5).
+ */
 export interface AttachmentUrl {
   url: string;
   expires_at: string;
+  /** The URL's lifetime in seconds. Absent from an older Worker. */
+  ttl_seconds?: number;
+  /** What was served: "original" when the row has no preview. Absent from an older Worker. */
+  variant?: AttachmentVariant;
 }
 
 /**
@@ -2799,6 +2809,10 @@ export interface GalleryItem {
   size_bytes: number | null;
   created_at: string;
   url: string;
+  /** Absent from an older Worker. */
+  expires_at?: string;
+  /** The URL's lifetime in seconds. Absent from an older Worker. */
+  ttl_seconds?: number;
 }
 
 /**
