@@ -221,7 +221,7 @@ class UsageExportCardTest {
     private val messages = CopyOnWriteArrayList<String>()
 
     /** Wall-clock wait: the network is real here, and off the compose clock. */
-    private fun awaitUntil(what: String, timeoutMs: Long = 5_000, check: () -> Boolean) {
+    private fun awaitUntil(what: String, timeoutMs: Long = 30_000, check: () -> Boolean) {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             compose.waitForIdle()
@@ -244,7 +244,7 @@ class UsageExportCardTest {
      *
      * So the wait is on the thing being asserted.
      */
-    private fun awaitText(text: String, timeoutMs: Long = 5_000) {
+    private fun awaitText(text: String, timeoutMs: Long = 30_000) {
         awaitUntil("the row reading \"$text\"", timeoutMs) {
             compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
         }

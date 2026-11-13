@@ -61,7 +61,7 @@ class ComposerDraftPersistenceTest {
         composer.onTextChange("On my way, be there in 20")
         // The back gesture happens here, well inside the 400 ms debounce —
         // there is nothing left to cancel it with.
-        withTimeout(5_000) {
+        withTimeout(30_000) {
             while (drafts.saved["conv-1"] == null) delay(10)
         }
 

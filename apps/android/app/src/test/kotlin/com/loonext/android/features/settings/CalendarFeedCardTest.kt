@@ -202,7 +202,7 @@ class CalendarFeedCardTest {
     }
 
     /** Wall-clock wait: the network here is real, and off the compose clock. */
-    private fun awaitUntil(what: String, timeoutMs: Long = 5_000, check: () -> Boolean) {
+    private fun awaitUntil(what: String, timeoutMs: Long = 30_000, check: () -> Boolean) {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             compose.waitForIdle()

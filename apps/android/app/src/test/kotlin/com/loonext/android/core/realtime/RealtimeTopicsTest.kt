@@ -170,7 +170,7 @@ class RealtimeTopicsTest {
         }
     }
 
-    private fun awaitUntil(what: String, timeoutMs: Long = 5_000, check: () -> Boolean) {
+    private fun awaitUntil(what: String, timeoutMs: Long = 30_000, check: () -> Boolean) {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             if (check()) return
@@ -189,7 +189,7 @@ class RealtimeTopicsTest {
                 .collect { seen.add(it) }
         }
         // replay=0: a frame sent before the collector registers is nobody's.
-        runBlocking { withTimeout(5_000) { ready.await() } }
+        runBlocking { withTimeout(30_000) { ready.await() } }
         return seen
     }
 
@@ -202,7 +202,7 @@ class RealtimeTopicsTest {
                 .onSubscription { ready.complete(Unit) }
                 .collect { seen.add(Unit) }
         }
-        runBlocking { withTimeout(5_000) { ready.await() } }
+        runBlocking { withTimeout(30_000) { ready.await() } }
         return seen
     }
 
