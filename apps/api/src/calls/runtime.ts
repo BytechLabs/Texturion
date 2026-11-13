@@ -153,7 +153,12 @@ export interface SessionRuntime {
      *  still never throw (that's telephony). */
     hangup(ccid: string): Promise<"ok" | "dead">;
     reject(ccid: string, cause: "USER_BUSY"): Promise<void>;
-    speak(ccid: string, payload: string, clientState: string): Promise<void>;
+    speak(
+      ccid: string,
+      payload: string,
+      clientState: string,
+      language: "en-US" | "fr-CA",
+    ): Promise<void>;
     /**
      * #309 — play a recorded greeting.
      *
@@ -469,11 +474,11 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       hangup: (ccid) => commandWithDiscrimination(env, ccid, "hangup", {}),
       reject: (ccid, cause) =>
         swallow4xx(env, `/v2/calls/${ccid}/actions/reject`, { cause }),
-      speak: (ccid, payload, clientState) =>
+      speak: (ccid, payload, clientState, language) =>
         swallow4xx(env, `/v2/calls/${ccid}/actions/speak`, {
           payload,
           voice: "female",
-          language: "en-US",
+          language,
           client_state: clientState,
         }),
       playAudio: async (ccid, audioUrl, clientState) => {

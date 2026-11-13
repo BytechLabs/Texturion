@@ -116,7 +116,7 @@ export function makeRuntime(config: FakeConfig = {}) {
     answersInbound: [] as string[],
     answersVm: [] as string[],
     bridges: [] as { member: string; inbound: string }[],
-    speaks: [] as string[],
+    speaks: [] as { ccid: string; text: string; language: string }[],
     mirrors: [] as MirrorSet[],
     callEnds: [] as { reason: string; userIds: string[] }[],
     terminalMerges: [] as string[],
@@ -164,8 +164,8 @@ export function makeRuntime(config: FakeConfig = {}) {
       async reject(ccid) {
         calls.hangups.push(`reject:${ccid}`);
       },
-      async speak(ccid) {
-        calls.speaks.push(ccid);
+      async speak(ccid, text, _clientState, language) {
+        calls.speaks.push({ ccid, text, language });
       },
       // #309: recorded greetings. `playbackResult` lets a test say the audio
       // is unfetchable, which is the case that must fall back to speak rather

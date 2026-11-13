@@ -1,16 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { createSessionRuntime } from "./runtime";
-import { completeEnv } from "../test/support";
+import { CallSessionDO } from "./session-do";
+import { ctx, makeRuntime, makeStorage, SESSION } from "./session-do-fake";
+import { completeEnv, stubFetch } from "../test/support";
 
 import {
   afterHoursDefaultGreeting,
   defaultGreeting,
   sanitizeGreeting,
 } from "../messaging/inbound-ring";
+import type { TelnyxEvent } from "../messaging/types";
+import type { InitiatedContext } from "./transitions";
 import { unavailableNotice, UNAVAILABLE_NOTICE } from "./transitions";
 
 /**
@@ -128,6 +132,111 @@ describe("#228 the call path hands the locale to the words", () => {
       nextOpenLabel: null,
     } as never);
     expect(spoken).toContain("leave a message");
+  });
+});
+
+/**
+ * AND THAT THE VOICE READING THEM IS FRENCH TOO.
+ *
+ * French words handed to an en-US voice are read with English phonetics, which
+ * a caller hears as a garbled English sentence. So the speak command has to
+ * carry the machine's language, on every path that speaks.
+ */
+describe("#228 the speak command carries the machine's language", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T12:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const initiated: TelnyxEvent = {
+    data: {
+      id: "e1",
+      event_type: "call.initiated",
+      payload: {
+        call_control_id: "cust-ccid",
+        call_session_id: SESSION,
+        direction: "incoming",
+        to: "+19995000",
+        from: "+15551000",
+      } as never,
+    },
+  };
+
+  async function spokenOn(overrides: Partial<InitiatedContext>) {
+    const { runtime, calls } = makeRuntime({ initiated: ctx(overrides) });
+    const instance = new CallSessionDO({ storage: makeStorage().storage } as never, {} as never);
+    instance.installRuntime(runtime);
+    await instance.onTelnyxEvent(initiated);
+    await instance.whenIdle();
+    expect(calls.speaks, "this path never reached the speak command").toHaveLength(1);
+    return calls.speaks[0];
+  }
+
+  // Nobody to ring sends the call straight to the voicemail greeting.
+  const greeting = { dialTargets: [], pushAudience: [] };
+  const afterHours = {
+    afterHours: true,
+    afterHoursVoicemail: true,
+    nextOpenLabel: "demain à 8h",
+  };
+  const unavailable = { suspendedOrInactive: true, noticeAllowed: true };
+
+  it.each([
+    ["the greeting", greeting],
+    ["the after-hours greeting", afterHours],
+    ["the unavailable notice", unavailable],
+  ])("reads %s to a French caller in a fr-CA voice", async (_path, overrides) => {
+    const spoken = await spokenOn({ ...overrides, locale: "fr-CA" });
+    expect(spoken.language).toBe("fr-CA");
+  });
+
+  it("reads the French unavailable notice in the voice that matches its words", async () => {
+    const spoken = await spokenOn({ ...unavailable, locale: "fr-CA" });
+    expect(spoken.text).toBe(unavailableNotice("fr-CA"));
+    expect(spoken.language).toBe("fr-CA");
+  });
+
+  it.each([
+    ["the greeting", greeting],
+    ["the after-hours greeting", afterHours],
+    ["the unavailable notice", unavailable],
+  ])("reads %s in en-US for an English workspace", async (_path, overrides) => {
+    expect((await spokenOn({ ...overrides, locale: "en" })).language).toBe("en-US");
+  });
+
+  it.each([
+    ["the greeting", greeting],
+    ["the after-hours greeting", afterHours],
+    ["the unavailable notice", unavailable],
+  ])("reads %s in en-US for a machine persisted with no locale", async (_path, overrides) => {
+    expect((await spokenOn(overrides)).language).toBe("en-US");
+  });
+});
+
+describe("#228 the carrier is told which voice to use", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("puts the language on the Telnyx speak body, beside the female voice", async () => {
+    const bodies: { voice?: string; language?: string }[] = [];
+    stubFetch(async (url, request) => {
+      if (url.pathname !== "/v2/calls/cust-ccid/actions/speak" || request.method !== "POST") {
+        return undefined;
+      }
+      bodies.push(await request.json());
+      return Response.json({ data: { result: "ok" } });
+    });
+    const rt = createSessionRuntime(completeEnv());
+    await rt.telnyx.speak("cust-ccid", "Bonjour", "vmi-state", "fr-CA");
+    await rt.telnyx.speak("cust-ccid", "Hello", "vmi-state", "en-US");
+    expect(bodies.map((body) => [body.voice, body.language])).toEqual([
+      ["female", "fr-CA"],
+      ["female", "en-US"],
+    ]);
   });
 });
 

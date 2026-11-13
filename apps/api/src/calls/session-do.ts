@@ -1009,7 +1009,8 @@ export class CallSessionDO extends DurableObject<Env> {
           effect.script === "unavailable-notice"
             ? unavailableNotice(machine.locale)
             : this.rt.greetingText(machine);
-        await this.rt.telnyx.speak(effect.ccid, text, clientState);
+        const language = machine.locale === "fr-CA" ? "fr-CA" : "en-US";
+        await this.rt.telnyx.speak(effect.ccid, text, clientState, language);
         await this.save(machine);
         return [];
       }
