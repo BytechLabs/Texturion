@@ -208,6 +208,11 @@ describe("threadPatchMessage / threadApplyStatus", () => {
       existing,
     );
   });
+
+  it("returns the same reference when a receipt repeats the cached status", () => {
+    const existing = thread([[message("m1", T1, { status: "delivered" as MessageStatus })]]);
+    expect(threadPatchMessage(existing, "m1", { status: "delivered" as MessageStatus })).toBe(existing);
+  });
 });
 
 describe("threadInversePatch", () => {
@@ -356,6 +361,12 @@ describe("listPatchConversation / listSetUnread", () => {
   it("returns the same reference for unknown conversations", () => {
     const existing = list([[listItem("c1", T3)]]);
     expect(listSetUnread(existing, "missing", true)).toBe(existing);
+  });
+
+  it("returns the same reference when the row already holds the patched values", () => {
+    // The tab's own read echo: the optimistic patch already cleared the flag.
+    const existing = list([[listItem("c1", T3, { unread: false })]]);
+    expect(listSetUnread(existing, "c1", false)).toBe(existing);
   });
 });
 

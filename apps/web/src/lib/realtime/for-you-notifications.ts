@@ -140,19 +140,28 @@ export function useForYouNotificationsRealtime() {
       }, COALESCE_MS);
     };
 
+    // The data each query held when last seen. 'updated' is dispatched for
+    // every action on a query: a fetch starting, an invalidation, an error, a
+    // refetch landing, a patch. Only a success can change data, and only when
+    // it brings a new object: a refetch that returned the same JSON keeps its
+    // reference, and so does a patch that changed nothing. Reacting to the rest
+    // turned one thread open into four refetches of the queue and the badge.
+    const seen = new WeakMap<object, unknown>();
+    for (const query of cache.getAll()) seen.set(query, query.state.data);
+
     const unsubscribe = cache.subscribe((event) => {
-      // Only real data changes should trigger a refetch. 'updated' covers
-      // setQueryData patches AND fetch successes; skipping the rest drops the
-      // observerAdded/observerRemoved/observerResultsUpdated churn that fired on
-      // every mount/unmount and forced needless network round-trips.
-      if (event.type !== "updated") return;
+      if (event.type !== "updated" || event.action.type !== "success") return;
+      const { query } = event;
+      const before = seen.get(query);
+      seen.set(query, query.state.data);
+      if (before === query.state.data) return;
       // A query loading for the FIRST time is not a change to react to, it is
       // the app arriving. On boot every watched list settles at once, and each
       // one bought a refetch of the queue and the badge that had just been
       // fetched anyway. Only a query that already had data and then changed
       // means something actually moved.
-      if (event.query.state.dataUpdateCount <= 1) return;
-      if (feedsForYouOrBell(event.query.queryKey as readonly unknown[], companyId)) {
+      if (query.state.dataUpdateCount <= 1) return;
+      if (feedsForYouOrBell(query.queryKey as readonly unknown[], companyId)) {
         schedule();
       }
     });

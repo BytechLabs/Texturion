@@ -172,7 +172,7 @@ export function threadPatchMessage(
   let changed = false;
   const pages = thread.pages.map((page) => {
     const index = page.data.findIndex((message) => message.id === messageId);
-    if (index === -1) return page;
+    if (index === -1 || !changesSomething(page.data[index], patch)) return page;
     const current = page.data[index];
     const next = { ...current, ...patch };
     changed = true;
@@ -297,7 +297,7 @@ export function listPatchConversation(
   let changed = false;
   const pages = list.pages.map((page) => {
     const index = page.data.findIndex((row) => row.id === conversationId);
-    if (index === -1) return page;
+    if (index === -1 || !changesSomething(page.data[index], patch)) return page;
     changed = true;
     const data = page.data.slice();
     data[index] = { ...data[index], ...patch };
@@ -305,6 +305,15 @@ export function listPatchConversation(
   });
   if (!changed) return list;
   return { pages, pageParams: list.pageParams };
+}
+
+/**
+ * Whether a patch would change any field of the row. A delivery receipt or a
+ * read echo usually repeats what the cache already holds, and a new object for
+ * it made every listener see a change that did not happen.
+ */
+export function changesSomething<T extends object>(row: T, patch: Partial<T>): boolean {
+  return (Object.keys(patch) as (keyof T)[]).some((key) => !Object.is(row[key], patch[key]));
 }
 
 /** Flip the per-user unread flag (open-thread /read posts, inbound arrivals). */

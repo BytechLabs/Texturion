@@ -6,14 +6,18 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
+  changesSomething,
   listApplyConversation,
+  listSetUnread,
   snippetFromMessage,
   threadPatchMessage,
   type ThreadData,
 } from "@/lib/api/cache";
 import {
   fetchConversationDetail,
+  filtersFromListKey,
   patchConversationLists,
+  patchPinnedConversations,
   seedThreadFromDetail,
 } from "@/lib/api/conversations";
 import { useT, type Translate } from "@/i18n/provider";
@@ -550,7 +554,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           if (!detail) return detail;
           let changed = false;
           const data = detail.messages.data.map((message) => {
-            if (message.id !== event.message_id) return message;
+            if (message.id !== event.message_id || !changesSomething(message, patch)) return message;
             changed = true;
             return { ...message, ...patch };
           });
@@ -605,11 +609,28 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       void queryClient.invalidateQueries({
         queryKey: keys.notifications.feed(companyId),
       });
+      // read.notifications: the bell is all that moved.
+      const conversationId = event.conversation_id;
+      if (conversationId === undefined) return;
       // The focus queue counts unread threads too, so it moves with them.
       void queryClient.invalidateQueries({ queryKey: keys.forYou(companyId) });
-      void queryClient.invalidateQueries({
+      // The row is patched, not every list refetched. This tab cleared it when
+      // it posted the read, so the patch is a no-op here; another device of the
+      // same member did not. Only a list showing unread threads alone has to
+      // drop the row, and only that list is asked again.
+      patchConversationLists(queryClient, companyId, (list) =>
+        listSetUnread(list, conversationId, false),
+      );
+      patchPinnedConversations(queryClient, companyId, (row) =>
+        row.id === conversationId && row.unread ? { ...row, unread: false } : row,
+      );
+      for (const query of queryClient.getQueryCache().findAll({
         queryKey: keys.conversations.lists(companyId),
-      });
+      })) {
+        if (filtersFromListKey(query.queryKey).unread) {
+          void queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
+        }
+      }
     }
 
     function handleTaskChanged(event: TaskChangedEvent) {
