@@ -1,11 +1,13 @@
 import {
+  queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
   type QueryClient,
 } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -20,7 +22,11 @@ import {
 import { keys, taskMetadataInvalidationKeys } from "./keys";
 import { nextCursorParam } from "./pagination";
 import type { TaskListFilters } from "./task-filters";
-import { taskSearchParams } from "./task-params";
+import {
+  taskListKeyFilters,
+  taskSearchParams,
+  type TaskListRequest,
+} from "./task-params";
 import type { RepeatRequest, TaskScope } from "@/components/tasks/task-planning";
 import type {
   AddressProvenance,
@@ -68,7 +74,7 @@ export type TaskAddressInput = TaskAddress & {
 // without importing this hook chain. Re-exported here so existing consumers
 // (`import { TaskListFilters, taskSearchParams } from "@/lib/api/tasks"`) are
 // unaffected.
-export type { TaskListFilters };
+export type { TaskListFilters, TaskListRequest };
 
 // ---------------------------------------------------------------------------
 // Fetchers (pure — reused by prefetch/tests)
@@ -76,12 +82,14 @@ export type { TaskListFilters };
 
 export function fetchTasksPage(
   companyId: string,
-  filters: TaskListFilters,
+  filters: TaskListRequest,
   cursor?: string,
+  signal?: AbortSignal,
 ): Promise<Page<Task>> {
   return apiFetch<Page<Task>>("/v1/tasks", {
     companyId,
     searchParams: taskSearchParams(filters, cursor),
+    signal,
   });
 }
 
@@ -98,8 +106,9 @@ export function fetchConversationTasks(
 export function fetchTask(
   companyId: string,
   taskId: string,
+  signal?: AbortSignal,
 ): Promise<TaskDetail> {
-  return apiFetch<TaskDetail>(`/v1/tasks/${taskId}`, { companyId });
+  return apiFetch<TaskDetail>(`/v1/tasks/${taskId}`, { companyId, signal });
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +197,16 @@ export function useBulkTasks() {
   });
 }
 
+export interface TaskListOptions {
+  enabled?: boolean;
+  /**
+   * Show the last answer, marked `isPlaceholderData`, while a changed filter
+   * loads. Off by default: a caller that acts on the rows, like "is there a
+   * job today" in a thread, must never read another request's answer.
+   */
+  keepPrevious?: boolean;
+}
+
 /**
  * GET /v1/tasks — the /tasks page's filtered, cursor-paginated list (T6.1).
  * Due-sorted views (overdue / due-range) key on (due_at NULLS LAST, id);
@@ -195,37 +214,51 @@ export function useBulkTasks() {
  * page just follows `next_cursor`.
  */
 export function useTasks(
-  filters: TaskListFilters = {},
-  options?: { enabled?: boolean },
+  filters: TaskListRequest = {},
+  options?: TaskListOptions,
 ) {
   const companyId = useCompanyId();
+  const request = taskListKeyFilters(filters);
   return useInfiniteQuery({
-    queryKey: keys.tasks.list(companyId, filters),
-    queryFn: ({ pageParam }) =>
-      fetchTasksPage(companyId, filters, pageParam),
+    queryKey: keys.tasks.list(companyId, request),
+    queryFn: ({ pageParam, signal }) =>
+      fetchTasksPage(companyId, request, pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
     enabled: options?.enabled ?? true,
+    // Never another workspace's rows.
+    placeholderData: options?.keepPrevious
+      ? (previous, previousQuery) =>
+          previousQuery?.queryKey[0] === companyId ? previous : undefined
+      : undefined,
   });
 }
+
+/** The page size every whole-set view asks for: the most the route serves. */
+export const TASK_PAGE_LIMIT = 100;
 
 /**
  * `useTasks` that auto-drains every remaining page, for the whole-set views
  * (Board / Calendar / Map, D25). Those views partition/plot the COMPLETE result
- * — a card silently dropped past page 1 (the default 25) would corrupt the
- * board columns, month grid, or pin set — so they can't stop at page 1 like the
- * List view's explicit "Load more". This walks `fetchNextPage` until
- * `hasNextPage` is false; a hard page ceiling bounds the walk so a pathological
- * result set can never spin forever. Returns the same query object, so callers
- * read `query.data` / loading / error exactly as with `useTasks`.
+ * — a card silently dropped past page 1 would corrupt the board columns, month
+ * grid, or pin set — so they can't stop at page 1 like the List view's
+ * explicit "Load more". This walks `fetchNextPage` until `hasNextPage` is
+ * false; a hard page ceiling bounds the walk so a pathological result set can
+ * never spin forever. Returns the same query object, so callers read
+ * `query.data` / loading / error exactly as with `useTasks`. The previous rows
+ * stay up while a changed filter loads.
  */
-const MAX_TASK_PAGES = 40; // 40 × 25 = 1000 tasks; a hard upper bound.
+const MAX_TASK_PAGES = 10; // 10 × 100 = 1000 tasks; a hard upper bound.
 
 export function useAllTasks(
-  filters: TaskListFilters = {},
+  filters: TaskListRequest = {},
   options?: { enabled?: boolean },
 ) {
-  const query = useTasks(filters, options);
+  const enabled = options?.enabled ?? true;
+  const query = useTasks(
+    { ...filters, limit: filters.limit ?? TASK_PAGE_LIMIT },
+    { enabled, keepPrevious: true },
+  );
   const {
     hasNextPage,
     isFetchingNextPage,
@@ -236,17 +269,41 @@ export function useAllTasks(
   const pageCount = data?.pages.length ?? 0;
 
   useEffect(() => {
+    // fetchNextPage ignores `enabled`: a disabled reader of a live key must not page it.
+    if (!enabled) return;
     if (
       hasNextPage &&
       !isFetchingNextPage &&
       !isFetching &&
       pageCount < MAX_TASK_PAGES
     ) {
-      void fetchNextPage();
+      void fetchNextPage({ cancelRefetch: false });
     }
-  }, [hasNextPage, isFetchingNextPage, isFetching, pageCount, fetchNextPage]);
+  }, [enabled, hasNextPage, isFetchingNextPage, isFetching, pageCount, fetchNextPage]);
 
   return query;
+}
+
+/**
+ * The /tasks list row for `taskId` from any cached list, so the detail can
+ * paint its header before GET /v1/tasks/:id answers. Undefined when no list
+ * holds it.
+ */
+export function findCachedTaskRow(
+  queryClient: QueryClient,
+  companyId: string,
+  taskId: string,
+): Task | undefined {
+  const lists = queryClient.getQueriesData<InfiniteData<Page<Task>>>({
+    queryKey: keys.tasks.lists(companyId),
+  });
+  for (const [, data] of lists) {
+    for (const page of data?.pages ?? []) {
+      const row = page.data.find((task) => task.id === taskId);
+      if (row) return row;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -266,14 +323,32 @@ export function useConversationTasks(
   });
 }
 
-/** GET /v1/tasks/:id — one task's full detail (T6.2). */
+/** GET /v1/tasks/:id — one task's full detail (T6.2), for `useTask` and prefetches. */
+export function taskDetailQueryOptions(companyId: string, taskId: string) {
+  return queryOptions({
+    queryKey: keys.tasks.detail(companyId, taskId),
+    queryFn: ({ signal }) => fetchTask(companyId, taskId, signal),
+  });
+}
+
 export function useTask(taskId: string, options?: { enabled?: boolean }) {
   const companyId = useCompanyId();
   return useQuery({
-    queryKey: keys.tasks.detail(companyId, taskId),
-    queryFn: () => fetchTask(companyId, taskId),
+    ...taskDetailQueryOptions(companyId, taskId),
     enabled: options?.enabled ?? true,
   });
+}
+
+/** Warm a task's detail before it is opened; a fresh cached one is left alone. */
+export function usePrefetchTask(): (taskId: string) => void {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useCallback(
+    (taskId: string) => {
+      void queryClient.prefetchQuery(taskDetailQueryOptions(companyId, taskId));
+    },
+    [queryClient, companyId],
+  );
 }
 
 /**

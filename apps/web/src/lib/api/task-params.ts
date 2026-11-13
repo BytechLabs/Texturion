@@ -1,6 +1,27 @@
 import type { TaskListFilters } from "./task-filters";
 
 /**
+ * A GET /v1/tasks request: the filters plus an optional page size. The route
+ * takes 1 to 100 and answers 25 without one (routes/tasks.ts).
+ */
+export type TaskListRequest = TaskListFilters & { limit?: number };
+
+/**
+ * The request as a query key: absent, false and empty-list values dropped, since
+ * the serializer below sends none of them, so equal requests share one entry.
+ * The page size stays in: a probe for one row must never answer a list.
+ */
+export function taskListKeyFilters(request: TaskListRequest): TaskListRequest {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(request)) {
+    if (value === undefined || value === false) continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    out[key] = value;
+  }
+  return out as TaskListRequest;
+}
+
+/**
  * Serialize the /tasks page's UI filters into the GET /v1/tasks query params
  * (routes/tasks.ts). Pure and dependency-free so it is unit-testable in
  * isolation (the hooks module that consumes it pulls in the whole React-Query +
@@ -12,7 +33,7 @@ import type { TaskListFilters } from "./task-filters";
  * Booleans are sent only when true; absent params keep the route defaults intact.
  */
 export function taskSearchParams(
-  filters: TaskListFilters,
+  filters: TaskListRequest,
   cursor: string | undefined,
 ): Record<string, string | number | boolean | undefined> {
   const explicitAll = filters.assigned_user_id === "all";
@@ -68,6 +89,7 @@ export function taskSearchParams(
     source: filters.source,
     has_attachments: filters.has_attachments ? true : undefined,
     has_references: filters.has_references ? true : undefined,
+    limit: filters.limit,
     cursor,
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarClock } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -45,11 +45,16 @@ export function InlineAssignee({ task }: { task: Task }) {
   );
 }
 
-/** A compact due-date editor: the due chip opens a datetime popover. */
+/**
+ * A compact due-date editor: the due chip opens a datetime popover. A
+ * datetime-local fires on every segment, so the typed value is held and sent
+ * once, when the field is left or the popover closes.
+ */
 export function InlineDue({ task }: { task: Task }) {
   const t = useT();
   const update = useUpdateTask(taskThreadId(task));
   const [open, setOpen] = useState(false);
+  const draft = useRef<string | null>(null);
   const overdue = isOverdue(task);
 
   const label =
@@ -57,8 +62,26 @@ export function InlineDue({ task }: { task: Task }) {
       ? formatTimestamp(task.due_at, { style: "long", t })
       : t("tasks.setDue");
 
+  const commit = () => {
+    const value = draft.current;
+    draft.current = null;
+    // A datetime-local reads "" while ANY segment is blank, so a half-retyped
+    // hour is not "remove the due date". Removing one is the explicit control.
+    if (value === null || value === "" || value === toLocalInput(task.due_at)) return;
+    update.mutate(
+      { taskId: task.id, due_at: new Date(value).toISOString() },
+      { onError: () => toast.error(t("tasks.dueChangeFailed")) },
+    );
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) commit();
+        setOpen(next);
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -91,25 +114,18 @@ export function InlineDue({ task }: { task: Task }) {
             aria-label={t("tasks.dueDateTimeAria")}
             defaultValue={toLocalInput(task.due_at)}
             onChange={(e) => {
-              // A datetime-local reads "" while ANY segment is blank, so
-              // clearing the hour to retype it looked like "remove the due
-              // date" and wrote that immediately. Removing one is the explicit
-              // control below.
-              if (e.target.value === "") return;
-              update.mutate(
-                {
-                  taskId: task.id,
-                  due_at: new Date(e.target.value).toISOString(),
-                },
-                { onError: () => toast.error(t("tasks.dueChangeFailed")) },
-              );
+              draft.current = e.target.value;
             }}
+            onBlur={commit}
             className="rounded-app-ctrl border border-app-line bg-app-paper px-2 py-1.5 text-[13px] text-app-ink outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {task.due_at !== null && (
             <button
               type="button"
+              // Keeps focus in the field, so its blur cannot send the typed date first.
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
+                draft.current = null;
                 update.mutate(
                   { taskId: task.id, due_at: null },
                   { onError: () => toast.error(t("tasks.dueClearFailed")) },

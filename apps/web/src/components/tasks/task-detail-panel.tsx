@@ -11,6 +11,7 @@ import {
   PhoneIncoming,
   Paperclip,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -37,7 +38,7 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useT, type MessageKey, type Translate } from "@/i18n/provider";
-import { useActiveCompany } from "@/lib/company/provider";
+import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
 import { formatCallDuration } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
@@ -46,7 +47,11 @@ import { threadHref } from "@/lib/inbox/thread-href";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
+import { useRecordActivity } from "@/lib/api/record-activity";
+import { useTaskActivity } from "@/lib/api/task-activity";
+import { useTaskLinks } from "@/lib/api/task-links";
 import {
+  findCachedTaskRow,
   type TaskAddressInput,
   useAddTaskLabel,
   useCreateTaskNote,
@@ -58,6 +63,7 @@ import {
 import { useMembers } from "@/lib/api/team";
 import type {
   AddressProvenance,
+  Task,
   TaskActivityItem,
   TaskDetail,
   TaskPriority,
@@ -145,14 +151,47 @@ export function TaskDetailPanel({
   taskId: string;
   onClose?: () => void;
 }) {
+  return (
+    <>
+      <TaskDetailContent taskId={taskId} onClose={onClose} />
+      <TaskSectionReads taskId={taskId} />
+    </>
+  );
+}
+
+/**
+ * The sections below read these under the same keys; asking here starts them
+ * beside the detail instead of after it. A sibling, so their updates do not
+ * re-render the panel.
+ */
+function TaskSectionReads({ taskId }: { taskId: string }) {
+  useTaskLinks(taskId);
+  useTaskActivity(taskId);
+  useRecordActivity("task", taskId, null);
+  return null;
+}
+
+function TaskDetailContent({
+  taskId,
+  onClose,
+}: {
+  taskId: string;
+  onClose?: () => void;
+}) {
   const t = useT();
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
   const query = useTask(taskId);
 
-  if (query.isPending) return <TaskDetailSkeleton />;
+  if (query.isPending) {
+    const row = findCachedTaskRow(queryClient, companyId, taskId);
+    return row ? <TaskDetailPlaceholder row={row} /> : <TaskDetailSkeleton />;
+  }
 
-  if (query.isError) {
-    const notFound =
-      query.error instanceof ApiError && query.error.code === "not_found";
+  // A failed refetch keeps the loaded task on screen; a task that is gone does not.
+  const notFound =
+    query.error instanceof ApiError && query.error.code === "not_found";
+  if (query.isLoadingError || notFound) {
     return (
       <LoadError
         variant="fill"
@@ -1063,19 +1102,59 @@ function toLocalInput(iso: string | null): string {
   return local.toISOString().slice(0, 16);
 }
 
-function TaskDetailSkeleton() {
+export function TaskDetailSkeleton() {
   return (
     <div className="space-y-5 p-5" aria-hidden>
       <div className="flex items-start gap-3">
         <Skeleton className="size-5 rounded-full" />
         <Skeleton className="h-6 flex-1" />
       </div>
+      <TaskDetailBodySkeleton />
+    </div>
+  );
+}
+
+function TaskDetailBodySkeleton() {
+  return (
+    <>
       <Skeleton className="h-20 w-full rounded-app-card" />
       <div className="grid grid-cols-2 gap-4">
         <Skeleton className="h-9" />
         <Skeleton className="h-9" />
       </div>
       <Skeleton className="h-16 w-full" />
+    </>
+  );
+}
+
+/**
+ * The header from the list row the task was opened from, while its detail
+ * loads. Read-only, and nothing from the conversation: whether this viewer may
+ * see that is the detail's viewer_level (#107).
+ */
+function TaskDetailPlaceholder({ row }: { row: Task }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col" aria-busy>
+      <RecordHeader
+        className="border-b border-app-line pb-4 pl-5 pr-12 pt-5"
+        leading={<Skeleton className="mt-1 size-5 shrink-0 rounded-full" />}
+        title={
+          <>
+            <TaskNumber task={row} className="ml-1 block" />
+            <p
+              className={cn(
+                "w-full break-words px-1 py-0.5 text-lg font-semibold leading-snug text-app-ink",
+                row.done && "text-app-muted line-through opacity-70",
+              )}
+            >
+              {row.title}
+            </p>
+          </>
+        }
+      />
+      <div className="space-y-5 px-5 py-5" aria-hidden>
+        <TaskDetailBodySkeleton />
+      </div>
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
-import { useGeocodeProgress, useAllTasks } from "@/lib/api/tasks";
+import { useGeocodeProgress, useAllTasks, useTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Task } from "@/lib/api/types";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -49,18 +49,18 @@ export function MapView({ state }: { state: TaskPageState }) {
   // frozen route uses the geocode to filter; `taskCoords` plots whatever
   // coordinates the row actually carries and counts the rest as unlocated).
   const filters = { ...toTaskFilters(state), status: undefined, has_location: true };
-  // Drain every page so all located tasks are plotted, not just the first 25.
+  // Drain every page so all located tasks are plotted, not just the first one.
   const query = useAllTasks(filters);
   const tasks = flattenPages(query.data);
-  // Nothing is located. Ask for the same tasks without the location filter, so
+  // Nothing is located. Ask whether the same filter has any task at all, so
   // the page can say whether there are none at all or none with an address
-  // (#752): "No tasks yet" must never appear while tasks exist.
-  const noneLocated = query.isSuccess && tasks.length === 0;
-  const unlocatedQuery = useAllTasks(
-    { ...filters, has_location: undefined },
+  // (#752): "No tasks yet" must never appear while tasks exist. One row answers.
+  const noneLocated = query.isSuccess && !query.isPlaceholderData && tasks.length === 0;
+  const unlocatedQuery = useTasks(
+    { ...filters, has_location: undefined, limit: 1 },
     { enabled: noneLocated },
   );
-  const unlocatedCount = flattenPages(unlocatedQuery.data).length;
+  const anyUnlocated = flattenPages(unlocatedQuery.data).length > 0;
 
   const [nearMe, setNearMe] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
@@ -119,8 +119,8 @@ export function MapView({ state }: { state: TaskPageState }) {
         </div>
       );
     }
-    if (unlocatedCount > 0) {
-      return <NoAddresses count={unlocatedCount} />;
+    if (anyUnlocated) {
+      return <NoAddresses count={null} />;
     }
     return (
       <div className="space-y-3">
@@ -177,16 +177,20 @@ export function MapView({ state }: { state: TaskPageState }) {
   );
 }
 
-/** The Map's own empty state: tasks exist, none has an address. */
-function NoAddresses({ count }: { count: number }) {
+/** The Map's own empty state: tasks exist, none has an address. `count` is null when not counted. */
+function NoAddresses({ count }: { count: number | null }) {
   const t = useT();
+  const counted =
+    count === null
+      ? ""
+      : `${t(count === 1 ? "tasks.mapUnlocatedOne" : "tasks.mapUnlocatedMany", { count })} `;
   return (
     <div className="flex h-[320px] items-center justify-center rounded-xl border border-border bg-secondary/20">
       <EmptyState
         size="panel"
         icon={<MapPin strokeWidth={1.75} />}
         title={t("tasks.mapNoMappedAddress")}
-        description={`${t(count === 1 ? "tasks.mapUnlocatedOne" : "tasks.mapUnlocatedMany", { count })} ${t("tasks.mapAddAddressHow")}`}
+        description={`${counted}${t("tasks.mapAddAddressHow")}`}
       />
     </div>
   );

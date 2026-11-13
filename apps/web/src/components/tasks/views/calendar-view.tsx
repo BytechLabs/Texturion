@@ -37,7 +37,7 @@ import type { Task } from "@/lib/api/types";
 
 import { openNewTask } from "../new-task";
 import { taskThreadId } from "../task-format";
-import { useTaskDrawer } from "../use-task-drawer";
+import { taskLinkClickHandler, useTaskDrawer } from "../use-task-drawer";
 import { useTaskRowActions } from "../task-actions";
 import { useTaskReschedule } from "../use-task-mutations";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
@@ -89,21 +89,22 @@ export function CalendarView({ state }: { state: TaskPageState }) {
   const cursor = picked ?? today;
   const [activeKey, setActiveKey] = useState<string | null>(null);
 
-  // The visible grid always spans whole weeks so the month grid is rectangular.
+  // The fetch always covers the month grid around the cursor, whole weeks so
+  // it is rectangular; a week is sliced out of it, so stepping weeks inside a
+  // month and switching to Week reuse the month's answer.
   const { gridStart, gridEnd, days } = useMemo(() => {
-    if (mode === "week") {
-      const s = startOfWeek(cursor);
-      const e = endOfWeek(cursor);
-      return { gridStart: s, gridEnd: e, days: eachDayOfInterval({ start: s, end: e }) };
-    }
     const s = startOfWeek(startOfMonth(cursor));
     const e = endOfWeek(endOfMonth(cursor));
-    return { gridStart: s, gridEnd: e, days: eachDayOfInterval({ start: s, end: e }) };
+    const visible =
+      mode === "week"
+        ? eachDayOfInterval({ start: startOfWeek(cursor), end: endOfWeek(cursor) })
+        : eachDayOfInterval({ start: s, end: e });
+    return { gridStart: s, gridEnd: e, days: visible };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `cursor` is derived from picked and the zone
   }, [mode, picked, timeZone]);
 
-  // Fetch every task due within the visible window (+ the tab/chip scope). The
-  // due-range makes this a due-sorted query; a large page covers a month.
+  // Fetch every task due within the window (+ the tab/chip scope). The
+  // due-range makes this a due-sorted query.
   const range = windowInstants(gridStart, gridEnd, timeZone);
   const filters = {
     ...toTaskFilters(state),
@@ -112,15 +113,22 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     due_after: range.after,
     due_before: range.before,
   };
-  // Drain every page in the visible window so no dated chip past page 1 is
-  // dropped from the month/week grid.
-  const query = useAllTasks(filters);
+  // Drain every page in the window so no dated chip past page 1 is dropped.
+  // The workspace clock decides the window, so wait for it rather than ask
+  // once in the device's zone and again in the workspace's.
+  const query = useAllTasks(filters, {
+    enabled: company.isSuccess || company.isError,
+  });
+  const visibleKeys = useMemo(() => new Set(days.map(dayKey)), [days]);
   // The status dimension is applied here rather than on the wire: the fetch
   // covers the visible window in one due-sorted query, so narrowing it
   // server-side would cost a refetch per tab. Without this the Open and Done
   // pills stayed lit and changed nothing, which is what both phone apps
   // already got right (matchesCalendarTab).
   const tasks = flattenPages(query.data).filter((task) => {
+    if (task.due_at === null || !visibleKeys.has(dueCell(task.due_at, timeZone).key)) {
+      return false;
+    }
     if (state.tab === "open") return !task.done;
     if (state.tab === "done") return task.done;
     return true;
@@ -140,7 +148,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `tasks` is rebuilt each render; its inputs are the deps
-  }, [query.data, state.tab, mode, timeZone]);
+  }, [query.data, state.tab, mode, timeZone, visibleKeys]);
 
   const step = (dir: 1 | -1) =>
     setPicked(mode === "week" ? addWeeks(cursor, dir) : addMonths(cursor, dir));
@@ -241,7 +249,11 @@ export function CalendarView({ state }: { state: TaskPageState }) {
       </header>
 
       <div className="overflow-x-auto">
-        <div className="min-w-[640px]" onKeyDown={onGridKeyDown}>
+        <div
+          className="min-w-[640px]"
+          onKeyDown={onGridKeyDown}
+          aria-busy={query.isPlaceholderData}
+        >
           <div
             className={cn(
               "grid border-b border-border",
@@ -336,7 +348,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
       )}
       {/* Teach the calendar rather than leave it reading as broken: when no
           task in the visible window has a due date, explain how they appear. */}
-      {!query.isPending && !query.isError && tasks.length === 0 && (
+      {!query.isPending && !query.isPlaceholderData && !query.isError && tasks.length === 0 && (
         <div className="rounded-app-card border border-app-line bg-app-inset px-4 py-3 text-center">
           <p className="text-[13px] leading-relaxed text-muted-foreground">
             {t("tasks.calendarEmptyBefore")}
@@ -533,6 +545,7 @@ function DayChip({ task }: { task: Task }) {
       <Link
         href={hrefForTask(task.id)}
         scroll={false}
+        onClick={taskLinkClickHandler(task.id)}
         draggable
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = "move";

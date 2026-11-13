@@ -1,9 +1,14 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 import { useT } from "@/i18n/provider";
+import { keys } from "@/lib/api/keys";
+import { useCompanyId } from "@/lib/company/provider";
 
 import { TaskDetailPanel } from "./task-detail-panel";
 
@@ -13,6 +18,15 @@ import { TaskDetailPanel } from "./task-detail-panel";
  * link. On delete the panel calls onClose; here that navigates back to /tasks.
  */
 export function TaskRoutePanel({ taskId }: { taskId: string }) {
+  return (
+    <TaskRouteFrame>
+      <TaskDetailPanelHost taskId={taskId} />
+    </TaskRouteFrame>
+  );
+}
+
+/** The page's card and its way back, shared with the route's loading state. */
+export function TaskRouteFrame({ children }: { children: React.ReactNode }) {
   const t = useT();
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8">
@@ -24,9 +38,7 @@ export function TaskRoutePanel({ taskId }: { taskId: string }) {
         {t("tasks.backToTasks")}
       </Link>
       <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
-        <div className="h-[calc(100svh-11rem)] min-h-[420px]">
-          <TaskDetailPanelHost taskId={taskId} />
-        </div>
+        <div className="h-[calc(100svh-11rem)] min-h-[420px]">{children}</div>
       </div>
     </div>
   );
@@ -34,12 +46,26 @@ export function TaskRoutePanel({ taskId }: { taskId: string }) {
 
 /** Wraps the panel with a client-side "back to /tasks" close. */
 function TaskDetailPanelHost({ taskId }: { taskId: string }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const companyId = useCompanyId();
+  const deleted = useRef(false);
+  useEffect(
+    () => () => {
+      // Dropped once the page is gone, so nothing still on screen refetches it,
+      // and a later visit cannot paint the deleted task from cache.
+      if (deleted.current) {
+        queryClient.removeQueries({ queryKey: keys.tasks.detail(companyId, taskId) });
+      }
+    },
+    [queryClient, companyId, taskId],
+  );
   return (
     <TaskDetailPanel
       taskId={taskId}
       onClose={() => {
-        // A hard nav so the deleted task's route unmounts cleanly.
-        window.location.assign("/tasks");
+        deleted.current = true;
+        router.replace("/tasks");
       }}
     />
   );

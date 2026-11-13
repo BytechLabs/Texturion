@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
-import { useAllTasks } from "@/lib/api/tasks";
+import { TASK_PAGE_LIMIT, useAllTasks, useTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
@@ -19,7 +20,7 @@ import { useMemberNames } from "@/components/inbox/member-avatar";
 import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
 import { taskThreadId } from "../task-format";
 import { useTaskRowActions } from "../task-actions";
-import { useTaskDrawer } from "../use-task-drawer";
+import { taskLinkClickHandler, useTaskDrawer } from "../use-task-drawer";
 import { EmptyTasks } from "../task-empty";
 import { useTaskDone } from "../use-task-mutations";
 import { toTaskFilters, type TaskPageState } from "../task-view-url";
@@ -42,13 +43,25 @@ export function BoardView({ state }: { state: TaskPageState }) {
   // real predicate and its only other opt-out pins an assignee — so the board
   // fetches its two columns as two status-scoped queries (status=open /
   // status=done) that share the tab's assignee scope, then partitions locally.
-  // Each drains every page (a card dropped past page 1 would leave a column
-  // short); the derived `done` on each row still governs which column it lands
-  // in (a row that raced across a status boundary self-corrects on the next read).
+  // To do drains every page (a card dropped past page 1 would leave it short);
+  // Done is the newest page with "Load more", since that history only grows.
+  // The derived `done` on each row still governs which column it lands in (a
+  // row that raced across a status boundary self-corrects on the next read).
   const t = useT();
   const base = toTaskFilters(state);
   const todoQuery = useAllTasks({ ...base, status: "open" });
-  const doneQuery = useAllTasks({ ...base, status: "done" });
+  const doneQuery = useTasks(
+    { ...base, status: "done", limit: TASK_PAGE_LIMIT },
+    { keepPrevious: true },
+  );
+  // A changed filter still loading behind the last answer: no drops onto it.
+  const busy = todoQuery.isPlaceholderData || doneQuery.isPlaceholderData;
+  const moreDone = doneQuery.hasNextPage
+    ? {
+        fetching: doneQuery.isFetchingNextPage,
+        fetch: () => void doneQuery.fetchNextPage(),
+      }
+    : null;
 
   const isPending = todoQuery.isPending || doneQuery.isPending;
   const isError = todoQuery.isError || doneQuery.isError;
@@ -86,16 +99,44 @@ export function BoardView({ state }: { state: TaskPageState }) {
   const todo = all.filter((t) => !t.done);
   const done = all.filter((t) => t.done);
 
-  if (all.length === 0) return <EmptyTasks state={state} />;
+  // An empty last answer says nothing yet about the filter now loading.
+  if (all.length === 0) return busy ? <BoardSkeleton /> : <EmptyTasks state={state} />;
 
   if (state.group === "assignee" || state.group === "priority") {
-    return <GroupedBoard tasks={all} group={state.group} />;
+    return (
+      <div aria-busy={busy} className={cn("space-y-4", busy && BUSY_CLASS)}>
+        <GroupedBoard tasks={all} group={state.group} busy={busy} />
+        {moreDone && <LoadMoreButton more={moreDone} />}
+      </div>
+    );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Column title={t("tasks.boardColumnToDo")} tasks={todo} target={false} />
-      <Column title={t("tasks.boardColumnDone")} tasks={done} target={true} />
+    <div
+      aria-busy={busy}
+      className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", busy && BUSY_CLASS)}
+    >
+      <Column title={t("tasks.boardColumnToDo")} tasks={todo} target={false} busy={busy} />
+      <Column
+        title={t("tasks.boardColumnDone")}
+        tasks={done}
+        target={true}
+        busy={busy}
+        more={moreDone}
+      />
+    </div>
+  );
+}
+
+const BUSY_CLASS = "opacity-60 transition-opacity duration-150";
+
+function LoadMoreButton({ more }: { more: { fetching: boolean; fetch: () => void } }) {
+  const t = useT();
+  return (
+    <div className="flex justify-center pt-1">
+      <Button variant="outline" size="sm" onClick={more.fetch} disabled={more.fetching}>
+        {more.fetching ? t("tasks.loadingMore") : t("tasks.loadMore")}
+      </Button>
     </div>
   );
 }
@@ -109,9 +150,11 @@ export function BoardView({ state }: { state: TaskPageState }) {
 function GroupedBoard({
   tasks,
   group,
+  busy,
 }: {
   tasks: Task[];
   group: "assignee" | "priority";
+  busy: boolean;
 }) {
   const t = useT();
   const names = useMemberNames();
@@ -143,6 +186,7 @@ function GroupedBoard({
               <BoardCard
                 key={task.id}
                 task={task}
+                draggable={!busy}
                 onMove={() =>
                   done.mutate({
                     taskId: task.id,
@@ -160,23 +204,33 @@ function GroupedBoard({
   );
 }
 
-/** One board column. `target` is the done-state a card dropped here takes on. */
+/**
+ * One board column. `target` is the done-state a card dropped here takes on.
+ * `more` is the rest of a column that loads a page at a time; until it is
+ * loaded the count says "100+" rather than a total it does not have.
+ */
 function Column({
   title,
   tasks,
   target,
+  busy,
+  more = null,
 }: {
   title: string;
   tasks: Task[];
   target: boolean;
+  busy: boolean;
+  more?: { fetching: boolean; fetch: () => void } | null;
 }) {
   const t = useT();
   const done = useTaskDone();
   const [over, setOver] = useState(false);
+  const count = more ? `${tasks.length}+` : String(tasks.length);
 
   return (
     <section
       onDragOver={(e) => {
+        if (busy) return;
         e.preventDefault();
         setOver(true);
       }}
@@ -214,12 +268,12 @@ function Column({
         // active/over state"); otherwise border-first, calm.
         over ? "border-primary bg-primary/5" : "border-border bg-secondary/20",
       )}
-      aria-label={t("tasks.boardColumnAria", { title, count: tasks.length })}
+      aria-label={t("tasks.boardColumnAria", { title, count })}
     >
       <header className="flex items-center justify-between px-1 pb-1">
         <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
         <span className="text-xs tabular-nums text-muted-foreground">
-          {tasks.length}
+          {count}
         </span>
       </header>
       {tasks.length === 0 ? (
@@ -233,6 +287,7 @@ function Column({
           <BoardCard
             key={task.id}
             task={task}
+            draggable={!busy}
             onMove={() =>
               done.mutate({
                 taskId: task.id,
@@ -244,12 +299,21 @@ function Column({
           />
         ))
       )}
+      {more && <LoadMoreButton more={more} />}
     </section>
   );
 }
 
 /** A calm draggable card + a keyboard-accessible "move" button. */
-function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
+function BoardCard({
+  task,
+  draggable,
+  onMove,
+}: {
+  task: Task;
+  draggable: boolean;
+  onMove: () => void;
+}) {
   const t = useT();
   const { hrefForTask } = useTaskDrawer();
   // #712: right-click, long-press or the menu key opens the task's one action list.
@@ -257,7 +321,7 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
   return (
     <RecordContextMenu actions={actions}>
     <article
-      draggable
+      draggable={draggable}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/task-id", task.id);
@@ -265,12 +329,16 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
         e.dataTransfer.setData("text/task-message", task.message_id ?? "");
         e.dataTransfer.setData("text/task-conversation", taskThreadId(task));
       }}
-      className="cursor-grab rounded-lg border border-border bg-card p-3 active:cursor-grabbing"
+      className={cn(
+        "rounded-lg border border-border bg-card p-3",
+        draggable && "cursor-grab active:cursor-grabbing",
+      )}
     >
       <div className="flex items-start justify-between gap-2">
         <Link
           href={hrefForTask(task.id)}
           scroll={false}
+          onClick={taskLinkClickHandler(task.id)}
           className={cn(
             "min-w-0 flex-1 text-[13px] font-medium text-foreground hover:text-primary",
             task.done && "text-muted-foreground line-through opacity-70",

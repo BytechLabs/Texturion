@@ -4,6 +4,9 @@ export const metadata = {
   title: "Task",
 };
 
+// The router keeps this page for five minutes, so Back and a reopen paint at once.
+export const unstable_dynamicStaleTime = 300;
+
 /**
  * /tasks/[id] — the deep-linkable task detail (TASKS-V2 D-A). Renders the SAME
  * TaskDetailPanel the drawer uses, but as a standalone page for a hard refresh

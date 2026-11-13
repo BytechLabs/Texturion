@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { taskSearchParams } from "./task-params";
+import { taskListKeyFilters, taskSearchParams } from "./task-params";
 import { toTaskFilters } from "@/components/tasks/task-view-url";
 import type { TaskPageState } from "@/components/tasks/task-view-url";
 
@@ -127,5 +127,40 @@ describe("#693 priority, label and sort query params", () => {
     expect(q.has("priority")).toBe(false);
     expect(q.has("tag_id")).toBe(false);
     expect(q.has("sort")).toBe(false);
+  });
+});
+
+describe("the page size", () => {
+  it("is sent when asked for and left to the route otherwise", () => {
+    expect(taskSearchParams({ status: "open", limit: 100 }, "c1")).toMatchObject({
+      limit: 100,
+      cursor: "c1",
+    });
+    expect(taskSearchParams({ status: "open" }, undefined).limit).toBeUndefined();
+  });
+});
+
+describe("taskListKeyFilters: equal requests share one cache entry", () => {
+  it("drops what the request never sends", () => {
+    expect(
+      taskListKeyFilters({
+        assigned_user_id: "me",
+        status: undefined,
+        overdue: undefined,
+        unassigned: false,
+        priority: [],
+      }),
+    ).toEqual({ assigned_user_id: "me" });
+  });
+
+  it("keeps every value that changes the answer, the page size included", () => {
+    const request = {
+      assigned_user_id: "all",
+      status: "done" as const,
+      priority: ["urgent" as const],
+      has_location: true,
+      limit: 1,
+    };
+    expect(taskListKeyFilters(request)).toEqual(request);
   });
 });
