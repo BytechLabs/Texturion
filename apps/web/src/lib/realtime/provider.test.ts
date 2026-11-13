@@ -4,10 +4,14 @@
  * format and the "when does the socket rebuild" key are pinned here rather than
  * left to the one effect that consumes them.
  */
+import { readFileSync } from "node:fs";
+
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
-import { numberTopicKey, realtimeTopics } from "./provider";
+import { keys } from "@/lib/api/keys";
+
+import { REALTIME_FED, numberTopicKey, realtimeTopics } from "./provider";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
 
@@ -47,6 +51,37 @@ describe("numberTopicKey", () => {
       { id: "suspended", status: "active", suspended_at: "2026-07-30T00:00:00Z" },
     ];
     expect(numberTopicKey(numbers)).toBe("active,failed,suspended");
+  });
+});
+
+describe("REALTIME_FED", () => {
+  it("holds every key root the provider writes, so a resync refetches what a broadcast feeds", () => {
+    // A resync skips a fresh key outside the set, so a dropped frame there would stay wrong for 5 minutes.
+    const source = readFileSync(new URL("./provider.tsx", import.meta.url), "utf8");
+    const roots = new Set<string>();
+    for (const [, path] of source.matchAll(/(?<![\w.])keys((?:\.[A-Za-z]+)+)/g)) {
+      const value = path
+        .slice(1)
+        .split(".")
+        .reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], keys);
+      expect(value, `keys${path}`).toBeDefined();
+      const key =
+        typeof value === "function"
+          ? (value as (...args: string[]) => readonly unknown[])("C", "x", "y")
+          : (value as readonly unknown[]);
+      // Company-exempt, and invalidated by name after a rejoin.
+      if (key[0] === "me") continue;
+      expect(key[0], `keys${path} is company-scoped`).toBe("C");
+      roots.add(String(key[1]));
+    }
+    for (const [, root] of source.matchAll(/\[companyId,\s*"([^"]+)"/g)) {
+      roots.add(root);
+    }
+
+    expect(roots.size, [...roots].join(", ")).toBeGreaterThanOrEqual(10);
+    for (const root of roots) {
+      expect(REALTIME_FED.has(root), `${root} is written but not in REALTIME_FED`).toBe(true);
+    }
   });
 });
 

@@ -13,9 +13,13 @@
  * the server re-derives them. That means:
  *   - an inbound message (message.created patches a conversation list) →
  *     for-you + bell refresh,
- *   - a done toggle or status/assign change (message.status /
- *     conversation.updated patch the thread + detail) → for-you refresh,
+ *   - a status/assign change (conversation.updated patches the list rows and
+ *     the detail) → for-you + bell refresh,
  *   - a task create/assign/due (tasks lists/checklist change) → for-you refresh.
+ *
+ * Delivery receipts, done toggles and read echoes are written through
+ * `patchQuietly`: the provider refreshes the queue itself when one of them can
+ * move it, and none of them can move the bell.
  *
  * One shared instance is enough; it is mounted once from the app shell region
  * that always renders (the bell). Invalidations are coalesced to a microtask so
@@ -34,7 +38,28 @@ function feedsForYouOrBell(key: readonly unknown[], companyId: string): boolean 
   // conversations list rows carry unread + assignment (waiting/unread sections);
   // message threads carry done state (task completion); tasks lists/checklist
   // carry the my_tasks / triage sections.
-  return key[1] === "conversations" || key[1] === "messages" || key[1] === "tasks";
+  switch (key[1]) {
+    case "conversations":
+      return key[2] === "list" || key[2] === "pinned" || key[2] === "detail";
+    case "messages":
+      return true;
+    case "tasks":
+      return key[2] === "list" || key[2] === "checklist";
+    default:
+      return false;
+  }
+}
+
+let quietWrites = 0;
+
+/** Runs cache writes that move neither the queue nor the bell without the listener below reacting. */
+export function patchQuietly(write: () => void): void {
+  quietWrites += 1;
+  try {
+    write();
+  } finally {
+    quietWrites -= 1;
+  }
 }
 
 /**
@@ -154,7 +179,7 @@ export function useForYouNotificationsRealtime() {
       const { query } = event;
       const before = seen.get(query);
       seen.set(query, query.state.data);
-      if (before === query.state.data) return;
+      if (before === query.state.data || quietWrites > 0) return;
       // A query loading for the FIRST time is not a change to react to, it is
       // the app arriving. On boot every watched list settles at once, and each
       // one bought a refetch of the queue and the badge that had just been

@@ -187,6 +187,8 @@ export const REALTIME_EVENTS = [
   "read.notifications",
   // #480: somebody's number access moved, so the topic set must be re-derived.
   "access.changed",
+  // PORTING.md §8.2: a number transfer moved a step.
+  "port.updated",
 ] as const;
 
 export type RealtimeEventName = (typeof REALTIME_EVENTS)[number];

@@ -6,7 +6,6 @@ import { PortCard } from "@/components/settings/port-card";
 import { StartPortDialog } from "@/components/settings/start-port-dialog";
 import { SettingsCard } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
-import { usePortEvents } from "@/components/settings/use-port-events";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import type { HeldNumbersView } from "@/lib/api/billing";
@@ -42,9 +41,8 @@ export function PortSection({
   held?: HeldNumbersView;
 }) {
   const t = useT();
-  const { companyId, role } = useActiveCompany();
+  const { role } = useActiveCompany();
   const ports = usePortRequests();
-  usePortEvents(companyId);
 
   const canStart = role === "owner" || role === "admin";
   const active = company.subscription_status === "active";

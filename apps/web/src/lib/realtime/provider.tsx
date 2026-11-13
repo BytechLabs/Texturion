@@ -1,12 +1,13 @@
 "use client";
 
-import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useQueryClient, type Query } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
   changesSomething,
+  findListRow,
   listApplyConversation,
   listSetUnread,
   snippetFromMessage,
@@ -15,7 +16,6 @@ import {
 } from "@/lib/api/cache";
 import {
   fetchConversationDetail,
-  filtersFromListKey,
   patchConversationLists,
   patchPinnedConversations,
   seedThreadFromDetail,
@@ -45,26 +45,76 @@ import {
   type PaymentUpdatedEvent,
   type TaskChangedEvent,
 } from "./events";
+import { patchQuietly } from "./for-you-notifications";
 import { activeConversationFromPath } from "./path";
 import { createSequenceTracker } from "./sequence";
 
-function findListRow(
-  queryClient: QueryClient,
+/** Key roots a broadcast keeps current; a resync skips the rest until their data is 5 minutes old. */
+export const REALTIME_FED: ReadonlySet<string> = new Set([
+  "conversations",
+  "messages",
+  "tasks",
+  "for-you",
+  "notifications",
+  "calls",
+  "payments",
+  "quotes",
+  "spam-review",
+  "company",
+  "numbers",
+  "registration",
+  "port-requests",
+]);
+
+const RESYNC_STALE_AFTER_MS = 5 * 60_000;
+
+/** Which of a company's queries a resync or a rejoin backfill refetches. */
+export function resyncPredicate(
   companyId: string,
-  conversationId: string,
-): ConversationListItem | undefined {
-  for (const query of queryClient
-    .getQueryCache()
-    .findAll({ queryKey: keys.conversations.lists(companyId) })) {
-    const data = query.state.data as
-      | { pages: Page<ConversationListItem>[] }
-      | undefined;
-    const row = data?.pages
-      .flatMap((page) => page.data)
-      .find((r) => r.id === conversationId);
-    if (row) return row;
+  now: number,
+): (query: Query) => boolean {
+  return (query) => {
+    const key = query.queryKey;
+    if (key[0] !== companyId) return false;
+    // Re-minting a signed URL changes it, and every image on screen reloads.
+    if (key[1] === "attachments" && key[3] === "url") return false;
+    return (
+      REALTIME_FED.has(key[1] as string) ||
+      now - query.state.dataUpdatedAt > RESYNC_STALE_AFTER_MS
+    );
+  };
+}
+
+/** How long a burst of broadcasts is collected into one refetch per key. */
+const REFRESH_COALESCE_MS = 400;
+
+/** How long a focus resync waits for a rejoin that would backfill anyway. */
+const RESYNC_DELAY_MS = 3_000;
+
+function threadMessage(
+  thread: ThreadData | undefined,
+  messageId: string,
+): Message | undefined {
+  for (const page of thread?.pages ?? []) {
+    const message = page.data.find((m) => m.id === messageId);
+    if (message) return message;
   }
   return undefined;
+}
+
+/** The conversation fields whose change writes a timeline line, and that a row shows. */
+function timelineFields(
+  conversation: ConversationListItem | ConversationDetail,
+): string {
+  return JSON.stringify([
+    conversation.status,
+    conversation.assigned_user_id,
+    conversation.is_spam,
+    conversation.lead_source_id ?? null,
+    conversation.tags.map((tag) => tag.id).sort(),
+    // A completed call writes its line and moves this without a message.
+    conversation.last_message_at,
+  ]);
 }
 
 /** Build a list row from a detail response, preserving per-user unread. */
@@ -183,10 +233,12 @@ const NUMBER_LIST_RETRY_DELAYS_MS = [1_000, 4_000, 12_000];
  */
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { companyId } = useActiveCompany();
-  // undefined while /me is in flight or on a server that predates the field —
+  // undefined on a server that predates the field or after a failed read:
   // both mean "no statement", and the socket opens as it always did.
   const meCompany = useMeCompany();
   const realtimeEnabled = meCompany.data?.flags?.["kill:realtime"];
+  // Waiting for /v1/me lets the first socket join the number topics instead of rebuilding.
+  const mePending = meCompany.isPending;
   /**
    * #480: which per-number topics this client joins, as a stable key.
    *
@@ -326,12 +378,31 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     //
     // `!== false` rather than a truthiness check: an absent flag means "no
     // statement", which must read as ON. Only an explicit false stops us.
-    if (realtimeEnabled === false) return;
+    if (realtimeEnabled === false || mePending) return;
 
     const supabase = getSupabaseBrowser();
     let disposed = false;
     // Trailing per-conversation coalescing for conversation.updated bursts.
     const pendingUpdates = new Map<string, ReturnType<typeof setTimeout>>();
+    const refreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+    /** One refetch per key per burst, so later events join it instead of cancelling it. */
+    function refreshSoon(queryKey: readonly unknown[]) {
+      const id = JSON.stringify(queryKey);
+      if (refreshTimers.has(id)) return;
+      refreshTimers.set(
+        id,
+        setTimeout(() => {
+          refreshTimers.delete(id);
+          void queryClient.invalidateQueries({ queryKey, refetchType: "active" });
+        }, REFRESH_COALESCE_MS),
+      );
+    }
+
+    function refreshBell() {
+      refreshSoon(keys.notifications.unreadCount(companyId));
+      refreshSoon(keys.notifications.feed(companyId));
+    }
 
     const isViewing = (conversationId: string) =>
       activeConversationRef.current === conversationId;
@@ -340,38 +411,43 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       const { conversation_id, message_id, direction } = event;
 
       const cachedRow = findListRow(queryClient, companyId, conversation_id);
+      const thread = queryClient.getQueryData<ThreadData>(
+        keys.thread(companyId, conversation_id),
+      );
 
       // #215 efficiency: a spam conversation the user does NOT have open has
       // nothing to update — the open-thread append below would no-op (no thread
       // cache) and the inbox list stays spam-gated (SPEC §6.3). Skip the wasted
       // message fetch. An OPEN spam thread still live-appends (its thread cache
       // exists, so we fall through and patch it).
-      if (
-        cachedRow?.is_spam &&
-        !queryClient.getQueryData<ThreadData>(
-          keys.thread(companyId, conversation_id),
-        )
-      ) {
-        return;
-      }
+      if (cachedRow?.is_spam && !thread) return;
 
-      // Fetch the message via the API (ID-only payload, §8) — the newest
-      // thread page carries it plus anything else we missed.
-      let page: Page<Message> | null = null;
-      try {
-        page = await fetchMessagesPage(companyId, conversation_id, undefined, 25);
-      } catch {
-        // Unreachable API right now: staleness is handled on reconnect.
-        return;
-      }
-      if (disposed) return;
-      const message = page.data.find((m) => m.id === message_id);
+      // This tab's own send, or a message a refetch already brought in.
+      let message = threadMessage(thread, message_id);
+      if (!message) {
+        // ID-only payload (§8): an open thread takes the newest page to catch anything missed (#215).
+        let page: Page<Message>;
+        try {
+          page = await fetchMessagesPage(
+            companyId,
+            conversation_id,
+            undefined,
+            thread ? 25 : 1,
+          );
+        } catch {
+          // Unreachable API right now: staleness is handled on reconnect.
+          return;
+        }
+        if (disposed) return;
+        message = page.data.find((m) => m.id === message_id);
 
-      // Patch the thread cache when this thread has ever been opened — INCLUDING
-      // a spam thread the user has open (reachable from the spam filter): a live
-      // append into the OPEN thread must not depend on spam state (#215). Only the
-      // inbox LIST / unread surfacing stays spam-gated below (SPEC §6.3).
-      applyLiveThreadAppend(queryClient, companyId, conversation_id, page.data);
+        // Patch the thread cache when this thread has ever been opened —
+        // INCLUDING a spam thread the user has open (reachable from the spam
+        // filter): a live append into the OPEN thread must not depend on spam
+        // state (#215). Only the inbox LIST / unread surfacing stays spam-gated
+        // below (SPEC §6.3).
+        applyLiveThreadAppend(queryClient, companyId, conversation_id, page.data);
+      }
 
       // Spam-thread appends stay silent OUTSIDE the open thread — no inbox-list
       // row bump, no unread increment (SPEC §6.3). The open-thread patch above
@@ -442,6 +518,19 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     }
 
     async function applyConversationUpdate(conversationId: string) {
+      const detailKey = keys.conversations.detail(companyId, conversationId);
+      const threadKey = keys.thread(companyId, conversationId);
+      const previous =
+        queryClient.getQueryData<ConversationDetail>(detailKey) ??
+        findListRow(queryClient, companyId, conversationId);
+      if (!previous) {
+        // An assignment to me still moves the queue and the bell, and a pin the supplement.
+        refreshSoon(keys.forYou(companyId));
+        refreshBell();
+        refreshSoon(keys.conversations.pinnedRoot(companyId));
+        if (!queryClient.getQueryData(threadKey)) return;
+      }
+
       let detail: ConversationDetail;
       try {
         detail = await fetchConversationDetail(companyId, conversationId);
@@ -452,17 +541,12 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
       // Targeted patches: detail cache (when opened), thread page merge,
       // list rows re-evaluated against each list's own filters.
-      if (
-        queryClient.getQueryData(
-          keys.conversations.detail(companyId, conversationId),
-        )
-      ) {
-        queryClient.setQueryData(
-          keys.conversations.detail(companyId, conversationId),
-          detail,
-        );
+      if (queryClient.getQueryData(detailKey)) {
+        queryClient.setQueryData(detailKey, detail);
       }
-      seedThreadFromDetail(queryClient, companyId, detail);
+      if (queryClient.getQueryData(threadKey)) {
+        seedThreadFromDetail(queryClient, companyId, detail);
+      }
       const cachedRow = findListRow(queryClient, companyId, conversationId);
       // Unread is per-viewer and the detail response does not carry it, so it
       // is only knowable from a row already on a loaded page. When there is no
@@ -487,17 +571,29 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       // #13: a pin/unpin from another client moves the thread in/out of the
       // pinned-first supplement (usePinnedConversations) — refresh it when the
       // pin state actually changed, so a teammate's pin floats live.
-      if ((cachedRow?.pinned_at ?? null) !== (detail.pinned_at ?? null)) {
+      const pinnedCopy = queryClient
+        .getQueriesData<Page<ConversationListItem>>({
+          queryKey: keys.conversations.pinnedRoot(companyId),
+        })
+        .flatMap(([, data]) => data?.data ?? [])
+        .find((row) => row.id === conversationId);
+      if (
+        (cachedRow?.pinned_at ?? null) !== (detail.pinned_at ?? null) ||
+        // The supplement draws its own copy of a pinned row, which no list patch reaches.
+        (pinnedCopy !== undefined && timelineFields(pinnedCopy) !== timelineFields(detail))
+      ) {
         void queryClient.invalidateQueries({
           queryKey: keys.conversations.pinnedRoot(companyId),
           refetchType: "active",
         });
       }
-      // Status/assign/tag changes also append timeline events (G5).
-      queryClient.invalidateQueries({
-        queryKey: keys.conversations.events(companyId, conversationId),
-        refetchType: "active",
-      });
+      // Status/assign/tag changes append timeline events (G5); this tab's own edit already refetched them.
+      if (!previous || timelineFields(previous) !== timelineFields(detail)) {
+        void queryClient.invalidateQueries({
+          queryKey: keys.conversations.events(companyId, conversationId),
+          refetchType: "active",
+        });
+      }
     }
 
     function handleConversationUpdated(event: ConversationUpdatedEvent) {
@@ -517,13 +613,61 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       // Payload carries the status AND the D14 done fields — pure cache
       // patch, no fetch (§8; done toggles broadcast this same event).
       const patch = messageStatusPatch(event);
-      queryClient.setQueriesData<ThreadData>(
-        { queryKey: keys.threads(companyId) },
-        (thread) =>
-          thread
-            ? threadPatchMessage(thread, event.message_id, patch)
-            : thread,
-      );
+      const detailsRoot = [companyId, "conversations", "detail"] as const;
+
+      // Which conversations hold the message, and whether it was done there.
+      const owners = new Set<string>();
+      let wasDone: boolean | undefined;
+      for (const query of queryClient
+        .getQueryCache()
+        .findAll({ queryKey: keys.threads(companyId) })) {
+        const cached = threadMessage(
+          query.state.data as ThreadData | undefined,
+          event.message_id,
+        );
+        if (!cached) continue;
+        // keys.thread(companyId, id) === [companyId, "messages", id]
+        owners.add(query.queryKey[2] as string);
+        wasDone ??= cached.done_at != null;
+      }
+      for (const query of queryClient
+        .getQueryCache()
+        .findAll({ queryKey: detailsRoot })) {
+        const detail = query.state.data as ConversationDetail | undefined;
+        const cached = detail?.messages.data.find(
+          (m) => m.id === event.message_id,
+        );
+        if (!detail || !cached) continue;
+        owners.add(detail.id);
+        wasDone ??= cached.done_at != null;
+      }
+
+      // Delivery, done and pin state never move the bell; a done change refreshes the queue below.
+      patchQuietly(() => {
+        queryClient.setQueriesData<ThreadData>(
+          { queryKey: keys.threads(companyId) },
+          (thread) => {
+            if (!thread) return undefined;
+            const next = threadPatchMessage(thread, event.message_id, patch);
+            return next === thread ? undefined : next;
+          },
+        );
+        // Detail responses embed a message page too — keep badges in sync.
+        queryClient.setQueriesData<ConversationDetail>(
+          { queryKey: detailsRoot },
+          (detail) => {
+            if (!detail) return undefined;
+            let changed = false;
+            const data = detail.messages.data.map((message) => {
+              if (message.id !== event.message_id || !changesSomething(message, patch)) return message;
+              changed = true;
+              return { ...message, ...patch };
+            });
+            if (!changed) return undefined;
+            return { ...detail, messages: { ...detail.messages, data } };
+          },
+        );
+      });
       // #13: the pinned-message banner has its own query, and a message past
       // the loaded pages has no cached thread row for the patch above to hit.
       // Without this, a teammate pinning or unpinning something far up a long
@@ -547,44 +691,25 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           }
         }
       }
-      // Detail responses embed a message page too — keep badges in sync.
-      queryClient.setQueriesData<ConversationDetail>(
-        { queryKey: [companyId, "conversations", "detail"] },
-        (detail) => {
-          if (!detail) return detail;
-          let changed = false;
-          const data = detail.messages.data.map((message) => {
-            if (message.id !== event.message_id || !changesSomething(message, patch)) return message;
-            changed = true;
-            return { ...message, ...patch };
-          });
-          if (!changed) return detail;
-          return { ...detail, messages: { ...detail.messages, data } };
-        },
-      );
       // AUDITABLE (§4.2/§4.3): a done toggle writes a message_done /
       // message_undone row into conversation_events and broadcasts THIS same
-      // event (the payload carries done fields; a plain delivery-status tick
-      // does not). The payload is ID-only — no conversation_id — so locate the
-      // owning conversation from the thread cache that holds this message and
-      // invalidate its events query so the timeline line lands live for other
-      // viewers, mirroring the conversation.updated status/assign/tag path.
-      if ("done_at" in event || "done_by_user_id" in event) {
-        for (const query of queryClient
-          .getQueryCache()
-          .findAll({ queryKey: keys.threads(companyId) })) {
-          const data = query.state.data as ThreadData | undefined;
-          const hasMessage = data?.pages.some((page) =>
-            page.data.some((m) => m.id === event.message_id),
-          );
-          if (!hasMessage) continue;
-          // keys.thread(companyId, id) === [companyId, "messages", id]
-          const conversationId = query.queryKey[2] as string;
-          queryClient.invalidateQueries({
+      // event. The trigger sends the done fields on every status tick too, so
+      // only a change of done state against the cached message counts. The
+      // payload is ID-only, with no conversation_id, so the owning conversation
+      // comes from the caches that hold this message, and its events query is
+      // invalidated so the timeline line lands live for other viewers.
+      const doneChanged =
+        wasDone !== undefined &&
+        "done_at" in patch &&
+        (patch.done_at != null) !== wasDone;
+      if (doneChanged) {
+        for (const conversationId of owners) {
+          void queryClient.invalidateQueries({
             queryKey: keys.conversations.events(companyId, conversationId),
             refetchType: "active",
           });
         }
+        refreshSoon(keys.forYou(companyId));
       }
     }
 
@@ -603,34 +728,29 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
      */
     function handleReadState(event: ReadStateEvent) {
       if (event.user_id !== meUserIdRef.current) return;
-      void queryClient.invalidateQueries({
-        queryKey: keys.notifications.unreadCount(companyId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: keys.notifications.feed(companyId),
-      });
-      // read.notifications: the bell is all that moved.
       const conversationId = event.conversation_id;
-      if (conversationId === undefined) return;
-      // The focus queue counts unread threads too, so it moves with them.
-      void queryClient.invalidateQueries({ queryKey: keys.forYou(companyId) });
-      // The row is patched, not every list refetched. This tab cleared it when
-      // it posted the read, so the patch is a no-op here; another device of the
-      // same member did not. Only a list showing unread threads alone has to
-      // drop the row, and only that list is asked again.
-      patchConversationLists(queryClient, companyId, (list) =>
-        listSetUnread(list, conversationId, false),
-      );
-      patchPinnedConversations(queryClient, companyId, (row) =>
-        row.id === conversationId && row.unread ? { ...row, unread: false } : row,
-      );
-      for (const query of queryClient.getQueryCache().findAll({
-        queryKey: keys.conversations.lists(companyId),
-      })) {
-        if (filtersFromListKey(query.queryKey).unread) {
-          void queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
-        }
+      if (conversationId === undefined) {
+        // read.notifications: the bell is all that moved.
+        refreshBell();
+        return;
       }
+      // The focus queue counts unread threads; the bell has no conversation-read arm.
+      refreshSoon(keys.forYou(companyId));
+      // Patched, not refetched: an unread-only list drops the row, the others clear its dot.
+      patchQuietly(() => {
+        patchConversationLists(queryClient, companyId, (list, filters) => {
+          const row = list.pages
+            .flatMap((page) => page.data)
+            .find((r) => r.id === conversationId);
+          if (!row) return list;
+          return filters.unread
+            ? listApplyConversation(list, { ...row, unread: false }, filters)
+            : listSetUnread(list, conversationId, false);
+        });
+        patchPinnedConversations(queryClient, companyId, (row) =>
+          row.id === conversationId && row.unread ? { ...row, unread: false } : row,
+        );
+      });
     }
 
     function handleTaskChanged(event: TaskChangedEvent) {
@@ -644,54 +764,33 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       // invalidateTasks), now driven cross-client off the broadcast. Done toggles
       // are NOT this event (they ride message.status), so the derived done-state
       // on the checklist already updates via that path.
-      void queryClient.invalidateQueries({
-        queryKey: keys.tasks.checklist(companyId, event.conversation_id),
-        refetchType: "active",
-      });
-      void queryClient.invalidateQueries({
-        queryKey: keys.tasks.lists(companyId),
-        refetchType: "active",
-      });
+      refreshSoon(keys.tasks.checklist(companyId, event.conversation_id));
+      refreshSoon(keys.tasks.lists(companyId));
       // #89: refresh the /for-you "Your tasks" section DIRECTLY (a teammate
       // assigning ME a task must move it into my For-you at once). We no longer
       // lean on useForYouNotificationsRealtime's cache-subscription for this: it
       // only fires when a tasks query happens to be cached, so a client sitting
       // on /for-you with the /tasks page never opened would miss the update.
-      void queryClient.invalidateQueries({
-        queryKey: keys.forYou(companyId),
-        refetchType: "active",
-      });
+      refreshSoon(keys.forYou(companyId));
+      // A task assigned to me is a bell row.
+      refreshBell();
       // #81: the source message's Task chip (has_task / promoted_task) rides the
       // thread read, so a task created/removed by another crew member updates the
       // message live too — not just the checklist and the /tasks page.
-      void queryClient.invalidateQueries({
-        queryKey: keys.thread(companyId, event.conversation_id),
-        refetchType: "active",
-      });
-      void queryClient.invalidateQueries({
-        queryKey: keys.conversations.detail(companyId, event.conversation_id),
-        refetchType: "active",
-      });
+      refreshSoon(keys.thread(companyId, event.conversation_id));
+      refreshSoon(keys.conversations.detail(companyId, event.conversation_id));
     }
 
     function handleCallUpdated() {
       // #133: the calls read model changed (new session, outcome merge). The
       // /calls surface is a plain server list — refetch it whole rather than
       // patching rows; the [companyId, "calls"] prefix intentionally covers
-      // every outcome filter (keys.calls) and also matches the outbound-cell
-      // query ([companyId, "calls", "cell"]), which is a harmless extra.
-      void queryClient.invalidateQueries({
-        queryKey: [companyId, "calls"],
-        refetchType: "active",
-      });
-      // For-you hosts the ambient "Recent calls" section (#133); invalidated
-      // DIRECTLY here because useForYouNotificationsRealtime only watches
-      // conversations/messages/tasks keys — 'calls' is not watched (which is
-      // also why this can never loop back through that cache subscription).
-      void queryClient.invalidateQueries({
-        queryKey: keys.forYou(companyId),
-        refetchType: "active",
-      });
+      // every outcome filter (keys.calls), the For you page's Recent calls, and
+      // also matches the outbound-cell query ([companyId, "calls", "cell"]),
+      // which is a harmless extra. GET /v1/for-you itself has no calls.
+      refreshSoon([companyId, "calls"]);
+      // A missed call is a bell row.
+      refreshBell();
     }
 
     /**
@@ -757,28 +856,41 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     function handleProvisioningUpdate() {
       // number.updated / registration.updated (§8): onboarding + settings
-      // states re-read their sources of truth.
-      queryClient.invalidateQueries({ queryKey: keys.me });
-      queryClient.invalidateQueries({
-        queryKey: keys.company(companyId),
-        refetchType: "active",
-      });
-      queryClient.invalidateQueries({
-        queryKey: keys.numbers(companyId),
-        refetchType: "active",
-      });
-      queryClient.invalidateQueries({
-        queryKey: keys.registration(companyId),
-        refetchType: "active",
-      });
+      // states re-read their sources of truth. A finished transfer arrives as
+      // number.updated too, so the port stepper moves with it.
+      refreshSoon(keys.me);
+      refreshSoon(keys.company(companyId));
+      refreshSoon(keys.numbers(companyId));
+      refreshSoon(keys.registration(companyId));
+      refreshSoon(keys.portRequests.all(companyId));
+    }
+
+    function handlePortUpdated() {
+      // PORTING.md §8.2: a completed transfer also flips the number row the company view embeds.
+      refreshSoon(keys.portRequests.all(companyId));
+      refreshSoon(keys.company(companyId));
+      refreshSoon(keys.numbers(companyId));
+    }
+
+    // A focus resync waiting to run, and one owed to the next rejoin because the socket was down.
+    let resyncTimer: ReturnType<typeof setTimeout> | undefined;
+    let resyncOwed = false;
+    let lastResyncAt = 0;
+
+    /** A company-wide refetch is starting, so a focus inside the throttle window needs none. */
+    function settleResync() {
+      if (resyncTimer !== undefined) clearTimeout(resyncTimer);
+      resyncTimer = undefined;
+      resyncOwed = false;
+      lastResyncAt = Date.now();
     }
 
     function refetchFirstPages() {
+      settleResync();
       // Reconnect (G12): drop pages >1 of company-scoped infinite queries,
       // then refetch whatever is actively rendered.
-      for (const query of queryClient
-        .getQueryCache()
-        .findAll({ queryKey: [companyId] })) {
+      const predicate = resyncPredicate(companyId, Date.now());
+      for (const query of queryClient.getQueryCache().findAll({ predicate })) {
         const data = query.state.data as
           | { pages?: unknown[]; pageParams?: unknown[] }
           | undefined;
@@ -791,10 +903,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           );
         }
       }
-      queryClient.invalidateQueries({
-        queryKey: [companyId],
-        refetchType: "active",
-      });
+      void queryClient.invalidateQueries({ predicate, refetchType: "active" });
       // #480: RE-DERIVE THE NUMBER LIST, not just the data. Broadcasts are not
       // replayed, so an `access.changed` published while this tab was offline is
       // gone — and `keys.me` lives outside the `[companyId]` prefix above, has a
@@ -820,9 +929,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     // whenever the tab regains focus/visibility, so a lost frame self-heals within
     // seconds. Unlike refetchFirstPages this does NOT trim to page 1 — a routine
     // focus must never collapse a user's scrolled-back pagination — it just
-    // invalidates the ACTIVE company-scoped queries (React Query refetches every
-    // loaded page of each, picking up anything missed). Same primitive the
-    // conversation list/calls/tasks surfaces use, so the whole class is closed.
+    // invalidates the ACTIVE company-scoped queries `resyncPredicate` picks
+    // (React Query refetches every loaded page of each, picking up anything
+    // missed). Same primitive the conversation list/calls/tasks surfaces use,
+    // so the whole class is closed.
     //
     // RATE-LIMITED (request cost). Firing this on every focus/visibility event
     // was a real load problem: a single tab switch raises BOTH `visibilitychange`
@@ -834,16 +944,26 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     // than once per throttle window (which also collapses the duplicate
     // focus/visibility pair into one). The safety net is preserved for the case
     // it was built for — a long absence — at a fraction of the requests.
+    //
+    // ONE WAVE PER RETURN: a rejoin backfills on its own, so a focus resync waits for one and a rejoin cancels it.
     const RESYNC_MIN_AWAY_MS = 30_000;
     const RESYNC_THROTTLE_MS = 60_000;
+    // A network that blocks websockets never rejoins, and the API is still there.
+    const RESYNC_REJOIN_GRACE_MS = 10_000;
     let awaySince: number | null = null;
-    let lastResyncAt = 0;
 
     function resyncActive() {
-      queryClient.invalidateQueries({
-        queryKey: [companyId],
+      void queryClient.invalidateQueries({
+        predicate: resyncPredicate(companyId, Date.now()),
         refetchType: "active",
       });
+    }
+    function scheduleResync(delay: number) {
+      if (resyncTimer !== undefined) return;
+      resyncTimer = setTimeout(() => {
+        settleResync();
+        resyncActive();
+      }, delay);
     }
     const markAway = () => {
       if (awaySince === null) awaySince = Date.now();
@@ -854,8 +974,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       awaySince = null;
       if (awayFor < RESYNC_MIN_AWAY_MS) return;
       if (now - lastResyncAt < RESYNC_THROTTLE_MS) return;
+      if (hadDrop || !supabase.realtime.isConnected()) {
+        resyncOwed = true;
+        scheduleResync(RESYNC_REJOIN_GRACE_MS);
+        return;
+      }
       lastResyncAt = now;
-      resyncActive();
+      scheduleResync(RESYNC_DELAY_MS);
     };
     const onVisibility = () => {
       if (typeof document === "undefined") return;
@@ -977,6 +1102,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           { event: "registration.updated" },
           handleProvisioningUpdate,
         )
+        .on("broadcast", { event: "port.updated" }, handlePortUpdated)
         // #358: read state, filtered to this person inside the handler.
         .on("broadcast", { event: "read.conversation" }, ({ payload }) =>
           handleReadState(payload as ReadStateEvent),
@@ -1083,7 +1209,12 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             // it — mounted queries stay fresh for thirty seconds and the
             // away-tab resync never fires for someone who never left. A clean
             // first join records no gap, so it still refetches nothing.
-            if (hadDrop) refetchFirstPages();
+            if (hadDrop) {
+              refetchFirstPages();
+            } else if (resyncOwed) {
+              settleResync();
+              resyncActive();
+            }
             hadDrop = false;
             return;
           }
@@ -1141,6 +1272,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("online", onOnline);
       for (const timer of pendingUpdates.values()) clearTimeout(timer);
       pendingUpdates.clear();
+      for (const timer of refreshTimers.values()) clearTimeout(timer);
+      refreshTimers.clear();
+      if (resyncTimer !== undefined) clearTimeout(resyncTimer);
       sequence.dispose();
       // #483: a rebuild scheduled for a given-up topic must not outlive the run
       // that scheduled it — the `disposed` guard already refuses it, but leaving
@@ -1149,7 +1283,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       authSubscription.unsubscribe();
       for (const { channel } of channels) void supabase.removeChannel(channel);
     };
-  }, [companyId, queryClient, realtimeEnabled, topicKey, retryGeneration]);
+  }, [companyId, queryClient, realtimeEnabled, mePending, topicKey, retryGeneration]);
 
   return <>{children}</>;
 }

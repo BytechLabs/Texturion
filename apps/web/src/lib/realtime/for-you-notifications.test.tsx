@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 let companyId = "company-a";
 vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => companyId }));
 
-import { useForYouNotificationsRealtime } from "./for-you-notifications";
+import { patchQuietly, useForYouNotificationsRealtime } from "./for-you-notifications";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -78,6 +78,64 @@ describe("useForYouNotificationsRealtime", () => {
     client.setQueryData(key, [3]);
     await flush();
     expect(forYouRefetches()).toBe(0);
+    hook.unmount();
+  });
+
+  /** Two loads and a change, so the query counts as one that moved. */
+  function change(client: QueryClient, key: readonly unknown[]) {
+    client.setQueryData(key, [1]);
+    client.setQueryData(key, [2]);
+    client.setQueryData(key, [3]);
+  }
+
+  it("ignores the task and conversation reads neither of them is derived from", async () => {
+    // Neither the queue nor the bell counts a task drawer, its links, a thread's timeline or its gallery.
+    const id = "company-unwatched";
+    const { client, hook, forYouRefetches } = setup(id);
+    for (const key of [
+      [id, "tasks", "detail", "t1"],
+      [id, "tasks", "detail", "t1", "activity"],
+      [id, "tasks", "links", "t1"],
+      [id, "tasks", "references", "T-142"],
+      [id, "conversations", "events", "c1"],
+      [id, "conversations", "attachments", "c1"],
+    ]) {
+      change(client, key);
+    }
+    await flush();
+    expect(forYouRefetches()).toBe(0);
+    hook.unmount();
+  });
+
+  it("still reacts to task lists, checklists, pinned rows and details", async () => {
+    for (const [index, tail] of [
+      ["tasks", "list", {}],
+      ["tasks", "checklist", "c1"],
+      ["conversations", "pinned", {}],
+      ["conversations", "detail", "c1"],
+    ].entries()) {
+      const id = `company-watched-${index}`;
+      const { client, hook, forYouRefetches } = setup(id);
+      change(client, [id, ...tail]);
+      await flush();
+      expect(forYouRefetches(), tail.join(" ")).toBe(1);
+      hook.unmount();
+    }
+  });
+
+  it("ignores a write made quietly, and reacts to the next one", async () => {
+    // A delivery receipt is a real change to the thread and moves neither
+    // the queue nor the bell.
+    const { client, listKey, hook, forYouRefetches } = setup("company-quiet");
+    patchQuietly(() => {
+      client.setQueryData(listKey, { pages: [{ data: [{ id: "c1", unread: false }] }], pageParams: [null] });
+    });
+    await flush();
+    expect(forYouRefetches()).toBe(0);
+
+    client.setQueryData(listKey, { pages: [{ data: [{ id: "c1", unread: true }] }], pageParams: [null] });
+    await flush();
+    expect(forYouRefetches()).toBe(1);
     hook.unmount();
   });
 });

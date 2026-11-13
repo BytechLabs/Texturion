@@ -137,14 +137,24 @@ let visibleNumbers: { id: string }[] = [];
  * turns on: "failed" and an empty `visibleNumbers` derive an identical topic key
  * and want opposite treatment.
  */
-let numberListRead: "ok" | "failed" = "ok";
+let numberListRead: "ok" | "failed" | "pending" = "ok";
+
+/** Every API read a handler makes; each test answers it as it needs. */
+const api = vi.hoisted(() => ({
+  fetch: vi.fn<(path: string, options?: unknown) => Promise<unknown>>(),
+}));
 
 vi.mock("@/lib/supabase/browser", () => ({
   getSupabaseBrowser: () => fake.client as unknown as SupabaseClient,
   // `lib/api/client` destructures this at import time, and the provider's module
-  // graph reaches it. No test here fires an event that hits the API.
+  // graph reaches it.
   getAccessToken: () => Promise.resolve("token"),
 }));
+vi.mock("@/lib/api/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/client")>()),
+  apiFetch: api.fetch,
+}));
+vi.mock("sonner", () => ({ toast: () => {} }));
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: COMPANY }),
   useCompanyId: () => COMPANY,
@@ -154,16 +164,19 @@ vi.mock("@/lib/api/me-company", () => ({
   // `data` at all — including no `flags`, so the #283 kill switch reads as "no
   // statement" and the socket still opens on the company topic.
   useMeCompany: () =>
-    numberListRead === "failed"
-      ? { data: undefined, isError: true }
-      : {
-          data: {
-            user_id: USER,
-            flags: {},
-            company: { numbers: visibleNumbers },
+    numberListRead === "pending"
+      ? { data: undefined, isPending: true, isError: false }
+      : numberListRead === "failed"
+        ? { data: undefined, isPending: false, isError: true }
+        : {
+            data: {
+              user_id: USER,
+              flags: {},
+              company: { numbers: visibleNumbers },
+            },
+            isPending: false,
+            isError: false,
           },
-          isError: false,
-        },
 }));
 // The provider reads the active thread from the path and pushes on a toast
 // action; neither is under test, and both throw outside a Next router.
@@ -172,6 +185,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {} }),
 }));
 
+import { useForYouNotificationsRealtime } from "./for-you-notifications";
 import { RealtimeProvider } from "./provider";
 
 /** Let the effect's `getSession` → `setAuth` → `subscribe` chain settle. */
@@ -181,7 +195,13 @@ async function flush() {
 
 const TWO_PAGES = { pages: [{ data: [] }, { data: [] }], pageParams: [null, "c2"] };
 
-function setup() {
+/** The app shell's For you and bell listener, mounted beside the provider. */
+function ForYouListener() {
+  useForYouNotificationsRealtime();
+  return null;
+}
+
+function setup({ listener = false }: { listener?: boolean } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -197,7 +217,7 @@ function setup() {
   // a re-render here is to let the effect re-read `visibleNumbers`.
   const tree = () => (
     <QueryClientProvider client={queryClient}>
-      <RealtimeProvider>{null}</RealtimeProvider>
+      <RealtimeProvider>{listener ? <ForYouListener /> : null}</RealtimeProvider>
     </QueryClientProvider>
   );
   const view = render(tree());
@@ -251,13 +271,100 @@ function setup() {
      */
     invalidatedKeys: () =>
       invalidate.mock.calls.map(([filters]) => filters?.queryKey),
+    /** Company-wide refetches: a focus resync, a rejoin backfill or a sequence gap. */
+    resyncWaves: () =>
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          filters?.predicate !== undefined ||
+          (filters?.queryKey?.length === 1 && filters.queryKey[0] === COMPANY),
+      ).length,
   };
 }
+
+/**
+ * A mounted query with a counting fetcher, already settled, so each later
+ * invalidation that reaches it is exactly one more call.
+ */
+async function watch(
+  queryClient: QueryClient,
+  queryKey: readonly unknown[],
+  data: unknown,
+) {
+  const fetcher = vi.fn().mockResolvedValue(data);
+  const observer = new QueryObserver(queryClient, {
+    queryKey: [...queryKey],
+    queryFn: fetcher,
+    staleTime: Infinity,
+  });
+  const unsubscribe = observer.subscribe(() => {});
+  await vi.waitFor(() =>
+    expect(observer.getCurrentResult().isSuccess).toBe(true),
+  );
+  fetcher.mockClear();
+  return { fetcher, unsubscribe };
+}
+
+const MESSAGE_ID = "55555555-5555-5555-5555-555555555555";
+
+function listRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: CONVERSATION,
+    company_id: COMPANY,
+    contact_id: "66666666-6666-6666-6666-666666666666",
+    phone_number_id: "n1",
+    status: "open",
+    is_spam: false,
+    assigned_user_id: null,
+    pinned_at: null,
+    pinned_by_user_id: null,
+    last_message_at: "2026-11-13T09:00:00.000Z",
+    closed_at: null,
+    emergency_at: null,
+    contact: { id: "66666666-6666-6666-6666-666666666666", name: "Dana", phone_e164: "+14165550100" },
+    tags: [],
+    unread: false,
+    last_message: null,
+    ...overrides,
+  };
+}
+
+const listOf = (...rows: unknown[]) => ({
+  pages: [{ data: rows, next_cursor: null }],
+  pageParams: [null],
+});
+
+function message(overrides: Record<string, unknown> = {}) {
+  return {
+    id: MESSAGE_ID,
+    conversation_id: CONVERSATION,
+    direction: "outbound",
+    body: "On my way",
+    status: "sent",
+    created_at: "2026-11-13T09:00:00.000Z",
+    done_at: null,
+    done_by_user_id: null,
+    pinned_at: null,
+    pinned_by_user_id: null,
+    attachments: [],
+    ...overrides,
+  };
+}
+
+const threadOf = (...messages: unknown[]) => ({
+  pages: [{ data: messages, next_cursor: null }],
+  pageParams: [undefined],
+});
+
+/** The API reads one handler made, by path. */
+const apiCalls = (path: string) =>
+  api.fetch.mock.calls.filter(([called]) => called === path);
 
 beforeEach(() => {
   fake = createFakeSupabase();
   visibleNumbers = [];
   numberListRead = "ok";
+  api.fetch.mockReset();
+  api.fetch.mockImplementation(() => Promise.reject(new Error("no answer")));
 });
 afterEach(cleanup);
 
@@ -907,5 +1014,473 @@ describe("access.changed", () => {
     expect([...fake.live.keys()]).toEqual([COMPANY_TOPIC]);
     emit(COMPANY_TOPIC, "access.changed", { company_id: COMPANY });
     expect(meInvalidations()).toBe(1);
+  });
+});
+
+describe("what a read costs", () => {
+  it("is For you alone for a conversation read, and the bell alone for a bell read", async () => {
+    // The bell has no conversation_reads arm, so a conversation read never
+    // moves it. This tab cleared the row when it posted the read, so the echo
+    // also has no list to ask again: the unread list drops the row locally.
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { queryClient, emit, report } = setup({ listener: true });
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      const unreadKey = keys.conversations.list(COMPANY, { unread: true });
+      const inbox = await watch(queryClient, keys.conversations.list(COMPANY, {}), listOf(listRow()));
+      const unreadOnly = await watch(queryClient, unreadKey, listOf(listRow()));
+      const forYou = await watch(queryClient, keys.forYou(COMPANY), { sections: [] });
+      const badge = await watch(queryClient, keys.notifications.unreadCount(COMPANY), { count: 0 });
+      const feed = await watch(queryClient, keys.notifications.feed(COMPANY), { data: [] });
+
+      emit(COMPANY_TOPIC, "read.conversation", { user_id: USER, conversation_id: CONVERSATION });
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(badge.fetcher).not.toHaveBeenCalled();
+      expect(feed.fetcher).not.toHaveBeenCalled();
+      expect(inbox.fetcher).not.toHaveBeenCalled();
+      expect(unreadOnly.fetcher).not.toHaveBeenCalled();
+      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
+      expect(
+        (queryClient.getQueryData(unreadKey) as { pages: { data: unknown[] }[] }).pages[0].data,
+      ).toEqual([]);
+
+      emit(COMPANY_TOPIC, "read.notifications", { user_id: USER });
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(badge.fetcher).toHaveBeenCalledTimes(1);
+      expect(feed.fetcher).toHaveBeenCalledTimes(1);
+      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
+      expect(inbox.fetcher).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still clears the dot another device read", async () => {
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { queryClient, emit, report } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      const inboxKey = keys.conversations.list(COMPANY, {});
+      await watch(queryClient, inboxKey, listOf(listRow({ unread: true })));
+
+      emit(COMPANY_TOPIC, "read.conversation", { user_id: USER, conversation_id: CONVERSATION });
+
+      const rows = (queryClient.getQueryData(inboxKey) as { pages: { data: { unread: boolean }[] }[] })
+        .pages[0].data;
+      expect(rows.map((row) => row.unread)).toEqual([false]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("what a delivery receipt costs", () => {
+  it("is no For you and no timeline for a status tick, and one of each after a done change", async () => {
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { queryClient, emit, report } = setup({ listener: true });
+      await flush();
+      report(numberTopic("n1"), "SUBSCRIBED");
+      const threadKey = keys.thread(COMPANY, CONVERSATION);
+      queryClient.setQueryData(threadKey, threadOf(message()));
+      const forYou = await watch(queryClient, keys.forYou(COMPANY), { sections: [] });
+      const badge = await watch(queryClient, keys.notifications.unreadCount(COMPANY), { count: 0 });
+      const timeline = await watch(
+        queryClient,
+        keys.conversations.events(COMPANY, CONVERSATION),
+        { pages: [], pageParams: [] },
+      );
+      const receipt = {
+        message_id: MESSAGE_ID,
+        status: "delivered",
+        done_at: null,
+        done_by_user_id: null,
+        pinned_at: null,
+        pinned_by_user_id: null,
+      };
+
+      emit(numberTopic("n1"), "message.status", receipt);
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      const cached = () =>
+        (queryClient.getQueryData(threadKey) as { pages: { data: { status: string; done_at: string | null }[] }[] })
+          .pages[0].data[0];
+      expect(cached().status).toBe("delivered");
+      expect(forYou.fetcher).not.toHaveBeenCalled();
+      expect(badge.fetcher).not.toHaveBeenCalled();
+      expect(timeline.fetcher).not.toHaveBeenCalled();
+
+      emit(numberTopic("n1"), "message.status", {
+        ...receipt,
+        done_at: "2026-11-13T10:00:00.000Z",
+        done_by_user_id: USER,
+      });
+      expect(cached().done_at).toBe("2026-11-13T10:00:00.000Z");
+      await vi.advanceTimersByTimeAsync(399);
+      expect(forYou.fetcher).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
+      expect(timeline.fetcher).toHaveBeenCalledTimes(1);
+      expect(badge.fetcher).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("conversation.updated", () => {
+  it("fetches nothing for a conversation this tab holds nothing of, and still moves the queue and the bell", async () => {
+    // An assignment to me must reach For you and the bell even when no list,
+    // detail or thread of that conversation is loaded here.
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { queryClient, emit, report } = setup();
+      await flush();
+      report(numberTopic("n1"), "SUBSCRIBED");
+      const forYou = await watch(queryClient, keys.forYou(COMPANY), { sections: [] });
+      const badge = await watch(queryClient, keys.notifications.unreadCount(COMPANY), { count: 0 });
+
+      emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      expect(apiCalls(`/v1/conversations/${CONVERSATION}`)).toHaveLength(0);
+      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
+      expect(badge.fetcher).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves the timeline alone when nothing it narrates moved", async () => {
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { queryClient, emit, report } = setup();
+      await flush();
+      report(numberTopic("n1"), "SUBSCRIBED");
+      const detail = {
+        ...listRow(),
+        contact: { ...listRow().contact },
+        messages: { data: [], next_cursor: null },
+      };
+      queryClient.setQueryData(keys.conversations.detail(COMPANY, CONVERSATION), detail);
+      const timeline = await watch(
+        queryClient,
+        keys.conversations.events(COMPANY, CONVERSATION),
+        { pages: [], pageParams: [] },
+      );
+      api.fetch.mockImplementation((path) =>
+        path === `/v1/conversations/${CONVERSATION}`
+          ? Promise.resolve(detail)
+          : Promise.reject(new Error("no answer")),
+      );
+
+      emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(apiCalls(`/v1/conversations/${CONVERSATION}`)).toHaveLength(1);
+      expect(timeline.fetcher).not.toHaveBeenCalled();
+
+      api.fetch.mockImplementation((path) =>
+        path === `/v1/conversations/${CONVERSATION}`
+          ? Promise.resolve({ ...detail, assigned_user_id: USER })
+          : Promise.reject(new Error("no answer")),
+      );
+      emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(timeline.fetcher).toHaveBeenCalledTimes(1);
+      // A thread that was never opened is not created by an update.
+      expect(queryClient.getQueryData(keys.thread(COMPANY, CONVERSATION))).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("refreshes the pinned supplement when a teammate edits a pin past the loaded pages", async () => {
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { queryClient, emit, report } = setup();
+      await flush();
+      report(numberTopic("n1"), "SUBSCRIBED");
+      const pinnedRow = listRow({ pinned_at: "2026-11-12T08:00:00.000Z", pinned_by_user_id: USER });
+      const pinned = await watch(queryClient, keys.conversations.pinned(COMPANY, {}), {
+        data: [pinnedRow],
+        next_cursor: null,
+      });
+      const detail = {
+        ...pinnedRow,
+        contact: { ...pinnedRow.contact },
+        messages: { data: [], next_cursor: null },
+      };
+      const answer = (body: unknown) =>
+        api.fetch.mockImplementation((path) =>
+          path === `/v1/conversations/${CONVERSATION}`
+            ? Promise.resolve(body)
+            : Promise.reject(new Error("no answer")),
+        );
+
+      answer(detail);
+      emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(apiCalls(`/v1/conversations/${CONVERSATION}`)).toHaveLength(1);
+      expect(pinned.fetcher).not.toHaveBeenCalled();
+
+      answer({ ...detail, assigned_user_id: USER });
+      emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(pinned.fetcher).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("message.created", () => {
+  const messagesPath = `/v1/conversations/${CONVERSATION}/messages`;
+  const limits = () =>
+    apiCalls(messagesPath).map(
+      ([, options]) => (options as { searchParams?: { limit?: number } }).searchParams?.limit,
+    );
+
+  async function arrive(thread?: unknown) {
+    visibleNumbers = [{ id: "n1" }];
+    const { queryClient, emit, report } = setup();
+    await flush();
+    report(numberTopic("n1"), "SUBSCRIBED");
+    queryClient.setQueryData(keys.conversations.list(COMPANY, {}), listOf(listRow()));
+    if (thread) queryClient.setQueryData(keys.thread(COMPANY, CONVERSATION), thread);
+    const inbound = message({ direction: "inbound", status: "received" });
+    api.fetch.mockImplementation((path) =>
+      path === messagesPath
+        ? Promise.resolve({ data: [inbound], next_cursor: null })
+        : Promise.reject(new Error("no answer")),
+    );
+    emit(numberTopic("n1"), "message.created", {
+      conversation_id: CONVERSATION,
+      message_id: MESSAGE_ID,
+      direction: "inbound",
+    });
+    await flush();
+    await flush();
+    return queryClient;
+  }
+
+  it("asks for one message when the thread was never opened", async () => {
+    const queryClient = await arrive();
+    expect(limits()).toEqual([1]);
+    const row = (queryClient.getQueryData(keys.conversations.list(COMPANY, {})) as {
+      pages: { data: { unread: boolean; last_message: { id: string } | null }[] }[];
+    }).pages[0].data[0];
+    expect(row.unread).toBe(true);
+    expect(row.last_message?.id).toBe(MESSAGE_ID);
+  });
+
+  it("asks for a page when an open thread lacks the message", async () => {
+    await arrive(threadOf());
+    expect(limits()).toEqual([25]);
+  });
+
+  it("asks for nothing when the thread already holds it", async () => {
+    await arrive(threadOf(message({ direction: "inbound", status: "received" })));
+    expect(limits()).toEqual([]);
+  });
+});
+
+describe("port.updated", () => {
+  it("refreshes the transfers, the company and the numbers, once per burst", async () => {
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }];
+      const { emit, report, invalidatedKeys } = setup();
+      await flush();
+      report(numberTopic("n1"), "SUBSCRIBED");
+      const before = invalidatedKeys().length;
+
+      emit(numberTopic("n1"), "port.updated", { port_request_id: "p1", status: "submitted" });
+      emit(numberTopic("n1"), "port.updated", { port_request_id: "p1", status: "submitted" });
+      await vi.advanceTimersByTimeAsync(400);
+
+      expect(invalidatedKeys().slice(before)).toEqual([
+        keys.portRequests.all(COMPANY),
+        keys.company(COMPANY),
+        keys.numbers(COMPANY),
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("the away-tab resync", () => {
+  const away = async (ms: number) => {
+    window.dispatchEvent(new Event("blur"));
+    await vi.advanceTimersByTimeAsync(ms);
+  };
+  const focus = () => window.dispatchEvent(new Event("focus"));
+  const invalidated = (queryClient: QueryClient, key: readonly unknown[]) =>
+    queryClient.getQueryCache().find({ queryKey: [...key], exact: true })?.state.isInvalidated;
+
+  it("skips fresh keys no broadcast feeds, and every signed URL", async () => {
+    vi.useFakeTimers();
+    try {
+      const { queryClient, report } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      // Held past the default five-minute collection, as a mounted query is.
+      queryClient.setQueryDefaults([COMPANY], { gcTime: Infinity });
+      const signedUrl = keys.attachmentUrl(COMPANY, "a1");
+      const oldTemplates = keys.templatesSorted(COMPANY, "use");
+      queryClient.setQueryData(signedUrl, { url: "https://cdn.example/a1" });
+      queryClient.setQueryData(oldTemplates, []);
+      await vi.advanceTimersByTimeAsync(6 * 60_000);
+      const freshTemplates = keys.templates(COMPANY);
+      const inbox = keys.conversations.list(COMPANY, {});
+      queryClient.setQueryData(freshTemplates, []);
+      queryClient.setQueryData(inbox, listOf(listRow()));
+
+      await away(31_000);
+      focus();
+      await vi.advanceTimersByTimeAsync(3_000);
+
+      expect(invalidated(queryClient, inbox)).toBe(true);
+      expect(invalidated(queryClient, oldTemplates)).toBe(true);
+      expect(invalidated(queryClient, freshTemplates)).toBe(false);
+      expect(invalidated(queryClient, signedUrl)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is one wave for a rejoin followed by a focus", async () => {
+    vi.useFakeTimers();
+    try {
+      const { report, resyncWaves } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+
+      window.dispatchEvent(new Event("blur"));
+      fake.setConnected(false);
+      report(COMPANY_TOPIC, "CHANNEL_ERROR");
+      await vi.advanceTimersByTimeAsync(40_000);
+      fake.setConnected(true);
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      focus();
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(resyncWaves()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is one wave for a focus followed by a rejoin", async () => {
+    // Back from the background, the socket can still look connected for the
+    // moment it takes the heartbeat to fail. The rejoin's backfill covers both.
+    vi.useFakeTimers();
+    try {
+      const { report, resyncWaves } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+
+      await away(40_000);
+      focus();
+      await vi.advanceTimersByTimeAsync(1_000);
+      fake.setConnected(false);
+      report(COMPANY_TOPIC, "CHANNEL_ERROR");
+      fake.setConnected(true);
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(resyncWaves()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("waits for the rejoin when the socket is down at focus", async () => {
+    vi.useFakeTimers();
+    try {
+      const { report, resyncWaves } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+
+      await away(40_000);
+      fake.setConnected(false);
+      focus();
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(resyncWaves()).toBe(0);
+
+      fake.setConnected(true);
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      expect(resyncWaves()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("falls back to the API when the socket never comes back", async () => {
+    // A network that blocks websockets: the company topic errors, nothing
+    // rejoins, and the focus resync is the only net left.
+    vi.useFakeTimers();
+    try {
+      const { report, resyncWaves } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      fake.setConnected(false);
+      report(COMPANY_TOPIC, "CHANNEL_ERROR");
+
+      await away(40_000);
+      focus();
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(resyncWaves()).toBe(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(resyncWaves()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still runs when no rejoin comes", async () => {
+    // A frame lost at the very end of a burst has no other way back.
+    vi.useFakeTimers();
+    try {
+      const { report, resyncWaves } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+
+      await away(40_000);
+      focus();
+      await vi.advanceTimersByTimeAsync(2_999);
+      expect(resyncWaves()).toBe(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(resyncWaves()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("the first socket", () => {
+  it("is not built until /v1/me has answered, so it already has the number topics", async () => {
+    numberListRead = "pending";
+    const { rerender } = setup();
+    await flush();
+    expect(fake.opened).toEqual([]);
+
+    numberListRead = "ok";
+    visibleNumbers = [{ id: "n1" }];
+    rerender();
+    await flush();
+    expect(fake.opened).toEqual([COMPANY_TOPIC, numberTopic("n1")]);
   });
 });

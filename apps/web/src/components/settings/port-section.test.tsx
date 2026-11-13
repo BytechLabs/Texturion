@@ -1,4 +1,6 @@
 /**
+ * @vitest-environment happy-dom
+ *
  * #523 — what the port section has to hand each stepper.
  *
  * A transferred-in number is de-duplicated out of the `NumberCard` list on
@@ -16,14 +18,56 @@
  * customer needed it to speak, which is why the wiring is pinned here rather
  * than trusted — the card's own copy has its own suite.
  */
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, cleanup, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   CompanyView,
   PhoneNumberSummary,
   PortRequest,
 } from "@/lib/api/types";
+
+/**
+ * realtime-js's channel registry: `channel(topic)` hands back the channel the
+ * client already holds for that topic, which here is the RealtimeProvider's.
+ */
+const realtime = vi.hoisted(() => {
+  const live = new Map<string, unknown>();
+  const channel = (topic: string) => {
+    const existing = live.get(topic);
+    if (existing) return existing;
+    const created = {
+      topic,
+      on: () => created,
+      subscribe: () => created,
+    };
+    live.set(topic, created);
+    return created;
+  };
+  return {
+    live,
+    client: {
+      channel,
+      removeChannel: (target: { topic: string }) => {
+        live.delete(target.topic);
+        return Promise.resolve("ok");
+      },
+      getChannels: () => [...live.values()],
+      realtime: { setAuth: () => Promise.resolve() },
+      auth: {
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+        getSession: () => Promise.resolve({ data: { session: { access_token: "token" } } }),
+      },
+    },
+  };
+});
+
+vi.mock("@/lib/supabase/browser", () => ({
+  getSupabaseBrowser: () => realtime.client,
+  getAccessToken: () => Promise.resolve("token"),
+}));
 
 const ports = vi.hoisted(() => ({ rows: [] as unknown[] }));
 const card = vi.hoisted(() => ({
@@ -43,9 +87,6 @@ vi.mock("@/lib/api/porting", () => ({
     isError: false,
     data: { data: ports.rows },
   }),
-}));
-vi.mock("@/components/settings/use-port-events", () => ({
-  usePortEvents: () => {},
 }));
 vi.mock("@/components/settings/start-port-dialog", () => ({
   StartPortDialog: () => null,
@@ -108,6 +149,28 @@ function show(args: {
 beforeEach(() => {
   ports.rows = [port()];
   card.props = null;
+});
+afterEach(cleanup);
+
+describe("PortSection and the realtime socket", () => {
+  it("leaves the app-wide company channel alone when it mounts and unmounts", async () => {
+    // realtime-js answers channel("company:{id}") with the provider's own channel, so removing it silences the app.
+    realtime.live.clear();
+    realtime.client.channel("company:co_1");
+    const before = realtime.client.getChannels();
+    const queryClient = new QueryClient();
+
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <PortSection company={company()} numbers={[heldRow()]} />
+      </QueryClientProvider>,
+    );
+    await act(async () => {});
+    view.unmount();
+    await act(async () => {});
+
+    expect(realtime.client.getChannels()).toEqual(before);
+  });
 });
 
 describe("PortSection hands the stepper the line, not just the transfer", () => {
