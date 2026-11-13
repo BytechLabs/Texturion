@@ -7,12 +7,43 @@ import {
 
 import { makeTranslate, type Translate } from "@/i18n/translate";
 
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+/** One date formatter per locale, zone and options: building one costs far more than using it. */
+export function getFormatter(
+  locale: string | undefined,
+  timeZone: string | undefined,
+  options: Omit<Intl.DateTimeFormatOptions, "timeZone">,
+): Intl.DateTimeFormat {
+  const key = `${locale}|${timeZone}|${JSON.stringify(options)}`;
+  let formatter = formatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, { ...options, timeZone });
+    formatters.set(key, formatter);
+  }
+  return formatter;
+}
+
+let browserZone: { zone: string | undefined } | null = null;
+
+// A laptop that moved zone while the tab was hidden reads the new one when shown.
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    browserZone = null;
+  });
+}
+
 /**
  * The browser's IANA timezone (D15: captured silently at onboarding and sent
  * on POST /v1/companies). Undefined when the runtime reports nothing usable —
  * the caller omits the field and the server default applies.
  */
 export function browserTimezone(): string | undefined {
+  browserZone ??= { zone: readBrowserTimezone() };
+  return browserZone.zone;
+}
+
+function readBrowserTimezone(): string | undefined {
   try {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return zone && zone.length > 0 ? zone : undefined;
@@ -20,6 +51,22 @@ export function browserTimezone(): string | undefined {
     return undefined;
   }
 }
+
+/** Read back as numbers: a day key and the time on a zone's wall clock. */
+const WALL_CLOCK_PARTS = {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+} as const;
+
+const WEEKDAY_AND_TIME = {
+  weekday: "short",
+  hour: "numeric",
+  minute: "2-digit",
+} as const;
 
 export type ZonedWallClockResult =
   | { ok: true; iso: string }
@@ -98,15 +145,7 @@ export function instantFromZonedWallClock(
 
   let formatter: Intl.DateTimeFormat;
   try {
-    formatter = new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    });
+    formatter = getFormatter("en-CA", timeZone, WALL_CLOCK_PARTS);
   } catch {
     return { ok: false, reason: "invalid" };
   }
@@ -161,7 +200,7 @@ export function formatAbsoluteDateTime(
   const parsed = new Date(iso);
   if (!iso || Number.isNaN(parsed.getTime())) return "";
   // timeZoneName cannot combine with dateStyle/timeStyle — components only.
-  return new Intl.DateTimeFormat(locale, {
+  return getFormatter(locale, timeZone || browserTimezone(), {
     weekday: "short",
     year: "numeric",
     month: "short",
@@ -169,7 +208,6 @@ export function formatAbsoluteDateTime(
     hour: "numeric",
     minute: "2-digit",
     timeZoneName: "short",
-    ...(timeZone ? { timeZone } : {}),
   }).format(parsed);
 }
 
@@ -204,7 +242,7 @@ export function formatTimestamp(
   if (!iso || Number.isNaN(at.getTime())) return "";
   const zone = timeZone ?? browserTimezone() ?? "UTC";
   const draw = (options: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat(t.locale, { ...options, timeZone: zone }).format(at);
+    getFormatter(t.locale, zone, options).format(at);
   const clock = () => draw({ hour: "numeric", minute: "2-digit" });
   const long = style === "long";
 
@@ -315,20 +353,12 @@ function wallClock(
   locale?: string,
 ): string {
   try {
-    return at.toLocaleString(locale, {
-      timeZone,
-      weekday: "short",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    const zone = timeZone ?? browserTimezone();
+    return getFormatter(locale, zone, WEEKDAY_AND_TIME).format(at);
   } catch {
     return (
       ifUnknown ??
-      at.toLocaleString(locale, {
-        weekday: "short",
-        hour: "numeric",
-        minute: "2-digit",
-      })
+      getFormatter(locale, browserTimezone(), WEEKDAY_AND_TIME).format(at)
     );
   }
 }
@@ -341,15 +371,7 @@ export function zonedWallClock(
   const at = new Date(iso);
   if (!iso || Number.isNaN(at.getTime())) return null;
   try {
-    const formatter = new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    });
+    const formatter = getFormatter("en-CA", timeZone, WALL_CLOCK_PARTS);
     const wall = zonedWallClockParts(formatter, at.getTime());
     if (!wall) return null;
     const pad = (n: number, width: number) => String(n).padStart(width, "0");
@@ -371,11 +393,10 @@ export function zonedWallClock(
 export function formatCalendarDate(iso: string, locale?: string, timeZone?: string): string {
   const at = new Date(iso);
   if (!iso || Number.isNaN(at.getTime())) return "";
-  return new Intl.DateTimeFormat(locale, {
+  return getFormatter(locale, timeZone || browserTimezone(), {
     year: "numeric",
     month: "short",
     day: "numeric",
-    ...(timeZone ? { timeZone } : {}),
   }).format(at);
 }
 
@@ -383,18 +404,16 @@ export function formatCalendarDate(iso: string, locale?: string, timeZone?: stri
 export function formatWallDay(date: string, locale: string): string {
   const at = new Date(`${date}T12:00:00Z`);
   if (Number.isNaN(at.getTime())) return date;
-  return new Intl.DateTimeFormat(locale, {
+  return getFormatter(locale, "UTC", {
     weekday: "long",
     month: "long",
     day: "numeric",
-    timeZone: "UTC",
   }).format(at);
 }
 
 /** An hour of the day as "9 AM" or "9 h", in the reader's language. */
 export function formatWallHour(hour: number, locale: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    hour: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(2000, 0, 1, hour)));
+  return getFormatter(locale, "UTC", { hour: "numeric" }).format(
+    new Date(Date.UTC(2000, 0, 1, hour)),
+  );
 }

@@ -91,7 +91,7 @@ function calls(pattern: RegExp): Call[] {
 }
 
 const FORMATTERS = calls(
-  /\.toLocale(?:Date|Time)?String\(|new Intl\.(?:DateTimeFormat|NumberFormat|RelativeTimeFormat|ListFormat)\(|Intl\.(?:DateTimeFormat|NumberFormat)\(/g,
+  /\.toLocale(?:Date|Time)?String\(|new Intl\.(?:DateTimeFormat|NumberFormat|RelativeTimeFormat|ListFormat)\(|Intl\.(?:DateTimeFormat|NumberFormat)\(|\bgetFormatter\(/g,
 );
 
 const where = (call: Call): string =>

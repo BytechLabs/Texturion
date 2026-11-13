@@ -315,7 +315,8 @@ export function buildConversationActions(
           group: "state",
           allowed: true,
           hint: t("thread.snoozeHint"),
-          submenu: [
+          // Built when the submenu opens, so its times are worked out then.
+          submenu: () => [
             ...withPresets(snoozePresets(), "snooze"),
             {
               id: "custom",
@@ -331,7 +332,7 @@ export function buildConversationActions(
       icon: BellRing,
       group: "state",
       allowed: !deferred,
-      submenu: [
+      submenu: () => [
         ...withPresets(followUpPresets(), "follow_up"),
         {
           id: "custom",

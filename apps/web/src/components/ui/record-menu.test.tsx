@@ -140,6 +140,53 @@ describe("#712 RecordContextMenu", () => {
   });
 });
 
+describe("a submenu built on open", () => {
+  const lazy = (build: () => { id: string; label: string; onSelect: () => void }[]) => [
+    ...actions(),
+    {
+      id: "snooze",
+      label: "Snooze until",
+      group: "state" as const,
+      allowed: true,
+      submenu: build,
+    },
+  ];
+
+  it("is not built while the row's menu is closed, nor while the submenu is", () => {
+    const build = vi.fn(() => [{ id: "later", label: "Later today", onSelect: vi.fn() }]);
+    render(<Row list={lazy(build)} />);
+    render(<RecordOverflowMenu actions={lazy(build)} label="More" />);
+    expect(build).not.toHaveBeenCalled();
+
+    fireEvent.contextMenu(screen.getByTestId("row"));
+    expect(menuIds()).toContain("snooze");
+    expect(build).not.toHaveBeenCalled();
+  });
+
+  it("is built when the submenu opens, and its items run", () => {
+    const onLater = vi.fn();
+    const build = vi.fn(() => [{ id: "later", label: "Later today", onSelect: onLater }]);
+    render(<Row list={lazy(build)} />);
+    fireEvent.contextMenu(screen.getByTestId("row"));
+    fireEvent.keyDown(document.querySelector('[data-action="snooze"]')!, { key: "ArrowRight" });
+    expect(build).toHaveBeenCalled();
+    fireEvent.click(document.querySelector('[data-action="snooze.later"]')!);
+    expect(onLater).toHaveBeenCalledTimes(1);
+  });
+
+  it("is never built for a row whose only action is not allowed", () => {
+    const build = vi.fn(() => []);
+    const list = [
+      { id: "snooze", label: "Snooze until", group: "state" as const, allowed: false, submenu: build },
+    ];
+    render(<Row list={list} />);
+    render(<RecordOverflowMenu actions={list} label="More" />);
+    fireEvent.contextMenu(screen.getByTestId("row"));
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(build).not.toHaveBeenCalled();
+  });
+});
+
 describe("#712 RecordOverflowMenu", () => {
   it("lists exactly what the right-click menu lists, in the same order", () => {
     const list = actions();

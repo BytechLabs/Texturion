@@ -16,7 +16,8 @@
  * T-1  outside `lib/format/time.ts` and `components/ui/timestamp.tsx`, no file
  *      calls `formatRelativeTime(`, imports `date-fns`, calls
  *      `toLocaleDateString(` / `toLocaleTimeString(`, calls `toLocaleString(`
- *      with date or time options, builds an `Intl.DateTimeFormat(`, or hands
+ *      with date or time options, builds an `Intl.DateTimeFormat(`, asks
+ *      the formatter's cache for one (`getFormatter(`), or hands
  *      `formatAbsoluteDateTime(` to a `title=` (that hover is `<Timestamp>`'s
  *      job), unless the roster below says why.
  * T-2  the roster is closed: an entry whose file no longer makes that call
@@ -82,6 +83,7 @@ const RULES: readonly Rule[] = [
     pattern: /\bIntl\.DateTimeFormat\(/g,
     counts: (_list, line) => !/\.resolvedOptions\(\)/.test(line),
   },
+  { call: "getFormatter(", pattern: /\bgetFormatter\(/g },
   { call: "title={formatAbsoluteDateTime(", pattern: /title=\{formatAbsoluteDateTime\(/g },
 ];
 
@@ -282,13 +284,8 @@ const ROSTER: readonly { file: string; call: string; reason: string }[] = [
   },
   {
     file: "components/thread/snooze-menu.tsx",
-    call: "toLocaleTimeString(",
-    reason: "The return label's own sentence shapes, set by the shared `snoozeReturnShape` and checked against the phones.",
-  },
-  {
-    file: "components/thread/snooze-menu.tsx",
-    call: "toLocaleDateString(",
-    reason: "Same label: the weekday and day names inside the shared snooze sentence shapes.",
+    call: "getFormatter(",
+    reason: "The return label's own sentence shapes, set by the shared `snoozeReturnShape` and checked against the phones: its time, weekday and day names.",
   },
   {
     file: "lib/marketing/status-feed.ts",

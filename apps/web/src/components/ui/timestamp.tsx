@@ -8,8 +8,10 @@ import {
 } from "@/components/ui/tooltip";
 import { useT } from "@/i18n/provider";
 import {
+  browserTimezone,
   formatAbsoluteDateTime,
   formatTimestamp,
+  getFormatter,
   type TimestampStyle,
 } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
@@ -76,9 +78,8 @@ export function Timestamp({
 
 /** Hours and minutes on a zone's clock, or the reader's own. */
 function wallClock(iso: string, timeZone?: string): string {
-  return new Intl.DateTimeFormat("en", {
+  return getFormatter("en", timeZone || browserTimezone(), {
     hour: "numeric",
     minute: "2-digit",
-    ...(timeZone ? { timeZone } : {}),
   }).format(new Date(iso));
 }

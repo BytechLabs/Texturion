@@ -2,15 +2,25 @@
 
 import { useEffect, useState } from "react";
 
+const XL = "(min-width: 1280px)";
+
+function matchesXl(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia(XL).matches
+    : false;
+}
+
 /**
  * True at Tailwind's `xl` (>=1280px) — where the thread has a docked side
- * panel beside it; below that the same panel is a sheet over it. False on the
- * server and first client paint, so there is no hydration mismatch.
+ * panel beside it; below that the same panel is a sheet over it. Read on the
+ * first render, so a wide screen never paints the sheet first: everything that
+ * asks renders only on the client, under CompanyProvider.
  */
 export function useIsXl(): boolean {
-  const [xl, setXl] = useState(false);
+  const [xl, setXl] = useState(matchesXl);
   useEffect(() => {
-    const mql = window.matchMedia("(min-width: 1280px)");
+    if (typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia(XL);
     const update = () => setXl(mql.matches);
     update();
     mql.addEventListener("change", update);

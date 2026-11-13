@@ -1,7 +1,7 @@
 "use client";
 
 import { GripVertical, MoreHorizontal } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import {
   DropdownMenu,
@@ -54,11 +54,8 @@ function persistPanelWidth(px: number): void {
 
 /** The width, the live setter a drag calls, and the setter that also saves. */
 export function usePanelWidth() {
-  const [width, setWidth] = useState(PANEL_DEFAULT_WIDTH);
-  // Read after mount so server and first client render agree.
-  useEffect(() => {
-    setWidth(readPanelWidth());
-  }, []);
+  // Read before the first paint: the thread renders only on the client.
+  const [width, setWidth] = useState(readPanelWidth);
   const widthRef = useRef(width);
   widthRef.current = width;
   const resize = useCallback((px: number) => setWidth(clampPanelWidth(px)), []);

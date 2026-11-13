@@ -5,6 +5,7 @@ import * as React from "react";
 
 import {
   ACTION_GROUPS,
+  submenuItems,
   visibleActions,
   type RecordAction,
 } from "@/lib/record-actions/types";
@@ -113,30 +114,7 @@ export function RecordMenuItems({
                       {action.hint && (
                         <DropdownMenuHint>{action.hint}</DropdownMenuHint>
                       )}
-                      {action.submenu.map((sub) => {
-                        const SubIcon = sub.icon;
-                        return (
-                          <kit.Item
-                            key={sub.id}
-                            data-action={`${action.id}.${sub.id}`}
-                            onSelect={sub.onSelect}
-                          >
-                            {SubIcon && (
-                              <SubIcon
-                                className={ICON_CLASS}
-                                strokeWidth={1.75}
-                                aria-hidden
-                              />
-                            )}
-                            <span>{sub.label}</span>
-                            {sub.trailing && (
-                              <span className="ml-auto pl-4 text-xs tabular-nums text-muted-foreground">
-                                {sub.trailing}
-                              </span>
-                            )}
-                          </kit.Item>
-                        );
-                      })}
+                      <SubmenuItems action={action} variant={variant} />
                     </kit.SubContent>
                   </kit.Sub>
                 );
@@ -178,6 +156,37 @@ export function RecordMenuItems({
       })}
     </>
   );
+}
+
+/** Rendered inside the sub content, which Radix mounts only while it is open. */
+function SubmenuItems({
+  action,
+  variant,
+}: {
+  action: RecordAction;
+  variant: Variant;
+}) {
+  const kit = KITS[variant];
+  return submenuItems(action).map((sub) => {
+    const SubIcon = sub.icon;
+    return (
+      <kit.Item
+        key={sub.id}
+        data-action={`${action.id}.${sub.id}`}
+        onSelect={sub.onSelect}
+      >
+        {SubIcon && (
+          <SubIcon className={ICON_CLASS} strokeWidth={1.75} aria-hidden />
+        )}
+        <span>{sub.label}</span>
+        {sub.trailing && (
+          <span className="ml-auto pl-4 text-xs tabular-nums text-muted-foreground">
+            {sub.trailing}
+          </span>
+        )}
+      </kit.Item>
+    );
+  });
 }
 
 /**

@@ -105,6 +105,17 @@ describe("#742 panel width", () => {
     expect(saved()).toBe(String(PANEL_DEFAULT_WIDTH));
   });
 
+  it("a saved width is the first width drawn, with no flip from the default", () => {
+    window.localStorage.setItem(PANEL_WIDTH_KEY, "420");
+    const drawn: number[] = [];
+    function Recorder() {
+      drawn.push(usePanelWidth().width);
+      return null;
+    }
+    render(<Recorder />);
+    expect(drawn).toEqual([420]);
+  });
+
   it("the presets are items in the panel's own menu", () => {
     render(<Harness />);
     fireEvent.keyDown(screen.getByRole("button", { name: "Panel options" }), {

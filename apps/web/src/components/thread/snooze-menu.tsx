@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { makeTranslate, useT, type Translate } from "@/i18n/provider";
-import { formatTimestamp } from "@/lib/format/time";
+import { browserTimezone, formatTimestamp, getFormatter } from "@/lib/format/time";
 
 /** English, for a caller with no provider around it. */
 const EN = makeTranslate(DEFAULT_LOCALE);
@@ -169,10 +169,11 @@ export function deferralReturnLabel(
   // Never a blank chip: the row is in this view BECAUSE it is deferred, so a
   // timestamp we cannot read still has to say that much (#293).
   if (Number.isNaN(date.getTime())) return t("thread.snoozedFallback");
-  const time = date.toLocaleTimeString(t.locale, {
+  const zone = browserTimezone();
+  const time = getFormatter(t.locale, zone, {
     hour: "numeric",
     minute: "2-digit",
-  });
+  }).format(date);
   const when = ((): string => {
     switch (snoozeReturnShape(date, now)) {
       case "today":
@@ -181,15 +182,15 @@ export function deferralReturnLabel(
         return t("thread.snoozeWhenTomorrow", { time });
       case "weekday":
         return t("thread.snoozeWhenWeekday", {
-          weekday: date.toLocaleDateString(t.locale, { weekday: "long" }),
+          weekday: getFormatter(t.locale, zone, { weekday: "long" }).format(date),
           time,
         });
       case "date":
         return t("thread.snoozeWhenDate", {
-          date: date.toLocaleDateString(t.locale, {
+          date: getFormatter(t.locale, zone, {
             day: "numeric",
             month: "short",
-          }),
+          }).format(date),
         });
     }
   })();

@@ -57,8 +57,15 @@ export interface RecordAction {
   note?: boolean;
   /** A submenu's muted explanatory line. */
   hint?: string;
-  submenu?: RecordSubAction[];
+  /** A function is called only when the submenu opens. */
+  submenu?: RecordSubAction[] | (() => RecordSubAction[]);
   onSelect?: () => void;
+}
+
+/** A submenu's items, building them if they are built on open. */
+export function submenuItems(action: RecordAction): RecordSubAction[] {
+  const { submenu } = action;
+  return typeof submenu === "function" ? submenu() : (submenu ?? []);
 }
 
 /** The actions this viewer may take, in group order (stable within a group). */

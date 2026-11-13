@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { CallBar } from "@/components/calls/call-bar";
 import { UnreadTitleManager } from "@/components/notifications/unread-title-manager";
@@ -55,12 +55,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // other destination is a calm scrolling document.
   const fixedFrame = pathname === "/inbox" || pathname.startsWith("/inbox/");
 
-  // Persisted sidebar collapse. Start expanded on the server + first paint
-  // (avoids a hydration mismatch), then adopt the stored choice on mount.
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => {
-    setCollapsed(readSidebarCollapsed());
-  }, []);
+  // Read before the first paint: the shell renders only on the client, under CompanyProvider.
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
 
   const toggleSidebar = useCallback(() => {
     setCollapsed((current) => {

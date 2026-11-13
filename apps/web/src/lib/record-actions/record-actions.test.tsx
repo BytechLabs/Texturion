@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/record-menu";
 import { makeTranslate } from "@/i18n/translate";
 
-import { actionIds, type RecordAction } from "./types";
+import { actionIds, submenuItems, type RecordAction } from "./types";
 
 afterEach(cleanup);
 
@@ -319,7 +319,7 @@ describe("#712 task: due date without dragging (WCAG 2.5.7)", () => {
       run: noopRun<Parameters<typeof buildTaskActions>[0]["run"]>(),
     });
     const due = list.find((action) => action.id === "due");
-    expect(due?.submenu?.map((move) => move.id)).toEqual(["-1", "1", "7"]);
+    expect(due && submenuItems(due).map((move) => move.id)).toEqual(["-1", "1", "7"]);
   });
 });
 
