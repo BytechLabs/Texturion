@@ -115,10 +115,11 @@ function stub(options: {
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, "owner"),
   );
+  // Old enough for a baseline unless a test says otherwise.
+  const createdAt = options.createdAt ?? "2025-01-01T00:00:00Z";
   sb.on("GET", "/rest/v1/companies", () => [
     {
-      // Old enough for a baseline unless a test says otherwise.
-      created_at: options.createdAt ?? "2025-01-01T00:00:00Z",
+      created_at: createdAt,
       timezone: "America/Toronto",
       business_hours: options.hours ?? NINE_TO_FIVE,
       business_hours_exceptions: options.exceptions ?? [],
@@ -127,16 +128,20 @@ function stub(options: {
   ]);
   // #482: the numbers the by_number rows are labelled from.
   sb.on("GET", "/rest/v1/phone_numbers", () => options.numbers ?? []);
-  // The route calls the same RPC twice — current window, then baseline. The
-  // stub answers in that order.
-  const answers = [options.current, options.baseline ?? statsPayload([])];
-  let call = 0;
-  sb.on("POST", "/rest/v1/rpc/api_response_time_stats", () => {
-    const answer = answers[Math.min(call, answers.length - 1)];
-    call += 1;
-    return answer;
-  });
+  // The route calls the same RPC twice, the current window and the baseline,
+  // at the same time. The baseline is the window that starts at creation.
+  sb.on("POST", "/rest/v1/rpc/api_response_time_stats", (call) =>
+    isBaselineCall(call, createdAt)
+      ? options.baseline ?? statsPayload([])
+      : options.current,
+  );
   return sb;
+}
+
+function isBaselineCall(call: { body: unknown }, createdAt: string): boolean {
+  return (
+    (call.body as { p_since: string }).p_since === new Date(createdAt).toISOString()
+  );
 }
 
 async function get(sb: SupabaseStub, query = ""): Promise<Response> {
@@ -431,9 +436,11 @@ describe("GET /v1/reports/response-time", () => {
     };
     expect(body.window.days).toBe(30);
 
-    const calls = sb.find("POST", "/rest/v1/rpc/api_response_time_stats");
-    const since = new Date((calls[0].body as { p_since: string }).p_since);
-    const until = new Date((calls[0].body as { p_until: string }).p_until);
+    const current = sb
+      .find("POST", "/rest/v1/rpc/api_response_time_stats")
+      .find((call) => !isBaselineCall(call, "2025-01-01T00:00:00Z"))!;
+    const since = new Date((current.body as { p_since: string }).p_since);
+    const until = new Date((current.body as { p_until: string }).p_until);
     const days = Math.round(
       (until.getTime() - since.getTime()) / (24 * 60 * 60 * 1000),
     );

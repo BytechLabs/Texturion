@@ -454,23 +454,14 @@ export async function loadCompanyView(
   // companies resolve unrestricted, so there's no extra query for them.
   caller: { userId: string; role: MemberRole },
 ): Promise<CompanyView | null> {
-  const companies = unwrap<Record<string, unknown>[]>(
-    await db
+  // One round trip: each read needs only companyId, and a missing company is too rare to gate on.
+  const [companiesRes, numbersRes, registrationsRes, modulesRes, access] = await Promise.all([
+    db
       .from("companies")
       .select(COMPANY_COLUMNS)
       .eq("id", companyId)
       .is("deleted_at", null)
       .limit(1),
-    "company lookup",
-  );
-  const company = companies[0];
-  if (!company) return null;
-
-  // These three depend only on companyId (not on the company row) and are merged
-  // at the end — run them in ONE parallel round-trip instead of three serial
-  // ones. This is the hottest hydration path (every /company load), so the
-  // saved latency is real and there's no ongoing cost.
-  const [numbersRes, registrationsRes, modulesRes, access] = await Promise.all([
     db
       .from("phone_numbers")
       .select(NUMBER_COLUMNS)
@@ -487,6 +478,8 @@ export async function loadCompanyView(
       .is("disabled_at", null),
     resolveNumberAccess(db, { companyId, userId: caller.userId, role: caller.role }),
   ]);
+  const company = unwrap<Record<string, unknown>[]>(companiesRes, "company lookup")[0];
+  if (!company) return null;
   const allNumbers = unwrap<unknown[]>(numbersRes, "phone_numbers lookup");
   // #106: drop numbers hidden from this member (mirrors GET /v1/numbers). Null
   // hiddenNumberIds = unrestricted (owner/admin, or no access rules) → no-op.

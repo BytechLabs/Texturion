@@ -37,6 +37,21 @@ export interface ReleasePolicy {
   update_url: string | null;
 }
 
+/**
+ * How long one isolate trusts a policy it read, and how long a client may reuse
+ * the answer. Short enough that lowering a floor still takes effect within
+ * minutes, which matters more than raising one, since lowering is the rollback.
+ */
+const POLICY_TTL_SECONDS = 300;
+
+/** Successful reads only, per platform, for this isolate. */
+const policyCache = new Map<string, { value: ReleasePolicy; expiresAt: number }>();
+
+/** A fresh isolate is the production reset; tests need the same. */
+export function resetReleasePolicyCache(): void {
+  policyCache.clear();
+}
+
 /** The answer that asks nothing of anybody — every failure path returns this. */
 function noDemands(platform: string): ReleasePolicy {
   return {
@@ -54,8 +69,12 @@ appReleaseRoutes.get("/app-release", async (c) => {
   // Answer 200 rather than 400: a client that sent something unexpected must
   // end up unblocked, not stuck on an error it has no code path for.
   if (!PLATFORMS.has(platform)) {
-    return c.json(noDemands(platform || "unknown"), 200, cacheHeaders());
+    return c.json(noDemands(platform || "unknown"), 200, responseHeaders());
   }
+
+  const now = Date.now();
+  const hit = policyCache.get(platform);
+  if (hit && hit.expiresAt > now) return c.json(hit.value, 200, responseHeaders());
 
   try {
     const db = getDb(getEnv(c.env));
@@ -63,23 +82,30 @@ appReleaseRoutes.get("/app-release", async (c) => {
       p_platform: platform,
     });
     if (error) throw new Error(error.message);
-    return c.json((data as ReleasePolicy | null) ?? noDemands(platform), 200, cacheHeaders());
+    const value = (data as ReleasePolicy | null) ?? noDemands(platform);
+    policyCache.set(platform, { value, expiresAt: now + POLICY_TTL_SECONDS * 1000 });
+    return c.json(value, 200, responseHeaders());
   } catch (cause) {
     // A database outage must not become a fleet-wide update screen. Logged so
-    // it is not silent, answered permissively so it is not an incident.
+    // it is not silent, answered permissively so it is not an incident. Never
+    // cached, so the real policy is back on the next request after the outage.
     console.error(`app-release: policy read failed for ${platform}: ${String(cause)}`);
-    return c.json(noDemands(platform), 200, cacheHeaders());
+    return c.json(noDemands(platform), 200, responseHeaders());
   }
 });
 
 /**
- * Cacheable for a few minutes at the edge.
+ * The web app reads this cross-origin, so without CORS the browser discards the
+ * answer. `*` is safe: the payload is public and the request carries no
+ * credentials or custom headers, so it needs no preflight either.
  *
- * The policy changes rarely and is read on every cold start by every client,
- * so this is the difference between a free lookup and a per-launch database
- * round trip. Short enough that lowering a floor still takes effect quickly —
- * which matters more than raising one, since lowering is the rollback.
+ * Cache-Control lets each client reuse the answer between launches. Cloudflare
+ * does not cache a Worker's own responses, so it is the isolate memo above that
+ * saves the database round trip, not the edge.
  */
-function cacheHeaders(): Record<string, string> {
-  return { "Cache-Control": "public, max-age=300" };
+function responseHeaders(): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": `public, max-age=${POLICY_TTL_SECONDS}`,
+  };
 }

@@ -160,19 +160,19 @@ savedViewsRoutes.get(
       .limit(200);
     if (surface.success) query = query.eq("surface", surface.data);
 
-    const rows = unwrap<ViewRow[]>(await query, "saved views list");
-
-    const membership = unwrap<
-      { default_conversation_view_id: string | null; default_task_view_id: string | null }[]
-    >(
-      await db
+    const [rowsRes, membershipRes] = await Promise.all([
+      query,
+      db
         .from("company_members")
         .select("default_conversation_view_id,default_task_view_id")
         .eq("company_id", c.get("companyId"))
         .eq("user_id", userId)
         .limit(1),
-      "saved views default",
-    );
+    ]);
+    const rows = unwrap<ViewRow[]>(rowsRes, "saved views list");
+    const membership = unwrap<
+      { default_conversation_view_id: string | null; default_task_view_id: string | null }[]
+    >(membershipRes, "saved views default");
 
     return c.json({
       data: rows.map(toClient),
@@ -466,8 +466,8 @@ savedViewsRoutes.get(
       role: c.get("role"),
     });
 
-    const counts: Record<string, number> = {};
-    for (const row of rows) {
+    // At most SAVED_VIEW_COUNT_MAX_VIEWS probes, each bounded by COUNT_PROBE_LIMIT.
+    const entries = await Promise.all(rows.map(async (row) => {
       const clean = sanitizeFilters("conversations", row.filters);
       const filters = Object.fromEntries(filtersToQuery(clean));
       // "Mine" means whoever is asking. Resolved with the shared helper the
@@ -500,8 +500,8 @@ savedViewsRoutes.get(
         }),
         "saved view count",
       );
-      counts[row.id] = listed.length;
-    }
-    return c.json({ counts });
+      return [row.id, listed.length] as const;
+    }));
+    return c.json({ counts: Object.fromEntries(entries) });
   },
 );

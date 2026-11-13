@@ -224,6 +224,8 @@ function parseDueCursor(rawCursor: string | undefined): DueCursor | null {
  * because it needs its own length validation and throws rather than filtering.
  */
 interface TaskFilters {
+  /** The workspace, so the assignee embed is read through its company-led index. */
+  companyId: string;
   /** "task_done_at" (computed column) on the list path, "done_at" on the flat map view. */
   doneAtCol: string;
   effectiveStatus: string | undefined;
@@ -276,7 +278,9 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
   }
   if (filters.assignee !== undefined) {
     // #689 C: "mine" means I am ONE of them, not the first.
-    q = q.eq("task_assignees.user_id", filters.assignee);
+    q = q
+      .eq("task_assignees.company_id", filters.companyId)
+      .eq("task_assignees.user_id", filters.assignee);
   } else if (filters.unassigned) {
     q = q.is("assigned_user_id", null);
   }
@@ -1653,6 +1657,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
 
   query = excludeCalendarAttentionHolds(query, companyId);
   query = applyTaskFilters(query, {
+    companyId,
     doneAtCol,
     effectiveStatus,
     assignee,
@@ -1819,11 +1824,12 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
           })
         : encodeCursor({ ts: updatedSorted ? last.updated_at : last.created_at, id: last.id });
   }
-  const data = await withLabelsAndRepeat(
-    db,
-    companyId,
-    await withSourceDirections(db, companyId, shaped),
-  );
+  const [directed, decorated] = await Promise.all([
+    withSourceDirections(db, companyId, shaped),
+    withLabelsAndRepeat(db, companyId, shaped),
+  ]);
+  // Both keep the page's order, so row i of one is row i of the other.
+  const data = decorated.map((row, index) => ({ ...row, source: directed[index].source }));
 
   return c.json({ data, next_cursor: nextCursor });
 });
@@ -1866,6 +1872,7 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
     refine: (query) => {
       let next = excludeCalendarAttentionHolds(query, companyId);
       next = applyTaskFilters(next, {
+        companyId,
         doneAtCol: TASK_DONE_AT,
         effectiveStatus: q.effectiveStatus,
         assignee: q.assignee,
@@ -2083,6 +2090,7 @@ tasksRoutes.post(
           companyId,
         ),
         {
+          companyId,
           doneAtCol: TASK_DONE_AT,
           effectiveStatus: filter.status,
           assignee:
@@ -2318,22 +2326,74 @@ async function loadTaskAttachments(
       task.message_id === null ? [] : [[task.message_id, task.id]],
     ),
   );
-  const mmsRows = taskByMessage.size === 0 ? [] : unwrap<
-    {
-      id: string;
-      message_id: string;
-      content_type: string | null;
-      size_bytes: number | null;
-      created_at: string;
-    }[]
-  >(
-    await db
-      .from("message_attachments")
-      .select("id,message_id,content_type,size_bytes,created_at")
+  // Arms (b) + (c) share the generic table; each is a separate live-rows read
+  // because their owner scoping differs (note ids vs task ids).
+  const genericSelect = "id,owner_id,file_name,content_type,size_bytes,created_at";
+  interface GenericRow {
+    id: string;
+    owner_id: string;
+    file_name: string | null;
+    content_type: string | null;
+    size_bytes: number | null;
+    created_at: string;
+  }
+  interface NoteRow {
+    id: string;
+    task_id: string;
+    work_phase: "before" | "after" | null;
+    sent_by_user_id: string | null;
+  }
+  interface MmsRow {
+    id: string;
+    message_id: string;
+    content_type: string | null;
+    size_bytes: number | null;
+    created_at: string;
+  }
+
+  // Arm (b) is two steps: the linked notes, then their files.
+  const [mmsRows, { noteRows, noteFiles }, legacyRows] = await Promise.all([
+    taskByMessage.size === 0
+      ? ([] as MmsRow[])
+      : db
+          .from("message_attachments")
+          .select("id,message_id,content_type,size_bytes,created_at")
+          .eq("company_id", companyId)
+          .in("message_id", [...taskByMessage.keys()])
+          .then((res) => unwrap<MmsRow[]>(res, "task mms attachments")),
+    (async () => {
+      const notes = unwrap<NoteRow[]>(
+        await db
+          .from("messages")
+          .select("id,task_id,work_phase,sent_by_user_id")
+          .eq("company_id", companyId)
+          .eq("direction", "note")
+          .in("task_id", taskIds),
+        "task note links",
+      );
+      if (notes.length === 0) return { noteRows: notes, noteFiles: [] as GenericRow[] };
+      const files = unwrap<GenericRow[]>(
+        await db
+          .from("attachments")
+          .select(genericSelect)
+          .eq("company_id", companyId)
+          .eq("owner_type", "note")
+          .in("owner_id", notes.map((note) => note.id))
+          .is("deleted_at", null),
+        "task note attachments",
+      );
+      return { noteRows: notes, noteFiles: files };
+    })(),
+    db
+      .from("attachments")
+      .select(genericSelect)
       .eq("company_id", companyId)
-      .in("message_id", [...taskByMessage.keys()]),
-    "task mms attachments",
-  );
+      .eq("owner_type", "task")
+      .in("owner_id", taskIds)
+      .is("deleted_at", null)
+      .then((res) => unwrap<GenericRow[]>(res, "task legacy attachments")),
+  ]);
+
   for (const row of mmsRows) {
     const taskId = taskByMessage.get(row.message_id);
     if (taskId === undefined) continue;
@@ -2353,37 +2413,10 @@ async function loadTaskAttachments(
   }
 
   // Arm (b) — notes linked to the tasks, then their live generic attachments.
-  const noteRows = unwrap<
-    {
-      id: string;
-      task_id: string;
-      work_phase: "before" | "after" | null;
-      sent_by_user_id: string | null;
-    }[]
-  >(
-    await db
-      .from("messages")
-      .select("id,task_id,work_phase,sent_by_user_id")
-      .eq("company_id", companyId)
-      .eq("direction", "note")
-      .in("task_id", taskIds),
-    "task note links",
-  );
   const taskByNote = new Map(noteRows.map((note) => [note.id, note.task_id]));
   // #294: the note's own label and author, carried down to each of its files.
   const noteById = new Map(noteRows.map((note) => [note.id, note]));
 
-  // Arms (b) + (c) share the generic table; each is a separate live-rows read
-  // because their owner scoping differs (note ids vs task ids).
-  const genericSelect = "id,owner_id,file_name,content_type,size_bytes,created_at";
-  interface GenericRow {
-    id: string;
-    owner_id: string;
-    file_name: string | null;
-    content_type: string | null;
-    size_bytes: number | null;
-    created_at: string;
-  }
   const pushGeneric = (
     row: GenericRow,
     source: "note" | "task",
@@ -2408,30 +2441,7 @@ async function loadTaskAttachments(
     });
   };
 
-  if (taskByNote.size > 0) {
-    const rows = unwrap<GenericRow[]>(
-      await db
-        .from("attachments")
-        .select(genericSelect)
-        .eq("company_id", companyId)
-        .eq("owner_type", "note")
-        .in("owner_id", [...taskByNote.keys()])
-        .is("deleted_at", null),
-      "task note attachments",
-    );
-    for (const row of rows) pushGeneric(row, "note", taskByNote.get(row.owner_id));
-  }
-
-  const legacyRows = unwrap<GenericRow[]>(
-    await db
-      .from("attachments")
-      .select(genericSelect)
-      .eq("company_id", companyId)
-      .eq("owner_type", "task")
-      .in("owner_id", taskIds)
-      .is("deleted_at", null),
-    "task legacy attachments",
-  );
+  for (const row of noteFiles) pushGeneric(row, "note", taskByNote.get(row.owner_id));
   for (const row of legacyRows) pushGeneric(row, "task", row.owner_id);
 
   for (const items of byTask.values()) {
@@ -2493,35 +2503,55 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
   const userIds = [row.assigned_user_id, row.created_by_user_id].filter(
     (v): v is string => v !== null,
   );
-  const profiles = new Map<string, Record<string, unknown>>();
-  if (userIds.length > 0) {
-    const found = unwrap<{ user_id: string; display_name: string | null }[]>(
-      await db
-        .from("profiles")
-        .select("user_id,display_name")
-        .in("user_id", [...new Set(userIds)]),
-      "profiles lookup",
-    );
-    for (const p of found) profiles.set(p.user_id, p);
-  }
+  const profilesRead = loadProfiles(db, userIds, "profiles lookup");
 
-  // #689 D: whether THIS member follows the task. A remembered unfollow is a
-  // row with unsubscribed_at set, which reads as not following.
+  const { messages, done_state, done_by, source_call, linked_contact, ...task } = row;
+  // Conversation-derived reads run beside the access check and are dropped at 'none'.
+  const [profiles, subscriptionRes, labelled, viewerLevel, attachmentUnions, activity] =
+    await Promise.all([
+      profilesRead,
+      // #689 D: whether THIS member follows the task. A remembered unfollow is a
+      // row with unsubscribed_at set, which reads as not following.
+      db
+        .from("task_subscribers")
+        .select("unsubscribed_at")
+        .eq("company_id", companyId)
+        .eq("task_id", id)
+        .eq("user_id", c.get("userId"))
+        .limit(1),
+      withLabelsAndRepeatOne(db, companyId, withSource(task)),
+      // #107: tasks are GLOBAL (assignable to anyone, visible on /tasks +
+      // /for-you), but the source conversation obeys #106. A member with no
+      // access to the task's number still sees the task's identity, but every
+      // field derived from the hidden conversation (the source message, its
+      // attachments, the note discussion) is withheld. `viewer_level` lets the
+      // web hide the text/reply affordance at 'note' and show a no-access notice
+      // at 'none'. A task with no conversation (#689) has no number to be denied by.
+      row.conversation_id
+        ? resolveConversationLevel(db, {
+            companyId,
+            userId: c.get("userId"),
+            role: c.get("role"),
+            conversationId: row.conversation_id,
+          })
+        : ("text" as const),
+      // D28: the derived attachments union (source-message MMS + linked-note
+      // files + legacy task-owned rows), gallery-shaped, no pre-signed urls: the
+      // web calls GET /v1/attachments/:id/url per item.
+      loadTaskAttachments(db, companyId, [{ id, message_id: row.message_id }]),
+      // TASKS-V2 D-C + D-D: the merged activity-and-discussion timeline, from
+      // existing data with no new table. Sorted (created_at, id) ASC so the
+      // drawer reads oldest-first, like the thread.
+      loadTaskActivity(db, companyId, row, profilesRead),
+    ]);
   const subscription = unwrap<{ unsubscribed_at: string | null }[]>(
-    await db
-      .from("task_subscribers")
-      .select("unsubscribed_at")
-      .eq("company_id", companyId)
-      .eq("task_id", id)
-      .eq("user_id", c.get("userId"))
-      .limit(1),
+    subscriptionRes,
     "task subscription lookup",
   );
 
-  const { messages, done_state, done_by, source_call, linked_contact, ...task } = row;
   const done = (done_state ?? null) !== null;
   const identity = {
-    ...(await withLabelsAndRepeatOne(db, companyId, withSource(task))),
+    ...labelled,
     subscribed: subscription[0] ? subscription[0].unsubscribed_at === null : false,
     contact: linkedContact(linked_contact),
     done,
@@ -2536,21 +2566,6 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     created_by: profiles.get(row.created_by_user_id) ?? null,
   };
 
-  // #107: tasks are GLOBAL (assignable to anyone, visible on /tasks + /for-you),
-  // but the source conversation obeys #106. A member with no access to the
-  // task's number still sees the task's identity, but every field derived from
-  // the hidden conversation — the source message, its attachments, the note
-  // discussion — is withheld. `viewer_level` lets the web hide the text/reply
-  // affordance at 'note' and show a no-access notice at 'none'.
-  // A task with no conversation (#689) has no number to be denied by.
-  const viewerLevel = row.conversation_id
-    ? await resolveConversationLevel(db, {
-        companyId,
-        userId: c.get("userId"),
-        role: c.get("role"),
-        conversationId: row.conversation_id,
-      })
-    : "text";
   if (viewerLevel === "none") {
     return c.json({
       ...identity,
@@ -2562,32 +2577,34 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     });
   }
 
-  // D28: the derived attachments union (source-message MMS + linked-note files
-  // + legacy task-owned rows), gallery-shaped, no pre-signed urls — the web
-  // calls GET /v1/attachments/:id/url per item.
-  const attachmentUnions = await loadTaskAttachments(db, companyId, [
-    { id, message_id: row.message_id },
-  ]);
-  const attachments = attachmentUnions.get(id) ?? [];
-
-  // TASKS-V2 D-C + D-D: the merged activity-and-discussion timeline. Reuses
-  // existing data — no new table. Two arms, both company + task scoped:
-  //   1. the task_* conversation_events for THIS task (filtered by the audit
-  //      payload's task_id), and
-  //   2. the internal notes linked to this task (messages.task_id = id).
-  // Merged and sorted (created_at, id) ASC so the drawer reads oldest-first,
-  // like the thread. Author display names are resolved from profiles.
-  const activity = await loadTaskActivity(db, companyId, id, profiles);
-
   return c.json({
     ...identity,
     viewer_level: viewerLevel,
     source_message: messages,
     source_call: publicSourceCall(source_call),
-    attachments,
+    attachments: attachmentUnions.get(id) ?? [],
     activity,
   });
 });
+
+/** Display names by user id, in one read; none to look up costs nothing. */
+async function loadProfiles(
+  db: Db,
+  userIds: string[],
+  label: string,
+): Promise<Map<string, Record<string, unknown>>> {
+  const profiles = new Map<string, Record<string, unknown>>();
+  if (userIds.length === 0) return profiles;
+  const found = unwrap<{ user_id: string; display_name: string | null }[]>(
+    await db
+      .from("profiles")
+      .select("user_id,display_name")
+      .in("user_id", [...new Set(userIds)]),
+    label,
+  );
+  for (const p of found) profiles.set(p.user_id, p);
+  return profiles;
+}
 
 // --------------------------------------------------------------------------
 // Task activity feed (TASKS-V2 D-C + D-D) — reuse existing rows, no new table.
@@ -2615,90 +2632,81 @@ type TaskActivityItem =
 
 /**
  * Assemble the task's merged activity+discussion timeline (D-C/D-D). Two
- * company-scoped arms: the `task_*` conversation_events for this task id (the
- * audit payload carries `task_id`) and the internal notes linked to the task
- * (`messages.task_id = taskId`). `profiles` is the already-resolved
- * assignee/creator name cache; note/event actor names not in it are resolved in
+ * company-scoped arms, read together: the `task_*` conversation_events for this
+ * task id (the audit payload carries `task_id`) and the internal notes linked to
+ * the task (`messages.task_id = taskId`). `assigneeProfiles` is the
+ * assignee/creator name read; note/event actor names not in it are resolved in
  * one extra batch. Result is sorted (created_at, id) ASC (oldest-first).
  */
 async function loadTaskActivity(
   db: Db,
   companyId: string,
-  taskId: string,
-  profiles: Map<string, Record<string, unknown>>,
+  task: { id: string; conversation_id: string | null },
+  assigneeProfiles: Promise<Map<string, Record<string, unknown>>>,
 ): Promise<TaskActivityItem[]> {
-  // Arm 1: task_* audit events for this task (payload->>'task_id' = taskId).
-  const eventRows = unwrap<
-    {
-      id: string;
-      type: string;
-      payload: Record<string, unknown> | null;
-      actor_user_id: string | null;
-      created_at: string;
-    }[]
-  >(
-    await db
-      .from("conversation_events")
-      .select("id,type,payload,actor_user_id,created_at")
-      .eq("company_id", companyId)
-      .in("type", [
-        "task_created",
-        "task_assigned",
-        "task_due_set",
-        "task_deleted",
-        // task_attachment_added is NOT filtered: D28 closed the task upload
-        // ingress, so no such event is ever written post-D28 — including it
-        // would only match dead pre-D28 rows. task_attachment_removed stays: the
-        // DELETE route now stamps task_id on it (legacy task-file deletions), so
-        // it surfaces here via the payload->>task_id filter below.
-        "task_attachment_removed",
-      ])
-      .eq("payload->>task_id", taskId)
-      .order("created_at", { ascending: true }),
-    "task activity events",
-  );
-
-  // Arm 2: internal notes linked to this task (messages.task_id = taskId).
-  const noteRows = unwrap<
-    {
-      id: string;
-      body: string;
-      sent_by_user_id: string | null;
-      created_at: string;
-    }[]
-  >(
-    await db
+  const taskId = task.id;
+  interface EventRow {
+    id: string;
+    type: string;
+    payload: Record<string, unknown> | null;
+    actor_user_id: string | null;
+    created_at: string;
+  }
+  const [eventRows, noteRows] = await Promise.all([
+    // Arm 1: task_* audit events for this task (payload->>'task_id' = taskId).
+    // Written only on the task's own conversation, whose id puts the read on its index.
+    task.conversation_id === null
+      ? ([] as EventRow[])
+      : db
+          .from("conversation_events")
+          .select("id,type,payload,actor_user_id,created_at")
+          .eq("company_id", companyId)
+          .eq("conversation_id", task.conversation_id)
+          .in("type", [
+            "task_created",
+            "task_assigned",
+            "task_due_set",
+            "task_deleted",
+            // task_attachment_added is NOT filtered: D28 closed the task upload
+            // ingress, so no such event is ever written post-D28, and including
+            // it would only match dead pre-D28 rows. task_attachment_removed stays:
+            // the DELETE route now stamps task_id on it (legacy task-file
+            // deletions), so it surfaces here via the payload->>task_id filter.
+            "task_attachment_removed",
+          ])
+          .eq("payload->>task_id", taskId)
+          .order("created_at", { ascending: true })
+          .then((res) => unwrap<EventRow[]>(res, "task activity events")),
+    // Arm 2: internal notes linked to this task (messages.task_id = taskId).
+    db
       .from("messages")
       .select("id,body,sent_by_user_id,created_at")
       .eq("company_id", companyId)
       .eq("task_id", taskId)
       .eq("direction", "note")
-      .order("created_at", { ascending: true }),
-    "task activity notes",
-  );
+      .order("created_at", { ascending: true })
+      .then((res) =>
+        unwrap<
+          { id: string; body: string; sent_by_user_id: string | null; created_at: string }[]
+        >(res, "task activity notes"),
+      ),
+  ]);
 
   // Resolve any actor/author names not already in the profiles cache (one batch).
+  const assignees = await assigneeProfiles;
   const needed = new Set<string>();
   for (const e of eventRows) {
-    if (e.actor_user_id && !profiles.has(e.actor_user_id)) {
+    if (e.actor_user_id && !assignees.has(e.actor_user_id)) {
       needed.add(e.actor_user_id);
     }
   }
   for (const n of noteRows) {
-    if (n.sent_by_user_id && !profiles.has(n.sent_by_user_id)) {
+    if (n.sent_by_user_id && !assignees.has(n.sent_by_user_id)) {
       needed.add(n.sent_by_user_id);
     }
   }
-  if (needed.size > 0) {
-    const found = unwrap<{ user_id: string; display_name: string | null }[]>(
-      await db
-        .from("profiles")
-        .select("user_id,display_name")
-        .in("user_id", [...needed]),
-      "task activity profiles",
-    );
-    for (const p of found) profiles.set(p.user_id, p);
-  }
+  const others = await loadProfiles(db, [...needed], "task activity profiles");
+  const profiles = new Map([...assignees, ...others]);
   const nameOf = (
     userId: string | null,
   ): { user_id: string; display_name: string | null } | null => {

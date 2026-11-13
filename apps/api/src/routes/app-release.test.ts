@@ -11,10 +11,11 @@
  * The second property is that it is reachable WITHOUT a token, because the
  * reason to force an update may be that auth is broken in the old build.
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { app } from "../index";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { resetReleasePolicyCache } from "./app-release";
 
 const env = completeEnv();
 
@@ -28,6 +29,39 @@ function policyRoute(policy: unknown, status = 200): FetchRoute {
         })
       : undefined;
 }
+
+/** The same responder, counting how often the database was asked. */
+function countedPolicyRoute(
+  answer: () => { policy: unknown; status?: number },
+): { route: FetchRoute; reads: () => number } {
+  let reads = 0;
+  return {
+    route: (url, request) => {
+      if (!url.pathname.endsWith("/rpc/api_app_release_policy")) return undefined;
+      reads += 1;
+      const { policy, status } = answer();
+      return policyRoute(policy, status)(url, request);
+    },
+    reads: () => reads,
+  };
+}
+
+const IOS_FLOOR = {
+  platform: "ios",
+  recommended_version: "1.4.0",
+  minimum_version: "1.2.0",
+  message: "A security fix",
+  update_url: "https://apps.apple.com/app/id123",
+};
+
+beforeEach(() => {
+  // A fresh isolate is the production reset; tests need the same.
+  resetReleasePolicyCache();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("GET /app-release", () => {
   it("answers without any Authorization header at all", async () => {
@@ -138,5 +172,63 @@ describe("GET /app-release", () => {
     const res = await app.request("/app-release?platform=iOS", {}, env);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.recommended_version).toBe("1.4.0");
+  });
+
+  it("lets a browser on another origin read every answer", async () => {
+    // The web app asks from a different origin, with no credentials. Without
+    // this header the browser throws the answer away, so the web never learns
+    // of a floor at all.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    stubFetch(policyRoute({ message: "boom" }, 500));
+
+    const answers = [
+      await app.request("/app-release?platform=web", { headers: { Origin: "https://app.loonext.com" } }, env),
+      await app.request("/app-release?platform=symbian", {}, env),
+    ];
+    stubFetch(policyRoute(IOS_FLOOR));
+    answers.push(await app.request("/app-release?platform=ios", {}, env));
+
+    for (const res of answers) {
+      expect(res.status).toBe(200);
+      expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    }
+  });
+
+  it("reads the policy once per isolate while it is fresh", async () => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const store = countedPolicyRoute(() => ({ policy: IOS_FLOOR }));
+    stubFetch(store.route);
+
+    const first = await app.request("/app-release?platform=ios", {}, env);
+    const second = await app.request("/app-release?platform=ios", {}, env);
+    expect(await second.json()).toEqual(await first.json());
+    expect(store.reads()).toBe(1);
+
+    // Another platform has its own policy and its own read.
+    await app.request("/app-release?platform=android", {}, env);
+    expect(store.reads()).toBe(2);
+
+    // Five minutes on, a lowered floor has to be able to arrive.
+    vi.spyOn(Date, "now").mockReturnValue(now + 301_000);
+    await app.request("/app-release?platform=ios", {}, env);
+    expect(store.reads()).toBe(3);
+  });
+
+  it("never keeps the fail-open answer, so the real floor returns with the database", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    let down = true;
+    const store = countedPolicyRoute(() =>
+      down ? { policy: { message: "boom" }, status: 500 } : { policy: IOS_FLOOR },
+    );
+    stubFetch(store.route);
+
+    const during = await app.request("/app-release?platform=ios", {}, env);
+    expect(await during.json()).toMatchObject({ minimum_version: null });
+
+    down = false;
+    const after = await app.request("/app-release?platform=ios", {}, env);
+    expect(await after.json()).toMatchObject({ minimum_version: "1.2.0" });
+    expect(store.reads()).toBe(2);
   });
 });

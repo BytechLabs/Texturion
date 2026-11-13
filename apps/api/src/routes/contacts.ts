@@ -1953,12 +1953,25 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
     return errorResponse(c, "not_found", "No such contact.");
   }
 
-  // #291: the addresses ride the detail rather than a second endpoint. A
-  // contact panel that had to ask twice would paint the record and then the
-  // addresses a moment later, and "where is this job" is not a detail somebody
-  // should watch arrive.
-  const addresses = unwrap<Record<string, unknown>[]>(
-    await db
+  // #191 attribution: resolve the created/updated actor names (null for older,
+  // actor-less rows; the UI shows the attribution line only when it resolves).
+  const createdBy = contact.created_by_user_id as string | null;
+  const updatedBy = contact.updated_by_user_id as string | null;
+  const [
+    addressesRes,
+    phonesRes,
+    optOutsRes,
+    tagMap,
+    mergedRows,
+    actorNames,
+    clock,
+    relationship,
+  ] = await Promise.all([
+    // #291: the addresses ride the detail rather than a second endpoint. A
+    // contact panel that had to ask twice would paint the record and then the
+    // addresses a moment later, and "where is this job" is not a detail
+    // somebody should watch arrive.
+    db
       .from("contact_addresses")
       .select("id,label,address,is_primary,created_at")
       .eq("company_id", companyId)
@@ -1966,39 +1979,28 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
       .order("is_primary", { ascending: false })
       .order("created_at", { ascending: true })
       .limit(ADDRESS_CAP),
-    "contact addresses",
-  );
-
-  // #291: and the other numbers, on the same read and for the same reason.
-  // Oldest first — the order they were recorded is the order the crew thinks
-  // of them in, and there is no primary among them: the contact's own
-  // `phone_e164` is the primary, and it is on the record above.
-  const phones = unwrap<Record<string, unknown>[]>(
-    await db
+    // #291: and the other numbers, on the same read and for the same reason.
+    // Oldest first: the order they were recorded is the order the crew thinks
+    // of them in, and there is no primary among them. The contact's own
+    // `phone_e164` is the primary, and it is on the record above.
+    db
       .from("contact_phones")
       .select("id,phone_e164,label,created_at")
       .eq("company_id", companyId)
       .eq("contact_id", id)
       .order("created_at", { ascending: true })
       .limit(CONTACT_PHONE_CAP),
-    "contact phones",
-  );
-
-  const optOuts = unwrap<{ id: string; source: string }[]>(
-    await db
+    db
       .from("opt_outs")
       .select("id,source")
       .eq("company_id", companyId)
       .eq("phone_e164", contact.phone_e164 as string)
       .is("revoked_at", null)
       .limit(1),
-    "opt-out lookup",
-  );
-  // #695: the tags this contact carries, and the most recent record merged
-  // into it. The merged record is what an Unmerge acts on: `unmerge` takes the
-  // id of the record that was folded in, which the survivor's page would
-  // otherwise have no way to name.
-  const [tagMap, mergedRows] = await Promise.all([
+    // #695: the tags this contact carries, and the most recent record merged
+    // into it. The merged record is what an Unmerge acts on: `unmerge` takes
+    // the id of the record that was folded in, which the survivor's page would
+    // otherwise have no way to name.
     tagsByContactIds(db, companyId, [id]),
     db
       .from("contacts")
@@ -2007,21 +2009,6 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
       .eq("merged_into", id)
       .order("merged_at", { ascending: false })
       .limit(1),
-  ]);
-  const mergedFrom =
-    unwrap<
-      { id: string; name: string | null; phone_e164: string; merged_at: string }[]
-    >(mergedRows, "contact merged from")[0] ?? null;
-  // #191 attribution: resolve the created/updated actor names (null for older,
-  // actor-less rows — the UI shows the attribution line only when it resolves).
-  const createdBy = contact.created_by_user_id as string | null;
-  const updatedBy = contact.updated_by_user_id as string | null;
-  const access = await resolveNumberAccess(db, {
-    companyId,
-    userId: c.get("userId"),
-    role: c.get("role"),
-  });
-  const [actorNames, clock, relationship] = await Promise.all([
     resolveActorNames(db, [createdBy, updatedBy]),
     // #292/D49: what time it is where they are, resolved the same way a send
     // resolves it. The screen showing "9:00 AM their time" and the gate that
@@ -2032,13 +2019,26 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
       contactTimezone: (contact.timezone as string | null) ?? null,
     }),
     // #410: how long they have been a customer, and how often. Two facts,
-    // not a profile.
-    contactRelationship(db, {
+    // not a profile. A number-access failure rejects the whole request.
+    resolveNumberAccess(db, {
       companyId,
-      contactId: id,
-      hiddenNumberIds: access.hiddenNumberIds,
-    }),
+      userId: c.get("userId"),
+      role: c.get("role"),
+    }).then((access) =>
+      contactRelationship(db, {
+        companyId,
+        contactId: id,
+        hiddenNumberIds: access.hiddenNumberIds,
+      }),
+    ),
   ]);
+  const addresses = unwrap<Record<string, unknown>[]>(addressesRes, "contact addresses");
+  const phones = unwrap<Record<string, unknown>[]>(phonesRes, "contact phones");
+  const optOuts = unwrap<{ id: string; source: string }[]>(optOutsRes, "opt-out lookup");
+  const mergedFrom =
+    unwrap<
+      { id: string; name: string | null; phone_e164: string; merged_at: string }[]
+    >(mergedRows, "contact merged from")[0] ?? null;
   return c.json({
     ...contact,
     // The resolved clock, and which rung of the ladder answered — so the UI

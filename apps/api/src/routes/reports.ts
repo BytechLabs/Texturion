@@ -223,22 +223,21 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
-  // #581/#106: this report names phone numbers, so it has to know which ones
-  // this reader is denied. Null for owners, admins, and any workspace that has
-  // never written an access rule — which hides nothing and is the common path.
-  const access = await resolveNumberAccess(db, {
-    companyId,
-    userId: c.get("userId"),
-    role: c.get("role"),
-  });
-
   const requested = Number(c.req.query("days") ?? DEFAULT_DAYS);
   const days = (ALLOWED_DAYS as readonly number[]).includes(requested)
     ? requested
     : DEFAULT_DAYS;
 
-  const companies = unwrap<CompanyRow[]>(
-    await db
+  const [access, companiesRes] = await Promise.all([
+    // #581/#106: this report names phone numbers, so it has to know which ones
+    // this reader is denied. Null for owners, admins, and any workspace that has
+    // never written an access rule, which hides nothing and is the common path.
+    resolveNumberAccess(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+    }),
+    db
       .from("companies")
       .select(
         "created_at,timezone,business_hours,business_hours_exceptions," +
@@ -246,8 +245,8 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
       )
       .eq("id", companyId)
       .limit(1),
-    "response-time company lookup",
-  );
+  ]);
+  const companies = unwrap<CompanyRow[]>(companiesRes, "response-time company lookup");
   const company = companies[0];
   if (!company) {
     // Not a client error: authorization already proved this member belongs to
@@ -276,7 +275,18 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     return data as StatsPayload;
   }
 
-  const current = await stats(since, until);
+  // The arc. The baseline is the workspace's first fortnight; it is only
+  // meaningful once the current window no longer overlaps it, so a young
+  // workspace gets an explicit reason instead of a comparison against itself.
+  const createdAt = new Date(company.created_at);
+  const baselineUntil = new Date(
+    createdAt.getTime() + BASELINE_DAYS * 24 * 60 * 60 * 1000,
+  );
+  const tooNew = baselineUntil > since;
+  const [current, first] = await Promise.all([
+    stats(since, until),
+    tooNew ? null : stats(createdAt, baselineUntil),
+  ]);
 
   // The split. Each lead is classified by WHEN THE CUSTOMER WROTE, not when we
   // answered: the question is how fast we answer a message that arrived out of
@@ -294,31 +304,21 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     side.push(row);
   }
 
-  // The arc. The baseline is the workspace's first fortnight; it is only
-  // meaningful once the current window no longer overlaps it, so a young
-  // workspace gets an explicit reason instead of a comparison against itself.
-  const createdAt = new Date(company.created_at);
-  const baselineUntil = new Date(
-    createdAt.getTime() + BASELINE_DAYS * 24 * 60 * 60 * 1000,
-  );
   let baseline: (StatsPayload & { since: string; until: string }) | null = null;
   let baselineUnavailable: string | null = null;
-  if (baselineUntil > since) {
+  if (first === null) {
     baselineUnavailable = "too_new";
+  } else if (first.answered === 0) {
+    // A first fortnight with no answered lead is not a baseline of zero; it is
+    // no baseline. Reporting it as an improvement from nothing would be the
+    // arc as fiction.
+    baselineUnavailable = "no_answered_leads";
   } else {
-    const first = await stats(createdAt, baselineUntil);
-    if (first.answered === 0) {
-      // A first fortnight with no answered lead is not a baseline of zero; it is
-      // no baseline. Reporting it as an improvement from nothing would be the
-      // arc as fiction.
-      baselineUnavailable = "no_answered_leads";
-    } else {
-      baseline = {
-        ...first,
-        since: createdAt.toISOString(),
-        until: baselineUntil.toISOString(),
-      };
-    }
+    baseline = {
+      ...first,
+      since: createdAt.toISOString(),
+      until: baselineUntil.toISOString(),
+    };
   }
 
   const improvedBy =

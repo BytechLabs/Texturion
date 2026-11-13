@@ -47,19 +47,6 @@ webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), asyn
   const companyId = c.get("companyId");
   const userId = c.get("userId");
 
-  // #283: the calls kill switch. Refusing the TOKEN is the right choke point —
-  // it stops new calls from being placed or accepted, and touches nothing about
-  // a call already in progress. The customer on the other end of a live call
-  // did nothing wrong, and hanging up on them to contain OUR incident would be
-  // its own outage.
-  if (await isKilled(env, "kill:calls", companyId, db)) {
-    return errorResponse(
-      c,
-      "service_unavailable",
-      "Calling is paused while we deal with an issue. Texting still works.",
-    );
-  }
-
   if (env.VERIFY_RATE_LIMITER) {
     const { success } = await env.VERIFY_RATE_LIMITER.limit({
       key: `webrtc-token:${companyId}:${userId}`,
@@ -73,14 +60,39 @@ webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), asyn
     }
   }
 
-  // Live subscription only — a canceled workspace must not keep registered
-  // softphones (mirrors the POST /v1/calls gate).
-  const companies = unwrap<{ subscription_status: string }[]>(
-    await db
+  const [killed, companiesRes, credentialRes] = await Promise.all([
+    // #283: the calls kill switch. Refusing the TOKEN is the right choke point:
+    // it stops new calls from being placed or accepted, and touches nothing
+    // about a call already in progress. The customer on the other end of a live
+    // call did nothing wrong, and hanging up on them to contain OUR incident
+    // would be its own outage.
+    isKilled(env, "kill:calls", companyId, db),
+    // Live subscription only: a canceled workspace must not keep registered
+    // softphones (mirrors the POST /v1/calls gate).
+    db
       .from("companies")
       .select("subscription_status")
       .eq("id", companyId)
       .limit(1),
+    // The member's durable credential, if one was minted before.
+    db
+      .from("member_telephony_credentials")
+      .select("telnyx_credential_id,sip_username")
+      .eq("company_id", companyId)
+      .eq("user_id", userId)
+      .limit(1),
+  ]);
+  // Checked before unwrapping, so a failed read cannot turn the switch's 503 into a 500.
+  if (killed) {
+    return errorResponse(
+      c,
+      "service_unavailable",
+      "Calling is paused while we deal with an issue. Texting still works.",
+    );
+  }
+
+  const companies = unwrap<{ subscription_status: string }[]>(
+    companiesRes,
     "company lookup",
   );
   if (companies[0]?.subscription_status !== "active") {
@@ -95,15 +107,7 @@ webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), asyn
   // ignoreDuplicates so a concurrent first-token race converges on ONE
   // credential row (the loser's freshly-minted Telnyx credential is deleted
   // best-effort — orphaned credentials cost nothing but hygiene matters).
-  const existing = unwrap<CredentialRow[]>(
-    await db
-      .from("member_telephony_credentials")
-      .select("telnyx_credential_id,sip_username")
-      .eq("company_id", companyId)
-      .eq("user_id", userId)
-      .limit(1),
-    "credential lookup",
-  );
+  const existing = unwrap<CredentialRow[]>(credentialRes, "credential lookup");
   let credential = existing[0];
 
   if (!credential) {

@@ -659,6 +659,8 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     // #689 C: "mine" is any assignee, through the inner embed.
     expect(q.get("task_assignees.user_id")).toBe(`eq.${auth.subject}`);
     expect(q.get("select")).toContain("task_assignees!inner(user_id)");
+    // The embed leads with the company, so it reads through the company-led index.
+    expect(q.get("task_assignees.company_id")).toBe(`eq.${COMPANY_ID}`);
     // Company-scoped, live rows only.
     expect(q.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(q.get("deleted_at")).toBe("is.null");
@@ -1318,6 +1320,9 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
     // The event arm filtered on the audit payload's task_id + the task types.
     const evq = events.calls[0].url.searchParams;
     expect(evq.get("payload->>task_id")).toBe(`eq.${TASK_ID}`);
+    // Task events live on the task's own conversation, which is what lets the
+    // read use the conversation's index instead of scanning the workspace.
+    expect(evq.get("conversation_id")).toBe(`eq.${CONVERSATION_ID}`);
     expect(evq.get("type")).toContain("task_created");
     // task_attachment_removed IS filtered (the DELETE route now stamps task_id
     // on it); the never-written-post-D28 task_attachment_added is NOT.
@@ -1375,6 +1380,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
     ]);
     const profiles = stubRoute(restMatch(env, "GET", "profiles"), () => []);
     const empty = (table: string) => stubRoute(restMatch(env, "GET", table), () => []);
+    const events = empty("conversation_events");
     stubFetch(
       jwksRoute(auth),
       membersRoute(),
@@ -1387,7 +1393,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       profiles.route,
       empty("attachments").route,
       empty("message_attachments").route,
-      empty("conversation_events").route,
+      events.route,
       empty("messages").route,
     );
 
@@ -1402,6 +1408,9 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       viewer_level: "text",
       contact: { id: CONTACT_ID, name: "Pat Plumber" },
     });
+    // Task events are only written on a task's conversation, so one with none
+    // has no history to read.
+    expect(events.calls).toHaveLength(0);
   });
 
   it("attachments is the D28 DERIVED union (source MMS + linked-note files + legacy rows), gallery-shaped, sorted, no urls", async () => {
@@ -2265,12 +2274,29 @@ describe("#106/#107 number access on tasks", () => {
     const conv = stubRoute(restMatch(env, "GET", "conversations"), () => [
       { phone_number_id: HIDDEN_NUM },
     ]);
-    // Attachment/activity stubs are present but MUST NOT be hit (short-circuit).
-    const attach = stubRoute(restMatch(env, "GET", "attachments"), () => []);
+    // The attachment and activity reads run beside the access check, and each
+    // finds something. None of it may reach a viewer the number is hidden from.
+    const union = unionStubs();
     const events = stubRoute(
       restMatch(env, "GET", "conversation_events"),
-      () => [],
+      () => [
+        {
+          id: "eeeeeeee-0000-4000-8000-0000000000e1",
+          type: "task_created",
+          payload: { task_id: TASK_ID },
+          actor_user_id: auth.subject,
+          created_at: "2026-07-02T12:00:00.000Z",
+        },
+      ],
     );
+    const notes = stubRoute(restMatch(env, "GET", "messages"), () => [
+      {
+        id: "dddddddd-0000-4000-8000-0000000000d1",
+        body: "SECRET note about the customer",
+        sent_by_user_id: auth.subject,
+        created_at: "2026-07-02T13:00:00.000Z",
+      },
+    ]);
     stubFetch(
       jwksRoute(auth),
       membersRoute(),
@@ -2279,8 +2305,12 @@ describe("#106/#107 number access on tasks", () => {
       detail.route,
       profiles.route,
       conv.route,
-      attach.route,
+      union.mms.route,
+      union.noteLinks.route,
+      union.noteAttach.route,
+      union.legacyAttach.route,
       events.route,
+      notes.route,
     );
 
     const response = await request("GET", `/v1/tasks/${TASK_ID}`);
@@ -2302,9 +2332,7 @@ describe("#106/#107 number access on tasks", () => {
     });
     expect(body.attachments).toEqual([]);
     expect(body.activity).toEqual([]);
-    // The redaction short-circuits BEFORE the attachment/activity loads.
-    expect(attach.calls).toHaveLength(0);
-    expect(events.calls).toHaveLength(0);
+    expect(JSON.stringify(body)).not.toContain("SECRET");
   });
 
   it("detail: a note-level viewer sees content with viewer_level 'note'", async () => {

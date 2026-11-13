@@ -62,6 +62,13 @@ describe("kill:calls", () => {
       jwksRoute(auth),
       authorizeRoute(env, { id: MEMBER_ID, role: "owner" }),
       flagsRoute({ "kill:calls": false }),
+      // The reads the route makes beside the switch. An empty workspace would
+      // answer 402, so the 503 below can only come from the switch.
+      (url) =>
+        url.pathname === "/rest/v1/companies" ||
+        url.pathname === "/rest/v1/member_telephony_credentials"
+          ? Response.json([])
+          : undefined,
     );
 
     const res = await callWebrtcToken();

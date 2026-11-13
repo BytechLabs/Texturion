@@ -286,15 +286,16 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
   const call = rows[0];
   if (!call) return errorResponse(c, "not_found", "No such call.");
 
-  await assertNumberLevel(db, {
-    companyId: c.get("companyId"),
-    userId: c.get("userId"),
-    role: c.get("role"),
-    phoneNumberId: call.phone_number_id,
-    need: "read",
-  });
-
-  const actorNames = await resolveActorNames(db, [call.answered_by_user_id]);
+  const [, actorNames] = await Promise.all([
+    assertNumberLevel(db, {
+      companyId: c.get("companyId"),
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: call.phone_number_id,
+      need: "read",
+    }),
+    resolveActorNames(db, [call.answered_by_user_id]),
+  ]);
   const { voicemail_path, voicemail_deleted_at, contacts, ...rest } = call;
   // #691: a voicemail in the Trash is a voicemail that is not there.
   const voicemailGone = voicemail_deleted_at != null;

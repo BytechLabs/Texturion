@@ -139,28 +139,29 @@ async function listCompanyNumbers(
 /** GET /v1/numbers — any member: list numbers with status (SPEC §7). */
 numbersRoutes.get("/", async (c) => {
   const db = getDb(getEnv(c.env));
-  const rows = await listCompanyNumbers(db, c.get("companyId"));
-  // #106: a restricted member must not even see a number hidden from them (the
-  // composer's "text from" picker reads this list). Owners/admins and no-rules
-  // companies resolve unrestricted and skip the filter.
-  const access = await resolveNumberAccess(db, {
-    companyId: c.get("companyId"),
-    userId: c.get("userId"),
-    role: c.get("role"),
-  });
+  const [rows, access, health] = await Promise.all([
+    listCompanyNumbers(db, c.get("companyId")),
+    // #106: a restricted member must not even see a number hidden from them (the
+    // composer's "text from" picker reads this list). Owners/admins and no-rules
+    // companies resolve unrestricted and skip the filter.
+    resolveNumberAccess(db, {
+      companyId: c.get("companyId"),
+      userId: c.get("userId"),
+      role: c.get("role"),
+    }),
+    // #235: the number's own delivery health, so a degraded line is visible in
+    // the app rather than discovered from a customer who stopped getting
+    // replies. Best-effort: a failure here must never take down the numbers
+    // list, which is what the composer's "text from" picker reads. No health is
+    // the same as healthy, the honest reading of "we have not assessed this".
+    loadNumberHealth(db, c.get("companyId")),
+  ]);
   const visible =
     access.hiddenNumberIds === null
       ? rows
       : ((hidden) => rows.filter((row) => !hidden.has(row.id)))(
           new Set(access.hiddenNumberIds),
         );
-  // #235: the number's own delivery health, so a degraded line is visible in
-  // the app rather than discovered from a customer who stopped getting replies.
-  //
-  // Best-effort: a failure here must never take down the numbers list, which
-  // is what the composer's "text from" picker reads. No health is the same as
-  // healthy — the honest reading of "we have not assessed this".
-  const health = await loadNumberHealth(db, c.get("companyId"));
 
   // #366: how many people an inbound call to this number could ring.
   //

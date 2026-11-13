@@ -472,13 +472,22 @@ meRoutes.get("/me", async (c) => {
     // Resolved in PARALLEL with the view rather than before it. A refusal is the
     // rare case and the view is the common one, so gating serially would put an
     // extra round trip on every app load to save work on almost none of them.
-    const [stepUp, company] = await Promise.all([
+    //
+    // #283: the flags this workspace should honour CLIENT-side ride the same
+    // round trip. Only the client-relevant ones travel; `kill:realtime` is the
+    // whole reason this exists, because clients connect to Supabase Realtime
+    // directly and there is no server choke point to refuse. A killed realtime
+    // means the client stops subscribing and falls back to polling: slower,
+    // never wrong. Best-effort, like everything else about flags: a failure
+    // resolves to the code default (realtime on), never to a /me that 500s.
+    const [stepUp, company, flags] = await Promise.all([
       resolveMfaStepUp(c, parsed.data),
       loadCompanyView(db, parsed.data, env, {
         userId,
         // company_members.role is DB-constrained to the MemberRole union.
         role: membership.role as MemberRole,
       }),
+      clientFlags(env, parsed.data, db),
     ]);
     if (!company) {
       return errorResponse(c, "not_found", "No such company.");
@@ -496,17 +505,7 @@ meRoutes.get("/me", async (c) => {
     if (stepUp) return c.json(body);
 
     body.company = company;
-    // #283: the flags this workspace should honour CLIENT-side.
-    //
-    // Only the client-relevant ones travel — `kill:realtime` is the whole
-    // reason this exists, because clients connect to Supabase Realtime
-    // directly and there is no server choke point to refuse. A killed realtime
-    // means the client stops subscribing and falls back to polling: slower,
-    // never wrong.
-    //
-    // Best-effort, like everything else about flags. A failure here resolves
-    // to the code default (realtime on), never to a /me that 500s.
-    body.flags = await clientFlags(env, parsed.data, db);
+    body.flags = flags;
   }
 
   return c.json(body);
