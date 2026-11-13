@@ -77,11 +77,17 @@ function notStarted(record: CallRecord): ScenarioResult | undefined {
   return guardRefusal(record) ?? infra("robot", record.errors.join("; ") || "the robot could not start the call");
 }
 
-/** The robot's side of a call it judged against one expected surface: undefined when it heard that surface. */
-function robotVerdict(record: CallRecord, surface: Surface, failureClass: string): ScenarioResult | undefined {
+/** A call the guard refused or that never connected: undefined once the robot answered. */
+function unconnected(record: CallRecord): ScenarioResult | undefined {
   const refused = guardRefusal(record);
   if (refused) return refused;
-  if (!record.answered_at) return fail("not_answered", `the call never connected (${record.errors.join("; ") || record.state})`);
+  return record.answered_at ? undefined : fail("not_answered", `the call never connected (${record.errors.join("; ") || record.state})`);
+}
+
+/** The robot's side of a call it judged against one expected surface: undefined when it heard that surface. */
+function robotVerdict(record: CallRecord, surface: Surface, failureClass: string): ScenarioResult | undefined {
+  const dropped = unconnected(record);
+  if (dropped) return dropped;
   if (!record.judgement) return infra("robot", `no verdict on the robot's recording (${record.errors.join("; ") || record.state})`);
   if (!record.judgement.pass) return fail(failureClass, `the robot heard ${record.judgement.heard.join(", ") || record.judgement.verdict}, not ${surface}`);
   if (!record.recording_deleted) return infra("robot", "the robot could not delete Telnyx's copy of its recording");
@@ -443,11 +449,37 @@ export const D01: ScenarioRunner = {
 };
 
 const PIXEL_HEARS_MS = 12_000;
+const BOTH_WAYS = "both ways";
 
-/** D07: the device lane's emulator calls ROBOT-1 from DEV-A1; codes are heard both ways and the caller ID is DEV-A1. */
+/**
+ * D07's runs, by which of the emulator's gRPC audio calls each opens. A
+ * one-sided run opens one, so an emulator fault during a live call can be put
+ * on `injectAudio` or on `streamAudio` (docs/RIG.md risk 19).
+ */
+const D07_AUDIO: Readonly<Record<string, { speaks: boolean; listens: boolean }>> = {
+  [BOTH_WAYS]: { speaks: true, listens: true },
+  "speaks only": { speaks: true, listens: false },
+  "listens only": { speaks: false, listens: true },
+};
+
+/** An emulator that died under the call is the rig's fault, whatever the call then looked like. */
+async function emulatorDown(ctx: ScenarioContext, device: DeviceApi): Promise<ScenarioResult | undefined> {
+  const answers = await device.reachable();
+  ctx.evidence.emulator_answers_adb = answers;
+  return answers ? undefined : infra("pixel", "the emulator stopped answering adb during the call");
+}
+
+/**
+ * D07: the device lane's emulator calls ROBOT-1 from DEV-A1; codes are heard
+ * both ways and the caller ID is DEV-A1. A one-sided run judges its own half.
+ */
 export const D07: ScenarioRunner = {
   id: "D07",
   async run(ctx) {
+    const variant = ctx.slot.label ?? BOTH_WAYS;
+    const half = D07_AUDIO[variant];
+    if (!half) return infra("runner", `D07 has no variant named ${variant}`);
+    ctx.evidence.variant = variant;
     const pixel = await pixelWithAudio(ctx);
     if (isResult(pixel)) return pixel;
     await readyToDial(ctx, pixel.device);
@@ -458,13 +490,14 @@ export const D07: ScenarioRunner = {
       role: "ROBOT-1",
       answer_after_ms: 4_000,
       expect_within_ms: 60_000,
-      expect: "pixel",
+      // An emulator that injects nothing gives the robot no code to judge.
+      ...(half.speaks ? { expect: "pixel" as const } : { record: false }),
       hangup_after_ms: TALK_MS,
     });
     const unplanned = notStarted(plan);
     if (unplanned) return unplanned;
 
-    const unplayed = await playPixelCode(pixel.audio);
+    const unplayed = half.speaks ? await playPixelCode(pixel.audio) : undefined;
     if (unplayed) return unplayed;
     try {
       const undialed = await dialFromPixel(pixel.device);
@@ -473,21 +506,23 @@ export const D07: ScenarioRunner = {
       // The emulator's ear opens at answer, the window the robot's code plays in.
       let heard: Detection | undefined;
       try {
-        heard = answered?.answered_at ? await pixel.audio.hear({ stream: "call", ms: PIXEL_HEARS_MS, own: "pixel" }) : undefined;
+        heard = half.listens && answered?.answered_at ? await pixel.audio.hear({ stream: "call", ms: PIXEL_HEARS_MS, own: "pixel" }) : undefined;
       } catch (error) {
         await ctx.robot.wait(plan.plan_id, 180_000);
-        return audioFault(error);
+        return (await emulatorDown(ctx, pixel.device)) ?? audioFault(error);
       }
       const record = await ctx.robot.wait(plan.plan_id, 180_000);
       ctx.evidence.call = { ...callEvidence(record), pixel_heard: heard ? heardEvidence(heard) : undefined };
+      const down = await emulatorDown(ctx, pixel.device);
+      if (down) return down;
 
-      const robot = robotVerdict(record, "pixel", "robot_did_not_hear_pixel");
+      const robot = half.speaks ? robotVerdict(record, "pixel", "robot_did_not_hear_pixel") : unconnected(record);
       if (robot) return robot;
       if (record.from_role !== NUMBER) return fail("wrong_caller_id", `the robot saw the call from ${record.from_role ?? "nobody"}, not DEV-A1`);
-      if (heard?.answered !== "robot") {
+      if (half.listens && heard?.answered !== "robot") {
         return fail("pixel_did_not_hear_robot", `the emulator heard ${heard?.heard.join(", ") || heard?.verdict || "nothing"}`);
       }
-      return pass();
+      return pass(variant === BOTH_WAYS ? undefined : `${variant}: the other half of the audio was not judged`);
     } finally {
       await pixel.audio.stop();
       await endPixelCall(pixel.device);

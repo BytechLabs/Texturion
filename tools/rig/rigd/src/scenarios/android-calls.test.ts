@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RecordingJudgement, Surface } from "@loonext/rig-robot";
 import { D01, D07, D08, D09, D13, D14, d01Answerer, lossOutsideOutage, MAX_LOSS, PLAY_VOICEMAIL, R00 } from "./android-calls.ts";
 import type { MemberPageApi } from "./context.ts";
@@ -508,6 +508,62 @@ describe("D07, the Android app calls out", () => {
     robotless.robot.expect = async (plan) => ({ plan_id: "plan-0", plan, state: "failed", ids: {}, events: [], dtmf: "", errors: ["robot: no connection"] });
     expect(await D07.run(robotless.ctx)).toMatchObject({ outcome: "infra", component: "robot" });
     expect(robotless.devices.pixelDevice.actions).toEqual([]);
+  });
+
+  it("opens only injectAudio when the Pixel speaks only, and judges the robot's ear alone", async () => {
+    const { ctx, robot, devices } = d07World();
+    ctx.slot = { index: 1, label: "speaks only" };
+    const listened = vi.spyOn(devices.audio, "hear");
+    expect(await D07.run(ctx)).toEqual({ outcome: "pass", detail: "speaks only: the other half of the audio was not judged" });
+    expect(devices.audio.played).toEqual(["pixel"]);
+    expect(listened).not.toHaveBeenCalled();
+    expect(robot.plans[0]).toMatchObject({ expect: "pixel" });
+    expect(ctx.evidence).toMatchObject({ variant: "speaks only", emulator_answers_adb: true });
+  });
+
+  it("opens only streamAudio when the Pixel listens only, and judges the Pixel's ear alone", async () => {
+    const { ctx, robot, devices } = d07World();
+    ctx.slot = { index: 2, label: "listens only" };
+    expect(await D07.run(ctx)).toEqual({ outcome: "pass", detail: "listens only: the other half of the audio was not judged" });
+    expect(devices.audio.played).toEqual([]);
+    expect(robot.plans[0]).toMatchObject({ record: false });
+    expect(robot.plans[0]).not.toHaveProperty("expect");
+    expect(ctx.evidence.call).toMatchObject({ pixel_heard: { answered: "robot" } });
+
+    const muffled = d07World();
+    muffled.ctx.slot = { index: 2, label: "listens only" };
+    muffled.devices.audio.heard = null;
+    expect(await D07.run(muffled.ctx)).toMatchObject({ failure_class: "pixel_did_not_hear_robot" });
+
+    const unanswered = d07World();
+    unanswered.ctx.slot = { index: 2, label: "listens only" };
+    const answered = unanswered.robot.outcome;
+    unanswered.robot.outcome = (plan) => ({ ...answered(plan), answered_at: undefined });
+    expect(await D07.run(unanswered.ctx)).toMatchObject({ failure_class: "not_answered" });
+  });
+
+  it("puts an emulator that died under the call on the rig, in every variant", async () => {
+    const crashedListening = d07World();
+    crashedListening.devices.audio.hear = async () => {
+      crashedListening.devices.pixelDevice.reachableNow = false;
+      throw new Error("streamAudio: 14 UNAVAILABLE");
+    };
+    expect(await D07.run(crashedListening.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("stopped answering adb") });
+    expect(crashedListening.ctx.evidence.emulator_answers_adb).toBe(false);
+
+    const crashedSpeaking = d07World();
+    crashedSpeaking.ctx.slot = { index: 1, label: "speaks only" };
+    const playCode = crashedSpeaking.devices.audio.playCode.bind(crashedSpeaking.devices.audio);
+    crashedSpeaking.devices.audio.playCode = async (surface) => {
+      await playCode(surface);
+      crashedSpeaking.devices.pixelDevice.reachableNow = false;
+    };
+    // The device was reachable when the run began; it dies once injection starts.
+    expect(await D07.run(crashedSpeaking.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+
+    const unknown = d07World();
+    unknown.ctx.slot = { index: 3, label: "sideways" };
+    expect(await D07.run(unknown.ctx)).toMatchObject({ outcome: "infra", component: "runner" });
   });
 });
 

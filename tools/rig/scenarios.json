@@ -681,7 +681,9 @@
       "far_end": "ROBOT-1 answers",
       "runs_on": "rig",
       "runs": [
-        {}
+        { "label": "both ways" },
+        { "label": "speaks only" },
+        { "label": "listens only" }
       ],
       "dials": 2,
       "far_end_legs": 0,

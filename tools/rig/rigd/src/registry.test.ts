@@ -203,6 +203,16 @@ describe("the verdict store", () => {
     expect(store.unresolved().map((u) => u.scenario)).toEqual(["S20"]);
   });
 
+  it("keeps a run unresolved when another run of the same scenario passes", () => {
+    const store = new VerdictStore(mkdtempSync(join(tmpdir(), "rig-verdicts-")));
+    store.record(verdict({ scenario: "D07", run_id: "D07-1", outcome: "infra", component: "pixel" }));
+    store.record(verdict({ scenario: "D07", run_id: "D07-2", slot: 1 }));
+    expect(store.unresolved().map((u) => [u.scenario, u.last.slot ?? 0])).toEqual([["D07", 0]]);
+    store.record(verdict({ scenario: "D07", run_id: "D07-3", slot: 2, outcome: "infra", component: "pixel" }));
+    store.record(verdict({ scenario: "D07", run_id: "D07-4" }));
+    expect(store.unresolved().map((u) => [u.scenario, u.last.slot])).toEqual([["D07", 2]]);
+  });
+
   it("counts dials spent in a span, and keeps evidence per run", () => {
     const store = new VerdictStore(mkdtempSync(join(tmpdir(), "rig-verdicts-")));
     store.record(verdict({ started_at: "2026-10-31T05:00:00.000Z" }));

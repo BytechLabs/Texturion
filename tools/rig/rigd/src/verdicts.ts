@@ -99,18 +99,24 @@ export class VerdictStore {
     return matching.at(-1);
   }
 
-  /** Scenarios whose latest decisive verdict is a failure. */
+  /**
+   * Scenario runs whose latest decisive verdict is a failure. Each of a
+   * scenario's registry runs is judged on its own: a variant's pass says
+   * nothing about another's failure.
+   */
   unresolved(): UnresolvedFailure[] {
-    const byScenario = new Map<string, Verdict[]>();
+    const byRun = new Map<string, Verdict[]>();
     for (const verdict of this.all()) {
       if (!DECISIVE.has(verdict.outcome)) continue;
-      const list = byScenario.get(verdict.scenario) ?? [];
+      const run = `${verdict.scenario} ${verdict.slot ?? 0}`;
+      const list = byRun.get(run) ?? [];
       list.push(verdict);
-      byScenario.set(verdict.scenario, list);
+      byRun.set(run, list);
     }
     const out: UnresolvedFailure[] = [];
-    for (const [scenario, verdicts] of byScenario) {
+    for (const verdicts of byRun.values()) {
       const last = verdicts.at(-1)!;
+      const scenario = last.scenario;
       if (last.outcome === "pass") continue;
       let streak = verdicts.length;
       while (streak > 0 && verdicts[streak - 1]!.outcome !== "pass") streak--;
