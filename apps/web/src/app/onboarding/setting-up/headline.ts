@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 
 /** English, for a caller with no provider around it — the unit tests. */
 const EN = makeTranslate(DEFAULT_LOCALE);

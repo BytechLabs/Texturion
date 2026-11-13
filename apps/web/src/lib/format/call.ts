@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE, type CallEndReason, type CallRouting } from "@loonext/shared";
 
-import { makeTranslate, type MessageKey, type Translate } from "@/i18n/provider";
+import { makeTranslate, type MessageKey, type Translate } from "@/i18n/translate";
 
 import { formatCallDuration } from "./call-duration";
 

@@ -14,7 +14,7 @@ import {
   PLAN_PRICE_CENTS,
 } from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/provider";
+import { sayEnglish } from "@/i18n/translate";
 import { ApiError } from "@/lib/api/error";
 import { PLAN_PRICING, type CompanyView } from "@/lib/api/types";
 

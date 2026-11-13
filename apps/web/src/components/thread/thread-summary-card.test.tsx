@@ -7,7 +7,7 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/error";
-import { sayEnglish } from "@/i18n/provider";
+import { sayEnglish } from "@/i18n/translate";
 import {
   threadSummaryRequestFailure,
   type ThreadSummaryResult,

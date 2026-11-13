@@ -23,7 +23,7 @@ import {
   RecordContextMenu,
   RecordOverflowMenu,
 } from "@/components/ui/record-menu";
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 
 import { actionIds, type RecordAction } from "./types";
 

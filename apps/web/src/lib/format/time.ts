@@ -5,7 +5,7 @@ import {
   timestampShape,
 } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 
 /**
  * The browser's IANA timezone (D15: captured silently at onboarding and sent

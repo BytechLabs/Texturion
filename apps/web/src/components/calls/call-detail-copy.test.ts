@@ -10,7 +10,7 @@
 import { describe, expect, it } from "vitest";
 
 import { outcomeLine, transcriptState } from "./call-detail-copy";
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 import type { CallDetail } from "@/lib/api/types";
 
 /**

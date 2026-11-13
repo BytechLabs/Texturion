@@ -2,7 +2,7 @@ import { AuthError } from "@supabase/supabase-js";
 
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 
 /**
  * Map Supabase Auth failures to G10 microcopy: what happened + what to do,

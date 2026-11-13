@@ -67,12 +67,9 @@ function localeFrom(url: string): Locale {
 }
 
 /**
- * The catalogue directly, not `makeTranslate`.
- *
- * `i18n/provider.tsx` is a `"use client"` module, so calling its helper from a
- * route handler throws "attempted to call makeTranslate() from the server" —
- * at request time, not at build. `catalog.ts` is plain data and safe on both
- * sides, and this document needs two keys with no interpolation.
+ * Two keys with no interpolation, read straight off the catalogue. Never import
+ * `makeTranslate` from the "use client" `i18n/provider.tsx` in a route handler:
+ * it throws at request time. `@/i18n/translate` is the server-safe one.
  */
 const documentFor = (locale: Locale) => {
   const words = CATALOGS[locale].settings as Record<string, string>;

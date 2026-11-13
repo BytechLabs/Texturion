@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import * as shared from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
-import { makeTranslate } from "./provider";
+import { makeTranslate } from "@/i18n/translate";
 
 /**
  * A shared constant whose value is a catalogue key ("domain.referralCopy") has

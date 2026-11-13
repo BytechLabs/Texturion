@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import type { MessageKey } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/translate";
 
 export interface NavItem {
   /**

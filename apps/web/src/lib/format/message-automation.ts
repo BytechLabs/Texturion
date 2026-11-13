@@ -1,6 +1,6 @@
 import { isMessageAutomation, type MessageAutomation } from "@loonext/shared";
 
-import type { MessageKey, Translate } from "@/i18n/provider";
+import type { MessageKey, Translate } from "@/i18n/translate";
 
 /** #725: each automation's name, so a Record keeps the list complete. */
 const AUTOMATION_KEYS: Record<MessageAutomation, MessageKey> = {

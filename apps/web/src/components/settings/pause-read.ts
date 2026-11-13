@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 import type { PauseOffer } from "@/lib/api/billing";
 
 /**

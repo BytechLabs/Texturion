@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 
 import { taskActionAllowed, taskCallerName } from "./task-format";
 const t = makeTranslate("en");

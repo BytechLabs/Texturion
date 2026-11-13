@@ -5,7 +5,7 @@
 import { CALL_STEP_KINDS } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 import type { ActivityItem } from "@/lib/api/record-activity";
 
 import { activityLine } from "./activity-line";

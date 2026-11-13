@@ -4,7 +4,7 @@ import {
   makeTranslate,
   type MessageKey,
   type Translate,
-} from "@/i18n/provider";
+} from "@/i18n/translate";
 
 /** English, for a caller with no provider around it. */
 const EN = makeTranslate(DEFAULT_LOCALE);

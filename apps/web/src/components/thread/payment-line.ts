@@ -5,7 +5,7 @@ import {
   type BillingCurrency,
 } from "@loonext/shared";
 
-import type { Translate } from "@/i18n/provider";
+import type { Translate } from "@/i18n/translate";
 import type { ConversationEvent, ConversationEventType } from "@/lib/api/types";
 
 /**

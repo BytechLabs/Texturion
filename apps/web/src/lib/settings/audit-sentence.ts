@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 import type { AuditEntry } from "@/lib/api/types";
 import { AUTOMATIC_TEXT_LABEL_KEYS } from "@/lib/settings/automatic-texts";
 

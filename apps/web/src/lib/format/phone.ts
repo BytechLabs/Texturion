@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 
 /**
  * Phone display formatting (G10): numbers render `(416) 555-0182`,

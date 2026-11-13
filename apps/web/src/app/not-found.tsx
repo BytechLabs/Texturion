@@ -28,19 +28,10 @@ import { EN } from "@/i18n/catalog";
  * translator can see the sentences, and the day a locale can be resolved here
  * this becomes a change of argument rather than a re-extraction.
  *
- * NOT `makeTranslate(DEFAULT_LOCALE)`, which is the pattern everywhere else.
- * It is exported from `i18n/provider.tsx`, and that file is `"use client"` —
- * so every export of it is a client reference, and calling one while
- * rendering on the server is a build failure, not a runtime fallback:
- *
- *   Failed to collect configuration for /_not-found
- *   Attempted to call makeTranslate() from the server but makeTranslate is
- *   on the client.
- *
- * `catalog.ts` carries no directive, so reading it here is server-safe. None
- * of these four strings interpolates, so nothing of `makeTranslate` is
- * missed; a surface that needs a token has to wait for the lookup to move out
- * of the client module.
+ * Never import `makeTranslate` from `i18n/provider.tsx` here: that file is
+ * "use client", and calling its export while this page is collected fails the
+ * build ("Attempted to call makeTranslate() from the server"). A string that
+ * needs a token takes `makeTranslate` from `@/i18n/translate`.
  */
 const copy = EN.misc;
 

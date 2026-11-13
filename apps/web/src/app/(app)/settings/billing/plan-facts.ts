@@ -6,7 +6,7 @@ import {
   type BillingCurrency,
 } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 
 import { PLAN_PRICING } from "@/lib/api/types";
 import type { PlanId } from "@/lib/api/types";

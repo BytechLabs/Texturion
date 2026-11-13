@@ -5,7 +5,7 @@ import {
   type WorkPhase,
 } from "@loonext/shared";
 
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 
 /**
  * #294 — the job photo record, as the homeowner sees it.

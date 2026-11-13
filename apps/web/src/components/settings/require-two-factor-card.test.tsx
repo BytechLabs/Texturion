@@ -120,7 +120,7 @@ import {
   type ApiErrorCode,
 } from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/provider";
+import { sayEnglish } from "@/i18n/translate";
 
 import { ApiError } from "@/lib/api/error";
 import { formatAbsoluteDateTime } from "@/lib/format/time";

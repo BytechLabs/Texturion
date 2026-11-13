@@ -4,7 +4,7 @@ import {
   isAllowedImageType,
 } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 /**
  * Client-side note attachment validation (D19 / D28 / APP-FEATURES-V2 §2.4).
  *

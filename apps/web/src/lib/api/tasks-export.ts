@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 
 import type { ExportDeps } from "./contacts-export";
 import { ApiError, parseErrorBody } from "./error";

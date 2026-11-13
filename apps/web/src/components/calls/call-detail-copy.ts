@@ -8,7 +8,7 @@
  * public-env validation in with it, which is a poor reason to leave the
  * decisions untested.
  */
-import type { Translate } from "@/i18n/provider";
+import type { Translate } from "@/i18n/translate";
 import type { CallDetail as CallDetailRow } from "@/lib/api/types";
 
 /**

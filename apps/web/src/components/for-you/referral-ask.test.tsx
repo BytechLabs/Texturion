@@ -10,7 +10,7 @@ import { REFERRAL_ASK_DISMISS, referralAskHeadline } from "@loonext/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { sayEnglish } from "@/i18n/provider";
+import { sayEnglish } from "@/i18n/translate";
 import type { ReferralMomentView, ReferralsView } from "@/lib/api/billing";
 
 const state = vi.hoisted(() => ({

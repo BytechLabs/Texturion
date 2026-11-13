@@ -19,7 +19,7 @@
  */
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 import { ApiError } from "@/lib/api/error";
 
 export type PushPermission = "default" | "granted" | "denied";

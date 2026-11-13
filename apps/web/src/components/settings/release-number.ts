@@ -1,7 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
 import type { NumberHoldState } from "@/components/settings/number-hold";
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 import type { NumberStatus } from "@/lib/api/types";
 
 /**

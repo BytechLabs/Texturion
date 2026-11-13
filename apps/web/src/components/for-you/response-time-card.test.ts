@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import { arcSentence, noArcReason, unansweredLine } from "./response-time-card";
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 import type { ResponseTimeReport } from "@/lib/api/reports";
 
 /**

@@ -3,7 +3,7 @@ import {
   type InboxFilterState,
 } from "@loonext/shared";
 
-import type { MessageKey } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/translate";
 import type { ConversationFilters } from "@/lib/api/filters";
 import type { ConversationStatus } from "@/lib/api/types";
 

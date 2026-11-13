@@ -9,7 +9,7 @@ import {
   makeTranslate,
   type MessageKey,
   type Translate,
-} from "@/i18n/provider";
+} from "@/i18n/translate";
 
 /**
  * Typed error for every non-2xx API response (SPEC §7 envelope

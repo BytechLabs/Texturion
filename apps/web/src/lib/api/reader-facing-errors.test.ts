@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { apiErrorsEn, apiErrorsFr } from "@/i18n/sections/apiErrors";
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 
 import { parseErrorBody } from "./error";
 

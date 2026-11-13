@@ -1,4 +1,4 @@
-import type { MessageKey } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/translate";
 import type { MuteDuration } from "@/lib/api/types";
 
 /**

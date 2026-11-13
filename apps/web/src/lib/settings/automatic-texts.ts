@@ -4,7 +4,7 @@ import {
   type AutomaticTextSettings,
 } from "@loonext/shared";
 
-import type { MessageKey, Translate } from "@/i18n/provider";
+import type { MessageKey, Translate } from "@/i18n/translate";
 
 /**
  * The "Automatic texts" settings: which values an admin may pick, how a value

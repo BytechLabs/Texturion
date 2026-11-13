@@ -1,6 +1,6 @@
 import { isCallEndReason, isCallRouting, type CallEndReason } from "@loonext/shared";
 
-import type { MessageKey, Translate } from "@/i18n/provider";
+import type { MessageKey, Translate } from "@/i18n/translate";
 import type { ActivityItem } from "@/lib/api/record-activity";
 import { callEndReason, callRoutingReason, formatCallDuration } from "@/lib/format/call";
 import { messageAutomationName } from "@/lib/format/message-automation";

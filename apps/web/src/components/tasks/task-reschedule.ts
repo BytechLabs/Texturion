@@ -1,4 +1,4 @@
-import type { MessageKey } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/translate";
 
 /**
  * The moves the menu offers, and why these.

@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 // Type-only imports: erased at compile time, so this module stays free of the
 // runtime API/env dependencies that make it testable in isolation.
 import type { ConversationFilters } from "@/lib/api/filters";

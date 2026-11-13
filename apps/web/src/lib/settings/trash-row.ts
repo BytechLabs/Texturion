@@ -1,5 +1,5 @@
 import { formatPhone } from "@/lib/format/phone";
-import type { Translate } from "@/i18n/provider";
+import type { Translate } from "@/i18n/translate";
 import type { TrashRow } from "@/lib/api/trash";
 
 /**

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 import type { TrashRow } from "@/lib/api/trash";
 
 import { daysLeft, daysLeftLabel, detailLabel, kindLabel, whoLabel } from "./trash-row";

@@ -21,7 +21,7 @@ import {
   HANDOVER_CONFIRM_SUBMIT,
 } from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/provider";
+import { sayEnglish } from "@/i18n/translate";
 import { HandoverConfirmDialog } from "./handover-confirm-dialog";
 
 afterEach(cleanup);

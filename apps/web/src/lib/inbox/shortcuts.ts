@@ -9,7 +9,7 @@
  * input or a keyboard they hit by accident, so they can be turned off
  * (`shortcut-preference.ts`) and they never fire while the person is typing.
  */
-import type { MessageKey } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/translate";
 
 export type ShortcutAction =
   | "next"

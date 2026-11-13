@@ -2,7 +2,7 @@ import { ChevronRight, Lock } from "lucide-react";
 
 import { DEFAULT_LOCALE, isLocale, type PaymentRequestState } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 
 /**
  * #224 — the page a homeowner opens after a text asking them to pay.

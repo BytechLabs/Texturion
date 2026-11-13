@@ -10,7 +10,7 @@ import {
   readSaysRunning,
   type PauseRead,
 } from "@/components/settings/pause-read";
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 
 /**
  * #228: English is the DEFAULT here, not the only option.

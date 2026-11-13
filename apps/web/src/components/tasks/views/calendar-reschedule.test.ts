@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 
 import { movedDueAt, RESCHEDULE_MOVES } from "./calendar-view";
 

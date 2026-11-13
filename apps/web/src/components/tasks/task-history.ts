@@ -1,6 +1,6 @@
 import { taskNumberLabel } from "@loonext/shared";
 
-import type { MessageKey, Translate } from "@/i18n/provider";
+import type { MessageKey, Translate } from "@/i18n/translate";
 import type { TaskFeedItem } from "@/lib/api/types";
 import { formatTimestamp } from "@/lib/format/time";
 

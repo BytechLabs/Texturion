@@ -1,7 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
 import { derivePortUiState } from "@/components/porting/port-ui-state";
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 import type { PortRequest } from "@/lib/api/types";
 
 /** English, for a caller with no provider around it — the unit tests. */

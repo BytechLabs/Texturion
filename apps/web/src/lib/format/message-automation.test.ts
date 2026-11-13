@@ -1,7 +1,7 @@
 import { MESSAGE_AUTOMATIONS } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 
 import { messageAutomationName, sentAutomaticallyLabel } from "./message-automation";
 

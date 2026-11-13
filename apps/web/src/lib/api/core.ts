@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 import { recordClientError } from "@/lib/observability/recent-errors";
 
 import { ApiError, parseErrorBody } from "./error";

@@ -36,7 +36,7 @@ import {
   lastCompleteMonth,
 } from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/provider";
+import { sayEnglish } from "@/i18n/translate";
 
 /**
  * #228 — the shared module names catalogue KEYS now, so a test looking for the

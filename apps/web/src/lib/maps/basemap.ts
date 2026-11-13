@@ -1,5 +1,5 @@
 import { EN } from "@/i18n/catalog";
-import type { Translate } from "@/i18n/provider";
+import type { Translate } from "@/i18n/translate";
 
 /**
  * #428 — where map tiles come from, and the one rule about it.

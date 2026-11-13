@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { INBOX_FILTER_DIMENSIONS } from "@loonext/shared";
 
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 
 import {
   activeChips,

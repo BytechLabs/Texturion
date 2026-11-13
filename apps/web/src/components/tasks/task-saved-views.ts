@@ -1,6 +1,6 @@
 import { sanitizeFilters, type SavedViewFilters } from "@loonext/shared";
 
-import type { Translate } from "@/i18n/provider";
+import type { Translate } from "@/i18n/translate";
 import type { TaskPriority } from "@/lib/api/types";
 
 import {

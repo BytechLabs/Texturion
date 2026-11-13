@@ -1,4 +1,4 @@
-import type { Translate } from "@/i18n/provider";
+import type { Translate } from "@/i18n/translate";
 import type {
   TaskLabel,
   TaskPriority,

@@ -128,7 +128,7 @@ import {
   HANDOVER_CONFIRM_SUBMITTING,
 } from "@loonext/shared";
 import { toast } from "sonner";
-import { sayEnglish } from "@/i18n/provider";
+import { sayEnglish } from "@/i18n/translate";
 
 import { ApiError } from "@/lib/api/error";
 

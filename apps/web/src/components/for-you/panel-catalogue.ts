@@ -1,6 +1,6 @@
 import type { LayoutPanelId, PanelSize } from "@loonext/shared";
 
-import type { MessageKey } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/translate";
 
 /** #736: each panel's heading, the same words as on the panel itself. */
 export const PANEL_LABEL_KEYS: Record<LayoutPanelId, MessageKey> = {

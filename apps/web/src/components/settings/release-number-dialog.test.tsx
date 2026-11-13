@@ -84,7 +84,7 @@ import {
   HANDOVER_CONFIRM_SUBMIT,
 } from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/provider";
+import { sayEnglish } from "@/i18n/translate";
 
 import { ApiError } from "@/lib/api/error";
 

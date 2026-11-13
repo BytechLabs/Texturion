@@ -28,7 +28,7 @@ import {
   LeadSourcesCard,
   visibleRows,
 } from "./lead-sources-card";
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 
 /**
  * #228: both helpers now compose their sentence through the catalogue, so the

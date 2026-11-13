@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CREW_SIZE_LABELS } from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/provider";
+import { sayEnglish } from "@/i18n/translate";
 
 /** #228 — the labels are catalogue KEYS now, so this says them. */
 const say = sayEnglish;

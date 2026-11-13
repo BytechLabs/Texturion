@@ -1,6 +1,6 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate, type Translate } from "@/i18n/translate";
 import type { Task, TaskSourceCall, TaskSourceMessage } from "@/lib/api/types";
 import { threadHref } from "@/lib/inbox/thread-href";
 import { formatPhone } from "@/lib/format/phone";

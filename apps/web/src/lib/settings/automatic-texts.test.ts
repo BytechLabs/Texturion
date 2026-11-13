@@ -7,7 +7,7 @@ import {
   type MemberRole,
 } from "@loonext/shared";
 
-import { makeTranslate } from "@/i18n/provider";
+import { makeTranslate } from "@/i18n/translate";
 import { SETTINGS_SECTIONS } from "@/components/settings/settings-nav";
 
 import {
