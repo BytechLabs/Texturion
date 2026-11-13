@@ -77,6 +77,7 @@ not here.
 | `NSMicrophoneUsageDescription` | "Loonext uses the microphone for phone calls, to write down the wrap-up you speak after one, and to record your voicemail greeting in your own voice." |
 | `NSLocationWhenInUseUsageDescription` | "Loonext shows where you are on the job map so you can see which jobs are nearby." |
 | `NSContactsUsageDescription` | "Loonext shows your phone's contacts alongside your crew's, so you can text someone without adding them first. Your contacts stay on your phone." |
+| `NSFaceIDUsageDescription` | "Loonext uses Face ID to keep customer conversations locked when you hand your phone to someone else." |
 
 **The contacts string is asked for from the Contacts tab, never at launch** (#459).
 iOS never prompts twice, so a request made before the person can see what it buys
