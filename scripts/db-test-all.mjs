@@ -216,6 +216,8 @@ const SUITES = [
   "derived_lifecycles",
   // #722 phase 4: every state transition is captured in the database.
   "state_transition_capture",
+  // D9 amended: bookkeeping writes and re-reads that change nothing broadcast nothing.
+  "broadcast_skips_bookkeeping",
 ];
 
 const args = process.argv.slice(2);
