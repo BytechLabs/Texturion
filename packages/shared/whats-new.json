@@ -67,11 +67,11 @@
       "href": "/trash",
       "en": {
         "title": "Deleted by mistake? It's in the Trash",
-        "body": "Deleted conversations, calls and contacts wait in the Trash for 30 days. Restore them in one click from the sidebar."
+        "body": "Deleted messages, conversations, calls and voicemails wait in the Trash for 30 days. Restore them in one click from the sidebar."
       },
       "fr": {
         "title": "Supprimé par erreur? C'est dans la corbeille",
-        "body": "Les conversations, appels et contacts supprimés restent dans la corbeille pendant 30 jours. Restaurez-les d'un clic depuis le menu."
+        "body": "Les messages, conversations, appels et messages vocaux supprimés restent dans la corbeille pendant 30 jours. Restaurez-les d'un clic depuis le menu."
       }
     },
     {

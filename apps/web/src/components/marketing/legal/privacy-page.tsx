@@ -1,4 +1,5 @@
 import {
+  AI_DISCLOSURES,
   AI_INFERENCE_LOCATION_STATEMENT,
   AI_INFERENCE_RETENTION_STATEMENT,
   AI_TRAINING_STATEMENT,
@@ -67,13 +68,17 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
   const privacyEmail = (
     <LegalLink href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</LegalLink>
   );
+  const aiFeatures = new Intl.ListFormat(locale, {
+    style: "long",
+    type: "conjunction",
+  }).format(AI_DISCLOSURES.map((row) => say(row.label)));
 
   return (
     <LegalPage
       title={copy.title}
       summary={copy.summary}
       lastUpdated={copy.lastUpdated}
-      lastUpdatedIso="2026-11-01"
+      lastUpdatedIso="2026-11-13"
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? PRIVACY_FR_PATH : PRIVACY_EN_PATH}
       sections={sections}
@@ -145,7 +150,12 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
           <li><LegalRichText text={copy.phoneOffline} /></li>
         </ul>
         <p><LegalRichText text={copy.phoneDeleted} /></p>
-        <p><LegalRichText text={copy.phoneNotifications} /></p>
+        <p>
+          <LegalRichText
+            text={copy.phoneNotifications}
+            slots={{ pushSwitch: say("settingsMore.pushContentLabel") }}
+          />
+        </p>
         <p><LegalRichText text={copy.phoneLock} /></p>
         <p><LegalRichText text={copy.phoneHandOver} /></p>
         <p><LegalRichText text={copy.phonePhotos} /></p>
@@ -171,7 +181,16 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
       </LegalSectionBlock>
 
       <LegalSectionBlock id="ai" number="7" heading={copy.sectionAi}>
-        <p><LegalRichText text={copy.aiOne} slots={{ subprocessors }} /></p>
+        <p>
+          <LegalRichText
+            text={copy.aiOne}
+            slots={{
+              featureCount: String(AI_DISCLOSURES.length),
+              features: aiFeatures,
+              subprocessors,
+            }}
+          />
+        </p>
         <p>
           <LegalRichText
             text={copy.aiTwo}

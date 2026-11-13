@@ -39,7 +39,7 @@ export function DeleteMyDataPageBody({
       title={copy.title}
       summary={copy.summary}
       lastUpdated={copy.lastUpdated}
-      lastUpdatedIso="2026-07-26"
+      lastUpdatedIso="2026-11-13"
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? FR_PATH : EN_PATH}
       sections={sections}

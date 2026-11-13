@@ -8,7 +8,7 @@ import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 
 /**
  * #735: the Trash, one step from anywhere. Deleted conversations, messages,
- * calls, contacts and tasks wait here for 30 days, then are purged. It used to
+ * calls and voicemails wait here for 30 days, then are purged. It used to
  * live under Settings › History, where nobody looking for something they had
  * just deleted would think to look.
  */

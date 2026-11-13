@@ -91,6 +91,7 @@ Contacts is the one Play requires a written justification for; it is in
 | `NSMicrophoneUsageDescription` | "Loonext uses the microphone for phone calls, to write down the wrap-up you speak after one, and to record your voicemail greeting in your own voice." |
 | `NSLocationWhenInUseUsageDescription` | "Loonext shows where you are on the job map so you can see which jobs are nearby." |
 | `NSContactsUsageDescription` | "Loonext shows your phone's contacts alongside your crew's, so you can text someone without adding them first. Your contacts stay on your phone." |
+| `NSFaceIDUsageDescription` | "Loonext uses Face ID to keep customer conversations locked when you hand your phone to someone else." |
 | `UIBackgroundModes` | `audio`, `voip`, `remote-notification` — a call has to survive the screen locking |
 
 **No photo-library permission string, deliberately.** Attachments use SwiftUI's
@@ -131,7 +132,9 @@ Files: `apps/android/app/src/main/kotlin/com/loonext/android/core/auth/SessionSt
 `apps/android/app/src/main/kotlin/com/loonext/android/LoonextApp.kt`, `apps/ios/Loonext/Core/AppGraph.swift`
 (the listeners).
 
-**Notification payloads carry no message content** (#430) — stripped server-side, so
+**Notification payloads carry the sender name and a message snippet by default** (#430).
+An owner or admin can turn message text off for the whole workspace (Settings →
+Notifications, `push_include_content`); the text is then stripped server-side, so
 no device setting can reveal what was never sent. **An optional app lock** (#330,
 biometric or device credential) is off by default and configurable, because a crew
 sharing one truck phone and a sole operator have opposite correct answers.
@@ -200,7 +203,7 @@ feature cannot ship undisclosed.
 |---|---|---|
 | **Telnyx** | Phone numbers, message content, call audio | They are the carrier. There is no texting without them |
 | **Supabase / AWS us-east-1** | Everything stored | Database, auth, file storage |
-| **Cloudflare** | Everything in transit; the Worker runtime. Plus, via Workers AI: message threads (suggested replies), message text (task details) and voicemail audio (transcripts) | Hosting, and the AI features. Workers AI runs in the same account and network boundary, which is why Cloudflare is one entry rather than two |
+| **Cloudflare** | Everything in transit; the Worker runtime. Plus, via Workers AI: message threads (suggested replies, conversation catch-ups), message text (task details), voicemail audio (transcripts), voicemail transcripts (voicemail intake, off by default) and a crew member's own dictation after a call (call wrap-ups) | Hosting, and the AI features. Workers AI runs in the same account and network boundary, which is why Cloudflare is one entry rather than two |
 | **Stripe** | Billing identifiers, no card data held by us | Payments |
 | **Resend** | Email addresses and notification copy | Transactional email |
 | **Firebase Cloud Messaging** | Push tokens and notification payloads (sender name, message snippet) | Push to Android and iOS |

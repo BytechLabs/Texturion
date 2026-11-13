@@ -24,8 +24,13 @@ import SubprocessorsPage, {
 } from "./subprocessors/page";
 import TermsPage, { metadata as termsMetadata } from "./terms/page";
 import { CountryProvider } from "@/components/marketing/country";
+import { DeleteMyDataPageBody } from "@/components/marketing/legal/delete-my-data-page";
+import { PrivacyPageBody } from "@/components/marketing/legal/privacy-page";
+import { CATALOGS } from "@/i18n/catalog";
 import { legalDeleteMyDataEn } from "@/i18n/marketing/legal-delete-my-data";
 import {
+  AI_DISCLOSURES,
+  COMPANY_SETTING_DEFAULTS,
   DELETION_GAPS,
   DELETION_GRACE_DAYS,
   formatMoney,
@@ -88,6 +93,34 @@ const PAGES = [
     meta: deleteMyDataMetadata,
   },
 ];
+
+const PRIVACY = {
+  en: PAGES[1].html,
+  "fr-CA": renderToStaticMarkup(<PrivacyPageBody locale="fr-CA" />),
+} as const;
+
+/** The page as a reader sees it: tags dropped, the entities React writes decoded. */
+const visibleText = (html: string): string =>
+  html
+    .replace(/<[^>]+>/g, "")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+
+/** One `<section>` of a rendered legal page, up to the next one. */
+function section(html: string, id: string): string {
+  const start = html.indexOf(`<section id="${id}"`);
+  expect(start, `no section #${id}`).toBeGreaterThan(-1);
+  const end = html.indexOf("<section", start + 1);
+  return html.slice(start, end === -1 ? undefined : end);
+}
+
+const say = (locale: keyof typeof CATALOGS, key: string): string => {
+  const [group, name] = key.split(".");
+  return (CATALOGS[locale] as unknown as Record<string, Record<string, string>>)[group][name];
+};
 
 describe("legal pages — Laws 1 and 6 across all seven", () => {
   it("no em-dash or en-dash anywhere in the rendered pages", () => {
@@ -186,11 +219,26 @@ describe("#330 privacy — what stays on a phone the company does not own", () =
     expect(html).toContain("including the photos");
   });
 
-  it("says notifications carry no message, and does not blame a phone setting", () => {
-    // #430 strips the content server-side, so this is a statement about what is
-    // never transmitted rather than about what a device chooses to hide.
-    expect(html).toContain("Notifications never contain a message");
-    expect(html).toContain("rather than relying on a phone");
+  it("says what a notification carries by the workspace default, in both languages", () => {
+    // #430: the first line of a text rides the push unless an owner turns
+    // push_include_content off, and then the server strips it before sending.
+    const carriesText = COMPANY_SETTING_DEFAULTS.push_include_content.value === true;
+    const copy = {
+      en: { never: "never contain a message", where: "Settings → Notifications" },
+      "fr-CA": { never: "ne contiennent jamais de message", where: "Paramètres → Notifications" },
+    } as const;
+    for (const locale of ["en", "fr-CA"] as const) {
+      const phone = visibleText(section(PRIVACY[locale], "on-your-phone"));
+      const switchLabel = say(locale, "settingsMore.pushContentLabel");
+      if (carriesText) {
+        expect(phone, locale).toContain(copy[locale].where);
+        expect(phone, locale).toContain(switchLabel);
+        expect(phone, locale).not.toContain(copy[locale].never);
+      } else {
+        expect(phone, locale).toContain(copy[locale].never);
+        expect(phone, locale).not.toContain(switchLabel);
+      }
+    }
   });
 
   it("tells somebody the app lock exists and that it is theirs to turn on", () => {
@@ -218,6 +266,41 @@ describe("#330 privacy — what stays on a phone the company does not own", () =
     // the repo can read is not a promise to the person it protects.
     expect(html).toContain("address book is never uploaded");
   });
+});
+
+describe("privacy: the AI and sharing sections match the ledgers they summarize", () => {
+  const counted = {
+    en: `${AI_DISCLOSURES.length} features send content to an AI model`,
+    "fr-CA": `${AI_DISCLOSURES.length} fonctions envoient du contenu à un modèle d'IA`,
+  } as const;
+
+  for (const locale of ["en", "fr-CA"] as const) {
+    it(`${locale}: counts and names every AI feature the disclosure list holds`, () => {
+      const ai = visibleText(section(PRIVACY[locale], "ai"));
+      expect(ai).toContain(counted[locale]);
+      for (const row of AI_DISCLOSURES) {
+        expect(ai).toContain(say(locale, row.label));
+      }
+    });
+
+    it(`${locale}: names every vendor on the sub-processors ledger`, () => {
+      const vendors = [
+        "Telnyx",
+        "Stripe",
+        "Supabase",
+        "Cloudflare",
+        "Resend",
+        "Firebase Cloud Messaging",
+        "PostHog",
+      ];
+      const ledger = section(PAGES[4].html, "list").match(/<tbody>[\s\S]*?<\/tbody>/)![0];
+      expect(vendors).toHaveLength(ledger.match(/<tr/g)!.length);
+      const sharing = visibleText(section(PRIVACY[locale], "sharing"));
+      for (const vendor of vendors) {
+        expect(sharing).toContain(vendor);
+      }
+    });
+  }
 });
 
 describe("aup — the consent rules survive", () => {
@@ -489,6 +572,32 @@ describe("delete-my-data — the store-facing deletion page", () => {
     expect(page.html).toContain("STOP");
     expect(page.html).toContain("three years");
     expect(page.html).toMatch(/30 days/);
+  });
+
+  it("says a deleted contact is hidden rather than sent to the Trash, here and on privacy", () => {
+    // DELETE /v1/contacts/:id only sets deleted_at, which an inbound text or call
+    // clears again; the Trash holds messages, conversations, calls and voicemails.
+    const said = {
+      en: [
+        "hides the contact from your lists without erasing it",
+        "its conversations stay",
+        "that number texts or calls you",
+      ],
+      "fr-CA": [
+        "masque le contact dans vos listes sans l'effacer",
+        "ses conversations restent",
+        "ce numéro vous texte ou vous appelle",
+      ],
+    } as const;
+    for (const locale of ["en", "fr-CA"] as const) {
+      const pages = [
+        renderToStaticMarkup(<DeleteMyDataPageBody locale={locale} />),
+        PRIVACY[locale],
+      ];
+      for (const html of pages.map(visibleText)) {
+        for (const phrase of said[locale]) expect(html, locale).toContain(phrase);
+      }
+    }
   });
 
   it("tells a texted customer to reply STOP rather than routing them to us", () => {
