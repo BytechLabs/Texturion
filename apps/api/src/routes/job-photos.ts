@@ -35,12 +35,13 @@
  * seems confused about what she already paid for" — internal by construction. The
  * photos are the record being shared; the commentary around them is not.
  */
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { assertEgressWithinAllowance } from "../attachments/egress";
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
+import { requireConversationAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -83,17 +84,59 @@ const shareSchema = z.object({
 });
 
 /**
+ * The refusal for a job the caller may not share, or null when they may: 404 for
+ * a job that is missing, deleted, another workspace's or on a line hidden from
+ * the caller, 403 for one on a line they may only take notes on.
+ */
+async function refuseShare(
+  c: Context<AppEnv>,
+  db: ReturnType<typeof getDb>,
+  taskId: string,
+): Promise<Response | null> {
+  const companyId = c.get("companyId");
+  const { data, error } = await db
+    .from("tasks")
+    .select("id,conversation_id")
+    .eq("id", taskId)
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
+    .limit(1);
+  if (error) throw new Error(`task lookup failed: ${error.message}`);
+  const task = (data ?? [])[0] as { conversation_id: string | null } | undefined;
+  if (!task) return errorResponse(c, "not_found", "No such job.");
+  if (task.conversation_id) {
+    try {
+      await requireConversationAccess(db, {
+        companyId,
+        userId: c.get("userId"),
+        role: c.get("role"),
+        conversationId: task.conversation_id,
+        need: "text",
+      });
+    } catch (cause) {
+      // A hidden line answers exactly as a wrong id does, so it cannot be enumerated.
+      if (cause instanceof ApiError && cause.code === "not_found") {
+        return errorResponse(c, "not_found", "No such job.");
+      }
+      throw cause;
+    }
+  }
+  return null;
+}
+
+/**
  * POST /v1/tasks/:id/photos/share — mint a link to this job's photos.
  *
- * `history.read` rather than an owner capability: this shares work the crew did,
- * and the person who did it is the one standing in front of the customer saying
- * "I'll send you the pictures". Gating it on the owner would mean the photos get
- * texted from a personal phone instead, which is the behaviour this product exists
- * to replace.
+ * Gated on `conversations.send` plus text access to the job's line, the same
+ * two checks as texting that customer, because handing them a link is sending
+ * them something. The tech who did the work is the one standing in front of the
+ * customer saying "I'll send you the pictures", so this is a member's action,
+ * not an admin's. A member held to notes on the line, or denied it, cannot send
+ * the link either; a job with no conversation has no line to check.
  */
 jobPhotoShareRoutes.post(
   "/tasks/:id/photos/share",
-  requireCapability("history.read"),
+  requireCapability("conversations.send"),
   async (c) => {
     const taskId = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -102,17 +145,8 @@ jobPhotoShareRoutes.post(
 
     // The task must be this workspace's and still live. Checked before minting so
     // a token can never outlive the thing it points at.
-    const { data, error } = await db
-      .from("tasks")
-      .select("id")
-      .eq("id", taskId)
-      .eq("company_id", companyId)
-      .is("deleted_at", null)
-      .limit(1);
-    if (error) throw new Error(`task lookup failed: ${error.message}`);
-    if ((data ?? []).length === 0) {
-      return errorResponse(c, "not_found", "No such job.");
-    }
+    const refused = await refuseShare(c, db, taskId);
+    if (refused) return refused;
 
     // Replace rather than accumulate. Two live links to the same photos is two
     // things to remember to revoke, and the crew asking again means the first one
@@ -154,32 +188,24 @@ jobPhotoShareRoutes.post(
 /** DELETE /v1/tasks/:id/photos/share — the customer should not have it any more. */
 jobPhotoShareRoutes.delete(
   "/tasks/:id/photos/share",
-  requireCapability("history.read"),
+  requireCapability("conversations.send"),
   async (c) => {
     const taskId = pathUuid(c, "id");
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
 
     // #571: the task must be this workspace's — the same check the POST above
-    // makes before minting, which this had no counterpart to. Without it a
-    // `read_only` or `member` acting from a workspace they own could kill another
-    // workspace's live customer link, and the only audit row landed in theirs.
+    // makes before minting, which this had no counterpart to. Without it somebody
+    // this gate turns away, such as a `read_only` observer, acting from a workspace
+    // they own could kill another workspace's live customer link, and the only
+    // audit row landed in theirs.
     //
     // Kept here as well as in the RPC on purpose: the RPC makes it unbypassable,
     // this makes the answer honest. Without it a foreign id returns `{revoked: 0}`
     // — a 200 saying nothing happened, which is indistinguishable from a link that
     // had already expired.
-    const { data: task, error: taskError } = await db
-      .from("tasks")
-      .select("id")
-      .eq("id", taskId)
-      .eq("company_id", companyId)
-      .is("deleted_at", null)
-      .limit(1);
-    if (taskError) throw new Error(`task lookup failed: ${taskError.message}`);
-    if ((task ?? []).length === 0) {
-      return errorResponse(c, "not_found", "No such job.");
-    }
+    const refused = await refuseShare(c, db, taskId);
+    if (refused) return refused;
 
     const revoked = await revokeLinksForSubject(
       db,

@@ -17,6 +17,7 @@ import {
 import { completeEnv, createTestAuth, jwksRoute, stubFetch, type TestAuth } from "../test/support";
 import { Hono } from "hono";
 
+import { NOTE_ONLY_MESSAGE, type NumberAccessLevel } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { jobPhotoShareRoutes, publicJobPhotoRoutes } from "./job-photos";
 
@@ -25,6 +26,8 @@ const COMPANY_ID = "5c5c5c5c-0000-4000-8000-00000000005c";
 const MEMBER_ID = "6d6d6d6d-0000-4000-8000-00000000006d";
 const TASK_ID = "7e7e7e7e-0000-4000-8000-00000000007e";
 const NOTE_ID = "8f8f8f8f-0000-4000-8000-00000000008f";
+const CONVERSATION_ID = "9a9a9a9a-0000-4000-8000-00000000009a";
+const NUMBER_ID = "abababab-0000-4000-8000-0000000000ab";
 const TOKEN = "a".repeat(43);
 
 let auth: TestAuth;
@@ -44,14 +47,29 @@ beforeAll(async () => {
   auth = await createTestAuth(env);
 });
 
-function crew(options: { role?: string } = {}): SupabaseStub {
+/**
+ * The crew side. `line` is the caller's level on the number of the conversation
+ * the job hangs off; without it the job is a standalone task with no line.
+ */
+function crew(options: { role?: string; line?: NumberAccessLevel } = {}): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
     "POST",
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, options.role ?? "admin"),
   );
-  sb.on("GET", "/rest/v1/tasks", () => [{ id: TASK_ID }]);
+  const line = options.line;
+  if (line === undefined) {
+    sb.on("GET", "/rest/v1/tasks", () => [{ id: TASK_ID, conversation_id: null }]);
+  } else {
+    sb.on("GET", "/rest/v1/tasks", () => [
+      { id: TASK_ID, conversation_id: CONVERSATION_ID },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: NUMBER_ID, level: line },
+    ]);
+    sb.on("GET", "/rest/v1/conversations", () => [{ phone_number_id: NUMBER_ID }]);
+  }
   sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 0);
   sb.on("POST", "/rest/v1/rpc/api_mint_public_link", () => "link-1");
   sb.on("POST", "/rest/v1/audit_log", () => []);
@@ -219,10 +237,10 @@ describe("withdrawing a link (#571 / #545)", () => {
   it("refuses a job that is not this workspace's, and revokes nothing", async () => {
     // The gap this closes: the DELETE took a task id from the path and revoked
     // that task's live links with no ownership check anywhere — the POST above
-    // has one, and this had no counterpart. The reachable actor was a `read_only`
-    // or `member` of the AFFECTED workspace (the two roles the route's
-    // `history.read` gate exists to exclude), acting from a workspace they own,
-    // because the app shows them task ids and workspaces are self-serve.
+    // has one, and this had no counterpart. The reachable actor was somebody the
+    // route's gate turns away in the AFFECTED workspace, such as a `read_only`
+    // observer, acting from a workspace they own, because the app shows them
+    // task ids and workspaces are self-serve.
     const sb = supabaseStub(env);
     sb.on(
       "POST",
@@ -274,6 +292,89 @@ describe("withdrawing a link (#571 / #545)", () => {
       p_subject_type: "task_photos",
       p_subject_id: TASK_ID,
     });
+  });
+});
+
+describe("who may share a job's photos (#294)", () => {
+  // Sending the customer a link is sending them something, so it takes what
+  // texting them takes: `conversations.send` and text access to the job's line.
+  async function share(sb: SupabaseStub, method: "POST" | "DELETE"): Promise<Response> {
+    stubFetch(jwksRoute(auth), sb.route);
+    return apiRequest(app, env, await auth.token(), `/v1/tasks/${TASK_ID}/photos/share`, {
+      method,
+      companyId: COMPANY_ID,
+    });
+  }
+
+  function linksTouched(sb: SupabaseStub): number {
+    return (
+      sb.find("POST", "/rest/v1/rpc/api_mint_public_link").length +
+      sb.find("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject").length
+    );
+  }
+
+  for (const method of ["POST", "DELETE"] as const) {
+    it(`${method}: a member who can text on the job's line may`, async () => {
+      // The tech standing in front of the customer is the one who shares.
+      const sb = crew({ role: "member", line: "text" });
+
+      const res = await share(sb, method);
+
+      expect(res.status).toBe(200);
+      expect(sb.find("POST", "/rest/v1/rpc/member_number_levels")).toHaveLength(1);
+    });
+
+    it(`${method}: a read-only observer may not`, async () => {
+      const sb = crew({ role: "read_only" });
+
+      const res = await share(sb, method);
+
+      expect(res.status).toBe(403);
+      expect(linksTouched(sb)).toBe(0);
+    });
+
+    it(`${method}: a bookkeeper may not`, async () => {
+      const sb = crew({ role: "bookkeeper" });
+
+      const res = await share(sb, method);
+
+      expect(res.status).toBe(403);
+      expect(linksTouched(sb)).toBe(0);
+    });
+
+    it(`${method}: a member held to notes on the job's line may not`, async () => {
+      const sb = crew({ role: "member", line: "note" });
+
+      const res = await share(sb, method);
+
+      expect(res.status).toBe(403);
+      const body = (await res.json()) as { error: { message: string } };
+      expect(body.error.message).toBe(NOTE_ONLY_MESSAGE);
+      expect(linksTouched(sb)).toBe(0);
+    });
+
+    it(`${method}: a member denied the job's line is told there is no such job`, async () => {
+      // The same answer as a wrong id, so a hidden line cannot be found by probing.
+      const sb = crew({ role: "member", line: "none" });
+
+      const res = await share(sb, method);
+
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({
+        error: { code: "not_found", message: "No such job." },
+      });
+      expect(linksTouched(sb)).toBe(0);
+    });
+  }
+
+  it("a member sharing a job with no conversation is not asked about a line", async () => {
+    const sb = crew({ role: "member" });
+
+    const res = await share(sb, "POST");
+
+    expect(res.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/member_number_levels")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_mint_public_link")).toHaveLength(1);
   });
 });
 
