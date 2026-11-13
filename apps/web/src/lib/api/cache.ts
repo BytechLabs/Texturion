@@ -1,4 +1,8 @@
-import type { InfiniteData } from "@tanstack/react-query";
+import {
+  replaceEqualDeep,
+  type InfiniteData,
+  type QueryClient,
+} from "@tanstack/react-query";
 
 import { mmsMediaKind } from "@loonext/shared";
 import { sharedMediaKind } from "@/lib/attachments/media-label";
@@ -6,6 +10,7 @@ import {
   conversationMatchesFilters,
   type ConversationFilters,
 } from "./filters";
+import { keys } from "./keys";
 import type {
   ConversationDetail,
   ConversationListItem,
@@ -247,13 +252,17 @@ export function detailPatchMessage(
  * Apply a fresh conversation snapshot to one cached list (G12: message
  * arrives → patch + reorder, no refetch):
  *
- * - row exists and still matches the list's filters → replace + re-sort
+ * - row exists, still matches, and still sorts between its neighbours →
+ *   replace it where it is, on whichever page; the same list when the row is
+ *   deep-equal, so the echo of a change this tab already made re-renders
+ *   nothing;
+ * - row exists, still matches, and its sort key moved it → replace + re-sort
  *   page 1 by (last_message_at, id) DESC (rows on later pages are moved to
- *   page 1 when their sort key moved them forward);
+ *   page 1);
  * - row exists but no longer matches → remove it;
  * - row missing and matches → insert into page 1 + re-sort;
- * - filters not client-evaluable (`q` searches) → patch in place when
- *   present, otherwise leave the list untouched (staleness handles it).
+ * - filters not client-evaluable (`q` searches) → patch when present,
+ *   otherwise leave the list untouched (staleness handles it).
  */
 export function listApplyConversation(
   list: ConversationListData,
@@ -261,6 +270,10 @@ export function listApplyConversation(
   filters: ConversationFilters,
 ): ConversationListData {
   const matches = conversationMatchesFilters(item, filters);
+  if (matches !== false) {
+    const inPlace = replaceInPlace(list, item);
+    if (inPlace) return inPlace;
+  }
 
   // Remove every existing occurrence, remembering whether we saw one.
   let existed = false;
@@ -286,6 +299,63 @@ export function listApplyConversation(
   );
   pages[0] = { ...first, data };
   return { pages, pageParams: list.pageParams };
+}
+
+/**
+ * `item` swapped in where the list holds it, when it is there exactly once and
+ * still sorts between its neighbours; the same list when it is deep-equal.
+ * Null when the row is missing, duplicated, or has to move.
+ */
+function replaceInPlace(
+  list: ConversationListData,
+  item: ConversationListItem,
+): ConversationListData | null {
+  const rows = list.pages.flatMap((page) => page.data);
+  const index = rows.findIndex((row) => row.id === item.id);
+  if (index === -1 || rows.filter((row) => row.id === item.id).length > 1) {
+    return null;
+  }
+  const inOrder = (a: ConversationListItem | undefined, b: ConversationListItem | undefined) =>
+    !a || !b || byKeyDesc(a.last_message_at, a.id, b.last_message_at, b.id) <= 0;
+  if (!inOrder(rows[index - 1], item) || !inOrder(item, rows[index + 1])) return null;
+  const current = rows[index];
+  if (replaceEqualDeep(current, item) === current) return list;
+  const pages = list.pages.map((page) =>
+    page.data.includes(current)
+      ? { ...page, data: page.data.map((row) => (row === current ? item : row)) }
+      : page,
+  );
+  return { pages, pageParams: list.pageParams };
+}
+
+/**
+ * The cached list row for one conversation, from any loaded list page or any
+ * pinned supplement. The row carries the caller's own `unread`, which no
+ * detail response does.
+ */
+export function findListRow(
+  queryClient: QueryClient,
+  companyId: string,
+  conversationId: string,
+): ConversationListItem | undefined {
+  const cache = queryClient.getQueryCache();
+  for (const query of cache.findAll({
+    queryKey: keys.conversations.lists(companyId),
+  })) {
+    const data = query.state.data as ConversationListData | undefined;
+    for (const page of data?.pages ?? []) {
+      const row = page.data.find((r) => r.id === conversationId);
+      if (row) return row;
+    }
+  }
+  for (const query of cache.findAll({
+    queryKey: keys.conversations.pinnedRoot(companyId),
+  })) {
+    const data = query.state.data as Page<ConversationListItem> | undefined;
+    const row = data?.data.find((r) => r.id === conversationId);
+    if (row) return row;
+  }
+  return undefined;
 }
 
 /** Patch a list row in place by id — no re-sort (status/assignee/tags edits). */

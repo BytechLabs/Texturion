@@ -1,7 +1,9 @@
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
 import {
   emptyThread,
+  findListRow,
   listApplyConversation,
   listPatchConversation,
   listSetUnread,
@@ -14,6 +16,7 @@ import {
   type ConversationListData,
   type ThreadData,
 } from "./cache";
+import { keys } from "./keys";
 import type {
   ConversationListItem,
   Message,
@@ -339,6 +342,61 @@ describe("listApplyConversation", () => {
     expect(
       listApplyConversation(withoutRow, listItem("c9", T3), { q: "leak" }),
     ).toBe(withoutRow);
+  });
+
+  it("returns the same list for the echo of a row it already holds", () => {
+    // The conversation.updated echo builds a fresh object with equal contents.
+    const existing = list([
+      [listItem("c1", T3), listItem("c2", T2)],
+      [listItem("c3", T1, { status: "closed", closed_at: T1 })],
+    ]);
+    expect(listApplyConversation(existing, listItem("c2", T2), {})).toBe(existing);
+    expect(
+      listApplyConversation(
+        existing,
+        listItem("c3", T1, { status: "closed", closed_at: T1 }),
+        {},
+      ),
+    ).toBe(existing);
+  });
+
+  it("replaces a changed row where it is instead of moving it onto page 1", () => {
+    const existing = list([
+      [listItem("c1", T4), listItem("c2", T3)],
+      [listItem("c3", T2), listItem("c4", T1)],
+    ]);
+    const next = listApplyConversation(
+      existing,
+      listItem("c3", T2, { status: "closed", closed_at: T4 }),
+      {},
+    );
+    expect(next.pages.map((page) => page.data.map((row) => row.id))).toEqual([
+      ["c1", "c2"],
+      ["c3", "c4"],
+    ]);
+    expect(next.pages[1].data[0].status).toBe("closed");
+    expect(next.pages[0]).toBe(existing.pages[0]);
+  });
+});
+
+describe("findListRow", () => {
+  const COMPANY = "company-1";
+
+  it("finds the row on any loaded page of any list, then in a pinned supplement", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      keys.conversations.list(COMPANY, { status: "open" }),
+      list([[listItem("c1", T3)], [listItem("c2", T2, { unread: true })]]),
+    );
+    queryClient.setQueryData(keys.conversations.pinned(COMPANY, {}), {
+      data: [listItem("c9", T4, { pinned_at: T4 })],
+      next_cursor: null,
+    });
+
+    expect(findListRow(queryClient, COMPANY, "c2")?.unread).toBe(true);
+    expect(findListRow(queryClient, COMPANY, "c9")?.pinned_at).toBe(T4);
+    expect(findListRow(queryClient, COMPANY, "missing")).toBeUndefined();
+    expect(findListRow(queryClient, "another-company", "c1")).toBeUndefined();
   });
 });
 

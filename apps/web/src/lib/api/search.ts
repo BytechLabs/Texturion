@@ -11,9 +11,11 @@ export function fetchSearch(
   companyId: string,
   q: string,
   cursor?: string,
+  signal?: AbortSignal,
 ): Promise<SearchResult> {
   return apiFetch<SearchResult>("/v1/search", {
     companyId,
+    signal,
     searchParams: { q, cursor },
   }).then(normalizeSearch);
 }
@@ -22,14 +24,15 @@ export function fetchSearch(
  * GET /v1/search — the full D29 palette: messages FTS grouped by conversation
  * (note hits carry `direction` so they're labelable), trgm contacts, tasks,
  * note-borne attachments, and templates (SPEC §6/§7). Fires at ≥2 characters
- * (G4); callers debounce the input (250 ms) before the query key changes.
+ * (G4); callers debounce the input (250 ms) before the query key changes, and
+ * the search a newer query replaces is aborted.
  */
 export function useSearch(q: string) {
   const companyId = useCompanyId();
   const trimmed = q.trim();
   return useQuery({
     queryKey: keys.search(companyId, trimmed),
-    queryFn: () => fetchSearch(companyId, trimmed),
+    queryFn: ({ signal }) => fetchSearch(companyId, trimmed, undefined, signal),
     enabled: trimmed.length >= 2,
     staleTime: 15_000,
     placeholderData: (previous) => previous, // keep results while typing

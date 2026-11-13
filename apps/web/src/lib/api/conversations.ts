@@ -1,19 +1,27 @@
 import {
+  queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
   type QueryClient,
+  type QueryKey,
+  type UseMutationOptions,
 } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
 
 import type { DeferralKind, WorkPhase } from "@loonext/shared";
 
-import { useCompanyId } from "@/lib/company/provider";
+import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
 
 import {
+  changesSomething,
+  findListRow,
   listApplyConversation,
   listPatchConversation,
   listSetUnread,
+  pinMutationPatch,
   snippetFromMessage,
   threadUpsertMessages,
   type ConversationListData,
@@ -21,6 +29,7 @@ import {
 } from "./cache";
 import { apiFetch } from "./client";
 import {
+  conversationMatchesFilters,
   normalizeFilters,
   type ConversationFilters,
 } from "./filters";
@@ -53,9 +62,11 @@ export function fetchConversationPage(
   companyId: string,
   filters: ConversationFilters,
   cursor?: string,
+  signal?: AbortSignal,
 ): Promise<Page<ConversationListItem>> {
   return apiFetch<Page<ConversationListItem>>("/v1/conversations", {
     companyId,
+    signal,
     searchParams: {
       status: filters.status,
       assigned_user_id: filters.assigned_user_id,
@@ -85,9 +96,11 @@ export function fetchConversationPage(
 export function fetchPinnedConversations(
   companyId: string,
   filters: ConversationFilters,
+  signal?: AbortSignal,
 ): Promise<Page<ConversationListItem>> {
   return apiFetch<Page<ConversationListItem>>("/v1/conversations", {
     companyId,
+    signal,
     searchParams: {
       status: filters.status,
       assigned_user_id: filters.assigned_user_id,
@@ -212,20 +225,134 @@ export function seedThreadFromDetail(
   });
 }
 
+/** The fields a conversation's detail and its list rows both carry. */
+type SharedConversationFields = Omit<
+  ConversationListItem,
+  "contact" | "unread" | "last_message"
+>;
+
+/**
+ * Write `fields` into every cached copy of one conversation: the detail, each
+ * list re-run against its own filters (so a closed row leaves Open and joins
+ * Closed), and each pinned supplement. A list that lacks the row gains it from
+ * another list's copy, which carries the caller's real `unread`.
+ */
+function applyConversationFields(
+  queryClient: QueryClient,
+  companyId: string,
+  conversationId: string,
+  fields: Partial<SharedConversationFields>,
+): void {
+  const known = findListRow(queryClient, companyId, conversationId);
+  const detailKey = keys.conversations.detail(companyId, conversationId);
+  const detail = queryClient.getQueryData<ConversationDetail>(detailKey);
+  if (detail && changesSomething<SharedConversationFields>(detail, fields)) {
+    queryClient.setQueryData<ConversationDetail>(detailKey, { ...detail, ...fields });
+  }
+  patchConversationLists(queryClient, companyId, (list, filters) => {
+    const row =
+      list.pages.flatMap((page) => page.data).find((r) => r.id === conversationId) ??
+      known;
+    return row ? listApplyConversation(list, { ...row, ...fields }, filters) : list;
+  });
+  // The pinned supplement only loses rows here; a new pin needs its refetch.
+  for (const query of queryClient.getQueryCache().findAll({
+    queryKey: keys.conversations.pinnedRoot(companyId),
+  })) {
+    const data = query.state.data as Page<ConversationListItem> | undefined;
+    const row = data?.data.find((r) => r.id === conversationId);
+    if (!data || !row || !changesSomething(row, fields)) continue;
+    const next = { ...row, ...fields };
+    const stays =
+      next.pinned_at !== null &&
+      conversationMatchesFilters(next, filtersFromListKey(query.queryKey)) !== false;
+    queryClient.setQueryData<Page<ConversationListItem>>(query.queryKey, {
+      ...data,
+      data: stays
+        ? data.data.map((r) => (r.id === conversationId ? next : r))
+        : data.data.filter((r) => r.id !== conversationId),
+    });
+  }
+}
+
+/**
+ * Stop the in-flight reads under `roots`, so a response that left before a
+ * write cannot land over its optimistic row. Returns the keys it stopped, to
+ * fetch again once the write has landed.
+ */
+async function stopReads(
+  queryClient: QueryClient,
+  roots: readonly QueryKey[],
+): Promise<QueryKey[]> {
+  const cache = queryClient.getQueryCache();
+  const stopped = roots.flatMap((queryKey) =>
+    cache.findAll({ queryKey, fetchStatus: "fetching" }).map((query) => query.queryKey),
+  );
+  await Promise.all(roots.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+  return stopped;
+}
+
+/** Refetch what an optimistic write may have shown wrongly, from the server. */
+function reconcileConversation(
+  queryClient: QueryClient,
+  companyId: string,
+  conversationId: string,
+): void {
+  for (const queryKey of [
+    keys.conversations.detail(companyId, conversationId),
+    keys.conversations.lists(companyId),
+    keys.conversations.pinnedRoot(companyId),
+  ]) {
+    void queryClient.invalidateQueries({ queryKey });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
 
+type ConversationPages = InfiniteData<Page<ConversationListItem>, string | undefined>;
+
+/**
+ * The rows of the cached unfiltered inbox that also belong under `filters`, to
+ * show while the filtered list loads. Undefined for a search, the spam view
+ * and the deferred views: the unfiltered list never holds those rows.
+ */
+export function placeholderFromAllList(
+  queryClient: QueryClient,
+  companyId: string,
+  filters: ConversationFilters,
+): ConversationPages | undefined {
+  if (filters.q !== undefined || filters.is_spam === true || filters.snoozed !== undefined) {
+    return undefined;
+  }
+  const all = queryClient.getQueryData<ConversationListData>(
+    keys.conversations.list(companyId, normalizeFilters({})),
+  );
+  const data = (all?.pages ?? [])
+    .flatMap((page) => page.data)
+    .filter((row) => conversationMatchesFilters(row, filters) === true);
+  if (data.length === 0) return undefined;
+  return { pages: [{ data, next_cursor: null }], pageParams: [undefined] };
+}
+
 /** Inbox list — infinite cursor pagination with URL-driven filters (G3/G4). */
-export function useConversations(filters: ConversationFilters = {}) {
+export function useConversations(
+  filters: ConversationFilters = {},
+  options: { placeholderFromAll?: boolean } = {},
+) {
   const companyId = useCompanyId();
+  const queryClient = useQueryClient();
   const normalized = normalizeFilters(filters);
   return useInfiniteQuery({
     queryKey: keys.conversations.list(companyId, normalized),
-    queryFn: ({ pageParam }) =>
-      fetchConversationPage(companyId, normalized, pageParam),
+    queryFn: ({ pageParam, signal }) =>
+      fetchConversationPage(companyId, normalized, pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
+    placeholderData: options.placeholderFromAll
+      ? () => placeholderFromAllList(queryClient, companyId, normalized)
+      : undefined,
   });
 }
 
@@ -240,15 +367,28 @@ export function usePinnedConversations(filters: ConversationFilters = {}) {
   const normalized = normalizeFilters(filters);
   return useQuery({
     queryKey: keys.conversations.pinned(companyId, normalized),
-    queryFn: () => fetchPinnedConversations(companyId, normalized),
+    queryFn: ({ signal }) => fetchPinnedConversations(companyId, normalized, signal),
+    // The previous view's pins, less the ones these filters rule out.
+    placeholderData: (previous) =>
+      previous && {
+        ...previous,
+        data: previous.data.filter(
+          (row) => conversationMatchesFilters(row, normalized) !== false,
+        ),
+      },
   });
 }
 
-/** Thread header + contact panel + embedded first message page. */
-export function useConversation(conversationId: string) {
-  const companyId = useCompanyId();
-  const queryClient = useQueryClient();
-  return useQuery({
+/**
+ * The detail read, shared by the thread and by prefetch. It takes no abort
+ * signal: a thread closed mid-fetch is often reopened, and its answer is kept.
+ */
+export function conversationDetailOptions(
+  queryClient: QueryClient,
+  companyId: string,
+  conversationId: string,
+) {
+  return queryOptions({
     queryKey: keys.conversations.detail(companyId, conversationId),
     queryFn: async () => {
       const detail = await fetchConversationDetail(companyId, conversationId);
@@ -256,6 +396,32 @@ export function useConversation(conversationId: string) {
       return detail;
     },
   });
+}
+
+/** Thread header + contact panel + embedded first message page. */
+export function useConversation(conversationId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useQuery(conversationDetailOptions(queryClient, companyId, conversationId));
+}
+
+const PREFETCH_STALE_MS = 30_000;
+
+/**
+ * Warm a thread the pointer or focus is about to open. Only the detail read:
+ * POST /read and attachment URLs wait for the open itself.
+ */
+export function usePrefetchConversation() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useCallback(
+    (conversationId: string) =>
+      queryClient.prefetchQuery({
+        ...conversationDetailOptions(queryClient, companyId, conversationId),
+        staleTime: PREFETCH_STALE_MS,
+      }),
+    [queryClient, companyId],
+  );
 }
 
 /** Audit timeline (status/assign/tag/opt-out lines — G5). */
@@ -303,22 +469,94 @@ export interface ConversationPatch {
   lead_source_id?: string | null;
 }
 
-/** PATCH /v1/conversations/:id — status / assignee / spam. */
-export function useUpdateConversation(conversationId: string) {
-  const companyId = useCompanyId();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (patch: ConversationPatch) =>
+/**
+ * What a PATCH writes, as routes/conversations.ts writes it, so the optimistic
+ * row and the server row agree. Lead source and the spam review answers are
+ * left to the server.
+ */
+function optimisticConversationFields(
+  current: Pick<
+    Conversation,
+    "status" | "closed_at" | "is_spam" | "assigned_user_id" | "pinned_at"
+  >,
+  patch: ConversationPatch,
+  userId: string,
+  now: Date = new Date(),
+): Partial<Conversation> {
+  const fields: Partial<Conversation> = {};
+  if (patch.status !== undefined && patch.status !== current.status) {
+    fields.status = patch.status;
+    fields.closed_at = patch.status === "closed" ? now.toISOString() : null;
+  }
+  if (patch.is_spam !== undefined && patch.is_spam !== current.is_spam) {
+    fields.is_spam = patch.is_spam;
+    // Marking spam also closes the thread; un-marking leaves it closed.
+    if (patch.is_spam) {
+      fields.status = "closed";
+      fields.closed_at = current.closed_at ?? now.toISOString();
+    }
+  }
+  if (
+    patch.assigned_user_id !== undefined &&
+    patch.assigned_user_id !== current.assigned_user_id
+  ) {
+    fields.assigned_user_id = patch.assigned_user_id;
+  }
+  if (patch.pinned !== undefined && patch.pinned !== (current.pinned_at !== null)) {
+    Object.assign(fields, pinMutationPatch(patch.pinned, userId, now));
+  }
+  return fields;
+}
+
+interface ConversationPatchContext {
+  stopped: QueryKey[];
+}
+
+/**
+ * PATCH /v1/conversations/:id, optimistic (docs/APP-UI-ELEVATION.md §4): the
+ * row changes at the click and a refusal refetches the truth. Every edit of
+ * one conversation shares a scope, so a close and its Undo reach the server
+ * in the order they were made.
+ */
+function conversationPatchOptions(
+  queryClient: QueryClient,
+  companyId: string,
+  userId: string,
+  conversationId: string,
+): UseMutationOptions<Conversation, Error, ConversationPatch, ConversationPatchContext> {
+  const scopeId = `conversation:${conversationId}`;
+  const detailKey = keys.conversations.detail(companyId, conversationId);
+  return {
+    scope: { id: scopeId },
+    mutationFn: (patch) =>
       apiFetch<Conversation>(`/v1/conversations/${conversationId}`, {
         method: "PATCH",
         companyId,
         body: patch,
       }),
-    onSuccess: (updated, patch) => {
-      // #13: a pin toggle moves the thread in/out of the pinned supplement —
-      // refetch it so the top section reflects the change immediately.
+    onMutate: async (patch) => {
+      const stopped = await stopReads(queryClient, [
+        detailKey,
+        keys.conversations.lists(companyId),
+        keys.conversations.pinnedRoot(companyId),
+      ]);
+      const current =
+        queryClient.getQueryData<ConversationDetail>(detailKey) ??
+        findListRow(queryClient, companyId, conversationId);
+      if (current) {
+        const fields = optimisticConversationFields(current, patch, userId);
+        if (Object.keys(fields).length > 0) {
+          applyConversationFields(queryClient, companyId, conversationId, fields);
+        }
+      }
+      return { stopped };
+    },
+    onError: () => reconcileConversation(queryClient, companyId, conversationId),
+    onSuccess: (updated, patch, context) => {
+      // #13: a new pin has to be inserted into the pinned supplement, and an
+      // unpin refetches too so a quick pin-then-unpin ends on the server's set.
       if (patch.pinned !== undefined) {
-        queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           queryKey: keys.conversations.pinnedRoot(companyId),
           refetchType: "active",
         });
@@ -327,32 +565,85 @@ export function useUpdateConversation(conversationId: string) {
       // strip, and the server decides which rows remain — refetch rather than
       // guess at the ranking here.
       if (patch.is_spam !== undefined || patch.spam_reviewed !== undefined) {
-        queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           queryKey: keys.spamReview(companyId),
           refetchType: "active",
         });
       }
-      // Detail: merge the fresh conversation fields, keep contact/tags/messages.
-      queryClient.setQueryData<ConversationDetail>(
-        keys.conversations.detail(companyId, conversationId),
-        (detail) => (detail ? { ...detail, ...updated } : detail),
-      );
-      // Lists: re-evaluate each list's filters with the updated row (a closed
-      // conversation leaves the "Open" segment immediately).
-      patchConversationLists(queryClient, companyId, (list, filters) => {
-        const existing = list.pages
-          .flatMap((page) => page.data)
-          .find((row) => row.id === conversationId);
-        if (!existing) return list;
-        return listApplyConversation(list, { ...existing, ...updated }, filters);
-      });
+      // A later edit of this conversation is already on screen; this older
+      // row would put the earlier state back until that edit lands.
+      const superseded =
+        queryClient.isMutating({
+          predicate: (mutation) => mutation.options.scope?.id === scopeId,
+        }) > 1;
+      if (!superseded) {
+        applyConversationFields(queryClient, companyId, conversationId, updated);
+      }
+      for (const queryKey of context.stopped) {
+        void queryClient.invalidateQueries({ queryKey, exact: true, refetchType: "active" });
+      }
       // The events timeline gained rows server-side.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.conversations.events(companyId, conversationId),
         refetchType: "active",
       });
     },
-  });
+  };
+}
+
+/** PATCH /v1/conversations/:id: status, assignee, spam, pin. */
+export function useUpdateConversation(conversationId: string) {
+  const { companyId, userId } = useActiveCompany();
+  const queryClient = useQueryClient();
+  return useMutation(
+    conversationPatchOptions(queryClient, companyId, userId, conversationId),
+  );
+}
+
+export interface ConversationPatchCallbacks {
+  onSuccess?: (updated: Conversation) => void;
+  onError?: (error: Error) => void;
+}
+
+/**
+ * The same optimistic PATCH as `useUpdateConversation`, for a surface that
+ * acts on whichever row has focus (the inbox `e` key), so the conversation is
+ * named per call. It shares that hook's per-conversation order.
+ */
+export function useConversationPatch() {
+  const { companyId, userId } = useActiveCompany();
+  const queryClient = useQueryClient();
+  return useMemo(
+    () => ({
+      mutate: (
+        { id, patch }: { id: string; patch: ConversationPatch },
+        callbacks: ConversationPatchCallbacks = {},
+      ) => {
+        void queryClient
+          .getMutationCache()
+          .build(queryClient, conversationPatchOptions(queryClient, companyId, userId, id))
+          .execute(patch)
+          .then(callbacks.onSuccess, (error: Error) => callbacks.onError?.(error));
+      },
+    }),
+    [queryClient, companyId, userId],
+  );
+}
+
+/** The newest read receipt this tab got back, per conversation. */
+const readReceipts = new Map<string, ReadReceipt>();
+
+/**
+ * Up to when `userId` has already marked the conversation read from this tab,
+ * so an open that shows nothing newer can skip POST /read. Undefined once it is
+ * marked unread here, and for whoever signs in to this tab next.
+ */
+export function readCoveredThrough(
+  conversationId: string,
+  userId: string,
+): string | undefined {
+  const receipt = readReceipts.get(conversationId);
+  return receipt?.user_id === userId ? receipt.last_read_at : undefined;
 }
 
 /** POST /v1/conversations/:id/read — opening a thread marks it read (G4). */
@@ -366,14 +657,42 @@ export function useMarkConversationRead() {
         companyId,
       }),
     onMutate: (conversationId) => {
+      let found = false;
+      let flipped = false;
       // The unread dot clears instantly; the server upsert follows.
-      patchConversationLists(queryClient, companyId, (list) =>
-        listSetUnread(list, conversationId, false),
-      );
+      patchConversationLists(queryClient, companyId, (list) => {
+        const row = list.pages
+          .flatMap((page) => page.data)
+          .find((r) => r.id === conversationId);
+        if (!row) return list;
+        found = true;
+        flipped ||= row.unread;
+        return listSetUnread(list, conversationId, false);
+      });
       // The pinned supplement renders its own copy of the row.
-      patchPinnedConversations(queryClient, companyId, (row) =>
-        row.id === conversationId ? { ...row, unread: false } : row,
-      );
+      patchPinnedConversations(queryClient, companyId, (row) => {
+        if (row.id !== conversationId) return row;
+        found = true;
+        if (!row.unread) return row;
+        flipped = true;
+        return { ...row, unread: false };
+      });
+      // With no cached row there is no telling whether the queue counted it.
+      return { queueMayChange: flipped || !found };
+    },
+    onSuccess: (receipt, conversationId, context) => {
+      if (receipt?.last_read_at) {
+        const previous = readCoveredThrough(conversationId, receipt.user_id);
+        if (!previous || Date.parse(receipt.last_read_at) > Date.parse(previous)) {
+          readReceipts.set(conversationId, receipt);
+        }
+      }
+      if (context.queueMayChange) {
+        void queryClient.invalidateQueries({
+          queryKey: keys.forYou(companyId),
+          refetchType: "active",
+        });
+      }
     },
     onError: () => {
       // The optimistic unread-clear didn't reach the server — reconcile the
@@ -406,13 +725,14 @@ export function useMarkConversationUnread() {
         companyId,
       }),
     onMutate: (conversationId) => {
+      readReceipts.delete(conversationId);
       // The dot returns instantly; the server delete follows.
       patchConversationLists(queryClient, companyId, (list) =>
         listSetUnread(list, conversationId, true),
       );
       // The pinned supplement renders its own copy of the row.
       patchPinnedConversations(queryClient, companyId, (row) =>
-        row.id === conversationId ? { ...row, unread: true } : row,
+        row.id === conversationId && !row.unread ? { ...row, unread: true } : row,
       );
     },
     onError: () => {
@@ -681,7 +1001,36 @@ export function useCreateNote(conversationId: string) {
   });
 }
 
-/** POST /v1/conversations/:id/tags — `{ tag_id }` or `{ name }` (create-on-attach). */
+/**
+ * Write one tag change into every cached copy of the conversation, computed
+ * from the copy the thread shows. False when no copy is cached.
+ */
+function applyTagChange(
+  queryClient: QueryClient,
+  companyId: string,
+  conversationId: string,
+  change: (tags: Tag[]) => Tag[],
+): boolean {
+  const tags =
+    queryClient.getQueryData<ConversationDetail>(
+      keys.conversations.detail(companyId, conversationId),
+    )?.tags ?? findListRow(queryClient, companyId, conversationId)?.tags;
+  if (!tags) return false;
+  applyConversationFields(queryClient, companyId, conversationId, {
+    tags: change(tags),
+  });
+  return true;
+}
+
+const withTag = (tag: Tag) => (tags: Tag[]) =>
+  tags.some((t) => t.id === tag.id) ? tags : [...tags, tag];
+const withoutTag = (tagId: string) => (tags: Tag[]) =>
+  tags.some((t) => t.id === tagId) ? tags.filter((t) => t.id !== tagId) : tags;
+
+/**
+ * POST /v1/conversations/:id/tags — `{ tag_id }` or `{ name }` (create-on-attach).
+ * A known tag shows at the click; a new name waits for the server to mint it.
+ */
 export function useAttachTag(conversationId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
@@ -692,23 +1041,26 @@ export function useAttachTag(conversationId: string) {
         companyId,
         body: input,
       }),
+    onMutate: (input) => {
+      const known =
+        "tag_id" in input
+          ? queryClient
+              .getQueryData<Page<Tag>>(keys.tags(companyId))
+              ?.data.find((t) => t.id === input.tag_id)
+          : undefined;
+      return {
+        optimistic:
+          known !== undefined &&
+          applyTagChange(queryClient, companyId, conversationId, withTag(known)),
+      };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.optimistic) {
+        reconcileConversation(queryClient, companyId, conversationId);
+      }
+    },
     onSuccess: (tag) => {
-      const addTag = (tags: Tag[]): Tag[] =>
-        tags.some((t) => t.id === tag.id) ? tags : [...tags, tag];
-      queryClient.setQueryData<ConversationDetail>(
-        keys.conversations.detail(companyId, conversationId),
-        (detail) =>
-          detail ? { ...detail, tags: addTag(detail.tags) } : detail,
-      );
-      patchConversationLists(queryClient, companyId, (list) => {
-        const row = list.pages
-          .flatMap((page) => page.data)
-          .find((r) => r.id === conversationId);
-        if (!row) return list;
-        return listPatchConversation(list, conversationId, {
-          tags: addTag(row.tags),
-        });
-      });
+      applyTagChange(queryClient, companyId, conversationId, withTag(tag));
       // Create-on-attach may have minted a new tag for the company.
       queryClient.setQueryData<Page<Tag>>(keys.tags(companyId), (page) =>
         page && !page.data.some((t) => t.id === tag.id)
@@ -723,7 +1075,7 @@ export function useAttachTag(conversationId: string) {
   });
 }
 
-/** DELETE /v1/conversations/:id/tags/:tag_id */
+/** DELETE /v1/conversations/:id/tags/:tag_id. The chip goes at the click. */
 export function useDetachTag(conversationId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
@@ -733,22 +1085,12 @@ export function useDetachTag(conversationId: string) {
         method: "DELETE",
         companyId,
       }),
+    onMutate: (tagId) => {
+      applyTagChange(queryClient, companyId, conversationId, withoutTag(tagId));
+    },
+    onError: () => reconcileConversation(queryClient, companyId, conversationId),
     onSuccess: (_void, tagId) => {
-      const dropTag = (tags: Tag[]) => tags.filter((t) => t.id !== tagId);
-      queryClient.setQueryData<ConversationDetail>(
-        keys.conversations.detail(companyId, conversationId),
-        (detail) =>
-          detail ? { ...detail, tags: dropTag(detail.tags) } : detail,
-      );
-      patchConversationLists(queryClient, companyId, (list) => {
-        const row = list.pages
-          .flatMap((page) => page.data)
-          .find((r) => r.id === conversationId);
-        if (!row) return list;
-        return listPatchConversation(list, conversationId, {
-          tags: dropTag(row.tags),
-        });
-      });
+      applyTagChange(queryClient, companyId, conversationId, withoutTag(tagId));
       queryClient.invalidateQueries({
         queryKey: keys.conversations.events(companyId, conversationId),
         refetchType: "active",
