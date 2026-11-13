@@ -2,7 +2,7 @@
 
 import { ChevronLeft, Clock, Copy, Plus, SquarePen } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { use, useState } from "react";
 import { toast } from "sonner";
 
@@ -60,6 +60,7 @@ import {
 import { useConversations } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { flattenPages } from "@/lib/api/pagination";
+import { useRecordActivity } from "@/lib/api/record-activity";
 import { useMembers } from "@/lib/api/team";
 import type { ContactDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
@@ -70,6 +71,7 @@ import {
 } from "@/lib/hooks/use-debounced-autosave";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { formatTimestamp } from "@/lib/format/time";
+import { updateSearch } from "@/lib/url/search-state";
 import { NANP_TIMEZONES } from "@loonext/shared";
 
 /**
@@ -331,16 +333,12 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
 
   // #740: the page's tab lives in the URL, so a link can open one. A desktop
   // shows the details beside every tab; a phone shows one tab at a time.
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const tab = parseContactTab(searchParams.get("tab"));
   function selectTab(next: ContactTab) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === "details") params.delete("tab");
-    else params.set("tab", next);
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, {
-      scroll: false,
+    updateSearch((params) => {
+      if (next === "details") params.delete("tab");
+      else params.set("tab", next);
     });
   }
   const paneLabel: Record<ContactPane, string> = {
@@ -888,6 +886,8 @@ export default function ContactDetailPage({
   const t = useT();
   const { id } = use(params);
   const contact = useContact(id);
+  // The timeline's default (All) read, started beside the contact's own.
+  useRecordActivity("contact", id, null);
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 md:px-6">

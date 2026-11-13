@@ -68,6 +68,8 @@ export function useRecordActivity(
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
-    refetchOnMount: "always",
+    // A read the page started a moment ago, beside the record's own, is this open's read.
+    refetchOnMount: (query) =>
+      Date.now() - query.state.dataUpdatedAt < 5_000 ? false : "always",
   });
 }

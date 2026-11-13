@@ -8,7 +8,7 @@
  */
 import { callLooksSpam } from "@loonext/shared";
 import { Play } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { useT, type Translate } from "@/i18n/provider";
@@ -34,12 +34,28 @@ export function VoicemailPlayer({
   const t = useT();
   const [open, setOpen] = useState(false);
   const voicemail = useVoicemailUrl(callSessionId, open);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  // A new signed URL would restart the recording, so this call keeps the one it started with.
+  const latched = useRef<{ sessionId: string; url: string } | null>(null);
+  const [, rerender] = useState(0);
+  const latest = voicemail.data?.url ?? null;
+  const kept = latched.current?.sessionId === callSessionId ? latched.current.url : null;
+  if (latest !== null && latest !== kept && (kept === null || canTakeNewUrl(audio.current))) {
+    latched.current = { sessionId: callSessionId, url: latest };
+  }
+  const src = latched.current?.sessionId === callSessionId ? latched.current.url : null;
 
-  if (open && voicemail.data?.url) {
+  if (open && src) {
     return (
       <span className="block w-full">
         <audio
-          src={voicemail.data.url}
+          ref={audio}
+          src={src}
+          onError={() => {
+            // An expired URL with nothing newer cached: ask for a new one.
+            if (latest === src) void voicemail.refetch();
+            else rerender((n) => n + 1);
+          }}
           controls
           autoPlay
           preload="auto"
@@ -48,7 +64,7 @@ export function VoicemailPlayer({
         />
         {/* A recording from before transcription existed, or one whose
             transcription failed at the time, gets its words on first open. */}
-        {showTranscript && voicemail.data.transcript && (
+        {showTranscript && voicemail.data?.transcript && (
           <VoicemailTranscript
             text={voicemail.data.transcript}
             className="mt-1.5"
@@ -86,6 +102,14 @@ export function VoicemailPlayer({
               })
             : t("shell.playVoicemail")}
     </button>
+  );
+}
+
+function canTakeNewUrl(element: HTMLAudioElement | null): boolean {
+  return (
+    element === null ||
+    element.error !== null ||
+    (element.paused && element.played.length === 0)
   );
 }
 

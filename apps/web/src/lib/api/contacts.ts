@@ -1,8 +1,10 @@
 import {
+  queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
 } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
@@ -51,12 +53,14 @@ export function fetchContactsPage(
   field?: ContactFieldFilter,
   /** #695: only contacts carrying this workspace tag. */
   tagId?: string,
+  signal?: AbortSignal,
 ): Promise<Page<ContactListItem>> {
   // List rows carry `opted_out` (the G6 opted-out badge) and
   // `last_activity_at` (the G6 "Last activity" column — conversation
   // activity, null when the contact has never texted).
   return apiFetch<Page<ContactListItem>>("/v1/contacts", {
     companyId,
+    signal,
     searchParams: {
       q: q === "" ? undefined : q,
       cursor,
@@ -79,7 +83,12 @@ export interface ContactFieldFilter {
 /** Contacts table — trgm-backed search via `q` (G6), keypad letters via `t9`. */
 export function useContacts(
   q = "",
-  options: { t9?: boolean; field?: ContactFieldFilter; tagId?: string } = {},
+  options: {
+    t9?: boolean;
+    field?: ContactFieldFilter;
+    tagId?: string;
+    enabled?: boolean;
+  } = {},
 ) {
   const companyId = useCompanyId();
   const trimmed = q.trim();
@@ -98,10 +107,12 @@ export function useContacts(
       field ? `${field.key}=${field.value}` : "all",
       tagId ? `tag=${tagId}` : "any-tag",
     ],
-    queryFn: ({ pageParam }) =>
-      fetchContactsPage(companyId, trimmed, pageParam, t9, field, tagId),
+    // The signal lets a superseded search cancel its request.
+    queryFn: ({ pageParam, signal }) =>
+      fetchContactsPage(companyId, trimmed, pageParam, t9, field, tagId, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
+    enabled: options.enabled ?? true,
     // Keep the previous result set visible while a new search term resolves —
     // each keystroke moves to a fresh (uncached) query key, which otherwise
     // collapsed the whole table to skeleton (+ lost loaded pages + scroll).
@@ -109,14 +120,22 @@ export function useContacts(
   });
 }
 
+/** GET /v1/contacts/:id, shared by the hook and the list rows that prefetch it. */
+export function contactDetailOptions(companyId: string, contactId: string) {
+  return queryOptions({
+    queryKey: keys.contacts.detail(companyId, contactId),
+    queryFn: ({ signal }) =>
+      apiFetch<ContactDetail>(`/v1/contacts/${contactId}`, {
+        companyId,
+        signal,
+      }),
+  });
+}
+
 /** GET /v1/contacts/:id — includes the app-side `opted_out` flag. */
 export function useContact(contactId: string) {
   const companyId = useCompanyId();
-  return useQuery({
-    queryKey: keys.contacts.detail(companyId, contactId),
-    queryFn: () =>
-      apiFetch<ContactDetail>(`/v1/contacts/${contactId}`, { companyId }),
-  });
+  return useQuery(contactDetailOptions(companyId, contactId));
 }
 
 /**
@@ -183,6 +202,7 @@ export function useCreateContact() {
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
+      invalidateDuplicates(queryClient, companyId);
     },
   });
 }
@@ -233,6 +253,8 @@ export function useUpdateContact(contactId: string) {
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
+      // A rename can make a same-name pair or resolve one.
+      if ("name" in patch) invalidateDuplicates(queryClient, companyId);
       // #292: only the timezone changes what the server RESOLVES, and only it
       // is worth a round trip — an autosaved name would refetch the detail on
       // every keystroke pause for no change anyone can see.
@@ -264,6 +286,7 @@ export function useDeleteContact() {
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
+      invalidateDuplicates(queryClient, companyId);
     },
   });
 }
@@ -368,6 +391,7 @@ export function useImportContacts() {
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
+      invalidateDuplicates(queryClient, companyId);
     },
   });
 }
@@ -440,12 +464,29 @@ export interface DuplicatePair {
   reason: string;
 }
 
+/** A whole-workspace self-join, trusted for 10 minutes because every write that can make or resolve a pair invalidates it. */
 export function useDuplicateContacts() {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: keys.contacts.duplicates(companyId),
-    queryFn: () =>
-      apiFetch<Page<DuplicatePair>>("/v1/contacts/duplicates", { companyId }),
+    queryFn: ({ signal }) =>
+      apiFetch<Page<DuplicatePair>>("/v1/contacts/duplicates", {
+        companyId,
+        signal,
+      }),
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+  });
+}
+
+/** Exported for the vCard importer, which upserts contacts like the CSV one. */
+export function invalidateDuplicates(
+  queryClient: QueryClient,
+  companyId: string,
+): void {
+  void queryClient.invalidateQueries({
+    queryKey: keys.contacts.duplicates(companyId),
+    refetchType: "active",
   });
 }
 

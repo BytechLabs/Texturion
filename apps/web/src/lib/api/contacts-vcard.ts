@@ -3,7 +3,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
-import { importFormData, type ContactImportRequest } from "./contacts";
+import {
+  importFormData,
+  invalidateDuplicates,
+  type ContactImportRequest,
+} from "./contacts";
 import { keys } from "./keys";
 import type { ImportResult } from "./types";
 
@@ -45,6 +49,7 @@ export function useImportVCard() {
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
+      invalidateDuplicates(queryClient, companyId);
     },
   });
 }

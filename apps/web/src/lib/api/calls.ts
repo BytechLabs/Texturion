@@ -11,6 +11,9 @@ import {
   useInfiniteQuery,
   useMutation,
   useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
 } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
@@ -21,6 +24,62 @@ import { nextCursorParam } from "./pagination";
 import type { Call, CallDetail, Page } from "./types";
 
 export type CallOutcomeFilter = "missed" | "answered" | "voicemail";
+
+type CallPages = InfiniteData<Page<Call>, string | undefined>;
+
+function isCallPages(data: unknown): data is CallPages {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    Array.isArray((data as { pages?: unknown }).pages)
+  );
+}
+
+/** The cached All list narrowed by outcome as the server does, or nothing when older pages may hold the matches. */
+export function outcomePlaceholder(
+  queryClient: QueryClient,
+  companyId: string,
+  outcome: CallOutcomeFilter,
+  reason = "any",
+  contactId = "any",
+): CallPages | undefined {
+  const all = queryClient.getQueryData<CallPages>(
+    keys.calls(companyId, "all", reason, contactId),
+  );
+  if (!isCallPages(all)) return undefined;
+  const rows = all.pages
+    .flatMap((page) => page.data)
+    .filter((call) => call.outcome === outcome);
+  const complete = all.pages[all.pages.length - 1]?.next_cursor == null;
+  if (rows.length === 0 && !complete) return undefined;
+  // One page with no cursor: "Load more" waits for the real list.
+  return { pages: [{ data: rows, next_cursor: null }], pageParams: [undefined] };
+}
+
+/** The list row the user just clicked, as a detail the page can paint from. */
+export function cachedCallDetail(
+  queryClient: QueryClient,
+  companyId: string,
+  sessionId: string,
+): CallDetail | undefined {
+  for (const [, data] of queryClient.getQueriesData({
+    queryKey: [companyId, "calls"],
+  })) {
+    if (!isCallPages(data)) continue;
+    for (const page of data.pages) {
+      const call = page.data?.find((row) => row.call_session_id === sessionId);
+      if (call) {
+        return {
+          ...call,
+          ended_at: null,
+          has_voicemail: (call.voicemail_seconds ?? 0) > 0,
+          voicemail_transcript_attempted_at: null,
+        };
+      }
+    }
+  }
+  return undefined;
+}
 
 /** #725: calls per reason over the last `days`, for settings (settings.manage). */
 export function useCallEffects(enabled: boolean) {
@@ -42,15 +101,21 @@ export function useCalls(
   contactId?: string,
 ) {
   const companyId = useCompanyId();
+  const queryClient = useQueryClient();
   return useInfiniteQuery({
     queryKey: keys.calls(companyId, outcome ?? "all", reason ?? "any", contactId ?? "any"),
-    queryFn: ({ pageParam }) =>
+    queryFn: ({ pageParam, signal }) =>
       apiFetch<Page<Call>>("/v1/calls", {
         companyId,
+        signal,
         searchParams: { cursor: pageParam, outcome, reason, contact_id: contactId },
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
+    // Not the previous filter's rows: those would put answered calls under Missed.
+    placeholderData: outcome
+      ? () => outcomePlaceholder(queryClient, companyId, outcome, reason, contactId)
+      : undefined,
   });
 }
 
@@ -70,12 +135,15 @@ export function useCalls(
  */
 export function useCall(sessionId: string) {
   const companyId = useCompanyId();
-  return useQuery({
+  const queryClient = useQueryClient();
+  return useQuery<CallDetail>({
     queryKey: [companyId, "calls", "detail", sessionId] as const,
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       apiFetch<CallDetail>(`/v1/calls/${encodeURIComponent(sessionId)}`, {
         companyId,
+        signal,
       }),
+    placeholderData: () => cachedCallDetail(queryClient, companyId, sessionId),
   });
 }
 
@@ -252,11 +320,12 @@ export function useTransferCall() {
 /**
  * D43: fetch a voicemail's signed playback URL on demand (the player mounts
  * it into an <audio>). Signed for an hour; the query cache mirrors that.
+ * Keyed outside the [companyId] prefix that call.updated invalidates, since a fresh URL restarts an open player.
  */
 export function useVoicemailUrl(callSessionId: string, enabled: boolean) {
   const companyId = useCompanyId();
   return useQuery({
-    queryKey: [companyId, "calls", "voicemail", callSessionId] as const,
+    queryKey: ["voicemail-url", companyId, callSessionId] as const,
     queryFn: () =>
       apiFetch<{
         url: string;
@@ -269,6 +338,8 @@ export function useVoicemailUrl(callSessionId: string, enabled: boolean) {
       ),
     enabled,
     staleTime: 50 * 60_000, // just under the URL's 60-min signature
+    // As long as it is trusted, so reopening the player inside the hour reuses it.
+    gcTime: 50 * 60_000,
     retry: false,
   });
 }

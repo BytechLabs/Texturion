@@ -18,7 +18,7 @@ import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { isCallEndReason, isCallRouting } from "@loonext/shared";
 import { Grid3x3, PhoneIncoming, X } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { CallRow } from "@/components/calls/call-row";
@@ -34,6 +34,7 @@ import { useT, type MessageKey } from "@/i18n/provider";
 import { useCalls, useRingMe, type CallOutcomeFilter } from "@/lib/api/calls";
 import { callEndReason, callRoutingReason } from "@/lib/format/call";
 import { useSoftphone } from "@/lib/softphone/provider";
+import { replaceSearch } from "@/lib/url/search-state";
 import { cn } from "@/lib/utils";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 
@@ -53,8 +54,6 @@ export function CallsView() {
   );
   // #725: a setting's "See them" link narrows the log to one reason.
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
   const rawReason = searchParams.get("reason");
   const reason =
     rawReason && (isCallRouting(rawReason) || isCallEndReason(rawReason)) ? rawReason : undefined;
@@ -145,7 +144,7 @@ export function CallsView() {
             {reasonLabel ?? reason}
             <button
               type="button"
-              onClick={() => router.replace(pathname, { scroll: false })}
+              onClick={() => replaceSearch("")}
               aria-label={t("inbox.removeFilterAria", { label: reasonLabel ?? reason })}
               className="tap-target rounded-full p-0.5 text-muted-foreground transition-colors duration-150 ease-out hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
@@ -204,11 +203,18 @@ export function CallsView() {
               }
             />
           ) : (
-            <>
+            // A filter's first paint borrows the All list's rows until its own land.
+            <div
+              aria-busy={calls.isPlaceholderData}
+              className={cn(
+                "transition-opacity duration-150",
+                calls.isPlaceholderData && "opacity-60",
+              )}
+            >
               {rows.map((call) => (
                 <CallRow key={call.id} call={call} />
               ))}
-            </>
+            </div>
           )}
         </div>
         {calls.hasNextPage && (

@@ -4,6 +4,9 @@ export const metadata = {
   title: "Call",
 };
 
+// The page's RSC payload is only the session id, so the router may reuse it for 5 minutes.
+export const unstable_dynamicStaleTime = 300;
+
 /**
  * /calls/[sessionId] — #336. The permalink a call never had.
  *

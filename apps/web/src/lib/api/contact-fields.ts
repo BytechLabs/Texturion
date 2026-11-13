@@ -77,7 +77,7 @@ export function useSaveContactFields() {
       void queryClient.invalidateQueries({ queryKey: fieldsKey(companyId) });
       // The contact panel renders values against these definitions, so a
       // renamed or removed field has to reach any contact already on screen.
-      void queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      void queryClient.invalidateQueries({ queryKey: [companyId, "contacts"] });
     },
   });
 }

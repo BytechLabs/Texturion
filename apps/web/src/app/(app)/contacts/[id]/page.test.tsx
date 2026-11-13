@@ -1,5 +1,9 @@
+/**
+ * @vitest-environment happy-dom
+ */
+import { cleanup, fireEvent, render as mount, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ContactDetail } from "@/lib/api/types";
 
@@ -14,7 +18,13 @@ const state = {
   contact: null as unknown as ContactDetail,
   conversations: undefined as unknown,
   query: "",
+  pending: false,
 };
+
+const { router, activityReads } = vi.hoisted(() => ({
+  router: { push: vi.fn(), replace: vi.fn() },
+  activityReads: [] as unknown[][],
+}));
 
 vi.mock("next/link", () => ({
   default: ({
@@ -31,7 +41,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => router,
   usePathname: () => "/contacts/c-1",
   useSearchParams: () => new URLSearchParams(state.query),
 }));
@@ -56,10 +66,10 @@ vi.mock("@/lib/api/gallery", () => ({
 }));
 vi.mock("@/lib/api/contacts", () => ({
   useContact: () => ({
-    isPending: false,
+    isPending: state.pending,
     isError: false,
     error: null,
-    data: state.contact,
+    data: state.pending ? undefined : state.contact,
     refetch: vi.fn(),
   }),
   useUpdateContact: () => ({ isPending: false, mutate: vi.fn() }),
@@ -151,15 +161,18 @@ vi.mock("@/lib/api/companies", () => ({
 // #714: the activity timeline hook reaches CompanyProvider, which this harness
 // deliberately does not mount (the page is rendered bare).
 vi.mock("@/lib/api/record-activity", () => ({
-  useRecordActivity: () => ({
-    data: undefined,
-    isPending: false,
-    isError: false,
-    hasNextPage: false,
-    isFetchingNextPage: false,
-    fetchNextPage: vi.fn(),
-    refetch: vi.fn(),
-  }),
+  useRecordActivity: (...args: unknown[]) => {
+    activityReads.push(args);
+    return {
+      data: undefined,
+      isPending: false,
+      isError: false,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      refetch: vi.fn(),
+    };
+  },
 }));
 // #690: the linked-tasks list is its own query; this harness mounts no client.
 vi.mock("@/lib/api/task-links", () => ({
@@ -206,20 +219,54 @@ function contact(overrides: Partial<ContactDetail> = {}): ContactDetail {
 
 // A pre-resolved thenable so `use(params)` returns synchronously under
 // renderToStaticMarkup (React reads status/value without suspending).
-function render(id = "c-1"): string {
-  const params = {
+function resolvedParams(id: string): Promise<{ id: string }> {
+  return {
     status: "fulfilled",
     value: { id },
     then: () => {},
   } as unknown as Promise<{ id: string }>;
-  return renderToStaticMarkup(<ContactDetailPage params={params} />);
+}
+
+function render(id = "c-1"): string {
+  return renderToStaticMarkup(<ContactDetailPage params={resolvedParams(id)} />);
 }
 
 beforeEach(() => {
   state.contact = contact();
   state.conversations = undefined; // no existing conversation by default
   state.query = "";
+  state.pending = false;
   blockedRows.current = [];
+  activityReads.length = 0;
+  router.push.mockReset();
+  router.replace.mockReset();
+});
+
+afterEach(cleanup);
+
+describe("/contacts/[id] opens in one wave", () => {
+  it("starts the timeline's default read while the contact is still loading", () => {
+    state.pending = true;
+    const html = render("c-1");
+    expect(html).toContain("Loading contact");
+    expect(activityReads).toContainEqual(["contact", "c-1", null]);
+  });
+
+  it("switches tabs with replaceState, keeping the other params, and no router call", () => {
+    window.history.replaceState(null, "", "/contacts/c-1?from=calls");
+    const replace = vi.spyOn(window.history, "replaceState");
+    mount(<ContactDetailPage params={resolvedParams("c-1")} />);
+    const tabs = screen.getAllByRole("radiogroup", { name: "Contact sections" });
+    const desktop = tabs.find((group) => group.className.includes("lg:flex")) as HTMLElement;
+    fireEvent.click(
+      Array.from(desktop.querySelectorAll('[role="radio"]')).find(
+        (radio) => radio.textContent === "Calls",
+      ) as HTMLElement,
+    );
+    expect(replace).toHaveBeenCalledWith(null, "", "/contacts/c-1?from=calls&tab=calls");
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+  });
 });
 
 describe("/contacts/[id] tags and unmerge (#695)", () => {

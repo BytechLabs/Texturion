@@ -45,20 +45,26 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
+/** Also the route's loading.tsx, so the click and the read show one frame. */
+export function CallDetailSkeleton() {
+  const t = useT();
+  return (
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+      <div className="space-y-3" aria-label={t("shell.loadingCall")}>
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-40 w-full rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
 export function CallDetail({ sessionId }: { sessionId: string }) {
   const t = useT();
   const call = useCall(sessionId);
   const router = useRouter();
 
-  if (call.isPending) {
-    return (
-      <div className="space-y-3" aria-label={t("shell.loadingCall")}>
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-40 w-full rounded-lg" />
-      </div>
-    );
-  }
-  if (call.isError || !call.data) {
+  if (call.isPending) return <CallDetailSkeleton />;
+  if (call.isLoadingError || !call.data) {
     // A 404 here is also what a member without access to this call's number
     // gets — deliberately indistinguishable, so a permalink cannot be used to
     // prove a call exists.
@@ -66,6 +72,8 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
   }
 
   const row = call.data;
+  // A list row cannot say whether its words were attempted, so that sentence waits for the detail.
+  const fromList = call.isPlaceholderData;
   const who =
     row.contact_name?.trim() ||
     row.caller_name?.trim() ||
@@ -139,7 +147,9 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
             of the four honest not-transcribed sentences (call-detail-copy.ts) —
             the page talking, not the caller — and offering to copy one would be
             offering to copy our own apology. */}
-        {transcript.muted ? (
+        {transcript.muted && fromList ? (
+          <Skeleton className="h-5 w-56" />
+        ) : transcript.muted ? (
           <p className="text-sm text-muted-foreground">{transcript.text}</p>
         ) : (
           <VoicemailTranscript text={transcript.text} prominent />

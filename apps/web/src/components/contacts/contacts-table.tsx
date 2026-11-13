@@ -1,10 +1,11 @@
 "use client";
 
 import { ListSkeleton } from "@/components/ui/list-skeleton";
+import { useQueryClient } from "@tanstack/react-query";
 import { Users } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { roleHasCapability } from "@loonext/shared";
 
@@ -22,19 +23,66 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  contactDetailOptions,
   useContacts,
   type ContactFieldFilter,
 } from "@/lib/api/contacts";
+import type { ContactListItem } from "@/lib/api/types";
 import { ContactActiveFilters, ContactListFilter } from "@/components/contacts/contact-filter";
 import { ContactsBulkBar } from "@/components/contacts/contacts-bulk-bar";
 import { useContactActions } from "@/components/contacts/contact-record-actions";
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { useT } from "@/i18n/provider";
-import { useActiveCompany } from "@/lib/company/provider";
+import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
 import { flattenPages } from "@/lib/api/pagination";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 import { SearchField } from "@/components/ui/search-field";
+import { updateSearch } from "@/lib/url/search-state";
+
+const SEARCH_DEBOUNCE_MS = 250;
+const HOVER_PREFETCH_MS = 100;
+
+/** The list's view lives in the URL, so Back from a contact returns to the same search and filters. */
+export function contactsViewFromSearch(params: URLSearchParams): {
+  query: string;
+  tagId: string | undefined;
+  field: ContactFieldFilter | undefined;
+} {
+  const fieldKey = params.get("field");
+  return {
+    query: params.get("q") ?? "",
+    tagId: params.get("tag") ?? undefined,
+    // "" is a real answer on a custom field, so a missing value means "".
+    field: fieldKey ? { key: fieldKey, value: params.get("value") ?? "" } : undefined,
+  };
+}
+
+function writeQuery(query: string) {
+  updateSearch((params) => {
+    if (query === "") params.delete("q");
+    else params.set("q", query);
+  });
+}
+
+function writeTag(tagId: string | undefined) {
+  updateSearch((params) => {
+    if (tagId === undefined) params.delete("tag");
+    else params.set("tag", tagId);
+  });
+}
+
+function writeField(field: ContactFieldFilter | undefined) {
+  updateSearch((params) => {
+    if (field === undefined) {
+      params.delete("field");
+      params.delete("value");
+    } else {
+      params.set("field", field.key);
+      params.set("value", field.value);
+    }
+  });
+}
 
 /**
  * #712: right-click, long-press or the menu key on a contact row opens the
@@ -70,6 +118,164 @@ function SkeletonRows() {
   );
 }
 
+/** Owns the typed text, so a keystroke re-renders the box and not the table. */
+function ContactSearch({
+  query,
+  onSettle,
+}: {
+  query: string;
+  onSettle: (query: string) => void;
+}) {
+  const t = useT();
+  const [input, setInput] = useState(query);
+  const written = useRef(query);
+  const [seen, setSeen] = useState(query);
+  // A URL this box did not write, such as the nav link to plain /contacts, replaces the text.
+  if (query !== seen) {
+    setSeen(query);
+    if (query !== written.current) setInput(query);
+  }
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      written.current = input.trim();
+      onSettle(written.current);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [input, onSettle]);
+  return (
+    <SearchField
+      containerClassName="min-w-0 max-w-sm flex-1"
+      value={input}
+      onValueChange={setInput}
+      placeholder={t("contacts.searchPlaceholder")}
+      aria-label={t("contacts.searchLabel")}
+    />
+  );
+}
+
+const ContactRow = memo(function ContactRow({
+  contact,
+  selected,
+  onToggle,
+}: {
+  contact: ContactListItem;
+  selected: boolean;
+  onToggle: (id: string, on: boolean) => void;
+}) {
+  const t = useT();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const companyId = useCompanyId();
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const href = `/contacts/${contact.id}`;
+
+  // Starts the detail read before the route lands, so the page opens on it.
+  function prefetch() {
+    void queryClient.prefetchQuery(contactDetailOptions(companyId, contact.id));
+  }
+  function cancelHover() {
+    if (hoverTimer.current !== null) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+  }
+  useEffect(() => cancelHover, []);
+
+  return (
+    <ContactRowMenu contact={contact}>
+      <TableRow
+        className="cursor-pointer"
+        onFocus={prefetch}
+        onTouchStart={prefetch}
+        onPointerEnter={(event) => {
+          if (event.pointerType !== "mouse") return;
+          cancelHover();
+          hoverTimer.current = setTimeout(prefetch, HOVER_PREFETCH_MS);
+        }}
+        onPointerLeave={cancelHover}
+        // Mouse convenience only. Keyboard and screen reader users get the
+        // real link in the name cell, so the row itself stays a plain table row.
+        onClick={(event) => {
+          const target = event.target as HTMLElement;
+          if (
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey ||
+            target.closest("button")
+          ) {
+            return;
+          }
+          prefetch();
+          // The name link navigates by itself and prevents the default.
+          if (event.defaultPrevented || target.closest("a")) return;
+          router.push(href);
+        }}
+      >
+        <TableCell className="w-10">
+          <Checkbox
+            aria-label={t("contacts.selectContact", {
+              name: contactDisplayName(contact, t),
+            })}
+            checked={selected}
+            onCheckedChange={(on) => onToggle(contact.id, on === true)}
+          />
+        </TableCell>
+        <TableCell className="font-medium">
+          <span className="flex flex-wrap items-center gap-2">
+            <Link
+              href={href}
+              className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {contactDisplayName(contact)}
+            </Link>
+            {contact.opted_out && (
+              // G6 opted-out badge — same treatment as the
+              // contact detail header.
+              <Badge variant="outline" className="border-destructive text-foreground">
+                {t("contacts.optedOut")}
+              </Badge>
+            )}
+            {/* #695: the tags this customer carries, quietly -
+                three at most, so a heavily tagged row does not
+                outgrow its neighbours. */}
+            {(contact.tags ?? []).slice(0, 3).map((tag) => (
+              <span
+                key={tag.id}
+                className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground"
+              >
+                {tag.name}
+              </span>
+            ))}
+            {(contact.tags ?? []).length > 3 && (
+              <span className="text-[11px] text-muted-foreground">
+                +{(contact.tags ?? []).length - 3}
+              </span>
+            )}
+          </span>
+        </TableCell>
+        <TableCell className="tabular-nums text-muted-foreground">
+          {formatPhone(contact.phone_e164)}
+        </TableCell>
+        <TableCell className="text-right tabular-nums text-muted-foreground">
+          {/* Conversation activity (G6), never updated_at — a
+              CSV re-import or notes edit must not read as a
+              fresh text (G10). Timestamps recede to the muted
+              colour: tertiary fails contrast on card. */}
+          {contact.last_activity_at ? (
+            <Timestamp at={contact.last_activity_at} style="short" />
+          ) : (
+            <>
+              <span aria-hidden>–</span>
+              <span className="sr-only">
+                {t("contacts.noTextingActivity")}
+              </span>
+            </>
+          )}
+        </TableCell>
+      </TableRow>
+    </ContactRowMenu>
+  );
+});
+
 /**
  * The G6 contacts table: trgm search (debounced 250ms), name / number /
  * last activity / opted-out badge, cursor pagination. Rows open the
@@ -77,49 +283,24 @@ function SkeletonRows() {
  */
 export function ContactsTable({
   emptyAction,
-  onQueryChange,
-  onTagFilterChange,
 }: {
   /** Rendered inside the brand-new empty state (e.g. the import button). */
   emptyAction?: React.ReactNode;
-  /**
-   * Lifts the debounced search query so the toolbar's CSV export can mirror
-   * "what I'm looking at" (D20 §3.1) — the table stays the owner of the input.
-   */
-  onQueryChange?: (query: string) => void;
-  /** #695: lifts the tag filter too, so the toolbar export mirrors the view. */
-  onTagFilterChange?: (tagId: string | undefined) => void;
 }) {
   const t = useT();
   const { role } = useActiveCompany();
   const canEdit = roleHasCapability(role, "conversations.note");
   const canMerge = roleHasCapability(role, "settings.manage");
-  const router = useRouter();
-  const [input, setInput] = useState("");
-  const [query, setQuery] = useState("");
-  // #291: narrow to one answer in one of the workspace's own fields.
-  const [fieldFilter, setFieldFilter] = useState<
-    ContactFieldFilter | undefined
-  >(undefined);
+  // #291 / #695: the search, the tag and the one-field answer, from the URL.
+  const searchParams = useSearchParams();
+  const { query, tagId: tagFilter, field: fieldFilter } =
+    contactsViewFromSearch(searchParams);
 
-  useEffect(() => {
-    const handle = setTimeout(() => setQuery(input), 250);
-    return () => clearTimeout(handle);
-  }, [input]);
-
-  useEffect(() => {
-    onQueryChange?.(query);
-  }, [query, onQueryChange]);
-
-  // #695: narrow to one tag, and select rows to act on together.
-  const [tagFilter, setTagFilter] = useState<string | undefined>(undefined);
+  // #695: select rows to act on together.
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
-  useEffect(() => {
-    onTagFilterChange?.(tagFilter);
-  }, [tagFilter, onTagFilterChange]);
 
   const contacts = useContacts(query, { field: fieldFilter, tagId: tagFilter });
-  const rows = flattenPages(contacts.data);
+  const rows = useMemo(() => flattenPages(contacts.data), [contacts.data]);
   const searching = query.trim() !== "";
   const filtering = fieldFilter !== undefined;
 
@@ -130,37 +311,33 @@ export function ContactsTable({
     [rows, selectedIds],
   );
   const allSelected = rows.length > 0 && selectedRows.length === rows.length;
-  function toggleRow(id: string, on: boolean) {
-    const next = new Set(selectedIds);
-    if (on) next.add(id);
-    else next.delete(id);
-    setSelectedIds(next);
-  }
+  const toggleRow = useCallback((id: string, on: boolean) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <SearchField
-          containerClassName="min-w-0 max-w-sm flex-1"
-          value={input}
-          onValueChange={setInput}
-          placeholder={t("contacts.searchPlaceholder")}
-          aria-label={t("contacts.searchLabel")}
-        />
+        <ContactSearch query={query} onSettle={writeQuery} />
         {/* #291 / #711: beside the search box, because both answer "show me
             less", behind the same Filter button every list uses. */}
         <ContactListFilter
           field={fieldFilter}
-          onField={setFieldFilter}
+          onField={writeField}
           tag={tagFilter}
-          onTag={setTagFilter}
+          onTag={writeTag}
         />
       </div>
       <ContactActiveFilters
         field={fieldFilter}
-        onField={setFieldFilter}
+        onField={writeField}
         tag={tagFilter}
-        onTag={setTagFilter}
+        onTag={writeTag}
       />
 
       <div className="rounded-lg border bg-card">
@@ -241,89 +418,12 @@ export function ContactsTable({
               </TableHeader>
               <TableBody>
                 {rows.map((contact) => (
-                  <ContactRowMenu key={contact.id} contact={contact}>
-                  <TableRow
-                    className="cursor-pointer"
-                    // Mouse convenience only. Keyboard and screen reader users
-                    // get the real link in the name cell, so the row itself
-                    // stays a plain table row.
-                    onClick={(event) => {
-                      if (
-                        event.defaultPrevented ||
-                        event.metaKey ||
-                        event.ctrlKey ||
-                        event.shiftKey ||
-                        event.altKey ||
-                        (event.target as HTMLElement).closest("a,button")
-                      ) {
-                        return;
-                      }
-                      router.push(`/contacts/${contact.id}`);
-                    }}
-                  >
-                    <TableCell className="w-10">
-                      <Checkbox
-                        aria-label={t("contacts.selectContact", {
-                          name: contactDisplayName(contact, t),
-                        })}
-                        checked={selectedIds.has(contact.id)}
-                        onCheckedChange={(on) => toggleRow(contact.id, on === true)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <Link
-                          href={`/contacts/${contact.id}`}
-                          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          {contactDisplayName(contact)}
-                        </Link>
-                        {contact.opted_out && (
-                          // G6 opted-out badge — same treatment as the
-                          // contact detail header.
-                          <Badge variant="outline" className="border-destructive text-foreground">
-                            {t("contacts.optedOut")}
-                          </Badge>
-                        )}
-                        {/* #695: the tags this customer carries, quietly -
-                            three at most, so a heavily tagged row does not
-                            outgrow its neighbours. */}
-                        {(contact.tags ?? []).slice(0, 3).map((tag) => (
-                          <span
-                            key={tag.id}
-                            className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground"
-                          >
-                            {tag.name}
-                          </span>
-                        ))}
-                        {(contact.tags ?? []).length > 3 && (
-                          <span className="text-[11px] text-muted-foreground">
-                            +{(contact.tags ?? []).length - 3}
-                          </span>
-                        )}
-                      </span>
-                    </TableCell>
-                    <TableCell className="tabular-nums text-muted-foreground">
-                      {formatPhone(contact.phone_e164)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {/* Conversation activity (G6), never updated_at — a
-                          CSV re-import or notes edit must not read as a
-                          fresh text (G10). Timestamps recede to the muted
-                          colour: tertiary fails contrast on card. */}
-                      {contact.last_activity_at ? (
-                        <Timestamp at={contact.last_activity_at} style="short" />
-                      ) : (
-                        <>
-                          <span aria-hidden>–</span>
-                          <span className="sr-only">
-                            {t("contacts.noTextingActivity")}
-                          </span>
-                        </>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                  </ContactRowMenu>
+                  <ContactRow
+                    key={contact.id}
+                    contact={contact}
+                    selected={selectedIds.has(contact.id)}
+                    onToggle={toggleRow}
+                  />
                 ))}
               </TableBody>
             </Table>

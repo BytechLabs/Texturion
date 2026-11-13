@@ -91,7 +91,10 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
     return () => clearTimeout(timer);
   }, [digits]);
 
-  const matches = useContacts(debounced, { t9: true });
+  const matches = useContacts(debounced, {
+    t9: true,
+    enabled: open && debounced !== "",
+  });
   // Ranked by the shared matcher rather than "the first row whose number
   // contains this", so an exact number beats a loose one and a first name
   // beats a surname. The phones run the SAME function over their own results

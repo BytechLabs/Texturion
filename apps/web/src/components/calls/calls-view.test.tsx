@@ -1,10 +1,13 @@
 /**
+ * @vitest-environment happy-dom
+ *
  * #129 /calls surface: rows with honest outcomes, threaded rows link into
  * the inbox, unthreaded rows never dead-link, and the empty states speak the
  * feature's language.
  */
+import { cleanup, fireEvent, render as mount, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Call } from "@/lib/api/types";
 
@@ -14,12 +17,24 @@ const state: {
   isPending: boolean;
   isError: boolean;
   hasNextPage: boolean;
+  isPlaceholderData: boolean;
+  search: string;
 } = {
   rows: [],
   isPending: false,
   isError: false,
   hasNextPage: false,
+  isPlaceholderData: false,
+  search: "",
 };
+
+const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+
+afterEach(() => {
+  cleanup();
+  state.isPlaceholderData = false;
+  state.search = "";
+});
 
 // #691: the delete menu is its own surface (call-actions.test.tsx); these tests
 // are about the row, so a member who cannot delete keeps the row as it was.
@@ -37,6 +52,7 @@ vi.mock("@/lib/api/calls", () => ({
     isPending: state.isPending,
     isError: state.isError,
     hasNextPage: state.hasNextPage,
+    isPlaceholderData: state.isPlaceholderData,
     isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
     refetch: vi.fn(),
@@ -51,8 +67,12 @@ vi.mock("@/lib/api/calls", () => ({
 // env/client/router.
 // The dialer correlates the typed number against contacts; the real module
 // pulls in the API client, whose env validates NEXT_PUBLIC_* at import time.
+const dialerLookups = vi.hoisted(() => [] as { enabled?: boolean }[]);
 vi.mock("@/lib/api/contacts", () => ({
-  useContacts: () => ({ data: { pages: [] } }),
+  useContacts: (_q: string, options: { enabled?: boolean }) => {
+    dialerLookups.push(options);
+    return { data: { pages: [] } };
+  },
 }));
 
 vi.mock("@/lib/api/numbers", () => ({
@@ -67,10 +87,10 @@ vi.mock("@/lib/softphone/provider", () => ({
   useSoftphone: () => null,
 }));
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(state.search),
   // #459: the dialer routes to compose and to /contacts, so the view now pulls
   // a router in through it.
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => router,
   usePathname: () => "/calls",
 }));
 
@@ -268,6 +288,38 @@ describe("CallsView Ongoing card (#210)", () => {
     state.rows = [call()];
     const html = render();
     expect(html).not.toContain("Ongoing");
+  });
+});
+
+describe("CallsView filters", () => {
+  it("#725: removing the reason chip rewrites the URL without a router navigation", () => {
+    state.rows = [call()];
+    state.search = "reason=after_hours";
+    window.history.replaceState(null, "", "/calls?reason=after_hours");
+    const replace = vi.spyOn(window.history, "replaceState");
+    mount(<CallsView />);
+    fireEvent.click(screen.getByRole("button", { name: /^Remove .* filter$/ }));
+    expect(replace).toHaveBeenCalledWith(null, "", "/calls");
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("the closed dialer looks up no contacts", () => {
+    dialerLookups.length = 0;
+    state.rows = [call()];
+    render();
+    expect(dialerLookups.length).toBeGreaterThan(0);
+    expect(dialerLookups.every((options) => options.enabled === false)).toBe(true);
+  });
+
+  it("dims a filter's borrowed rows until its own land", () => {
+    state.rows = [call()];
+    state.isPlaceholderData = true;
+    let html = render();
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain("opacity-60");
+    state.isPlaceholderData = false;
+    html = render();
+    expect(html).not.toContain("opacity-60");
   });
 });
 
