@@ -1058,4 +1058,84 @@ begin
   raise notice 'FY-454 PASSED: one api_for_you, and it takes no p_is_lead';
 end $$;
 
+-- ===========================================================================
+-- FY-689. my_tasks finds a task through every member of its crew, and only
+--         through the crew rows of the workspace being read.
+--
+--         The lead joins the member on the overdue task: each of them then has
+--         it, their my_tasks total and api_member_holdings agree, and the
+--         member's own list is what it was. A crew row filed under another
+--         workspace does not put the task on that person's list here. No
+--         writer makes one (each copies the task's company), so it stands for
+--         the company_id the lookup now ranges on.
+-- ===========================================================================
+do $$
+declare
+  co     uuid := 'c0000000-0000-4000-8000-000000000001';
+  lead   uuid := 'a0000000-0000-4000-8000-000000000001';
+  member uuid := 'a0000000-0000-4000-8000-000000000002';
+  third  uuid := 'a0000000-0000-4000-8000-000000000003';
+  task   uuid := '20000000-0000-4000-8000-00000000000a';
+  before_member jsonb;
+  r jsonb;
+  u uuid;
+begin
+  before_member := public.api_for_you(co, member, now(), 20)->'my_tasks';
+  if not exists (select 1 from jsonb_array_elements(before_member) x
+                  where x->>'task_id' = task::text) then
+    raise exception 'FY-689 SETUP FAILED: the member does not have the task: %', before_member;
+  end if;
+
+  r := public.set_task_assignees(co, task, array[member, lead], lead);
+  if r->>'outcome' is distinct from 'updated' then
+    raise exception 'FY-689 SETUP FAILED: the lead did not join the crew: %', r;
+  end if;
+
+  if public.api_for_you(co, member, now(), 20)->'my_tasks' is distinct from before_member then
+    raise exception 'FY-689 FAILED: a second person on the crew changed the member''s my_tasks: % then %',
+      before_member, public.api_for_you(co, member, now(), 20)->'my_tasks';
+  end if;
+
+  foreach u in array array[member, lead] loop
+    r := public.api_for_you(co, u, now(), 20);
+    if not exists (select 1 from jsonb_array_elements(r->'my_tasks') x
+                    where x->>'task_id' = task::text) then
+      raise exception 'FY-689 FAILED: % is on the crew and my_tasks lacks the task: %', u, r->'my_tasks';
+    end if;
+    if (r->'totals'->>'my_tasks')::int is distinct from jsonb_array_length(r->'my_tasks') then
+      raise exception 'FY-689 FAILED: % my_tasks total % disagrees with its % rows',
+        u, r->'totals'->>'my_tasks', jsonb_array_length(r->'my_tasks');
+    end if;
+    if (public.api_member_holdings(co, u)->>'tasks')::int
+       is distinct from jsonb_array_length(r->'my_tasks') then
+      raise exception 'FY-689 FAILED: % holds % open tasks, my_tasks shows %',
+        u, public.api_member_holdings(co, u)->>'tasks', jsonb_array_length(r->'my_tasks');
+    end if;
+  end loop;
+
+  insert into public.companies
+    (id, name, owner_user_id, country, requested_area_code, aup_accepted_at,
+     subscription_status, plan, current_period_start, current_period_end)
+  values
+    ('c0000000-0000-4000-8000-000000000002', 'FY Other Co', third, 'US', '613', now(),
+     'active', 'starter', now() - interval '1 day', now() + interval '29 days');
+  insert into public.company_members (company_id, user_id, role)
+  values ('c0000000-0000-4000-8000-000000000002', third, 'owner');
+  insert into public.task_assignees (company_id, task_id, user_id)
+  values ('c0000000-0000-4000-8000-000000000002', task, third);
+
+  r := public.api_for_you(co, third, now(), 20);
+  if exists (select 1 from jsonb_array_elements(r->'my_tasks') x
+              where x->>'task_id' = task::text) then
+    raise exception 'FY-689 FAILED: a crew row filed under another workspace put the task in my_tasks: %',
+      r->'my_tasks';
+  end if;
+  if (public.api_member_holdings(co, third)->>'tasks')::int is distinct from 0 then
+    raise exception 'FY-689 FAILED: a crew row filed under another workspace counts as a held task: %',
+      public.api_member_holdings(co, third);
+  end if;
+
+  raise notice 'FY-689 PASSED: every crew member has the task, and only through this workspace''s crew rows';
+end $$;
+
 rollback;

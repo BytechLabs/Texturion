@@ -1,0 +1,32 @@
+-- ===========================================================================
+-- A workspace's messages by time.
+--
+-- Every reader that asks "this workspace's messages since T" had no index to
+-- answer it: messages is indexed by conversation, and by company only for
+-- narrow partial cases (outbound accepted, sender, trash). They are:
+--
+--   * notification_feed's inbound arm, once the badge passes its watermark
+--     (`m.company_id = p_company_id ... and m.created_at > p_since`);
+--   * api_usage_window's inbound arm and api_period_provider_cost
+--     (`m.company_id = p_company_id and m.created_at >= p_from`);
+--   * the usage delivery read behind GET /v1/usage.
+--
+-- It costs one btree entry per message insert.
+--
+-- ONE STATEMENT, ALONE IN THIS FILE.
+--
+--   CONCURRENTLY, because a plain CREATE INDEX blocks every write to messages
+--   for the whole build, which stops every send and every inbound text.
+--
+--   CONCURRENTLY cannot run inside a pipeline, and the migration runner sends a
+--   file's statements as one (SQLSTATE 25001, see
+--   20260806090100_opted_out_announcement_index.sql). A single statement is not
+--   a pipeline. A second statement here breaks the deploy.
+--
+-- A cancelled build leaves an INVALID index that `if not exists` then skips
+-- forever. Recover by hand, then re-run this migration:
+--
+--     drop index concurrently public.messages_company_created_idx;
+-- ===========================================================================
+create index concurrently if not exists messages_company_created_idx
+  on public.messages (company_id, created_at);
