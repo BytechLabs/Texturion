@@ -13,7 +13,7 @@ import { useSessionState } from "@/lib/auth/use-session-ready";
  * never left "loading": a customer who left /onboarding/plan open past token
  * expiry came back to "Picking up where you left off…" and stayed there. The
  * middleware deliberately does not bounce them (a session cookie plus a
- * getUser() error is the documented fail-open), and `GateEscape` hides itself
+ * getClaims() error is the documented fail-open), and `GateEscape` hides itself
  * without a session, so there was no sign-out and no way back either.
  *
  * One gate for the whole wizard rather than a branch per step: every screen,

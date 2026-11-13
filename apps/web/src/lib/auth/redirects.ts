@@ -93,7 +93,7 @@ export function hasSupabaseSessionCookie(
 
 /**
  * Whether a protected-path → /login bounce should be SUPPRESSED because
- * middleware's `getUser()` only failed TRANSIENTLY (an edge/Supabase hiccup or
+ * middleware's `getClaims()` only failed TRANSIENTLY (an edge/Supabase hiccup or
  * cold isolate) while a Supabase session cookie is present. Honoring the bounce
  * in that case turns a client-side navigation into a hard reload — the
  * intermittent "Loading your workspace…" full-page refresh — and then bounces
@@ -104,13 +104,13 @@ export function hasSupabaseSessionCookie(
  */
 export function isTransientAuthBlip(
   redirect: AuthRedirect | null,
-  getUserErrored: boolean,
+  authErrored: boolean,
   hasSessionCookie: boolean,
 ): boolean {
   return (
     redirect !== null &&
     redirect.pathname === "/login" &&
-    getUserErrored &&
+    authErrored &&
     hasSessionCookie
   );
 }

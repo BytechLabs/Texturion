@@ -9,7 +9,7 @@
  * server client, and the middleware client each write the session cookie, and
  * `Secure` is not part of a cookie's identity — so a writer that omits it
  * REPLACES the secure cookie the others set, last write wins. Middleware is the
- * one that matters most: `getUser()` is normally the first to notice an expired
+ * one that matters most: `getClaims()` is normally the first to notice an expired
  * access token, so it rewrites the cookie about once an hour. Two of three was
  * therefore not a partial fix, it was no fix — the flag would be absent for most
  * of the cookie's life.

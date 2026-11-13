@@ -11,7 +11,7 @@ import { GateSignOut } from "./gate-escape";
  * What a dead session looks like on an authenticated gate (#207, #257).
  *
  * The middleware fails open on an auth blip — a present session cookie plus a
- * `getUser()` error suppresses the /login redirect on purpose, so an expired
+ * `getClaims()` error suppresses the /login redirect on purpose, so an expired
  * or revoked session reaches the page instead of being bounced. Every gate has
  * to handle that itself, and a gate that treats "no session" as "still
  * loading" sits on a skeleton forever with no sign-out and no way back: the

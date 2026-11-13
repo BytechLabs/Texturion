@@ -108,7 +108,7 @@ describe("middleware redirect logic (SPEC §10, G12)", () => {
     const loginBounce = decideAuthRedirect("/inbox", false); // → /login
 
     it("suppresses a /login bounce when getUser blipped but a session cookie is present", () => {
-      // Authed nav where getUser() transiently failed: DO NOT hard-reload them.
+      // Authed nav where getClaims() transiently failed: DO NOT hard-reload them.
       expect(isTransientAuthBlip(loginBounce, true, true)).toBe(true);
     });
 

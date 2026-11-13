@@ -2,7 +2,7 @@
  * #257 — an expired session must not present as "still loading".
  *
  * The middleware deliberately fails open on an auth blip (a session cookie
- * plus a getUser() error suppresses the /login redirect), so a dead session
+ * plus a getClaims() error suppresses the /login redirect), so a dead session
  * reaches the wizard rather than being bounced. Every step gates /v1/me on the
  * session, and a disabled TanStack query stays `isPending` forever — so the
  * wizard's status never left "loading" and the screen sat on "Picking up where

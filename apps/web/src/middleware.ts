@@ -87,8 +87,8 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       // The THIRD writer of this cookie, and the one that writes it most often:
-      // `getUser()` below is normally the first thing to notice an expired access
-      // token, so this rewrites the session about once an hour. `Secure` is not
+      // `getClaims()` below is normally the first thing to notice an expired
+      // access token, so this rewrites the session about once an hour. `Secure` is not
       // part of a cookie's identity, so omitting it here REPLACED the secure
       // cookie the browser and server clients set — which made securing those two
       // alone no fix at all, just a flag that was absent for most of the cookie's
@@ -111,25 +111,27 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  // getUser() validates the JWT against Supabase (and refreshes the session
-  // cookie via setAll above) — never trust getSession() alone in middleware.
-  // It can fail TRANSIENTLY at the edge (a network/Supabase hiccup or cold
-  // isolate) — returning an error, or throwing — which must NOT be read as
+  // getClaims() checks the access token's signature locally against the
+  // project's signing keys, cached per isolate, and refreshes the session
+  // cookie via setAll above when the token has expired. getUser() asked
+  // Supabase over the network on every document, navigation and prefetch, to
+  // decide only what the cookie already decides. Never trust getSession()
+  // alone here. It can fail TRANSIENTLY (a refresh or key fetch hiccup, a cold
+  // isolate), returning an error or throwing, which must NOT be read as
   // "signed out".
-  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] =
-    null;
-  let getUserErrored = false;
+  let signedIn = false;
+  let authErrored = false;
   try {
-    const result = await supabase.auth.getUser();
-    user = result.data.user;
-    getUserErrored = result.error !== null;
+    const result = await supabase.auth.getClaims();
+    signedIn = result.data?.claims != null;
+    authErrored = result.error !== null;
   } catch {
-    getUserErrored = true;
+    authErrored = true;
   }
 
-  const redirect = decideAuthRedirect(request.nextUrl.pathname, user !== null);
+  const redirect = decideAuthRedirect(request.nextUrl.pathname, signedIn);
   if (redirect) {
-    // Suppress an intermittent protected-path → /login bounce when getUser()
+    // Suppress an intermittent protected-path → /login bounce when the check
     // only blipped while a session cookie is present: honoring it hard-reloads
     // the client-side navigation (the "Loading your workspace…" full refresh)
     // and then bounces back. Real auth is enforced downstream, so this fails
@@ -137,7 +139,7 @@ export async function middleware(request: NextRequest) {
     const cookieNames = request.cookies.getAll().map((c) => c.name);
     const blip = isTransientAuthBlip(
       redirect,
-      getUserErrored,
+      authErrored,
       hasSupabaseSessionCookie(cookieNames),
     );
     if (!blip) {
