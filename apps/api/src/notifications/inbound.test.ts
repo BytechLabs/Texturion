@@ -580,10 +580,10 @@ describe("an emergency reply is escalated, not threaded (#414)", () => {
 
     const sent = service.sends[0].message as {
       data: Record<string, string>;
-      apns?: { payload?: unknown };
+      apns?: { payload?: { aps?: Record<string, unknown> } };
     };
     expect(sent.data.kind).toBeUndefined();
-    expect(sent.apns?.payload).toBeUndefined();
+    expect(sent.apns?.payload?.aps?.["interruption-level"]).toBeUndefined();
   });
 
   it("leaves an ordinary message exactly as it was", async () => {

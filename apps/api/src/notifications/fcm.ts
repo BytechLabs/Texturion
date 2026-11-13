@@ -242,6 +242,10 @@ async function getAccessToken(
  *             stacking — the iOS client can't retag a remote alert push, so
  *             coalescing is server-side by contract; Android coalesces
  *             client-side via notification tags and takes no collapse key).
+ *             Every iOS send carries `aps`: the default sound (an alert push
+ *             without one arrives silently) for every kind but call_end, the
+ *             emergency interruption level, and the collapse id again as
+ *             `thread-id` so one thread's alerts group in Notification Center.
  */
 function buildMessage(
   target: DevicePushTarget,
@@ -281,6 +285,10 @@ function buildMessage(
     // chars == bytes) — bound it rather than fail the whole send.
     apnsHeaders["apns-collapse-id"] = collapseId.slice(0, 64);
   }
+  // call_end replaces a ring the member already heard, so it is silent as in sw.js.
+  // The #721 device check decides whether a call's sound doubles a live CallKit ring.
+  const aps: Record<string, unknown> =
+    data.kind === "call_end" ? {} : { sound: "default" };
   // #564: an URGENT text has to break through a Focus. `apns-priority: 10`
   // above only means "deliver now"; the INTERRUPTION LEVEL is what decides
   // whether a Focus lets it through, and its default (`active`) does not.
@@ -294,8 +302,9 @@ function buildMessage(
   // URGENT is not an earthquake warning. Requires
   // com.apple.developer.usernotifications.time-sensitive (apps/ios/project.yml)
   // — without it APNs silently downgrades this to `active`.
-  const apsExtras: Record<string, unknown> =
-    data.kind === "emergency" ? { "interruption-level": "time-sensitive" } : {};
+  if (data.kind === "emergency") aps["interruption-level"] = "time-sensitive";
+  const threadId = apnsHeaders["apns-collapse-id"];
+  if (threadId !== undefined) aps["thread-id"] = threadId;
 
   return {
     token: target.token,
@@ -304,10 +313,7 @@ function buildMessage(
       body: data.body ?? "",
     },
     data,
-    apns:
-      Object.keys(apsExtras).length > 0
-        ? { headers: apnsHeaders, payload: { aps: apsExtras } }
-        : { headers: apnsHeaders },
+    apns: { headers: apnsHeaders, payload: { aps } },
   };
 }
 

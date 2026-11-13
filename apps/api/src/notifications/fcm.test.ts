@@ -308,6 +308,81 @@ describe("sendFcm — message shapes + TTL/urgency mapping", () => {
   });
 });
 
+describe("sendFcm — iOS aps payload", () => {
+  type IosMessage = {
+    apns: {
+      headers: Record<string, string>;
+      payload: { aps: Record<string, unknown> };
+    };
+  };
+
+  async function sendIos(kind: string | undefined, collapseId?: string) {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    stubFetch(...service.routes);
+    await sendFcm(
+      fcmEnv(account),
+      { platform: "ios", token: "ios-tok" },
+      JSON.stringify({ ...JSON.parse(MESSAGE_PAYLOAD), kind }),
+      undefined,
+      undefined,
+      collapseId,
+    );
+    return service.sends[0].message as IosMessage;
+  }
+
+  // The native kind each sender sends; a plain text, mention or lead chase has none.
+  it.each([
+    ["a plain text or mention", undefined],
+    ["missed_call", "missed_call"],
+    ["conversation_assigned", "conversation_assigned"],
+    ["task_assigned", "task_assigned"],
+    ["escalation", "escalation"],
+    ["emergency", "emergency"],
+    ["call", "call"],
+    ["task_due", "task_due"],
+    ["task_update", "task_update"],
+    ["digest", "digest"],
+    ["summary", "summary"],
+    ["payment", "payment"],
+  ])("%s plays the default sound", async (_label, kind) => {
+    const message = await sendIos(kind);
+    expect(message.apns.payload.aps.sound).toBe("default");
+  });
+
+  it("call_end stays silent: it replaces a ring the member already heard", async () => {
+    const message = await sendIos("call_end", "call:sess-1");
+    expect(message.apns.payload.aps).not.toHaveProperty("sound");
+    expect(message.apns.payload.aps["thread-id"]).toBe("call:sess-1");
+  });
+
+  it("emergency carries the sound and the time-sensitive interruption level", async () => {
+    const message = await sendIos("emergency");
+    expect(message.apns.payload.aps).toEqual({
+      sound: "default",
+      "interruption-level": "time-sensitive",
+    });
+  });
+
+  it("an ordinary text is not time-sensitive", async () => {
+    const message = await sendIos(undefined);
+    expect(message.apns.payload.aps).not.toHaveProperty("interruption-level");
+  });
+
+  it("thread-id is the bounded apns-collapse-id, and absent without one", async () => {
+    const short = await sendIos(undefined, "conversation:bbbbbbbb-0000-4000-8000-00000000000b");
+    const long = await sendIos(undefined, `conversation:${"x".repeat(100)}`);
+    const none = await sendIos(undefined);
+
+    expect(short.apns.payload.aps["thread-id"]).toBe(
+      "conversation:bbbbbbbb-0000-4000-8000-00000000000b",
+    );
+    expect(long.apns.payload.aps["thread-id"]).toBe(long.apns.headers["apns-collapse-id"]);
+    expect(long.apns.payload.aps["thread-id"]).toHaveLength(64);
+    expect(none.apns.payload.aps).not.toHaveProperty("thread-id");
+  });
+});
+
 describe("sendFcm — delivery outcomes", () => {
   it("maps FCM 404 UNREGISTERED to gone (the caller prunes the row)", async () => {
     const account = await makeServiceAccount();
