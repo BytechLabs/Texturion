@@ -60,7 +60,7 @@ describe("isSnoozed", () => {
 });
 
 describe("conversationMatchesFilters + #293", () => {
-  const deferred = item({ snoozed_until: "2030-01-01T00:00:00.000Z" });
+  const deferred = item({ snoozed_until: new Date(Date.now() + 30 * 86_400_000).toISOString() });
   const live = item();
 
   it("keeps deferrals out of the ordinary inbox", () => {

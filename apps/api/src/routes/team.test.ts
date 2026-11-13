@@ -34,7 +34,7 @@ const OWNER_USER_ID = "aaaaaaaa-1111-4222-8333-444444444401";
 /** #276: where a leaver's open work is handed. */
 const REASSIGN_TO = "cccccccc-1111-4222-8333-444444444444";
 const INVITE_ID = "ffffffff-1111-4222-8333-444444444444";
-const FUTURE = "2027-01-01T00:00:00+00:00";
+const FUTURE = new Date(Date.now() + 30 * 86_400_000).toISOString();
 
 let auth: TestAuth;
 const app = buildTestApp(teamRoutes);
@@ -881,8 +881,8 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
 
   it("409s revoked, expired, and already-accepted invites; 404s unknown; 409s an existing membership", async () => {
     const cases: [Record<string, unknown> | null, number][] = [
-      [pendingInvite({ revoked_at: FUTURE }), 409],
-      [pendingInvite({ accepted_at: FUTURE }), 409],
+      [pendingInvite({ revoked_at: "2026-07-02T00:00:00+00:00" }), 409],
+      [pendingInvite({ accepted_at: "2026-07-02T00:00:00+00:00" }), 409],
       [pendingInvite({ expires_at: "2026-01-01T00:00:00+00:00" }), 409],
       [null, 404],
     ];
