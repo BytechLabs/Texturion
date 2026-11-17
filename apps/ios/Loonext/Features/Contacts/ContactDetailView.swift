@@ -1378,7 +1378,7 @@ private struct AutosaveField: View {
     let maxLength: Int
     let placeholder: String
     let multiline: Bool
-    let save: (String?) async throws -> Void
+    private let writeField: (String?) async throws -> Void
 
     @State private var value: String
     @State private var autosave: DebouncedTextSave
@@ -1400,7 +1400,7 @@ private struct AutosaveField: View {
         self.maxLength = maxLength
         self.placeholder = placeholder
         self.multiline = multiline
-        self.save = save
+        writeField = save
         _value = State(initialValue: initial)
         _autosave = State(initialValue: DebouncedTextSave(initial))
     }
@@ -1445,7 +1445,7 @@ private struct AutosaveField: View {
     private func persist(_ value: String) async -> Bool {
         saveState = .saving
         do {
-            try await save(value.isEmpty ? nil : value)
+            try await writeField(value.isEmpty ? nil : value)
             saveState = .saved
             return true
         } catch {
