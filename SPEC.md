@@ -156,8 +156,8 @@ loonext/
      required by the Telnyx brand payload — see §4.4 field mapping)
    • Business vertical (dropdown of TCR vertical values; default 'PROFESSIONAL')
    • Opt-in flow description (pre-filled truthful default, editable):
-     "Customers text our business number first, or ask us in person / by phone
-      to text them. We never send marketing blasts."
+     "Customers text or call our business, ask us to text them in person or by
+      phone, or request a text on our website. We never send marketing blasts."
    • Sample messages (pre-filled from ICP templates)
    Canadian companies with us_texting_enabled=false skip the wizard entirely.
 
@@ -303,7 +303,8 @@ Status transitions are driven by **Telnyx webhooks** to `/webhooks/telnyx` — `
 | — | `brandId` (from R1), `usecase='LOW_VOLUME'` (`'SOLE_PROPRIETOR'` on sole-prop path), `autoRenewal=true` |
 | Opt-in flow description | `messageFlow` |
 | Sample messages | `sample1`, `sample2` |
-| — (fixed, matches §5) | `description` (ICP boilerplate: conversational customer service for a home-service business), `optinKeywords='START'`, `optoutKeywords='STOP'`, `helpKeywords='HELP'`, `helpMessage` = "{Business name}: reply STOP to opt out. Contact us at {brand contact phone}.", `embeddedLink=false`, `numberPool=false`, `ageGated=false` |
+| Generated samples | `sample3` covers review requests, `sample4` covers appointment reminders, and `sample5` covers missed-call follow-ups |
+| — (fixed, matches §5) | `description` declares conversational service texts, appointment reminders, missed-call, away, help and emergency replies, number changes, ratings and reviews, quote and payment links, and website verification codes. `optinKeywords='START'`, `optoutKeywords='STOP'`, `helpKeywords='HELP'`, `helpMessage` = "{Business name}: reply STOP to opt out. Contact us at {brand contact phone}.", `embeddedLink=true`, `numberPool=false`, `ageGated=false` |
 
 **Customer-facing states & copy (dashboard banner, exact strings):**
 
