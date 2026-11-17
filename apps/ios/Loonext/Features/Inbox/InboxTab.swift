@@ -2348,26 +2348,46 @@ private struct SearchResultsPane: View {
         .buttonStyle(.plain)
     }
 
-    private func contactHit(_ contact: ContactSummary) -> some View {
+    private func contactHit(_ contact: SearchContactHit) -> some View {
         let name = contact.name ?? formatPhone(contact.phone_e164)
-        return Button {
-            onTextContact(contact.id)
-        } label: {
-            HStack(spacing: 11) {
-                InitialsAvatar(name: name, size: 38)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(name)
-                        .font(.golos(13.5, weight: .semibold))
-                        .foregroundStyle(BrandColor.ink)
-                    Text(formatPhone(contact.phone_e164))
-                        .font(.golos(11.5))
-                        .monospacedDigit()
-                        .foregroundStyle(BrandColor.muted400)
+        return HStack {
+            Button {
+                if let conversation = contact.conversation {
+                    onOpenConversation(conversation.id, nil)
+                } else {
+                    onTextContact(contact.id)
                 }
-                Spacer()
+            } label: {
+                HStack(spacing: 11) {
+                    InitialsAvatar(name: name, size: 38)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(name)
+                            .font(.golos(13.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.ink)
+                        Text(formatPhone(contact.phone_e164))
+                            .font(.golos(11.5))
+                            .monospacedDigit()
+                            .foregroundStyle(BrandColor.muted400)
+                    }
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if contact.conversation != nil {
+                Button {
+                    onTextContact(contact.id)
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .font(.scaled(IconSize.small, weight: .medium))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(AppStrings.translate(appLocale, "recordMenu.text"))
             }
         }
-        .buttonStyle(.plain)
     }
 
     @ViewBuilder

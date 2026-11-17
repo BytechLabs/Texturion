@@ -623,6 +623,34 @@ begin
   raise notice 'G11 PASSED: a phone number matches however it is written';
 end $$;
 
+do $$
+declare
+  f record;
+  contact_id uuid;
+  hidden_number_id uuid;
+  result jsonb;
+begin
+  select * into f from gs_fixture;
+  select c.contact_id, c.phone_number_id into contact_id, hidden_number_id
+    from public.conversations c where c.id = f.cv_a;
+
+  insert into public.contacts (company_id, phone_e164, name, merged_into, merged_at)
+    values (f.cid_a, '+14165550197', 'Pat Rivera', contact_id, now());
+
+  result := public.api_search_v2(f.cid_a, 'Pat Rivera', 0, 10, 0, 0, 0);
+  if jsonb_array_length(result->'contacts') is distinct from 1
+     or (result->'contacts'->0->>'id')::uuid is distinct from contact_id
+     or (result->'contacts'->0->'conversation'->>'id')::uuid is distinct from f.cv_a then
+    raise exception 'Contact search did not return the live contact with its thread: %', result;
+  end if;
+
+  result := public.api_search_v2(
+    f.cid_a, 'Pat Rivera', 0, 10, 0, 0, 0, null, null, array[hidden_number_id]);
+  if (result->'contacts'->0->'conversation') is distinct from 'null'::jsonb then
+    raise exception 'Contact search exposed a thread on a hidden number: %', result;
+  end if;
+end $$;
+
 rollback;
 
 select 'ALL GLOBAL SEARCH TESTS PASSED' as result;

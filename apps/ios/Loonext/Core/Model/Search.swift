@@ -1,5 +1,18 @@
 import Foundation
 
+struct SearchContactConversation: Codable, Sendable {
+    let id: String
+    let status: String
+    let last_message_at: String?
+}
+
+struct SearchContactHit: Codable, Sendable {
+    let id: String
+    let name: String?
+    let phone_e164: String
+    let conversation: SearchContactConversation?
+}
+
 struct SearchConversationHit: Codable, Sendable {
     let id: String
     let status: String
@@ -15,7 +28,7 @@ struct SearchConversationHit: Codable, Sendable {
 struct SearchTaskHit: Codable, Sendable {
     let id: String
     let title: String
-    let conversation_id: String
+    let conversation_id: String?
     @Default<DefaultFalse> var done: Bool
     let matched_at: String
     /// #690: the task number, nil from a server that predates numbers.
@@ -52,7 +65,7 @@ struct SearchVoicemailHit: Codable, Sendable {
 /// GET /v1/search — conversations paginate; other arms first-page-only.
 struct SearchResult: Codable, Sendable {
     @Default<DefaultEmptyList<SearchConversationHit>> var conversations: [SearchConversationHit]
-    @Default<DefaultEmptyList<ContactSummary>> var contacts: [ContactSummary]
+    @Default<DefaultEmptyList<SearchContactHit>> var contacts: [SearchContactHit]
     @Default<DefaultEmptyList<SearchTaskHit>> var tasks: [SearchTaskHit]
     @Default<DefaultEmptyList<SearchAttachmentHit>> var attachments: [SearchAttachmentHit]
     @Default<DefaultEmptyList<SearchTemplateHit>> var templates: [SearchTemplateHit]

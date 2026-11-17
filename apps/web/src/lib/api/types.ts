@@ -2098,6 +2098,14 @@ export interface CallDetail extends Call {
   voicemail_transcript_attempted_at: string | null;
 }
 
+export interface SearchContactHit extends ContactSummary {
+  conversation?: {
+    id: string;
+    status: ConversationStatus;
+    last_message_at: string | null;
+  } | null;
+}
+
 /** GET /v1/search conversation hit (api_search_v2 RPC). */
 export interface SearchConversationHit {
   id: string;
@@ -2164,7 +2172,7 @@ export interface SearchVoicemailHit {
  */
 export interface SearchResult {
   conversations: SearchConversationHit[];
-  contacts: ContactSummary[];
+  contacts: SearchContactHit[];
   tasks: SearchTaskHit[];
   attachments: SearchAttachmentHit[];
   templates: SearchTemplateHit[];

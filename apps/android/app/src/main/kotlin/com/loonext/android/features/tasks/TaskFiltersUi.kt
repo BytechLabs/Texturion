@@ -365,7 +365,9 @@ internal fun ContactPickerSheet(
         }
         delay(CONTACT_SEARCH_DEBOUNCE_MS)
         try {
-            results = repo.search(companyId, query, 10).contacts
+            results = repo.search(companyId, query, 10).contacts.map {
+                ContactSummary(id = it.id, name = it.name, phone_e164 = it.phone_e164)
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
