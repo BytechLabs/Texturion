@@ -8,6 +8,7 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import com.loonext.android.push.ChannelIds
 import com.loonext.android.push.ensureChannels
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -90,6 +91,16 @@ class CallNotificationsTest {
         assertEquals(NotificationManager.IMPORTANCE_LOW, channel.importance)
         assertNull("the member silenced it", channel.sound)
         assertFalse("the member turned vibration off", channel.shouldVibrate())
+    }
+
+    @Test
+    fun `a blocked ring channel does not report that a ring was shown`() {
+        manager.createNotificationChannel(
+            NotificationChannel(ChannelIds.INCOMING_CALLS, "Incoming calls", NotificationManager.IMPORTANCE_NONE),
+        )
+
+        assertFalse(CallNotifier(context).showIncoming("blocked", "Sam", "+15551230000"))
+        assertNull(posted("blocked"))
     }
 
     @Test
