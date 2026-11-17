@@ -30,6 +30,10 @@ import type { MessageRow } from "./types";
 /** Default throttle: one auto-reply per conversation per 3 hours. */
 export const AUTO_REPLY_THROTTLE_SECONDS = 3 * 60 * 60;
 
+export interface EmergencyClaim {
+  notify_immediately?: boolean;
+}
+
 export type AutoSendOutcome =
   | { sent: true; message: MessageRow }
   | {
@@ -47,10 +51,11 @@ export type AutoSendOutcome =
         | "not_found"
         // #414, emergency acknowledgment only.
         | "emergency_disabled"
+        | "reply_disabled"
         | "daily_cap";
     };
 
-interface ClaimResult {
+interface ClaimResult extends EmergencyClaim {
   skipped?:
     | "recipient_opted_out"
     | "throttled"
@@ -58,6 +63,7 @@ interface ClaimResult {
     | "workspace_paused"
     | "not_found"
     | "emergency_disabled"
+    | "reply_disabled"
     | "daily_cap";
   message?: MessageRow;
 }
@@ -111,6 +117,7 @@ export async function guardedAutoSend(
     answersHelp?: boolean;
     /** #414: per-company rolling-24h ceiling, emergency acknowledgment only. */
     dailyCap?: number;
+    onEmergencyClaimed?: () => void;
   },
 ): Promise<AutoSendOutcome> {
   // (b) Never fire on a STOP/HELP/START keyword (Telnyx handles those, D3),
@@ -149,6 +156,7 @@ export async function guardedAutoSend(
   if (error) throw new Error(`${claimRpc} failed: ${error.message}`);
 
   const result = data as ClaimResult | null;
+  if (result?.notify_immediately) args.onEmergencyClaimed?.();
   if (!result || result.skipped) {
     return { sent: false, reason: result?.skipped ?? "not_found" };
   }

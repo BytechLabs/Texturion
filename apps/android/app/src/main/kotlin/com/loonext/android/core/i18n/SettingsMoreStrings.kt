@@ -326,6 +326,10 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.provinceLabel" to "Province",
         "settingsMore.zipLabel" to "ZIP code",
         "settingsMore.postalLabel" to "Postal code",
+        "settingsMore.portStepDraft" to "Draft",
+        "settingsMore.portStepSubmitted" to "Submitted",
+        "settingsMore.portStepInProgress" to "In progress",
+        "settingsMore.portStepPorted" to "Ported",
         "settingsMore.portFormIntro" to
             "Enter these exactly as they appear on your current carrier's bill. " +
             "Mismatches are the top cause of rejections.",
@@ -1605,6 +1609,10 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.provinceLabel" to "Province",
         "settingsMore.zipLabel" to "Code ZIP",
         "settingsMore.postalLabel" to "Code postal",
+        "settingsMore.portStepDraft" to "Brouillon",
+        "settingsMore.portStepSubmitted" to "Envoyée",
+        "settingsMore.portStepInProgress" to "En cours",
+        "settingsMore.portStepPorted" to "Transfert terminé",
         "settingsMore.portFormIntro" to
             "Entrez ces renseignements exactement comme ils apparaissent sur la " +
             "facture de votre fournisseur actuel. Les écarts sont la première " +

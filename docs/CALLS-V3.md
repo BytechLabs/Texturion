@@ -969,6 +969,11 @@ extension must be revisited first.
 
 ### 10.2 Android (the concrete fixes this doc mandates)
 
+iOS uses the same ring-me attestation. The client checks the current session
+state, drops expired local rings, and attests only while it has no engaged leg.
+If the server returns `recent_leg`, the client waits four seconds and checks
+its local legs again before one retry. A body-less request still takes T4a.
+
 - On `kind:'call'` push: if any local call is RINGING or ACTIVE whose caller
   matches the push hint (or any live leg exists at all for a solo-session
   situation), do nothing — the INVITE path owns presentation. Else

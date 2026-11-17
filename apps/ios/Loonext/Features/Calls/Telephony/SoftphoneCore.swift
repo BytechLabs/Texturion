@@ -876,15 +876,33 @@ final class SoftphoneCore {
     /// retry.
     func onIncomingCallPush(sessionId: String) async throws {
         let company = try requireCompany()
-        try await ensureConnected()
-        try await awaitReady()
         do {
-            _ = try await api.ringMe(companyId: company, sessionId: sessionId)
-            onRingMeSent?(sessionId)
+            guard !hasEngagedCall() else { return }
+            let live = try await api.sessionState(companyId: company, sessionId: sessionId)
+            guard live.state == "ringing", companyId == company else { return }
+            try await ensureConnected()
+            try await awaitReady()
+            let ack = try await requestRingMe(company: company, sessionId: sessionId)
+            if ack?.rang == false, ack?.reason == "recent_leg" {
+                try await Task.sleep(for: .seconds(4))
+                _ = try await requestRingMe(company: company, sessionId: sessionId)
+            }
         } catch let error as ApiError
             where error.code == ApiErrorCode.conflict || error.code == ApiErrorCode.notFound {
             // Answered/ended elsewhere, or the push aged out — silent.
         }
+    }
+
+    private func requestRingMe(company: String, sessionId: String) async throws -> RingAck? {
+        guard companyId == company, !hasEngagedCall() else { return nil }
+        let ack = try await api.ringMe(companyId: company, sessionId: sessionId, noLocalLeg: true)
+        onRingMeSent?(sessionId)
+        return ack
+    }
+
+    func hasEngagedCall() -> Bool {
+        reapExpiredRings()
+        return state.anyEngaged
     }
 
     func setAudioRoute(_ route: AudioRoute) {

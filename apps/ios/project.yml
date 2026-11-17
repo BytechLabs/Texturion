@@ -4,6 +4,7 @@
 name: Loonext
 options:
   bundleIdPrefix: com.loonext
+  useBaseInternationalization: false
   deploymentTarget:
     iOS: "26.0"
   xcodeVersion: "26.0"
@@ -45,6 +46,7 @@ targets:
       properties:
         PostHogProjectKey: $(POSTHOG_PROJECT_KEY)
         LoonextTelemetryEnvironment: $(LOONEXT_TELEMETRY_ENVIRONMENT)
+        CFBundleLocalizations: [en, fr]
     entitlements:
       path: Loonext/Loonext.entitlements
       properties:

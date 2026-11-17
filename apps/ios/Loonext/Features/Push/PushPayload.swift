@@ -252,6 +252,30 @@ enum PushRoute: Equatable, Sendable {
     /// A task with no thread behind it: its own page carries the same panel.
     case task(taskId: String)
     case calls(sessionId: String?)
+    case settings(section: SettingsSection?)
+    case forYou
+}
+
+func pushSettingsSection(_ slug: String?) -> SettingsSection? {
+    switch slug?.trimmingCharacters(in: .whitespacesAndNewlines) {
+    case "billing": .billing
+    case "payments": .payments
+    case "numbers": .numbers
+    case "usage": .usage
+    case "team": .team
+    case "workspace": .workspace
+    case "templates": .templates
+    case "notifications": .notifications
+    case "devices": .devices
+    case "help": .help
+    case "ai": .ai
+    case "whats-new": .whatsNew
+    case "profile", "account": .profile
+    case "away-reply": .hours
+    case "automatic-texts": .automaticTexts
+    case "missed-calls": .calling
+    default: nil
+    }
 }
 
 /// Parse a (raw or normalized) push/universal-link URL into a route. Foreign
@@ -286,6 +310,12 @@ func parsePushRoute(url: String) -> PushRoute? {
         // the dead-end tap this table exists to prevent.
         let fromPath = segments.count >= 2 && !segments[1].isBlank ? segments[1] : nil
         return .calls(sessionId: fromPath ?? queryParam(url: normalized, name: "call"))
+    }
+    if segments.first == "settings" {
+        return .settings(section: pushSettingsSection(segments.dropFirst().first))
+    }
+    if segments.first == "for-you" {
+        return .forYou
     }
     return nil
 }

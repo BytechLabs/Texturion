@@ -187,19 +187,33 @@ final class CallsManager {
 
     /// Decline a ringing call / hang up a live one; dismiss an ended chip.
     func hangup(_ id: String) {
-        beaconIfRinging(.declined, id)
         let call = core.state.calls.first { $0.id == id }
         guard let call, call.phase != .ended else {
             core.hangup(id) // no handle -> just clears the chip
             return
         }
         guard reportedToCallKit.contains(id), let uuid = UUID(uuidString: id) else {
+            signalDecline(id)
             core.hangup(id)
             return
         }
         callKit.requestEnd(uuid: uuid) { [weak self] in
+            self?.signalDecline(id)
             self?.core.hangup(id)
         }
+    }
+
+    private func signalDecline(_ id: String) {
+        let call = core.state.calls.first { $0.id == id }
+        let isRinging = if let call {
+            call.direction == .inbound && call.phase == .ringing
+        } else {
+            reportedToCallKit.contains(id) && lastPhases[id] == .ringing
+        }
+        guard isRinging, let company = core.companyId ?? prefs.activeCompanyId else { return }
+        let session = core.ringSessionId(for: id)
+        beacon(.declined, sessionId: session)
+        Task { try? await backend.decline(companyId: company, sessionId: session) }
     }
 
     func toggleHold(_ id: String) { core.toggleHold(id) }
@@ -296,9 +310,11 @@ final class CallsManager {
     }
 
     private func reportIncomingToCallKit(_ call: CallSnapshot) {
-        // Already on screen from the VoIP push report — don't double-ring.
-        guard !reportedToCallKit.contains(call.id) else { return }
         guard let uuid = UUID(uuidString: call.id) else { return }
+        if reportedToCallKit.contains(call.id) {
+            callKit.updateCaller(uuid: uuid, displayName: call.peerName, number: call.peerNumber)
+            return
+        }
         reportedToCallKit.insert(call.id)
         lastPhases[call.id] = call.phase
         callKit.reportIncoming(
@@ -438,7 +454,7 @@ final class CallsManager {
                 return
             }
             let id = action.callUUID.uuidString.lowercased()
-            self.beaconIfRinging(.declined, id)
+            self.signalDecline(id)
             self.locallyEnded.insert(id)
             if self.core.hasHandle(id) || self.sdkClient.hasCall(uuid: action.callUUID) {
                 self.sdkClient.endFromCallKit(action)
@@ -545,16 +561,18 @@ final class CallsManager {
         }
         Task { [weak self] in
             guard let self else { return }
-            if self.core.state.status != .ready {
+            if !self.core.hasEngagedCall() {
                 do {
                     // A registration mint (the push IS the connect trigger) —
                     // never a per-call mint.
                     let minted = try await self.backend.mintToken(companyId: company)
-                    try self.sdkClient.processVoIPNotification(
-                        token: minted.token,
-                        pushDeviceToken: self.voipToken,
-                        pushMetaData: metadata
-                    )
+                    if !self.core.hasEngagedCall() {
+                        try self.sdkClient.processVoIPNotification(
+                            token: minted.token,
+                            pushDeviceToken: self.voipToken,
+                            pushMetaData: metadata
+                        )
+                    }
                 } catch {
                     self.endDanglingPushCall(id: id, uuid: uuid, reason: .failed)
                     return

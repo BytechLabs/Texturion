@@ -554,7 +554,12 @@ fun matchesDigitFilter(e164: String, filter: String): Boolean {
 // Port tracker stepper
 // ---------------------------------------------------------------------------
 
-val PORT_STEPS = listOf("Draft", "Submitted", "In progress", "Ported")
+val PORT_STEPS = listOf(
+    "settingsMore.portStepDraft",
+    "settingsMore.portStepSubmitted",
+    "settingsMore.portStepInProgress",
+    "settingsMore.portStepPorted",
+)
 
 /** Index into [PORT_STEPS] for the calm 4-step tracker; -1 = terminal/off-track. */
 fun portStepIndex(status: String): Int = when (status) {

@@ -37,8 +37,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { runPreSendGates } from "./send";
-import { guardedAutoSend } from './auto-send';
-import type { AutoSendOutcome } from './auto-send';
+import { guardedAutoSend, type AutoSendOutcome, type EmergencyClaim } from "./auto-send";
 
 /**
  * The default reply, for a workspace that has not written its own. One GSM-7
@@ -107,6 +106,7 @@ export async function sendEmergencyAcknowledgment(
      * `ownerMessage` is - the inbound handler already holds the company row.
      */
     companyLocale?: string | null;
+    onEmergencyClaimed?: () => void;
   },
 ): Promise<AutoSendOutcome> {
   const { data: convRows, error: convError } = await db
@@ -131,6 +131,7 @@ export async function sendEmergencyAcknowledgment(
     | undefined;
   const from = conv?.phone_numbers?.number_e164;
   if (!conv || !from || conv.phone_numbers?.status !== "active") {
+    await claimWithoutReply(db, args);
     // No number to send from. The crew escalation already happened in the
     // caller and is the half that matters; there is nothing honest to say
     // here from a number that cannot send.
@@ -141,7 +142,10 @@ export async function sendEmergencyAcknowledgment(
   // §7 send gates, same as every other send. A US destination on an
   // unapproved campaign is refused by the carrier, not by us — attempting it
   // anyway would burn the throttle on a message that never lands.
-  const clearance = await runPreSendGates(env, args.companyId, to);
+  const clearance = await runPreSendGates(env, args.companyId, to).catch(async (error: unknown) => {
+    await claimWithoutReply(db, args);
+    throw error;
+  });
 
   // #228: this customer's own language, else the business's. It rides the
   // conversation embed already being read, so honouring a per-contact override
@@ -171,7 +175,25 @@ export async function sendEmergencyAcknowledgment(
     answersEmergency: true,
     throttleSeconds: EMERGENCY_ACK_THROTTLE_SECONDS,
     dailyCap: EMERGENCY_ACK_DAILY_CAP,
+    onEmergencyClaimed: args.onEmergencyClaimed,
   });
+}
+
+async function claimWithoutReply(
+  db: SupabaseClient,
+  args: { companyId: string; conversationId: string; onEmergencyClaimed?: () => void },
+): Promise<void> {
+  const { data, error } = await db.rpc("claim_emergency_ack", {
+    p_company_id: args.companyId,
+    p_conversation_id: args.conversationId,
+    p_body: null,
+    p_segments_estimate: null,
+    p_throttle_seconds: EMERGENCY_ACK_THROTTLE_SECONDS,
+    p_daily_cap: EMERGENCY_ACK_DAILY_CAP,
+    p_reply_allowed: false,
+  });
+  if (error) throw new Error(`claim_emergency_ack failed: ${error.message}`);
+  if ((data as EmergencyClaim | null)?.notify_immediately) args.onEmergencyClaimed?.();
 }
 
 /** Segment count for the fixed body — asserted by the tests, not guessed. */

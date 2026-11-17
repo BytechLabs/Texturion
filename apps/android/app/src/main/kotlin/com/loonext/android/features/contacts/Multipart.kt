@@ -5,6 +5,8 @@ import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.features.attachments.AttachmentPreview
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.Request
@@ -101,17 +103,18 @@ suspend fun MultipartClient.uploadNoteFile(
     bytes: ByteArray,
     // #689: a file on a task comment goes to owner_type 'task_comment'.
     ownerType: String = "note",
-): String = postFile(
-    path = "/v1/attachments",
-    companyId = companyId,
-    fields = listOf("owner_type" to ownerType, "owner_id" to noteId),
-    fileField = "file",
-    fileName = fileName,
-    contentType = contentType,
-    bytes = bytes,
-    // #240: generated here rather than at the call site, so BOTH note-upload
-    // doors get it without either having to remember. Null for anything that
-    // does not want one, and on any failure — the original uploads alone,
-    // which is what happened before this shipped.
-    preview = AttachmentPreview.make(contentType, bytes),
-)
+): String {
+    val preview = withContext(Dispatchers.IO) {
+        AttachmentPreview.make(contentType, bytes)
+    }
+    return postFile(
+        path = "/v1/attachments",
+        companyId = companyId,
+        fields = listOf("owner_type" to ownerType, "owner_id" to noteId),
+        fileField = "file",
+        fileName = fileName,
+        contentType = contentType,
+        bytes = bytes,
+        preview = preview,
+    )
+}

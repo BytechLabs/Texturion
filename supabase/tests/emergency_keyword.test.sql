@@ -141,6 +141,9 @@ begin
   if res ? 'skipped' then
     raise exception 'EK-4 FAILED: unexpected skip %', res->>'skipped';
   end if;
+  if (res->>'notify_immediately')::boolean is distinct from true then
+    raise exception 'EK-4 FAILED: first emergency must bypass quiet hours';
+  end if;
 
   msg_id := (res->'message'->>'id')::uuid;
   if msg_id is null then
@@ -189,6 +192,9 @@ begin
     'Flagged as urgent - call 911 if anyone is in danger.', 1, 3600, 50);
   if res->>'skipped' is distinct from 'throttled' then
     raise exception 'EK-5 FAILED: expected throttled, got %', coalesce(res->>'skipped', 'a send');
+  end if;
+  if (res->>'notify_immediately')::boolean is distinct from false then
+    raise exception 'EK-5 FAILED: repeat emergency must follow delivery settings';
   end if;
 
   -- The event COUNT is what proves the flag path ran ahead of the throttle,

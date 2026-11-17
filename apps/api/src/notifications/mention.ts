@@ -139,7 +139,7 @@ export async function notifyNoteMention(
         // stand-in for a missing one is ours to say.
         title: copy.mentionTitle(authorName ?? copy.teammateFallback),
         body: notificationSnippet(input.body, 0, locale),
-        url: `${env.APP_ORIGIN}/inbox/${input.conversationId}`,
+        url: `${env.APP_ORIGIN}/inbox/${input.conversationId}?message=${encodeURIComponent(input.messageId)}`,
       };
     },
     // Per NOTE, not per conversation: two mentions in one thread are two

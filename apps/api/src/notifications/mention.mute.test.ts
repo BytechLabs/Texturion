@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
+import * as pushDelivery from "./deliver";
 import { notifyNoteMention } from "./mention";
 
 const env = completeEnv();
@@ -15,11 +16,13 @@ const AUTHOR = "10000000-aaaa-4000-8000-000000000001";
 const MUTED = "10000000-aaaa-4000-8000-000000000002";
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("notifyNoteMention, #694", () => {
-  it("still alerts a member who muted the thread, and never the author", async () => {
+  it("links the muted recipient to the exact note and never alerts the author", async () => {
+    const push = vi.spyOn(pushDelivery, "deliverPush");
     const sb = supabaseStub(env);
     sb.on("GET", "/rest/v1/conversations", () => [
       { id: CONVERSATION_ID, phone_number_id: null },
@@ -49,5 +52,9 @@ describe("notifyNoteMention, #694", () => {
 
     const lookup = sb.find("GET", "/rest/v1/push_subscriptions")[0];
     expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${MUTED})`);
+    const delivery = push.mock.calls[0]?.[2];
+    expect(delivery?.web("en").url).toBe(
+      `${env.APP_ORIGIN}/inbox/${CONVERSATION_ID}?message=dddddddd-0000-4000-8000-00000000000d`,
+    );
   });
 });

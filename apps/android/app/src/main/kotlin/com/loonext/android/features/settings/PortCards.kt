@@ -297,12 +297,15 @@ fun PortsBlock(
  * Extracted from the composable so it can be proven: a unit test cannot render a
  * card, and the property that matters here is a decision, not a pixel.
  */
-internal fun portPill(status: String, heldLine: Boolean): Pair<String, PillTone> = when {
+internal fun portPill(status: String, heldLine: Boolean, locale: String = "en"): Pair<String, PillTone> = when {
     heldLine -> "On hold" to PillTone.Warn
     status == PortStatus.CANCEL_PENDING -> "Cancelling" to PillTone.Neutral
     status == PortStatus.EXCEPTION -> "Needs attention" to PillTone.Warn
-    status == PortStatus.PORTED -> "Ported" to PillTone.Positive
-    else -> (PORT_STEPS.getOrNull(portStepIndex(status)) ?: status) to PillTone.Warn
+    status == PortStatus.PORTED -> AppStrings.translate(locale, "settingsMore.portStepPorted") to PillTone.Positive
+    else -> {
+        val step = PORT_STEPS.getOrNull(portStepIndex(status))
+        (step?.let { AppStrings.translate(locale, it) } ?: status) to PillTone.Warn
+    }
 }
 
 @Composable
@@ -327,7 +330,7 @@ private fun PortCard(
     SettingsCard(
         title = t("settingsMore.transferTitle", "number" to formatPhone(port.phone_e164)),
     ) {
-        val (pillLabel, pillTone) = portPill(port.status, heldLine)
+        val (pillLabel, pillTone) = portPill(port.status, heldLine, locale)
         StatusPill(pillLabel, pillTone)
         Spacer(Modifier.height(8.dp))
         // THE STEPPER STAYS FILLED UNDER A HOLD, deliberately. The transfer did
@@ -520,6 +523,7 @@ private fun PortCard(
 @Composable
 private fun PortStepper(status: String) {
     val index = portStepIndex(status)
+    val locale = LocalAppLocale.current
     Row(verticalAlignment = Alignment.CenterVertically) {
         PORT_STEPS.forEachIndexed { i, step ->
             val reached = index >= i
@@ -534,7 +538,7 @@ private fun PortStepper(status: String) {
                         ),
                 )
                 Text(
-                    step,
+                    AppStrings.translate(locale, step),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (reached) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,

@@ -341,6 +341,22 @@ final class NotificationsPushPayloadTests: XCTestCase {
         )
     }
 
+    func testSettingsAndForYouUrlsRouteToTheirNativeSurfaces() {
+        XCTAssertEqual(
+            parsePushRoute(url: "/settings/notifications"),
+            .settings(section: .notifications)
+        )
+        XCTAssertEqual(
+            parsePushRoute(url: "/settings/account"),
+            .settings(section: .profile)
+        )
+        XCTAssertEqual(
+            parsePushRoute(url: "/settings/newer-section"),
+            .settings(section: nil)
+        )
+        XCTAssertEqual(parsePushRoute(url: "/for-you"), .forYou)
+    }
+
     func testPlainInboxFallbackHasNoRoute() {
         // Foreign origins normalize to /inbox, which is "open the app, no
         // navigation" — same as the Android parseDeepLink null.

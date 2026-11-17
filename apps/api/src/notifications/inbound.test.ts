@@ -34,6 +34,11 @@ interface World {
   routes: FetchRoute[];
 }
 
+function pushedTo(world: World) {
+  return world.sb.find("GET", "/rest/v1/push_subscriptions")
+    .map((call) => call.url.searchParams.get("user_id"));
+}
+
 function buildWorld(options: {
   assignedUserId?: string | null;
   isSpam?: boolean;
@@ -476,8 +481,7 @@ describe("an emergency reply is escalated, not threaded (#414)", () => {
 
     const email = world.resend.calls[0] as { to: string[] };
     expect(email.to.length).toBeGreaterThan(1);
-    const subsCall = world.sb.find("GET", "/rest/v1/push_subscriptions")[0];
-    expect(subsCall.url.searchParams.get("user_id")).not.toBe(`in.(${MEMBER})`);
+    expect(pushedTo(world)).toEqual(expect.arrayContaining([`in.(${MEMBER})`, `in.(${OWNER})`]));
   });
 
   it("says what it is before it says who it is from", async () => {
@@ -673,9 +677,6 @@ describe("#694 mute and follow on the inbound audience", () => {
   const HOUR = 3_600_000;
   const future = () => new Date(Date.now() + HOUR).toISOString();
   const past = () => new Date(Date.now() - HOUR).toISOString();
-  const pushedTo = (world: World) =>
-    world.sb.find("GET", "/rest/v1/push_subscriptions")[0]?.url.searchParams.get("user_id");
-
   it("a muted member gets no email and no push", async () => {
     const world = buildWorld({
       memberPrefs: [{ user_id: MEMBER, muted: true, muted_until: future(), followed: false }],
@@ -686,7 +687,7 @@ describe("#694 mute and follow on the inbound audience", () => {
 
     const email = world.resend.calls[0] as { to: string[] };
     expect(email.to).toEqual([`${OWNER}@team.example`]);
-    expect(pushedTo(world)).toBe(`in.(${OWNER})`);
+    expect(pushedTo(world)).toEqual([`in.(${OWNER})`]);
   });
 
   it("an indefinite mute (no deadline) still silences", async () => {
@@ -739,7 +740,7 @@ describe("#694 mute and follow on the inbound audience", () => {
     expect((world.resend.calls[0] as { to: string[] }).to.toSorted()).toEqual(
       [`${OWNER}@team.example`, `${MEMBER}@team.example`].toSorted(),
     );
-    expect(pushedTo(world)).toContain(OWNER);
+    expect(pushedTo(world)).toEqual(expect.arrayContaining([`in.(${MEMBER})`, `in.(${OWNER})`]));
   });
 
   it("mute wins over follow", async () => {

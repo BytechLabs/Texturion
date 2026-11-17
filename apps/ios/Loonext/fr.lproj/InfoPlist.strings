@@ -1,0 +1,4 @@
+"NSMicrophoneUsageDescription" = "Loonext utilise le microphone pour les appels, pour transcrire le compte rendu que vous dictez après un appel et pour enregistrer votre message d’accueil vocal.";
+"NSLocationWhenInUseUsageDescription" = "Loonext affiche votre position sur la carte pour vous montrer les tâches à proximité.";
+"NSContactsUsageDescription" = "Loonext affiche les contacts de votre téléphone à côté de ceux de votre équipe pour que vous puissiez leur écrire sans les ajouter. Vos contacts restent sur votre téléphone.";
+"NSFaceIDUsageDescription" = "Loonext utilise Face ID pour verrouiller les conversations avec les clients lorsque vous prêtez votre téléphone.";

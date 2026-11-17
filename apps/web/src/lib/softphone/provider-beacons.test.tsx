@@ -56,9 +56,11 @@ const api = vi.hoisted(() => ({
   },
   token: { mutateAsync: async () => ({ token: "jwt" }) },
   resolve: { mutateAsync: async () => ({ call_session_id: "v3:customer" }) },
+  decline: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/api/calls", () => ({
+  declineIncomingCall: api.decline,
   useAuthorizeBrowserCall: () => api.authorize,
   useWebrtcToken: () => api.token,
   useResolveLiveSession: () => api.resolve,
@@ -180,6 +182,7 @@ describe("the softphone's ring beacons", () => {
       ["company-1", "ringing_shown", "v3:ring-2"],
       ["company-1", "declined", "v3:ring-2"],
     ]);
+    expect(api.decline).toHaveBeenCalledWith("company-1", "v3:ring-2");
   });
 
   it("sends nothing for a ring whose INVITE named no session", async () => {

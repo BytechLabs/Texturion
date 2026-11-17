@@ -361,8 +361,8 @@ object DomainStrings : AppStrings.Section {
         // the fear of missing the emergency, so a control that offers silence
         // without saying what still gets through does not get switched on.
         "domain.quietHoursReassurance" to
-            "Your phone stays quiet for ordinary messages. If you are on call, or " +
-            "an alert nobody picked up widens to the crew, it still comes through.",
+            "Your phone stays quiet for ordinary messages. New emergencies, on-call pages, " +
+            "and alerts nobody picked up still come through.",
         "domain.quietHoursOff" to "Off — every notification reaches you at any hour.",
         "domain.quietHoursOn" to "Quiet from",
         "domain.quietHoursLine" to "Quiet from {from} to {to}",
@@ -968,9 +968,8 @@ object DomainStrings : AppStrings.Section {
         // ── A member's own quiet hours (#244) ────────────────────────────────
         "domain.quietHoursHeading" to "Heures de silence",
         "domain.quietHoursReassurance" to
-            "Votre téléphone reste silencieux pour les messages ordinaires. Si vous " +
-            "êtes de garde, ou si une alerte que personne n'a prise s'élargit à " +
-            "l'équipe, elle passe quand même.",
+            "Votre téléphone reste silencieux pour les messages ordinaires. Les nouvelles urgences, " +
+            "les alertes de garde et celles que personne n'a prises passent quand même.",
         "domain.quietHoursOff" to
             "Désactivé — toutes les notifications vous parviennent à toute heure.",
         "domain.quietHoursOn" to "Silence à partir de",

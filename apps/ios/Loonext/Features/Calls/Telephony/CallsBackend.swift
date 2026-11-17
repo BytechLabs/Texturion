@@ -59,6 +59,13 @@ struct TransferAck: Codable, Sendable {
 
 struct RingAck: Codable, Sendable {
     let ok: Bool
+    let rang: Bool?
+    let state: String?
+    let reason: String?
+}
+
+struct RingSessionState: Decodable, Sendable {
+    let state: String?
 }
 
 /// GET /v1/calls/:sessionId/voicemail — a short-lived (1h) signed URL. Minted
@@ -77,6 +84,10 @@ struct VoicemailPlayback: Codable, Sendable {
 
 private struct TransferBody: Codable, Sendable {
     let target_user_id: String
+}
+
+private struct RingMeBody: Encodable, Sendable {
+    let no_local_leg: Bool
 }
 
 /// The endpoints `SoftphoneCore` drives — a protocol seam so the core's
@@ -110,7 +121,8 @@ protocol CallsBackend: Sendable {
     ) async throws -> TransferAck
 
     /// Push-to-wake part 2: re-ring THIS member for a still-ringing call.
-    func ringMe(companyId: String, sessionId: String) async throws -> RingAck
+    func sessionState(companyId: String, sessionId: String) async throws -> RingSessionState
+    func ringMe(companyId: String, sessionId: String, noLocalLeg: Bool) async throws -> RingAck
 }
 
 /// The real backend over `ApiClient`, plus the calls tab's typed reads.
@@ -164,8 +176,22 @@ struct CallsService: CallsBackend {
         )
     }
 
-    func ringMe(companyId: String, sessionId: String) async throws -> RingAck {
-        try await api.post("/v1/calls/live/\(sessionId)/ring-me", companyId: companyId)
+    func sessionState(companyId: String, sessionId: String) async throws -> RingSessionState {
+        try await api.get("/v1/calls/live/\(sessionId)/state", companyId: companyId)
+    }
+
+    func ringMe(companyId: String, sessionId: String, noLocalLeg: Bool) async throws -> RingAck {
+        try await api.post(
+            "/v1/calls/live/\(sessionId)/ring-me",
+            body: RingMeBody(no_local_leg: noLocalLeg),
+            companyId: companyId
+        )
+    }
+
+    func decline(companyId: String, sessionId: String?) async throws {
+        let path = sessionId.map { "/v1/calls/live/\($0)/decline" }
+            ?? "/v1/calls/live/decline-mine"
+        let _: RingAck = try await api.post(path, companyId: companyId)
     }
 
     // MARK: - Calls tab reads (not part of the core seam)
