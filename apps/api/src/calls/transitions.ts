@@ -232,6 +232,8 @@ export interface SessionMachine {
   locale?: string;
   greeting: string | null;
   callerE164: string | null;
+  /** Caller display name captured at ring start for the initial dial and retries. */
+  callerName?: string | null;
   businessNumberE164: string | null;
   /** #211 (D6): the far-party PSTN leg, BOTH directions. Inbound: the
    *  customer's own incoming leg. Outbound (#213): the SERVER-dialed oc leg
@@ -340,6 +342,7 @@ export interface InitiatedContext {
   locale?: string;
   greeting: string | null;
   callerE164: string | null;
+  callerName?: string | null;
   businessNumberE164: string;
   lineBusy: boolean;
   screeningDivert: boolean;
@@ -1395,6 +1398,7 @@ function reduceInitiated(
     locale: context.locale,
     greeting: context.greeting,
     callerE164: context.callerE164,
+    callerName: context.callerName,
     businessNumberE164: context.businessNumberE164,
     customerCcid: context.inboundCcid,
     direction: "inbound",

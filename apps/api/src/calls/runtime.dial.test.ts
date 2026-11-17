@@ -105,7 +105,7 @@ describe("createSessionRuntime.telnyx.dial — X-Loonext-Session header (§3.2)"
     expect(Object.hasOwn(captured[0].body as object, "command_id")).toBe(false);
   });
 
-  it("#212: stamps X-Loonext-Caller with the real caller when present", async () => {
+  it("stamps the caller's number and sanitized display name", async () => {
     const captured: { body: unknown }[] = [];
     stubFetch(async (url, request) => {
       if (url.pathname !== "/v2/calls" || request.method !== "POST") {
@@ -124,6 +124,7 @@ describe("createSessionRuntime.telnyx.dial — X-Loonext-Session header (§3.2)"
       clientState: "brm-state",
       sessionId: "sess-do-9",
       caller: "+15875551234",
+      callerName: " Élodie\r\n Tremblay ",
     });
 
     const body = captured[0].body as {
@@ -134,6 +135,7 @@ describe("createSessionRuntime.telnyx.dial — X-Loonext-Session header (§3.2)"
     expect(body.custom_headers).toEqual([
       { name: "X-Loonext-Session", value: "sess-do-9" },
       { name: "X-Loonext-Caller", value: "+15875551234" },
+      { name: "X-Loonext-Caller-Name", value: "Élodie Tremblay" },
     ]);
   });
 
@@ -154,6 +156,7 @@ describe("createSessionRuntime.telnyx.dial — X-Loonext-Session header (§3.2)"
       clientState: "brm-state",
       sessionId: "sess-do-9",
       caller: null,
+      callerName: "Private caller",
     });
 
     const body = captured[0].body as {

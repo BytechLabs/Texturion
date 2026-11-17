@@ -567,8 +567,10 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
               return;
             }
             callsRef.current.set(call.id, call);
-            const number = call.options?.remoteCallerNumber ?? "";
+            const number = customHeader(call, "X-Loonext-Caller")?.trim() ||
+              call.options?.remoteCallerNumber || "";
             const name =
+              customHeader(call, "X-Loonext-Caller-Name")?.trim() ||
               call.options?.remoteCallerName ||
               number ||
               t("shell.unknownCaller");
