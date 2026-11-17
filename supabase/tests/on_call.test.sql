@@ -390,4 +390,125 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  v_company uuid := '6a000000-0000-4000-8000-0000000000c1';
+  v_thread uuid := '6a000000-0000-4000-8000-0000000000e1';
+  v_line uuid := '6a000000-0000-4000-8000-0000000000f1';
+  v_other_line uuid := '6a000000-0000-4000-8000-0000000000f2';
+  v_customer text := '+12125559801';
+  v_member uuid := '6a000000-0000-4000-8000-00000000000b';
+  v_opened timestamptz := now() - interval '8 minutes';
+  v_reply timestamptz := now() - interval '7 minutes';
+  v_alert uuid;
+  v_call uuid;
+begin
+  update public.conversations set contact_phone_e164 = v_customer where id = v_thread;
+  insert into public.alert_escalations (company_id, conversation_id, kind, created_at, escalate_at)
+  values (v_company, v_thread, 'missed_call', v_opened, now() + interval '2 minutes')
+  returning id into v_alert;
+
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, sent_by_user_id, automated, created_at)
+  values
+    (v_company, v_thread, 'outbound', 'Missed-call text back', 'sent', v_member, true, v_reply),
+    (v_company, v_thread, 'outbound', 'Earlier human reply', 'sent', v_member, false, v_opened - interval '1 second'),
+    (v_company, v_thread, 'note', 'Internal note', null, v_member, false, v_reply);
+  if not exists (select 1 from public.alert_escalations
+                 where id = v_alert and acknowledged_at is null and escalate_at is not null) then
+    raise exception 'Automation, internal notes and earlier replies must leave an alert open';
+  end if;
+
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, sent_by_user_id, created_at)
+  values (v_company, v_thread, 'outbound', 'On my way', 'queued', v_member, v_reply);
+  if not exists (select 1 from public.alert_escalations
+                 where id = v_alert and acknowledged_at = v_reply
+                   and acknowledged_by = v_member and escalate_at is null) then
+    raise exception 'A human reply must acknowledge and clear the alert';
+  end if;
+
+  insert into public.alert_escalations (company_id, conversation_id, kind, created_at, escalate_at)
+  values (v_company, v_thread, 'missed_call', v_opened, now())
+  returning id into v_alert;
+  if exists (select 1 from public.api_claim_due_alerts(now(), 50) where id = v_alert) then
+    raise exception 'The sweep must skip a reply already persisted for an open alert';
+  end if;
+  if not exists (select 1 from public.alert_escalations
+                 where id = v_alert and acknowledged_at = v_reply
+                   and acknowledged_by = v_member and escalate_at is null) then
+    raise exception 'The sweep must attribute the persisted reply and clear the deadline';
+  end if;
+
+  insert into public.alert_escalations (company_id, conversation_id, kind, created_at, escalate_at)
+  values (v_company, v_thread, 'emergency', now() - interval '2 minutes', now() + interval '2 minutes')
+  returning id into v_alert;
+  insert into public.calls
+    (company_id, phone_number_id, caller_e164, call_session_id, started_at, direction, state, answered_by_user_id)
+  values (v_company, v_other_line, v_customer, 'oncall-other-line', now(), 'outbound', 'dialing', v_member);
+  if not exists (select 1 from public.alert_escalations where id = v_alert and acknowledged_at is null) then
+    raise exception 'A callback on a different business number must leave the alert open';
+  end if;
+  insert into public.calls
+    (company_id, phone_number_id, caller_e164, call_session_id, started_at, direction, state, answered_by_user_id)
+  values (v_company, v_line, v_customer, 'oncall-callback', now() - interval '1 minute', 'outbound', 'dialing', v_member);
+  if not exists (select 1 from public.alert_escalations
+                 where id = v_alert and acknowledged_by = v_member and escalate_at is null) then
+    raise exception 'Placing a callback must acknowledge the open alert';
+  end if;
+
+  insert into public.alert_escalations (company_id, conversation_id, kind, created_at, escalate_at)
+  values (v_company, v_thread, 'missed_call', now() - interval '30 seconds', now() + interval '2 minutes')
+  returning id into v_alert;
+  insert into public.calls (company_id, conversation_id, call_session_id, direction, state)
+  values (v_company, v_thread, 'oncall-inbound', 'inbound', 'ringing')
+  returning id into v_call;
+  if not exists (select 1 from public.alert_escalations where id = v_alert and acknowledged_at is null) then
+    raise exception 'An unanswered inbound ring must leave the alert open';
+  end if;
+  update public.calls set state = 'answered', answered_at = now(), answered_by_user_id = v_member
+   where id = v_call;
+  if not exists (select 1 from public.alert_escalations
+                 where id = v_alert and acknowledged_by = v_member and escalate_at is null) then
+    raise exception 'Answering an inbound call must acknowledge the open alert';
+  end if;
+end $$;
+
+do $$
+declare
+  v_company uuid := '6a000000-0000-4000-8000-0000000000c1';
+  v_thread uuid := '6a000000-0000-4000-8000-0000000000e1';
+  v_member uuid := '6a000000-0000-4000-8000-00000000000b';
+  v_claimed_at timestamptz := now() + interval '1 minute';
+  v_alert uuid;
+begin
+  insert into public.alert_escalations (company_id, conversation_id, kind, created_at, escalate_at)
+  values (v_company, v_thread, 'missed_call', v_claimed_at, v_claimed_at)
+  returning id into v_alert;
+
+  for attempt in 1..3 loop
+    perform * from public.api_claim_due_alerts(v_claimed_at, 50) where id = v_alert;
+    if not public.api_rearm_alert(v_company, v_alert, v_claimed_at) then
+      raise exception 'Unsent alert could not rearm on attempt %', attempt;
+    end if;
+    if public.api_rearm_alert(v_company, v_alert, v_claimed_at) then
+      raise exception 'The same claim was rearmed twice';
+    end if;
+    v_claimed_at := v_claimed_at + interval '1 minute';
+  end loop;
+  perform * from public.api_claim_due_alerts(v_claimed_at, 50) where id = v_alert;
+  if public.api_rearm_alert(v_company, v_alert, v_claimed_at) then
+    raise exception 'A fourth retry exceeded the rearm limit';
+  end if;
+
+  insert into public.alert_escalations (company_id, conversation_id, kind, created_at, escalate_at)
+  values (v_company, v_thread, 'missed_call', v_claimed_at, v_claimed_at)
+  returning id into v_alert;
+  perform * from public.api_claim_due_alerts(v_claimed_at, 50) where id = v_alert;
+  perform public.api_acknowledge_alert(v_company, v_alert, v_member);
+  if public.api_rearm_alert(v_company, v_alert, v_claimed_at) then
+    raise exception 'An acknowledged alert was rearmed';
+  end if;
+end $$;
+
 rollback;
