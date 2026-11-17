@@ -239,7 +239,7 @@ struct CallDetailView: View {
                             HStack(spacing: 6) {
                                 Text(row.value)
                                 Image(systemName: "doc.on.doc")
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(.scaled(IconSize.small, weight: .medium))
                             }
                             .font(.golos(14))
                             .foregroundStyle(BrandColor.ink)
