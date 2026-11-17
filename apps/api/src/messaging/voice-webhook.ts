@@ -968,6 +968,7 @@ export async function handleTerminalCallEvent(
         {
           companyId: resolved.companyId,
           conversationId: thread.conversationId,
+          callSessionId: callId,
           callerE164: call?.caller_e164 ?? finalCaller,
           textStatus: "none",
         },

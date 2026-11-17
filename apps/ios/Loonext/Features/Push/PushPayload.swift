@@ -24,6 +24,7 @@ enum PushLink {
 /// sets so missed calls carry their own category.
 enum PushKind {
     static let call = "call"
+    static let callEnd = "call_end"
     static let missedCall = "missed_call"
     static let escalation = "escalation"
     /// A task the reader is assigned, shortly before (or after) its due date.
@@ -105,6 +106,7 @@ struct PushContent: Sendable, Equatable {
     let category: String
 
     var isCall: Bool { kind == PushKind.call }
+    var isCallEnd: Bool { kind == PushKind.callEnd }
 
     /// `call` query param from the wake link (`/calls?call=<call_session_id>`).
     var callSessionId: String? { queryParam(url: url, name: "call") }

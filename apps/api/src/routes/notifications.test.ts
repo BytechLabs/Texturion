@@ -1122,6 +1122,7 @@ describe("#581 the missed-call push audience", () => {
   const INPUT = {
     companyId: COMPANY_ID,
     conversationId: CONVERSATION_ID,
+    callSessionId: "call-sess-1",
     callerE164: "+16135551000",
     textStatus: "sent",
   } as const;

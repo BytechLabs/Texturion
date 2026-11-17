@@ -350,10 +350,13 @@ describe("sendFcm — iOS aps payload", () => {
     expect(message.apns.payload.aps.sound).toBe("default");
   });
 
-  it("call_end stays silent: it replaces a ring the member already heard", async () => {
+  it("call_end wakes the device to clear the ring without showing an alert", async () => {
     const message = await sendIos("call_end", "call:sess-1");
-    expect(message.apns.payload.aps).not.toHaveProperty("sound");
-    expect(message.apns.payload.aps["thread-id"]).toBe("call:sess-1");
+    expect(message).not.toHaveProperty("notification");
+    expect(message.apns.headers).toMatchObject({
+      "apns-collapse-id": "call:sess-1", "apns-push-type": "background", "apns-priority": "5",
+    });
+    expect(message.apns.payload.aps).toEqual({ "content-available": 1 });
   });
 
   it("emergency carries the sound and the time-sensitive interruption level", async () => {

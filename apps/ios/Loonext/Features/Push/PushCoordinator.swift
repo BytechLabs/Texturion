@@ -119,21 +119,29 @@ final class PushCoordinator: NSObject {
     }
 
     static func clearConversationNotifications(_ conversationId: String) {
-        clearNotifications(tags: conversationNotificationTags(conversationId))
+        Task { await clearNotifications(tags: conversationNotificationTags(conversationId)) }
     }
 
     static func clearRingNotification(_ sessionId: String) {
-        clearNotifications(tags: ["call:\(sessionId)"])
+        Task { await removeRingNotification(sessionId) }
     }
 
-    private static func clearNotifications(tags: Set<String>) {
-        UNUserNotificationCenter.current().getDeliveredNotifications { delivered in
-            let matching = delivered.compactMap { notification -> String? in
-                let push = parsePush(pushData(fromUserInfo: notification.request.content.userInfo))
-                return tags.contains(push.tag) ? notification.request.identifier : nil
-            }
-            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: matching)
+    @discardableResult
+    static func removeRingNotification(_ sessionId: String) async -> Bool {
+        await clearNotifications(tags: ["call:\(sessionId)"])
+    }
+
+    @discardableResult
+    private static func clearNotifications(tags: Set<String>) async -> Bool {
+        let center = UNUserNotificationCenter.current()
+        let delivered = await center.deliveredNotifications()
+        let matching = delivered.compactMap { notification -> String? in
+            let push = parsePush(pushData(fromUserInfo: notification.request.content.userInfo))
+            return tags.contains(push.tag) ? notification.request.identifier : nil
         }
+        guard !matching.isEmpty else { return false }
+        center.removeDeliveredNotifications(withIdentifiers: matching)
+        return true
     }
 }
 
@@ -160,6 +168,12 @@ extension PushCoordinator: UNUserNotificationCenterDelegate {
             fallbackTitle: content.title,
             fallbackBody: content.body
         ), locale)
+        if push.isCallEnd {
+            if let sessionId = push.callSessionId {
+                await Self.removeRingNotification(sessionId)
+            }
+            return []
+        }
         return await MainActor.run {
             if push.isCall {
                 if let handler = PushHooks.callWakeHandler {
@@ -200,6 +214,7 @@ extension PushCoordinator: UNUserNotificationCenterDelegate {
         let locale = await MainActor.run { UiLocaleStore.shared.resolved }
         let push = parsePush(data, locale)
         await MainActor.run {
+            guard !push.isCallEnd else { return }
             guard let route = parsePushRoute(url: push.url) else { return }
             PushHooks.route(route)
         }
@@ -247,6 +262,16 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate {
             Messaging.messaging().delegate = PushCoordinator.shared
         }
         return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any]
+    ) async -> UIBackgroundFetchResult {
+        let push = parsePush(pushData(fromUserInfo: userInfo))
+        guard push.isCallEnd, let sessionId = push.callSessionId else { return .noData }
+        let removed = await PushCoordinator.removeRingNotification(sessionId)
+        return removed ? .newData : .noData
     }
 
     func application(

@@ -244,10 +244,9 @@ async function getAccessToken(
  *             stacking — the iOS client can't retag a remote alert push, so
  *             coalescing is server-side by contract; Android coalesces
  *             client-side via notification tags and takes no collapse key).
- *             Every iOS send carries `aps`: the default sound (an alert push
- *             without one arrives silently) for every kind but call_end, the
- *             emergency interruption level, and the collapse id again as
- *             `thread-id` so one thread's alerts group in Notification Center.
+ *             iOS alerts carry the default sound and group by `thread-id`.
+ *             Emergency alerts carry their interruption level. `call_end`
+ *             is a background update so it can remove an existing ring.
  */
 function buildMessage(
   target: DevicePushTarget,
@@ -293,10 +292,18 @@ function buildMessage(
     // chars == bytes) — bound it rather than fail the whole send.
     apnsHeaders["apns-collapse-id"] = collapseId.slice(0, 64);
   }
-  // call_end replaces a ring the member already heard, so it is silent as in sw.js.
+  if (data.kind === "call_end") {
+    return {
+      token: target.token,
+      data,
+      apns: {
+        headers: { ...apnsHeaders, "apns-push-type": "background", "apns-priority": "5" },
+        payload: { aps: { "content-available": 1 } },
+      },
+    };
+  }
   // The #721 device check decides whether a call's sound doubles a live CallKit ring.
-  const aps: Record<string, unknown> =
-    data.kind === "call_end" ? {} : { sound: "default" };
+  const aps: Record<string, unknown> = { sound: "default" };
   // #564: an URGENT text has to break through a Focus. `apns-priority: 10`
   // above only means "deliver now"; the INTERRUPTION LEVEL is what decides
   // whether a Focus lets it through, and its default (`active`) does not.

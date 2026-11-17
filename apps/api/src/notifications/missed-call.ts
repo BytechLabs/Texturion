@@ -40,6 +40,7 @@ import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 export interface MissedCallNotificationInput {
   companyId: string;
   conversationId: string;
+  callSessionId: string;
   callerE164: string;
   /**
    * What happened to the auto text-back, because the copy must stay truthful:
@@ -166,13 +167,6 @@ export async function notifyMissedCall(
 
   const failures: unknown[] = [];
 
-  // WEB PUSH + NATIVE DEVICE PUSH. The native body carries the
-  // `kind:'missed_call'` discriminator so the Android client routes it to the
-  // dedicated missed-calls channel (PushKind.MISSED_CALL); Web Push stays
-  // kind-less, since the service worker renders unmarked pushes as ordinary
-  // notices and must not change shape. #162 iOS coalescing keys on the
-  // conversation, like the inbound-message alert.
-  //
   // #228: composed per reader rather than built once. Which of the three
   // bodies this miss gets is decided HERE, where the status is; the copy table
   // owns what each one says in each language.
@@ -196,7 +190,11 @@ export async function notifyMissedCall(
     // phone shows for any caller, and it is what the setting deliberately
     // preserves. There is no message content in a missed call to withhold.
     content: { written: "us" },
-    web: alert,
+    web: (locale) => ({
+      ...alert(locale),
+      kind: "missed_call",
+      call_session_id: input.callSessionId,
+    }),
     native: (locale) => ({
       kind: "missed_call",
       ...alert(locale),

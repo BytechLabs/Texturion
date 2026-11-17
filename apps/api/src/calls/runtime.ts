@@ -1363,6 +1363,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
             {
               companyId: machine.companyId,
               conversationId: thread.conversationId,
+              callSessionId: machine.callSessionId,
               callerE164: machine.callerE164,
               textStatus: "none",
             },
