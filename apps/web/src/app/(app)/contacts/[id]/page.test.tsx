@@ -103,6 +103,10 @@ vi.mock("@/lib/api/contacts", () => ({
 vi.mock("@/lib/api/tags", () => ({
   useTags: () => ({ data: { data: [] } }),
 }));
+vi.mock(import("@/lib/hooks/use-records-delete"), async (original) => ({
+  ...await original(),
+  useDeletedToast: () => vi.fn(),
+}));
 // #291: the page mounts ContactCustomFields, whose hook reaches
 // CompanyProvider — which this static-render harness does not set up. An empty
 // definition list is the state for every workspace that has not defined any,

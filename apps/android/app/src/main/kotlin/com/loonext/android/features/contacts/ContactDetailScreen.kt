@@ -176,6 +176,7 @@ internal fun ContactDetailScreen(
      * why this screen does not simply trust it.
      */
     companyLocale: String = MessageLocale.DEFAULT,
+    onContactDeleted: () -> Unit = onBack,
 ) {
     BackHandler(onBack = onBack)
 
@@ -299,7 +300,7 @@ internal fun ContactDetailScreen(
                 members = members,
                 conversation = conversation,
                 onChanged = { refreshKey++ },
-                onDeleted = onBack,
+                onDeleted = onContactDeleted,
                 onOpenConversation = onOpenConversation,
                 onComposeNew = onComposeNew,
                 onOpenTask = onOpenTask,

@@ -969,7 +969,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
   });
 
-  it("DELETE soft-deletes (deleted_at), audits it and 404s an unknown id", async () => {
+  it("DELETE moves a contact to Trash, returns its undo target and audits the delete", async () => {
     const sb = stubWithRole("admin");
     sb.on("POST", "/rest/v1/audit_log", () => new Response(null, { status: 201 }));
     sb.on("PATCH", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
@@ -984,7 +984,8 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       `/v1/contacts/${CONTACT_ID}`,
       { method: "DELETE", companyId: COMPANY_ID },
     );
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ kind: "contact", id: CONTACT_ID });
     const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
     expect(typeof (patch.body as Record<string, unknown>).deleted_at).toBe(
       "string",
@@ -1365,7 +1366,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       `/v1/contacts/${CONTACT_ID}`,
       { method: "DELETE", companyId: COMPANY_ID },
     );
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
     const patch = sb.find("PATCH", "/rest/v1/contacts")[0]
       .body as Record<string, unknown>;
     expect(typeof patch.deleted_at).toBe("string");

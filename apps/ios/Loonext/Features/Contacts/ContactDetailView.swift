@@ -32,6 +32,7 @@ struct ContactDetailView: View {
     var canDelete: Bool = false
     /// #712: blocking a number needs `conversations.note`, like the thread's Block.
     var canBlock: Bool = true
+    var onContactDeleted: ((String) -> Void)? = nil
 
     private enum DetailState {
         case loading
@@ -206,6 +207,7 @@ struct ContactDetailView: View {
         ) {
             runAction {
                 try await mutations.delete(companyId: companyId, contactId: contactId)
+                onContactDeleted?(contactId)
                 dismiss()
             }
         }

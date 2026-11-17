@@ -38,6 +38,7 @@ internal fun trashKindLabel(item: TrashItem, say: Say): String = when (item.kind
         else say("trash.kindMessage", emptyMap())
     TrashKind.CALL -> say("trash.kindCall", emptyMap())
     TrashKind.VOICEMAIL -> say("trash.kindVoicemail", emptyMap())
+    TrashKind.CONTACT -> say("trash.kindContact", emptyMap())
     else -> item.kind
 }
 
@@ -49,6 +50,7 @@ internal fun trashWhoLabel(item: TrashItem, say: Say): String {
         TrashKind.CONVERSATION -> { name = item.conversation?.contact_name; phone = item.conversation?.contact_phone }
         TrashKind.MESSAGE -> { name = item.message?.contact_name; phone = item.message?.contact_phone }
         TrashKind.CALL -> { name = item.call?.contact_name; phone = item.call?.contact_phone }
+        TrashKind.CONTACT -> { name = item.contact?.contact_name; phone = item.contact?.contact_phone }
         else -> { name = item.voicemail?.contact_name; phone = item.voicemail?.contact_phone }
     }
     return name?.trim()?.takeIf { it.isNotEmpty() }
@@ -82,6 +84,11 @@ internal fun trashDetailLabel(item: TrashItem, say: Say): String = when (item.ki
         if (seconds != null && seconds > 0) say("trash.voicemailLength", mapOf("seconds" to "$seconds"))
         else say("trash.kindVoicemail", emptyMap())
     }
+    TrashKind.CONTACT -> item.contact
+        ?.takeIf { !it.contact_name.isNullOrBlank() }
+        ?.contact_phone
+        ?.let(::formatPhone)
+        .orEmpty()
     else -> ""
 }
 

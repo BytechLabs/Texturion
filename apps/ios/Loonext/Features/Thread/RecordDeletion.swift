@@ -7,6 +7,7 @@ enum TrashKind: String, Sendable {
     case conversation
     case call
     case voicemail
+    case contact
 }
 
 /// The delete and restore calls for messages, conversations, calls and
@@ -85,6 +86,7 @@ enum RecordDeletion {
         case .conversation: return "thread.conversationRestored"
         case .call: return "thread.callRestored"
         case .voicemail: return "thread.voicemailRestored"
+        case .contact: return "trash.restored"
         }
     }
 

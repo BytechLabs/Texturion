@@ -8,6 +8,7 @@ object TrashKind {
     const val CONVERSATION = "conversation"
     const val CALL = "call"
     const val VOICEMAIL = "voicemail"
+    const val CONTACT = "contact"
 }
 
 /** The 200 body of every DELETE: what went to the Trash. */
@@ -30,7 +31,7 @@ val Message.customerStillHasCopy: Boolean
         (status == MessageStatus.SENT || status == MessageStatus.DELIVERED)
 
 /**
- * #735: one row of GET /v1/trash. Exactly one of the four detail objects is
+ * #735: one row of GET /v1/trash. Exactly one detail object is
  * present, the one [kind] names; the rest are absent.
  */
 @Serializable
@@ -45,6 +46,13 @@ data class TrashItem(
     val message: TrashMessageDetail? = null,
     val call: TrashCallDetail? = null,
     val voicemail: TrashVoicemailDetail? = null,
+    val contact: TrashContactDetail? = null,
+)
+
+@Serializable
+data class TrashContactDetail(
+    val contact_name: String? = null,
+    val contact_phone: String? = null,
 )
 
 @Serializable

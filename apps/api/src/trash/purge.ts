@@ -19,14 +19,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDb } from "../db";
 import type { Env } from "../env";
 
-export type TrashKind = "message" | "conversation" | "call" | "voicemail";
-
-export const TRASH_KINDS: readonly TrashKind[] = [
+export const TRASH_KINDS = [
   "message",
   "conversation",
   "call",
   "voicemail",
-];
+  "contact",
+] as const;
+
+export type TrashKind = (typeof TRASH_KINDS)[number];
 
 /** Items per run. A backlog drains over the next days rather than in one request. */
 const MAX_ITEMS_PER_RUN = 200;

@@ -260,9 +260,9 @@ describe("#691 trash, restore, delete forever", () => {
   it("refuses an unknown kind", async () => {
     const sb = world("admin");
     expect(
-      (await call(sb, "POST", "/trash/restore", { kind: "contact", id: MESSAGE_ID })).status,
+      (await call(sb, "POST", "/trash/restore", { kind: "task", id: MESSAGE_ID })).status,
     ).toBe(422);
-    expect((await call(sb, "DELETE", `/trash/contact/${MESSAGE_ID}`)).status).toBe(422);
+    expect((await call(sb, "DELETE", `/trash/task/${MESSAGE_ID}`)).status).toBe(422);
   });
 
   it("removes the objects first, then the rows, scoped to the caller", async () => {
