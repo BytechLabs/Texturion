@@ -111,12 +111,14 @@ final class AccessibilityAuditUITests: XCTestCase {
     private func evidenceTaskCalendar(_ theme: String) {
         let app = launchEvidence("taskCalendar", theme)
         defer { app.terminate() }
-        // Day 17 holds no task in the fixture. The calendar names its cells in the
-        // workspace's zone, so the label is built in that zone too.
+        // Days 17 and 18 hold no task in the fixture. The calendar opens with today
+        // selected and a tap toggles selection, so today is never the day tapped.
+        // The calendar names its cells in the workspace's zone, so the label is
+        // built in that zone too.
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Toronto") ?? .current
-        var parts = calendar.dateComponents([.year, .month], from: Date())
-        parts.day = 17
+        var parts = calendar.dateComponents([.year, .month, .day], from: Date())
+        parts.day = parts.day == 17 ? 18 : 17
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = calendar.timeZone

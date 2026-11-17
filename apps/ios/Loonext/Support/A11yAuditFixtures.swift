@@ -258,8 +258,8 @@ enum A11yFixtureData {
         return row
     }
 
-    /// #739: dated tasks across the month. Day 17 stays empty, which is the day the
-    /// UI test taps.
+    /// #739: dated tasks across the month. Days 17 and 18 stay empty: the UI test
+    /// taps 17, or 18 when 17 is today.
     private static func calendarTasks() -> [[String: Any]] {
         let plan: [(Int, String, Bool)] = [
             (3, "Fix boiler", true), (6, "Quote roof", false), (6, "Order tiles", false),
