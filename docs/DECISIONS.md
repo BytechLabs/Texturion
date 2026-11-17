@@ -474,6 +474,12 @@ Notice delivery claims stay in place after the email provider accepts the messag
 
 ## D9. Realtime & notifications
 
+**Amendment (#775).** Store a carrier text's alert decision in the threading
+transaction. A replay or the minute job can recover a pending alert for 30
+minutes while the text is unread and unanswered. Claim it immediately before
+the first send or batch write. A human reply re-arms push for the assignee or
+the people who replied, plus followers, without advancing the email ladder.
+
 - **Supabase Realtime Broadcast-from-Database** (NOT `postgres_changes` — single-threaded,
   per-client RLS reads): Postgres triggers call `realtime.broadcast_changes()` on
   messages INSERT and conversations UPDATE into private topic `company:{company_id}`.

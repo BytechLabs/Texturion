@@ -28,6 +28,8 @@ import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { deadline } from "../http/deadline";
 import { notifyInboundMessage } from "../notifications/inbound";
+import { clearSavedInboundAlert, deliverSavedInboundAlert } from "../notifications/pending-inbound";
+import type { CrewNotifyVerdict } from "../notifications/pending-inbound";
 import { captureEvent } from "../observability/capture";
 import { phoneCountry } from "./delivery-by-country";
 import { classifyInbound } from "./spam-flag";
@@ -70,6 +72,8 @@ const INBOUND_MEDIA_DOWNLOAD_TIMEOUT_MS = 15_000;
  * percentage of the daily inbound-notification allowance, else null/absent.
  */
 type InboundThreadResult = ThreadResult & {
+  crew_notify_state?: "none" | "pending" | "attempted";
+  crew_notify_verdict?: CrewNotifyVerdict | null;
   notification_alert?: number | null;
   /**
    * #343: the per-channel verdicts and the crossings, both additive. An older
@@ -278,6 +282,26 @@ export async function handleInboundMessage(
     PLAN_NOTIFY_LIMITS[(company?.plan ?? "starter")] ??
     PLAN_NOTIFY_LIMITS.starter;
 
+  // #414: the reply we asked for. The default away message — on by default,
+  // kept by most owners — invites an emergency reply, and until now that reply
+  // threaded as an ordinary message.
+  //
+  // #460: matched against THIS workspace's words. A null column means the
+  // product list, so nothing changes for a workspace that never opened the
+  // setting — but a locksmith whose customers text LOCKEDOUT is now heard, and
+  // the settings screen warns against the same list this line acts on.
+  const emergency =
+    (company?.emergency_keyword_enabled ?? companySettingDefault("emergency_keyword_enabled")) &&
+    isEmergencyKeyword(
+      payload.text ?? "",
+      effectiveEmergencyKeywords(company?.emergency_keywords),
+    );
+
+  const media = (payload.media ?? []).filter(
+    (item): item is { url: string; content_type?: string; size?: number } =>
+      typeof item.url === "string" && item.url.length > 0,
+  );
+
   // The §6 threading transaction, atomically in the database.
   const reaction = payload.media?.length ? null : parseTapback(payload.text ?? "");
   const { data, error } = await db.rpc("thread_inbound_message", {
@@ -289,6 +313,8 @@ export async function handleInboundMessage(
     p_timezone: company?.timezone ?? null,
     p_email_limit: company?.notify_email_limit ?? planLimits.email,
     p_push_limit: company?.notify_push_limit ?? planLimits.push,
+    p_notify_emergency: emergency,
+    p_notify_media_count: media.length,
     ...(reaction ? { p_reaction: reaction } : {}),
   });
   if (error) throw new Error(`thread_inbound_message failed: ${error.message}`);
@@ -419,25 +445,11 @@ export async function handleInboundMessage(
     }
   }
 
-  // #414: the reply we asked for. The default away message — on by default,
-  // kept by most owners — invites an emergency reply, and until now that reply
-  // threaded as an ordinary message.
-  //
-  // #460: matched against THIS workspace's words. A null column means the
-  // product list, so nothing changes for a workspace that never opened the
-  // setting — but a locksmith whose customers text LOCKEDOUT is now heard, and
-  // the settings screen warns against the same list this line acts on.
-  const emergency =
-    (company?.emergency_keyword_enabled ?? companySettingDefault("emergency_keyword_enabled")) &&
-    isEmergencyKeyword(
-      payload.text ?? "",
-      effectiveEmergencyKeywords(company?.emergency_keywords),
-    );
-
   // #250: does this look like a robotext, or did somebody block this sender?
   // Runs before the notification decision below and after the message is
   // durable, so a classifier failure can only cost a badge.
-  const spam = threaded.created
+  const pendingAlert = threaded.crew_notify_state === "pending";
+  const spam = threaded.created || pendingAlert
     ? await classifyInbound(db, {
         companyId: number.company_id,
         conversationId: threaded.conversation_id,
@@ -485,11 +497,6 @@ export async function handleInboundMessage(
     }
   }
 
-  const media = (payload.media ?? []).filter(
-    (item): item is { url: string; content_type?: string; size?: number } =>
-      typeof item.url === "string" && item.url.length > 0,
-  );
-
   // Notify the crew before attempting any carrier reply.
   const allowEmail = threaded.notify_email ?? threaded.notify;
   const allowPush = threaded.notify_push ?? threaded.notify;
@@ -503,7 +510,23 @@ export async function handleInboundMessage(
   }
   const spamSilences = spam.blocked || (!emergency && spam.suspected);
 
-  if (threaded.created && !spamSilences && (emergency || allowEmail || allowPush)) {
+  if (pendingAlert && threaded.crew_notify_verdict) {
+    if (spamSilences) {
+      await clearSavedInboundAlert(db, number.company_id, threaded.message_id);
+    } else {
+      await deliverSavedInboundAlert(env, db, {
+        messageId: threaded.message_id,
+        companyId: number.company_id,
+        conversationId: threaded.conversation_id,
+        body: payload.text ?? "",
+        verdict: threaded.crew_notify_verdict,
+        requireUnread: !threaded.created,
+      });
+    }
+  } else if (
+    threaded.crew_notify_state === undefined &&
+    threaded.created && !spamSilences && (emergency || allowEmail || allowPush)
+  ) {
     await notifyInboundMessage(
       env,
       {

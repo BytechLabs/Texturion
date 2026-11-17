@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import type { MmsMediaType } from "@loonext/shared";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
 import { useT } from "@/i18n/provider";
@@ -213,6 +213,7 @@ export function sentConversationPatch(
 export function useSendMessage(conversationId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const t = useT();
   return useMutation({
     mutationFn: (input: {
@@ -268,7 +269,7 @@ export function useSendMessage(conversationId: string) {
         {
           action: {
             label: t("misc.realtimeView"),
-            onClick: () => window.location.assign(`/inbox/${conversationId}`),
+            onClick: () => router.push(`/inbox/${conversationId}`),
           },
         },
       );

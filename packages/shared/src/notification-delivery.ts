@@ -37,6 +37,7 @@ export const NOTIFICATION_CATEGORIES = [
   "assignments",
   "tasks",
   "scheduled_texts",
+  "send_failures",
   "missed_calls",
   "voicemails",
 ] as const;
@@ -85,6 +86,7 @@ export const DEFAULT_DELIVERY: Record<NotificationCategory, DeliveryMode> = {
   // A text somebody queued is held or did not go. On by default: silence about
   // a message a person is waiting on is the failure the disclosure rule forbids.
   scheduled_texts: "immediate",
+  send_failures: "immediate",
   missed_calls: "immediate",
   voicemails: "immediate",
 };
@@ -259,6 +261,7 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   assignments: "domain.categoryAssignments",
   tasks: "domain.categoryTasks",
   scheduled_texts: "domain.categoryScheduledTexts",
+  send_failures: "domain.categorySendFailures",
   missed_calls: "domain.categoryMissedCalls",
   voicemails: "domain.categoryVoicemails",
 };

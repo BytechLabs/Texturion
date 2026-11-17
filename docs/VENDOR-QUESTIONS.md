@@ -35,6 +35,9 @@ Have the robot send `START` to clean up a block. Confirm with Telnyx whether
 adding samples to an approved 10DLC campaign triggers re-vetting before
 backfilling existing campaigns. The app records punctuated STOP independently.
 
+Rig run `S24-20261117215818-fef4cd` stopped before any dials. The guard reported
+`room 0 is under 2`, so carrier behavior remains unverified.
+
 ### V2 — what Telnyx emits on a campaign SUSPENSION · Telnyx · blocks nothing today
 
 **The question.** When a 10DLC campaign that was `MNO_ACCEPTED` is later

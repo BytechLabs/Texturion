@@ -196,6 +196,23 @@ describe(notificationSnippet, () => {
 });
 
 describe("notifyInboundMessage (§8)", () => {
+  it("preserves the attempt on a failed preferences read and sends once on replay", async () => {
+    const beforeSend = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const unavailable = buildWorld({ memberPrefsFail: true });
+    stubFetch(...unavailable.routes);
+    await expect(notifyInboundMessage(env, { ...INPUT, beforeSend }))
+      .rejects.toThrow(/conversation prefs lookup/);
+    expect(beforeSend).not.toHaveBeenCalled();
+
+    const recovered = buildWorld({});
+    stubFetch(...recovered.routes);
+    await notifyInboundMessage(env, { ...INPUT, beforeSend });
+    await notifyInboundMessage(env, { ...INPUT, beforeSend });
+
+    expect(beforeSend).toHaveBeenCalledTimes(2);
+    expect(recovered.resend.calls).toHaveLength(1);
+  });
+
   it("unassigned: one email to every active member (defaults when prefs rows are missing)", async () => {
     const world = buildWorld({});
     stubFetch(...world.routes);

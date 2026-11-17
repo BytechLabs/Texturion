@@ -22,6 +22,8 @@
  * already uses; the roster test is what keeps it from rotting.
  */
 
+import { OUTBOUND_HOLD_COPY } from "./scheduled-hold-copy";
+
 export const SCHEDULED_MESSAGE_STATUSES = [
   "pending",
   "held",
@@ -84,10 +86,7 @@ export const SCHEDULED_HOLD_REASONS = {
    * Recoverable: the calendar pull loop advances `last_verified_at`, and the
    * held reminder is eligible again on the next scheduled-send sweep.
    */
-  usage_cap_reached: "The workspace spending cap has been reached.",
-  rate_limited: "The workspace has reached its hourly texting limit.",
-  quiet_hours: "This text is waiting until the customer's quiet hours end.",
-  opt_out_unresolved: "Review the customer's opt-out request before this text can send.",
+  ...OUTBOUND_HOLD_COPY.en,
   calendar_unverified:
     "Calendar sync is disconnected or has not checked in recently, so this reminder is waiting. It will send after sync is verified again.",
 
