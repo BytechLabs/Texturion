@@ -431,6 +431,12 @@ export async function claimMessageRetry(
         "Only failed sends without a carrier message id can be retried.",
       );
     }
+    if (result.error === "opt_out_unresolved") {
+      throw new ApiError(
+        "conflict",
+        "Review the customer's opt-out request before retrying this text.",
+      );
+    }
     const code = result.error as GateErrorCode;
     if (GATE_ERROR_CODES.has(code)) {
       throw new ApiError(code, GATE_ERROR_MESSAGES[code]);

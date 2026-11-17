@@ -277,6 +277,41 @@ describe(deliverPush, () => {
     expect(failures).toHaveLength(2);
   });
 
+  it("starts native push while a web endpoint is still waiting", async () => {
+    const fcm = fcmEnv(await makeServiceAccount());
+    const service = fcmService();
+    const sb = supabaseStub(fcm);
+    sb.on("GET", "/rest/v1/companies", () => [{ push_include_content: true, locale: "en" }]);
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    const web = await subscription(SUB_ID);
+    sb.on("GET", "/rest/v1/push_subscriptions", () => [web]);
+    sb.on("GET", "/rest/v1/device_push_tokens", () => [DEVICE]);
+    let finishWeb!: (response: Response) => void;
+    const pendingWeb = new Promise<Response>((resolve) => { finishWeb = resolve; });
+    const sendWeb = vi.fn((url: URL) => url.href === web.endpoint ? pendingWeb : undefined);
+    stubFetch(sb.route, sendWeb, ...service.routes);
+
+    const failures: unknown[] = [];
+    const delivery = deliverPush(fcm, getDb(fcm), {
+      category: "messages_all",
+      companyId: "c0000000-0000-4000-8000-00000000000c",
+      content: { written: "us" },
+      userIds: [USER],
+      web: ALERT,
+      collapseKey: "conversation:x",
+      failures,
+    });
+
+    try {
+      await vi.waitFor(() => expect(service.sends).toHaveLength(1));
+    } finally {
+      finishWeb(new Response(null, { status: 201 }));
+      await delivery;
+    }
+    expect(sendWeb).toHaveBeenCalledWith(new URL(web.endpoint), expect.any(Request));
+    expect(failures).toEqual([]);
+  });
+
   it("sends the web payload natively unless a native one is given", async () => {
     const account = await makeServiceAccount();
     const fcm = fcmEnv(account);

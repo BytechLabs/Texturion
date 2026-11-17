@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { deadline, fetchWithDeadline } from "./deadline";
+import { deadline, fetchWithDeadline, readWithDeadline } from "./deadline";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -59,5 +59,26 @@ describe(deadline, () => {
     limit.clear();
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(limit.signal.aborted).toBe(false);
+  });
+});
+
+describe(readWithDeadline, () => {
+  it("aborts a body that stalls after the headers arrive", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const signal = init?.signal;
+      return new Response(new ReadableStream({
+        start(controller) {
+          signal?.addEventListener("abort", () => controller.error(signal.reason));
+        },
+      }));
+    });
+    const result = readWithDeadline("https://example.test/", undefined, 10_000, (response) =>
+      response.text(),
+    );
+    const check = expect(result).rejects.toHaveProperty("name", "TimeoutError");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await check;
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

@@ -34,6 +34,22 @@ export function deadline(ms: number, existing?: AbortSignal | null): Deadline {
 /** Statuses whose Response must be built without a body. */
 const NO_BODY_STATUSES = new Set([101, 204, 205, 304]);
 
+/** Keeps the deadline active while the caller reads the response. */
+export async function readWithDeadline<T>(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  ms: number,
+  read: (response: Response) => Promise<T>,
+): Promise<T> {
+  const limit = deadline(ms, init?.signal);
+  try {
+    const response = await globalThis.fetch(input, { ...init, signal: limit.signal });
+    return await read(response);
+  } finally {
+    limit.clear();
+  }
+}
+
 /**
  * `fetch` under a deadline that covers the body and stops once it is read.
  * The returned Response holds the whole body, so callers read it as usual;
@@ -44,9 +60,7 @@ export async function fetchWithDeadline(
   init: RequestInit | undefined,
   ms: number,
 ): Promise<Response> {
-  const limit = deadline(ms, init?.signal);
-  try {
-    const response = await globalThis.fetch(input, { ...init, signal: limit.signal });
+  return readWithDeadline(input, init, ms, async (response) => {
     if (response.body === null) return response;
     const bytes = await response.arrayBuffer();
     const headers = new Headers(response.headers);
@@ -58,7 +72,5 @@ export async function fetchWithDeadline(
       statusText: response.statusText,
       headers,
     });
-  } finally {
-    limit.clear();
-  }
+  });
 }

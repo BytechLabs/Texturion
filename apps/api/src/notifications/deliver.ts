@@ -568,14 +568,15 @@ async function readIosBadges(
   return badges;
 }
 
-async function sendPushTargets<T>(
-  targets: readonly T[],
-  send: (target: T) => Promise<void>,
+async function sendPushTargets(
+  targets: readonly (() => Promise<void>)[],
   failures: unknown[],
 ): Promise<void> {
   const batchSize = 10;
   for (let start = 0; start < targets.length; start += batchSize) {
-    const results = await Promise.allSettled(targets.slice(start, start + batchSize).map(send));
+    const results = await Promise.allSettled(
+      targets.slice(start, start + batchSize).map((send) => send()),
+    );
     for (const result of results) {
       if (result.status === "rejected") failures.push(result.reason);
     }
@@ -587,8 +588,6 @@ export async function deliverPush(
   db: SupabaseClient,
   delivery: PushDelivery,
 ): Promise<void> {
-  // D142: recorded in `finally` so a lookup that throws after the web sends
-  // still leaves the evidence of the sends that did go out.
   const attempts: PushAttempt[] = [];
   try {
     await fanOutPush(env, db, delivery, attempts);
@@ -677,36 +676,48 @@ async function fanOutPush(
 
   const ceiling = audience.length * MAX_TARGETS_PER_USER;
 
-  const { data: subData, error: subError } = await db
+  const subscriptionsQuery = db
     .from("push_subscriptions")
     .select("id,user_id,endpoint,p256dh,auth,locale")
     .in("user_id", audience)
     .order("created_at", { ascending: false })
     .limit(ceiling);
-  if (subError) {
-    throw new Error(`push subscriptions lookup failed: ${subError.message}`);
+  const nativeEnabled = isFcmConfigured(env);
+  if (!nativeEnabled) {
+    console.log("fcm: FCM_SERVICE_ACCOUNT_JSON unset — native device push skipped");
   }
-  const subscriptionRows = (subData ?? []) as SubscriptionRow[];
-  warnIfTruncated("push_subscriptions", subscriptionRows.length, ceiling);
-
-  async function readDeviceTokens(): Promise<DeviceTokenRow[]> {
-    const { data, error } = await db.from("device_push_tokens")
+  const devicesQuery = nativeEnabled
+    ? db.from("device_push_tokens")
       .select("id,user_id,platform,token,locale")
       .in("user_id", audience)
       .order("created_at", { ascending: false })
-      .limit(ceiling);
-    if (error) throw new Error(`device push tokens lookup failed: ${error.message}`);
-    const rows = (data ?? []) as DeviceTokenRow[];
-    warnIfTruncated("device_push_tokens", rows.length, ceiling);
-    return rows;
+      .limit(ceiling)
+    : { data: [], error: null };
+  const [
+    { data: subData, error: subError },
+    { data: tokenData, error: tokenError },
+  ] = await Promise.all([subscriptionsQuery, devicesQuery]);
+  const subscriptionRows = (subData ?? []) as SubscriptionRow[];
+  const tokenRows = (tokenData ?? []) as DeviceTokenRow[];
+  warnIfTruncated("push_subscriptions", subscriptionRows.length, ceiling);
+  warnIfTruncated("device_push_tokens", tokenRows.length, ceiling);
+
+  if (delivery.beforeDispatch) {
+    if (subError) throw new Error(`push subscriptions lookup failed: ${subError.message}`);
+    if (tokenError) throw new Error(`device push tokens lookup failed: ${tokenError.message}`);
+    if (!(await delivery.beforeDispatch())) return;
   }
-
-  const fcmConfigured = isFcmConfigured(env);
-  const preparedTokens = delivery.beforeDispatch && fcmConfigured ? await readDeviceTokens() : null;
-  if (delivery.beforeDispatch && !(await delivery.beforeDispatch())) return;
-
   const subscriptions = newestPerUser(subscriptionRows, MAX_TARGETS_PER_USER);
-  await sendPushTargets(subscriptions, async (subscription) => {
+  const devices = newestPerUser(tokenRows, MAX_TARGETS_PER_USER);
+
+  const [urgency, badges] = await Promise.all([
+    delivery.highPriority && devices.length > 0
+      ? resolveHighPriority(env, db, delivery.highPriority, devices.length)
+      : "normal" as const,
+    readIosBadges(env, db, delivery.companyId, devices),
+  ]);
+
+  const sendSubscription = async (subscription: SubscriptionRow) => {
     if (delivery.beforeSend && !(await delivery.beforeSend())) return;
     // Web Push urgency is NOT metered (#452): no push service rations it,
     // so degrading it would save nothing and cost a wake. The meter below
@@ -750,30 +761,15 @@ async function fanOutPush(
           (result.errorBody ? ` — ${result.errorBody}` : ""),
       );
     }
-  }, delivery.failures);
+  };
 
-  // Native device push: skipped with one log line until Firebase is
-  // provisioned (the secret is optional so deploys stay green).
-  if (!fcmConfigured) {
-    console.log(
-      "fcm: FCM_SERVICE_ACCOUNT_JSON unset — native device push skipped",
-    );
-    return;
+  const sendDevice = async (device: DeviceTokenRow) => {
+
+  if (delivery.beforeDispatch) {
+    if (subError) throw new Error(`push subscriptions lookup failed: ${subError.message}`);
+    if (tokenError) throw new Error(`device push tokens lookup failed: ${tokenError.message}`);
+    if (!(await delivery.beforeDispatch())) return;
   }
-
-  const tokenRows = preparedTokens ?? await readDeviceTokens();
-  const devices = newestPerUser(tokenRows, MAX_TARGETS_PER_USER);
-
-  // #452: claim the high-priority budget ONCE for the whole fan-out, against
-  // the device count, because the device is what the platforms ration. Past
-  // the ceiling this comes back "normal" and every device still gets the
-  // alert — degraded, never dropped.
-  const [urgency, badges] = await Promise.all([
-    delivery.highPriority ? resolveHighPriority(env, db, delivery.highPriority, devices.length) : "normal" as const,
-    readIosBadges(env, db, delivery.companyId, devices),
-  ]);
-
-  await sendPushTargets(devices, async (device) => {
     if (delivery.beforeSend && !(await delivery.beforeSend())) return;
     const locale = localeFor(device);
     const action = delivery.nativeAction?.(device.user_id);
@@ -831,5 +827,17 @@ async function fanOutPush(
           (result.errorBody ? ` — ${result.errorBody}` : ""),
       );
     }
-  }, delivery.failures);
+  };
+
+  const targets = [];
+  for (let i = 0; i < Math.max(subscriptions.length, devices.length); i++) {
+    const subscription = subscriptions[i];
+    if (subscription) targets.push(() => sendSubscription(subscription));
+    const device = devices[i];
+    if (device) targets.push(() => sendDevice(device));
+  }
+  await sendPushTargets(targets, delivery.failures);
+
+  if (subError) throw new Error(`push subscriptions lookup failed: ${subError.message}`);
+  if (tokenError) throw new Error(`device push tokens lookup failed: ${tokenError.message}`);
 }
