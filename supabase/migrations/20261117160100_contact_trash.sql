@@ -34,6 +34,7 @@ set search_path = ''
 as $$
 declare
   company uuid;
+  activity_quiet text := current_setting('loonext.activity_quiet', true);
 begin
   select c.company_id into company
     from public.contacts c
@@ -51,12 +52,19 @@ begin
   delete from public.contact_phones where company_id = company and contact_id = p_id;
   delete from public.contact_addresses where company_id = company and contact_id = p_id;
   delete from public.contact_tags where company_id = company and contact_id = p_id;
+  update public.record_activity
+     set payload = payload - 'from' - 'to'
+   where company_id = company and source_type = 'contact' and source_id = p_id
+     and kind = 'edited' and payload ?| array['from', 'to'];
+  -- Clearing the profile must not add another copy of its previous values.
+  perform set_config('loonext.activity_quiet', 'on', true);
   update public.contacts
      set name = null, email = null, business_name = null, address = null, notes = null,
          custom_fields = '{}'::jsonb, timezone = null, locale = null,
          lat = null, lng = null, geocoded_at = null, geocode_status = 'no_address',
          purged_at = now()
    where id = p_id and company_id = company;
+  perform set_config('loonext.activity_quiet', coalesce(activity_quiet, ''), true);
 
   insert into public.audit_log
     (company_id, actor_user_id, action, target_type, target_id, before, after)
@@ -126,3 +134,19 @@ begin
     execute updated;
   end loop;
 end $migration$;
+
+revoke execute on function
+  public.api_list_trash(uuid, integer, timestamptz, uuid, uuid[]),
+  public.api_trash_due(integer),
+  public.api_restore_trash(uuid, uuid, text, uuid, uuid[]),
+  public.api_purge_trash_item(text, uuid, uuid, uuid, uuid[]),
+  public.api_trash_object_paths(text, uuid, uuid, uuid[])
+  from public, anon, authenticated;
+
+grant execute on function
+  public.api_list_trash(uuid, integer, timestamptz, uuid, uuid[]),
+  public.api_trash_due(integer),
+  public.api_restore_trash(uuid, uuid, text, uuid, uuid[]),
+  public.api_purge_trash_item(text, uuid, uuid, uuid, uuid[]),
+  public.api_trash_object_paths(text, uuid, uuid, uuid[])
+  to service_role;

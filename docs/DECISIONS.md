@@ -10072,9 +10072,10 @@ a STOP. The `opted_out`, `opt_out_revoked` and `consent_attested` timeline event
 survive a purge. Tests prove both halves.
 
 A contact in Trash can be restored until purge. Purge clears the contact profile,
-additional phones and addresses, and contact tags. The primary number and its
-consent evidence remain alongside the separate opt-out record. An inbound
-message after purge reopens a blank profile for that number.
+additional phones and addresses, contact tags, and field values in the contact's
+activity history. The primary number and its consent evidence remain alongside
+the separate opt-out record. An inbound message after purge reopens a blank
+profile for that number.
 
 **Audit and integrations.** `record.deleted`, `record.restored` and `record.purged`
 in the audit log (ids and kinds, never content, 12 months like the rest).

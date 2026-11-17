@@ -34,13 +34,19 @@ begin
     values (company_id, contact_id, tag_id);
   insert into public.opt_outs (company_id, phone_e164, source)
     values (company_id, phone, 'manual');
+  update public.contacts set name = 'Morgan Lee' where id = contact_id;
+  if not exists (select 1 from public.record_activity a
+                  where a.source_id = contact_id and a.kind = 'edited'
+                    and a.payload->>'to' = 'Morgan Lee') then
+    raise exception 'The test contact must have a profile value in its activity history';
+  end if;
 
   update public.contacts set deleted_at = now(), deleted_by_user_id = owner_id
    where id = contact_id;
   select item into result from public.api_list_trash(company_id, 50) as items(item)
    where item->>'id' = contact_id::text;
   if result->>'kind' is distinct from 'contact'
-     or result->>'contact_name' is distinct from 'Morgan'
+     or result->>'contact_name' is distinct from 'Morgan Lee'
      or (result->>'deleted_by_user_id')::uuid is distinct from owner_id then
     raise exception 'The deleted contact is missing from Trash';
   end if;
@@ -86,6 +92,12 @@ begin
      or not exists (select 1 from public.opt_outs o
                      where o.company_id = profile.company_id and o.phone_e164 = phone and o.revoked_at is null) then
     raise exception 'Contact purge left child records or lifted opt-out';
+  end if;
+  if exists (select 1 from public.record_activity a
+              where a.company_id = profile.company_id and a.source_type = 'contact'
+                and a.source_id = profile.id and a.kind = 'edited'
+                and a.payload ?| array['from', 'to']) then
+    raise exception 'Contact purge left profile values in the activity history';
   end if;
 
   result := public.api_restore_trash(company_id, owner_id, 'contact', contact_id);
