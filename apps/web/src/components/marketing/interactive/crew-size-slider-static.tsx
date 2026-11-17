@@ -57,19 +57,7 @@ const MAX_CREW = 10;
 const LOONEXT_PRICE = PLAN_PRICING.pro.monthlyDollars;
 
 
-/**
- * #328 — a US figure, labelled as one when the reader is not American.
- *
- * Every number on this card is USD and stays USD: the rival's rate is a
- * published US price, so quoting our half in CAD would subtract two currencies
- * and print a saving nobody gets.
- *
- * But a Canadian reading the plan cards directly above this sees Pro at $109,
- * and an unlabelled "$79" here made our own price look like it contradicted
- * itself. The comparison is the thing that must not be converted; the LABEL is
- * what makes it honest. `formatMoney`'s audience argument exists for exactly
- * this: mark the foreign currency, and only the foreign one.
- */
+/** Both plans in the comparison are priced in USD. */
 function usd(n: number, audience: BillingCurrency): string {
   return formatMoney(n * 100, "usd", audience);
 }
@@ -173,7 +161,7 @@ export function CrewSizeSliderStatic({
       </p>
 
       <a
-        href={APP_LINKS.signup}
+        href={APP_LINKS.signupForPlan("pro")}
         className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       >
         {ui.startForBefore} {usd(LOONEXT_PRICE, audience)} {ui.startForAfter}

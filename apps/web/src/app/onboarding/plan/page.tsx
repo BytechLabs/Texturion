@@ -29,6 +29,7 @@ import {
 import {
   currencyForCountry,
   formatMoney,
+  planFitForCrew,
   US_REGISTRATION_FEE_CENTS,
 } from "@loonext/shared";
 
@@ -41,7 +42,7 @@ import {
   type PlanId,
   type PlanModule,
 } from "@/lib/api/types";
-import { consumePlanIntent } from "@/lib/marketing/plan-intent";
+import { consumePlanIntent, type PlanIntent } from "@/lib/marketing/plan-intent";
 import { cn } from "@/lib/utils";
 
 import { StepError, StepLoading, StepShell } from "../step-shell";
@@ -72,27 +73,26 @@ function PlanStep() {
   const ports = usePortRequestsForCompany(state.companyId);
   const [choosing, setChoosing] = useState<PlanId | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  // #12 plan builder: opt-in add-ons carried into checkout.
+  const [planIntent, setPlanIntent] = useState<PlanIntent | null | undefined>(
+    undefined,
+  );
   const [modules, setModules] = useState<PlanModule[]>([]);
-  // Selected plan (radio-style): the cards select, a single "Continue to
-  // checkout" button below commits. Starts on Starter, or the /pricing
-  // plan-builder intent when one arrived (stashed at signup or carried in this
-  // URL). Consumed exactly once in an effect so the SSR pass renders identically.
-  const [selectedPlan, setSelectedPlan] = useState<PlanId>("starter");
+  const [planOverride, setPlanOverride] = useState<PlanId | null>(null);
+  const crewSize = state.company?.crew_size ?? state.draft.crewSize;
+  const crewPlan = crewSize ? planFitForCrew(crewSize) : null;
+  const selectedPlan = planOverride ?? planIntent?.plan ?? crewPlan ?? "starter";
+
   useEffect(() => {
+    if (!ready || planIntent !== undefined) return;
     const intent = consumePlanIntent(window.location.search);
-    // #255: the builder's denominator, with whatever arrived from /pricing.
-    // Reported once per mount, before the intent is applied, so the event says
-    // what the person was shown rather than what they later changed it to.
+    setPlanIntent(intent);
+    setModules(intent?.modules ?? []);
     trackPlanBuilderViewed(
       "onboarding",
-      intent?.plan ?? "starter",
+      intent?.plan ?? crewPlan ?? "starter",
       intent?.modules ?? [],
     );
-    if (!intent) return;
-    setSelectedPlan(intent.plan);
-    setModules(intent.modules);
-  }, []);
+  }, [ready, planIntent, crewPlan]);
 
   function toggleModule(id: PlanModule) {
     setModules((current) => {
@@ -108,7 +108,7 @@ function PlanStep() {
   /** Choosing a tier before committing. Moving down is a price objection. */
   function selectPlan(next: PlanId) {
     if (next !== selectedPlan) trackPlanTierChanged("onboarding", next);
-    setSelectedPlan(next);
+    setPlanOverride(next);
   }
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
@@ -117,6 +117,7 @@ function PlanStep() {
   // short-circuits on !companyId first, so the query is always enabled here).
   if (
     !ready ||
+    planIntent === undefined ||
     !state.snapshot ||
     !state.company ||
     !state.companyId ||

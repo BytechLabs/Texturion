@@ -554,7 +554,7 @@ export async function sendPortEmail(
   copy: { subject: string; text: string; html: string },
 ): Promise<void> {
   try {
-    const to = await billingRecipients(env, companyId, db);
+    const to = await billingRecipients(env, companyId, db, "numbers.manage");
     if (to.length > 0) await sendEmail(env, { to, ...copy });
   } catch (error) {
     // Best-effort side effect of an already-applied transition (like

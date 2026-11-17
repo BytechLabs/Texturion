@@ -597,7 +597,7 @@ class PauseOfferTest {
                 "are counted from. A duration with no anchor on this card is read " +
                 "from the period end, which is most of a month later than the truth: " +
                 "$note",
-            note.contains("from the day you cancel"),
+            note.contains("after the plan ends"),
         )
         assertTrue(
             "and it must not quote an amount: the figure belongs to the paused card, " +
@@ -881,7 +881,7 @@ class PauseOfferTest {
         assertTrue(
             "and the day that clock starts on, or the reader counts from the end of " +
                 "their billing period instead: $body",
-            Regex("from the day you cancel").containsMatchIn(body),
+            Regex("after the plan ends").containsMatchIn(body),
         )
         assertTrue(
             "and it must say the pause starts no such clock, which is the offer: $body",

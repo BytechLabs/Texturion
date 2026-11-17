@@ -1,6 +1,6 @@
-import { CANCELLATION_GRACE_DAYS } from '@loonext/shared';
-import type { Locale } from '@loonext/shared';
+import { CANCELLATION_GRACE_DAYS, numberReleaseAt, type Locale } from "@loonext/shared";
 
+import { getStripe } from "./stripe";
 import { billingRecipients } from "./recipients";
 import { NUMBER_NOTICE_COPY } from "../notifications/number-copy";
 import { getDb } from "../db";
@@ -50,11 +50,50 @@ interface CanceledCompany {
   id: string;
   name: string;
   canceled_at: string;
+  stripe_subscription_id?: string | null;
+  current_period_end?: string | null;
 }
 
-/** How much of the window is left at a rung. The one place that subtracts. */
-function graceDaysLeft(day: GraceThresholdDay): number {
-  return GRACE_PERIOD_DAYS - day;
+function graceDaysLeft(canceledAt: string, now: Date): number {
+  const deadline = numberReleaseAt(canceledAt);
+  if (!deadline) return 0;
+  const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / DAY_MS);
+  return Math.min(GRACE_PERIOD_DAYS, Math.max(0, daysLeft));
+}
+
+export async function reanchorCancellation(
+  db: Db,
+  company: CanceledCompany,
+  endedAt: number,
+): Promise<boolean> {
+  const end = new Date(endedAt * 1000);
+  if (end.getTime() <= Date.parse(company.canceled_at)) return true;
+
+  const { data, error } = await db.rpc("api_reanchor_cancellation", {
+    p_company_id: company.id,
+    p_old_canceled_at: company.canceled_at,
+    p_new_canceled_at: end.toISOString(),
+  });
+  if (error) throw new Error(`cancellation reanchor failed: ${error.message}`);
+  return data === true;
+}
+
+async function repairCancellationAnchor(
+  env: Env,
+  db: Db,
+  company: CanceledCompany,
+): Promise<CanceledCompany | null> {
+  const { stripe_subscription_id: id, current_period_end: periodEnd } = company;
+  if (!id || !periodEnd || Date.parse(periodEnd) <= Date.parse(company.canceled_at)) {
+    return company;
+  }
+
+  const subscription = await getStripe(env).subscriptions.retrieve(id);
+  if (subscription.status !== "canceled") return null;
+  const endedAt = subscription.ended_at;
+  if (endedAt == null || endedAt * 1000 <= Date.parse(company.canceled_at)) return company;
+  if (!(await reanchorCancellation(db, company, endedAt))) return null;
+  return { ...company, canceled_at: new Date(endedAt * 1000).toISOString() };
 }
 
 /**
@@ -86,9 +125,9 @@ function warningCopy(
   company: CanceledCompany,
   day: GraceThresholdDay,
   env: Env,
+  daysLeft: number,
 ): { subject: string; text: string } {
   const resubscribeUrl = `${env.APP_ORIGIN}/settings/billing`;
-  const daysLeft = graceDaysLeft(day);
   // ENGLISH, PINNED. `billingRecipients` returns addresses, not readers, and the
   // body below is English prose with no translation — a French subject on an
   // English letter would be worse than an English one. The reader's language
@@ -97,7 +136,7 @@ function warningCopy(
   const opening =
     `Hi,\n\nThe Loonext subscription for ${company.name} is canceled. ` +
     `Your business phone number is suspended but reserved for ${GRACE_PERIOD_DAYS} days ` +
-    `from cancellation. You still have about ${daysLeft} day${daysLeft === 1 ? "" : "s"} ` +
+    `after the plan ends. You still have about ${daysLeft} day${daysLeft === 1 ? "" : "s"} ` +
     `to resubscribe and keep it, with your full message history intact.\n\n`;
 
   /**
@@ -234,7 +273,10 @@ export async function recordAndSendGraceNotice(
   env: Env,
   company: CanceledCompany,
   thresholdDay: GraceThresholdDay,
+  now = new Date(),
 ): Promise<boolean> {
+  const daysLeft = graceDaysLeft(company.canceled_at, now);
+  if (daysLeft === 0) return false;
   const db = getDb(env);
   if (!(await claimGraceNotice(db, company, thresholdDay))) {
     return false; // ledger says already sent
@@ -242,7 +284,7 @@ export async function recordAndSendGraceNotice(
 
   const to = await billingRecipients(env, company.id, db);
   if (to.length === 0) return false;
-  const { subject, text } = warningCopy(company, thresholdDay, env);
+  const { subject, text } = warningCopy(company, thresholdDay, env, daysLeft);
   // #252: the critical stream. Every rung of this ladder is a deadline
   // after which the customer's business number is gone.
   await sendEmail(env, {
@@ -252,7 +294,7 @@ export async function recordAndSendGraceNotice(
     html: renderEmailHtml(text),
     critical: true,
   });
-  await pushGraceWarning(env, db, company, thresholdDay);
+  await pushGraceWarning(env, db, company, thresholdDay, daysLeft);
   return true;
 }
 
@@ -280,8 +322,8 @@ async function pushGraceWarning(
   db: SupabaseClient,
   company: CanceledCompany,
   thresholdDay: GraceThresholdDay,
+  daysLeft: number,
 ): Promise<void> {
-  const daysLeft = graceDaysLeft(thresholdDay);
   // #228: composed per reader, unlike the email that has just gone — a push is
   // delivered to a person whose language `deliverPush` has resolved, an email
   // to an address that is nobody in particular. So the two channels stop
@@ -308,7 +350,7 @@ async function companiesWithUnreleasedResources(
   db: ReturnType<typeof getDb>,
   olderThan: string,
 ): Promise<CanceledCompany[]> {
-  type EmbeddedCompany = { id: string; name: string; canceled_at: string | null };
+  type EmbeddedCompany = Omit<CanceledCompany, "canceled_at"> & { canceled_at: string | null };
   const found = new Map<string, CanceledCompany>();
 
   // A to-one embed arrives as an object, while the generated types describe it
@@ -327,6 +369,8 @@ async function companiesWithUnreleasedResources(
             id: company.id,
             name: company.name,
             canceled_at: company.canceled_at,
+            stripe_subscription_id: company.stripe_subscription_id,
+            current_period_end: company.current_period_end,
           });
         }
       }
@@ -335,7 +379,7 @@ async function companiesWithUnreleasedResources(
 
   const { data: numbers, error: numbersError } = await db
     .from("phone_numbers")
-    .select("company_id,companies!inner(id,name,canceled_at)")
+    .select("company_id,companies!inner(id,name,canceled_at,stripe_subscription_id,current_period_end)")
     .neq("status", "released")
     .eq("companies.subscription_status", "canceled")
     .is("companies.deleted_at", null)
@@ -347,7 +391,7 @@ async function companiesWithUnreleasedResources(
 
   const { data: campaigns, error: campaignsError } = await db
     .from("messaging_registrations")
-    .select("company_id,companies!inner(id,name,canceled_at)")
+    .select("company_id,companies!inner(id,name,canceled_at,stripe_subscription_id,current_period_end)")
     .eq("kind", "campaign")
     .not("telnyx_id", "is", null)
     .is("deactivated_at", null)
@@ -483,7 +527,7 @@ export async function runGraceJob(
   ).toISOString();
   const { data, error } = await db
     .from("companies")
-    .select("id,name,canceled_at")
+    .select("id,name,canceled_at,stripe_subscription_id,current_period_end")
     .eq("subscription_status", "canceled")
     .not("canceled_at", "is", null)
     .gte("canceled_at", graceCutoff)
@@ -515,8 +559,10 @@ export async function runGraceJob(
   ];
 
   const failures: unknown[] = [];
-  for (const company of queue) {
+  for (const candidate of queue) {
     try {
+      const company = await repairCancellationAnchor(env, db, candidate);
+      if (!company) continue;
       // #526 — the standing pass over the rows that are not numbers.
       //
       // `suspendCompanyNumbers` closes these out on the cancellation webhook,
@@ -541,13 +587,13 @@ export async function runGraceJob(
       const canceledAt = new Date(company.canceled_at).getTime();
       const daysElapsed = Math.floor((now.getTime() - canceledAt) / DAY_MS);
 
-      for (const day of GRACE_THRESHOLD_DAYS) {
-        if (daysElapsed >= day) {
-          await recordAndSendGraceNotice(env, company, day);
-        }
-      }
       if (daysElapsed >= GRACE_PERIOD_DAYS) {
         await releaseExpiredCompany(env, company);
+      } else {
+        const day = GRACE_THRESHOLD_DAYS.findLast((threshold) => daysElapsed >= threshold);
+        if (day !== undefined) {
+          await recordAndSendGraceNotice(env, company, day, now);
+        }
       }
     } catch (cause) {
       // One broken tenant must not starve the rest; rethrown below so the

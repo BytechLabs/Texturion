@@ -106,8 +106,7 @@ divulguer dans le cadre du présent contrat.
 
 ## 6. Sous-traitants ultérieurs
 
-Liste actuelle, tenue publique et à jour : **Cloudflare, OpenAI, PostHog, Resend,
-Stripe, Supabase, Telnyx et Cloudflare Workers AI.**
+Liste actuelle, tenue publique et à jour : **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google (Firebase Cloud Messaging), PostHog**
 
 > Source: `/legal/subprocessors`
 
@@ -120,7 +119,7 @@ pourrions pas respecter.
 ## 7. Traitement par l'IA
 
 Le texte des messages des clients et l'audio de la messagerie vocale sont traités
-par Cloudflare Workers AI et OpenAI pour les fonctionnalités que l'espace de
+par Cloudflare Workers AI pour les fonctionnalités que l'espace de
 travail a activées. La divulgation indique le **cheminement** plutôt que de
 laisser entendre un confinement, parce que l'inférence ne peut pas être confinée
 à un pays.

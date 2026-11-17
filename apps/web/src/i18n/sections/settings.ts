@@ -98,13 +98,13 @@ export const settingsEn = {
   offerGetHelp: "Get help",
   offerMissingBody: "If the thing you needed is not here, the fastest way to change that is to tell us what it was. We answer {when}. {promise}",
   offerMissingHeading: "Tell us what was missing",
-  offerPausedSeasonalBody: "Your number and your whole message history are held for as long as you stay paused — nothing expires while your plan is paused, and there is no date you have to be back by. Cancelling instead ends the pause and starts a clock: {days} days from the day you cancel, not from the end of your billing period, and at the end of it the number goes back to the phone company.",
+  offerPausedSeasonalBody: "Your number and your whole message history are held for as long as you stay paused — nothing expires while your plan is paused, and there is no date you have to be back by. Cancelling instead ends the pause and starts a clock: {days} days after the plan ends, and at the end of it the number goes back to the phone company.",
   offerPausedSeasonalHeading: "Your plan is already paused, and that hold has no deadline",
   offerRegistrationFeePaid: " You have already paid the one-time registration fee, and it is charged at most once per workspace, ever — coming back does not charge it again.",
-  offerSeasonalBody: "It keeps receiving texts the whole time, so nothing a customer sends is lost — you cannot reply until you are back, and your message history stays put. The {days} days run from the day you cancel, not from the end of your billing period, so a quiet season longer than that outruns the hold and the number goes back to the phone company.",
-  offerSeasonalGraceBody: "It is still receiving texts, so nothing a customer sends is lost, though you cannot reply until you are back. That date is {days} days from the day you cancelled, not from the end of your last billing period. Resubscribe before then and the number and your whole message history come back with you.",
+  offerSeasonalBody: "It keeps receiving texts the whole time, so nothing a customer sends is lost — you cannot reply until you are back, and your message history stays put. The {days} days run after the plan ends, so a quiet season longer than that outruns the hold and the number goes back to the phone company.",
+  offerSeasonalGraceBody: "It is still receiving texts, so nothing a customer sends is lost, though you cannot reply until you are back. That date is {days} days after the plan ended. Resubscribe before then and the number and your whole message history come back with you.",
   offerSeasonalGraceHeading: "Your number is still yours until the date below",
-  offerSeasonalHeading: "Your number is held for {days} days from the day you cancel",
+  offerSeasonalHeading: "Your number is held for {days} days after the plan ends",
   offerStarterCovers: "It covers {seats} people and {numbers} business numbers.",
   offerStarterCoversOne: "It covers {seats} people and {numbers} business number.",
   offerStarterHeading: "Starter is the same product, priced for a smaller crew",
@@ -235,18 +235,8 @@ export const settingsEn = {
   cancelReasonSwitched: "Going with something else",
   cancelReasonNotUsing: "Not using it",
   cancelReasonOther: "Something else",
-  /* The hold is anchored to the CANCELLATION, not to the period end, in both
-     voices — `runGraceJob` measures from `companies.canceled_at`, which Stripe
-     stamps at the moment of the request. Somebody who reads the other anchor
-     counts about twice the days they have, and what runs out is the number on
-     the side of their van. Keep "{days} days from the day you cancel" adjacent
-     in any rewrite, in either language. */
   cancelConsequence:
-    "Cancel anytime. Your plan runs to the end of the billing period and does " +
-    "not renew — texting stops then, if it has not stopped already. We hold " +
-    "your number for {days} days from the day you cancel, not from the day " +
-    "the plan ends, so the hold can run out soon afterwards. After that the " +
-    "number is released for good.",
+    "Cancel anytime. Your plan runs to the end of the billing period and does not renew — texting stops then, if it has not stopped already. We hold your number for {days} days after the plan ends. After that the number is released for good.",
   cancelQuestion: "If you want to say why, it helps us fix it.",
   cancelQuestionNote: "Optional, and it changes nothing about cancelling.",
   cancelExportTitle: "Take your contacts with you",
@@ -265,19 +255,14 @@ export const settingsEn = {
      because an admin cannot do any of it — and they are the one relaying the
      deadline to the owner, so the anchor matters more here rather than less. */
   cancelAdminConsequence:
-    "Only the owner can cancel this plan. When they do, the plan runs to the " +
-    "end of the billing period and does not renew — texting stops then, if it " +
-    "has not stopped already. We hold the number for {days} days from the day " +
-    "they cancel, not from the day the plan ends, so the hold can run out soon " +
-    "afterwards. After that the number is released for good.",
+    "Only the owner can cancel this plan. When they do, the plan runs to the end of the billing period and does not renew — texting stops then, if it has not stopped already. We hold the number for {days} days after the plan ends. After that the number is released for good.",
   cancelAdminNote:
     "The payment portal an admin reaches is the card screen and has no " +
     "cancellation on it, so this is not something to go looking for there.",
 
   /* The hold on the number, after cancelling. */
   holdGeneral:
-    "We hold your number for {days} days from the day you cancel. Resubscribe " +
-    "before then and everything picks up where it left off.",
+    "We hold your number for {days} days after the plan ends. Resubscribe before then and everything picks up where it left off.",
   holdEndedLead: "The {days}-day hold on your number ended on",
   holdEndedTail:
     ". We are not keeping it for you any more, so plan on a new number if you " +
@@ -881,13 +866,13 @@ export const settingsFr: Translated<typeof settingsEn> = {
   offerGetHelp: "Obtenir de l'aide",
   offerMissingBody: "Si ce dont vous aviez besoin n'est pas là, le plus rapide pour que cela change est de nous dire ce que c'était. Nous répondons {when}. {promise}",
   offerMissingHeading: "Dites-nous ce qui manquait",
-  offerPausedSeasonalBody: "Votre numéro et tout votre historique de messages sont conservés aussi longtemps que vous restez en pause — rien n'expire pendant la pause, et il n'y a aucune date de retour à respecter. Annuler plutôt met fin à la pause et démarre un compte à rebours : {days} jours à compter du jour de l'annulation, et non de la fin de votre période de facturation, au terme duquel le numéro retourne à la compagnie de téléphone.",
+  offerPausedSeasonalBody: "Votre numéro et tout votre historique de messages sont conservés aussi longtemps que vous restez en pause — rien n'expire pendant la pause, et il n'y a aucune date de retour à respecter. Annuler plutôt met fin à la pause et démarre un compte à rebours : {days} jours après la fin du forfait, au terme duquel le numéro retourne à la compagnie de téléphone.",
   offerPausedSeasonalHeading: "Votre forfait est déjà en pause, et cette conservation n'a aucune échéance",
   offerRegistrationFeePaid: " Vous avez déjà payé les frais d'inscription uniques, et ils sont facturés au plus une fois par espace de travail, à jamais — revenir ne les facture pas de nouveau.",
-  offerSeasonalBody: "Il continue de recevoir les textos tout du long, alors rien de ce qu'un client envoie n'est perdu — vous ne pouvez pas répondre avant votre retour, et votre historique de messages reste en place. Les {days} jours courent à compter du jour de l'annulation, et non de la fin de votre période de facturation : une saison tranquille plus longue dépasse donc la conservation, et le numéro retourne à la compagnie de téléphone.",
-  offerSeasonalGraceBody: "Il reçoit encore les textos, alors rien de ce qu'un client envoie n'est perdu, même si vous ne pouvez pas répondre avant votre retour. Cette date est à {days} jours du jour de l'annulation, et non de la fin de votre dernière période de facturation. Réabonnez-vous avant, et le numéro ainsi que tout votre historique de messages reviennent avec vous.",
+  offerSeasonalBody: "Il continue de recevoir les textos tout du long, alors rien de ce qu'un client envoie n'est perdu — vous ne pouvez pas répondre avant votre retour, et votre historique de messages reste en place. Les {days} jours courent après la fin du forfait : une saison tranquille plus longue dépasse donc la conservation, et le numéro retourne à la compagnie de téléphone.",
+  offerSeasonalGraceBody: "Il reçoit encore les textos, alors rien de ce qu'un client envoie n'est perdu, même si vous ne pouvez pas répondre avant votre retour. Cette date tombe {days} jours après la fin du forfait. Réabonnez-vous avant, et le numéro ainsi que tout votre historique de messages reviennent avec vous.",
   offerSeasonalGraceHeading: "Votre numéro vous appartient encore jusqu'à la date ci-dessous",
-  offerSeasonalHeading: "Votre numéro est conservé {days} jours à compter du jour de l'annulation",
+  offerSeasonalHeading: "Votre numéro est conservé {days} jours après la fin du forfait",
   offerStarterCovers: "Il couvre {seats} personnes et {numbers} numéros d'entreprise.",
   offerStarterCoversOne: "Il couvre {seats} personnes et {numbers} numéro d'entreprise.",
   offerStarterHeading: "Starter est le même produit, au prix d'une plus petite équipe",
@@ -1001,12 +986,7 @@ export const settingsFr: Translated<typeof settingsEn> = {
   cancelReasonNotUsing: "Je ne m'en sers pas",
   cancelReasonOther: "Autre chose",
   cancelConsequence:
-    "Annulez à tout moment. Votre forfait se poursuit jusqu'à la fin de la " +
-    "période de facturation et ne se renouvelle pas — les textos s'arrêtent " +
-    "alors, s'ils ne se sont pas déjà arrêtés. Nous conservons votre numéro " +
-    "pendant {days} jours à compter du jour de l'annulation, et non à compter " +
-    "de la fin du forfait : la conservation peut donc prendre fin peu après. " +
-    "Ensuite, le numéro est libéré définitivement.",
+    "Annulez à tout moment. Votre forfait se poursuit jusqu'à la fin de la période de facturation et ne se renouvelle pas — les textos s'arrêtent alors, s'ils ne se sont pas déjà arrêtés. Nous conservons votre numéro pendant {days} jours après la fin du forfait. Ensuite, le numéro est libéré définitivement.",
   cancelQuestion:
     "Si vous voulez nous dire pourquoi, cela nous aide à nous améliorer.",
   cancelQuestionNote: "Facultatif, et cela ne change rien à l'annulation.",
@@ -1022,21 +1002,13 @@ export const settingsFr: Translated<typeof settingsEn> = {
     "dans tous les cas, où vous terminez l'annulation.",
   cancelAction: "Continuer vers l'annulation",
   cancelAdminConsequence:
-    "Seul le propriétaire peut annuler ce forfait. Lorsqu'il le fait, le " +
-    "forfait se poursuit jusqu'à la fin de la période de facturation et ne se " +
-    "renouvelle pas — les textos s'arrêtent alors, s'ils ne se sont pas déjà " +
-    "arrêtés. Nous conservons le numéro pendant {days} jours à compter du " +
-    "jour de l'annulation, et non à compter de la fin du forfait : la " +
-    "conservation peut donc prendre fin peu après. Ensuite, le numéro est " +
-    "libéré définitivement.",
+    "Seul le propriétaire peut annuler ce forfait. Lorsqu'il le fait, le forfait se poursuit jusqu'à la fin de la période de facturation et ne se renouvelle pas — les textos s'arrêtent alors, s'ils ne se sont pas déjà arrêtés. Nous conservons le numéro pendant {days} jours après la fin du forfait. Ensuite, le numéro est libéré définitivement.",
   cancelAdminNote:
     "Le portail de paiement auquel accède un administrateur est l'écran de la " +
     "carte ; il n'y a aucune annulation à y trouver.",
 
   holdGeneral:
-    "Nous conservons votre numéro pendant {days} jours à compter du jour de " +
-    "l'annulation. Réabonnez-vous avant cette date et tout reprend là où vous " +
-    "l'aviez laissé.",
+    "Nous conservons votre numéro pendant {days} jours après la fin du forfait. Réabonnez-vous avant cette date et tout reprend là où vous l'aviez laissé.",
   holdEndedLead:
     "La conservation de votre numéro pendant {days} jours a pris fin le",
   holdEndedTail:

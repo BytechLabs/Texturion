@@ -276,17 +276,17 @@ export function mfaStepUpRequired(
   aal: AssuranceLevel,
 ): MfaStepUp | null {
   if (aal === "aal2") return null;
+  if (posture?.enrolled) {
+    return {
+      code: "mfa_challenge_required",
+      message: "Enter the code from your authenticator app to continue.",
+    };
+  }
   if (posture?.enforcing) {
     return {
       code: "mfa_required",
       message:
         "This workspace requires two-factor authentication. Set it up to carry on.",
-    };
-  }
-  if (posture?.enrolled) {
-    return {
-      code: "mfa_challenge_required",
-      message: "Enter the code from your authenticator app to continue.",
     };
   }
   return null;

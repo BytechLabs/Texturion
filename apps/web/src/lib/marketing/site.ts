@@ -12,6 +12,8 @@
  * goes to a real standalone page. There are ZERO dead links.
  */
 
+import type { PlanId, PlanModule } from "@/lib/api/types";
+
 export const SITE_URL = "https://loonext.com";
 
 /** Absolute canonical for a path (leading slash), e.g. "/legal/terms". */
@@ -34,6 +36,7 @@ export const LIVE_ROUTES = {
   // the per-app CHANGELOG.md release-please generates, deliberately — those
   // are honest history and this is news.
   whatsNew: "/whats-new",
+  developers: "/developers",
   security: "/security",
   contact: "/contact",
   status: "/status",
@@ -111,9 +114,15 @@ export function appLinkBase(origin: string | undefined): string {
 }
 
 const APP_BASE = appLinkBase(process.env.NEXT_PUBLIC_APP_ORIGIN);
+const SIGNUP_URL = `${APP_BASE}/signup`;
 
 /** The app (separate Worker origin in production; same-origin route locally). */
 export const APP_LINKS = {
   login: `${APP_BASE}/login`,
-  signup: `${APP_BASE}/signup`,
+  signup: SIGNUP_URL,
+  signupForPlan(plan: PlanId, modules: readonly PlanModule[] = []) {
+    const params = new URLSearchParams({ plan });
+    if (modules.length > 0) params.set("modules", modules.join(","));
+    return `${SIGNUP_URL}?${params.toString()}`;
+  },
 } as const;

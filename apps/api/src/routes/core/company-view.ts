@@ -27,7 +27,7 @@ import type { MemberRole } from "../../context";
 
 /** Customer-visible company columns (SPEC §10: internals stay server-side). */
 export const COMPANY_COLUMNS =
-  "id,name,country,us_texting_enabled,requested_area_code,timezone,plan," +
+  "id,name,country,us_texting_enabled,requested_area_code,timezone,plan,crew_size," +
   // #328: what this workspace is charged in. Every price surface reads it —
   // a screen that renders the wrong currency is the credibility wobble this
   // whole change exists to remove.

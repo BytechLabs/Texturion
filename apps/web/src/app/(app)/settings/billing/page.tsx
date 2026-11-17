@@ -1,5 +1,7 @@
 "use client";
 
+import { numberReleaseAt } from "@loonext/shared";
+
 import {
   billingCurrencyOf,
   CANCELLATION_GRACE_DAYS,
@@ -183,29 +185,9 @@ function StatusNotices({ company }: { company: CompanyView }) {
     company.subscription_status === "active" &&
     company.cancel_at_period_end
   ) {
+    const releaseDate = numberReleaseAt(company.current_period_end);
     return (
       <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3">
-        {/* The hold is counted from the day cancelling was REQUESTED, not from
-            the day texting stops — `canceled_at` comes off Stripe's own
-            `subscription.canceled_at`. This notice used to read "texting stops
-            then; we hold your number for 30 days", which invites the reader to
-            count from the period end and can overstate the real deadline by
-            most of a month. The exact date cannot be shown here (nothing has
-            stamped `canceled_at` yet), so the anchor is named instead.
-
-            #524 — AND "Texting stops then" IS FALSE FOR A PAUSED READER. A
-            pause is a price swap rather than a cancellation, so Stripe can hold
-            `cancel_at_period_end` on a workspace that is ALSO paused, and this
-            notice then sits on the same screen as the paused card saying
-            texting is already off. The qualifier is unconditional rather than
-            branched on `GET /v1/billing/pause`: this notice renders above the
-            cancel card, and EXIT-R3 requires everything down to the exit to be
-            byte-for-byte identical whatever that read says. A sentence that
-            reflows when a Stripe round trip lands is an exit that moves under
-            somebody's thumb. PAGE-PAUSE-7 pins both halves. */}
-        {/* Head / when / tail rather than two whole sentences: the tail is the
-            qualified "texting stops" claim PAGE-PAUSE-7 pins, and two copies of
-            it is two chances for one of them to drift. */}
         <p className="text-sm">
           {t("appShell.billingCancelScheduled")}
           {company.current_period_end
@@ -217,6 +199,13 @@ function StatusNotices({ company }: { company: CompanyView }) {
             days: CANCELLATION_GRACE_DAYS,
           })}
         </p>
+        {releaseDate && (
+          <p className="mt-1 text-sm">
+            {t("appShell.billingScheduledRelease", {
+              date: fullDate(releaseDate.toISOString(), t.locale) ?? "",
+            })}
+          </p>
+        )}
         <div className="mt-2">
           <PortalButton label={t("appShell.billingKeepPlan")} />
         </div>

@@ -1,6 +1,16 @@
+import { AI_DISCLOSURES, type AiDisclosure } from "@loonext/shared";
 import { PLAN_PRICING, US_REGISTRATION_FEE_DOLLARS } from "@/lib/api/types";
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
 import { absoluteUrl, LIVE_ROUTES } from "@/lib/marketing/site";
+
+const AI_FEATURES: Record<AiDisclosure["key"], { label: string; cap: number; description: string }> = {
+  suggest_reply: { label: "Suggested replies", cap: 1500, description: "Lou drafts a reply for the crew to review, edit and send." },
+  enrich: { label: "Task details", cap: 1000, description: "Lou suggests an address and due date from the message. Each has its own switch." },
+  voicemail_transcript: { label: "Voicemail transcripts", cap: 500, description: "The crew can read and search what the caller said." },
+  voicemail_intake: { label: "Voicemail intake", cap: 500, description: "Lou extracts the caller’s request and location from the transcript." },
+  call_wrapup: { label: "Call wrap-up", cap: 1500, description: "Lou transcribes a crew member’s dictated note after the call." },
+  thread_summary: { label: "Conversation summaries", cap: 500, description: "Lou summarizes recent messages for the crew." },
+};
 
 /**
  * #451 — llms.txt, built from the same data the site renders from.
@@ -60,6 +70,7 @@ const PAGE_NOTES: Record<keyof typeof LIVE_ROUTES, string | null> = {
   home: null, // the file opens with the site URL; a second link adds nothing
   pricing:
     "the interactive plan builder with the live total, both plans, and every cost on one page",
+  developers: null,
   // #321: what SHIPPED, dated, newest first. Listed because "is this product
   // still being worked on" is a question a buyer asks and an answer we have.
   whatsNew:
@@ -236,12 +247,11 @@ Website: https://loonext.com
 - Calling is included on every plan, nothing to turn on: incoming calls to your business number ring your crew in the Loonext app (whoever answers first takes the call), callers reach voicemail when nobody can pick up, you call customers back from the app on your business number (they always see the business number), and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere. Call screening, hold, transfer between teammates, and caller ID name both directions are built in. One pool of generous calling minutes under fair use covers both directions; concrete minute figures live at https://loonext.com/legal/fair-use.
 
 ## AI features (on by default, switchable off per feature)
-- Lou is the assistant inside Loonext. Every AI feature that produces a SUGGESTION A MEMBER READS arrives ON, and an owner can switch each one off individually in the workspace's AI settings. Saying otherwise would understate what the product does with message text, which is the wrong direction to be wrong in. Exactly one feature is off by default, and it is the one that changes what a stranger hears: voicemail intake (below).
-- The caps are per company per calendar month, and they are hard: suggested replies 1,500, voicemail transcripts 500, task details 1,000. Past a cap the feature stops for the rest of that month rather than billing more, and the crew is told which cap it was.
-- Suggested replies: Lou drafts a reply to a customer text. A person always reads, edits and sends it. Nothing is ever sent automatically.
-- Voicemail transcripts: a voicemail is written down so the crew can read it instead of listening, and search it later.
-- Task details: turning a customer text into a task fills in the address and due date from what the customer wrote. These are two switches, not one: the address and the due date can be turned off separately.
-- Voicemail intake, OFF by default: Lou reads a voicemail transcript and breaks out what the caller wanted and where, shown above the recording. The greeting is the owner's own text and nothing is appended to it — a crew that wants callers to state the address asks for it in their own greeting. Nothing books anything and nobody is put through a menu.
+- Lou is the assistant inside Loonext. An owner can switch each feature off individually in the workspace's AI settings. Each company has a calendar-month cap per feature. Usage stops at the cap for the rest of the month.
+${AI_DISCLOSURES.map(({ key, defaultOn }) => {
+  const { label, cap, description } = AI_FEATURES[key];
+  return `- ${label}, ${defaultOn ? "on" : "off"} by default, ${cap.toLocaleString("en-US")} per month. ${description}`;
+}).join("\n")}
 - The models run on Cloudflare Workers AI, in the same account that hosts the app. Message content and voicemail audio are not used to train models, by Cloudflare's published policy and by ours. What comes back is stored in the workspace like any other message and deleted with it. Details at https://loonext.com/legal/privacy and https://loonext.com/legal/subprocessors.
 
 ## Optional add-on modules

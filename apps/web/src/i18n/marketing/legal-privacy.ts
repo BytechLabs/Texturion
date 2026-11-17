@@ -8,7 +8,7 @@ export const legalPrivacyEn = {
     "How Loonext handles your data under PIPEDA and Quebec Law 25: US data processing named plainly, and a firm commitment that mobile numbers and SMS consent data are never sold or shared for third-party marketing.",
   title: "Privacy policy",
   breadcrumbLabel: "Privacy policy",
-  lastUpdated: "November 13, 2026",
+  lastUpdated: "November 17, 2026",
   summary:
     "We collect only what the service needs to run your inbox: account details, the contacts and messages your business handles, and billing through Stripe. Your data is processed and stored in the United States, and we say so plainly, with one exception we name rather than bury: AI inference runs on Cloudflare’s global network and cannot be confined to a country. Mobile numbers and SMS consent data are never sold or shared with third parties for their own marketing. You can ask to see, correct, or delete your information at any time.",
 
@@ -93,7 +93,7 @@ export const legalPrivacyEn = {
   calendarEnding:
     "**Ending it.** Disconnect in Settings and we revoke our access at the provider, erase the stored credential at once, and remove the events we created, or clear their contents where deleting one would affect other people. If a provider will not confirm that, we tell your workspace owner. You can also remove Loonext in your Google or Microsoft account permissions. When a workspace is closed, every record described here goes with it.",
   sharingOne:
-    "We share data only with the sub-processors that make the service run, the phone carrier (Telnyx), payments (Stripe), infrastructure (Supabase/AWS, Cloudflare), email (Resend), push notifications (Google Firebase Cloud Messaging), and error/analytics tooling (PostHog), each limited to what its job requires and listed on our {subprocessors}. We may disclose data if the law requires it. We do not sell personal information.",
+    "Our service providers are {vendors}. Each provider receives the data it needs for its work, as described on our {subprocessors}. Web and Android maps load tiles from the OpenStreetMap Foundation. We send street addresses to its public Nominatim service to place them on the map. We may disclose data if the law requires it. We do not sell personal information.",
   sharingTwo:
     "Your workspace can also send its own data somewhere. If an owner or admin sets up a connection, we post what happens here, including message text and a contact’s name and number, to the web address they enter, until they delete it. If they create an API key, whoever holds that key can read whatever its permissions allow. In both cases the recipient is chosen by your business rather than by us, and it is not covered by our agreements with the services above.",
   sharingThree:
@@ -130,7 +130,7 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
     "Comment Loonext traite vos données en vertu de la LPRPDE et de la Loi 25 du Québec : le traitement aux États-Unis annoncé clairement, et l'engagement ferme que les numéros de mobile et les données de consentement aux SMS ne sont jamais vendus ni transmis à des fins de marketing par des tiers.",
   title: "Politique de confidentialité",
   breadcrumbLabel: "Politique de confidentialité",
-  lastUpdated: "13 novembre 2026",
+  lastUpdated: "17 novembre 2026",
   summary:
     "Nous ne recueillons que ce dont le service a besoin pour faire fonctionner votre boîte de réception : les renseignements du compte, les contacts et les messages que traite votre entreprise, et la facturation par Stripe. Vos données sont traitées et stockées aux États-Unis, et nous le disons clairement, avec une exception que nous nommons plutôt que de la cacher : l'inférence de l'IA s'exécute sur le réseau mondial de Cloudflare et ne peut pas être confinée à un pays. Les numéros de mobile et les données de consentement aux SMS ne sont jamais vendus ni transmis à des tiers pour leur propre marketing. Vous pouvez demander en tout temps à voir, à corriger ou à supprimer vos renseignements.",
 
@@ -215,7 +215,7 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
   calendarEnding:
     "**Y mettre fin.** Déconnectez-vous dans les paramètres et nous révoquons notre accès auprès du fournisseur, effaçons immédiatement l'identifiant conservé et supprimons les événements que nous avons créés, ou en vidons le contenu lorsque leur suppression toucherait d'autres personnes. Si un fournisseur ne le confirme pas, nous en avisons le propriétaire de votre espace de travail. Vous pouvez aussi retirer Loonext dans les permissions de votre compte Google ou Microsoft. Lorsqu'un espace de travail est fermé, tous les dossiers décrits ici disparaissent avec lui.",
   sharingOne:
-    "Nous ne partageons des données qu'avec les sous-traitants qui font fonctionner le service : le fournisseur de téléphonie (Telnyx), les paiements (Stripe), l'infrastructure (Supabase/AWS, Cloudflare), le courriel (Resend), les notifications poussées (Google Firebase Cloud Messaging) et les outils de surveillance des erreurs et d'analyse (PostHog), chacun limité à ce que son travail exige et inscrit sur notre {subprocessors}. Nous pouvons communiquer des données si la loi l'exige. Nous ne vendons pas de renseignements personnels.",
+    "Nos fournisseurs de services sont {vendors}. Chacun reçoit les données dont il a besoin pour son travail, comme le précise notre {subprocessors}. Sur le Web et Android, les cartes chargent des tuiles de l’OpenStreetMap Foundation. Nous transmettons des adresses postales à son service public Nominatim pour les placer sur la carte. Nous pouvons communiquer des données si la loi l’exige. Nous ne vendons pas de renseignements personnels.",
   sharingTwo:
     "Votre espace de travail peut aussi envoyer ses propres données ailleurs. Si un propriétaire ou un administrateur configure une connexion, nous y transmettons ce qui s'y passe, y compris le texte des messages et le nom et le numéro d'un contact, à l'adresse Web qu'il saisit, jusqu'à ce qu'il la supprime. S'il crée une clé d'API, quiconque détient cette clé peut lire tout ce que ses permissions autorisent. Dans les deux cas, le destinataire est choisi par votre entreprise plutôt que par nous, et il n'est pas couvert par nos ententes avec les services mentionnés ci-dessus.",
   sharingThree:

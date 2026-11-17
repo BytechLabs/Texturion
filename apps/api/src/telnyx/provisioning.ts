@@ -759,7 +759,7 @@ async function recordProvisionFailure(
 
   if (row.provision_attempts === 0) {
     try {
-      const to = await billingRecipients(env, company.id, db);
+      const to = await billingRecipients(env, company.id, db, "numbers.manage");
       if (to.length > 0) {
         await sendEmail(env, { to, ...provisioningDelayedCopy(company.name) });
       }

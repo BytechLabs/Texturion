@@ -193,6 +193,9 @@ describe("llms.txt keeps up with what shipped", () => {
         constant: "VOICEMAIL_TRANSCRIPT_MONTHLY_CAP",
       },
       { file: "tasks/enrichment.ts", constant: "ENRICHMENT_MONTHLY_CAP" },
+      { file: "calls/voicemail-intake.ts", constant: "VOICEMAIL_INTAKE_MONTHLY_CAP" },
+      { file: "ai/call-wrapup.ts", constant: "CALL_WRAPUP_MONTHLY_CAP" },
+      { file: "messaging/thread-summary.ts", constant: "THREAD_SUMMARY_MONTHLY_CAP" },
     ];
 
     for (const { file, constant } of caps) {

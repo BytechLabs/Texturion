@@ -8,7 +8,7 @@ export const legalSubprocessorsEn = {
     "The third-party vendors Loonext uses to run the service, what each one processes, and the region it operates in, from the SMS carrier to payments, hosting, email, and analytics.",
   title: "Sub-processors",
   breadcrumbLabel: "Sub-processors",
-  lastUpdated: "July 30, 2026",
+  lastUpdated: "November 17, 2026",
   summary:
     "{vendorCount} vendors process data on our behalf so Loonext can run, from the SMS carrier to payments, hosting, email, and analytics. Each is limited to what its job requires, and message content stays out of our error and analytics tools. {featureCount} features send message content or voicemail audio to an AI model, and they are named in full below. Data lives in the United States, with one named exception: AI inference runs on Cloudflare's global network and cannot be confined to a country. When this list changes, this page and the date above change with it.",
   sectionList: "Current sub-processors",
@@ -19,9 +19,9 @@ export const legalSubprocessorsEn = {
   columnPurpose: "What it does",
   columnData: "Data it touches",
   columnRegion: "Region",
-  telnyxPurpose: "SMS/MMS carriage, phone numbers, 10DLC registration",
+  telnyxPurpose: "SMS/MMS, voice calls, phone numbers, caller ID and 10DLC registration",
   telnyxData:
-    "Message content, contact phone numbers, business registration details",
+    "Message content, contact phone numbers, call and voicemail recordings, caller ID and business registration details",
   telnyxRegion: "United States",
   stripePurpose: "Subscription payments, tax calculation, billing portal",
   stripeData:
@@ -49,6 +49,7 @@ export const legalSubprocessorsEn = {
   posthogData:
     "Event names, counts, and UUIDs, no message content; cookieless on marketing pages. Error and crash diagnostics from the website, the API and the Android and iPhone apps, with PII scrubbed: no message bodies, names, email addresses or phone numbers",
   posthogRegion: "United States",
+  openStreetMap: "On the web and Android, maps load tiles from the OpenStreetMap Foundation. We also send street addresses to its public Nominatim service to look up map coordinates.",
   listNote:
     "Data lives primarily in the United States (Supabase on AWS `us-east-1`). We keep message content out of PostHog by design, see our {security} and {privacy}.",
   securityLink: "security page",
@@ -87,7 +88,7 @@ export const legalSubprocessorsFr: Translated<typeof legalSubprocessorsEn> = {
     "Les fournisseurs tiers que Loonext utilise pour exploiter le service, les données que chacun traite et la région où il exerce ses activités, du transport des textos aux paiements, à l'hébergement, au courriel et aux analyses.",
   title: "Sous-traitants",
   breadcrumbLabel: "Sous-traitants",
-  lastUpdated: "30 juillet 2026",
+  lastUpdated: "17 novembre 2026",
   summary:
     "{vendorCount} fournisseurs traitent des données en notre nom pour faire fonctionner Loonext, du transport des textos aux paiements, à l'hébergement, au courriel et aux analyses. Chacun est limité à ce que son travail exige, et le contenu des messages reste hors de nos outils d'erreurs et d'analyse. {featureCount} fonctions envoient du contenu de message ou de l'audio de messagerie vocale à un modèle d'IA; elles sont toutes nommées ci-dessous. Les données résident aux États-Unis, à une exception près : l'inférence de l'IA s'exécute sur le réseau mondial de Cloudflare et ne peut pas être confinée à un pays. Lorsque cette liste change, cette page et la date ci-dessus changent aussi.",
   sectionList: "Sous-traitants actuels",
@@ -98,9 +99,9 @@ export const legalSubprocessorsFr: Translated<typeof legalSubprocessorsEn> = {
   columnPurpose: "Ce qu'il fait",
   columnData: "Données traitées",
   columnRegion: "Région",
-  telnyxPurpose: "Transport des SMS et MMS, numéros de téléphone et inscription 10DLC",
+  telnyxPurpose: "Transport des SMS et MMS, appels, numéros de téléphone, identification de l’appelant et inscription 10DLC",
   telnyxData:
-    "Contenu des messages, numéros de téléphone des contacts et renseignements d'inscription de l'entreprise",
+    "Contenu des messages, numéros de téléphone des contacts, enregistrements d’appels et de messagerie vocale, identification de l’appelant et renseignements d’inscription de l’entreprise",
   telnyxRegion: "États-Unis",
   stripePurpose: "Paiements d'abonnement, calcul des taxes et portail de facturation",
   stripeData:
@@ -129,6 +130,7 @@ export const legalSubprocessorsFr: Translated<typeof legalSubprocessorsEn> = {
   posthogData:
     "Noms d'événements, quantités et UUID, sans contenu de message; sans témoins sur les pages publiques. Diagnostics d'erreur et de plantage du site Web, de l'API et des applications Android et iPhone, dont les renseignements personnels ont été retirés : sans corps de message, nom, adresse courriel ni numéro de téléphone",
   posthogRegion: "États-Unis",
+  openStreetMap: "Sur le Web et Android, les cartes chargent des tuiles de l’OpenStreetMap Foundation. Nous transmettons aussi des adresses postales à son service public Nominatim pour obtenir des coordonnées sur la carte.",
   listNote:
     "Les données résident principalement aux États-Unis (Supabase sur AWS `us-east-1`). Nous gardons volontairement le contenu des messages hors de PostHog; consultez notre {security} et notre {privacy}.",
   securityLink: "page sur la sécurité",

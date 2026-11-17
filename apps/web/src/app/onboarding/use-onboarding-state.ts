@@ -142,9 +142,16 @@ export function useWizardStepGuard(step: WizardStep): {
       ? pathForLocation(resolveOnboardingLocation(state.snapshot))
       : null;
 
+  const stuck = redirectTo === pathForLocation({ kind: "step", step });
   useEffect(() => {
-    if (redirectTo) router.replace(redirectTo);
-  }, [redirectTo, router]);
+    if (redirectTo && !stuck) router.replace(redirectTo);
+  }, [redirectTo, router, stuck]);
 
+  if (stuck) {
+    return {
+      state: { ...state, status: "error", retry: () => window.location.reload() },
+      ready: false,
+    };
+  }
   return { state, ready: state.status === "ready" && allowed };
 }

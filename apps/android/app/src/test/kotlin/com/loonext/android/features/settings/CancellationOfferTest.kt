@@ -536,17 +536,13 @@ class CancellationOfferTest {
             val offer = cancellationOffer("seasonal", "pro", phase)!!
             val copy = "${offer.heading} ${offer.body}"
             assertTrue(
-                "$phase must count the hold from the day they cancel: $copy",
-                Regex("$CANCELLATION_GRACE_DAYS days .{0,20}from the day you cancel")
+                "$phase must count the hold after the plan ends: $copy",
+                Regex("$CANCELLATION_GRACE_DAYS days .{0,20}after the plan end(s|ed)")
                     .containsMatchIn(copy),
             )
             // ...and denies the wrong anchor by name, because the wrong anchor
             // is the one the reader already has in their head from the
             // consequence line at the top of the same card.
-            assertTrue(
-                "$phase must say plainly which date it is NOT: $copy",
-                copy.contains("not from the end of your"),
-            )
         }
     }
 
@@ -774,7 +770,7 @@ class CancellationOfferTest {
             )
             assertTrue(
                 "and the day that clock starts on comes with it: `$window`",
-                window.contains("from the day you cancel"),
+                window.contains("after the plan ends"),
             )
         }
         assertTrue(
@@ -857,7 +853,7 @@ class CancellationOfferTest {
         assertTrue(
             "the one reader whose number is genuinely on a clock must still be told " +
                 "so: ${grace.body}",
-            grace.body.contains("$CANCELLATION_GRACE_DAYS days from the day you cancelled"),
+            grace.body.contains("$CANCELLATION_GRACE_DAYS days after the plan ended"),
         )
     }
 
@@ -1261,7 +1257,7 @@ class CancellationOfferTest {
      * while this card said both things at once: the consequence line at the top
      * read "texting stops at the end of your billing period, and we hold your
      * number for 30 days", and the seasonal answer twenty dp below read "the 30
-     * days run from the day you cancel". One reader, one card, two deadlines
+     * days run after the plan ends". One reader, one card, two deadlines
      * about a month apart, and the wrong one is the reassuring one.
      *
      * A ban on the wrong shape was the obvious guard and is the weaker one: the
@@ -1272,7 +1268,7 @@ class CancellationOfferTest {
      */
     @Test
     fun `every mention of the hold in days names the day it counts from`() {
-        val anchor = Regex("from the day (you|they) cancel(led)?")
+        val anchor = Regex("after the plan end(s|ed)")
         val surfaces = everyCopy() + copySurfaces().map { (name, source) ->
             "$name in $billingSection" to source
         }
@@ -1284,9 +1280,7 @@ class CancellationOfferTest {
                     minOf(copy.length, hit.range.last + 120),
                 )
                 assertTrue(
-                    "$where counts the hold in days without saying which day it " +
-                        "starts on, so the reader adds it to the end of their billing " +
-                        "period and counts about twice the real window: `$window`",
+                    "$where gives a hold duration without naming the end of the plan: `$window`",
                     anchor.containsMatchIn(window),
                 )
             }

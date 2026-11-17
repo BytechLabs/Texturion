@@ -348,6 +348,20 @@ marketing page when a broader pass is wanted.
   released and members deactivated (never auto-release a number). Portal handles payment
   methods, invoices, cancellation only.
 
+## D200 - Canadian marketing pages start with the Canadian country selection (#800)
+
+This amends the site-wide country choice from owner ruling v1. Without a saved choice, /canada and the French marketing routes start on Canada. Other marketing routes start on the United States. Only an explicit choice is saved, and it applies across the marketing site.
+
+## D201 - the number hold starts when paid service ends (#786, amends D6)
+
+Use Stripe’s subscription end time for the 30-day hold. A scheduled cancellation leaves the paid service running to period end. The hold starts when that service ends. For older cancellations, confirm the service end with Stripe before releasing an affected number. Move only forward. Carry the initial notice to the repaired date and send later reminders against the repaired deadline.
+
+Workspace closure ends the service and releases numbers immediately under the closure flow. Stripe cancellation events for closed workspaces mirror billing status and send no number-hold notice. Closing a workspace waives overage from the final period that has yet to be invoiced.
+
+## D202 - billing warnings go to members who can manage billing (#808)
+
+Members with `billing.manage` receive billing notices, including payment failures. Porting and number provisioning notices go to members with `numbers.manage`. Payment failures go through the critical email stream and per-attempt push notifications.
+
 ## D7. Data model decisions
 
 - **Conversation statuses**: `new | open | waiting | closed` + `is_spam boolean`.

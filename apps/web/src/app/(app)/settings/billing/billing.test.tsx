@@ -772,26 +772,12 @@ describe("#277 saying why, on the way out", () => {
     expect(copy.toLowerCase()).not.toContain("cancel anytime");
   });
 
-  it("CR-16: the hold is counted from the CANCELLATION, in both voices", () => {
-    // The expensive sentence on this card. `runGraceJob` measures
-    // `now - companies.canceled_at`, and `startCancellationLifecycle` stamps
-    // that column from Stripe's own `subscription.canceled_at` — which for a
-    // `cancel_at_period_end` cancellation is the moment cancelling was
-    // REQUESTED, not the end of the period. The vendored `Subscriptions.d.ts`
-    // says so in as many words: "the time of the most recent update request,
-    // not the end of the subscription period".
-    //
-    // So "texting stops at the end of your billing period, and we hold your
-    // number for 30 days" has exactly one reading and it is the wrong one:
-    // cancel on day 2 of a month and you count ~59 days when you have ~30.
-    // Wrong in the customer's favour about a deadline is the expensive
-    // direction, and what is lost at the end of the miscount is the number on
-    // the van.
+  it("CR-16: both voices count the hold from the plan end", () => {
     expect(CANCEL_CONSEQUENCE).toMatch(
-      new RegExp(`${CANCELLATION_GRACE_DAYS} days from the day you cancel`),
+      new RegExp(`${CANCELLATION_GRACE_DAYS} days after the plan ends`),
     );
     expect(CANCEL_ADMIN_CONSEQUENCE).toMatch(
-      new RegExp(`${CANCELLATION_GRACE_DAYS} days from the day they cancel`),
+      new RegExp(`${CANCELLATION_GRACE_DAYS} days after the plan ends`),
     );
   });
 });
@@ -800,7 +786,7 @@ describe("#277 saying why, on the way out", () => {
  * The two shapes of sentence that cannot be true on this card.
  *
  * They are separate because the defect has two forms and the obvious guard only
- * catches one of them. Written the first time as HOLD_ANCHORED_TO_PERIOD alone,
+ * catches one of them. Written the first time as HOLD_ANCHORED_TO_REQUEST alone,
  * this passed against the exact copy that shipped — proof that a guard nobody
  * has broken is a guard nobody has tested.
  *
@@ -824,12 +810,11 @@ describe("#277 saying why, on the way out", () => {
  * their own: the consequence line said one anchor and the seasonal answer, four
  * lines below it on the same card, said the other.
  */
-const HOLD_ANCHORED_TO_PERIOD =
-  /\b\d+[\s-]+days?\s+(after|from|following)\s+(your|the|that)[^.]{0,28}period/i;
+const HOLD_ANCHORED_TO_REQUEST = /\b\d+ days from the day (you|they) cancel/i;
 
 const HOLD_STATED_WITHOUT_ANCHOR = new RegExp(
-  // A count of days with no "from the day you/they cancel(led)" close behind it.
-  String.raw`\b${CANCELLATION_GRACE_DAYS}[\s-]+days?\b(?![\s\S]{0,48}?from the day (you|they) cancel)`,
+  // A count of days with no "after the plan ends or ended" close behind it.
+  String.raw`\b${CANCELLATION_GRACE_DAYS}[\s-]+days?\b(?![\s\S]{0,48}?after the plan end(?:s|ed))`,
   "i",
 );
 
@@ -1110,7 +1095,7 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     // that were wrong. This shipped as a contradiction: the consequence line at
     // the top said "texting stops at the end of your billing period, and we
     // hold your number for 30 days" while the seasonal answer a few lines below
-    // said the 30 days run from the day you cancel. Both were on screen at
+    // said the 30 days run after the plan ends. Both were on screen at
     // once, to one person, deciding whether to leave — and only one of them can
     // be checked against `runGraceJob`.
     //
@@ -1151,7 +1136,7 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     for (const [name, mount] of surfaces) {
       mount();
       const copy = document.body.textContent ?? "";
-      expect(copy, name).not.toMatch(HOLD_ANCHORED_TO_PERIOD);
+      expect(copy, name).not.toMatch(HOLD_ANCHORED_TO_REQUEST);
       expect(copy, name).not.toMatch(HOLD_STATED_WITHOUT_ANCHOR);
       cleanup();
     }
@@ -2182,7 +2167,7 @@ describe("#277 follow-up: the deadline on the canceled-state card", () => {
     const copy = document.body.textContent ?? "";
     // The general rule, said as a rule.
     expect(copy).toContain(
-      `${CANCELLATION_GRACE_DAYS} days from the day you cancel`,
+      `${CANCELLATION_GRACE_DAYS} days after the plan ends`,
     );
     // NOT a deadline sentence with the date missing out of it. React renders a
     // null date as nothing, so "…ended on ." is a shape this can actually take

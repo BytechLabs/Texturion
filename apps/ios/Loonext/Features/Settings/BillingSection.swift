@@ -340,24 +340,16 @@ private struct StatusNotices: View {
         }
         if company.subscriptionActive && company.cancel_at_period_end {
             let date = fullDate(company.current_period_end)
-            // The hold is counted from the day cancelling was REQUESTED, not
-            // from the day texting stops — `canceled_at` comes off Stripe's own
-            // `subscription.canceled_at`. This notice used to read "texting
-            // stops then; we hold your number for 30 days", which invites the
-            // reader to count from the period end and can overstate the real
-            // deadline by most of a month. The exact date cannot be shown here
-            // (nothing has stamped `canceled_at` yet), so the anchor is named.
-            //
-            // TWO WHOLE SENTENCES rather than one with a date spliced into it:
-            // "on {date}" and "at the end of this period" land in different
-            // places in French, and a concatenation nails them to the English.
+            let release = numberReleaseAt(company.current_period_end)?
+                .formatted(date: .long, time: .omitted)
+            let message: String
+            if let date, let release {
+                message = t("settings.noticeCancellingOn", ["date": date, "releaseDate": release])
+            } else {
+                message = t("settings.noticeCancelling", ["days": "\(cancellationGraceDays)"])
+            }
             return (
-                date.map {
-                    t(
-                        "settings.noticeCancellingOn",
-                        ["date": $0, "days": "\(cancellationGraceDays)"]
-                    )
-                } ?? t("settings.noticeCancelling", ["days": "\(cancellationGraceDays)"]),
+                message,
                 t("settings.noticeKeepMyPlan")
             )
         }

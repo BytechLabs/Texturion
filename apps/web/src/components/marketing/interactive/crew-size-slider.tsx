@@ -208,7 +208,7 @@ export function CrewSizeSlider({
       )}
 
       <a
-        href={APP_LINKS.signup}
+        href={APP_LINKS.signupForPlan(loonext.plan === "Starter" ? "starter" : "pro")}
         className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       >
         {ui.startForBefore} {usd(loonext.price, audience)} {ui.startForAfter}

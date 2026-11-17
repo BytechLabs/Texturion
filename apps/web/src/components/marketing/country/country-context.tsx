@@ -14,20 +14,9 @@
  * second provider anywhere; the nav control and the pricing toggle move the
  * same state.
  *
- * SSR + persistence:
- *   - The default is "us", so a server render (and JS-disabled) is a complete,
- *     honest US page.
- *   - `initialCountry` exists so tests can render either branch deterministically
- *     with renderToStaticMarkup; production never passes it (defaults to "us").
- *   - After hydration the provider adopts a persisted choice from localStorage
- *     (see country-storage.ts). First client render === server render ("us"),
- *     so there is no hydration mismatch; a returning Canadian swaps one frame
- *     later (brief flash, acceptable, same as the pricing toggle).
- *   - `hasChosen` is false until the visitor picks a country (or a prior choice
- *     is adopted from storage). The HeroCountryChooser reads it to know whether
- *     the first-visit affordance still belongs on screen.
  */
 
+import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
@@ -65,11 +54,6 @@ const CountryContext = createContext<CountryContextValue>({
   hasChosen: false,
 });
 
-/**
- * Wraps the whole (marketing) subtree (mounted in the marketing layout).
- * `initialCountry` defaults to "us" (the SSR default the owner ruled); it exists
- * only so tests can render a branch deterministically.
- */
 export function CountryProvider({
   children,
   initialCountry = "us",
@@ -77,25 +61,20 @@ export function CountryProvider({
   children: ReactNode;
   initialCountry?: Country;
 }) {
-  const [country, setCountryState] = useState<Country>(initialCountry);
-  const [hasChosen, setHasChosen] = useState(false);
+  const pathname = usePathname();
+  const [chosenCountry, setChosenCountry] = useState<Country | null>(null);
+  const country = chosenCountry ?? (pathname === "/canada" ? "ca" : initialCountry);
+  const hasChosen = chosenCountry !== null;
 
-  // After hydration, adopt any persisted choice. First render stays "us" (the
-  // SSR default), so this never causes a hydration mismatch; it only swaps a
-  // returning visitor one frame later.
   useEffect(() => {
     const stored = readStoredCountry(
       typeof window === "undefined" ? null : window.localStorage,
     );
-    if (stored) {
-      setCountryState(stored);
-      setHasChosen(true);
-    }
+    if (stored) setChosenCountry(stored);
   }, []);
 
   const setCountry = useCallback((next: Country) => {
-    setCountryState(next);
-    setHasChosen(true);
+    setChosenCountry(next);
     writeStoredCountry(
       typeof window === "undefined" ? null : window.localStorage,
       next,

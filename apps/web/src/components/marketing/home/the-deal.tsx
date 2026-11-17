@@ -17,7 +17,7 @@ import {
 } from "@/components/marketing/fr";
 import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
-import { SIGNUP_HREF } from "@/components/marketing/nav-links";
+import { signupHref } from "@/components/marketing/pricing/plan-math";
 import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
 import type { PlanId } from "@/lib/api/types";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
@@ -224,7 +224,7 @@ function PlanCard({ plan }: { plan: HomePlan }) {
       </ul>
 
       <div className="mt-auto pt-8">
-        <CtaButton href={SIGNUP_HREF} className="w-full">
+        <CtaButton href={signupHref({ plan: plan.id, addons: [] })} className="w-full">
           {plan.cta}
         </CtaButton>
       </div>

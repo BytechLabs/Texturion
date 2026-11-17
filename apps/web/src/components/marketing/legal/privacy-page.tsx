@@ -1,5 +1,6 @@
 import {
   AI_DISCLOSURES,
+  SUBPROCESSORS,
   AI_INFERENCE_LOCATION_STATEMENT,
   AI_INFERENCE_RETENTION_STATEMENT,
   AI_TRAINING_STATEMENT,
@@ -78,7 +79,7 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
       title={copy.title}
       summary={copy.summary}
       lastUpdated={copy.lastUpdated}
-      lastUpdatedIso="2026-11-13"
+      lastUpdatedIso="2026-11-17"
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? PRIVACY_FR_PATH : PRIVACY_EN_PATH}
       sections={sections}
@@ -175,7 +176,10 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
       </LegalSectionBlock>
 
       <LegalSectionBlock id="sharing" number="6" heading={copy.sectionSharing}>
-        <p><LegalRichText text={copy.sharingOne} slots={{ subprocessors }} /></p>
+        <p><LegalRichText text={copy.sharingOne} slots={{
+          subprocessors,
+          vendors: new Intl.ListFormat(locale).format(SUBPROCESSORS.map(({ name }) => name)),
+        }} /></p>
         <p>{copy.sharingTwo}</p>
         <p>{copy.sharingThree}</p>
       </LegalSectionBlock>

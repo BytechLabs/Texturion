@@ -1,3 +1,4 @@
+import { SUBPROCESSORS } from "@loonext/shared";
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -394,16 +395,10 @@ describe("messaging — the SMS program disclosures survive", () => {
 describe("subprocessors — the vendor ledger survives", () => {
   const {html} = PAGES[4];
 
-  it("lists all six vendors", () => {
-    for (const vendor of [
-      "Telnyx",
-      "Stripe",
-      "Supabase (on AWS)",
-      "Cloudflare",
-      "Resend",
-      "PostHog",
-    ]) {
-      expect(html).toContain(vendor);
+  it("lists the current service providers", () => {
+    const html = renderToStaticMarkup(<SubprocessorsPage />);
+    for (const { name } of SUBPROCESSORS) {
+      expect(html).toContain(name);
     }
   });
 

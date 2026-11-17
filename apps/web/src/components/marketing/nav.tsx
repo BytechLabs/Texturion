@@ -93,7 +93,7 @@ export function Nav({ locale = "en" }: { locale?: NavCopyLocale } = {}) {
               pill (§4). The selector sets the single site-wide country; on the
               smallest screens the mobile sheet carries it instead. */}
           <div className="ml-auto flex items-center gap-3">
-            <CountrySelector className="hidden sm:inline-flex" />
+            <CountrySelector />
             <Link
               href={LOGIN_HREF}
               className="frn-focus font-body-mkt hidden h-9 items-center rounded-full px-2.5 text-sm font-medium text-[color:var(--fr-ink-70)] transition-colors duration-200 ease-out hover:text-[color:var(--fr-ink)] sm:inline-flex"

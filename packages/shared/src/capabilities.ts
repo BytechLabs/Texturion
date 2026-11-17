@@ -104,6 +104,9 @@ export const MEMBER_ROLES = [
 ] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
 
+export const ASSIGNABLE_ROLES = ["member", "admin", "read_only", "bookkeeper"] as const satisfies readonly Exclude<MemberRole, "owner">[];
+export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
+
 /**
  * Each role's capabilities, set to EXACTLY what its rank grants today.
  *

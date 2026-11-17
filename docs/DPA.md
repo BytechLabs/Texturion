@@ -117,8 +117,7 @@ for this contract to disclose to one.
 
 ## 6. Sub-processors
 
-Current list, kept public and current: **Cloudflare, OpenAI, PostHog, Resend,
-Stripe, Supabase, Telnyx, and Cloudflare Workers AI.**
+Current list, kept public and current: **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google (Firebase Cloud Messaging), PostHog**
 
 > Source: `/legal/subprocessors`
 
@@ -130,7 +129,7 @@ otherwise would be a clause we could not honour.
 ## 7. AI processing
 
 Customer message text and voicemail audio are processed by Cloudflare Workers
-AI and OpenAI for the features the workspace has enabled. The disclosure states
+AI for the features the workspace has enabled. The disclosure states
 the **routing** rather than implying containment, because inference cannot be
 confined to a country.
 

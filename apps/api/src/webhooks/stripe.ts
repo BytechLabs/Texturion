@@ -12,7 +12,7 @@ import {
   noticeCancellation,
 } from "../billing/cancellation-notice";
 import { handleChargeDispute } from "../billing/disputes";
-import { recordAndSendGraceNotice } from "../billing/grace";
+import { reanchorCancellation, recordAndSendGraceNotice } from "../billing/grace";
 import { idempotencyKey } from "../billing/idempotency";
 import { allVoiceOveragePrices, moduleForPrice, modulePrice, PLAN_MODULES, voiceOveragePrice } from '../billing/modules';
 import type { PlanModule } from '../billing/modules';
@@ -1108,13 +1108,14 @@ export async function syncSubscription(
     // #277: paused_at + paused_price_cents ride along so the pause convergence
     // below can tell "already correct" from "needs a write" without a read of
     // its own — see the note there for why that distinction matters.
-    .select("id,name,owner_user_id,canceled_at,paused_at,paused_price_cents,company_modules(module,disabled_at,grandfathered)");
+    .select("id,name,owner_user_id,canceled_at,deleted_at,paused_at,paused_price_cents,company_modules(module,disabled_at,grandfathered)");
   if (error) throw new Error(`subscription mirror failed: ${error.message}`);
   const companies = (data ?? []) as {
     id: string;
     name: string;
     owner_user_id: string;
     canceled_at: string | null;
+    deleted_at: string | null;
     paused_at: string | null;
     paused_price_cents: number | null;
     company_modules?: CompanyModuleRow[];
@@ -1220,6 +1221,7 @@ export async function syncSubscription(
 
   if (status === "canceled") {
     for (const company of companies) {
+      if ((company.deleted_at ?? null) !== null) continue;
       await startCancellationLifecycle(env, db, company, subscription);
     }
   } else if (hasLiveSubscription(status)) {
@@ -1256,22 +1258,33 @@ async function startCancellationLifecycle(
   fallbackEpochSeconds?: number,
 ): Promise<void> {
   let canceledAt = company.canceled_at;
+  const epochSeconds =
+    subscription.ended_at ??
+    subscription.canceled_at ??
+    fallbackEpochSeconds ??
+    Math.floor(Date.now() / 1000);
+  const serviceEndedAt = new Date(epochSeconds * 1000).toISOString();
+
+  if (canceledAt && subscription.ended_at != null) {
+    if (!(await reanchorCancellation(
+      db,
+      { ...company, canceled_at: canceledAt },
+      subscription.ended_at,
+    ))) return;
+    if (Date.parse(serviceEndedAt) > Date.parse(canceledAt)) {
+      canceledAt = serviceEndedAt;
+    }
+  }
+
   if (!canceledAt) {
-    // Stripe carries the authoritative cancellation moment on the
-    // subscription itself; the event-timestamp fallback only matters for
-    // payloads that predate it, and drifting late merely shortens grace by
-    // the delivery lag.
-    const epochSeconds =
-      subscription.canceled_at ??
-      subscription.ended_at ??
-      fallbackEpochSeconds ??
-      Math.floor(Date.now() / 1000);
-    const claim = new Date(epochSeconds * 1000).toISOString();
+    const claim = serviceEndedAt;
     const { data, error } = await db
       .from("companies")
       .update({ canceled_at: claim })
       .eq("id", company.id)
       .is("canceled_at", null)
+      .is("deleted_at", null)
+      .eq("subscription_status", "canceled")
       .select("id");
     if (error) throw new Error(`canceled_at claim failed: ${error.message}`);
     if ((data ?? []).length > 0) {
@@ -1282,6 +1295,8 @@ async function startCancellationLifecycle(
       const { data: current, error: readError } = await db
         .from("companies")
         .select("canceled_at")
+        .is("deleted_at", null)
+        .eq("subscription_status", "canceled")
         .eq("id", company.id)
         .limit(1);
       if (readError) {
@@ -1289,7 +1304,8 @@ async function startCancellationLifecycle(
       }
       canceledAt =
         ((current ?? [])[0] as { canceled_at: string | null } | undefined)
-          ?.canceled_at ?? claim;
+          ?.canceled_at ?? null;
+      if (!canceledAt) return;
     }
   }
 
@@ -1301,17 +1317,6 @@ async function startCancellationLifecycle(
   );
 }
 
-/**
- * §9 `customer.subscription.deleted` row: `→ canceled`, `canceled_at` set,
- * numbers suspended (inbound still received), grace clock starts, day-1
- * warning sent through the `grace_notices` ledger (shared with the §11 cron,
- * so overlap can never double-send). Runs the SAME
- * startCancellationLifecycle the #21 reconcile backstop uses: `canceled_at`
- * derives from the subscription's own `canceled_at` (falling back to the
- * event timestamp), and the first-writer-wins claim means a late deleted
- * delivery after a reconcile-claimed cancellation converges on the one
- * stored value instead of re-keying the grace ledger.
- */
 /**
  * #722: Stripe's own account of the move, from the event's
  * `previous_attributes`, so reporting it costs no read. One `state_transition`
@@ -1353,13 +1358,19 @@ async function handleSubscriptionDeleted(
       cancel_at_period_end: false,
     })
     .eq("stripe_subscription_id", subscription.id)
-    .select("id,name,canceled_at");
+    .select("id,name,canceled_at,deleted_at");
   if (error) throw new Error(`cancellation mirror failed: ${error.message}`);
   const company = (data ?? [])[0] as
-    | { id: string; name: string; canceled_at: string | null }
+    | {
+        id: string;
+        name: string;
+        canceled_at: string | null;
+        deleted_at: string | null;
+      }
     | undefined;
   if (!company) return; // unknown subscription — nothing of ours to cancel
 
+  if ((company.deleted_at ?? null) !== null) return;
   await startCancellationLifecycle(env, db, company, subscription, eventCreated);
   await confirmCancellationReason(db, company.id);
 }
@@ -1537,14 +1548,19 @@ async function handleInvoicePaymentFailed(
     // `attempt_count`, so each of Stripe's smart retries still notifies the
     // customer (a distinct failure), while sweeper replays of this same event
     // (same invoice, same attempt) never re-send.
-    const claimed = await claimEmailOnce(
-      db,
-      company.id,
-      `invoice_payment_failed:${invoice.id}:${invoice.attempt_count ?? 0}`,
-    );
-    if (!claimed) continue;
-    const to = await billingRecipients(env, company.id, db);
-    if (to.length === 0) continue;
+    const key = `invoice_payment_failed:${invoice.id}:${invoice.attempt_count ?? 0}`;
+    if (!(await claimEmailOnce(db, company.id, key))) continue;
+
+    await pushConsequentialNotice(env, db, {
+      companyId: company.id,
+      title: (locale) => locale === "fr-CA" ? "Votre paiement a échoué" : "Your payment failed",
+      body: (locale) => locale === "fr-CA"
+        ? "L’envoi de textos est en pause. Vérifiez votre mode de paiement."
+        : "Sending texts is paused. Check your payment method.",
+      path: "/settings/billing",
+      collapseKey: key,
+    });
+
     const portal = `${env.APP_ORIGIN}/settings/billing`;
     const invoiceLine = invoice.hosted_invoice_url
       ? `You can also pay the open invoice directly: ${invoice.hosted_invoice_url}\n\n`
@@ -1555,13 +1571,20 @@ async function handleInvoicePaymentFailed(
       `Update your payment method to resume texting: ${portal}\n\n` +
       invoiceLine +
       `Stripe retries the charge automatically over the next two weeks.\n\nLoonext`;
-    await sendEmail(env, {
-      to,
-      subject: "Your Loonext payment failed: outbound texting is paused",
-      text,
-      // renderEmailHtml escapes — company.name is customer-controlled input.
-      html: renderEmailHtml(text),
-    });
+    try {
+      const to = await billingRecipients(env, company.id, db);
+      if (to.length === 0) throw new Error("No billing contacts for payment notice");
+      await sendEmail(env, {
+        to,
+        subject: "Your Loonext payment failed: outbound texting is paused",
+        text,
+        html: renderEmailHtml(text),
+        critical: true,
+      });
+    } catch (error) {
+      await releaseEmailClaim(db, company.id, key);
+      throw error;
+    }
   }
 }
 

@@ -1029,14 +1029,14 @@ final class SettingsLogicTests: XCTestCase {
             let copy = "\(result.heading) \(result.body)"
             XCTAssertNotNil(
                 copy.range(
-                    of: "\(cancellationGraceDays) days .{0,20}from the day you cancel",
+                    of: "\(cancellationGraceDays) days .{0,20}after the plan end(s|ed)",
                     options: .regularExpression
                 ),
                 copy
             )
             // ...and says so against the wrong anchor BY NAME, because the
             // wrong anchor is the one the reader already has in their head.
-            XCTAssertTrue(copy.contains("not from the end of your"), copy)
+            XCTAssertFalse(copy.contains("from the day you cancel"), copy)
         }
     }
 
@@ -1166,12 +1166,12 @@ final class SettingsLogicTests: XCTestCase {
         let copy = "\(paused.heading) \(paused.body)"
         XCTAssertNotNil(
             copy.range(
-                of: "\(cancellationGraceDays) days .{0,20}from the day you cancel",
+                of: "\(cancellationGraceDays) days .{0,20}after the plan end(s|ed)",
                 options: .regularExpression
             ),
             copy
         )
-        XCTAssertTrue(copy.contains("not from the end of your"), copy)
+        XCTAssertFalse(copy.contains("from the day you cancel"), copy)
         XCTAssertTrue(paused.body.contains("goes back to the phone company"), copy)
     }
 
@@ -1634,21 +1634,7 @@ final class SettingsLogicTests: XCTestCase {
         )
     }
 
-    /// Every sentence on this screen counts the hold from the CANCELLATION.
-    ///
-    /// The screen said both things at once. `StatusNotices` had been corrected
-    /// to "held for 30 days from the day you cancelled — not from that date",
-    /// while the cancel card two thirds of the way down still read "Texting
-    /// stops at the end of your billing period, and we hold your number for 30
-    /// days", which invites the reader to add the two together. Somebody
-    /// cancelling on day 2 of a monthly period counted about 59 days and had
-    /// about 30, and what they lose at the end of the miscount is the number on
-    /// the van.
-    ///
-    /// Read as the READER sees it, not as it is wrapped: the copy here is
-    /// line-broken Swift concatenation or a catalogue entry, so a guard matching
-    /// only raw view source would go blind the moment a sentence was translated.
-    func testEverySentenceOnTheBillingScreenCountsTheHoldFromTheCancellation() throws {
+    func testEveryBillingHoldDurationUsesThePlanEnd() throws {
         let source = codeOnly(try billingSource())
         let rendered = try billingCopyAndHoldCatalogue()
 
@@ -1689,7 +1675,7 @@ final class SettingsLogicTests: XCTestCase {
         while let hit = searched.range(of: "\(cancellationGraceDays) days") {
             let after = String(searched[hit.upperBound...].prefix(30))
             XCTAssertTrue(
-                after.contains("from the day"),
+                after.contains("after the plan end"),
                 "a sentence names the \(cancellationGraceDays)-day hold without its "
                     + "anchor: …\(searched[hit.lowerBound...].prefix(80))"
             )

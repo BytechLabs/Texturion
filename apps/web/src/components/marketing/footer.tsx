@@ -75,6 +75,9 @@ const WHO_ITS_FOR = (copy: FooterCopy): FooterLinkItem[] => [
 ];
 
 const COMPARE = (copy: FooterCopy): FooterLinkItem[] => [
+  { label: copy.whatsNew, href: LIVE_ROUTES.whatsNew },
+  { label: copy.developers, href: LIVE_ROUTES.developers },
+  { label: copy.compareIndex, href: LIVE_ROUTES.compareIndex },
   { label: copy.compareHeymarket, href: LIVE_ROUTES.compareHeymarket },
   { label: copy.compareQuo, href: LIVE_ROUTES.compareQuo },
 ];

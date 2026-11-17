@@ -205,6 +205,24 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     });
   });
 
+  it("asks an enrolled user in an enforcing workspace for their existing code", async () => {
+    stubFetch(
+      authorizeRoute(env, { id: MEMBER_ID, role: "member" }, {
+        mfa: {
+          required: true,
+          grace_until: "2020-01-01T00:00:00Z",
+          enforcing: true,
+          enrolled: true,
+        },
+      }),
+    );
+    const res = await request({ "X-Company-Id": COMPANY_ID });
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({
+      error: { code: "mfa_challenge_required", message: expect.any(String) },
+    });
+  });
+
   it("lets an enrolled user through once they have presented the code", async () => {
     stubFetch(
       authorizeRoute(env, { id: MEMBER_ID, role: "member" }, {

@@ -1,25 +1,26 @@
+import { MEMBER_ROLES, roleHasCapability, type Capability } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
 
-/**
- * Billing/grace notification audience (SPEC §9, §11): the owner plus active
- * admins. Member emails live in `auth.users`, not in public tables, so the
- * addresses come from the GoTrue admin API via the `sb_secret_` key — the same
- * credential path as every other Supabase call (SPEC §3).
- */
+export function noticeRoles(capability: Capability) {
+  return MEMBER_ROLES.filter((role) => roleHasCapability(role, capability));
+}
+
+/** Gets member addresses from Supabase Auth for the notice’s capability. */
 export async function billingRecipients(
   env: Env,
   companyId: string,
   db: SupabaseClient = getDb(env),
+  capability: Capability = "billing.manage",
 ): Promise<string[]> {
   const { data, error } = await db
     .from("company_members")
     .select("user_id")
     .eq("company_id", companyId)
     .is("deactivated_at", null)
-    .in("role", ["owner", "admin"]);
+    .in("role", noticeRoles(capability));
   if (error) {
     throw new Error(`company_members lookup failed: ${error.message}`);
   }

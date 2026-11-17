@@ -16,58 +16,12 @@ import {
   AI_INFERENCE_RETENTION_STATEMENT,
   AI_TRAINING_STATEMENT,
   AI_VENDOR_NAMES,
+  SUBPROCESSORS,
   aiModelsByVendor,
 } from "@loonext/shared";
 
 const EN_PATH = "/legal/subprocessors";
 const FR_PATH = "/fr/sous-traitants";
-
-/** Vendor names are proper nouns; every reader-facing description is a key. */
-const ROWS = [
-  {
-    name: "Telnyx",
-    purpose: "telnyxPurpose",
-    data: "telnyxData",
-    region: "telnyxRegion",
-  },
-  {
-    name: "Stripe",
-    purpose: "stripePurpose",
-    data: "stripeData",
-    region: "stripeRegion",
-  },
-  {
-    name: "Supabase (on AWS)",
-    purpose: "supabasePurpose",
-    data: "supabaseData",
-    region: "supabaseRegion",
-  },
-  {
-    name: "Cloudflare",
-    note: "cloudflareNote",
-    purpose: "cloudflarePurpose",
-    data: "cloudflareData",
-    region: "cloudflareRegion",
-  },
-  {
-    name: "Resend",
-    purpose: "resendPurpose",
-    data: "resendData",
-    region: "resendRegion",
-  },
-  {
-    name: "Google (Firebase Cloud Messaging)",
-    purpose: "firebasePurpose",
-    data: "firebaseData",
-    region: "firebaseRegion",
-  },
-  {
-    name: "PostHog",
-    purpose: "posthogPurpose",
-    data: "posthogData",
-    region: "posthogRegion",
-  },
-] as const;
 
 function modelVendorSentence(prefix: string): string {
   const counted = aiModelsByVendor().map(({ vendor, count }) => {
@@ -97,7 +51,7 @@ export function SubprocessorsPageBody({
     { id: "contact", heading: copy.sectionContact },
   ];
   const featureCount = String(AI_DISCLOSURES.length);
-  const vendorCount = String(ROWS.length);
+  const vendorCount = String(SUBPROCESSORS.length);
   const securityTwin = french ? twinOf("/security") : undefined;
   const securityPath =
     securityTwin?.locale === "fr-CA" ? securityTwin.path : "/security";
@@ -111,7 +65,7 @@ export function SubprocessorsPageBody({
       title={copy.title}
       summary={summary}
       lastUpdated={copy.lastUpdated}
-      lastUpdatedIso="2026-07-30"
+      lastUpdatedIso="2026-11-17"
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? FR_PATH : EN_PATH}
       sections={sections}
@@ -137,7 +91,7 @@ export function SubprocessorsPageBody({
               </tr>
             </thead>
             <tbody>
-              {ROWS.map((row, index) => (
+              {SUBPROCESSORS.map((row, index) => (
                 <tr
                   key={row.name}
                   className={index % 2 === 0 ? "bg-[color:var(--fr-frost)]" : undefined}
@@ -170,6 +124,7 @@ export function SubprocessorsPageBody({
             privacy: <LegalLink href={localizedPath("/legal/privacy", locale)}>{copy.privacyLink}</LegalLink>,
           }} />
         </p>
+        <p>{copy.openStreetMap}</p>
       </LegalSectionBlock>
 
       <LegalSectionBlock id="ai" heading={copy.sectionAi}>
