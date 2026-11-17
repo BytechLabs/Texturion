@@ -111,7 +111,7 @@ export async function maybeSendOffRamp(
 
     // The exemption is REQUESTED here and granted there. Everything else the
     // gate checks still applies.
-    const clearance = await runPreSendGates(env, args.companyId, args.to, "off_ramp");
+    const clearance = await runPreSendGates(env, args.companyId, args.to, true);
 
     // Stamped BEFORE the send, deliberately. A crash between dispatching and
     // recording would otherwise let the next inbound send a second copy, and

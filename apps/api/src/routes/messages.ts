@@ -416,7 +416,11 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
   // opt-out check used to be duplicated here; it now lives inside
   // runPreSendGates so every send path gets it, not just this one.
   const clearance = await runPreSendGates(
-    env, companyId, view.contact_phone_e164, message.automated ? undefined : "manual",
+    env,
+    companyId,
+    view.contact_phone_e164,
+    undefined,
+    message.automated ? undefined : "manual",
   );
 
   // Stored outbound media, loaded up front so its signed URLs can be re-minted

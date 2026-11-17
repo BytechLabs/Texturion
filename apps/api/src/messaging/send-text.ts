@@ -166,6 +166,7 @@ export async function prepareSend(
     env,
     input.companyId,
     view.contact_phone_e164,
+    undefined,
     input.manual ? "manual" : undefined,
   );
 

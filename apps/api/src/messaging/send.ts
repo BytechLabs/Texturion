@@ -129,7 +129,9 @@ export async function runPreSendGates(
    * grace window, both re-checked HERE rather than trusted from the call site,
    * so a future path that passes the flag hopefully gets nothing.
    */
-  mode?: "manual" | "off_ramp",
+  offRamp = false,
+  /** A direct send from the app can use toll-free destinations. */
+  mode?: "manual",
 ): Promise<SendClearance> {
   // #283: the outbound kill switch, checked FIRST and at the single dispatch
   // choke point every send passes through. The most serious switch we have —
@@ -183,7 +185,7 @@ export async function runPreSendGates(
   // off-ramp exemption was granted. Asking twice would run offRampAllowed's
   // query twice on the departure path and, worse, let the two answers differ.
   const offRampGranted =
-    !gates.subscriptionActive && mode === "off_ramp" && (await offRampAllowed(env, companyId));
+    !gates.subscriptionActive && offRamp && (await offRampAllowed(env, companyId));
 
   if (!gates.subscriptionActive && !offRampGranted) {
     throw new ApiError(

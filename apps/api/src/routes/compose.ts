@@ -482,7 +482,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   }
 
   // §7 gate order: subscription → destination → registration.
-  const clearance = await runPreSendGates(env, companyId, destination, "manual");
+  const clearance = await runPreSendGates(env, companyId, destination, undefined, "manual");
 
   // #97: picture messages are ungated — every US-texting company can send them.
   // Each MMS meters as 3 segments (MMS_SEGMENTS, below) through gateOutboundSend,

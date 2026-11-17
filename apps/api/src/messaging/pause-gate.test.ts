@@ -57,7 +57,7 @@ function world(
 
 async function attempt(options: Parameters<typeof world>[0] = {}, offRamp = false) {
   stubFetch(world(options).route);
-  return runPreSendGates(env, COMPANY_ID, DESTINATION, offRamp ? "off_ramp" : undefined);
+  return runPreSendGates(env, COMPANY_ID, DESTINATION, offRamp);
 }
 
 beforeEach(() => {
@@ -69,14 +69,14 @@ describe("toll-free text destinations", () => {
 
   it("requires US carrier approval for manual texts", async () => {
     stubFetch(world({ usApproved: false }).route);
-    await expect(runPreSendGates(env, COMPANY_ID, tollFree, "manual")).rejects.toMatchObject({
+    await expect(runPreSendGates(env, COMPANY_ID, tollFree, undefined, "manual")).rejects.toMatchObject({
       code: "registration_pending",
     });
   });
 
   it("allows a manual text and refuses the same destination for automation", async () => {
     stubFetch(world().route);
-    await expect(runPreSendGates(env, COMPANY_ID, tollFree, "manual")).resolves.toEqual({
+    await expect(runPreSendGates(env, COMPANY_ID, tollFree, undefined, "manual")).resolves.toEqual({
       destinationE164: tollFree,
     });
     await expect(runPreSendGates(env, COMPANY_ID, tollFree)).rejects.toMatchObject({
