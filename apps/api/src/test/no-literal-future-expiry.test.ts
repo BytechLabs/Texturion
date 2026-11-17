@@ -150,19 +150,23 @@ interface Scan {
   dates: number;
   expiries: number;
   findings: Finding[];
+  literalKeys: Set<string>;
 }
 
 function futureExpiries(source: string, now: number): Scan {
   const code = stripComments(source);
   const dates = code.match(DATE_LITERAL)?.length ?? 0;
   const expiries = [...code.matchAll(EXPIRY_LITERAL)];
-  if (PINS_THE_CLOCK.test(code)) return { dates, expiries: expiries.length, findings: [] };
+  const literalKeys = new Set<string>();
+  if (PINS_THE_CLOCK.test(code)) return { dates, expiries: expiries.length, findings: [], literalKeys };
   const findings = expiries.flatMap((match) => {
     const at = Date.parse(match[2]);
-    if (!(at > now && at < NEVER)) return [];
+    if (!(at < NEVER)) return [];
+    literalKeys.add(match[1]);
+    if (at <= now) return [];
     return [{ line: code.slice(0, match.index).split("\n").length, key: match[1], value: match[2] }];
   });
-  return { dates, expiries: expiries.length, findings };
+  return { dates, expiries: expiries.length, findings, literalKeys };
 }
 
 const now = Date.now();
@@ -211,12 +215,20 @@ describe("no test gives an expiry a literal future date", () => {
       (entry) =>
         !trees.some((tree) =>
           tree.files.some(
-            ({ file, findings }) =>
-              file === entry.file && findings.some((finding) => finding.key === entry.key),
+            ({ file, literalKeys }) => file === entry.file && literalKeys.has(entry.key),
           ),
         ),
     ).map((entry) => `${entry.file} ${entry.key}`);
     expect(stale, "this ALLOWED entry matches no literal; delete it").toEqual([]);
+  });
+
+  it("still finds a listed literal after its date passes", () => {
+    const fixture = 'row({ expires_at: "2027-01-01T00:00:00Z" })';
+    const scan = futureExpiries(fixture, Date.parse("2027-02-01T00:00:00Z"));
+
+    expect(scan.findings).toEqual([]);
+    expect(scan.literalKeys.has("expires_at")).toBe(true);
+    expect(futureExpiries(fixture.replace("expires_at", "created_at"), now).literalKeys.size).toBe(0);
   });
 
   it("flags the shapes a literal expiry takes, and only while it is ahead", () => {
