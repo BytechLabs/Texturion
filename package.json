@@ -41,10 +41,10 @@
     "db:test:member-firsts": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/member_firsts.test.sql",
     "db:test:widget-verification": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/widget_verification.test.sql",
     "db:test:retention-enforce": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/retention_enforce.test.sql",
-  "db:test:storage-fleet": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/storage_fleet.test.sql",
-  "db:test:aup-signals": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/aup_signals.test.sql",
-  "db:test:awaiting": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/list_conversations_awaiting.test.sql",
-  "db:test:all": "node scripts/db-test-all.mjs",
+    "db:test:storage-fleet": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/storage_fleet.test.sql",
+    "db:test:aup-signals": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/aup_signals.test.sql",
+    "db:test:awaiting": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/list_conversations_awaiting.test.sql",
+    "db:test:all": "node scripts/db-test-all.mjs",
     "db:test:ci": "npm run db:test:all",
     "db:test:schema": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/schema.test.sql",
     "db:test:emergency-keyword": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/emergency_keyword.test.sql",
@@ -105,6 +105,9 @@
   },
   "devDependencies": {
     "axe-core": "^4.14.0",
+    "bun": "1.4.4",
+    "oxlint": "1.94.0",
+    "oxlint-tsgolint": "7.0.2007",
     "playwright": "^1.64.1"
   },
   "pnpm": {

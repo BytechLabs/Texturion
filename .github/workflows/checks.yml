@@ -210,12 +210,12 @@ jobs:
         if: always()
         run: supabase stop --no-backup
 
-  # #122: verify (typecheck + lint + test) is split OFF the build job so the two
-  # heavy builds no longer sit behind it — the two jobs run in parallel, so the
-  # critical path is max(verify, build) instead of their sum. Fast red/green on
-  # a type error or failing test lands without waiting for a full build.
-  verify:
-    name: Typecheck, lint, test
+  # #122 split verify off the build job. It is now separate jobs that run side
+  # by side with build and with each other: the guards, the tooling suites,
+  # typecheck, lint, and the vitest suites in timed shards. The critical path is
+  # the slowest of them rather than their sum.
+  guards:
+    name: Guards
     # #493: skip the WORK for a release-please pull request.
     #
     # This does NOT stop the parked `action_required` run appearing — that is a
@@ -713,27 +713,25 @@ jobs:
           printf '%s\n' "$PR_TITLE" > /tmp/pr-title.txt
           node scripts/check-commit-message.mjs /tmp/pr-title.txt
 
-      # Reuse the TS incremental buildinfo across runs so `tsc --noEmit` only
-      # re-checks what changed (apps/web/tsconfig.json sets incremental: true;
-      # the api package has no incremental build, so only web has a file). A
-      # source change busts the key; restore-keys give partial reuse.
-      - name: Cache TypeScript build info
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+  tooling-tests:
+    name: Tooling tests (rig, CI test selection, workerd guard)
+    # Skipped for a release-please pull request, like every job here (#493, #581).
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          path: apps/web/tsconfig.tsbuildinfo
-          key: tsbuildinfo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/src/**/*.ts', 'apps/web/src/**/*.tsx') }}
-          restore-keys: |
-            tsbuildinfo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
-            tsbuildinfo-${{ runner.os }}-
+          node-version: 22
+          cache: pnpm
 
-      - name: Typecheck
-        run: pnpm -r typecheck
-
-      - name: Lint
-        run: pnpm -r lint
-
-      - name: Test
-        run: pnpm -r test
+      - name: Install
+        run: pnpm install --frozen-lockfile
 
       # D142: the rig CLI has no package of its own, so `pnpm -r test` never
       # reaches its node:test suites. They import tools/rig-protocol's
@@ -754,6 +752,210 @@ jobs:
       # could merge a guard that guard.yml then refuses to deploy.
       - name: Telnyx guard on workerd
         run: pnpm --filter @loonext/telnyx-guard test:workerd
+
+      # The test plan below decides what runs on a pull request; these are its
+      # own tests, so a selection bug fails here rather than skipping tests.
+      - name: CI test selection tests
+        run: node --test "scripts/ci/test/*.test.mjs"
+
+  typecheck:
+    name: Typecheck (bun check)
+    # Skipped for a release-please pull request, like every job here (#493, #581).
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # bun check is TypeScript 7's checker (Bun pins the exact version), run
+      # with the same tsconfig files tsc read, across every package.
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+  lint:
+    name: Lint
+    # Skipped for a release-please pull request, like every job here (#493, #581).
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm -r lint
+
+  # ---------------------------------------------------------------------------
+  # The vitest suites of every package, in shards balanced by each file's
+  # recorded duration. On a pull request only the files the diff can reach run
+  # (scripts/ci/test-plan.mjs says why each one runs); a push to main runs all
+  # of them and records the history the next pull request selects from.
+  # ---------------------------------------------------------------------------
+  test-plan:
+    name: Test plan
+    # Skipped for a release-please pull request, like every job here (#493, #581).
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      # Depth 2: a pull request checks out the merge commit, and its first
+      # parent is the base the diff is taken from.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore the test history from main
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .test-history/history.json
+          key: vitest-history-v1-${{ github.sha }}
+          restore-keys: vitest-history-v1-
+
+      - name: Plan
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          args=(--out .test-history/plan.json --history .test-history/history.json --github-output)
+          # A release pull request runs everything if it ever runs; it can only
+          # ask for more tests here, never fewer.
+          if [ "$EVENT" = "pull_request" ] && [[ "$HEAD_REF" != release-please--* ]]; then
+            git rev-parse --verify --quiet HEAD^2 >/dev/null || {
+              echo "::error::Expected the pull request's merge commit."
+              exit 1
+            }
+            args+=(--changed-since "$(git rev-parse HEAD^1)")
+          fi
+          node scripts/ci/test-plan.mjs "${args[@]}"
+
+      - name: Upload the plan
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-plan
+          path: .test-history/plan.json
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    name: Test (shard ${{ matrix.shard }})
+    needs: test-plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.test-plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Download the plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: test-plan
+          path: .test-history
+
+      - name: Run this shard
+        run: node scripts/ci/test-shard.mjs --plan .test-history/plan.json --shard ${{ matrix.shard }} --out .test-history/shard-${{ matrix.shard }}.json
+
+      - name: Upload this shard's results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: .test-history/shard-${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # Every planned file ran exactly once and passed, or this fails. On a push it
+  # also saves the durations and traces as the history for the next plan.
+  test-report:
+    name: Tests
+    needs: [test-plan, test]
+    if: >-
+      always() && needs.test-plan.result == 'success' &&
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: test-plan
+          path: .test-history
+
+      - name: Download every shard's results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+          path: .test-history/results
+
+      - name: Check coverage and results
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          args=(--plan .test-history/plan.json --results .test-history/results)
+          if [ "$EVENT" = "push" ]; then
+            args+=(--history-out .test-history/history.json --sha "$GITHUB_SHA")
+          fi
+          node scripts/ci/test-report.mjs "${args[@]}"
+
+      - name: Save the test history
+        if: ${{ always() && github.event_name == 'push' && hashFiles('.test-history/history.json') != '' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .test-history/history.json
+          key: vitest-history-v1-${{ github.sha }}-${{ github.run_attempt }}
 
   build:
     name: Build (next + OpenNext + wrangler)

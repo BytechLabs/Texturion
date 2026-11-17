@@ -8,7 +8,7 @@
   },
   "types": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun check",
     "lint": "eslint .",
     "test": "vitest run"
   },
