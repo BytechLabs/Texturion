@@ -117,7 +117,7 @@ for this contract to disclose to one.
 
 ## 6. Sub-processors
 
-Current list, kept public and current: **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google (Firebase Cloud Messaging), PostHog**
+Current list, kept public and current: **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google, PostHog**
 
 > Source: `/legal/subprocessors`
 

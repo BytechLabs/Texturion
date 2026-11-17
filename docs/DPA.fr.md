@@ -106,7 +106,7 @@ divulguer dans le cadre du présent contrat.
 
 ## 6. Sous-traitants ultérieurs
 
-Liste actuelle, tenue publique et à jour : **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google (Firebase Cloud Messaging), PostHog**
+Liste actuelle, tenue publique et à jour : **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google, PostHog**
 
 > Source: `/legal/subprocessors`
 

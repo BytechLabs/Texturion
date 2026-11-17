@@ -90,6 +90,7 @@ function subscriptionObject(): Record<string, unknown> {
 function subscriptionDeletedEvent(
   eventId: string,
   createdSec: number,
+  requestedSec = createdSec,
 ): Record<string, unknown> {
   return {
     id: eventId,
@@ -97,7 +98,14 @@ function subscriptionDeletedEvent(
     api_version: "2026-06-24.dahlia",
     created: createdSec,
     type: "customer.subscription.deleted",
-    data: { object: { ...subscriptionObject(), status: "canceled" } },
+    data: {
+      object: {
+        ...subscriptionObject(),
+        status: "canceled",
+        canceled_at: requestedSec,
+        ended_at: createdSec,
+      },
+    },
   };
 }
 
@@ -290,12 +298,19 @@ describe("D31 golden path 3: cancel → grace → release", () => {
     expect(data ?? []).toHaveLength(1);
   });
 
-  it("grace cron on a wound-forward clock (day 31): number RELEASED + campaign DEACTIVATED", async () => {
-    // Cancel again so the grace clock starts, then run the cron 31 days later.
-    const canceledSec = Math.floor(Date.now() / 1000);
-    await h.injectStripe(
-      subscriptionDeletedEvent(SECOND_DELETE_EVENT_ID, canceledSec),
+  it("holds the number for 30 days after service ends", async () => {
+    const endedSec = Math.floor(Date.now() / 1000);
+    const requestedSec = endedSec - 29 * DAY_MS / 1000;
+    h.stripe.setSubscription(SUB_ID, {
+      ...subscriptionObject(),
+      status: "canceled",
+      canceled_at: requestedSec,
+      ended_at: endedSec,
+    });
+    const res = await h.injectStripe(
+      subscriptionDeletedEvent(SECOND_DELETE_EVENT_ID, endedSec, requestedSec),
     );
+    expect(res.status).toBe(200);
     expect((await companyRow()).subscription_status).toBe("canceled");
     expect((await numberRow()).status).toBe("suspended");
 
@@ -308,8 +323,11 @@ describe("D31 golden path 3: cancel → grace → release", () => {
       /\/v2\/10dlc\/campaign\//,
     ).length;
 
-    // Wind the clock 31 days past the cancellation and run the §11 grace cron.
-    const windForward = new Date(canceledSec * 1000 + 31 * DAY_MS);
+    await runGraceJob(getEnv(h.env), new Date(requestedSec * 1000 + 31 * DAY_MS));
+    expect((await numberRow()).status).toBe("suspended");
+    expect(h.telnyx.callsTo("DELETE", /\/v2\/phone_numbers\//)).toHaveLength(deletesBefore);
+
+    const windForward = new Date(endedSec * 1000 + 31 * DAY_MS);
     await runGraceJob(getEnv(h.env), windForward);
 
     // The number is released (row + the Telnyx DELETE), the campaign

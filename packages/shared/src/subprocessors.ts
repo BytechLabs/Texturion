@@ -32,7 +32,8 @@ export const SUBPROCESSORS = [
     region: "resendRegion",
   },
   {
-    name: "Google (Firebase Cloud Messaging)",
+    name: "Google",
+    note: "firebaseNote",
     purpose: "firebasePurpose",
     data: "firebaseData",
     region: "firebaseRegion",

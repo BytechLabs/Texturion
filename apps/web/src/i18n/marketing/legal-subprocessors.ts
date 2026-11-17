@@ -40,6 +40,7 @@ export const legalSubprocessorsEn = {
   resendPurpose: "Transactional email (notifications, billing, invites)",
   resendData: "Recipient email address and email content",
   resendRegion: "United States",
+  firebaseNote: "Firebase Cloud Messaging",
   firebasePurpose: "Push notifications to the Android and iPhone apps",
   firebaseData:
     "Device push tokens; the notification preview, which contains the sender name and a short message excerpt",
@@ -121,6 +122,7 @@ export const legalSubprocessorsFr: Translated<typeof legalSubprocessorsEn> = {
   resendPurpose: "Courriels transactionnels (avis, facturation et invitations)",
   resendData: "Adresse du destinataire et contenu du courriel",
   resendRegion: "États-Unis",
+  firebaseNote: "Firebase Cloud Messaging",
   firebasePurpose: "Notifications poussées vers les applications Android et iPhone",
   firebaseData:
     "Jetons de notification des appareils; aperçu de la notification contenant le nom de l'expéditeur et un court extrait du message",

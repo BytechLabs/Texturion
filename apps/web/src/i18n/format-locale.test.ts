@@ -102,6 +102,10 @@ const where = (call: Call): string =>
  */
 const FIXED_LOCALE: readonly { file: string; why: string }[] = [
   {
+    file: "lib/marketing/llms-txt.ts",
+    why: "The public llms.txt endpoint is written in English regardless of the request locale.",
+  },
+  {
     file: "components/inbox/e164.ts",
     why: "The hour is PARSED back with Number(), so its formatter must be one whose digits are Latin; the label's locale is a parameter.",
   },

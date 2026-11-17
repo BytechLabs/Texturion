@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { SUBPROCESSORS as VENDOR_LIST } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -71,7 +72,7 @@ const VENDORS: { token: string; why: string }[] = [
   { token: "Cloudflare", why: "hosting, the Worker runtime, and Workers AI" },
   { token: "Stripe", why: "payments" },
   { token: "Resend", why: "transactional email" },
-  { token: "Firebase Cloud Messaging", why: "push to Android" },
+  { token: "Google", why: "push to Android" },
   { token: "PostHog", why: "product analytics and error monitoring, every client" },
 ];
 
@@ -93,17 +94,12 @@ function inventoryVendorCount(): number {
   return (table.match(/^\| \*\*[^*]+\*\*/gm) ?? []).length;
 }
 
-/** Entries in the subprocessors page's array, counted from its `name:` keys. */
-function pageVendorCount(): number {
-  return (SUBPROCESSORS.match(/^\s+name: "/gm) ?? []).length;
-}
-
 describe("#438 — DATA-INVENTORY.md and the subprocessors page name the same third parties", () => {
   it("lists every rostered vendor on both surfaces", () => {
     const missing: string[] = [];
     for (const { token } of VENDORS) {
       if (!INVENTORY.includes(token)) missing.push(`DATA-INVENTORY.md: ${token}`);
-      if (!SUBPROCESSORS.includes(token)) {
+      if (!VENDOR_LIST.some(({ name }) => name.includes(token))) {
         missing.push(`subprocessors page: ${token}`);
       }
     }
@@ -127,7 +123,7 @@ describe("#438 — DATA-INVENTORY.md and the subprocessors page name the same th
         "list. Add it to VENDORS and to the subprocessors page.",
     ).toBe(VENDORS.length);
     expect(
-      pageVendorCount(),
+      VENDOR_LIST.length,
       "The subprocessors page has an entry the roster above does not list. Add it " +
         "to VENDORS and to DATA-INVENTORY.md.",
     ).toBe(VENDORS.length);
