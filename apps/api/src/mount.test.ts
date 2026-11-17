@@ -26,6 +26,7 @@ import { buildDataExports,pruneExpiredExports } from "./workspace/export";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
+import { runPendingInboundNotifications } from "./notifications/pending-inbound";
 import { runBatchFlush } from "./notifications/batch-flush";
 import { runDailySummary } from "./notifications/daily-summary";
 import { runEscalationSweep } from "./notifications/escalation-sweep";
@@ -513,6 +514,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runLeadChaseJob,
       runEscalationSweep,
       runBatchFlush,
+      runPendingInboundNotifications,
       runScheduledSendJob,
     ]);
     // #411: the auto-retry runs BEFORE the fail-out, and the order is the

@@ -509,6 +509,8 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
       sample3:
         "Thanks for choosing Acme Plumbing! A quick Google review means a lot: " +
         "https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4",
+      sample4: expect.stringContaining("A reminder that your service visit"),
+      sample5: expect.stringContaining("We missed your call"),
       optinKeywords: "START",
       optoutKeywords: "STOP",
       helpKeywords: "HELP",
@@ -520,7 +522,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     });
     expect(
       (builder.body as { description: string }).description,
-    ).toContain("post-service review requests");
+    ).toContain("post-service ratings and review requests");
 
     const campaign = campaignRowOf(rest);
     expect(campaign.status).toBe("submitted");
