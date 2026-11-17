@@ -280,7 +280,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
   /** A window whose URL the test can move, as a client navigation does. */
   function stubLocation(href: string) {
     const location = { href, pathname: new URL(href).pathname };
-    vi.stubGlobal("window", { location });
+    vi.stubGlobal("window", { location, setTimeout });
     return (next: string) => {
       location.href = next;
       location.pathname = new URL(next).pathname;
@@ -361,8 +361,9 @@ describe("the SDK waits for the page to settle (#640)", () => {
     expect(registerSpy).not.toHaveBeenCalled();
   });
 
-  it("starts at once on the app, where no page is scored", async () => {
+  it("starts once the app has loaded, without waiting for a page score", async () => {
     stubLocation("https://app.loonext.com/inbox");
+    vi.stubGlobal("document", { readyState: "complete", referrer: "", cookie: "" });
     settle.gate = new Promise<void>(() => {});
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     expect(await initPostHog()).not.toBeNull();

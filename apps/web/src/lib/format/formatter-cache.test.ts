@@ -82,17 +82,18 @@ describe("date formatters are built once", () => {
   });
 
   it("FC-2: locale, zone and options each get their own formatter", () => {
-    const at = new Date("2026-11-10T20:00:00Z");
+    // July: Vancouver is UTC-7 in every tzdata, before and after BC's permanent daylight time.
+    const at = new Date("2026-07-10T20:00:00Z");
     const clock = { hour: "numeric", minute: "2-digit" } as const;
     const toronto = getFormatter("en", TORONTO, clock);
     expect(getFormatter("en", TORONTO, { hour: "numeric", minute: "2-digit" })).toBe(toronto);
-    expect(toronto.format(at)).toBe("3:00 PM");
-    expect(getFormatter("en", VANCOUVER, clock).format(at)).toBe("12:00 PM");
+    expect(toronto.format(at)).toBe("4:00 PM");
+    expect(getFormatter("en", VANCOUVER, clock).format(at)).toBe("1:00 PM");
     expect(getFormatter("fr-CA", TORONTO, clock).format(at)).toBe(
       new Intl.DateTimeFormat("fr-CA", { ...clock, timeZone: TORONTO }).format(at),
     );
     expect(getFormatter("fr-CA", TORONTO, clock)).not.toBe(toronto);
-    expect(getFormatter("en", TORONTO, { hour: "numeric" }).format(at)).toBe("3 PM");
+    expect(getFormatter("en", TORONTO, { hour: "numeric" }).format(at)).toBe("4 PM");
     expect(getFormatter("en", undefined, clock).resolvedOptions().timeZone).toBe(
       Intl.DateTimeFormat().resolvedOptions().timeZone,
     );
