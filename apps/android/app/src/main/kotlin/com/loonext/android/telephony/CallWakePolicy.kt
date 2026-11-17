@@ -101,6 +101,7 @@ object CallWakePolicy {
 
     /** ring-me 200 body reason that licenses the single §10.2 retry. */
     const val REASON_RECENT_LEG = "recent_leg"
+    const val REASON_NOT_YOUR_TURN = "not_your_turn"
 
     /**
      * Any non-null state other than `ringing` is a ringing-exit — answered,

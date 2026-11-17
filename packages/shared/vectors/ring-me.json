@@ -1,0 +1,4 @@
+{
+  "request": { "no_local_leg": true },
+  "response": { "ok": true, "rang": false, "state": "ringing", "reason": "not_your_turn" }
+}

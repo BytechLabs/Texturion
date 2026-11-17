@@ -21,7 +21,7 @@
  */
 
 import { RING_STEP_SECS } from '@loonext/shared';
-import type { CallEndReason, CallRouting } from '@loonext/shared';
+import type { CallEndReason, CallRouting, RingMeReason } from '@loonext/shared';
 
 /** §5: the ring window's CEILING, and the default. The DO alarm at the
  *  resolved deadline is the ONLY clock-based voicemail trigger.
@@ -322,7 +322,7 @@ export interface SessionMachine {
    * pre-#278 behaviour, and the right way for an unknown field to fail on a
    * live call.
    */
-  queuedTargets: { userId: string; sipUsername: string }[];
+  queuedTargets: { userId: string; sipUsername?: string; push?: boolean }[];
   telnyxCommandCount: number;
   legs: LegRecord[];
   intent: SessionIntent | null;
@@ -661,13 +661,7 @@ export type Effect =
 export interface RingMeReply {
   rang: boolean;
   state: CallState;
-  reason?:
-    | "not_ringing"
-    | "live_leg"
-    | "recent_leg"
-    | "dial_failed"
-    /** #171: the requester already declined this session — never re-rung. */
-    | "declined";
+  reason?: RingMeReason;
   /** Set when rang=true: the pending leg key whose dial decides the final
    *  reply (the shell downgrades to dial_failed if the dial never lands). */
   pendingKey?: string;
@@ -1106,31 +1100,35 @@ export function reduce(
       // can put a call on a decliner's phone. "Never re-ring a decliner" was a
       // property asserted for ring-me and the push settle and simply absent here.
       const queue = next.queuedTargets ?? [];
-      const waiting = queue.filter(
-        (candidate) => !next.declinedUserIds.includes(candidate.userId),
+      const waiting = queue.filter((candidate) =>
+        !next.declinedUserIds.includes(candidate.userId) &&
+        !next.legs.some((leg) =>
+          leg.userId === candidate.userId && LIVE_LEG_STATUSES.includes(leg.status),
+        ),
       );
-      const droppedDecliners = waiting.length < queue.length;
-      if (droppedDecliners) next.queuedTargets = waiting;
-      const target = waiting[0];
+      const target = waiting.shift();
+      next.queuedTargets = waiting;
       if (!target) {
         // An already-exhausted queue is the ordinary end of the cascade and stays a
-        // no-op — the ring deadline owns what happens next. But if THIS step is what
-        // emptied it, an avenue has just disappeared and the ladder has to hear about
-        // it: rung (1b) counts a waiting phone as live, so a queue of nothing but
-        // decliners would otherwise hold the caller on ringback until the deadline,
-        // listening to phones that were never going to ring.
-        if (droppedDecliners) runAvenueLadder(next, effects);
+        // no-op — the ring deadline owns what happens next. If this step removed
+        // the final waiting member, check whether the ring still has an avenue.
+        if (queue.length > 0) runAvenueLadder(next, effects);
         return { machine: next, effects };
       }
-      next.queuedTargets = waiting.slice(1);
       // The same cap ring-start respects. A cascade cannot be the way past it.
       if (next.legs.length >= MAX_LEGS_PER_SESSION) {
         return { machine: next, effects };
       }
-      effects.push({
-        kind: "telnyx-dial",
-        legs: [dialLegFor(next, target, nowMs, pendingKeyFor)],
-      });
+      if (target.sipUsername) {
+        effects.push({
+          kind: "telnyx-dial",
+          legs: [dialLegFor(next, { userId: target.userId, sipUsername: target.sipUsername }, nowMs, pendingKeyFor)],
+        });
+      }
+      if (target.push) {
+        next.pushCapableUserIds.push(target.userId);
+        queueRingPush(effects, [target.userId], nowMs);
+      }
       armRingStep(next, effects, nowMs);
       return { machine: next, effects };
     }
@@ -1539,11 +1537,22 @@ function reduceInitiated(
   // already returns. That is deliberately the thing #366 called unfair for
   // ring-all, because here it is the point: the owner joined first, so the
   // owner's phone rings first.
-  const ringNow =
-    context.ringStrategy === "in_turn" && targets.length > 1
-      ? targets.slice(0, 1)
-      : targets;
-  base.queuedTargets = targets.slice(ringNow.length);
+  let ringNow = targets;
+  let pushNow = context.pushAudience;
+  if (context.ringStrategy === "in_turn") {
+    const hasPush = new Set(context.pushAudience);
+    const hasCredential = new Set(context.dialTargets.map((target) => target.userId));
+    const pushOnly = context.pushAudience.filter((userId) => !hasCredential.has(userId));
+    base.queuedTargets = targets.slice(1).map((target) => ({
+      ...target,
+      push: hasPush.has(target.userId),
+    }));
+    ringNow = targets.slice(0, 1);
+    const first = ringNow[0]?.userId ?? pushOnly.shift();
+    pushNow = first && hasPush.has(first) ? [first] : [];
+    base.queuedTargets.push(...pushOnly.map((userId) => ({ userId, push: true })));
+    base.pushCapableUserIds = [...pushNow];
+  }
 
   const dialLegs = ringNow.map((target) => dialLegFor(base, target, nowMs, pendingKeyFor));
   base.ringDeadlineMs = nowMs + ringWindowMs(context.ringSeconds);
@@ -1554,10 +1563,17 @@ function reduceInitiated(
   }
   // Push fan-out is a JOURNALED effect: it dispatches sends AND arms the
   // fanout-settle alarm (+10s) — §5.5 (eviction-safe settle).
-  effects.push({ kind: "push-fanout", userIds: [...context.pushAudience] }, { kind: "arm-alarm", alarm: "fanout-settle", atMs: nowMs + FANOUT_SETTLE_MS });
+  queueRingPush(effects, pushNow, nowMs);
   effects.push({ kind: "arm-alarm", alarm: "ring", atMs: base.ringDeadlineMs });
   armRingStep(base, effects, nowMs);
   return { machine: base, effects };
+}
+
+function queueRingPush(effects: Effect[], userIds: string[], nowMs: number): void {
+  effects.push(
+    { kind: "push-fanout", userIds: [...userIds] },
+    { kind: "arm-alarm", alarm: "fanout-settle", atMs: nowMs + FANOUT_SETTLE_MS },
+  );
 }
 
 /**
@@ -2262,6 +2278,14 @@ function reduceRingMe(
       machine: next,
       effects,
       reply: { rang: false, state: next.state, reason: "declined" },
+    };
+  }
+
+  if ((next.queuedTargets ?? []).some((target) => target.userId === event.userId)) {
+    return {
+      machine: next,
+      effects,
+      reply: { rang: false, state: next.state, reason: "not_your_turn" },
     };
   }
 

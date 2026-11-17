@@ -245,7 +245,10 @@ final class CallsManager {
     /// failures propagate to the caller.
     func onIncomingCallPush(sessionId: String) async throws {
         beacon(.pushReceived, sessionId: sessionId)
-        try await core.onIncomingCallPush(sessionId: sessionId)
+        let ack = try await core.onIncomingCallPush(sessionId: sessionId)
+        if ack?.reason == "not_your_turn" {
+            PushCoordinator.clearRingNotification(sessionId)
+        }
     }
 
     // MARK: - Ring beacons

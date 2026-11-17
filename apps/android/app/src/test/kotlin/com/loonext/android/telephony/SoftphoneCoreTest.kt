@@ -19,6 +19,10 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -27,6 +31,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -957,6 +962,28 @@ class SoftphoneCoreTest {
         h.core.awaitReady()
         h.core.onIncomingCallPush("sess-live")
         assertEquals("no retry for a non-recent_leg reason", listOf(true), ringMeNoLocalLeg)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a queued ring dismisses local presentation without retrying`() = runTest {
+        val fixture = generateSequence(File("").absoluteFile) { it.parentFile }
+            .map { File(it, "packages/shared/vectors/ring-me.json") }
+            .first { it.isFile }
+        val vector = Json.parseToJsonElement(fixture.readText()).jsonObject
+        val request = vector.getValue("request").jsonObject
+        val ack = Json.decodeFromJsonElement(RingAck.serializer(), vector.getValue("response"))
+        ringMeBehavior = { ack }
+        val h = harness()
+        val ended = mutableListOf<String>()
+        h.core.onWakeSessionOver = { ended.add(it) }
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        h.core.onIncomingCallPush("sess-queued")
+
+        assertEquals(listOf("sess-queued"), ended)
+        assertEquals(listOf(request.getValue("no_local_leg").jsonPrimitive.boolean), ringMeNoLocalLeg)
         h.scope.cancel()
     }
 

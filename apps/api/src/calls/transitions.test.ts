@@ -1720,6 +1720,52 @@ describe("#278 ringing in turn", () => {
     ).toBe(false);
   });
 
+  it("pushes members in the dial order and refuses early wake requests", () => {
+    const vector = JSON.parse(readFileSync(
+      new URL("../../../../packages/shared/vectors/ring-me.json", import.meta.url),
+      "utf8",
+    )) as { request: { no_local_leg: boolean }; response: { rang: boolean; state: string; reason: string } };
+    const started = startInTurn({
+      dialTargets: CREW.slice(0, 2),
+      pushAudience: ["u1", "u2", "push-only"],
+    });
+    expect(started.effects.find((effect) => effect.kind === "push-fanout")).toEqual({
+      kind: "push-fanout", userIds: ["u1"],
+    });
+
+    const earlyWake = reduce(started.machine, {
+      type: "ring-me", userId: "u2", sipUsername: "s2", noLocalLeg: vector.request.no_local_leg,
+    }, 2_000, keyGen());
+    expect({ ok: true, ...earlyWake.reply }).toEqual(vector.response);
+    expect(earlyWake.effects).toEqual([]);
+
+    const next = reduce(earlyWake.machine, { type: "alarm-ring-step" }, 13_000, keyGen());
+    expect(next.effects.find((effect) => effect.kind === "push-fanout")).toEqual({
+      kind: "push-fanout", userIds: ["u2"],
+    });
+    expect(next.machine?.queuedTargets.map((target) => target.userId)).toEqual(["push-only"]);
+
+    const last = reduce(next.machine, { type: "alarm-ring-step" }, 25_000, keyGen());
+    expect(last.effects.find((effect) => effect.kind === "push-fanout")).toEqual({
+      kind: "push-fanout", userIds: ["push-only"],
+    });
+    expect(last.effects.some((effect) => effect.kind === "telnyx-dial")).toBe(false);
+    expect(last.machine?.queuedTargets).toEqual([]);
+  });
+
+  it("skips a queued member whose live leg was persisted by an older client wake", () => {
+    const started = startInTurn({ pushAudience: ["u1", "u2", "u3"] });
+    const machine = started.machine!;
+    machine.legs.push({ ...machine.legs[0], key: "prior-ring-me", userId: "u2" });
+
+    const next = reduce(machine, { type: "alarm-ring-step" }, 13_000, keyGen());
+
+    expect(next.machine?.legs.map((leg) => leg.userId)).toEqual(["u1", "u2", "u3"]);
+    expect(next.effects.find((effect) => effect.kind === "push-fanout")).toEqual({
+      kind: "push-fanout", userIds: ["u3"],
+    });
+  });
+
   it("RT-2: each step ADDS a phone rather than replacing the one ringing", () => {
     // The cascade, not a hunt. A hunt tears the previous leg down before
     // dialing the next, which leaves a window where nobody's phone is ringing

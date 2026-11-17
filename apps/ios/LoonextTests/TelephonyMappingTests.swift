@@ -137,6 +137,7 @@ private final class FakeBackend: CallsBackend {
     var ringMeCalls: [String] = []
     var noLocalLegValues: [Bool] = []
     var liveState = "ringing"
+    var ringAck = RingAck(ok: true, rang: true, state: "ringing", reason: nil)
     var ringMeError: ApiError?
 
     /// #213: the server session (S) the next authorize returns. The op leg then
@@ -194,7 +195,7 @@ private final class FakeBackend: CallsBackend {
         ringMeCalls.append(sessionId)
         noLocalLegValues.append(noLocalLeg)
         if let ringMeError { throw ringMeError }
-        return RingAck(ok: true, rang: true, state: "ringing", reason: nil)
+        return ringAck
     }
 }
 
@@ -1008,6 +1009,32 @@ final class TelephonyMappingTests: XCTestCase {
                  name: "Dana", number: "+16135550100", sessionHeader: "sess-ringing")
         try await core.onIncomingCallPush(sessionId: "sess-ringing")
         XCTAssertTrue(backend.ringMeCalls.isEmpty)
+    }
+
+    func testRingMePassesTheQueuedTurnResultToTheManager() async throws {
+        struct Vector: Decodable {
+            let request: [String: Bool]
+            let response: RingAck
+        }
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var fixture: URL? = nil
+        while dir.path != "/" {
+            let candidate = dir.appendingPathComponent("packages/shared/vectors/ring-me.json")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                fixture = candidate
+                break
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        let vector = try JSONDecoder().decode(Vector.self, from: Data(contentsOf: XCTUnwrap(fixture)))
+        let (core, _, backend) = makeCore()
+        backend.ringAck = vector.response
+        try await startReady(core)
+
+        let ack = try await core.onIncomingCallPush(sessionId: "sess-queued")
+
+        XCTAssertEqual("not_your_turn", ack?.reason)
+        XCTAssertEqual([try XCTUnwrap(vector.request["no_local_leg"])], backend.noLocalLegValues)
     }
 
     // MARK: recovery (fresh mint on auth failure; never during a live call)

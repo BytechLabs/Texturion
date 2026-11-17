@@ -974,6 +974,12 @@ state, drops expired local rings, and attests only while it has no engaged leg.
 If the server returns `recent_leg`, the client waits four seconds and checks
 its local legs again before one retry. A body-less request still takes T4a.
 
+For an in-turn ring, the server adds one member per step and pushes only the
+member added at that step. Members who have a push channel and need to mint a
+credential wait behind the credentialed members. Ring-me returns
+`not_your_turn` to a queued member. The native clients dismiss the pending
+Android ring or the iOS fallback alert for that session.
+
 - On `kind:'call'` push: if any local call is RINGING or ACTIVE whose caller
   matches the push hint (or any live leg exists at all for a solo-session
   situation), do nothing — the INVITE path owns presentation. Else

@@ -1015,6 +1015,7 @@ export {
   RING_SECONDS_MAX,
   RING_SECONDS_MIN,
   RING_STEP_SECS,
+  type RingMeReason,
   RING_STRATEGIES,
   clampRingSeconds,
   isRingStrategy,
