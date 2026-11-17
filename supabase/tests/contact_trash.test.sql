@@ -8,6 +8,7 @@ declare
   company_id uuid;
   contact_id uuid;
   tag_id uuid;
+  inbound_number_id uuid;
   phone text := '+14165550108';
   result jsonb;
   profile public.contacts%rowtype;
@@ -105,7 +106,12 @@ begin
     raise exception 'An erased profile could be restored';
   end if;
 
-  update public.contacts set deleted_at = null where id = contact_id;
+  insert into public.phone_numbers (company_id, status, provisioning_key, country, number_e164)
+    values (company_id, 'active', 'test-contact-trash-inbound', 'CA', '+14165550803')
+    returning id into inbound_number_id;
+  perform public.thread_inbound_message(
+    company_id, inbound_number_id, phone, 'Hello again', 'test-contact-trash-inbound-message'
+  );
   select * into profile from public.contacts where id = contact_id;
   if profile.deleted_at is not null or profile.purged_at is not null or profile.name is not null then
     raise exception 'Reopening the contact did not start a clean profile';
