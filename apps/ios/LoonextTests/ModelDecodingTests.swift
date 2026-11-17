@@ -411,6 +411,13 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertNil(result.next_cursor)
     }
 
+    func testContactSearchMatchedLineIsOptional() throws {
+        let hit: SearchContactHit = try decode(#"{"id":"ct-1","phone_e164":"+14165550123","matched_line":"81 Elmwood Avenue"}"#)
+        let earlier: SearchContactHit = try decode(#"{"id":"ct-1","phone_e164":"+14165550123"}"#)
+        XCTAssertEqual(hit.matched_line, "81 Elmwood Avenue")
+        XCTAssertNil(earlier.matched_line)
+    }
+
     func testWebRtcTokenExpiryDefault() throws {
         let token: WebRtcToken = try decode(#"{"token":"jwt","sip_username":"sip1"}"#)
         XCTAssertEqual(token.expires_in_hours, 24)

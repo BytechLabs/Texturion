@@ -15,6 +15,7 @@ data class SearchContactHit(
     val name: String? = null,
     val phone_e164: String,
     val conversation: SearchContactConversation? = null,
+    val matched_line: String? = null,
 )
 
 @Serializable

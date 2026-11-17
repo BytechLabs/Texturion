@@ -147,7 +147,7 @@ export const inboxEn = {
   openCountOverAria: "over {cap} open",
   searchPausesFilters:
     "Search looks through every conversation, so these filters are paused.",
-  searchPlaceholder: "Search conversations",
+  searchPlaceholder: "Search name, number or address",
   searchAria: "Search conversations and contacts",
   clearSearchAria: "Clear search",
   // #548: only ever a status the segments cannot show, so the word alone would
@@ -640,7 +640,7 @@ export const inboxFr: Translated<typeof inboxEn> = {
   searchPausesFilters:
     "La recherche parcourt toutes les conversations, alors ces filtres sont " +
     "en pause.",
-  searchPlaceholder: "Rechercher des conversations",
+  searchPlaceholder: "Chercher un nom, un numéro ou une adresse",
   searchAria: "Rechercher des conversations et des contacts",
   clearSearchAria: "Effacer la recherche",
   statusChipLabel: "Statut : {label}",

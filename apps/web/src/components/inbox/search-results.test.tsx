@@ -80,6 +80,7 @@ it("opens a matched contact's thread and shows separate task and voicemail hits"
       id: "pat",
       name: "Pat Rivera",
       phone_e164: "+14165550123",
+      matched_line: "81 Maple Street",
       conversation: { id: "pat-thread", status: "open", last_message_at: time },
     }],
     tasks: [{
@@ -100,6 +101,7 @@ it("opens a matched contact's thread and shows separate task and voicemail hits"
   });
 
   expect((await screen.findByRole("link", { name: /Pat Rivera/ })).getAttribute("href")).toBe("/inbox/pat-thread");
+  expect(screen.getByRole("link", { name: /Pat Rivera.*81 Maple Street/ })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Maple installation" }).getAttribute("href")).toBe("/tasks?task=task");
   expect(screen.getByRole("link", { name: /Voicemail.*Maple Street/ }).getAttribute("href")).toBe("/calls/call");
   expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toContain("/inbox/new?contact=pat");

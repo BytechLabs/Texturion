@@ -170,13 +170,13 @@ export function SearchResults({ q }: { q: string }) {
               <div key={contact.id} className="flex items-center border-b border-border-subtle">
                 <Link
                   href={thread ? threadHref(thread) : compose}
-                  className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  className="flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   <span className="truncate text-sm font-medium text-foreground">
                     {contactDisplayName(contact)}
                   </span>
-                  <span className="shrink-0 text-xs tabular-nums text-foreground-tertiary">
-                    {formatPhone(contact.phone_e164)}
+                  <span className="truncate text-xs tabular-nums text-foreground-tertiary">
+                    {contact.matched_line ?? formatPhone(contact.phone_e164)}
                   </span>
                 </Link>
                 {thread && (

@@ -11,6 +11,7 @@ struct SearchContactHit: Codable, Sendable {
     let name: String?
     let phone_e164: String
     let conversation: SearchContactConversation?
+    let matched_line: String?
 }
 
 struct SearchConversationHit: Codable, Sendable {
