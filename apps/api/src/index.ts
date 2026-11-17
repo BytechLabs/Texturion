@@ -622,8 +622,8 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // rule as its neighbours: this only pushes to the crew's own phones, and
     // a Telnyx stall in the carrier-bound job below must not delay it.
     job("job:batch-flush", runBatchFlush),
-    job("job:scheduled-send", runScheduledSendJob),
     job("job:pending-inbound-notifications", runPendingInboundNotifications),
+    job("job:scheduled-send", runScheduledSendJob),
   ],
   // Webhook sweeper: replay unprocessed webhook_events (both providers).
   // Piggybacked on the same cadence (#20): fail out outbound rows stuck
