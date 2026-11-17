@@ -1214,12 +1214,12 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
   const byTag = tagFilter !== undefined && tagFilter !== "";
   const t9 = c.req.query("t9") === "1";
   const addressSearch = rawQ && !t9 ? orIlikeValue(rawQ) : "";
-  const tagJoin = byTag ? ",contact_tags!inner(tag_id)" : "";
-  const addressJoin = addressSearch ? ",contact_addresses()" : "";
+  const listTagJoin = byTag ? ",contact_tags!inner(tag_id)" : "";
+  const listAddressJoin = addressSearch ? ",contact_addresses()" : "";
 
   let query = db
     .from("contacts")
-    .select(`${CONTACT_LIST_COLUMNS}${tagJoin}${addressJoin}`)
+    .select(`${CONTACT_LIST_COLUMNS}${listTagJoin}${listAddressJoin}`)
     .eq("company_id", c.get("companyId"))
     .is("deleted_at", null)
     .is("merged_into", null);
@@ -1479,8 +1479,8 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
     throw new ApiError("validation_failed", "q: too long (max 200).");
   }
   const addressSearch = rawQ ? orIlikeValue(rawQ) : "";
-  const tagJoin = byTag ? ",contact_tags!inner(tag_id)" : "";
-  const addressJoin = addressSearch ? ",contact_addresses()" : "";
+  const exportTagJoin = byTag ? ",contact_tags!inner(tag_id)" : "";
+  const exportAddressJoin = addressSearch ? ",contact_addresses()" : "";
   const matches = rawQ ? contactSearchOr(rawQ) : null;
 
   interface ExportRow {
@@ -1496,7 +1496,7 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
   for (;;) {
     let query = db
       .from("contacts")
-      .select(`id,name,phone_e164,consent_source,consent_at,created_at${tagJoin}${addressJoin}`)
+      .select(`id,name,phone_e164,consent_source,consent_at,created_at${exportTagJoin}${exportAddressJoin}`)
       .eq("company_id", companyId)
       .is("deleted_at", null)
       .is("merged_into", null);
