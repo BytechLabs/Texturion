@@ -37,10 +37,8 @@ export interface DailySummarySummary {
 interface SummaryRow {
   user_id: string;
   company_id: string;
-  summary_at: string;
-  summary_sent_on: string | null;
-  quiet_timezone: string | null;
-  companies: { timezone: string | null } | null;
+  timezone: string;
+  summary_date: string;
 }
 
 /** The member's local date and minutes-since-midnight, or null. */
@@ -100,16 +98,6 @@ export function tasksNeedingToday(
   return count;
 }
 
-/** "07:30" as minutes since midnight, or null when it will not parse. */
-function timeToMinutes(value: string): number | null {
-  const match = /^(\d{1,2}):(\d{2})/.exec(value);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours > 23 || minutes > 59) return null;
-  return hours * 60 + minutes;
-}
-
 /**
  * Send the summary to everybody whose chosen time has arrived.
  *
@@ -127,14 +115,10 @@ export async function runDailySummary(
   const db = getDb(env);
   const summary: DailySummarySummary = { considered: 0, sent: 0 };
 
-  const { data, error } = await db
-    .from("notification_prefs")
-    .select(
-      "user_id,company_id,summary_at,summary_sent_on,quiet_timezone," +
-        "companies(timezone)",
-    )
-    .not("summary_at", "is", null)
-    .limit(MAX_PER_TICK);
+  const { data, error } = await db.rpc("api_due_daily_summaries", {
+    p_now: now.toISOString(),
+    p_limit: MAX_PER_TICK,
+  });
   if (error) throw new Error(`daily summary lookup failed: ${error.message}`);
 
   const rows = (data ?? []) as unknown as SummaryRow[];
@@ -142,27 +126,17 @@ export async function runDailySummary(
 
   for (const row of rows) {
     try {
-      const zone = row.quiet_timezone ?? row.companies?.timezone;
-      if (!zone) continue;
-      const clock = localClock(zone, now);
-      const wanted = timeToMinutes(row.summary_at);
-      if (!clock || wanted === null) continue;
-
-      // Already gone today, in THEIR calendar.
-      if (row.summary_sent_on === clock.date) continue;
-      // Not yet their time.
-      if (clock.minutes < wanted) continue;
-
       // Claim the day BEFORE sending. A push that fails leaves the day
       // claimed, which is the right trade: this is one optional notification,
       // and retrying it every fifteen minutes until a dead device comes back
       // would turn a courtesy into a nuisance.
       const claim = await db
         .from("notification_prefs")
-        .update({ summary_sent_on: clock.date })
+        .update({ summary_sent_on: row.summary_date })
         .eq("user_id", row.user_id)
         .eq("company_id", row.company_id)
-        .or(`summary_sent_on.is.null,summary_sent_on.neq.${clock.date}`)
+        .eq("push_enabled", true)
+        .or(`summary_sent_on.is.null,summary_sent_on.lt.${row.summary_date}`)
         .select("user_id");
       if (claim.error || (claim.data ?? []).length === 0) continue;
 
@@ -206,7 +180,7 @@ export async function runDailySummary(
       } | null;
       const counts = {
         waiting: result?.totals?.waiting_on_you ?? 0,
-        tasks: tasksNeedingToday(result?.my_tasks ?? [], zone, clock.date),
+        tasks: tasksNeedingToday(result?.my_tasks ?? [], row.timezone, row.summary_date),
       };
       const url = `${env.APP_ORIGIN}/for-you`;
       // #228: composed PER READER. The counts come off one RPC and mean the
