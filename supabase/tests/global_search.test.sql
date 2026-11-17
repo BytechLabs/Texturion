@@ -160,7 +160,7 @@ begin
   values (cid_a, cv_a, 'inbound', 'Please send the invoice for the deck job', 'received',
           '2026-07-03T12:00:00Z') returning id into m_a1;
   insert into public.messages (company_id, conversation_id, direction, body, status, sent_by_user_id, created_at)
-  values (cid_a, cv_a, 'note', 'Customer prefers morning gutter visits', null, owner_id,
+  values (cid_a, cv_a, 'note', 'Customer prefers morning gutter visits and furnace filters', null, owner_id,
           '2026-07-03T12:05:00Z') returning id into m_a2;
   insert into public.messages (company_id, conversation_id, direction, body, status, created_at)
   values (cid_a, cv_a, 'inbound', 'Thanks again for the spring cleanup', 'received',
@@ -260,6 +260,19 @@ begin
   end if;
   if r->'conversations'->0->>'snippet' not like '%<b>%' then
     raise exception 'G3 FAILED: snippet not highlighted';
+  end if;
+
+  r := public.api_search_v2(f.cid_a, 'furn', 10, 10, 10, 10, 10);
+  if (r->'conversations'->0->>'matched_message_id')::uuid is distinct from f.m_a2
+     or coalesce(r->'conversations'->0->>'snippet', '') not like '%<b>furnace</b>%' then
+    raise exception 'G3 FAILED: prefix search missed the furnace note or its highlight';
+  end if;
+
+  r := public.api_search_v2(f.cid_a, '"morning gutt"', 10, 10, 10, 10, 10);
+  if jsonb_array_length(r->'conversations') is distinct from 0
+     or public.search_tsquery('"morning gutt') is distinct from websearch_to_tsquery('english', '"morning gutt')
+     or public.search_tsquery('invoice the') is distinct from websearch_to_tsquery('english', 'invoice the') then
+    raise exception 'G3 FAILED: prefix search changed a phrase or a query ending in a stop word';
   end if;
 
   raise notice 'G3 PASSED: conversation hits expose direction (inbound + note)';
