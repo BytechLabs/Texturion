@@ -12,6 +12,19 @@ class PushPayloadTest {
     // --- parsePush ---
 
     @Test
+    fun `only the open conversation suppresses customer messages`() {
+        val message = parsePush(mapOf("url" to "/inbox/c1"))
+        val mention = parsePush(mapOf("url" to "/inbox/c1?message=m1", "tag" to "mention:m1"))
+        val missed = parsePush(mapOf("url" to "/inbox/c1", "kind" to PushKind.MISSED_CALL))
+
+        assertTrue(isMessageForOpenConversation(message, "c1"))
+        assertFalse(isMessageForOpenConversation(message, "c2"))
+        assertFalse(isMessageForOpenConversation(message, null))
+        assertFalse(isMessageForOpenConversation(mention, "c1"))
+        assertFalse(isMessageForOpenConversation(missed, "c1"))
+    }
+
+    @Test
     fun `message push lands on the messages channel with a conversation tag`() {
         val content = parsePush(
             mapOf(

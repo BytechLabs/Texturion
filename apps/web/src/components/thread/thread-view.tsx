@@ -158,6 +158,16 @@ export function ThreadView({ conversationId }: { conversationId: string }) {
   const queryClient = useQueryClient();
   const companyId = useCompanyId();
   const detail = useConversation(conversationId);
+  const hasThread = detail.data !== undefined;
+
+  useEffect(() => {
+    if (!hasThread || !navigator.serviceWorker) return;
+    void navigator.serviceWorker.ready
+      .then((registration) => {
+        registration.active?.postMessage({ type: "loonext:thread-opened", conversationId });
+      })
+      .catch(() => {});
+  }, [conversationId, hasThread]);
 
   if (detail.isPending) {
     const row = findListRow(queryClient, companyId, conversationId);

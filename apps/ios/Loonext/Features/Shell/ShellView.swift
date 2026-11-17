@@ -256,14 +256,21 @@ struct ShellView: View {
         .onChange(of: path) { _, next in
             if case .thread(let id, _)? = next.last {
                 router.viewedConversationId = id
+                Task { await PushCoordinator.clearConversationNotifications(id) }
             } else {
                 router.viewedConversationId = nil
             }
         }
         .task(id: countsKey) { await reloadCounts() }
         .task(id: companyId) {
-            for await _ in await graph.realtime.events() {
+            for await event in await graph.realtime.events() {
                 countsKey &+= 1
+                if event.event == "read.conversation",
+                   event.payload["user_id"]?.stringValue == hydratedMe.user_id,
+                   event.payload["is_read"]?.boolValue == true,
+                   let id = event.payload["conversation_id"]?.stringValue {
+                    await PushCoordinator.clearConversationNotifications(id)
+                }
             }
         }
         // #215: reload the nav counts + avatar dot on a socket re-JOIN and on

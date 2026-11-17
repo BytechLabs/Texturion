@@ -7,6 +7,15 @@ import XCTest
 final class NotificationsPushPayloadTests: XCTestCase {
     // MARK: - parsePush
 
+    func testReadClearsThreadAlertsWithoutClearingNoteMentions() {
+        let tags = conversationNotificationTags("c1")
+        let mention = parsePush(["url": "/inbox/c1?message=m1", "tag": "mention:m1"])
+        let emergency = parsePush(["url": "/inbox/c1", "tag": "emergency:c1"])
+        XCTAssertFalse(tags.contains(mention.tag))
+        XCTAssertTrue(tags.contains(emergency.tag))
+        XCTAssertTrue(tags.contains(parsePush(["url": "/inbox/c1"]).tag))
+    }
+
     func testMessagePushLandsOnMessagesCategoryWithConversationTag() {
         let content = parsePush([
             "title": "New text from Dana",

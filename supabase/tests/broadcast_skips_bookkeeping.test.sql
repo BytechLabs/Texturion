@@ -242,6 +242,10 @@ begin
     raise exception 'QB-7 FAILED: a read after a new inbound sent % read.conversation (want 1)',
       pg_temp.sends('read.conversation');
   end if;
+  if (select payload->>'is_read' from realtime.messages where event = 'read.conversation')
+       is distinct from 'true' then
+    raise exception 'QB-7 FAILED: the read event must allow the viewer to clear notifications';
+  end if;
 
   insert into public.messages
     (id, company_id, conversation_id, direction, body, status, sent_by_user_id, created_at)
@@ -267,6 +271,10 @@ begin
   if pg_temp.sends('read.conversation') is distinct from 1 then
     raise exception 'QB-8 FAILED: a watermark moved back over an unread message sent % (want 1)',
       pg_temp.sends('read.conversation');
+  end if;
+  if (select payload->>'is_read' from realtime.messages where event = 'read.conversation')
+       is distinct from 'false' then
+    raise exception 'QB-8 FAILED: a thread marked unread must keep its notifications';
   end if;
   raise notice 'QB-8 PASSED: a read that makes the thread unread again is heard';
 end $$;

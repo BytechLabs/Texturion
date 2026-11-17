@@ -122,7 +122,7 @@ func parsePush(_ data: [String: String], _ locale: String? = nil) -> PushContent
     let url = normalizeDeepLink(data["url"])
     let title = trimmedNonEmpty(data["title"])
     let body = data["body"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let tag = coalescingTag(kind: kind, normalizedUrl: url)
+    let tag = trimmedNonEmpty(data["tag"]) ?? coalescingTag(kind: kind, normalizedUrl: url)
 
     if kind == PushKind.call {
         return PushContent(
@@ -226,6 +226,15 @@ func conversationId(fromNormalizedUrl url: String) -> String? {
     guard url.hasPrefix(prefix) else { return nil }
     let id = url.dropFirst(prefix.count).prefix { $0 != "/" && $0 != "?" && $0 != "#" }
     return id.isEmpty ? nil : String(id)
+}
+
+func conversationNotificationTags(_ conversationId: String) -> Set<String> {
+    [
+        "conversation:\(conversationId)",
+        "emergency:\(conversationId)",
+        "lead-chase:1:\(conversationId)",
+        "lead-chase:2:\(conversationId)",
+    ]
 }
 
 /// First value of a query parameter, percent-decoded; nil when absent or

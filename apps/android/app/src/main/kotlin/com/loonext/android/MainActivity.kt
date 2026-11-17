@@ -41,6 +41,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -63,8 +64,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.loonext.android.core.data.CacheKeys
@@ -115,6 +119,8 @@ import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.features.thread.canAddLeadSource
 import com.loonext.android.push.APP_ORIGIN
+import com.loonext.android.push.PushHooks
+import com.loonext.android.push.clearConversationNotifications
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
@@ -130,6 +136,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -640,8 +647,26 @@ private fun ReadyShell(
     // The thread the user is LOOKING at right now (tab-internal or overlay) —
     // suppresses the global inbound toast for that conversation (#165).
     var tabViewedConversation by remember { mutableStateOf<String?>(null) }
-    val viewedConversation = (routeStack.lastOrNull() as? Overlay.Thread)?.conversationId
-        ?: tabViewedConversation
+    val viewedConversation = when (val route = routeStack.lastOrNull()) {
+        is Overlay.Thread -> route.conversationId
+        null -> tabViewedConversation
+        else -> null
+    }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, viewedConversation) {
+        val observer = LifecycleEventObserver { _, _ ->
+            val foreground = viewedConversation.takeIf {
+                lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            }
+            PushHooks.foregroundConversationId = foreground
+            foreground?.let { clearConversationNotifications(context, it) }
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            PushHooks.foregroundConversationId = null
+        }
+    }
 
     // The process-wide softphone. get() also INSTALLS the call-wake +
     // call-end push handlers (calls-v3 §10.2: SoftphoneManager's init is the
@@ -765,6 +790,14 @@ private fun ReadyShell(
     LaunchedEffect(companyId) {
         graph.realtime.events.collect { event ->
             countsKey++
+            if (
+                event.event == "read.conversation" &&
+                (event.payload["user_id"] as? JsonPrimitive)?.contentOrNull == me.user_id &&
+                (event.payload["is_read"] as? JsonPrimitive)?.booleanOrNull == true
+            ) {
+                val conversationId = (event.payload["conversation_id"] as? JsonPrimitive)?.contentOrNull
+                conversationId?.let { clearConversationNotifications(context, it) }
+            }
             // §9.1/§10.1: the `call.updated` broadcast now carries {state,
             // answered_by_user_id} — forward a ringing-exit state to the
             // softphone so a presenting device stops presenting (silence only;

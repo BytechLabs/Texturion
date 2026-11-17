@@ -108,6 +108,18 @@ data class PushContent(
     val callSessionId: String? get() = queryParam(url, "call")
 }
 
+fun conversationNotificationTags(conversationId: String): Set<String> = setOf(
+    "conversation:$conversationId",
+    "emergency:$conversationId",
+    "lead-chase:1:$conversationId",
+    "lead-chase:2:$conversationId",
+)
+
+fun isMessageForOpenConversation(content: PushContent, conversationId: String?): Boolean =
+    conversationId != null &&
+        (content.kind == null || content.kind == PushKind.EMERGENCY) &&
+        content.tag in conversationNotificationTags(conversationId)
+
 /**
  * Parse an FCM data map into displayable content. Every field is optional on
  * the wire; missing/garbage input degrades to a generic notice on the

@@ -122,6 +122,41 @@ function coalescingTag(payload, url) {
   return `loonext:${tag !== "" ? tag : url}`;
 }
 
+function conversationNotificationTags(id) {
+  return [
+    `loonext:/inbox/${id}`,
+    `loonext:conversation:${id}`,
+    `loonext:emergency:${id}`,
+    `loonext:lead-chase:1:${id}`,
+    `loonext:lead-chase:2:${id}`,
+  ];
+}
+
+async function clearConversationNotifications(id) {
+  const tags = new Set(conversationNotificationTags(id));
+  for (const notification of await self.registration.getNotifications()) {
+    if (tags.has(notification.tag)) notification.close();
+  }
+}
+
+async function showPushNotification(title, options) {
+  const path = new URL(options.data.url, self.location.origin).pathname;
+  const id = path.match(/^\/inbox\/([^/]+)\/?$/)?.[1];
+  const isThreadNotification = id && conversationNotificationTags(id).includes(options.tag);
+  const windows = isThreadNotification ? await self.clients.matchAll({ type: "window" }) : [];
+  const focused = windows.some(
+    (client) => client.focused && clientLocation(client)?.pathname === path,
+  );
+  await self.registration.showNotification(
+    title,
+    focused ? { ...options, silent: true, renotify: false } : options,
+  );
+  if (focused) {
+    const notifications = await self.registration.getNotifications({ tag: options.tag });
+    for (const notification of notifications) notification.close();
+  }
+}
+
 /**
  * Per-session tag for a ringing-call notification. The session rides on the
  * push url as `?call=<session>`; scope the tag to it so concurrent calls don't
@@ -260,7 +295,14 @@ self.addEventListener("push", (event) => {
     rawText,
     self.location.origin,
   );
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(showPushNotification(title, options));
+});
+
+self.addEventListener("message", (event) => {
+  const { type, conversationId } = event.data ?? {};
+  if (type === "loonext:thread-opened" && typeof conversationId === "string") {
+    event.waitUntil(clearConversationNotifications(conversationId));
+  }
 });
 
 /** A window's path and query, or null when its url does not parse. */
