@@ -839,6 +839,14 @@ async function login(context) {
   await page.close();
 }
 
+async function openSurface(page, surface) {
+  // Public pages render on the server, and background requests can keep running after load.
+  await page.goto(`${base}${surface.path}`, {
+    waitUntil: surface.auth ? "networkidle" : "load",
+    timeout: 45_000,
+  });
+}
+
 const wanted = SURFACES.filter((s) => (publicOnly ? !s.auth : authedOnly ? s.auth : true));
 if (!wanted.length) {
   console.error("theme-audit: no surfaces selected — check the flags.");
@@ -861,7 +869,7 @@ for (const theme of ["light", "dark"]) {
   for (const surface of wanted) {
     const page = await context.newPage();
     try {
-      await page.goto(`${base}${surface.path}`, { waitUntil: "networkidle", timeout: 45_000 });
+      await openSurface(page, surface);
       if (surface.auth && new URL(page.url()).pathname.startsWith("/login")) {
         problems.push({
           theme,
@@ -1001,7 +1009,7 @@ for (const theme of ["light", "dark"]) {
   for (const surface of wanted.filter((s) => !s.open)) {
     const page = await context.newPage();
     try {
-      await page.goto(`${base}${surface.path}`, { waitUntil: "networkidle", timeout: 45_000 });
+      await openSurface(page, surface);
       if (surface.auth && new URL(page.url()).pathname.startsWith("/login")) {
         await page.close();
         continue; // already reported by the desktop pass
