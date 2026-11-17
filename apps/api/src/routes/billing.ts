@@ -618,35 +618,6 @@ billingRoutes.post("/confirm-checkout", async (c) => {
 });
 
 /**
- * POST /v1/billing/portal — hosted portal session (payment methods, invoices,
- * cancellation only; plan switching happens in-app — SPEC §9).
- *
- * #421 — THE BUNDLE IS SPLIT BY ROLE.
- *
- * Closing the workspace is owner-only. Cancelling the subscription ends in the
- * same place — `grace.ts` releases the number 30 days later, and a released
- * number goes back to carrier inventory and is reassigned to another business
- * (#413) — but it happened on Stripe's domain and so was never gated. An admin
- * could start an irreversible clock ending with the company's phone number
- * belonging to somebody else.
- *
- * Admin-level billing is still right for the ordinary case: a bookkeeper
- * updating an expiring card should not have to be the owner, and forcing that
- * through the single untransferable owner role (#332) would be worse. The
- * problem was only that Stripe's portal bundles "update the card" with "cancel
- * the subscription" behind one link.
- *
- * It turns out we CAN split it. `flow_data.type = "payment_method_update"`
- * lands the caller directly on the card screen with no route to cancellation,
- * and it needs no account-level portal configuration. So:
- *
- *   owner  → the full portal, cancellation included
- *   admin  → the card-update flow, and nothing else
- *
- * The route stays admin-reachable, which keeps the routine case working; what
- * changes is what an admin can reach once inside.
- */
-/**
  * POST /v1/billing/cancellation-reason — #277. Why this workspace is leaving,
  * asked before the handoff to Stripe.
  *
@@ -773,6 +744,32 @@ billingRoutes.post("/dismiss-winback", async (c) => {
   return c.body(null, 204);
 });
 
+async function paymentInvoicesPortalConfiguration(env: Env): Promise<string | null> {
+  const id = env.STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID;
+  if (!id) return null;
+
+  try {
+    const configuration = await getStripe(env).billingPortal.configurations.retrieve(id);
+    const { features } = configuration;
+    if (
+      configuration.active &&
+      configuration.is_default === false &&
+      features.invoice_history.enabled &&
+      features.payment_method_update.enabled &&
+      features.subscription_cancel.enabled === false &&
+      features.subscription_update.enabled === false &&
+      features.subscription_pause.enabled === false &&
+      features.customer_update.enabled === false
+    ) {
+      return configuration.id;
+    }
+    throw new Error("Stripe payment and invoices portal configuration has unexpected features");
+  } catch (error) {
+    void captureException(env, error, { source: "api", route: "POST /v1/billing/portal" });
+    return null;
+  }
+}
+
 billingRoutes.post("/portal", async (c) => {
   const env = getEnv(c.env);
   const company = await fetchCompany(getDb(env), c.get("companyId"));
@@ -786,20 +783,22 @@ billingRoutes.post("/portal", async (c) => {
   }
 
   const isOwner = c.get("role") === "owner";
-  const returnUrl = `${env.APP_ORIGIN}/settings/billing`;
-  const session = await getStripe(env).billingPortal.sessions.create(
-    isOwner
-      ? { customer: company.stripe_customer_id, return_url: returnUrl }
-      : {
-          customer: company.stripe_customer_id,
-          return_url: returnUrl,
-          // Not a lesser portal — a DIFFERENT one. The card-update flow has no
-          // cancellation surface at all, so this is a structural limit rather
-          // than a hidden button.
-          flow_data: { type: "payment_method_update" },
-        },
-  );
-  return c.json({ url: session.url, scope: isOwner ? "full" : "payment_method" });
+  const configuration = isOwner ? null : await paymentInvoicesPortalConfiguration(env);
+  const params: Stripe.BillingPortal.SessionCreateParams = {
+    customer: company.stripe_customer_id,
+    return_url: `${env.APP_ORIGIN}/settings/billing`,
+  };
+  let scope = "full";
+  if (configuration) {
+    params.configuration = configuration;
+    scope = "payment_and_invoices";
+  } else if (!isOwner) {
+    // Keep card updates available if the invoices portal cannot be verified.
+    params.flow_data = { type: "payment_method_update" };
+    scope = "payment_method";
+  }
+  const session = await getStripe(env).billingPortal.sessions.create(params);
+  return c.json({ url: session.url, scope });
 });
 
 /**

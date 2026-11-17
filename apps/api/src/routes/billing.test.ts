@@ -992,6 +992,24 @@ describe("POST /v1/billing/dismiss-winback (#277 follow-up)", () => {
 });
 
 describe("POST /v1/billing/portal", () => {
+  const configuration = {
+    id: "bpc_payments_invoices",
+    active: true,
+    is_default: false,
+    features: {
+      invoice_history: { enabled: true },
+      payment_method_update: { enabled: true },
+      subscription_cancel: { enabled: false },
+      subscription_update: { enabled: false },
+      subscription_pause: { enabled: false },
+      customer_update: { enabled: false },
+    },
+  };
+  const invoiceEnv = {
+    ...env,
+    STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID: configuration.id,
+  };
+
   it("409 before any checkout (no Stripe customer)", async () => {
     const harness = makeHarness([companyEndpoint(companyRow())]);
     const response = await post("/v1/billing/portal", undefined, harness);
@@ -1006,7 +1024,9 @@ describe("POST /v1/billing/portal", () => {
         url: "https://billing.stripe.com/p/session/bps_1",
       })),
     ]);
-    const response = await post("/v1/billing/portal", undefined, harness);
+    const response = await post("/v1/billing/portal", undefined, harness, "owner", {
+      env: invoiceEnv,
+    });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       url: "https://billing.stripe.com/p/session/bps_1",
@@ -1016,7 +1036,7 @@ describe("POST /v1/billing/portal", () => {
     const form = harness.callsTo("POST", /billing_portal/)[0].form();
     expect(form.get("customer")).toBe("cus_1");
     expect(form.get("return_url")).toBe(`${env.APP_ORIGIN}/settings/billing`);
-    // No flow restriction for the owner.
+    expect(form.get("configuration")).toBeNull();
     expect(form.get("flow_data[type]")).toBeNull();
   });
 
@@ -1045,6 +1065,55 @@ describe("POST /v1/billing/portal", () => {
     const form = harness.callsTo("POST", /billing_portal/)[0].form();
     expect(form.get("flow_data[type]")).toBe("payment_method_update");
   });
+
+  it("opens the payment and invoice portal for a bookkeeper", async () => {
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ stripe_customer_id: "cus_1" })),
+      endpoint("GET", /billing_portal\/configurations\/bpc_payments_invoices/, () =>
+        configuration,
+      ),
+      endpoint("POST", /billing_portal\/sessions/, () => ({
+        url: "https://billing.stripe.com/p/session/bps_3",
+      })),
+    ]);
+
+    const response = await post("/v1/billing/portal", undefined, harness, "bookkeeper", {
+      env: invoiceEnv,
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ scope: "payment_and_invoices" });
+    const form = harness.callsTo("POST", /billing_portal\/sessions/)[0].form();
+    expect(form.get("configuration")).toBe(configuration.id);
+    expect(form.get("customer")).toBe("cus_1");
+    expect(form.get("flow_data[type]")).toBeNull();
+  });
+
+  it.each(["subscription_cancel", "subscription_update", "subscription_pause"] as const)(
+    "uses the card-only flow if the configured portal allows %s",
+    async (feature) => {
+      const harness = makeHarness([
+        companyEndpoint(companyRow({ stripe_customer_id: "cus_1" })),
+        endpoint("GET", /billing_portal\/configurations\//, () => ({
+          ...configuration,
+          features: { ...configuration.features, [feature]: { enabled: true } },
+        })),
+        endpoint("POST", /billing_portal\/sessions/, () => ({
+          url: "https://billing.stripe.com/p/session/bps_4",
+        })),
+      ]);
+
+      const response = await post("/v1/billing/portal", undefined, harness, "bookkeeper", {
+        env: invoiceEnv,
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ scope: "payment_method" });
+      const form = harness.callsTo("POST", /billing_portal\/sessions/)[0].form();
+      expect(form.get("configuration")).toBeNull();
+      expect(form.get("flow_data[type]")).toBe("payment_method_update");
+    },
+  );
 });
 
 describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {

@@ -181,6 +181,15 @@ Stripe dashboard → **Settings → Billing → Customer portal**:
 - You can disable "switch plans" in the portal since the app drives plan changes
   itself.
 
+Create a second [Customer Portal configuration](https://docs.stripe.com/api/customer_portal/configurations/create)
+in each Stripe environment. Keep the existing configuration as the default.
+Enable only `features.invoice_history` and `features.payment_method_update` on the
+second configuration. Set `STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID` on the API
+Worker to that configuration's ID. Verify that a bookkeeper can view invoices
+and update the card, and that cancellation and plan changes remain owner-only.
+The Worker checks the configuration when starting a non-owner session and uses
+the card-only flow if it cannot verify those settings.
+
 ---
 
 ## 5. Dunning (Smart Retries) — set the post-exhaustion action
@@ -204,6 +213,7 @@ The **runtime** `STRIPE_SECRET_KEY` (the one you put on the Worker) may be a
 
 - **Checkout Sessions** (write)
 - **Billing Portal sessions** (write)
+- **Billing Portal configurations** (read, for the payment and invoices portal)
 - **Customers / Subscriptions** (read + write)
 - **Billing Meter Events** (write)
 
