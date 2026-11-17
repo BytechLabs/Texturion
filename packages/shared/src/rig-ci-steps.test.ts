@@ -40,7 +40,7 @@ const indexOf = (job: string, needle: string) => jobs[job].findIndex((run) => ru
 
 describe("the rig's checks in the gate", () => {
   it("reads the workflow's jobs", () => {
-    expect(Object.keys(jobs)).toEqual(expect.arrayContaining(["verify", "build", "android"]));
+    expect(Object.keys(jobs)).toEqual(expect.arrayContaining(["guards", "tooling-tests", "build", "android"]));
   });
 
   it.each([
@@ -50,31 +50,37 @@ describe("the rig's checks in the gate", () => {
     ["node scripts/check-rig-hosts.mjs"],
     ["node scripts/check-rig-ratelimit-band.mjs"],
   ])("runs %s with the other rig guards", (command) => {
-    expect(jobs.verify).toContain(command);
-    expect(indexOf("verify", command)).toBeGreaterThan(indexOf("verify", "node scripts/check-rig-no-e164.mjs"));
+    expect(jobs.guards).toContain(command);
+    expect(indexOf("guards", command)).toBeGreaterThan(indexOf("guards", "node scripts/check-rig-no-e164.mjs"));
   });
 
   it("scans the checkout for live production secrets after the phone-host guard", () => {
-    expect(jobs.verify).toContain("node scripts/check-local-secrets.mjs");
-    expect(indexOf("verify", "check-local-secrets")).toBeGreaterThan(
-      indexOf("verify", "check-production-host-literals"),
+    expect(jobs.guards).toContain("node scripts/check-local-secrets.mjs");
+    expect(indexOf("guards", "check-local-secrets")).toBeGreaterThan(
+      indexOf("guards", "check-production-host-literals"),
     );
   });
 
   it("runs the rig CLI's node:test suites after the install", () => {
-    expect(jobs.verify).toContain('node --test "tools/rig/test/*.test.mjs"');
-    expect(indexOf("verify", "node --test")).toBeGreaterThan(indexOf("verify", "pnpm install --frozen-lockfile"));
+    expect(jobs["tooling-tests"]).toContain('node --test "tools/rig/test/*.test.mjs"');
+    expect(indexOf("tooling-tests", "node --test")).toBeGreaterThan(
+      indexOf("tooling-tests", "pnpm install --frozen-lockfile"),
+    );
   });
 
   it("runs hostd's node:test suites after the install, beside the rig CLI's", () => {
-    const step = indexOf("verify", 'node --test "tools/rig/host/test/*.test.mjs"');
-    expect(step).toBeGreaterThan(indexOf("verify", "pnpm install --frozen-lockfile"));
-    expect(step).toBe(indexOf("verify", 'node --test "tools/rig/test/*.test.mjs"') + 1);
+    const step = indexOf("tooling-tests", 'node --test "tools/rig/host/test/*.test.mjs"');
+    expect(step).toBeGreaterThan(indexOf("tooling-tests", "pnpm install --frozen-lockfile"));
+    expect(step).toBe(indexOf("tooling-tests", 'node --test "tools/rig/test/*.test.mjs"') + 1);
   });
 
-  it("runs the guard's workerd suite on its own, after the parallel test run", () => {
-    const workerd = indexOf("verify", "pnpm --filter @loonext/telnyx-guard test:workerd");
-    expect(workerd).toBeGreaterThan(indexOf("verify", "pnpm -r test"));
+  it("runs the guard's workerd suite in a job of its own, never beside the vitest shards", () => {
+    expect(indexOf("tooling-tests", "pnpm --filter @loonext/telnyx-guard test:workerd")).toBeGreaterThan(-1);
+    const beside = Object.entries(jobs).filter(
+      ([job, runs]) => job !== "tooling-tests" && runs.some((run) => run.includes("test:workerd")),
+    );
+    expect(beside).toEqual([]);
+    expect(indexOf("tooling-tests", "test-shard.mjs")).toBe(-1);
   });
 
   it("runs the browser lane in a job that installed Chromium first", () => {
