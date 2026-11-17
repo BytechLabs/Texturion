@@ -140,6 +140,14 @@ describe(buildDataExports, () => {
     expect(sb.find("POST", "/rest/v1/rpc/record_export_table")).toHaveLength(
       TABLES.length,
     );
+    const ready = sb.find("PATCH", "/rest/v1/data_exports")
+      .map(({ body }) => body as { status: string; completed_at: string; expires_at: string })
+      .find((patch) => patch.status === "ready");
+    const expiry = Date.parse(ready?.expires_at ?? "");
+    const completion = Date.parse(ready?.completed_at ?? "");
+    expect(expiry - completion).toBe(7 * 86_400_000);
+    expect(sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("select"))
+      .toContain("email,business_name,address,notes,custom_fields");
   });
 
   it("skips the tables a previous run finished", async () => {
@@ -336,7 +344,8 @@ describe("pruneExpiredExports (#378)", () => {
     const removed: string[][] = [];
     const route: FetchRoute = async (url, request) => {
       if (url.pathname === "/storage/v1/object/list/exports") {
-        return Response.json(files.map((name) => ({ name })));
+        const { limit, offset } = (await request.json()) as { limit: number; offset: number };
+        return Response.json(files.slice(offset, offset + limit).map((name) => ({ id: name, name })));
       }
       if (url.pathname === "/storage/v1/object/exports" && request.method === "DELETE") {
         const body = (await request.clone().json()) as { prefixes: string[] };
@@ -377,6 +386,19 @@ describe("pruneExpiredExports (#378)", () => {
       `${COMPANY_ID}/${EXPORT_ID}/contacts.csv`,
       `${COMPANY_ID}/${EXPORT_ID}/manifest.json`,
     ]);
+    expect(w.sb.find("GET", "/rest/v1/data_exports")[0].url.searchParams.get("status"))
+      .toBe("in.(ready,failed)");
+  });
+
+  it("removes all files of a large export before stamping it reaped", async () => {
+    const prefix = `${COMPANY_ID}/${EXPORT_ID}`;
+    const files = Array.from({ length: 203 }, (_, index) => `messages-${index}.jsonl`);
+    const w = world([{ id: EXPORT_ID, storage_prefix: prefix }], files);
+    stubFetch(...w.routes);
+
+    await expect(pruneExpiredExports(env, NOW)).resolves.toEqual({ reaped: 1, objectsRemoved: 203 });
+    expect(w.removed.flat()).toEqual(files.map((name) => `${prefix}/${name}`));
+    expect(w.stamped).toHaveLength(1);
   });
 
   it("stamps the row AFTER the objects are gone, never before", async () => {

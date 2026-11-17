@@ -26,13 +26,14 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError,errorResponse } from "../http/errors";
 import { dispositionOptions } from "../storage/disposition";
-import { EXPORTS_BUCKET } from "../workspace/export";
+import { EXPORTS_BUCKET, listExportFileNames } from "../workspace/export";
 import { parseJsonBody,unwrap } from "./core/http";
 
 export const exportsRoutes = new Hono<AppEnv>();
 
 /** Long enough to download a big file, short enough that a leaked link dies. */
 const DOWNLOAD_TTL_SECONDS = 60 * 60;
+const FILE_SIGNING_BATCH = 100;
 /** Recent exports worth showing. Older ones have expired anyway. */
 const LIST_LIMIT = 5;
 
@@ -380,29 +381,27 @@ async function signFiles(
   role: MemberRole,
 ): Promise<{ name: string; url: string }[]> {
   if (!exportActions(row, role).allowed_actions.includes("download")) return [];
-  if (!row.storage_prefix) return [];
+  const prefix = row.storage_prefix;
+  if (!prefix) return [];
 
-  const { data, error } = await db.storage
-    .from(EXPORTS_BUCKET)
-    .list(row.storage_prefix, { limit: 200 });
-  if (error) throw new Error(`export file list failed: ${error.message}`);
-
-  const files = (data ?? []).filter((entry) => entry.name.includes("."));
-  const signed = await Promise.all(
-    files.map(async (entry) => {
-      const path = `${row.storage_prefix}/${entry.name}`;
-      // #317: always a download. These are our own CSVs, but a CSV carries a
-      // payload of its own — a cell beginning `=` is a formula the recipient's
-      // spreadsheet may evaluate — and the whole point of the screen is to save
-      // the file, not to read it in a browser tab.
-      const { data: url, error: signError } = await db.storage
-        .from(EXPORTS_BUCKET)
-        .createSignedUrl(path, DOWNLOAD_TTL_SECONDS, dispositionOptions("text/csv"));
-      if (signError || !url?.signedUrl) return null;
-      return { name: entry.name, url: url.signedUrl };
-    }),
-  );
-  return signed.filter((entry): entry is { name: string; url: string } => entry !== null);
+  const bucket = db.storage.from(EXPORTS_BUCKET);
+  const files = await listExportFileNames(db, prefix);
+  const links: { name: string; url: string }[] = [];
+  for (let start = 0; start < files.length; start += FILE_SIGNING_BATCH) {
+    const names = files.slice(start, start + FILE_SIGNING_BATCH);
+    const paths = names.map((name) => `${prefix}/${name}`);
+    const { data, error } = await bucket.createSignedUrls(
+      paths, DOWNLOAD_TTL_SECONDS, dispositionOptions("text/csv"),
+    );
+    if (error) throw new Error(`export file signing failed: ${error.message}`);
+    const urls = new Map(data.map(({ path, signedUrl }) => [path, signedUrl]));
+    for (const name of names) {
+      const url = urls.get(`${prefix}/${name}`);
+      if (!url) throw new Error(`export file signing failed for ${name}`);
+      links.push({ name, url });
+    }
+  }
+  return links;
 }
 
 exportsRoutes.get("/exports/:id", requireCapability("workspace.access"), async (c) => {
