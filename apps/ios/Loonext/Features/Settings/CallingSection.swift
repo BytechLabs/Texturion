@@ -97,12 +97,12 @@ private struct TextBackCard: View {
 
     @State private var enabled: Bool
     @State private var message: String
-    /// Trimmed text last persisted — the autosave no-ops until it changes.
-    @State private var lastSaved: String
+    @State private var autosave: DebouncedTextSave
     @State private var saveState: TextBackSaveState = .idle
     @State private var error: String?
 
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.scenePhase) private var scenePhase
 
     init(scope: SettingsScope, company: CompanyView, onCompanyUpdated: @escaping @MainActor (CompanyView) -> Void) {
         self.scope = scope
@@ -110,9 +110,7 @@ private struct TextBackCard: View {
         self.onCompanyUpdated = onCompanyUpdated
         _enabled = State(initialValue: company.mctb_enabled)
         _message = State(initialValue: company.mctb_message ?? "")
-        _lastSaved = State(
-            initialValue: (company.mctb_message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        )
+        _autosave = State(initialValue: DebouncedTextSave(company.mctb_message ?? ""))
     }
 
     private func t(_ key: String) -> String {
@@ -120,7 +118,6 @@ private struct TextBackCard: View {
     }
 
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
-    private var trimmed: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     /// The default the reader sees, rather than the English constant.
     private var readerDefault: String { t(mctbDefaultKey) }
@@ -157,6 +154,7 @@ private struct TextBackCard: View {
                 isOn: enabled,
                 enabled: canEdit
             ) { next in
+                if !next { autosave.flush() }
                 enabled = next
                 error = nil
                 Task {
@@ -190,7 +188,10 @@ private struct TextBackCard: View {
                     TextField(readerDefault, text: Binding(
                         get: { message },
                         set: { next in
-                            if next.count <= 1000 { message = next }
+                            if next.count <= 1000 {
+                                message = next
+                                autosave.schedule(next, save: persistMessage)
+                            }
                         }
                     ), axis: .vertical)
                     .textFieldStyle(.roundedBorder)
@@ -219,28 +220,27 @@ private struct TextBackCard: View {
                 ReadOnlyLine(t("settings.textBackReadOnly"))
             }
         }
-        // #192 debounced autosave: a fresh keystroke cancels this task via
-        // .task(id:) and starts the 800ms wait over. A blank message persists
-        // as null, which the server resolves back to the shared default.
-        .task(id: message) {
-            guard canEdit else { return }
-            guard trimmed != lastSaved else { return }
-            try? await Task.sleep(for: .milliseconds(800))
-            if Task.isCancelled { return }
-            saveState = .saving
-            do {
-                let updated = try await scope.repo.updateCompany(
-                    scope.companyId,
-                    patch: .object(["mctb_message": trimmed.isEmpty ? .null : .string(trimmed)])
-                )
-                lastSaved = trimmed
-                error = nil
-                saveState = .saved
-                onCompanyUpdated(updated)
-            } catch {
-                saveState = .idle
-                self.error = error.userMessage
-            }
+        .onDisappear { autosave.flush() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { autosave.flush() }
+        }
+    }
+
+    private func persistMessage(_ value: String) async -> Bool {
+        saveState = .saving
+        do {
+            let updated = try await scope.repo.updateCompany(
+                scope.companyId,
+                patch: .object(["mctb_message": value.isEmpty ? .null : .string(value)])
+            )
+            error = nil
+            saveState = .saved
+            onCompanyUpdated(updated)
+            return true
+        } catch {
+            saveState = .idle
+            self.error = error.userMessage
+            return false
         }
     }
 }

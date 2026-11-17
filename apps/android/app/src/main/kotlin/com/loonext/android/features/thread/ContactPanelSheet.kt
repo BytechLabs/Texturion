@@ -155,6 +155,7 @@ internal fun ContactPanelSheet(
                 leading = { InitialsAvatar(displayName, size = 44.dp) },
                 title = {
                     AutosaveField(
+                        appScope = graph.appScope,
                         fieldKey = "${detail.contact_id}:name",
                         label = t("thread.fieldName"),
                         initial = (contact?.name ?: detail.contact.name).orEmpty(),
@@ -242,6 +243,7 @@ internal fun ContactPanelSheet(
             RecordSection(t("thread.sectionDetails")) {
                 // The same auto-saving fields as the contact screen.
                 AutosaveField(
+                    appScope = graph.appScope,
                     fieldKey = "${detail.contact_id}:address",
                     label = t("thread.fieldAddress"),
                     initial = (contact?.address ?: detail.contact.address).orEmpty(),
@@ -252,6 +254,7 @@ internal fun ContactPanelSheet(
                     quiet = true,
                 )
                 AutosaveField(
+                    appScope = graph.appScope,
                     fieldKey = "${detail.contact_id}:notes",
                     label = t("thread.fieldNotes"),
                     initial = (contact?.notes ?: detail.contact.notes).orEmpty(),
