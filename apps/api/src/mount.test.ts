@@ -543,11 +543,11 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       reconcileVoiceEnablement,
     ]);
     expect(runs("0 * * * *")).toEqual([
+      sweepStaleCalls,
       reportUnreportedUsage,
       reportUnreportedVoiceUsage,
       runUsageAlertsJob,
       runOverageWarningJob,
-      sweepStaleCalls, // #133: stale-calls sweeper (in-flight >4h → missed)
       // #224: retires payment requests past their 14-day expiry, so a thread
       // stops showing "Waiting" for a link that no longer opens.
       expirePaymentRequests,

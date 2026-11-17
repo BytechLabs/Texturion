@@ -31,7 +31,9 @@
  *     event on an attempt whose stamp never landed — treated as success
  *     (stamp and move on), never as a retryable failure.
  */
-import { reportSegmentUsage, reportVoiceSeconds } from "../billing/meter";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { METER_TIMEOUT_MS, reportSegmentUsage, reportVoiceSeconds } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { captureException } from "../observability/capture";
@@ -44,6 +46,11 @@ import { STUCK_SEND_SECONDS } from "./send";
 const SWEEP_MIN_AGE_MS = 2 * 60 * 1000;
 const SWEEP_MAX_ATTEMPTS = 5;
 const SWEEP_BATCH = 100;
+const REPORT_BATCH = 200;
+const REPORT_BUDGET_MS = 60_000;
+const HOUR_MS = 3_600_000;
+const METER_REPORT_COLUMNS =
+  "id,company_id,created_at,report_attempts,companies!inner(stripe_customer_id)";
 /**
  * Retention for the `webhook_events` ledger. The ledger's one guarantee is
  * deduping a provider RE-delivery, so retention only has to outlast the
@@ -298,14 +305,14 @@ export async function failStuckOutboundSends(env: Env): Promise<void> {
   }
 }
 
-const REPORT_BATCH = 200;
-
-interface UnreportedUsageRow {
+interface UnreportedMeterRow {
   id: string;
+  company_id: string;
   quantity: number;
   meter_identifier: string | null;
   created_at: string;
-  companies: { stripe_customer_id: string | null } | null;
+  report_attempts: number;
+  companies: { stripe_customer_id: string } | null;
 }
 
 /**
@@ -334,118 +341,111 @@ export function isDuplicateMeterIdentifierError(cause: unknown): boolean {
   );
 }
 
-/**
- * #333 ask 3: a re-reporter can run every hour and still be failing at the
- * only thing it exists for, with every Stripe call erroring and the loop
- * catching each one, while revenue quietly does not get billed. So a run that
- * left rows unreported says so once, with the last failure as the exception
- * and the counts beside it (ids only, §10).
- */
-function reportReporterFailures(
+async function retryMeterRows(
   env: Env,
-  job: "job:report-usage" | "job:report-voice-usage",
-  found: number,
-  failed: number,
-  lastFailure: unknown,
-): void {
-  if (failed === 0) return;
-  void captureException(env, lastFailure, {
-    source: "cron",
-    job,
-    extra: { found, failed },
-  });
-}
-
-/** §11 usage re-reporter: meter events for locally-unstamped usage rows. */
-export async function reportUnreportedUsage(env: Env): Promise<void> {
-  const db = getDb(env);
-  const { data, error } = await db
-    .from("usage_events")
-    .select("id,quantity,meter_identifier,created_at,companies(stripe_customer_id)")
-    .is("stripe_reported_at", null)
-    .order("created_at", { ascending: true })
-    .limit(REPORT_BATCH);
-  if (error) throw new Error(`usage re-report query failed: ${error.message}`);
-
-  const rows = (data ?? []) as unknown as UnreportedUsageRow[];
+  db: SupabaseClient,
+  meter: "segments" | "voice",
+  rows: UnreportedMeterRow[],
+  deadline: number,
+): Promise<void> {
+  const table = meter === "segments" ? "usage_events" : "call_records";
+  const report = meter === "segments" ? reportSegmentUsage : reportVoiceSeconds;
   let failed = 0;
   let lastFailure: unknown;
 
   for (const row of rows) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
     const stripeCustomerId = row.companies?.stripe_customer_id;
-    if (!stripeCustomerId) continue; // company not billed yet — try next hour
+    if (!stripeCustomerId) continue;
+
     try {
-      await reportSegmentUsage(env, {
-        stripeCustomerId,
-        value: row.quantity,
-        // telnyx_message_id when the row has one; the usage-event id keeps
-        // adjustment rows deduped on Stripe's side too.
-        identifier: row.meter_identifier ?? row.id,
-      });
-    } catch (error_) {
-      if (!isDuplicateMeterIdentifierError(error_)) {
-        console.error(
-          `usage re-report failed for ${row.id}:`,
-          error_ instanceof Error ? error_.message : String(error_),
-        );
+      await report(
+        env,
+        {
+          stripeCustomerId,
+          value: row.quantity,
+          identifier: row.meter_identifier ?? row.id,
+        },
+        {
+          timestamp: Math.floor(Date.parse(row.created_at) / 1000),
+          timeout: Math.min(METER_TIMEOUT_MS, remaining),
+        },
+      );
+    } catch (error) {
+      if (!isDuplicateMeterIdentifierError(error)) {
         failed += 1;
-        lastFailure = error_;
-        continue; // stays unstamped; next hourly run retries
+        lastFailure = error;
+        const delayHours = Math.min(24, 2 ** Math.min(row.report_attempts, 5));
+        const { error: retryError } = await db
+          .from(table)
+          .update({
+            report_attempts: row.report_attempts + 1,
+            report_next_at: new Date(Date.now() + delayHours * HOUR_MS).toISOString(),
+          })
+          .eq("id", row.id)
+          .eq("company_id", row.company_id)
+          .eq("report_attempts", row.report_attempts)
+          .is("stripe_reported_at", null);
+        if (retryError) {
+          throw new Error(`${table} meter retry scheduling failed: ${retryError.message}`);
+        }
+        continue;
       }
-      // #53: identifier already accepted by Stripe (a reported-but-unstamped
-      // row) — an idempotent replay, not a failure. Fall through and stamp,
-      // or this row is hourly poison work forever and a double-billing risk
-      // once Stripe's dedupe window lapses.
     }
-    const { error: stampError } = await db
-      .from("usage_events")
+
+    const { error } = await db
+      .from(table)
       .update({ stripe_reported_at: new Date().toISOString() })
       .eq("id", row.id)
+      .eq("company_id", row.company_id)
       .is("stripe_reported_at", null);
-    if (stampError) {
-      throw new Error(`stripe_reported_at stamp failed: ${stampError.message}`);
-    }
+    if (error) throw new Error(`${table} meter stamp failed: ${error.message}`);
   }
 
-  reportReporterFailures(env, "job:report-usage", rows.length, failed, lastFailure);
+  if (failed > 0) {
+    void captureException(env, lastFailure, {
+      source: "cron",
+      job: meter === "segments" ? "job:report-usage" : "job:report-voice-usage",
+      extra: { found: rows.length, failed },
+    });
+  }
 }
 
-interface UnreportedVoiceRow {
-  id: string;
-  billable_seconds: number;
-  call_leg_id: string | null;
-  companies: { stripe_customer_id: string | null } | null;
+/** ?11 usage re-reporter: meter events for locally unstamped usage rows. */
+export async function reportUnreportedUsage(env: Env): Promise<void> {
+  const db = getDb(env);
+  const now = Date.now();
+  const { data, error } = await db
+    .from("usage_events")
+    .select(`quantity,meter_identifier,${METER_REPORT_COLUMNS}`)
+    .is("stripe_reported_at", null)
+    .not("companies.stripe_customer_id", "is", null)
+    .gt("quantity", 0)
+    .lte("report_next_at", new Date(now).toISOString())
+    .order("report_next_at", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(REPORT_BATCH);
+  if (error) throw new Error(`usage re-report query failed: ${error.message}`);
+
+  await retryMeterRows(
+    env,
+    db,
+    "segments",
+    (data ?? []) as unknown as UnreportedMeterRow[],
+    now + REPORT_BUDGET_MS,
+  );
 }
 
-/**
- * D36 (#128) voice twin of {@link reportUnreportedUsage}: meter events for
- * BILLED legs whose Stripe report never landed (recordCallDuration leaves
- * such rows unstamped). D38 made the billed set two legs — 'forward'
- * (inbound) and 'out_customer' (outbound) — one pool, both directions; the
- * re-reporter retries BOTH (#133 fixed it silently dropping out_customer:
- * the sweep below stamped them non-billable and the retry query never
- * selected them, so any outbound leg whose inline report failed was never
- * billed at all). Reports the row's RAW billable_seconds — the same
- * measure the gate/alerts/usage sum, rated 1¢ per 60 s by the metered
- * price — with the leg id as the identifier and the #53
- * duplicate-identifier stamp-through. Also sweep-stamps any NON-billable
- * rows left unstamped (inbound legs / zero-second legs written by a Worker
- * predating the stamp column during the deploy window) so the partial index
- * never accumulates dead queue entries. A no-op until the voice meter is
- * configured — nothing billable can have queued before that, because an
- * unconfigured environment stamps every row at insert.
- */
 export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
   if (!env.STRIPE_VOICE_METER_EVENT_NAME) return;
   const db = getDb(env);
+  const now = Date.now();
 
-  // Hygiene sweep: rows that can never bill leave the queue immediately.
-  // Billed legs (forward + out_customer + D43 in_browser) must NEVER match —
-  // a billable row swept here would be silently un-billed forever (the #133
-  // bug; D43 re-introduced it by omitting in_browser).
+  // Clear non-billable rows written before the reporting stamp existed.
   const { error: sweepError } = await db
     .from("call_records")
-    .update({ stripe_reported_at: new Date().toISOString() })
+    .update({ stripe_reported_at: new Date(now).toISOString() })
     .is("stripe_reported_at", null)
     .or(
       "and(leg.neq.forward,leg.neq.out_customer,leg.neq.in_browser),billable_seconds.eq.0",
@@ -456,54 +456,24 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
 
   const { data, error } = await db
     .from("call_records")
-    .select("id,billable_seconds,call_leg_id,companies(stripe_customer_id)")
+    .select(`quantity:billable_seconds,meter_identifier:call_leg_id,${METER_REPORT_COLUMNS}`)
     .is("stripe_reported_at", null)
+    .not("companies.stripe_customer_id", "is", null)
     .in("leg", ["forward", "out_customer", "in_browser"])
     .gt("billable_seconds", 0)
+    .lte("report_next_at", new Date(now).toISOString())
+    .order("report_next_at", { ascending: true })
     .order("created_at", { ascending: true })
     .limit(REPORT_BATCH);
-  if (error) {
-    throw new Error(`voice re-report query failed: ${error.message}`);
-  }
+  if (error) throw new Error(`voice re-report query failed: ${error.message}`);
 
-  const rows = (data ?? []) as unknown as UnreportedVoiceRow[];
-  let failed = 0;
-  let lastFailure: unknown;
-
-  for (const row of rows) {
-    const stripeCustomerId = row.companies?.stripe_customer_id;
-    if (!stripeCustomerId) continue; // company not billed yet — try next hour
-    try {
-      await reportVoiceSeconds(env, {
-        stripeCustomerId,
-        value: row.billable_seconds,
-        identifier: row.call_leg_id ?? row.id,
-      });
-    } catch (error_) {
-      if (!isDuplicateMeterIdentifierError(error_)) {
-        console.error(
-          `voice re-report failed for ${row.id}:`,
-          error_ instanceof Error ? error_.message : String(error_),
-        );
-        failed += 1;
-        lastFailure = error_;
-        continue; // stays unstamped; next hourly run retries
-      }
-      // #53: identifier already accepted by Stripe — stamp through.
-    }
-    const { error: stampError } = await db
-      .from("call_records")
-      .update({ stripe_reported_at: new Date().toISOString() })
-      .eq("id", row.id)
-      .is("stripe_reported_at", null);
-    if (stampError) {
-      throw new Error(
-        `call_records stamp failed: ${stampError.message}`,
-      );
-    }
-  }
-
-  reportReporterFailures(env, "job:report-voice-usage", rows.length, failed, lastFailure);
+  await retryMeterRows(
+    env,
+    db,
+    "voice",
+    (data ?? []) as unknown as UnreportedMeterRow[],
+    now + REPORT_BUDGET_MS,
+  );
 }
 
 /**
