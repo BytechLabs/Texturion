@@ -33,6 +33,8 @@ import java.util.concurrent.ConcurrentHashMap
 data class AudioRouteFacts(
     val current: AudioRoute? = null,
     val available: Set<AudioRoute> = emptySet(),
+    /** Proximity distinguishes wired headsets from the receiver, even when the UI groups them. */
+    val endpointType: Int? = null,
 )
 
 /**
@@ -886,12 +888,12 @@ class TelecomCallRegistry(
         control.launch {
             runCatching {
                 control.currentCallEndpoint.collectLatest { endpoint ->
-                    endpointToRoute(endpoint)?.let { route ->
+                    val route = endpointToRoute(endpoint)
+                    routeFacts.update {
+                        it.copy(current = route ?: it.current, endpointType = endpoint.type)
+                    }
+                    if (route != null) {
                         CallFlowLog.log("audio", "route changed -> $route")
-                        // #202: publish the CONFIRMED route so the in-call
-                        // toggles light from the OS truth - including routes
-                        // the OS or a headset switched on its own.
-                        routeFacts.update { it.copy(current = route) }
                         runCatching { bridge.mirrorRouteToTelnyx(route) }
                     }
                 }

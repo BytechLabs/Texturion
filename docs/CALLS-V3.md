@@ -980,6 +980,10 @@ credential wait behind the credentialed members. Ring-me returns
 `not_your_turn` to a queued member. The native clients dismiss the pending
 Android ring or the iOS fallback alert for that session.
 
+On Android, an active call routed to the built-in receiver holds a proximity
+wake lock. Switching to a speaker or headset, holding the call, or ending it
+releases the lock when the sensor is clear.
+
 - On `kind:'call'` push: if any local call is RINGING or ACTIVE whose caller
   matches the push hint (or any live leg exists at all for a solo-session
   situation), do nothing — the INVITE path owns presentation. Else
