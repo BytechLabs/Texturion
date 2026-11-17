@@ -1018,10 +1018,7 @@ describe("access.changed", () => {
 });
 
 describe("what a read costs", () => {
-  it("is For you alone for a conversation read, and the bell alone for a bell read", async () => {
-    // The bell has no conversation_reads arm, so a conversation read never
-    // moves it. This tab cleared the row when it posted the read, so the echo
-    // also has no list to ask again: the unread list drops the row locally.
+  it("refreshes the conversation badge on read and fetches the feed only on a bell read", async () => {
     vi.useFakeTimers();
     try {
       visibleNumbers = [{ id: "n1" }];
@@ -1038,7 +1035,7 @@ describe("what a read costs", () => {
       emit(COMPANY_TOPIC, "read.conversation", { user_id: USER, conversation_id: CONVERSATION });
       await vi.advanceTimersByTimeAsync(1_000);
 
-      expect(badge.fetcher).not.toHaveBeenCalled();
+      expect(badge.fetcher).toHaveBeenCalledTimes(1);
       expect(feed.fetcher).not.toHaveBeenCalled();
       expect(inbox.fetcher).not.toHaveBeenCalled();
       expect(unreadOnly.fetcher).not.toHaveBeenCalled();
@@ -1050,7 +1047,7 @@ describe("what a read costs", () => {
       emit(COMPANY_TOPIC, "read.notifications", { user_id: USER });
       await vi.advanceTimersByTimeAsync(1_000);
 
-      expect(badge.fetcher).toHaveBeenCalledTimes(1);
+      expect(badge.fetcher).toHaveBeenCalledTimes(2);
       expect(feed.fetcher).toHaveBeenCalledTimes(1);
       expect(forYou.fetcher).toHaveBeenCalledTimes(1);
       expect(inbox.fetcher).not.toHaveBeenCalled();

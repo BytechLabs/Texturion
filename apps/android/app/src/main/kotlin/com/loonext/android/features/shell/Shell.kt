@@ -1,6 +1,7 @@
 package com.loonext.android.features.shell
 
 import com.loonext.android.ui.common.IconSize
+import kotlinx.coroutines.CancellationException
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -527,7 +528,21 @@ data class ShellCounts(
     val forYou: Int = 0,
     val unreadConversations: Int = 0,
     val openTasks: Int = 0,
-)
+) {
+    fun updating(forYou: Int?, unread: Int?, openTasks: Int?): ShellCounts = copy(
+        forYou = forYou ?: this.forYou,
+        unreadConversations = unread ?: unreadConversations,
+        openTasks = openTasks ?: this.openTasks,
+    )
+}
+
+internal suspend fun <T> readShellData(read: suspend () -> T): T? = try {
+    read()
+} catch (cause: CancellationException) {
+    throw cause
+} catch (_: Exception) {
+    null
+}
 
 /** Routes the active tab to its feature entry. */
 @Composable

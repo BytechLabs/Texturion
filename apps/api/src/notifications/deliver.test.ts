@@ -103,6 +103,46 @@ function world(
 }
 
 describe(deliverPush, () => {
+  it("batches badge counts for iOS recipients and reuses a member's count across devices", async () => {
+    const deviceIds = ["ios-a", "ios-b", "ios-c"] as const;
+    const otherUser = "20000000-0000-4000-8000-000000000002";
+    const account = await makeServiceAccount();
+    const fcm = fcmEnv(account);
+    const service = fcmService();
+    const sb = supabaseStub(fcm);
+    const companyId = "c0000000-0000-4000-8000-00000000000c";
+    sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+    sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { ...DEVICE, id: "android-a" },
+      { ...DEVICE, id: deviceIds[0], platform: "ios", token: deviceIds[0] },
+      { ...DEVICE, id: deviceIds[1], platform: "ios", token: deviceIds[1] },
+      { ...DEVICE, id: deviceIds[2], platform: "ios", token: deviceIds[2], user_id: otherUser },
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => []);
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_unread_push_badges", () => [
+      { user_id: USER, unread_count: "4" }, { user_id: otherUser, unread_count: 0 },
+    ]);
+    stubFetch(sb.route, ...service.routes);
+
+    await deliverPush(fcm, getDb(fcm), {
+      category: "messages_all",
+      companyId,
+      content: { written: "us" },
+      userIds: [USER, otherUser],
+      web: ALERT,
+      collapseKey: "conversation:x",
+      failures: [],
+    });
+
+    const reads = sb.find("POST", "/rest/v1/rpc/api_unread_push_badges");
+    expect(reads).toHaveLength(1);
+    expect(reads[0].body).toMatchObject({ p_company_id: companyId, p_user_ids: [USER, otherUser] });
+    expect(service.sends.map(({ message }) => (message.apns as {
+      payload: { aps: { badge: number } };
+    } | undefined)?.payload.aps.badge)).toEqual([undefined, 4, 4, 0]);
+  });
+
   it("asks for nothing when there is nobody to reach", async () => {
     // A pipeline whose audience filtered down to nobody must not spend two
     // queries proving it.

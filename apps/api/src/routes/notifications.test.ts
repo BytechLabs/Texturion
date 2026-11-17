@@ -33,7 +33,7 @@ function memberStub(
   // #581: the caller's ROLE is a parameter now. The read-model routes and the
   // prefs routes no longer answer to the same capability, so a suite about this
   // file has to be able to arrive as somebody other than a plain member.
-  options: { pause?: unknown; role?: string } = {},
+  options: { pause?: unknown; role?: string; unreadConversations?: number | string } = {},
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
@@ -50,6 +50,7 @@ function memberStub(
   // later `sb.on` for the same path never runs — the pause is a parameter
   // rather than something a test overrides afterwards.
   sb.on("POST", "/rest/v1/rpc/api_notification_pause", () => options.pause ?? NOT_PAUSED);
+  sb.on("POST", "/rest/v1/rpc/api_unread_conversation_count", () => options.unreadConversations ?? 0);
   return sb;
 }
 
@@ -713,8 +714,8 @@ describe("GET /v1/notifications", () => {
 });
 
 describe("GET /v1/notifications/unread-count", () => {
-  it("returns the bell badge count from the RPC", async () => {
-    const sb = memberStub();
+  it("returns both badge counts for the same member and number access", async () => {
+    const sb = memberStub({ unreadConversations: "13" });
     sb.on("POST", "/rest/v1/rpc/api_notifications_unread_count", () => 4);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -726,7 +727,7 @@ describe("GET /v1/notifications/unread-count", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ count: 4, alert_pause: NOT_PAUSED });
+    await expect(res.json()).resolves.toEqual({ count: 4, unread_conversations: 13, alert_pause: NOT_PAUSED });
 
     const rpc = sb.find(
       "POST",
@@ -738,6 +739,7 @@ describe("GET /v1/notifications/unread-count", () => {
       // #106: unrestricted caller → null deny list (no filter).
       p_hidden_number_ids: null,
     });
+    expect(sb.find("POST", "/rest/v1/rpc/api_unread_conversation_count")[0].body).toEqual(rpc.body);
   });
 
   it("a PostgREST bigint-as-string count is coerced to a number", async () => {
@@ -751,7 +753,7 @@ describe("GET /v1/notifications/unread-count", () => {
       "/v1/notifications/unread-count",
       { companyId: COMPANY_ID },
     );
-    await expect(res.json()).resolves.toEqual({ count: 7, alert_pause: NOT_PAUSED });
+    await expect(res.json()).resolves.toEqual({ count: 7, unread_conversations: 0, alert_pause: NOT_PAUSED });
   });
 });
 
@@ -943,7 +945,7 @@ describe("GET /v1/notifications/unread-count — the pause a member can see (#34
       { companyId: COMPANY_ID },
     );
 
-    await expect(res.json()).resolves.toEqual({ count: 2, alert_pause: paused });
+    await expect(res.json()).resolves.toEqual({ count: 2, unread_conversations: 0, alert_pause: paused });
   });
 
   it("asks for the badge and the pause in one round trip each, not in series", async () => {

@@ -43,6 +43,7 @@ const FILTERED_RPCS = [
   "api_list_conversations",
   "api_notifications",
   "api_notifications_unread_count",
+    "api_unread_conversation_count",
   // #581: the response-time report names phone numbers. It was the outlier —
   // every sibling read surface filtered this list and this one did not, so a
   // restricted member saw a denied line's E.164 with its lead and unanswered

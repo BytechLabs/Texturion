@@ -1026,4 +1026,28 @@ begin
   raise notice 'UB-4 PASSED: clients cannot touch the table or its functions';
 end $$;
 
+do $$
+declare
+  v_company uuid := 'b6980000-0000-4000-8000-000000000010';
+  v_user uuid := 'b6980000-0000-4000-8000-000000000001';
+  v_hidden uuid[] := array['b6980000-0000-4000-8000-000000000021'::uuid];
+  v_expected bigint;
+begin
+  update public.conversations set is_spam = true
+   where id = 'b6980000-0000-4000-8000-000000000401';
+
+  select count(*) into v_expected
+    from public.conversations c
+   where c.company_id = v_company and not c.is_spam and c.deleted_at is null
+     and (c.phone_number_id is null or not (c.phone_number_id = any(v_hidden)))
+     and pg_temp.ub_old_unread(c.id, v_user);
+
+  if public.api_unread_conversation_count(v_company, v_user, v_hidden) is distinct from v_expected then
+    raise exception 'The unread badge differs from the visible unread conversations';
+  end if;
+  if has_function_privilege('authenticated', 'public.api_unread_conversation_count(uuid,uuid,uuid[])', 'execute') then
+    raise exception 'The unread badge SQL function must be service-role only';
+  end if;
+end $$;
+
 rollback;

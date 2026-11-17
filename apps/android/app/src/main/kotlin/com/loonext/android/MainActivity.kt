@@ -117,6 +117,7 @@ import com.loonext.android.features.shell.RootState
 import com.loonext.android.features.shell.RootViewModel
 import com.loonext.android.features.shell.ShellContent
 import com.loonext.android.features.shell.ShellCounts
+import com.loonext.android.features.shell.readShellData
 import com.loonext.android.features.shell.ShellTab
 import com.loonext.android.features.tasks.CreatedTaskNoticeHost
 import com.loonext.android.features.tasks.TaskDetailScreen
@@ -135,6 +136,9 @@ import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.contentMaxWidth
 import com.loonext.android.ui.common.imeHost
 import com.loonext.android.ui.theme.LoonextTheme
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -627,8 +631,8 @@ private fun ReadyShell(
         tab = ShellTab.Calls
         graph.pendingDial.value = number
     }
-    var counts by remember { mutableStateOf(ShellCounts()) }
-    var countsKey by remember { mutableIntStateOf(0) }
+    var counts by remember(companyId) { mutableStateOf(ShellCounts()) }
+    var countsKey by remember(companyId) { mutableIntStateOf(0) }
     // #508: the filter another surface has asked the inbox to land on, held
     // HERE rather than inside the inbox because the request outlives the tab
     // switch that carries it — For You sets it, the Inbox tab consumes it on
@@ -770,22 +774,21 @@ private fun ReadyShell(
         }
     }
 
-    // Hydrate the company view (numbers etc.) + live nav counts. Badges cap at
-    // 9+, so one 100-row page gives an exact-up-to-cap count.
     LaunchedEffect(companyId, countsKey) {
-        runCatching { graph.meRepo.me(companyId) }.onSuccess { hydratedMe = it }
-        val forYou = runCatching { graph.forYouRepo.forYou(companyId) }.getOrNull()
-        val unread = runCatching {
-            graph.inboxRepo.conversations(companyId, unread = true, limit = 100).data.size
-        }.getOrDefault(0)
-        val openTasks = runCatching {
+        if (countsKey > 0) delay(750)
+        val workspace = readShellData { graph.meRepo.me(companyId) }
+        val forYou = readShellData { graph.forYouRepo.forYou(companyId) }
+        val openTasks = readShellData {
             graph.tasksRepo.tasks(companyId, limit = 100).data.size
-        }.getOrDefault(0)
-        counts = ShellCounts(
+        }
+        val badges = readShellData { graph.notificationsRepo.unreadCount(companyId) }
+        currentCoroutineContext().ensureActive()
+        workspace?.let { hydratedMe = it }
+        counts = counts.updating(
             forYou = forYou?.let {
                 it.waiting_on_you.size + it.my_tasks.size + it.unread.size
-            } ?: 0,
-            unreadConversations = unread,
+            },
+            unread = badges?.unread_conversations,
             openTasks = openTasks,
         )
         // #201: the notifications badge refreshes on the same ticks but lives
@@ -793,20 +796,23 @@ private fun ReadyShell(
         // gated on no mark POST being in flight: an unrelated event landing
         // mid-mark used to refetch the pre-mark count and re-light the avatar.
         val readState = graph.notificationsReadState.forCompany(companyId)
-        runCatching { graph.notificationsRepo.unreadCount(companyId).count }
-            .onSuccess { count ->
-                readState.offerServerCount(
-                    graph.storeCache.flowOf<Int>(CacheKeys.unreadNotifications(companyId)),
-                    count,
-                )
-            }
+        badges?.let {
+            readState.offerServerCount(
+                graph.storeCache.flowOf<Int>(CacheKeys.unreadNotifications(companyId)),
+                it.count,
+            )
+        }
     }
     LaunchedEffect(companyId) {
         graph.realtime.events.collect { event ->
-            countsKey++
-            if (
-                event.event == "read.conversation" &&
-                (event.payload["user_id"] as? JsonPrimitive)?.contentOrNull == me.user_id &&
+            val myRead = event.event.startsWith("read.") &&
+                (event.payload["user_id"] as? JsonPrimitive)?.contentOrNull == me.user_id
+            when (event.event.substringBefore('.')) {
+                "message", "conversation", "task", "call" -> countsKey++
+                "read" -> if (myRead) countsKey++
+                else -> Unit
+            }
+            if (myRead && event.event == "read.conversation" &&
                 (event.payload["is_read"] as? JsonPrimitive)?.booleanOrNull == true
             ) {
                 val conversationId = (event.payload["conversation_id"] as? JsonPrimitive)?.contentOrNull

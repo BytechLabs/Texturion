@@ -316,13 +316,13 @@ describe("sendFcm — iOS aps payload", () => {
     };
   };
 
-  async function sendIos(kind: string | undefined, collapseId?: string) {
+  async function sendIos(kind: string | undefined, collapseId?: string, badge?: number) {
     const account = await makeServiceAccount();
     const service = fcmService();
     stubFetch(...service.routes);
     await sendFcm(
       fcmEnv(account),
-      { platform: "ios", token: "ios-tok" },
+      { platform: "ios", token: "ios-tok", badge },
       JSON.stringify({ ...JSON.parse(MESSAGE_PAYLOAD), kind }),
       undefined,
       undefined,
@@ -359,6 +359,16 @@ describe("sendFcm — iOS aps payload", () => {
     expect(message.apns.payload.aps).toEqual({ "content-available": 1 });
   });
 
+  it("an alert can clear the badge with a count of zero", async () => {
+    const message = await sendIos(undefined, "conversation:thread-1", 0);
+    expect(message.apns.payload.aps.badge).toBe(0);
+  });
+
+  it.each(["call", "call_end"])("%s preserves the current badge", async (kind) => {
+    const message = await sendIos(kind, "call:sess-1", 12);
+    expect(message.apns.payload.aps).not.toHaveProperty("badge");
+  });
+
   it("emergency carries the sound and the time-sensitive interruption level", async () => {
     const message = await sendIos("emergency");
     expect(message.apns.payload.aps).toEqual({
@@ -379,7 +389,7 @@ describe("sendFcm — iOS aps payload", () => {
     const scope = { companyId: "company-1", userId: "member-1", locale: "fr-CA" } as const;
     const payload = { ...JSON.parse(MESSAGE_PAYLOAD), kind: "missed_call" };
     const page = JSON.stringify({ ...payload, alert_id: "alert-1" });
-    await sendFcm(fcmEnv(account), { platform: "ios", token: "ios-tok", actionScope: scope }, page);
+    await sendFcm(fcmEnv(account), { platform: "ios", token: "ios-tok", actionScope: scope, badge: 2 }, page);
     await sendFcm(fcmEnv(account), { platform: "android", token: "android-tok", actionScope: scope }, page);
     await sendFcm(
       fcmEnv(account),
@@ -388,7 +398,7 @@ describe("sendFcm — iOS aps payload", () => {
     );
 
     const [ios, android, ordinary] = service.sends.map((send) => send.message);
-    expect(ios.apns).toMatchObject({ payload: { aps: { category: "ON_CALL_ALERT_FR" } } });
+    expect(ios.apns).toMatchObject({ payload: { aps: { category: "ON_CALL_ALERT_FR", badge: 2 } } });
     for (const device of [ios, android]) {
       expect(device.data).toMatchObject({
         alert_id: "alert-1",
