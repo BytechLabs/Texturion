@@ -157,6 +157,10 @@ export function makeRuntime(config: FakeConfig = {}) {
         calls.bridges.push({ member, inbound });
         return "ok";
       },
+      async bridgeTransfer(member, inbound) {
+        calls.bridges.push({ member, inbound });
+        return true;
+      },
       async hangup(ccid) {
         calls.hangups.push(ccid);
         return config.hangupResult ? config.hangupResult(ccid) : "ok";

@@ -629,6 +629,10 @@ The REST routes keep their D43 logic and gates, with three changes:
   The delegates that complete/cancel the transfer or consult (running under
   the DO's FIFO per §7.2) clear it on their terminal edges — and clearing
   triggers the same check.
+- A registered blind transfer dials the target independently. The sender
+  stays connected until the Durable Object bridges an answered target leg.
+  The transfer ID deduplicates the provider commands and lets the object end
+  the pending target ring if the customer disconnects or the intent expires.
 - `consult/complete` calls `stub.setOwner({userId: target})` instead of
   writing `answered_by_user_id` directly (the DO mirrors it) — the
   stamp-before-steal ordering is now enforced by object serialization, not by

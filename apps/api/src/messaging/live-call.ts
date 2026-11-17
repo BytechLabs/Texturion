@@ -6,13 +6,9 @@
  * stays connected, so billing stays honest); this module owns what the
  * SERVER must do:
  *
- *   BLIND TRANSFER — the Telnyx `transfer` command on the CUSTOMER leg dials
- *   the target member's credential (`brt` tag) and bridges on answer; the
- *   sender's own leg is unbridged by Telnyx and their client hangs it up.
- *   client_state is deliberately NOT sent with the command, so the customer
- *   leg keeps its `bri` billing anchor. Decline/timeout auto-recovers: the
- *   customer snaps BACK to the sender (hop 1); a second failure — the hop
- *   cap — diverts to voicemail. The caller is never stranded in silence.
+ *   BLIND TRANSFER: a separate target leg rings while the customer stays
+ *   with the sender. On answer the session switches the bridge without
+ *   rewriting the customer's billing anchor.
  *
  *   ANNOUNCE (CONSULT) TRANSFER — the consult is its OWN two-party call
  *   between the two members (both legs dialed by us on the Call-Control app,
@@ -29,20 +25,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { CallSessionDO } from "../calls/session-do";
 import type { Env } from "../env";
-import { TelnyxApiError, telnyxRequest } from "../telnyx/client";
+import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
 import { hangupLiveLeg, LOONEXT_SESSION_HEADER } from "./inbound-ring";
 
-/** Transfer target leg: `brt|<session>|<targetUser>|<senderUser>|<hops>|<caller-or-empty>` */
+/** Transfer target leg: `brt|<session>|<target>|<sender>|<hops>|<caller-or-empty>[|<transferId>]` */
 export const TRANSFER_TARGET_STATE = "brt";
 
 /** Consult call legs: `brc|<session>|<user>|<role s|t>` (s=sender, t=target). */
 export const CONSULT_LEG_STATE = "brc";
 
-/** Ring window for transfer/consult legs (the member is at a screen). */
+/** Ring window for transfer and consult legs. */
 export const TRANSFER_TIMEOUT_SECS = 25;
 
 /** One snap-back, then voicemail — never an infinite transfer ping-pong. */
 const MAX_TRANSFER_HOPS = 1;
+const TRANSFER_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 function b64encode(value: string): string {
   return btoa(value);
@@ -57,24 +54,20 @@ function b64decode(raw: string | null | undefined): string | null {
   }
 }
 
-export function buildTransferState(input: {
-  sessionId: string;
-  targetUserId: string;
-  senderUserId: string;
-  hops: number;
-  caller: string | null;
-}): string {
-  return b64encode(
-    `${TRANSFER_TARGET_STATE}|${input.sessionId}|${input.targetUserId}|${input.senderUserId}|${input.hops}|${input.caller ?? ""}`,
-  );
-}
-
 export interface TransferState {
   sessionId: string;
   targetUserId: string;
   senderUserId: string;
   hops: number;
   caller: string | null;
+  transferId?: string;
+}
+
+export function buildTransferState(input: TransferState): string {
+  const id = input.transferId ? `|${input.transferId}` : "";
+  return b64encode(
+    `${TRANSFER_TARGET_STATE}|${input.sessionId}|${input.targetUserId}|${input.senderUserId}|${input.hops}|${input.caller ?? ""}${id}`,
+  );
 }
 
 export function parseTransferState(
@@ -83,13 +76,18 @@ export function parseTransferState(
   const decoded = b64decode(raw);
   if (!decoded) return null;
   const parts = decoded.split("|");
-  if (parts[0] !== TRANSFER_TARGET_STATE || parts.length < 6) return null;
-  const [, sessionId, targetUserId, senderUserId, hopsRaw, caller] = parts;
+  if (parts[0] !== TRANSFER_TARGET_STATE || parts.length < 6 || parts.length > 7) return null;
+  const [, sessionId, targetUserId, senderUserId, hopsRaw, caller, transferId] = parts;
   const hops = Number(hopsRaw);
   if (!sessionId || !targetUserId || !senderUserId || !Number.isFinite(hops)) {
     return null;
   }
-  return { sessionId, targetUserId, senderUserId, hops, caller: caller || null };
+  if (transferId !== undefined && !TRANSFER_ID.test(transferId)) return null;
+  return { sessionId, targetUserId, senderUserId, hops, caller: caller || null, transferId };
+}
+
+function transferLegToken(state: TransferState): string {
+  return `transfer:${state.transferId ?? `${state.targetUserId}:${state.hops}`}`;
 }
 
 export function buildConsultState(input: {
@@ -131,7 +129,7 @@ async function telnyxOnLiveLeg(
     await telnyxRequest(env, { method: "POST", path, body });
     return true;
   } catch (error) {
-    if (error instanceof TelnyxApiError && error.status < 500) return false;
+    if (isDefiniteRefusal(error)) return false;
     throw error;
   }
 }
@@ -145,6 +143,15 @@ function callSessionStub(env: Env, sessionId: string): CallSessionDO | null {
   return namespace.get(
     namespace.idFromName(sessionId),
   ) as unknown as CallSessionDO;
+}
+
+export async function bindRegisteredTransferLeg(env: Env, state: TransferState, memberCcid: string): Promise<void> {
+  if (!state.transferId) return;
+  const stub = callSessionStub(env, state.sessionId);
+  if (!stub) throw new Error("registered transfer has no session binding");
+  await stub.bindTransferLeg({
+    transferId: state.transferId, targetUserId: state.targetUserId, memberCcid,
+  });
 }
 
 /** The live-call slice of the calls row every handler here needs. */
@@ -183,18 +190,9 @@ export async function liveCallBySession(
  * fabricate a journey line on any session. The target sees the CUSTOMER as
  * caller ID (who they are about to talk to), not the workspace's own number.
  *
- * The MECHANIC is direction-aware — this is the single #211 D11 swap seam:
- *   INBOUND: the Telnyx `transfer` command on the customer leg. Telnyx
- *   creates+bridges the target leg on answer and drops the sender's bridge
- *   partner; `client_state` is NOT sent on the command so the customer leg
- *   keeps its `bri` billing anchor (only the target leg is `brt`-tagged).
- *   OUTBOUND (#211, founder-directed): the PROVEN consult-style dial +
- *   bridge-steal — the same mechanic consult/complete runs against customer
- *   ccids in prod. DIAL the target as a `brt` leg on the Call-Control app; on
- *   its call.answered, handleTransferAnswered bridge-STEALS the customer (oc)
- *   leg onto it, dropping the placer. (The Telnyx `transfer` command on a
- *   browser-originated oc leg was never exercised, so it is deliberately NOT
- *   used.) The oc leg keeps its 4-part billing anchor untouched.
+ * Registered transfers dial the target independently and switch the bridge
+ * on answer. Recovery for an in-flight legacy inbound transfer still uses
+ * Telnyx's transfer command because the sender has already been unbridged.
  */
 export async function issueTransfer(
   env: Env,
@@ -205,11 +203,11 @@ export async function issueTransfer(
     targetSipUsername: string;
     callerNumberForTarget: string;
     state: TransferState;
-    /** #211: inbound (Telnyx transfer command) vs outbound (dial+bridge-steal). */
+    /** Legacy sessions keep their original transfer behavior. */
     direction: "inbound" | "outbound";
   },
 ): Promise<boolean> {
-  const legToken = `transfer:${input.state.targetUserId}:${input.state.hops}`;
+  const legToken = transferLegToken(input.state);
   const { error: ledgerError } = await db.from("call_member_legs").upsert(
     {
       call_session_id: input.state.sessionId,
@@ -233,14 +231,7 @@ export async function issueTransfer(
     { name: LOONEXT_SESSION_HEADER, value: input.state.sessionId },
   ];
 
-  if (input.direction === "outbound") {
-    // #211 (D11): DIAL the target on the Call-Control app (the consult-style
-    // seam). handleTransferAnswered bridge-steals the oc leg onto it on answer;
-    // the ledger row above is the forgery gate it checks, and it stamps the real
-    // ccid from the answered event (the synthetic legToken here is a placeholder,
-    // same as inbound). The oc customer leg is untouched until the steal, so a
-    // MISSED target simply leaves the placer connected (no snap-back — see
-    // handleTransferLegHangup).
+  if (input.state.transferId || input.direction === "outbound") {
     const dialed = await telnyxOnLiveLeg(env, "/v2/calls", {
       connection_id: env.TELNYX_VOICE_CONNECTION_ID,
       to: `sip:${input.targetSipUsername}@sip.telnyx.com`,
@@ -249,6 +240,7 @@ export async function issueTransfer(
       from: input.callerNumberForTarget,
       timeout_secs: TRANSFER_TIMEOUT_SECS,
       client_state: buildTransferState(input.state),
+      ...(input.state.transferId ? { command_id: input.state.transferId } : {}),
       custom_headers: targetHeaders,
     });
     if (!dialed) {
@@ -287,6 +279,52 @@ export async function issueTransfer(
   return issued;
 }
 
+async function handleRegisteredTransferAnswer(
+  env: Env,
+  db: SupabaseClient,
+  state: TransferState,
+  transferId: string,
+  realLegCcid: string,
+): Promise<void> {
+  const token = transferLegToken(state);
+  const { data: pending, error: pendingError } = await db.from("call_member_legs")
+    .select("company_id").eq("call_session_id", state.sessionId).eq("call_control_id", token)
+    .eq("user_id", state.targetUserId).eq("kind", "transfer").eq("state", "ringing").limit(1);
+  if (pendingError) throw new Error(`transfer lookup failed: ${pendingError.message}`);
+  const companyId = pending?.[0]?.company_id;
+  if (!companyId) return;
+
+  const stub = callSessionStub(env, state.sessionId);
+  if (!stub) throw new Error("registered transfer has no session binding");
+  const bridged = await stub.completeTransfer({
+    transferId, targetUserId: state.targetUserId, memberCcid: realLegCcid,
+  });
+  if (bridged) {
+    const call = await liveCallBySession(db, state.sessionId);
+    if (call?.conversation_id) {
+      await insertJourneyEvent(db, {
+        companyId,
+        conversationId: call.conversation_id,
+        callSessionId: state.sessionId,
+        kind: "transferred",
+        fromUserId: state.senderUserId,
+        toUserId: state.targetUserId,
+      });
+    }
+  } else {
+    await hangupLiveLeg(env, realLegCcid);
+  }
+
+  const { error } = await db.from("call_member_legs")
+    .update({
+      state: bridged ? "answered" : "failed",
+      call_control_id: bridged ? realLegCcid : token,
+    })
+    .eq("company_id", companyId).eq("call_session_id", state.sessionId)
+    .eq("call_control_id", token).eq("state", "ringing");
+  if (error) throw new Error(`transfer settle failed: ${error.message}`);
+}
+
 /**
  * A transfer target answered: the customer is now theirs. VERIFY the transfer
  * was actually issued (a ledgered kind='transfer' intent for this session +
@@ -302,6 +340,12 @@ export async function handleTransferAnswered(
   state: TransferState,
   realLegCcid: string | undefined,
 ): Promise<void> {
+  if (state.transferId) {
+    if (realLegCcid) {
+      await handleRegisteredTransferAnswer(env, db, state, state.transferId, realLegCcid);
+    }
+    return;
+  }
   // Claim the ledgered intent AND stamp the real leg ccid onto it (the ledger
   // row was inserted with a synthetic `transfer:<user>:<hops>` token — the
   // real ccid is only known now). The by-leg resolver then finds this row by
@@ -314,6 +358,7 @@ export async function handleTransferAnswered(
         : { state: "answered" },
     )
     .eq("call_session_id", state.sessionId)
+    .eq("call_control_id", transferLegToken(state))
     .eq("user_id", state.targetUserId)
     .eq("kind", "transfer")
     .eq("state", "ringing")
@@ -395,6 +440,16 @@ export async function handleTransferLegHangup(
   state: TransferState,
   missed: boolean,
 ): Promise<void> {
+  if (state.transferId) {
+    const stub = callSessionStub(env, state.sessionId);
+    if (!stub) throw new Error("registered transfer has no session binding");
+    if (await stub.clearIntent(state.transferId) === "bridged") return;
+    const { error } = await db.from("call_member_legs").update({ state: "failed" })
+      .eq("call_session_id", state.sessionId).eq("call_control_id", transferLegToken(state))
+      .eq("user_id", state.targetUserId).eq("kind", "transfer").eq("state", "ringing");
+    if (error) throw new Error(`transfer close failed: ${error.message}`);
+    return;
+  }
   // Mark this transfer intent terminal so a replay can't re-drive recovery.
   // Only a MISSED transfer (timeout/decline/busy) that WON the transition
   // proceeds — a normal end-of-call hangup carries no verdict, and a replay
@@ -403,6 +458,7 @@ export async function handleTransferLegHangup(
     .from("call_member_legs")
     .update({ state: "failed" })
     .eq("call_session_id", state.sessionId)
+    .eq("call_control_id", transferLegToken(state))
     .eq("user_id", state.targetUserId)
     .eq("kind", "transfer")
     .eq("state", "ringing")

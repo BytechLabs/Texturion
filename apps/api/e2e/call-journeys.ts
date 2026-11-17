@@ -222,13 +222,15 @@ async function transferBlind(driver: JourneyDriver, crew: JourneyCrew): Promise<
   await driver.transfer(crew, sessionId, owner, technician);
   await settle(driver);
   const target = ringingLegTo(driver.voice, technician);
-  expect(target.origin).toBe("transfer");
-  expect(legNow(driver.voice, ownerRing).state, "the switch drops the sender").toBe("ended");
+  expect(target.origin).toBe("dial");
+  expect(legNow(driver.voice, customer).bridgedWith, "the sender stays connected until answer")
+    .toBe(ownerRing.callControlId);
 
   driver.voice.answer(target.callControlId);
   await settle(driver);
   await expectSession(driver, sessionId, "answered", technician.userId);
   expect(legNow(driver.voice, customer).bridgedWith).toBe(target.callControlId);
+  expect(legNow(driver.voice, ownerRing).state).toBe("ended");
 
   driver.voice.hangup(customer.callControlId);
   await settle(driver);

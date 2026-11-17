@@ -37,6 +37,7 @@ import { apiRequest, buildTestApp } from "../test/routes-harness";
 import { completeEnv, createTestAuth } from '../test/support';
 import type { TestAuth } from '../test/support';
 
+import { drainCallEvents } from '../../e2e/call-budget';
 import { createCallSessions } from '../../e2e/call-sessions';
 import type { CallSessionsDouble } from '../../e2e/call-sessions';
 import { CALL_JOURNEYS, journeyRegistryMismatch, runCallJourney } from '../../e2e/call-journeys';
@@ -648,7 +649,7 @@ describe("hermetic call journeys (session layer)", () => {
     });
   });
 
-  it("S07 blind transfer: the target rings on the customer leg and becomes the owner", async () => {
+  it("S07 blind transfer: the sender stays connected until the target takes over", async () => {
     const crew = crewFor("transfer-blind");
     const [owner, technician] = crew.members;
     const { sessionId } = await runCallJourney("transfer-blind", "session", driver(), crew);
@@ -661,7 +662,7 @@ describe("hermetic call journeys (session layer)", () => {
       technician.userId,
     ]);
     expect(owners.at(-1)).toBe(technician.userId);
-    const target = fake.voice.legs().find((leg) => leg.origin === "transfer");
+    const target = fake.voice.legs().findLast((leg) => leg.to === `sip:${technician.sipUsername}@sip.telnyx.com`);
     expect(tables.call_member_legs).toEqual([
       expect.objectContaining({
         call_session_id: sessionId,
@@ -672,13 +673,42 @@ describe("hermetic call journeys (session layer)", () => {
       }),
     ]);
     expect(sessionRow(sessionId)?.answered_by_user_id).toBe(technician.userId);
-    const transfers = fake.callsTo("POST", /\/actions\/transfer$/);
-    expect(transfers).toHaveLength(1);
-    expect(transfers[0].body).toMatchObject({
-      to: `sip:${technician.sipUsername}@sip.telnyx.com`,
-      from: FAR_END_E164,
-    });
-    // The customer leg keeps its billing tag: the command carries none.
-    expect(transfers[0].body).not.toHaveProperty("client_state");
+    const bridge = fake.callsTo("POST", /\/actions\/bridge$/).at(-1);
+    expect(bridge?.path).toBe(`/v2/calls/${target?.callControlId}/actions/bridge`);
+    expect(bridge?.body).toHaveProperty("command_id");
+    expect(bridge?.body).not.toHaveProperty("client_state");
+  });
+
+  it("keeps the old bridge on decline and clears a replacement ring when the caller hangs up", async () => {
+    const crew = crewFor("transfer-blind");
+    const [owner, technician] = crew.members;
+    const client = driver();
+    const settle = () => drainCallEvents(client.voice, client.deliver, client.idle);
+    const dialedTo = (member: JourneyMember) => fake.voice.live()
+      .find((leg) => leg.to === `sip:${member.sipUsername}@sip.telnyx.com`)!;
+    const customer = fake.voice.incoming({ from: crew.farEndE164, to: crew.businessE164 });
+    const sessionId = customer.callSessionId;
+    await settle();
+
+    const ownerLeg = dialedTo(owner);
+    fake.voice.answer(ownerLeg.callControlId);
+    await settle();
+    await client.transfer(crew, sessionId, owner, technician);
+    await settle();
+    fake.voice.decline(dialedTo(technician).callControlId);
+    await settle();
+
+    expect(fake.voice.leg(customer.callControlId)?.bridgedWith).toBe(ownerLeg.callControlId);
+    await expect(client.answeredBy(sessionId)).resolves.toBe(owner.userId);
+    await client.transfer(crew, sessionId, owner, technician);
+    await settle();
+    expect(dialedTo(technician).state).toBe("ringing");
+    fake.voice.hangup(customer.callControlId);
+    await settle();
+
+    expect(fake.voice.live()).toEqual([]);
+    await expect(client.state(sessionId)).resolves.toBe("ended_answered");
+    expect(tables.call_member_legs.map((leg) => leg.state)).toEqual(["failed", "failed"]);
+    expectQuietSession(sessionId);
   });
 });

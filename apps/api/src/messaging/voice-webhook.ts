@@ -46,6 +46,7 @@ import {
   VOICEMAIL_INBOUND_STATE,
 } from "./inbound-ring";
 import {
+  bindRegisteredTransferLeg,
   CONSULT_LEG_STATE,
   handleConsultLegEvent,
   handleTransferAnswered,
@@ -411,6 +412,9 @@ export async function handleCallEvent(
     }
     const state = parseTransferState(payload.client_state);
     if (!state) return;
+    if (eventType === "call.initiated" && payload.call_control_id) {
+      return bindRegisteredTransferLeg(env, state, payload.call_control_id);
+    }
     if (eventType === "call.answered") {
       return handleTransferAnswered(env, db, state, payload.call_control_id);
     }

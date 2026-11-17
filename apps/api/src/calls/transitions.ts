@@ -195,6 +195,8 @@ export interface LegRecord {
 export interface SessionIntent {
   kind: "transfer" | "consult";
   targetUserId: string;
+  transferId?: string;
+  memberCcid?: string;
 }
 
 export interface AnswerIntent {
@@ -326,6 +328,7 @@ export interface SessionMachine {
   telnyxCommandCount: number;
   legs: LegRecord[];
   intent: SessionIntent | null;
+  lastTransfer?: { id: string; memberCcid: string };
   answerIntent: AnswerIntent | null;
 }
 
@@ -460,7 +463,9 @@ export type SessionEvent =
       noLocalLeg: boolean;
     }
   | { type: "set-owner"; userId: string }
-  | { type: "register-intent"; kind: "transfer" | "consult"; targetUserId: string }
+  | { type: "register-intent"; kind: "transfer" | "consult"; targetUserId: string; transferId?: string }
+  | { type: "bind-transfer-leg"; transferId: string; memberCcid: string }
+  | { type: "complete-transfer"; transferId: string; memberCcid: string }
   | { type: "clear-intent" }
   /** #171: a member explicitly declined the ring (POST .../decline). First-class
    *  server signal — NOT a leg hangup: cancels the decliner's ring legs, drops
@@ -541,6 +546,8 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "ring-me",
   "set-owner",
   "register-intent",
+  "bind-transfer-leg",
+  "complete-transfer",
   "clear-intent",
   "decline",
   "alarm-ring",
@@ -851,6 +858,13 @@ function terminalize(
   machine.endedReason = endedReason;
   machine.ringDeadlineMs = null;
   cancelAllLiveLegs(machine, effects, true);
+  if (machine.intent?.transferId) {
+    if (machine.intent.memberCcid) {
+      effects.push({ kind: "telnyx-hangup", ccid: machine.intent.memberCcid, terminal: true });
+    }
+    effects.push({ kind: "clear-alarm", alarm: "intent-expiry" });
+    machine.intent = null;
+  }
   // #213 (adversarial-review H1): for OUTBOUND, also hang up any ANSWERED leg —
   // the placer's op leg. cancelAllLiveLegs only reaps {dialing,ringing,canceling}
   // legs; an op leg the placer answered but that was never bridged (the customer
@@ -1058,7 +1072,11 @@ export function reduce(
       return { machine: next, effects };
     }
     case "register-intent": {
-      next.intent = { kind: event.kind, targetUserId: event.targetUserId };
+      next.intent = {
+        kind: event.kind,
+        targetUserId: event.targetUserId,
+        ...(event.transferId ? { transferId: event.transferId } : {}),
+      };
       effects.push({
         kind: "arm-alarm",
         alarm: "intent-expiry",
@@ -1066,8 +1084,31 @@ export function reduce(
       });
       return { machine: next, effects, reply: { state: next.state } };
     }
+    case "bind-transfer-leg": {
+      if (next.intent?.transferId === event.transferId) {
+        next.intent.memberCcid = event.memberCcid;
+      }
+      return { machine: next, effects };
+    }
+    case "complete-transfer": {
+      if (next.state !== "answered" || next.intent?.transferId !== event.transferId) {
+        return { machine: next, effects };
+      }
+      next.answeredByUserId = next.intent.targetUserId;
+      next.lastTransfer = { id: event.transferId, memberCcid: event.memberCcid };
+      next.intent = null;
+      next.ownerLegDeadDuringIntent = null;
+      effects.push(
+        { kind: "clear-alarm", alarm: "intent-expiry" },
+        { kind: "mirror", set: { answered_by_user_id: next.answeredByUserId }, terminal: false },
+      );
+      return { machine: next, effects };
+    }
     case "clear-intent":
     case "alarm-intent-expiry": {
+      if (next.intent?.memberCcid) {
+        effects.push({ kind: "telnyx-hangup", ccid: next.intent.memberCcid, terminal: true });
+      }
       next.intent = null;
       effects.push({ kind: "clear-alarm", alarm: "intent-expiry" });
       // §4 T7 stood-down recovery: state=answered ∧ owner unchanged ∧ flag.
