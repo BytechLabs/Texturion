@@ -247,15 +247,18 @@ export function checkLogicalExpression(
   expression: string,
   table: string,
   schema: SchemaSnapshot = SCHEMA_SNAPSHOT,
+  embeds: ReadonlySet<string> = new Set(),
 ): Problem[] {
   const problems: Problem[] = [];
   const inner = expression.trim().replace(/^\(/, "").replace(/\)$/, "");
   for (const condition of splitTopLevel(inner)) {
     const group = /^(?:not\.)?(?:and|or)\((.*)\)$/.exec(condition);
     if (group) {
-      problems.push(...checkLogicalExpression(group[1], table, schema));
+      problems.push(...checkLogicalExpression(group[1], table, schema, embeds));
       continue;
     }
+    const embedFilter = /^([a-z_][a-z0-9_]*)\.(?:not\.)?is\.null$/i.exec(condition);
+    if (embedFilter && embeds.has(embedFilter[1])) continue;
     const problem = checkFilterName(condition.split(".")[0], table, schema);
     if (problem) problems.push({ ...problem, reason: `${problem.reason} (or/and)` });
   }
@@ -280,6 +283,7 @@ export function checkRestRequest(
   const problems: Problem[] = [];
   const select = url.searchParams.get("select");
   if (select) problems.push(...checkSelect(select, table, schema));
+  const embeds = new Set(parseSelect(select ?? "").flatMap((item) => item.kind === "embed" ? [item.name] : []));
   const miss = (column: string, where: string): void => {
     if (!hasColumn(schema, table, column, where === "write")) {
       problems.push({
@@ -296,7 +300,7 @@ export function checkRestRequest(
   for (const [key, value] of url.searchParams.entries()) {
     const last = key.split(".").pop() ?? key;
     if (key === "or" || key === "and") {
-      problems.push(...checkLogicalExpression(value, table, schema));
+      problems.push(...checkLogicalExpression(value, table, schema, embeds));
     } else if (!RESERVED_PARAMS.has(last)) {
       missPath(key, "filter");
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkLogicalExpression, checkSelect } from "./schema-columns";
+import { checkLogicalExpression, checkRestRequest, checkSelect } from "./schema-columns";
 
 describe("schema column checks (#750)", () => {
   it("accepts aliases, casts, embeds and computed columns", () => {
@@ -31,5 +31,14 @@ describe("schema column checks (#750)", () => {
         (p) => p.column,
       ),
     ).toEqual(["a_b", "nope"]);
+  });
+
+  it("accepts null filtering on a selected relation", () => {
+    const url = new URL("https://example.test/contacts?select=id,contact_addresses()&or=(name.ilike.*elm*,contact_addresses.not.is.null)");
+    expect(checkRestRequest("GET", "contacts", url, undefined)).toEqual([]);
+
+    url.searchParams.set("or", "(name.ilike.*elm*,contact_addresses.eq.elm)");
+    expect(checkRestRequest("GET", "contacts", url, undefined).map((problem) => problem.column))
+      .toEqual(["contact_addresses"]);
   });
 });
