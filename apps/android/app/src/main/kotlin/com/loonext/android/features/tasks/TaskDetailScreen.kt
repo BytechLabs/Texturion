@@ -123,6 +123,7 @@ import coil3.compose.AsyncImage
 import com.loonext.android.AppGraph
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.BuildConfig
 import com.loonext.android.ui.common.RecordMenu
 import com.loonext.android.ui.common.TaskActionId
@@ -146,8 +147,6 @@ import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.features.activity.ActivityRecordType
 import com.loonext.android.features.activity.ActivityTimeline
-import com.loonext.android.features.contacts.MultipartClient
-import com.loonext.android.features.contacts.uploadNoteFile
 import com.loonext.android.ui.common.AiOrb
 import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.LoadError
@@ -165,9 +164,7 @@ import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import java.time.Instant
 import java.time.LocalDate
@@ -182,9 +179,6 @@ import com.loonext.android.core.jobs.groupJobPhotos
 private const val NOTE_FILE_MAX_BYTES = 25L * 1024 * 1024
 private const val NOTE_FILES_MAX = 10
 private const val COMMENT_BODY_MAX = 4000
-
-/** One staged composer file (bytes read at post time, not at pick time). */
-private data class StagedFile(val uri: Uri, val name: String, val size: Long, val mime: String)
 
 /**
  * Task detail (spec 23): paper-circle top bar, big done ring + 21sp title
@@ -1372,7 +1366,6 @@ private fun TaskDetailBody(
         if (!noAccess && (asComment || noteConversation != null)) {
             NoteComposer(
                 graph = graph,
-                mutations = mutations,
                 companyId = companyId,
                 conversationId = if (asComment) null else noteConversation,
                 taskId = detail.id,
@@ -2525,7 +2518,6 @@ private fun CommentCard(
 @Composable
 private fun NoteComposer(
     graph: AppGraph,
-    mutations: TaskMutations,
     companyId: String,
     // Null posts a comment on the task instead of a note in its thread.
     conversationId: String?,
@@ -2534,25 +2526,58 @@ private fun NoteComposer(
     onPosted: () -> Unit,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
-    val multipart = remember { MultipartClient(graph.api, BuildConfig.API_URL) }
-    // #228: the picker callback and the upload coroutine below are not
-    // composition, so their sentences are resolved from a locale read here.
     val locale = LocalAppLocale.current
+    val submission = remember(graph, taskId) { graph.taskNoteUploads.forTask(taskId) }
+    val progress by submission.progress.collectAsStateWithLifecycle()
+    val posting = progress == TaskNoteProgress.Posting || progress is TaskNoteProgress.Uploading
 
-    var bodyField by remember(taskId) { mutableStateOf(TextFieldValue("")) }
+    val savedText = submission.draft.text
+    var bodyField by remember(taskId) {
+        mutableStateOf(TextFieldValue(savedText, selection = TextRange(savedText.length)))
+    }
     val body = bodyField.text
-    var staged by remember(taskId) { mutableStateOf(listOf<StagedFile>()) }
-    var posting by remember(taskId) { mutableStateOf(false) }
+    var staged by remember(taskId) { mutableStateOf(listOf<TaskNoteFile>()) }
     var error by remember(taskId) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(submission) { submission.draft.loadDraftOnce() }
+    LaunchedEffect(savedText) {
+        if (bodyField.text != savedText) bodyField = TextFieldValue(savedText, selection = TextRange(savedText.length))
+    }
+    LaunchedEffect(progress) {
+        when (val result = progress) {
+            is TaskNoteProgress.Posted -> {
+                if (!submission.consumeResult(result)) return@LaunchedEffect
+                staged = emptyList()
+                error = when (result.failedFiles) {
+                    0 -> null
+                    1 -> AppStrings.translate(locale, "contactsTasks.noteUploadFailedOne")
+                    else -> AppStrings.translate(
+                        locale, "contactsTasks.noteUploadFailedMany", mapOf("count" to "${result.failedFiles}"),
+                    )
+                }
+                onPosted()
+            }
+            is TaskNoteProgress.Failed -> {
+                if (submission.consumeResult(result)) error = result.cause.userMessage(locale)
+            }
+            else -> Unit
+        }
+    }
+
+    fun updateBody(value: TextFieldValue) {
+        val field = value.copy(text = value.text.take(NOTE_BODY_MAX))
+        bodyField = field
+        submission.draft.onTextChange(field.text)
+        error = null
+    }
 
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         val room = NOTE_FILES_MAX - staged.size
-        val next = uris.take(room).mapNotNull { uri -> describeFile(context, uri) }
+        val next = uris.take(room).map { uri -> describeFile(context, uri) }
         val oversize = next.filter { it.size > NOTE_FILE_MAX_BYTES }
         error = when {
             uris.size > room -> AppStrings.translate(
@@ -2583,6 +2608,7 @@ private fun NoteComposer(
                 items(staged.size, key = { staged[it].uri.toString() }) { index ->
                     val file = staged[index]
                     AssistChip(
+                        enabled = !posting,
                         onClick = {
                             haptics.tap()
                             staged = staged - file
@@ -2612,12 +2638,20 @@ private fun NoteComposer(
                 modifier = Modifier.padding(vertical = 2.dp),
             )
         }
+        val upload = progress as? TaskNoteProgress.Uploading
+        if (upload != null) {
+            Text(
+                t("contactsTasks.noteUploading", "file" to "${upload.current}", "total" to "${upload.total}"),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         // #690: `#` offers a task, a customer or a conversation. This composer
         // writes internal notes and task comments only; never a text to a customer.
         ReferencePickerFor(
-            source = references,
+            source = references.takeUnless { posting },
             value = bodyField,
-            onValueChange = { bodyField = it.copy(text = it.text.take(NOTE_BODY_MAX)) },
+            onValueChange = ::updateBody,
         )
         Surface(
             shape = RoundedCornerShape(26.dp),
@@ -2645,10 +2679,8 @@ private fun NoteComposer(
                 }
                 BasicTextField(
                     value = bodyField,
-                    onValueChange = {
-                        bodyField = it.copy(text = it.text.take(NOTE_BODY_MAX))
-                        error = null
-                    },
+                    onValueChange = ::updateBody,
+                    enabled = !posting,
                     textStyle = LocalTextStyle.current.copy(
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
@@ -2683,67 +2715,9 @@ private fun NoteComposer(
                 IconButton(
                     enabled = !posting && (body.isNotBlank() || (conversationId != null && staged.isNotEmpty())),
                     onClick = {
-                        // Posting a note is a commit.
-                        haptics.confirm()
-                        posting = true
-                        error = null
-                        scope.launch {
-                            try {
-                                val ownerType = if (conversationId == null) "task_comment" else "note"
-                                val ownerId = if (conversationId == null) {
-                                    mutations.addComment(companyId, taskId, body.trim()).id
-                                } else {
-                                    mutations.postNote(
-                                        companyId,
-                                        conversationId,
-                                        body.trim(),
-                                        taskId,
-                                    ).id
-                                }
-                                var failures = 0
-                                for (file in staged) {
-                                    val bytes = withContext(Dispatchers.IO) {
-                                        runCatching {
-                                            context.contentResolver.openInputStream(file.uri)
-                                                ?.use { it.readBytes() }
-                                        }.getOrNull()
-                                    }
-                                    if (bytes == null) {
-                                        failures++
-                                        continue
-                                    }
-                                    try {
-                                        multipart.uploadNoteFile(
-                                            companyId = companyId,
-                                            noteId = ownerId,
-                                            fileName = file.name,
-                                            contentType = file.mime,
-                                            bytes = bytes,
-                                            ownerType = ownerType,
-                                        )
-                                    } catch (_: Exception) {
-                                        failures++
-                                    }
-                                }
-                                bodyField = TextFieldValue("")
-                                staged = emptyList()
-                                error = if (failures > 0) {
-                                    AppStrings.translate(
-                                        locale,
-                                        if (failures == 1) {
-                                            "contactsTasks.noteUploadFailedOne"
-                                        } else {
-                                            "contactsTasks.noteUploadFailedMany"
-                                        },
-                                        mapOf("count" to "$failures"),
-                                    )
-                                } else null
-                                onPosted()
-                            } catch (cause: Exception) {
-                                error = cause.userMessage(locale)
-                            } finally {
-                                posting = false
-                            }
+                        if (submission.send(companyId, taskId, conversationId, staged)) {
+                            haptics.confirm()
+                            error = null
                         }
                     },
                     colors = IconButtonDefaults.filledIconButtonColors(
@@ -2773,7 +2747,7 @@ private fun NoteComposer(
 }
 
 /** Resolve a picked document's display name, size, and MIME type. */
-private fun describeFile(context: android.content.Context, uri: Uri): StagedFile? {
+private fun describeFile(context: android.content.Context, uri: Uri): TaskNoteFile {
     val resolver = context.contentResolver
     val mime = resolver.getType(uri) ?: "application/octet-stream"
     var name = "file"
@@ -2790,7 +2764,7 @@ private fun describeFile(context: android.content.Context, uri: Uri): StagedFile
             }
         }
     }
-    return StagedFile(uri = uri, name = name, size = size, mime = mime)
+    return TaskNoteFile(uri = uri, name = name, size = size, mime = mime)
 }
 
 /**
