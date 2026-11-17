@@ -44,6 +44,7 @@ enum ShellStrings {
             // #228 — the Wi-Fi-only photo setting, named by packages/shared.
             "shell.meteredHint": "You're on mobile data. Tap to load the full-size photo.",
             "shell.wifiOnlyLabel": "Full-size photos on Wi-Fi only",
+            "shell.offline": "You’re offline.",
             "shell.wifiOnlyDescription": "Conversations and galleries always load. Only full-size photos and downloads wait for Wi-Fi — tap one to load it anyway.",
             // ── The front door (#166) ─────────────────────────────────────────
             "shell.authLoginTitle": "The whole crew,\none business number.",
@@ -477,6 +478,7 @@ enum ShellStrings {
         frCA: [
             "shell.meteredHint": "Vous êtes sur les données mobiles. Touchez pour charger la photo en pleine résolution.",
             "shell.wifiOnlyLabel": "Photos en pleine résolution sur Wi-Fi seulement",
+            "shell.offline": "Vous êtes hors ligne.",
             "shell.wifiOnlyDescription": "Les conversations et les galeries se chargent toujours. Seules les photos en pleine résolution et les téléchargements attendent le Wi-Fi — touchez-en une pour la charger quand même.",
             "shell.authLoginTitle": "Toute l'équipe,\nun seul numéro d'entreprise.",
             "shell.authLoginSub":

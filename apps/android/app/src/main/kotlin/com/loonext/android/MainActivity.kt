@@ -15,6 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -142,7 +143,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import com.loonext.android.ui.common.asButton
 
@@ -608,6 +611,7 @@ private fun ReadyShell(
 ) {
     val context = LocalContext.current
     var sheetOpen by remember { mutableStateOf(false) }
+    val offline by graph.connectionWatch.offline.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(ShellTab.ForYou) }
     val routeStack = rememberSaveable(saver = OverlayStackSaver) {
         androidx.compose.runtime.mutableStateListOf<Overlay>()
@@ -848,7 +852,7 @@ private fun ReadyShell(
     }
 
     CompositionLocalProvider(LocalOpenTrash provides { openTrash() }) {
-    Box(Modifier.fillMaxSize()) {
+    ReadyShellFrame(offline) {
         if (hasInbox) {
             MainShell(
                 me = hydratedMe,
@@ -1212,6 +1216,25 @@ private fun ReadyShell(
             onSignOut = root::signOut,
             onDismiss = { sheetOpen = false },
         )
+    }
+}
+
+@Composable
+private fun ReadyShellFrame(offline: Boolean, content: @Composable BoxScope.() -> Unit) {
+    val insets = if (offline) Modifier.statusBarsPadding() else Modifier
+    Column(Modifier.fillMaxSize().then(insets)) {
+        if (offline) {
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+                Text(
+                    t("shell.offline"),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth(), content = content)
     }
 }
 
