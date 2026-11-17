@@ -63,7 +63,7 @@ const base = baseIndex >= 0 ? args[baseIndex + 1] : "http://localhost:3100";
  * its place by being a surface where a theme bug has actually happened or where
  * the token scope is genuinely at risk.
  */
-const { SURFACES } = await import("./audit-surfaces.mjs");
+const { SURFACES, navigateToAuditSurface } = await import("./audit-surfaces.mjs");
 
 /* ------------------------------------------------------------------------- */
 
@@ -839,14 +839,6 @@ async function login(context) {
   await page.close();
 }
 
-async function openSurface(page, surface) {
-  // Public pages render on the server, and background requests can keep running after load.
-  await page.goto(`${base}${surface.path}`, {
-    waitUntil: surface.auth ? "networkidle" : "load",
-    timeout: 45_000,
-  });
-}
-
 const wanted = SURFACES.filter((s) => (publicOnly ? !s.auth : authedOnly ? s.auth : true));
 if (!wanted.length) {
   console.error("theme-audit: no surfaces selected — check the flags.");
@@ -869,7 +861,7 @@ for (const theme of ["light", "dark"]) {
   for (const surface of wanted) {
     const page = await context.newPage();
     try {
-      await openSurface(page, surface);
+      await navigateToAuditSurface(page, base, surface, 45_000);
       if (surface.auth && new URL(page.url()).pathname.startsWith("/login")) {
         problems.push({
           theme,
@@ -1009,7 +1001,7 @@ for (const theme of ["light", "dark"]) {
   for (const surface of wanted.filter((s) => !s.open)) {
     const page = await context.newPage();
     try {
-      await openSurface(page, surface);
+      await navigateToAuditSurface(page, base, surface, 45_000);
       if (surface.auth && new URL(page.url()).pathname.startsWith("/login")) {
         await page.close();
         continue; // already reported by the desktop pass
