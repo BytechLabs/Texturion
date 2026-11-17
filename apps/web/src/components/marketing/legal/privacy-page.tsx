@@ -14,6 +14,7 @@ import {
 import { LegalRichText } from "@/components/marketing/legal/legal-rich-text";
 import { CATALOGS } from "@/i18n/catalog";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { legalSubprocessorsCopy } from "@/i18n/marketing/legal-subprocessors";
 import { legalPrivacyCopy } from "@/i18n/marketing/legal-privacy";
 import {
   PRIVACY_EMAIL,
@@ -73,6 +74,11 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
     style: "long",
     type: "conjunction",
   }).format(AI_DISCLOSURES.map((row) => say(row.label)));
+
+  const vendorCopy = legalSubprocessorsCopy(locale);
+  const vendors = SUBPROCESSORS.map((row) =>
+    "note" in row ? `${row.name} (${vendorCopy[row.note]})` : row.name,
+  );
 
   return (
     <LegalPage
@@ -178,7 +184,7 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
       <LegalSectionBlock id="sharing" number="6" heading={copy.sectionSharing}>
         <p><LegalRichText text={copy.sharingOne} slots={{
           subprocessors,
-          vendors: new Intl.ListFormat(locale).format(SUBPROCESSORS.map(({ name }) => name)),
+          vendors: new Intl.ListFormat(locale).format(vendors),
         }} /></p>
         <p>{copy.sharingTwo}</p>
         <p>{copy.sharingThree}</p>
