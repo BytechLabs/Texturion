@@ -36,9 +36,9 @@ const { values: args } = parseArgs({
     out: { type: "string" },
     history: { type: "string" },
     "changed-since": { type: "string" },
-    "target-ms": { type: "string", default: "180000" },
-    "max-shards": { type: "string", default: "8" },
-    "fallback-shards": { type: "string", default: "6" },
+    "target-ms": { type: "string", default: "300000" },
+    "max-shards": { type: "string", default: "6" },
+    "fallback-shards": { type: "string", default: "4" },
     "github-output": { type: "boolean", default: false },
   },
 });

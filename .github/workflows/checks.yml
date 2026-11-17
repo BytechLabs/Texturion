@@ -68,6 +68,193 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Listed first: the slowest job and the only one on macOS. A push to main
+  # starts more jobs than the account runs at once, GitHub hands out runners
+  # roughly in the order jobs are listed, and listed last this one waited ten
+  # minutes for a slot while the short Linux jobs ran.
+  ios:
+    name: iOS (build + unit tests)
+    # #493: skip the WORK for a release-please pull request.
+    #
+    # This does NOT stop the parked `action_required` run appearing — that is a
+    # run-level gate GitHub applies before any job condition is evaluated, so
+    # nothing in this file can prevent it. Two attempts proved that: a
+    # `branches-ignore` on the trigger (which filters the BASE branch and never
+    # matched) and then this condition, after which a release PR still parked
+    # two runs fifteen minutes later. The lever is a repository Actions setting,
+    # not a workflow file.
+    #
+    # Kept because it is still correct and still cheap: if those runs are ever
+    # approved or the approval requirement is lifted, they skip instead of
+    # re-running a gate that already passed on the push that produced the PR.
+    #
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and
+    # workflow_call, so the job still runs on those paths exactly as it did when
+    # the name was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # The app targets iOS 26 (Liquid Glass) — Xcode 26+ is required. Runner
+      # images ship several Xcodes; pick the newest 26.x and fail with the
+      # available list if none exists (means the image is too old).
+      - name: Select Xcode 26
+        run: |
+          ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::No Xcode 26 on this image — see the list above; bump runs-on to a newer macOS image."
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Pick a simulator
+        id: sim
+        run: |
+          xcrun simctl list devices available
+          # The plain-text `head -1` used to choose the OLDEST installed iOS
+          # runtime. A runner with 26.2, 26.4 and 26.5 therefore built against
+          # 26.2, and a future image reorder could change screenshot pixels with
+          # no app change. Read the structured list, choose the newest runtime,
+          # and prefer one representative phone within it.
+          UDID=$(
+            xcrun simctl list devices available -j |
+            python3 -c '
+          import json, re, sys
+
+          rows = []
+          for runtime, devices in json.load(sys.stdin).get("devices", {}).items():
+              match = re.search(r"\.iOS-(\d+(?:-\d+)*)$", runtime)
+              if match is None:
+                  continue
+              version = tuple(int(part) for part in match.group(1).split("-"))
+              for device in devices:
+                  name = device.get("name", "")
+                  udid = device.get("udid", "")
+                  if device.get("isAvailable", True) and name.startswith("iPhone") and udid:
+                      rows.append((version, name == "iPhone 17 Pro", name, udid))
+
+          if not rows:
+              raise SystemExit(1)
+          print(max(rows)[3])
+          '
+          )
+          if [ -z "$UDID" ]; then
+            echo "::error::No available iPhone simulator on this image."
+            exit 1
+          fi
+          xcrun simctl list devices available | grep "$UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      # App Store Connect rejects an upload whose CFBundleVersion repeats one it
+      # already accepted, so the build number cannot stay hardcoded at 1. The git
+      # commit count is monotonic by construction and needs no stored state — the
+      # same source Android's versionCode uses, so the two platforms stay in step.
+      # project.yml keeps 1/1.0.0 as the local-dev fallback; archives should pass
+      # the same override (see docs/RELEASING.md).
+      - name: Compute build number
+        id: build_number
+        run: echo "value=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project Loonext.xcodeproj \
+            -scheme Loonext \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.build_number.outputs.value }}" \
+            CODE_SIGNING_ALLOWED=NO
+
+      # #238: the scheme's tests are LoonextTests and LoonextUITests. The second
+      # target runs performAccessibilityAudit() over the primary flows, so an
+      # unnamed control, small hit region, low contrast or clipped large text
+      # fails here. It is the OS's audit and not VoiceOver; the spoken pass
+      # stays a person with a phone (docs/ACCESSIBILITY.md).
+      - name: Unit and accessibility audit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Loonext.xcodeproj \
+            -scheme Loonext \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath "$RUNNER_TEMP/ios-tests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO | tee /tmp/ios-tests.log
+
+      # [#599] A SKIPPED TEST REPORTS GREEN, WHICH IS BACKWARDS.
+      #
+      # Two cases in ThreadControllerResyncTests skipped on EVERY run of this job
+      # from the day they were written — the keychain a simulator host does not
+      # have — and one of them was the #215 contract that a message the backend
+      # holds, which no realtime event delivered, is recovered. Nothing in the
+      # summary said so: an XCTSkip is indistinguishable from a pass here.
+      #
+      # LoonextTests already made this decision once, for a different cause. See
+      # MissingSource.swift: six source scans used to throw XCTSkip when they
+      # could not read the file they check, and every one was converted to a
+      # failure because "the conditions that produce a missing file are exactly
+      # the conditions under which the scan has verified nothing at all". An
+      # environment a test needs and does not have is the same shape.
+      #
+      # This is the backstop, not the rule. The rule is not to write one.
+      - name: No test may skip its way to green
+        run: |
+          if grep -q "Test skipped" /tmp/ios-tests.log; then
+            echo "::error::An iOS test skipped. A skip reports as a pass, so the"
+            echo "::error::property it asserts is unproven and nothing says so."
+            grep "Test skipped" /tmp/ios-tests.log | sed 's/^/  /'
+            exit 1
+          fi
+          echo "No test skipped."
+
+      # #540: pictures a person can inspect, not pixel goldens. The hosted test
+      # renders the real ForYouList in both themes and at normal/accessibility
+      # text sizes, keeps every viewport as an XCTAttachment, and asserts the
+      # images are not blank. Exporting from the xcresult is the supported path
+      # that preserves successful-test attachments; writing into a simulator
+      # container would leave the host guessing where Xcode installed the app.
+      # Also when a test failed: a failing accessibility audit is exactly when
+      # someone needs to see the screen it measured.
+      - name: Export dashboard screenshots
+        if: ${{ !cancelled() }}
+        run: |
+          if [ ! -d "$RUNNER_TEMP/ios-tests.xcresult" ]; then
+            echo "No test results to export: the tests never ran."
+            exit 0
+          fi
+          ATTACHMENTS="$RUNNER_TEMP/ios-dashboard-screenshots"
+          xcrun xcresulttool export attachments \
+            --path "$RUNNER_TEMP/ios-tests.xcresult" \
+            --output-path "$ATTACHMENTS"
+          COUNT=$(find "$ATTACHMENTS" -type f -name '*.png' | wc -l | tr -d ' ')
+          if [ "$COUNT" -lt 8 ]; then
+            echo "::error::Expected at least two pages for each dashboard variant; exported $COUNT PNGs."
+            exit 1
+          fi
+          echo "Exported $COUNT dashboard screenshot pages."
+
+      - name: Upload dashboard screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-dashboard-screenshots
+          path: ${{ runner.temp }}/ios-dashboard-screenshots
+          retention-days: 14
+
   schema:
     name: SQL tests (Supabase)
     # #493: skip the WORK for a release-please pull request.
@@ -1432,186 +1619,3 @@ jobs:
       # library is in app/r8-inventory.json.
       - name: Check what R8 kept
         run: node scripts/check-shrunk-build.mjs
-
-  ios:
-    name: iOS (build + unit tests)
-    # #493: skip the WORK for a release-please pull request.
-    #
-    # This does NOT stop the parked `action_required` run appearing — that is a
-    # run-level gate GitHub applies before any job condition is evaluated, so
-    # nothing in this file can prevent it. Two attempts proved that: a
-    # `branches-ignore` on the trigger (which filters the BASE branch and never
-    # matched) and then this condition, after which a release PR still parked
-    # two runs fifteen minutes later. The lever is a repository Actions setting,
-    # not a workflow file.
-    #
-    # Kept because it is still correct and still cheap: if those runs are ever
-    # approved or the approval requirement is lifted, they skip instead of
-    # re-running a gate that already passed on the push that produced the PR.
-    #
-    # #581: the branch NAME cannot be the whole test — on a fork pull request the
-    # contributor picks it, and a skipped job reports as a pass. The repository
-    # comparison is the half no submitter can satisfy; it is null on push and
-    # workflow_call, so the job still runs on those paths exactly as it did when
-    # the name was the only test. Full reason on the `on:` block above.
-    if: >-
-      !(github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.head_ref, 'release-please--'))
-    runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: apps/ios
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      # The app targets iOS 26 (Liquid Glass) — Xcode 26+ is required. Runner
-      # images ship several Xcodes; pick the newest 26.x and fail with the
-      # available list if none exists (means the image is too old).
-      - name: Select Xcode 26
-        run: |
-          ls -d /Applications/Xcode*.app
-          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
-          if [ -z "$XCODE" ]; then
-            echo "::error::No Xcode 26 on this image — see the list above; bump runs-on to a newer macOS image."
-            exit 1
-          fi
-          sudo xcode-select -s "$XCODE/Contents/Developer"
-          xcodebuild -version
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Generate project
-        run: xcodegen generate
-
-      - name: Pick a simulator
-        id: sim
-        run: |
-          xcrun simctl list devices available
-          # The plain-text `head -1` used to choose the OLDEST installed iOS
-          # runtime. A runner with 26.2, 26.4 and 26.5 therefore built against
-          # 26.2, and a future image reorder could change screenshot pixels with
-          # no app change. Read the structured list, choose the newest runtime,
-          # and prefer one representative phone within it.
-          UDID=$(
-            xcrun simctl list devices available -j |
-            python3 -c '
-          import json, re, sys
-
-          rows = []
-          for runtime, devices in json.load(sys.stdin).get("devices", {}).items():
-              match = re.search(r"\.iOS-(\d+(?:-\d+)*)$", runtime)
-              if match is None:
-                  continue
-              version = tuple(int(part) for part in match.group(1).split("-"))
-              for device in devices:
-                  name = device.get("name", "")
-                  udid = device.get("udid", "")
-                  if device.get("isAvailable", True) and name.startswith("iPhone") and udid:
-                      rows.append((version, name == "iPhone 17 Pro", name, udid))
-
-          if not rows:
-              raise SystemExit(1)
-          print(max(rows)[3])
-          '
-          )
-          if [ -z "$UDID" ]; then
-            echo "::error::No available iPhone simulator on this image."
-            exit 1
-          fi
-          xcrun simctl list devices available | grep "$UDID"
-          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-
-      # App Store Connect rejects an upload whose CFBundleVersion repeats one it
-      # already accepted, so the build number cannot stay hardcoded at 1. The git
-      # commit count is monotonic by construction and needs no stored state — the
-      # same source Android's versionCode uses, so the two platforms stay in step.
-      # project.yml keeps 1/1.0.0 as the local-dev fallback; archives should pass
-      # the same override (see docs/RELEASING.md).
-      - name: Compute build number
-        id: build_number
-        run: echo "value=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Build
-        run: |
-          xcodebuild build \
-            -project Loonext.xcodeproj \
-            -scheme Loonext \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
-            CURRENT_PROJECT_VERSION="${{ steps.build_number.outputs.value }}" \
-            CODE_SIGNING_ALLOWED=NO
-
-      # #238: the scheme's tests are LoonextTests and LoonextUITests. The second
-      # target runs performAccessibilityAudit() over the primary flows, so an
-      # unnamed control, small hit region, low contrast or clipped large text
-      # fails here. It is the OS's audit and not VoiceOver; the spoken pass
-      # stays a person with a phone (docs/ACCESSIBILITY.md).
-      - name: Unit and accessibility audit tests
-        run: |
-          set -o pipefail
-          xcodebuild test \
-            -project Loonext.xcodeproj \
-            -scheme Loonext \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
-            -resultBundlePath "$RUNNER_TEMP/ios-tests.xcresult" \
-            CODE_SIGNING_ALLOWED=NO | tee /tmp/ios-tests.log
-
-      # [#599] A SKIPPED TEST REPORTS GREEN, WHICH IS BACKWARDS.
-      #
-      # Two cases in ThreadControllerResyncTests skipped on EVERY run of this job
-      # from the day they were written — the keychain a simulator host does not
-      # have — and one of them was the #215 contract that a message the backend
-      # holds, which no realtime event delivered, is recovered. Nothing in the
-      # summary said so: an XCTSkip is indistinguishable from a pass here.
-      #
-      # LoonextTests already made this decision once, for a different cause. See
-      # MissingSource.swift: six source scans used to throw XCTSkip when they
-      # could not read the file they check, and every one was converted to a
-      # failure because "the conditions that produce a missing file are exactly
-      # the conditions under which the scan has verified nothing at all". An
-      # environment a test needs and does not have is the same shape.
-      #
-      # This is the backstop, not the rule. The rule is not to write one.
-      - name: No test may skip its way to green
-        run: |
-          if grep -q "Test skipped" /tmp/ios-tests.log; then
-            echo "::error::An iOS test skipped. A skip reports as a pass, so the"
-            echo "::error::property it asserts is unproven and nothing says so."
-            grep "Test skipped" /tmp/ios-tests.log | sed 's/^/  /'
-            exit 1
-          fi
-          echo "No test skipped."
-
-      # #540: pictures a person can inspect, not pixel goldens. The hosted test
-      # renders the real ForYouList in both themes and at normal/accessibility
-      # text sizes, keeps every viewport as an XCTAttachment, and asserts the
-      # images are not blank. Exporting from the xcresult is the supported path
-      # that preserves successful-test attachments; writing into a simulator
-      # container would leave the host guessing where Xcode installed the app.
-      # Also when a test failed: a failing accessibility audit is exactly when
-      # someone needs to see the screen it measured.
-      - name: Export dashboard screenshots
-        if: ${{ !cancelled() }}
-        run: |
-          if [ ! -d "$RUNNER_TEMP/ios-tests.xcresult" ]; then
-            echo "No test results to export: the tests never ran."
-            exit 0
-          fi
-          ATTACHMENTS="$RUNNER_TEMP/ios-dashboard-screenshots"
-          xcrun xcresulttool export attachments \
-            --path "$RUNNER_TEMP/ios-tests.xcresult" \
-            --output-path "$ATTACHMENTS"
-          COUNT=$(find "$ATTACHMENTS" -type f -name '*.png' | wc -l | tr -d ' ')
-          if [ "$COUNT" -lt 8 ]; then
-            echo "::error::Expected at least two pages for each dashboard variant; exported $COUNT PNGs."
-            exit 1
-          fi
-          echo "Exported $COUNT dashboard screenshot pages."
-
-      - name: Upload dashboard screenshots
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ios-dashboard-screenshots
-          path: ${{ runner.temp }}/ios-dashboard-screenshots
-          retention-days: 14
