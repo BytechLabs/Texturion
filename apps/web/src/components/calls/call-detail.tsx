@@ -10,6 +10,7 @@ import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { RecordHeader } from "@/components/ui/record-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
@@ -171,7 +172,9 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
             : t("shell.directionIncoming")}
         </Row>
         {row.caller_e164 && (
-          <Row label={t("shell.numberLabel")}>{formatPhone(row.caller_e164)}</Row>
+          <Row label={t("shell.numberLabel")}>
+            <CopyablePhoneNumber number={row.caller_e164} label={formatPhone(row.caller_e164)} />
+          </Row>
         )}
         {row.answered_by_name && (
           <Row

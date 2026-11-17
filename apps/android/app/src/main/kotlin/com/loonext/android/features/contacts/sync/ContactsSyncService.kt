@@ -12,29 +12,22 @@ import android.content.SyncResult
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.ContactsContract
+import android.provider.ContactsContract.AggregationExceptions
+import android.provider.ContactsContract.CommonDataKinds.Phone
+import android.provider.ContactsContract.Data
+import android.provider.ContactsContract.RawContacts
 import com.loonext.android.core.diag.CallFlowLog
 import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.model.MessageLocale
-import com.loonext.android.features.contacts.device.ContentResolverDeviceContacts
-import kotlinx.coroutines.runBlocking
 
 /**
- * Writes the Connected-Apps rows (#183, part 3). On each sync it rebuilds the
- * Loonext account's RawContacts from the device address book: delete our prior
- * rows, then insert one aggregation RawContact per dialable number carrying a
- * Phone row plus the "Call with Loonext" / "Text with Loonext" custom-MIME
- * action rows ([buildSyncRawContacts]). Android aggregates each into the person
- * who owns that number, so the actions appear under real contacts.
- *
- * The row PLAN is pure and unit-tested; this class is the thin ContentResolver
- * translation. It reads the device book through [ContentResolverDeviceContacts]
- * (the same source the dialer uses) and needs READ_CONTACTS + WRITE_CONTACTS.
+ * Attaches the Connected Apps actions to existing device contacts without
+ * creating another phone row for the system dialer to match.
  */
 class ContactsSyncAdapter(context: Context) :
     AbstractThreadedSyncAdapter(context, /* autoInitialize = */ true) {
 
     private val pkg = context.packageName
-    private val deviceContacts = ContentResolverDeviceContacts(context)
 
     override fun onPerformSync(
         account: Account,
@@ -44,17 +37,21 @@ class ContactsSyncAdapter(context: Context) :
         syncResult: SyncResult,
     ) {
         runCatching {
-            val contacts = runBlocking { deviceContacts.loadContacts() }
+            val phones = readSourcePhones(provider, account)
             // These rows are rendered by the system Contacts app, so follow the
             // system/device language rather than a Compose-local value.
             val locale = UiLocale.normalizeDevice(UiLocale.deviceTag()) ?: MessageLocale.DEFAULT
-            val plan = buildSyncRawContacts(pkg, contacts, locale)
+            val plan = buildSyncRawContacts(pkg, phones, locale)
 
             val ops = ArrayList<ContentProviderOperation>()
             // Clean slate: drop every RawContact we previously wrote for this
             // account, so removed/renamed device contacts don't leave stragglers.
             ops += ContentProviderOperation
                 .newDelete(syncAdapterUri(RAW_CONTACTS_URI, account))
+                .withSelection(
+                    "${RawContacts.ACCOUNT_NAME} = ? AND ${RawContacts.ACCOUNT_TYPE} = ?",
+                    arrayOf(account.name, account.type),
+                )
                 .build()
 
             for (raw in plan) {
@@ -63,24 +60,23 @@ class ContactsSyncAdapter(context: Context) :
                     .newInsert(syncAdapterUri(RAW_CONTACTS_URI, account))
                     .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, account.name)
                     .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, account.type)
-                    .withValue(ContactsContract.RawContacts.AGGREGATION_MODE,
-                        ContactsContract.RawContacts.AGGREGATION_MODE_DEFAULT)
-                    .withValue(ContactsContract.RawContacts.SYNC1, raw.e164)
                     .build()
                 for (row in raw.dataRows) {
                     ops += ContentProviderOperation
-                        .newInsert(syncAdapterUri(ContactsContract.Data.CONTENT_URI, account))
-                        .withValueBackReference(
-                            ContactsContract.Data.RAW_CONTACT_ID, backRef,
-                        )
-                        .withValue(ContactsContract.Data.MIMETYPE, row.mimeType)
-                        .withValue(ContactsContract.Data.DATA1, row.data1)
-                        .apply {
-                            row.summary?.let { withValue(ContactsContract.Data.DATA2, it) }
-                            row.detail?.let { withValue(ContactsContract.Data.DATA3, it) }
-                        }
+                        .newInsert(syncAdapterUri(Data.CONTENT_URI, account))
+                        .withValueBackReference(Data.RAW_CONTACT_ID, backRef)
+                        .withValue(Data.MIMETYPE, row.mimeType)
+                        .withValue(Data.DATA1, row.number)
+                        .withValue(Data.DATA2, row.summary)
+                        .withValue(Data.DATA3, row.detail)
                         .build()
                 }
+                ops += ContentProviderOperation
+                    .newUpdate(syncAdapterUri(AggregationExceptions.CONTENT_URI, account))
+                    .withValue(AggregationExceptions.TYPE, AggregationExceptions.TYPE_KEEP_TOGETHER)
+                    .withValueBackReference(AggregationExceptions.RAW_CONTACT_ID1, backRef)
+                    .withValue(AggregationExceptions.RAW_CONTACT_ID2, raw.sourceRawContactId)
+                    .build()
                 // Chunk to stay well under the binder transaction ceiling.
                 if (ops.size >= BATCH_LIMIT) {
                     applyBatch(provider, ops)
@@ -92,6 +88,32 @@ class ContactsSyncAdapter(context: Context) :
         }.onFailure { error ->
             syncResult.databaseError = true
             CallFlowLog.log("contacts-sync", "failed: ${error.message}")
+        }
+    }
+
+    private fun readSourcePhones(
+        provider: ContentProviderClient,
+        account: Account,
+    ): List<SyncPhoneRow> {
+        val cursor = checkNotNull(
+            provider.query(
+                Phone.CONTENT_URI,
+                arrayOf(Data.CONTACT_ID, Data.RAW_CONTACT_ID, Phone.NUMBER),
+                "${RawContacts.ACCOUNT_TYPE} IS NULL OR ${RawContacts.ACCOUNT_TYPE} <> ?",
+                arrayOf(account.type),
+                Data.RAW_CONTACT_ID,
+            ),
+        )
+        return cursor.use {
+            val contact = it.getColumnIndexOrThrow(Data.CONTACT_ID)
+            val rawContact = it.getColumnIndexOrThrow(Data.RAW_CONTACT_ID)
+            val number = it.getColumnIndexOrThrow(Phone.NUMBER)
+            buildList {
+                while (it.moveToNext()) {
+                    val value = it.getString(number) ?: continue
+                    add(SyncPhoneRow(it.getLong(contact), it.getLong(rawContact), value))
+                }
+            }
         }
     }
 

@@ -13,8 +13,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -65,6 +69,7 @@ fun PhoneList(
     onRemove: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val clipboard = LocalClipboardManager.current
     var adding by remember { mutableStateOf(false) }
     var draftLabel by remember { mutableStateOf("") }
     var draftPhone by remember { mutableStateOf("") }
@@ -97,6 +102,14 @@ fun PhoneList(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
+                IconButton(onClick = { clipboard.setText(AnnotatedString(entry.phone_e164)) }) {
+                    Icon(
+                        Icons.Outlined.ContentCopy,
+                        contentDescription = t("contactsTasks.copyNumber"),
+                        modifier = Modifier.size(IconSize.Small),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Icon(
                     Icons.Outlined.Close,
                     contentDescription = t(

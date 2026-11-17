@@ -144,6 +144,7 @@ struct CallDetailView: View {
     private struct Fact: Identifiable {
         let label: String
         let value: String
+        var copyValue: String? = nil
         var id: String { label }
     }
 
@@ -156,7 +157,9 @@ struct CallDetailView: View {
             ),
         ]
         if let number = call.caller_e164, !number.isBlank {
-            rows.append(Fact(label: t("shell.numberLabel"), value: formatPhone(number)))
+            rows.append(
+                Fact(label: t("shell.numberLabel"), value: formatPhone(number), copyValue: number)
+            )
         }
         if let name = call.answered_by_name, !name.isBlank {
             rows.append(Fact(label: t(outbound ? "shell.placedBy" : "shell.answeredBy"), value: name))
@@ -228,10 +231,29 @@ struct CallDetailView: View {
                         .font(.golos(12))
                         .foregroundStyle(BrandColor.muted500)
                     Spacer(minLength: 8)
-                    Text(row.value)
-                        .font(.golos(14))
-                        .foregroundStyle(BrandColor.ink)
-                        .multilineTextAlignment(.trailing)
+                    if let copyValue = row.copyValue {
+                        Button {
+                            Haptics.tap()
+                            UIPasteboard.general.string = copyValue
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(row.value)
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .font(.golos(14))
+                            .foregroundStyle(BrandColor.ink)
+                            .multilineTextAlignment(.trailing)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(row.value)
+                        .accessibilityHint(t("shell.copyNumber"))
+                    } else {
+                        Text(row.value)
+                            .font(.golos(14))
+                            .foregroundStyle(BrandColor.ink)
+                            .multilineTextAlignment(.trailing)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)

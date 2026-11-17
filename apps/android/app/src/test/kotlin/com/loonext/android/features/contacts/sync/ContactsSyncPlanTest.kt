@@ -1,23 +1,13 @@
 package com.loonext.android.features.contacts.sync
 
 import com.loonext.android.core.model.MessageLocale
-import com.loonext.android.features.contacts.device.DeviceContact
-import com.loonext.android.features.contacts.device.DevicePhoneNumber
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** #183 part 3: the pure DeviceContact → ContactsContract row plan. */
 class ContactsSyncPlanTest {
-
     private val pkg = "com.loonext.android"
-
-    private fun phone(raw: String, e164: String?) =
-        DevicePhoneNumber(raw = raw, e164 = e164, label = "Mobile")
-
-    private fun contact(key: String, name: String, vararg numbers: DevicePhoneNumber) =
-        DeviceContact(lookupKey = key, displayName = name, numbers = numbers.toList())
 
     @Test
     fun `custom MIME types derive from the application id`() {
@@ -26,86 +16,55 @@ class ContactsSyncPlanTest {
     }
 
     @Test
-    fun `each dialable number becomes a raw contact with phone, call, and text rows`() {
-        val plan = buildSyncRawContacts(
-            pkg,
-            listOf(contact("a", "Ada", phone("(416) 555-0123", "+14165550123"))),
-        )
+    fun `a dialable number only adds actions linked to its original raw contact`() {
+        val plan = buildSyncRawContacts(pkg, listOf(SyncPhoneRow(1, 10, "(416) 555-0123")))
         val raw = plan.single()
-        assertEquals("+14165550123", raw.e164)
-        assertEquals("Ada", raw.displayName)
-
+        assertEquals(10L, raw.sourceRawContactId)
         assertEquals(
-            listOf(MIME_PHONE, callMimeType(pkg), textMimeType(pkg)),
-            raw.dataRows.map { it.mimeType },
+            listOf(
+                SyncDataRow(callMimeType(pkg), "+14165550123", "Call with Loonext", "(416) 555-0123"),
+                SyncDataRow(textMimeType(pkg), "+14165550123", "Text with Loonext", "(416) 555-0123"),
+            ),
+            raw.dataRows,
         )
-        // Every row carries the E.164 as DATA1 (the number the action dials/texts).
-        assertTrue(raw.dataRows.all { it.data1 == "+14165550123" })
-
-        val call = raw.dataRows[1]
-        assertEquals("Call with Loonext", call.summary)
-        assertEquals("(416) 555-0123", call.detail)
-        val text = raw.dataRows[2]
-        assertEquals("Text with Loonext", text.summary)
     }
 
     @Test
     fun `connected action rows follow the system Contacts locale`() {
         val plan = buildSyncRawContacts(
             pkg,
-            listOf(contact("a", "Ada", phone("(416) 555-0123", "+14165550123"))),
+            listOf(SyncPhoneRow(1, 10, "(416) 555-0123")),
             MessageLocale.FR_CA,
         )
 
-        assertEquals("Appeler avec Loonext", plan.single().dataRows[1].summary)
-        assertEquals("Envoyer un texto avec Loonext", plan.single().dataRows[2].summary)
+        assertEquals("Appeler avec Loonext", plan.single().dataRows[0].summary)
+        assertEquals("Envoyer un texto avec Loonext", plan.single().dataRows[1].summary)
     }
 
     @Test
     fun `non-dialable numbers are skipped`() {
-        val plan = buildSyncRawContacts(
-            pkg,
-            listOf(
-                contact(
-                    "a", "Intl",
-                    phone("+44 20 7946 0958", null), // not US/CA -> no e164 -> skipped
-                    phone("416-555-0123", "+14165550123"),
-                ),
-            ),
-        )
-        // Only the dialable number produced a raw contact.
-        assertEquals(1, plan.size)
-        assertEquals("+14165550123", plan.single().e164)
-    }
-
-    @Test
-    fun `a contact with no dialable number produces nothing`() {
-        val plan = buildSyncRawContacts(
-            pkg,
-            listOf(contact("a", "Intl", phone("+44 20 7946 0958", null))),
-        )
+        val plan = buildSyncRawContacts(pkg, listOf(SyncPhoneRow(1, 10, "+44 20 7946 0958")))
         assertTrue(plan.isEmpty())
     }
 
     @Test
-    fun `the same number across contacts yields a single raw contact`() {
+    fun `shared numbers only dedupe within the same aggregate contact`() {
         val plan = buildSyncRawContacts(
             pkg,
             listOf(
-                contact("a", "Ada", phone("416-555-0123", "+14165550123")),
-                contact("b", "Bob", phone("(416) 555-0123", "+14165550123")),
+                SyncPhoneRow(1, 10, "416-555-0123"),
+                SyncPhoneRow(1, 11, "(416) 555-0123"),
+                SyncPhoneRow(2, 20, "(416) 555-0123"),
             ),
         )
-        assertEquals(1, plan.size)
-        // First-seen contact owns the shared number.
-        assertEquals("Ada", plan.single().displayName)
+        assertEquals(listOf(10L, 20L), plan.map { it.sourceRawContactId })
     }
 
     @Test
     fun `contactsActionKind maps our MIME types and rejects others`() {
         assertEquals(ContactsActionKind.CALL, contactsActionKind(callMimeType(pkg), pkg))
         assertEquals(ContactsActionKind.TEXT, contactsActionKind(textMimeType(pkg), pkg))
-        assertNull(contactsActionKind(MIME_PHONE, pkg))
+        assertNull(contactsActionKind("vnd.android.cursor.item/phone_v2", pkg))
         assertNull(contactsActionKind(null, pkg))
         assertNull(contactsActionKind("vnd.android.cursor.item/vnd.other.app.call", pkg))
     }
