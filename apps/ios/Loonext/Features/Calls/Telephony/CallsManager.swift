@@ -53,6 +53,7 @@ final class CallsManager {
     @ObservationIgnored private let core: SoftphoneCore
     @ObservationIgnored private let callKit: CallKitBridge
     @ObservationIgnored private let voipPush: VoipPushAdapter
+    @ObservationIgnored private var workspaceNumbers: (companyId: String, numbers: Set<String>)?
 
     /// Calls currently reported to CallKit (lowercased UUID strings).
     @ObservationIgnored private var reportedToCallKit: Set<String> = []
@@ -108,6 +109,10 @@ final class CallsManager {
     func start(companyId: String, callerIdName: String = "") {
         voipPush.start()
         core.start(companyId: companyId, callerIdName: callerIdName)
+    }
+
+    func setWorkspaceNumbers(_ numbers: [String]?, companyId: String) {
+        workspaceNumbers = numbers.map { (companyId, Set($0)) }
     }
 
     /// Status-pill tap — force a re-registration now (refused mid-call).
@@ -536,9 +541,14 @@ final class CallsManager {
         let rawName = (metadata["caller_name"] as? String)
             ?? (metadata["caller_id_name"] as? String)
             ?? ""
-        let name = rawName.isBlank
-            ? (number.isEmpty ? "Unknown caller" : formatPhone(number))
-            : rawName
+        let company = core.companyId ?? prefs.activeCompanyId
+        let numbers = workspaceNumbers?.companyId == company ? workspaceNumbers?.numbers : nil
+        let identity = pushedCallerIdentity(
+            number: number,
+            name: rawName,
+            workspaceNumbers: numbers,
+            locale: UiLocaleStore.shared.resolved
+        )
         // Telnyx stamps the SDK call UUID into the push so the reported
         // CallKit call and the arriving INVITE line up.
         let uuid = (metadata["call_id"] as? String).flatMap(UUID.init(uuidString:)) ?? UUID()
@@ -547,7 +557,9 @@ final class CallsManager {
         // 1. REQUIRED synchronously: the CallKit report.
         reportedToCallKit.insert(id)
         lastPhases[id] = .ringing
-        callKit.reportIncoming(uuid: uuid, displayName: name, number: number) { [weak self] error in
+        callKit.reportIncoming(
+            uuid: uuid, displayName: identity.name, number: identity.number
+        ) { [weak self] error in
             guard error == nil else { return }
             self?.beaconCallKitTookRing(id)
         }
@@ -555,7 +567,7 @@ final class CallsManager {
 
         // 2. Wake the SDK. Signed out / no workspace = nothing can ring —
         //    end the reported call honestly instead of hanging the screen.
-        guard let company = core.companyId ?? prefs.activeCompanyId else {
+        guard let company else {
             endDanglingPushCall(id: id, uuid: uuid, reason: .failed)
             return
         }

@@ -24,6 +24,20 @@ func callerDisplayName(_ call: Call) -> String {
     return "Unknown caller"
 }
 
+func pushedCallerIdentity(
+    number: String,
+    name: String,
+    workspaceNumbers: Set<String>?,
+    locale: String
+) -> (name: String, number: String) {
+    let normalized = Nanp.normalize(number) ?? number
+    guard let workspaceNumbers, !workspaceNumbers.isEmpty, !number.isBlank,
+          !workspaceNumbers.contains(normalized) else {
+        return (AppStrings.translate(locale, "shell.pushCallTitle"), "")
+    }
+    return (name.isBlank ? formatPhone(normalized) : name, normalized)
+}
+
 /// "4m 32s" / "58s" — talk time for answered calls (never ring time).
 func formatCallDuration(_ seconds: Int) -> String {
     let whole = max(0, seconds)

@@ -68,7 +68,7 @@ final class CallKitBridge: NSObject {
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(
             type: number.isEmpty ? .generic : .phoneNumber,
-            value: number.isEmpty ? "Unknown caller" : number
+            value: number.isEmpty ? displayName : number
         )
         update.localizedCallerName = displayName
         update.hasVideo = false

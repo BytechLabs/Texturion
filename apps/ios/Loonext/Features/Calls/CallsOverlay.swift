@@ -16,8 +16,12 @@ struct CallsOverlay: View {
 
     private let manager: CallsManager
     private let service: CallsService
-
     @State private var expanded = false
+
+    private var workspaceNumbers: [String]? {
+        guard let company = me.company, company.id == companyId else { return nil }
+        return company.numbers.compactMap(\.number_e164)
+    }
 
     init(
         graph: AppGraph,
@@ -47,7 +51,11 @@ struct CallsOverlay: View {
             CallChip(manager: manager) { expanded = true }
         }
             .task(id: companyId) {
+                manager.setWorkspaceNumbers(workspaceNumbers, companyId: companyId)
                 manager.start(companyId: companyId, callerIdName: me.display_name)
+            }
+            .onChange(of: workspaceNumbers) { _, numbers in
+                manager.setWorkspaceNumbers(numbers, companyId: companyId)
             }
             // Auto-surface the full screen the moment a call connects
             // (answering from the CallKit screen must land the user on the

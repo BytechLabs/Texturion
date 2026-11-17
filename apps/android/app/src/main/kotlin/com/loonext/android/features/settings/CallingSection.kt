@@ -108,6 +108,7 @@ fun CallingSection(
     // #278: how they ring first, then the exception — "this is how a call
     // reaches you… except after hours" reads in that order.
     RingCard(scope, company, onCompanyUpdated)
+    CallDeviceSettingsCard()
     // #278: after the voicemail cards, before screening — it is a routing
     // decision about the SAME calls those describe, so it reads as a qualifier
     // on them rather than a new subject.

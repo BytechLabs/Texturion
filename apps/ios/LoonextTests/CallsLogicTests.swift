@@ -57,6 +57,39 @@ final class CallsLogicTests: XCTestCase {
         XCTAssertEqual("Unknown caller", callerDisplayName(call()))
     }
 
+    func testVoIPPushHidesTheWorkspaceNumberBeforeTheInvite() {
+        let identity = pushedCallerIdentity(
+            number: "(416) 555-0134",
+            name: "Workspace name",
+            workspaceNumbers: ["+14165550134"],
+            locale: "fr-CA"
+        )
+        XCTAssertEqual(AppStrings.translate("fr-CA", "shell.pushCallTitle"), identity.name)
+        XCTAssertEqual("", identity.number)
+    }
+
+    func testVoIPPushOnColdStartUsesAGenericCaller() {
+        let identity = pushedCallerIdentity(
+            number: "+14165550134",
+            name: "Workspace name",
+            workspaceNumbers: nil,
+            locale: "en"
+        )
+        XCTAssertEqual("Incoming call", identity.name)
+        XCTAssertEqual("", identity.number)
+    }
+
+    func testVoIPPushKeepsAnExternalCaller() {
+        let identity = pushedCallerIdentity(
+            number: "+14165550135",
+            name: "Dana",
+            workspaceNumbers: ["+14165550134"],
+            locale: "en"
+        )
+        XCTAssertEqual("Dana", identity.name)
+        XCTAssertEqual("+14165550135", identity.number)
+    }
+
     func testOutcomeLabelsMatchTheWebsPlainLanguage() {
         XCTAssertEqual("Missed", callOutcomeLabel(call(outcome: "missed")))
         XCTAssertEqual(
