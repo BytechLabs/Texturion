@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -36,5 +36,18 @@ export function useSearch(q: string) {
     enabled: trimmed.length >= 2,
     staleTime: 15_000,
     placeholderData: (previous) => previous, // keep results while typing
+  });
+}
+
+export function useInboxSearch(q: string) {
+  const companyId = useCompanyId();
+  const trimmed = q.trim();
+  return useInfiniteQuery({
+    queryKey: [...keys.search(companyId, trimmed), "inbox"],
+    queryFn: ({ pageParam, signal }) => fetchSearch(companyId, trimmed, pageParam ?? undefined, signal),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
+    enabled: trimmed.length >= 2,
+    staleTime: 15_000,
   });
 }

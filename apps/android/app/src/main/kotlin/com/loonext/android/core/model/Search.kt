@@ -3,6 +3,21 @@ package com.loonext.android.core.model
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class SearchContactConversation(
+    val id: String,
+    val status: String,
+    val last_message_at: String? = null,
+)
+
+@Serializable
+data class SearchContactHit(
+    val id: String,
+    val name: String? = null,
+    val phone_e164: String,
+    val conversation: SearchContactConversation? = null,
+)
+
+@Serializable
 data class SearchConversationHit(
     val id: String,
     val status: String,
@@ -19,7 +34,7 @@ data class SearchConversationHit(
 data class SearchTaskHit(
     val id: String,
     val title: String,
-    val conversation_id: String,
+    val conversation_id: String? = null,
     val done: Boolean = false,
     val matched_at: String,
     /** #690: the task number, so a picker can write `#T-142`. */
@@ -62,7 +77,7 @@ data class SearchVoicemailHit(
 @Serializable
 data class SearchResult(
     val conversations: List<SearchConversationHit> = emptyList(),
-    val contacts: List<ContactSummary> = emptyList(),
+    val contacts: List<SearchContactHit> = emptyList(),
     val tasks: List<SearchTaskHit> = emptyList(),
     val attachments: List<SearchAttachmentHit> = emptyList(),
     val templates: List<SearchTemplateHit> = emptyList(),

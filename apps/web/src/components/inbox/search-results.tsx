@@ -1,12 +1,13 @@
 "use client";
 
 import { ListSkeleton } from "@/components/ui/list-skeleton";
-import { Lock, SearchX } from "lucide-react";
+import { Lock, MessageSquarePlus, SearchX } from "lucide-react";
 import Link from "next/link";
 import { Fragment } from "react";
 
+import { useCanOpenSettings } from "@/components/settings/settings-link-guard";
 import { useT } from "@/i18n/provider";
-import { useSearch } from "@/lib/api/search";
+import { useInboxSearch } from "@/lib/api/search";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 
@@ -14,6 +15,14 @@ import { StatusPill } from "./status-pill";
 import { threadHref } from "@/lib/inbox/thread-href";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
+import { Button } from "@/components/ui/button";
+
+interface SearchLink {
+  id: string;
+  title: string;
+  href: string;
+  snippet?: string;
+}
 
 /**
  * ts_headline emits <b>…</b> around matches (api_search SQL). Parse just
@@ -35,19 +44,15 @@ export function renderSnippet(snippet: string): React.ReactNode[] {
   );
 }
 
-/**
- * G4 search view: replaces the list when the query is ≥2 chars. Results
- * grouped Conversations / Contacts with snippet highlights; contacts open
- * the compose flow pre-filled.
- */
 export function SearchResults({ q }: { q: string }) {
   const t = useT();
-  const search = useSearch(q);
+  const search = useInboxSearch(q);
+  const canOpenSettings = useCanOpenSettings();
 
   if (search.isPending) {
     return <SearchSkeleton />;
   }
-  if (search.isError) {
+  if (search.isError && !search.data) {
     return (
       <LoadError
         variant="fill"
@@ -58,8 +63,48 @@ export function SearchResults({ q }: { q: string }) {
   }
   if (!search.data) return <SearchSkeleton />;
 
-  const { conversations, contacts } = search.data;
-  if (conversations.length === 0 && contacts.length === 0) {
+  const [firstPage] = search.data.pages;
+  const conversations = search.data.pages.flatMap((page) => page.conversations);
+  const seenConversations = new Set<string>();
+  const uniqueConversations = conversations.filter(({ id }) => {
+    if (seenConversations.has(id)) return false;
+    seenConversations.add(id);
+    return true;
+  });
+  const { contacts, tasks, attachments, voicemails, templates } = firstPage;
+  const otherGroups = [
+    {
+      heading: t("shell.navTasks"),
+      hits: tasks.map((task) => ({ id: task.id, title: task.title, href: `/tasks?task=${task.id}` })),
+    },
+    {
+      heading: t("shell.groupVoicemails"),
+      hits: voicemails.map((hit) => ({
+        id: hit.id,
+        title: hit.caller_e164 ? formatPhone(hit.caller_e164) : t("shell.voicemail"),
+        href: `/calls/${hit.call_session_id}`,
+        snippet: hit.snippet,
+      })),
+    },
+    {
+      heading: t("shell.groupAttachments"),
+      hits: attachments.flatMap((hit) => hit.conversation_id ? [{
+        id: hit.id,
+        title: hit.file_name,
+        href: threadHref(hit.conversation_id),
+      }] : []),
+    },
+    {
+      heading: t("shell.groupTemplates"),
+      hits: canOpenSettings("templates") ? templates.map((hit) => ({
+        id: hit.id,
+        title: hit.name,
+        href: "/settings/templates",
+        snippet: hit.snippet,
+      })) : [],
+    },
+  ];
+  if (!uniqueConversations.length && !contacts.length && !otherGroups.some((group) => group.hits.length)) {
     return (
       <EmptyState
         className="flex-1"
@@ -71,12 +116,12 @@ export function SearchResults({ q }: { q: string }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      {conversations.length > 0 && (
+      {uniqueConversations.length > 0 && (
         <section aria-label={t("inbox.searchConversationsAria")}>
           <h3 className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">
             {t("inbox.searchConversationsHeading")}
           </h3>
-          {conversations.map((hit) => (
+          {uniqueConversations.map((hit) => (
             <Link
               key={hit.id}
               href={threadHref(hit.id, { messageId: hit.matched_message_id })}
@@ -118,23 +163,76 @@ export function SearchResults({ q }: { q: string }) {
           <h3 className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">
             {t("inbox.searchContactsHeading")}
           </h3>
-          {contacts.map((contact) => (
-            <Link
-              key={contact.id}
-              href={`/inbox/new?contact=${contact.id}`}
-              className="flex items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-            >
-              <span className="truncate text-sm font-medium text-foreground">
-                {contactDisplayName(contact)}
-              </span>
-              <span className="shrink-0 text-xs tabular-nums text-foreground-tertiary">
-                {formatPhone(contact.phone_e164)}
-              </span>
-            </Link>
-          ))}
+          {contacts.map((contact) => {
+            const compose = `/inbox/new?contact=${contact.id}`;
+            const thread = contact.conversation?.id;
+            return (
+              <div key={contact.id} className="flex items-center border-b border-border-subtle">
+                <Link
+                  href={thread ? threadHref(thread) : compose}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                >
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {contactDisplayName(contact)}
+                  </span>
+                  <span className="shrink-0 text-xs tabular-nums text-foreground-tertiary">
+                    {formatPhone(contact.phone_e164)}
+                  </span>
+                </Link>
+                {thread && (
+                  <Link
+                    href={compose}
+                    aria-label={t("recordMenu.text")}
+                    className="grid min-h-11 min-w-11 place-items-center text-muted-foreground hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  >
+                    <MessageSquarePlus className="size-4" strokeWidth={1.75} aria-hidden />
+                  </Link>
+                )}
+              </div>
+            );
+          })}
         </section>
       )}
+      {otherGroups.map(({ heading, hits }) => (
+        <SearchLinkGroup key={heading} heading={heading} hits={hits} />
+      ))}
+      {search.hasNextPage && (
+        <div className="px-4 py-3">
+          {search.isFetchNextPageError && (
+            <p className="mb-2 text-sm text-destructive" role="alert">{t("inbox.searchFailed")}</p>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={search.isFetchingNextPage}
+            onClick={() => void search.fetchNextPage()}
+          >
+            {t("shell.loadMore")}
+          </Button>
+        </div>
+      )}
     </div>
+  );
+}
+
+function SearchLinkGroup({ heading, hits }: { heading: string; hits: SearchLink[] }) {
+  if (!hits.length) return null;
+  return (
+    <section aria-label={heading}>
+      <h3 className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">{heading}</h3>
+      {hits.map((hit) => (
+        <Link
+          key={hit.id}
+          href={hit.href}
+          className="block border-b border-border-subtle px-4 py-3 hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
+          <span className="block truncate text-sm font-medium text-foreground">{hit.title}</span>
+          {hit.snippet && (
+            <span className="block truncate text-sm text-muted-foreground">{renderSnippet(hit.snippet)}</span>
+          )}
+        </Link>
+      ))}
+    </section>
   );
 }
 

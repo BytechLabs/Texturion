@@ -129,13 +129,13 @@ import com.loonext.android.ui.common.conversationActions
 import java.time.Instant
 import java.time.ZoneId
 import com.loonext.android.core.snooze.snoozeReturnLabel
-import com.loonext.android.core.model.ContactSummary
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ConversationStatus
 import com.loonext.android.core.model.statusToggleAllowed
 import com.loonext.android.core.model.isConversationFlaggedUrgent
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
+import com.loonext.android.core.model.SearchContactHit
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.model.Tag
@@ -2810,7 +2810,14 @@ private fun SearchResultsPane(
                 SectionHeader(t("inbox.searchHeadingContacts"), count = result.contacts.size)
                 PaperCard {
                     result.contacts.forEachIndexed { index, contact ->
-                        SearchContactRow(contact, onClick = { onTextContact(contact.id) })
+                        val threadId = contact.conversation?.id
+                        SearchContactRow(
+                            contact,
+                            onClick = {
+                                if (threadId == null) onTextContact(contact.id) else onOpen(threadId)
+                            },
+                            onText = threadId?.let { { onTextContact(contact.id) } },
+                        )
                         if (index != result.contacts.lastIndex) RowDivider()
                     }
                 }
@@ -2968,47 +2975,46 @@ private fun TaskRing(done: Boolean) {
 }
 
 @Composable
-private fun SearchContactRow(contact: ContactSummary, onClick: () -> Unit) {
+private fun SearchContactRow(
+    contact: SearchContactHit,
+    onClick: () -> Unit,
+    onText: (() -> Unit)?,
+) {
     val name = contact.name ?: formatPhone(contact.phone_e164)
     Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 15.dp, vertical = 11.dp),
+        Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SearchAvatar(name, size = 38.dp)
-        Spacer(Modifier.width(11.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                name,
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                formatPhone(contact.phone_e164),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 1.dp),
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Box(
-            Modifier
-                .size(34.dp)
-                .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape),
-            contentAlignment = Alignment.Center,
+        Row(
+            Modifier.weight(1f).clickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                Icons.AutoMirrored.Outlined.Chat,
-                contentDescription = t(
-                    "inbox.contactTextAria",
-                    "name" to (contact.name ?: t("inbox.contactFallback")),
-                ),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(IconSize.Small),
-            )
+            SearchAvatar(name, size = 38.dp)
+            Spacer(Modifier.width(11.dp))
+            Column {
+                Text(
+                    name,
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    formatPhone(contact.phone_e164),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 1.dp),
+                )
+            }
+        }
+        if (onText != null) {
+            IconButton(onClick = onText) {
+                Icon(
+                    Icons.AutoMirrored.Outlined.Chat,
+                    contentDescription = t("inbox.contactTextAria", "name" to name),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(IconSize.Small),
+                )
+            }
         }
     }
 }
