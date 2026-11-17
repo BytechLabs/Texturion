@@ -81,7 +81,9 @@ describe("buildCampaignContent — create-path block", () => {
     }) as Record<string, string>;
     expect(body.sample1).toBe(long); // create path allows 1024
     expect(body.messageFlow).toBe(DRAFT.messageFlow);
-    expect(body.description).toContain("post-service review requests");
+    expect(body.description).toContain("post-service ratings and review requests");
+    expect(body.sample4).toContain("Acme Plumbing: A reminder");
+    expect(body.sample5).toContain("Acme Plumbing: We missed your call");
     // sample3 rides both create and update payloads → always ≤255.
     expect(body.sample3).toBe(buildReviewSample("Acme Plumbing"));
     expect(body.sample3.length).toBeLessThanOrEqual(

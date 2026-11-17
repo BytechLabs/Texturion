@@ -30,12 +30,13 @@ insert into auth.users (id, email) values
   ('5d000000-0000-4000-8000-00000000000a'::uuid, 'later-a@test.local');
 
 insert into public.companies
-  (id, name, owner_user_id, country, requested_area_code, aup_accepted_at)
+  (id, name, owner_user_id, country, requested_area_code, aup_accepted_at,
+   subscription_status, plan)
 values
   ('5d000000-0000-4000-8000-0000000000c1'::uuid, 'Later Plumbing',
-   '5d000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now()),
+   '5d000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now(), 'active', 'starter'),
   ('5d000000-0000-4000-8000-0000000000c2'::uuid, 'Other Plumbing',
-   '5d000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now());
+   '5d000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now(), 'active', 'starter');
 
 insert into public.company_members (company_id, user_id, role) values
   ('5d000000-0000-4000-8000-0000000000c1'::uuid,
@@ -644,6 +645,59 @@ begin
   end;
 
   raise notice 'SM-13 PASSED: defaults are today''s behaviour and bounded';
+end $$;
+
+do $$
+declare
+  v_company uuid := '5d000000-0000-4000-8000-0000000000c1';
+  v_conversation uuid := '5d000000-0000-4000-8000-0000000000e1';
+  v_actor uuid := '5d000000-0000-4000-8000-00000000000a';
+  v_id uuid;
+  v_answer jsonb;
+begin
+  insert into public.scheduled_messages
+    (company_id, conversation_id, created_by, body, send_at, expires_at,
+     clock_timezone, clock_source, claimed_at)
+  values (v_company, v_conversation, v_actor, 'Old body', now() - interval '1 minute',
+    now() + interval '1 hour', 'America/New_York', 'contact', now())
+  returning id into v_id;
+
+  update public.scheduled_messages set body = 'Edited body', claimed_at = null
+    where id = v_id;
+  v_answer := public.api_fire_scheduled_message(v_id, 1, now());
+  if v_answer->>'outcome' is distinct from 'gone' then
+    raise exception 'The stale claim was allowed to fire: %', v_answer;
+  end if;
+
+  update public.scheduled_messages set claimed_at = now() where id = v_id;
+  v_answer := public.api_fire_scheduled_message(v_id, 1, now());
+  if v_answer->'message'->>'body' is distinct from 'Edited body' then
+    raise exception 'The new claim did not fire the edited body: %', v_answer;
+  end if;
+
+  insert into public.scheduled_messages
+    (company_id, conversation_id, created_by, body, send_at, expires_at,
+     clock_timezone, clock_source, claimed_at)
+  values (v_company, v_conversation, v_actor, 'Follow up', now() - interval '1 minute',
+    now() + interval '1 hour', 'America/New_York', 'contact', now())
+  returning id into v_id;
+
+  update public.conversations set opt_out_hint_at = now() where id = v_conversation;
+  v_answer := public.api_fire_scheduled_message(v_id, 1, now());
+  if v_answer->>'reason_key' is distinct from 'opt_out_unresolved' then
+    raise exception 'An unresolved request did not hold the text: %', v_answer;
+  end if;
+
+  if public.api_resolve_opt_out_hint(v_company, v_conversation, v_actor,
+       now(), 'not_an_opt_out') is distinct from 'resolved' then
+    raise exception 'Dismissing the opt-out request failed';
+  end if;
+  if exists (select 1 from public.conversations
+      where id = v_conversation and opt_out_hint_at is not null)
+    or exists (select 1 from public.scheduled_messages
+      where id = v_id and next_attempt_at is not null) then
+    raise exception 'The dismissed request still delays the text';
+  end if;
 end $$;
 
 rollback;

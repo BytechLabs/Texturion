@@ -8,6 +8,7 @@ import Foundation
 final class ComposerDrafts {
     /// The new-conversation screen's draft rides a fixed slot.
     static let newConversation = "new"
+    static let modeKeyPrefix = "loonext:composer-draft-mode:"
 
     private let defaults: UserDefaults
 
@@ -17,6 +18,10 @@ final class ComposerDrafts {
 
     private func key(_ conversationId: String) -> String {
         "composer-draft:\(conversationId)"
+    }
+
+    private func modeKey(_ conversationId: String) -> String {
+        Self.modeKeyPrefix + conversationId
     }
 
     func load(_ conversationId: String) -> String {
@@ -31,8 +36,17 @@ final class ComposerDrafts {
         }
     }
 
+    func loadMode(_ conversationId: String) -> ComposerMode {
+        defaults.string(forKey: modeKey(conversationId)) == "note" ? .note : .text
+    }
+
+    func saveMode(_ conversationId: String, mode: ComposerMode) {
+        defaults.set(mode.rawValue, forKey: modeKey(conversationId))
+    }
+
     func clear(_ conversationId: String) {
         defaults.removeObject(forKey: key(conversationId))
+        defaults.removeObject(forKey: modeKey(conversationId))
         defaults.removeObject(forKey: mentionKey(conversationId))
     }
 

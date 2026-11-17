@@ -70,16 +70,13 @@ export async function recordCarrierOptOut(
   input: CarrierOptOutInput,
 ): Promise<boolean> {
   try {
-    // Resurrect a revoked row first, then try a fresh insert that yields
-    // nothing on conflict. Whichever returns a row is the transition; if
-    // neither does, the number was already opted out and there is nothing new
-    // to say. Same shape as the manual route, for the same race.
+    // A carrier block must also replace a staff-revocable opt-out.
     const revived = await db
       .from("opt_outs")
       .update({ source: "carrier", created_by: null, revoked_at: null })
       .eq("company_id", input.companyId)
       .eq("phone_e164", input.phoneE164)
-      .not("revoked_at", "is", null)
+      .or("revoked_at.not.is.null,source.in.(manual,import)")
       .select("id");
     if (revived.error) throw new Error(revived.error.message);
 

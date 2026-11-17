@@ -98,6 +98,10 @@ const FR_CA: ScheduledDisclosureCopy = {
     service_unavailable:
       "Les textos sont en pause pendant que nous réglons un problème. " +
       "Ceci est toujours en file et rien n'a été perdu.",
+    usage_cap_reached: "Le plafond de dépenses de l’espace a été atteint.",
+    rate_limited: "L’espace a atteint sa limite horaire de textos.",
+    quiet_hours: "Ce texto attend la fin des heures de tranquillité du client.",
+    opt_out_unresolved: "Examinez la demande de désabonnement du client avant l’envoi de ce texto.",
     calendar_unverified:
       "La synchronisation du calendrier est déconnectée ou n'a pas été " +
       "vérifiée récemment, alors ce rappel est en attente. Il partira après " +

@@ -1316,6 +1316,21 @@ class ThreadController(
         return next
     }
 
+    fun resolveOptOutHint(hintAt: String, optedOut: Boolean) {
+        scope.launch {
+            try {
+                repo.resolveOptOutHint(companyId, conversationId, hintAt, optedOut)
+                refreshConversationDetail()
+                refreshContact()
+                refreshEvents()
+                refreshScheduled()
+            } catch (cause: Exception) {
+                notify(say("thread.optOutHintFailed"))
+                runCatching { refreshConversationDetail() }
+            }
+        }
+    }
+
     fun setSpam(spam: Boolean) {
         scope.launch {
             try {

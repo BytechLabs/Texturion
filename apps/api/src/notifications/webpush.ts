@@ -13,6 +13,7 @@
  * private scalar, and a base64url 16-byte auth secret.
  */
 import type { Env } from "../env";
+import { fetchWithDeadline } from "../http/deadline";
 
 /**
  * #576 (2) — the hosts a push endpoint may name.
@@ -383,11 +384,11 @@ export async function sendWebPush(
     "Content-Type": "application/octet-stream",
   };
   if (topic !== null) headers.Topic = topic;
-  const response = await fetch(target.endpoint, {
+  const response = await fetchWithDeadline(target.endpoint, {
     method: "POST",
     headers,
     body: body as BodyInit,
-  });
+  }, 10_000);
   // On success there's no body we need — drain to release the socket. On a
   // NON-OK response, keep a bounded snippet of the service's error text (#147):
   // it's the diagnostic lead for a silent push outage (a VAPID mismatch etc.).

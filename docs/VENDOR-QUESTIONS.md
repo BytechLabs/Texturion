@@ -27,6 +27,14 @@ never on a schedule. Several could go in one support message.
 
 ## OPEN
 
+### Telnyx STOP punctuation, HELP copy, and campaign samples
+
+Run S24 on the guarded rig with `STOP.`, `HELP`, and `ARRET` to record
+which replies Telnyx sends and whether the profile blocks after punctuation.
+Have the robot send `START` to clean up a block. Confirm with Telnyx whether
+adding samples to an approved 10DLC campaign triggers re-vetting before
+backfilling existing campaigns. The app records punctuated STOP independently.
+
 ### V2 — what Telnyx emits on a campaign SUSPENSION · Telnyx · blocks nothing today
 
 **The question.** When a 10DLC campaign that was `MNO_ACCEPTED` is later

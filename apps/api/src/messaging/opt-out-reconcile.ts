@@ -136,13 +136,15 @@ async function reconcileCompany(
 
   const { data, error } = await db
     .from("opt_outs")
-    .select("phone_e164")
+    .select("phone_e164,source")
     .eq("company_id", company.id)
     .is("revoked_at", null);
   if (error) throw new Error(`opt_outs read failed: ${error.message}`);
 
-  const ours = new Set(
-    ((data ?? []) as { phone_e164: string }[]).map((row) => row.phone_e164),
+  const ours = new Map(
+    ((data ?? []) as { phone_e164: string; source: string }[]).map(
+      (row) => [row.phone_e164, row.source],
+    ),
   );
   // De-duplicated: the carrier lists one record per profile per number, but a
   // company with several numbers on one profile can produce repeats.
@@ -150,7 +152,8 @@ async function reconcileCompany(
 
   const carrierOnly: string[] = [];
   for (const phone of theirs) {
-    if (ours.has(phone)) continue;
+    const source = ours.get(phone);
+    if (source === "stop_keyword" || source === "carrier") continue;
     const recorded = await recordCarrierOptOut(db, {
       companyId: company.id,
       phoneE164: phone,
@@ -164,7 +167,7 @@ async function reconcileCompany(
   }
 
   let oursOnly = 0;
-  for (const phone of ours) {
+  for (const phone of ours.keys()) {
     if (!theirs.has(phone)) oursOnly += 1;
   }
 

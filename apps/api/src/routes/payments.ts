@@ -626,6 +626,14 @@ paymentRequestRoutes.post(
       "payment request lookup",
     )[0];
     if (!row) return errorResponse(c, "not_found", "No such payment request.");
+    const view = await loadPaymentView(db, companyId, row.conversation_id);
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: view.phone_number_id ?? null,
+      need: "text",
+    });
 
     const state = paymentRequestState(row);
     if (state === "paid" || state === "refunded" || state === "disputed") {

@@ -386,6 +386,10 @@ enum DomainStrings {
             "domain.scheduledHoldServiceUnavailable":
                 "Texting is paused while we deal with an issue. This is still queued "
                 + "and nothing was lost.",
+            "domain.scheduledHoldUsageCap": "The workspace spending cap has been reached.",
+            "domain.scheduledHoldRateLimit": "The workspace has reached its hourly texting limit.",
+            "domain.scheduledHoldQuietHours": "This text is waiting until the customer's quiet hours end.",
+            "domain.scheduledHoldOptOutUnresolved": "Review the customer's opt-out request before this text can send.",
             "domain.scheduledHoldCalendarUnverified":
                 "Calendar sync is disconnected or has not checked in recently, so this "
                 + "reminder is waiting. It will send after sync is verified again.",
@@ -895,6 +899,10 @@ enum DomainStrings {
             "domain.scheduledHoldServiceUnavailable":
                 "Les textos sont en pause pendant que nous réglons un problème. Ceci "
                 + "est toujours en file et rien n'a été perdu.",
+            "domain.scheduledHoldUsageCap": "Le plafond de dépenses de l’espace a été atteint.",
+            "domain.scheduledHoldRateLimit": "L’espace a atteint sa limite horaire de textos.",
+            "domain.scheduledHoldQuietHours": "Ce texto attend la fin des heures de tranquillité du client.",
+            "domain.scheduledHoldOptOutUnresolved": "Examinez la demande de désabonnement du client avant l’envoi de ce texto.",
             "domain.scheduledHoldCalendarUnverified":
                 "La synchronisation du calendrier est déconnectée ou n'a pas été "
                 + "vérifiée récemment, alors ce rappel est en attente. Il partira après "

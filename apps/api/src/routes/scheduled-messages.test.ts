@@ -18,6 +18,7 @@ const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
+const SCHEDULED_ID = "cccccccc-0000-4000-8000-00000000000c";
 
 let auth: TestAuth;
 const app = buildTestApp(scheduledMessageRoutes);
@@ -107,7 +108,7 @@ describe("PATCH /v1/scheduled-messages/:id follows the machine (#722)", () => {
     }));
     sb.on("PATCH", "/rest/v1/scheduled_messages", () => [{ id: "s1", status, body: "New words" }]);
     stubFetch(jwksRoute(auth), sb.route);
-    return apiRequest(app, env, await auth.token(), "/v1/scheduled-messages/s1", {
+    return apiRequest(app, env, await auth.token(), `/v1/scheduled-messages/${SCHEDULED_ID}`, {
       method: "PATCH",
       companyId: COMPANY_ID,
       body: { body: "New words" },

@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import { useT } from "@/i18n/provider";
 import { THREAD_MESSAGE_PARAM } from "@/lib/inbox/thread-href";
 import { useCompanyId } from "@/lib/company/provider";
+import { restoreComposerDraft, saveFailedSend } from "@/lib/messaging/composer-drafts";
 
 import { detailInversePatch, detailPatchMessage, doneMutationPatch, listApplyConversation, pinMutationPatch, snippetFromMessage, threadInversePatch, threadPatchMessage,threadUpsertMessages } from './cache';
 import type { ThreadData } from './cache';
@@ -212,6 +213,7 @@ export function sentConversationPatch(
 export function useSendMessage(conversationId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
+  const t = useT();
   return useMutation({
     mutationFn: (input: {
       body: string;
@@ -224,6 +226,7 @@ export function useSendMessage(conversationId: string) {
        * retry affordance keep the old behaviour.
        */
       idempotencyKey?: string;
+      draftSignature?: string;
       /**
        * #475: the saved reply this message was built from, if any.
        *
@@ -253,6 +256,23 @@ export function useSendMessage(conversationId: string) {
             : {}),
         },
       }),
+    onError: (error, input) => {
+      if (input.draftSignature === undefined || !input.idempotencyKey) return;
+      saveFailedSend(conversationId, {
+        signature: input.draftSignature,
+        key: input.idempotencyKey,
+      });
+      restoreComposerDraft(conversationId, input.body, "sms");
+      toast.error(
+        error instanceof ApiError ? error.message : t("thread.sendFailedConnection"),
+        {
+          action: {
+            label: t("misc.realtimeView"),
+            onClick: () => window.location.assign(`/inbox/${conversationId}`),
+          },
+        },
+      );
+    },
     onSuccess: (message) => {
       queryClient.setQueryData<ThreadData>(
         keys.thread(companyId, conversationId),

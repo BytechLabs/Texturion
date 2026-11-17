@@ -84,6 +84,10 @@ export const SCHEDULED_HOLD_REASONS = {
    * Recoverable: the calendar pull loop advances `last_verified_at`, and the
    * held reminder is eligible again on the next scheduled-send sweep.
    */
+  usage_cap_reached: "The workspace spending cap has been reached.",
+  rate_limited: "The workspace has reached its hourly texting limit.",
+  quiet_hours: "This text is waiting until the customer's quiet hours end.",
+  opt_out_unresolved: "Review the customer's opt-out request before this text can send.",
   calendar_unverified:
     "Calendar sync is disconnected or has not checked in recently, so this reminder is waiting. It will send after sync is verified again.",
 
@@ -166,6 +170,10 @@ export const SCHEDULED_HOLD_REASON_KEYS = {
   workspace_paused: "domain.scheduledHoldWorkspacePaused",
   registration_pending: "domain.scheduledHoldRegistrationPending",
   service_unavailable: "domain.scheduledHoldServiceUnavailable",
+  usage_cap_reached: "domain.scheduledHoldUsageCap",
+  rate_limited: "domain.scheduledHoldRateLimit",
+  quiet_hours: "domain.scheduledHoldQuietHours",
+  opt_out_unresolved: "domain.scheduledHoldOptOutUnresolved",
   calendar_unverified: "domain.scheduledHoldCalendarUnverified",
   customer_replied: "domain.scheduledHoldCustomerReplied",
   recipient_opted_out: "domain.scheduledHoldOptedOut",
@@ -221,6 +229,10 @@ export function scheduledReasonRecovers(reason: ScheduledHoldReason): boolean {
     reason === "workspace_paused" ||
     reason === "registration_pending" ||
     reason === "service_unavailable" ||
+    reason === "usage_cap_reached" ||
+    reason === "rate_limited" ||
+    reason === "quiet_hours" ||
+    reason === "opt_out_unresolved" ||
     reason === "calendar_unverified" ||
     reason === "customer_replied"
   );
