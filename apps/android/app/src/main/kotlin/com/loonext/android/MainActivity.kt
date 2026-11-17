@@ -41,15 +41,20 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -59,8 +64,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.loonext.android.core.data.CacheKeys
@@ -111,6 +119,8 @@ import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.features.thread.canAddLeadSource
 import com.loonext.android.push.APP_ORIGIN
+import com.loonext.android.push.PushHooks
+import com.loonext.android.push.clearConversationNotifications
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
@@ -122,7 +132,11 @@ import com.loonext.android.ui.common.imeHost
 import com.loonext.android.ui.theme.LoonextTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -151,6 +165,8 @@ sealed interface DeepLink {
      * param, §17.7; that was scenario 2's dead end).
      */
     data class Calls(val sessionId: String? = null) : DeepLink
+
+    data object ForYou : DeepLink
 
     /**
      * #523: a settings screen the server pointed somebody at. [section] is null
@@ -220,6 +236,8 @@ fun deepLinkFor(
     // tap landed.
     segments.firstOrNull() == "settings" ->
         DeepLink.Settings(settingsSectionFor(segments.getOrNull(1)))
+
+    segments.firstOrNull() == "for-you" -> DeepLink.ForYou
 
     else -> null
 }
@@ -307,13 +325,15 @@ class MainActivity : FragmentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        parseDeepLink(intent?.data)?.let { deepLinks.value = it }
-        // #183 part 3: a "Call/Text with Loonext" tap arrives as a VIEW intent
-        // on the tapped contact data row — resolve it to a Dial/ComposeTo link.
-        parseContactsActionIntent(intent)?.let { deepLinks.value = it }
-        // OAuth redirect (#166) — buffered until AuthFlow mounts on cold start.
-        intent?.data?.takeIf { it.scheme == OAUTH_REDIRECT_SCHEME }
-            ?.let(AuthCallbacks::deliver)
+        if (savedInstanceState == null) {
+            parseDeepLink(intent?.data)?.let { deepLinks.value = it }
+            // #183 part 3: a "Call/Text with Loonext" tap arrives as a VIEW intent
+            // on the tapped contact data row — resolve it to a Dial/ComposeTo link.
+            parseContactsActionIntent(intent)?.let { deepLinks.value = it }
+            // OAuth redirect (#166) — buffered until AuthFlow mounts on cold start.
+            intent?.data?.takeIf { it.scheme == OAUTH_REDIRECT_SCHEME }
+                ?.let(AuthCallbacks::deliver)
+        }
         val graph = (application as LoonextApp).graph
         setContent {
             val themePref by graph.prefs.theme
@@ -492,7 +512,9 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
             LoadError(current.message, onRetry = root::retry)
         }
 
-        is RootState.Ready -> ReadyShell(graph, current.me, current.companyId, root, deepLinks)
+        is RootState.Ready -> key(current.companyId) {
+            ReadyShell(graph, current.me, current.companyId, root, deepLinks)
+        }
     }
 }
 
@@ -531,32 +553,46 @@ private fun PreShellHost(content: @Composable () -> Unit) {
  * pushed surface with a visible nav bar is not constructible. The stack makes
  * task → conversation → back → task work with one BackHandler.
  */
+@Serializable
 private sealed interface Overlay {
+    @Serializable
     data class Thread(
         val conversationId: String,
         /** Search-result jump target: scroll to + flash this message. */
         val highlightMessageId: String? = null,
     ) : Overlay
+    @Serializable
     data class Task(val taskId: String) : Overlay
+    @Serializable
     data class Contact(val contactId: String) : Overlay
 
     /** #734: one call's own page, by carrier session id. */
+    @Serializable
     data class Call(val sessionId: String) : Overlay
+    @Serializable
     data class Compose(
         val prefillContactId: String?,
         /** #183 part 3: a raw number to seed the recipient with (a "Text with
          *  Loonext" tap on a device contact that has no app contact yet). */
         val prefillPhone: String? = null,
     ) : Overlay
+    @Serializable
     data object Notifications : Overlay
 
     /** #735: the workspace Trash, with Restore and Delete forever. */
+    @Serializable
     data object Trash : Overlay
 
     /** [section] opens straight at one section, for a surface that is offering
      *  a specific setting as the fix for what the reader is looking at. */
+    @Serializable
     data class Settings(val section: SettingsSection? = null) : Overlay
 }
+
+private val OverlayStackSaver = Saver<SnapshotStateList<Overlay>, String>(
+    save = { Json.encodeToString(it.toList()) },
+    restore = { Json.decodeFromString<List<Overlay>>(it).toMutableStateList() },
+)
 
 @Composable
 private fun ReadyShell(
@@ -569,7 +605,9 @@ private fun ReadyShell(
     val context = LocalContext.current
     var sheetOpen by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableStateOf(ShellTab.ForYou) }
-    val routeStack = remember { androidx.compose.runtime.mutableStateListOf<Overlay>() }
+    val routeStack = rememberSaveable(saver = OverlayStackSaver) {
+        androidx.compose.runtime.mutableStateListOf<Overlay>()
+    }
     fun push(route: Overlay) = routeStack.add(route)
     fun pop() { routeStack.removeLastOrNull() }
     fun openTrash() { if (routeStack.lastOrNull() !is Overlay.Trash) push(Overlay.Trash) }
@@ -609,8 +647,26 @@ private fun ReadyShell(
     // The thread the user is LOOKING at right now (tab-internal or overlay) —
     // suppresses the global inbound toast for that conversation (#165).
     var tabViewedConversation by remember { mutableStateOf<String?>(null) }
-    val viewedConversation = (routeStack.lastOrNull() as? Overlay.Thread)?.conversationId
-        ?: tabViewedConversation
+    val viewedConversation = when (val route = routeStack.lastOrNull()) {
+        is Overlay.Thread -> route.conversationId
+        null -> tabViewedConversation
+        else -> null
+    }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, viewedConversation) {
+        val observer = LifecycleEventObserver { _, _ ->
+            val foreground = viewedConversation.takeIf {
+                lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            }
+            PushHooks.foregroundConversationId = foreground
+            foreground?.let { clearConversationNotifications(context, it) }
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            PushHooks.foregroundConversationId = null
+        }
+    }
 
     // The process-wide softphone. get() also INSTALLS the call-wake +
     // call-end push handlers (calls-v3 §10.2: SoftphoneManager's init is the
@@ -658,6 +714,11 @@ private fun ReadyShell(
                             runCatching { softphone.onIncomingCallPush(session) }
                         }
                     }
+                }
+
+                DeepLink.ForYou -> {
+                    routeStack.clear()
+                    tab = ShellTab.ForYou
                 }
 
                 // #523: settings is ONE routed surface whose open section is
@@ -729,6 +790,14 @@ private fun ReadyShell(
     LaunchedEffect(companyId) {
         graph.realtime.events.collect { event ->
             countsKey++
+            if (
+                event.event == "read.conversation" &&
+                (event.payload["user_id"] as? JsonPrimitive)?.contentOrNull == me.user_id &&
+                (event.payload["is_read"] as? JsonPrimitive)?.booleanOrNull == true
+            ) {
+                val conversationId = (event.payload["conversation_id"] as? JsonPrimitive)?.contentOrNull
+                conversationId?.let { clearConversationNotifications(context, it) }
+            }
             // §9.1/§10.1: the `call.updated` broadcast now carries {state,
             // answered_by_user_id} — forward a ringing-exit state to the
             // softphone so a presenting device stops presenting (silence only;

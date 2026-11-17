@@ -10499,3 +10499,13 @@ probe `messages`.
 - **Detaching the run with no saved job.** An eviction would lose the voicemail, which the journal protects today.
 
 **Revisit when** another effect that runs after the call has ended makes a vendor or model call. It belongs beside the FIFO too.
+
+## Emergency texts bypass delivery holds once per burst (#795)
+
+The first emergency after an hour without another emergency can bypass a member's
+quiet hours and volume holds. The emergency claim checks the previous timestamp
+under the conversation lock and returns whether the new alert may bypass those
+settings. This applies when the workspace disables the customer reply or sending
+that reply is blocked. Subsequent emergency texts still use high-priority push
+and follow each member's delivery preferences. The inbound message must be newly
+created for the handler to claim or deliver an alert.

@@ -1151,8 +1151,8 @@ class HeldNumbersTest {
             src.contains("StatusPill(\"Ported\", PillTone.Positive)"),
         )
         assertTrue(
-            "the pill must be decided by portPill(status, heldLine)",
-            src.contains("portPill(port.status, heldLine)"),
+            "the pill uses the current locale",
+            src.contains("portPill(port.status, heldLine, locale)"),
         )
         assertTrue(
             "the hold must be resolved from the numbers list, not from the port row",

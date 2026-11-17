@@ -213,10 +213,13 @@ describe("the claim it routes through", () => {
 
   it("sends nothing when there is no active number to send from", async () => {
     const conv = conversationStub("pending");
-    const claim = stubRoute(rpcMatch(env, "claim_emergency_ack"), () => ({}));
+    const claim = stubRoute(rpcMatch(env, "claim_emergency_ack"), (call) => {
+      expect(call.body).toMatchObject({ p_reply_allowed: false });
+      return { skipped: "reply_disabled", notify_immediately: true };
+    });
     const outcome = await send([conv, claim]);
     expect(outcome).toEqual({ sent: false, reason: "not_found" });
-    expect(claim.calls).toHaveLength(0);
+    expect(claim.calls).toHaveLength(1);
   });
 });
 

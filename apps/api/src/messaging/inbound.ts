@@ -529,6 +529,7 @@ export async function handleInboundMessage(
   // Best-effort for the same reason as the away reply, and the same throttle
   // discipline makes a replay a no-op. Note it runs regardless of business
   // hours: an emergency at 2pm with the crew on a roof is still an emergency.
+  let emergencyClaimed = false;
   if (threaded.created && emergency) {
     try {
       await sendEmergencyAcknowledgment(env, db, {
@@ -545,6 +546,9 @@ export async function handleInboundMessage(
         // trip when somebody has just said their heat is out. The safety line
         // inside is translated with it, which is the half that matters.
         companyLocale: company?.locale ?? null,
+        onEmergencyClaimed: () => {
+          emergencyClaimed = true;
+        },
       });
     } catch (error_) {
       console.error(
@@ -663,6 +667,7 @@ export async function handleInboundMessage(
         allowEmail: emergency || allowEmail,
         allowPush: emergency || allowPush,
         emergency,
+        emergencyClaimed,
         // #391: a first inbound on a new or reopened thread is a lead.
         lead:
           threaded.notify_reason === "new" ||

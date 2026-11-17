@@ -1039,7 +1039,7 @@ create trigger registrations_broadcast after insert or update on public.messagin
 | `conversation.updated` | `{conversation_id}` | number |
 | `task.changed` | `{conversation_id}` (TASKS.md T1.3 — create / assign / reschedule / soft-delete; **not** done, which rides `message.status`) | number |
 | `call.updated` | `{call_id, conversation_id, call_session_id, state, answered_by_user_id}` (#133 — /calls + the For You Recent-calls section refresh live) | number, **or company when the call's number was deleted** — the one deliberate exception above |
-| `read.conversation` | `{conversation_id, user_id}` (#358 — carries the `user_id` so a client ignores a colleague's reading) | number |
+| `read.conversation` | `{conversation_id, user_id, is_read}` (clients clear notifications only when their own thread becomes read) | number |
 | `port.updated` | `{port_request_id, status, messaging_port_status}` (PORTING.md §8.2) | number |
 | `payment.updated` | `{conversation_id, payment_request_id, type}` (#607 — a deposit cleared, was refunded or was disputed; `type` is the `conversation_event_type` label verbatim, and `payment_request_id` is null unless the row's jsonb held a scalar the uuid parser accepts) | number |
 | `number.updated` | `{number_id, status}` | company |

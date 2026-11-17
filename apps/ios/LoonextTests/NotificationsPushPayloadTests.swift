@@ -7,6 +7,15 @@ import XCTest
 final class NotificationsPushPayloadTests: XCTestCase {
     // MARK: - parsePush
 
+    func testReadClearsThreadAlertsWithoutClearingNoteMentions() {
+        let tags = conversationNotificationTags("c1")
+        let mention = parsePush(["url": "/inbox/c1?message=m1", "tag": "mention:m1"])
+        let emergency = parsePush(["url": "/inbox/c1", "tag": "emergency:c1"])
+        XCTAssertFalse(tags.contains(mention.tag))
+        XCTAssertTrue(tags.contains(emergency.tag))
+        XCTAssertTrue(tags.contains(parsePush(["url": "/inbox/c1"]).tag))
+    }
+
     func testMessagePushLandsOnMessagesCategoryWithConversationTag() {
         let content = parsePush([
             "title": "New text from Dana",
@@ -339,6 +348,22 @@ final class NotificationsPushPayloadTests: XCTestCase {
             parsePushRoute(url: "https://app.loonext.com/calls"),
             .calls(sessionId: nil)
         )
+    }
+
+    func testSettingsAndForYouUrlsRouteToTheirNativeSurfaces() {
+        XCTAssertEqual(
+            parsePushRoute(url: "/settings/notifications"),
+            .settings(section: .notifications)
+        )
+        XCTAssertEqual(
+            parsePushRoute(url: "/settings/account"),
+            .settings(section: .profile)
+        )
+        XCTAssertEqual(
+            parsePushRoute(url: "/settings/newer-section"),
+            .settings(section: nil)
+        )
+        XCTAssertEqual(parsePushRoute(url: "/for-you"), .forYou)
     }
 
     func testPlainInboxFallbackHasNoRoute() {

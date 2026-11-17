@@ -38,7 +38,7 @@ import {
   withFollowers,
   withoutMuted,
 } from "./conversation-prefs";
-import { deliverPush } from "./deliver";
+import { deliverPush, type PushDelivery } from "./deliver";
 import { THREAD_PUSH_COPY } from "./thread-copy";
 import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 
@@ -80,6 +80,8 @@ export interface InboundNotificationInput {
    * neither the debounce nor the daily budget applies (decided upstream).
    */
   emergency?: boolean;
+  /** The first emergency in the claim window can bypass delivery holds. */
+  emergencyClaimed?: boolean;
 }
 
 interface ConversationView {
@@ -313,10 +315,9 @@ export async function notifyInboundMessage(
   // 80-char snippet, deep link) to every push-enabled recipient. #162 iOS
   // coalescing: repeat texts in one thread REPLACE the pending alert rather
   // than stacking, on the `conversation:<id>` tag the clients coalesce on.
-  await deliverPush(env, db, {
-    category: "messages_all",
+  const push: Omit<PushDelivery, "category" | "userIds"> = {
     companyId: input.companyId,
-    userIds: pushUsers,
+    conversationId: input.conversationId,
     // #430: the customer's words. When the workspace has content off, the
     // name still rides — the title is untouched — and only the snippet goes.
     // "Sent you a message" rather than a bare "New message": the tech still
@@ -374,8 +375,24 @@ export async function notifyInboundMessage(
       : (input.lead
         ? { companyId: input.companyId, reason: "lead" }
         : undefined),
+    overridesQuietHours: input.emergencyClaimed
+      ? { reason: "emergency" }
+      : undefined,
     failures,
-  });
+  };
+  const assignee = conversation.assigned_user_id;
+  await Promise.all([
+    deliverPush(env, db, {
+      ...push,
+      category: "messages_mine",
+      userIds: assignee && pushUsers.includes(assignee) ? [assignee] : [],
+    }),
+    deliverPush(env, db, {
+      ...push,
+      category: "messages_all",
+      userIds: pushUsers.filter((userId) => userId !== assignee),
+    }),
+  ]);
 
   if (failures.length > 0) {
     throw new AggregateError(
@@ -384,4 +401,3 @@ export async function notifyInboundMessage(
     );
   }
 }
-

@@ -37,6 +37,7 @@ final class CallKitBridge: NSObject {
         configuration.maximumCallGroups = 2
         configuration.maximumCallsPerCallGroup = 1
         configuration.supportedHandleTypes = [.phoneNumber, .generic]
+        configuration.includesCallsInRecents = false
         provider = CXProvider(configuration: configuration)
         super.init()
         provider.setDelegate(self, queue: nil) // nil = main queue
@@ -52,6 +53,18 @@ final class CallKitBridge: NSObject {
         number: String,
         completion: (@MainActor (Error?) -> Void)? = nil
     ) {
+        let update = callerUpdate(displayName: displayName, number: number)
+        provider.reportNewIncomingCall(with: uuid, update: update) { error in
+            guard let completion else { return }
+            Task { @MainActor in completion(error) }
+        }
+    }
+
+    func updateCaller(uuid: UUID, displayName: String, number: String) {
+        provider.reportCall(with: uuid, updated: callerUpdate(displayName: displayName, number: number))
+    }
+
+    private func callerUpdate(displayName: String, number: String) -> CXCallUpdate {
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(
             type: number.isEmpty ? .generic : .phoneNumber,
@@ -63,10 +76,7 @@ final class CallKitBridge: NSObject {
         update.supportsUngrouping = false
         update.supportsHolding = true
         update.supportsDTMF = true
-        provider.reportNewIncomingCall(with: uuid, update: update) { error in
-            guard let completion else { return }
-            Task { @MainActor in completion(error) }
-        }
+        return update
     }
 
     /// Register an outgoing call with the system (CXStartCallAction); the

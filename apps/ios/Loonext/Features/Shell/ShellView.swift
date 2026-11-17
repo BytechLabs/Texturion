@@ -199,12 +199,25 @@ struct ShellView: View {
             activeSheet = .settings
             router.openSettingsSection = nil
         }
+        .onReceive(router.$openSettings) { open in
+            guard open else { return }
+            router.openSettings = false
+            pendingSettingsSection = nil
+            activeSheet = .settings
+        }
         .onReceive(router.$openCalls) { open in
             guard open else { return }
             router.openCalls = false
             activeSheet = nil
             path.removeAll()
             tab = .calls
+        }
+        .onReceive(router.$openForYou) { open in
+            guard open else { return }
+            router.openForYou = false
+            activeSheet = nil
+            path.removeAll()
+            tab = .forYou
         }
         // #459: the dialer's Text action. Opens compose seeded with the number
         // rather than pushing a thread, because a number we have never texted
@@ -243,14 +256,21 @@ struct ShellView: View {
         .onChange(of: path) { _, next in
             if case .thread(let id, _)? = next.last {
                 router.viewedConversationId = id
+                PushCoordinator.clearConversationNotifications(id)
             } else {
                 router.viewedConversationId = nil
             }
         }
         .task(id: countsKey) { await reloadCounts() }
         .task(id: companyId) {
-            for await _ in await graph.realtime.events() {
+            for await event in await graph.realtime.events() {
                 countsKey &+= 1
+                if event.event == "read.conversation",
+                   event.payload["user_id"]?.stringValue == hydratedMe.user_id,
+                   event.payload["is_read"]?.boolValue == true,
+                   let id = event.payload["conversation_id"]?.stringValue {
+                    PushCoordinator.clearConversationNotifications(id)
+                }
             }
         }
         // #215: reload the nav counts + avatar dot on a socket re-JOIN and on
@@ -782,6 +802,14 @@ struct ShellView: View {
                     let manager = CallsManager.get(graph: graph)
                     Task { try? await manager.onIncomingCallPush(sessionId: sessionId) }
                 }
+            case .settings(let section):
+                if let section {
+                    AppRouter.shared.openSettingsSection = section
+                } else {
+                    AppRouter.shared.openSettings = true
+                }
+            case .forYou:
+                AppRouter.shared.openForYou = true
             }
         }
         PushHooks.callWakeHandler = { content in

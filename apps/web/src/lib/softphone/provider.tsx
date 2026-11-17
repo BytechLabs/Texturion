@@ -30,6 +30,7 @@ import { roleHasCapability } from "@loonext/shared";
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import {
+  declineIncomingCall,
   useAuthorizeBrowserCall,
   useResolveLiveSession,
   useWebrtcToken,
@@ -1047,7 +1048,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     const ringSession = ringSessionsRef.current.get(targetId);
     if (ringSession && call?.state === "ringing") {
       ringSessionsRef.current.delete(targetId);
-      void emitRingBeacon(companyRef.current, "declined", ringSession);
+      const companyId = companyRef.current;
+      if (companyId) void declineIncomingCall(companyId, ringSession).catch(() => {});
+      void emitRingBeacon(companyId, "declined", ringSession);
     }
     try {
       call?.hangup();

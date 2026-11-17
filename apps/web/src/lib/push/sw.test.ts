@@ -25,6 +25,7 @@ const WORKER_TIMERS = {
 
 interface WindowClientStub {
   url: string;
+  focused?: boolean;
   focus?: ReturnType<typeof vi.fn>;
   navigate?: ReturnType<typeof vi.fn>;
   postMessage?: ReturnType<typeof vi.fn>;
@@ -317,6 +318,40 @@ describe("normalizeNotificationUrl", () => {
 });
 
 describe("push event listener", () => {
+  it("silently retires the push for the thread in the focused tab", async () => {
+    const tag = "conversation:thread-1";
+    const notification = { tag: `loonext:${tag}`, close: vi.fn() };
+    const other = { tag: "loonext:conversation:thread-2", close: vi.fn() };
+    const sw = loadServiceWorker(
+      [{ url: `${ORIGIN}/inbox/thread-1?message=m-1`, focused: true }],
+      [notification, other],
+    );
+    const raw = JSON.stringify({ url: "/inbox/thread-1", tag });
+
+    await dispatch(sw.listeners, "push", { data: { text: () => raw } });
+
+    expect(sw.showNotification).toHaveBeenCalledExactlyOnceWith(
+      "Loonext", expect.objectContaining({ silent: true, renotify: false }),
+    );
+    expect(notification.close).toHaveBeenCalledOnce();
+    expect(other.close).not.toHaveBeenCalled();
+  });
+
+  it("clears thread alerts on open and keeps a separate mention", async () => {
+    const message = { tag: "loonext:conversation:thread-1", close: vi.fn() };
+    const emergency = { tag: "loonext:emergency:thread-1", close: vi.fn() };
+    const mention = { tag: "loonext:mention:note-1", close: vi.fn() };
+    const sw = loadServiceWorker([], [message, emergency, mention]);
+
+    await dispatch(sw.listeners, "message", {
+      data: { type: "loonext:thread-opened", conversationId: "thread-1" },
+    });
+
+    expect(message.close).toHaveBeenCalledOnce();
+    expect(emergency.close).toHaveBeenCalledOnce();
+    expect(mention.close).not.toHaveBeenCalled();
+  });
+
   it("shows the formatted notification from the event payload", async () => {
     const sw = loadServiceWorker();
     const raw = JSON.stringify({

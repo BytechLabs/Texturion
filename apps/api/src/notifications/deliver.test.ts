@@ -627,6 +627,29 @@ describe("#244 member quiet hours", () => {
     ).toBe(false);
   });
 
+  it("an emergency bypasses quiet hours and every volume hold", async () => {
+    const sb = quietWorld();
+
+    await deliverPush(
+      env,
+      getDb(env),
+      delivery({ overridesQuietHours: { reason: "emergency" } }),
+    );
+
+    const lookup = sb.calls.find(
+      (call) => call.path === "/rest/v1/push_subscriptions",
+    );
+    const targeted = lookup?.url.searchParams.get("user_id") ?? "";
+    expect(targeted).toContain(SLEEPING);
+    expect(targeted).toContain(AWAKE);
+    expect(
+      sb.calls.some((call) => call.path === "/rest/v1/notification_prefs"),
+    ).toBe(false);
+    expect(
+      sb.calls.some((call) => call.path === "/rest/v1/pending_notifications"),
+    ).toBe(false);
+  });
+
   it("QH-3: the window is read for THIS workspace only", async () => {
     // Preferences are keyed (user_id, company_id): a member of two workspaces
     // has two windows, and reading by user alone would apply the wrong one.

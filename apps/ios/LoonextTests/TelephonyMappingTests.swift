@@ -135,6 +135,8 @@ private final class FakeBackend: CallsBackend {
     var byLegHits = 0
     var resolvedByLegCcids: [String] = []
     var ringMeCalls: [String] = []
+    var noLocalLegValues: [Bool] = []
+    var liveState = "ringing"
     var ringMeError: ApiError?
 
     /// #213: the server session (S) the next authorize returns. The op leg then
@@ -184,10 +186,15 @@ private final class FakeBackend: CallsBackend {
         TransferAck(status: "ringing")
     }
 
-    func ringMe(companyId: String, sessionId: String) async throws -> RingAck {
+    func sessionState(companyId: String, sessionId: String) async throws -> RingSessionState {
+        RingSessionState(state: liveState)
+    }
+
+    func ringMe(companyId: String, sessionId: String, noLocalLeg: Bool) async throws -> RingAck {
         ringMeCalls.append(sessionId)
+        noLocalLegValues.append(noLocalLeg)
         if let ringMeError { throw ringMeError }
-        return RingAck(ok: true)
+        return RingAck(ok: true, rang: true, state: "ringing", reason: nil)
     }
 }
 
@@ -987,6 +994,20 @@ final class TelephonyMappingTests: XCTestCase {
         try await core.onIncomingCallPush(sessionId: "sess-live")
         XCTAssertEqual(1, sdk.connects)
         XCTAssertEqual(1, backend.tokenMints)
+        XCTAssertEqual([true], backend.noLocalLegValues)
+    }
+
+    func testRingMeSkipsAnsweredSessionsAndCallsAlreadyPresented() async throws {
+        let (core, sdk, backend) = makeCore()
+        try await startReady(core)
+        backend.liveState = "answered"
+        try await core.onIncomingCallPush(sessionId: "sess-answered")
+
+        backend.liveState = "ringing"
+        sdk.ring(FakeHandle(id: "in-1", callControlId: "ccid-in-1"),
+                 name: "Dana", number: "+16135550100", sessionHeader: "sess-ringing")
+        try await core.onIncomingCallPush(sessionId: "sess-ringing")
+        XCTAssertTrue(backend.ringMeCalls.isEmpty)
     }
 
     // MARK: recovery (fresh mint on auth failure; never during a live call)

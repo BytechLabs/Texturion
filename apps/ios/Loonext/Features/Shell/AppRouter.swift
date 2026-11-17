@@ -62,6 +62,8 @@ struct InboxDestination: Equatable, Sendable {
     @Published var openCallSessionId: String?    // command (#734): open this call's own page by carrier session id (shell pushes, then clears)
     @Published var callsReason: String?          // command (#725): narrow the calls log to one reason (the calls tab reads it, then clears)
     @Published var openCalls: Bool = false        // command: show the calls tab
+    @Published var openForYou: Bool = false       // command: show the personal queue
+    @Published var openSettings: Bool = false     // command: show the settings hub
     @Published var openContacts: Bool = false     // command: show the contacts surface
     @Published var openTrash: Bool = false        // command (#735): present the native Trash sheet
     // #508 command: show the inbox landed on a filter. Two fields for the same

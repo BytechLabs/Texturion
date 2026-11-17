@@ -48,8 +48,8 @@ const FRAGMENTS: readonly string[] = [
   // #244's quiet hours. The reassurance is the load-bearing one: without it
   // nobody switches the window on, because the fear is missing the emergency.
   "Quiet hours",
-  "Your phone stays quiet for ordinary messages. If you are on call, or ",
-  "an alert nobody picked up widens to the crew, it still comes through.",
+  "Your phone stays quiet for ordinary messages. New emergencies, on-call pages, ",
+  "and alerts nobody picked up still come through.",
   "Off — every notification reaches you at any hour.",
   "Quiet from",
   "This applies to this workspace only.",

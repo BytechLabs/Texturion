@@ -617,18 +617,28 @@ private final class InboxController {
     func reload(showLoading: Bool) {
         loadSeq += 1
         let seq = loadSeq
+        let keepLoaded = if case .ready = state { !showLoading } else { false }
         if showLoading { state = .loading }
         Task {
             do {
                 let page = try await fetchPage(cursor: nil, pinned: "exclude")
-                let pinnedPage = try? await fetchPage(cursor: nil, pinned: "only")
+                let pinnedPage: Page<ConversationListItem>?
+                if keepLoaded {
+                    pinnedPage = try await fetchPage(cursor: nil, pinned: "only")
+                } else {
+                    pinnedPage = try? await fetchPage(cursor: nil, pinned: "only")
+                }
+                try Task.checkCancellation()
                 if seq != loadSeq { return }
                 rows = page.data
                 cursor = page.next_cursor
                 pinnedRows = pinnedPage?.data ?? []
                 state = .ready(())
+            } catch is CancellationError {
+                return
             } catch {
-                if seq == loadSeq { state = .failed(error.userMessage) }
+                guard seq == loadSeq, !keepLoaded, !Task.isCancelled else { return }
+                state = .failed(error.userMessage)
             }
         }
     }

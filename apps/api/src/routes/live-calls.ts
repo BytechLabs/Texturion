@@ -52,19 +52,16 @@ import { buildConsultState, consultLegs, insertJourneyEvent, issueTransfer, live
 import type { LiveCallRow } from '../messaging/live-call';
 import { LOONEXT_SESSION_HEADER } from "../messaging/inbound-ring";
 import { telnyxRequest } from "../telnyx/client";
-import { parseJsonBody, unwrap } from "./core/http";
+import { parseJsonBody, parseOptionalJsonBody, unwrap } from "./core/http";
 
 const targetBodySchema = z.object({
   target_user_id: z.uuid(),
 });
 
-const ringMeBodySchema = z
-  .object({
-    // §6 v2 wire change: v3 clients ALWAYS send true (calling ring-me only
-    // when holding no live leg IS the attestation). Absent = pre-v3 client.
-    no_local_leg: z.boolean().optional(),
-  })
-  .optional();
+const ringMeBodySchema = z.object({
+  // A missing attestation preserves the older client's live leg.
+  no_local_leg: z.boolean().optional(),
+});
 
 /** The CallSessionDO stub for a session, or null when the binding is absent. */
 function callSessionStub(env: Env, sessionId: string): CallSessionDO | null {
@@ -947,7 +944,7 @@ liveCallsRoutes.post(
     const sessionId = c.req.param("sessionId");
     const companyId = c.get("companyId");
     const userId = c.get("userId");
-    const body = (await parseJsonBody(c, ringMeBodySchema)) ?? {};
+    const body = await parseOptionalJsonBody(c, ringMeBodySchema);
     const noLocalLeg = body.no_local_leg === true;
 
     const call = await liveCallBySession(db, sessionId);

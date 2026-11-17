@@ -225,7 +225,7 @@ export interface PushDelivery {
    * a dozing phone; this asks US to ignore a preference. A missed call routed
    * to the on-call member is the second without being the first.
    */
-  overridesQuietHours?: { reason: "on_call_page" | "escalation" };
+  overridesQuietHours?: { reason: "emergency" | "on_call_page" | "escalation" };
   /**
    * Every failure lands here rather than throwing, so one dead device cannot
    * stop the rest of the fan-out. The caller decides what a non-empty list

@@ -38,6 +38,9 @@ fun interface CallEndHandler {
  */
 object PushHooks {
     @Volatile
+    var foregroundConversationId: String? = null
+
+    @Volatile
     var callWakeHandler: CallWakeHandler? = null
 
     @Volatile

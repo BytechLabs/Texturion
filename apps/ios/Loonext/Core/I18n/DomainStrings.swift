@@ -303,9 +303,8 @@ enum DomainStrings {
             "domain.onCallBannerYours": "You have this. The rest of the crew has been told.",
             "domain.quietHoursHeading": "Quiet hours",
             "domain.quietHoursReassurance":
-                "Your phone stays quiet for ordinary messages. If you are on call, or "
-                + "an alert nobody picked up widens to the crew, it still comes "
-                + "through.",
+                "Your phone stays quiet for ordinary messages. New emergencies, on-call pages, "
+                + "and alerts nobody picked up still come through.",
             "domain.quietHoursOff": "Off — every notification reaches you at any hour.",
             "domain.quietHoursOn": "Quiet from",
             "domain.quietHoursLine": "Quiet from {from} to {to}",
@@ -806,9 +805,8 @@ enum DomainStrings {
                 "Vous vous en occupez. Le reste de l'équipe a été prévenu.",
             "domain.quietHoursHeading": "Heures de silence",
             "domain.quietHoursReassurance":
-                "Votre téléphone reste silencieux pour les messages ordinaires. Si "
-                + "vous êtes de garde, ou si une alerte que personne n'a prise "
-                + "s'élargit à l'équipe, elle passe quand même.",
+                "Votre téléphone reste silencieux pour les messages ordinaires. Les nouvelles urgences, "
+                + "les alertes de garde et celles que personne n'a prises passent quand même.",
             "domain.quietHoursOff":
                 "Désactivé — toutes les notifications vous parviennent à toute heure.",
             "domain.quietHoursOn": "Silence à partir de",

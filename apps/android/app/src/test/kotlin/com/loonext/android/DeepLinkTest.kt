@@ -70,6 +70,11 @@ class DeepLinkTest {
     }
 
     @Test
+    fun `for you opens the personal queue`() {
+        assertEquals(DeepLink.ForYou, deepLinkFor(listOf("for-you")))
+    }
+
+    @Test
     fun `a call PERMALINK carries its session too`() {
         // #336: /calls/<session> matched the "calls" branch and then read only
         // the query param, so a permalink somebody was handed resolved to the

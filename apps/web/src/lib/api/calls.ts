@@ -234,6 +234,13 @@ export function useRingMe() {
   });
 }
 
+export async function declineIncomingCall(companyId: string, sessionId: string) {
+  await apiFetch(
+    `/v1/calls/live/${encodeURIComponent(sessionId)}/decline`,
+    { companyId, method: "POST" },
+  );
+}
+
 /** D43 phase 3: the live call's server-side facts (notes link). */
 export function useLiveCall(sessionId: string | null) {
   const companyId = useCompanyId();

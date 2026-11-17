@@ -77,6 +77,7 @@ class LoonextMessagingService : FirebaseMessagingService() {
         val readerLocale =
             UiLocale.normalizeDevice(UiLocale.deviceTag()) ?: MessageLocale.DEFAULT
         val content = parsePush(data, readerLocale)
+        if (isMessageForOpenConversation(content, PushHooks.foregroundConversationId)) return
 
         // `kind:'call_end'` revocation (calls-v3 §9.2): Android FCM sends are
         // data-only with NO collapse key, so the tray is never replaced by the
@@ -145,6 +146,13 @@ class LoonextMessagingService : FirebaseMessagingService() {
         PushPrefs.companyId(applicationContext)?.let { company ->
             runCatching { softphone.start(company) }
         }
+    }
+}
+
+fun clearConversationNotifications(context: Context, conversationId: String) {
+    val manager = NotificationManagerCompat.from(context)
+    for (tag in conversationNotificationTags(conversationId)) {
+        manager.cancel(tag, PUSH_NOTIFICATION_ID)
     }
 }
 

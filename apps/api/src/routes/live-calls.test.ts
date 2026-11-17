@@ -678,7 +678,10 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
 });
 
 describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel)", () => {
-  it("v3: routes to the DO's ringMe and returns its truthful body", async () => {
+  it.each([
+    { body: { no_local_leg: true }, noLocalLeg: true },
+    { body: undefined, noLocalLeg: false },
+  ])("wires the ring-me attestation $noLocalLeg to the DO", async ({ body, noLocalLeg }) => {
     // Still ringing (no one answered yet) — the whole point of ring-me. The DO
     // owns sequencing/state; the route just wires the requester's eligible
     // credential into DO.ringMe and echoes its reply (§6). ring-me NEVER cancels
@@ -702,7 +705,9 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
             noLocalLeg: boolean;
           }) => {
             captured.push(input);
-            return { rang: true, state: "ringing" };
+            return input.noLocalLeg
+              ? { rang: true, state: "ringing" }
+              : { rang: false, state: "ringing", reason: "live_leg" };
           },
         }),
       } as unknown as Env["CALL_SESSIONS"],
@@ -714,17 +719,21 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
       doEnv,
       await auth.token(),
       `/v1/calls/live/${SESSION}/ring-me`,
-      { companyId: COMPANY_ID, method: "POST", body: { no_local_leg: true } },
+      { companyId: COMPANY_ID, method: "POST", body },
     );
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({ ok: true, rang: true, state: "ringing" });
-    // Routed into THIS member's DO leg with the v2 no_local_leg attestation.
+    await expect(res.json()).resolves.toMatchObject({
+      ok: true,
+      rang: noLocalLeg,
+      state: "ringing",
+      ...(noLocalLeg ? {} : { reason: "live_leg" }),
+    });
     expect(captured).toEqual([
       {
         sessionId: SESSION,
         userId: auth.subject,
         sipUsername: "gencred_target",
-        noLocalLeg: true,
+        noLocalLeg,
       },
     ]);
   });
