@@ -49,6 +49,7 @@ interface WorldOptions {
   queue?: Record<string, unknown>[];
   /** Rows returned for this table, once; every other table is empty. */
   rowsFor?: { table: string; rows: Record<string, unknown>[] };
+  tablePage?: (table: string, query: URLSearchParams) => Record<string, unknown>[];
   uploadFails?: boolean;
   /** The write that marks the export ready fails. */
   readyStampFails?: boolean;
@@ -56,6 +57,15 @@ interface WorldOptions {
   queueFor?: (query: URLSearchParams) => Record<string, unknown>[];
   /** Sees every write to the export row. */
   onWrite?: (body: { status?: string }) => void;
+}
+
+function messagePages(table: string, query: URLSearchParams): { id: string }[] {
+  if (table !== "messages") return [];
+  const lastId = Number(query.get("id")?.slice(3) ?? "0");
+  const limit = Number(query.get("limit"));
+  return Array.from({ length: Math.min(limit, 61_000 - lastId) }, (_, index) => ({
+    id: String(lastId + index + 1),
+  }));
 }
 
 function world(options: WorldOptions = {}): {
@@ -84,8 +94,9 @@ function world(options: WorldOptions = {}): {
   });
   sb.on("POST", "/rest/v1/rpc/record_export_table", () => null);
   for (const table of TABLES) {
-    sb.on("GET", `/rest/v1/${table}`, () =>
-      options.rowsFor?.table === table ? options.rowsFor.rows : [],
+    sb.on("GET", `/rest/v1/${table}`, ({ url }) =>
+      options.tablePage?.(table, url.searchParams) ??
+      (options.rowsFor?.table === table ? options.rowsFor.rows : []),
     );
   }
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, () => ({
@@ -157,6 +168,44 @@ describe(buildDataExports, () => {
     expect(sb.find("POST", "/rest/v1/rpc/record_export_table")).toHaveLength(
       TABLES.length - 3,
     );
+  });
+
+  it("resumes a 61-page table at its last exported row on the next run", async () => {
+    const row = {
+      id: EXPORT_ID,
+      company_id: COMPANY_ID,
+      requested_by: USER_ID,
+      storage_prefix: null,
+      completed_tables: [],
+      row_counts: {},
+    };
+    const first = world({
+      queue: [row],
+      onWrite: (patch) => Object.assign(row, patch),
+      tablePage: messagePages,
+    });
+    stubFetch(...first.routes);
+    expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 60, completed: 0 });
+    const completed = first.sb.find("POST", "/rest/v1/rpc/record_export_table");
+    const finishedTables = completed.map(({ body }) => (body as { p_table: string }).p_table);
+    expect(finishedTables).toEqual(["contacts", "conversations"]);
+    expect(first.uploaded).toHaveLength(60);
+    expect(first.uploaded.at(-1)).toMatch(/messages-0060\.jsonl$/);
+
+    const second = world({
+      queue: [{ ...row, completed_tables: finishedTables, row_counts: { contacts: 0, conversations: 0 } }],
+      tablePage: messagePages,
+    });
+    stubFetch(...second.routes);
+    expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 1, completed: 1 });
+    expect(second.uploaded.map((path) => path.split("/").at(-1))).toEqual([
+      "messages-0061.jsonl",
+      "manifest.json",
+    ]);
+    expect(second.sb.find("POST", "/rest/v1/rpc/record_export_table")[0].body).toMatchObject({
+      p_table: "messages",
+      p_rows: 61_000,
+    });
   });
 
   it("tells the customer when it fails instead of leaving them waiting", async () => {

@@ -7,10 +7,8 @@
  * request enqueues; this builds.
  *
  * ONE TABLE AT A TIME, IN PAGES. Each table is written as numbered JSONL parts
- * and then recorded as done, so an interrupted run resumes at the next table
- * rather than rewriting what is already in the bucket. Nothing larger than one
- * page is ever held in memory, which is what keeps a 200,000-message workspace
- * from being the one that cannot export.
+ * and recorded as done after its last page. The cursor lets exports that
+ * reach the run's part budget continue in the middle of a table.
  *
  * JSONL, not PDF: portability means the data can be loaded somewhere else. A
  * manifest lists every part with its row count, so a reader can tell a
@@ -126,6 +124,12 @@ export interface ExportSummary {
   completed: number;
 }
 
+interface ExportCursor {
+  afterId: string;
+  parts: number;
+  rows: number;
+}
+
 interface ExportRow {
   /** #304: `workspace` (the #227 dump) or `conversation_history`. */
   kind?: string;
@@ -136,6 +140,7 @@ interface ExportRow {
   storage_prefix: string | null;
   completed_tables: string[];
   row_counts: Record<string, number>;
+  table_cursors: Partial<Record<string, ExportCursor>>;
 }
 
 /**
@@ -153,7 +158,7 @@ export async function buildDataExports(
   const { data, error } = await db
     .from("data_exports")
     .select(
-      "id,company_id,requested_by,storage_prefix,completed_tables,row_counts," +
+      "id,company_id,requested_by,storage_prefix,completed_tables,row_counts,table_cursors," +
         // #304: which builder this row wants, and what it asked for.
         "kind,filters",
     )
@@ -207,14 +212,16 @@ async function buildOne(
 ): Promise<{ parts: number; completed: boolean }> {
   const prefix = row.storage_prefix ?? `${row.company_id}/${row.id}`;
   if (row.storage_prefix === null) {
-    await db
+    const { error } = await db
       .from("data_exports")
       .update({ storage_prefix: prefix, status: "running", started_at: now.toISOString() })
       .eq("id", row.id);
+    if (error) throw new Error(`export start stamp failed: ${error.message}`);
   }
 
   const done = new Set(row.completed_tables);
   const counts: Record<string, number> = { ...row.row_counts };
+  const cursors = { ...row.table_cursors };
   let parts = 0;
 
   for (const spec of EXPORT_TABLES) {
@@ -224,8 +231,10 @@ async function buildOne(
       return { parts, completed: false };
     }
 
-    let written = 0;
-    let page = 0;
+    const cursor = cursors[spec.table];
+    let written = cursor?.rows ?? 0;
+    let page = cursor?.parts ?? 0;
+    let afterId = cursor?.afterId;
     for (;;) {
       // Soft-deleted rows stay out: the customer deleted them, and an export
       // that hands them back is not a copy of their workspace, it is a copy of
@@ -235,15 +244,16 @@ async function buildOne(
         .select(spec.columns)
         .eq("company_id", row.company_id);
       if (spec.liveOnly) query = query.is("deleted_at", null);
+      if (afterId) query = query.gt("id", afterId);
       const { data, error } = await query
         .order("id", { ascending: true })
-        .range(page * PAGE, page * PAGE + PAGE - 1);
+        .limit(PAGE);
       if (error) {
         throw new Error(`export ${spec.table} read failed: ${error.message}`);
       }
       // supabase-js parses `select()` at the type level; a column list held in
       // a const table is opaque to it, so the cast goes through `unknown`.
-      const rows = (data ?? []) as unknown as Record<string, unknown>[];
+      const rows = (data ?? []) as unknown as Array<{ id: string }>;
       if (rows.length === 0) break;
 
       const body = rows.map((entry) => JSON.stringify(entry)).join("\n");
@@ -257,7 +267,16 @@ async function buildOne(
       parts += 1;
       page += 1;
       if (rows.length < PAGE) break;
-      if (parts >= MAX_PARTS_PER_RUN) break;
+      afterId = rows[rows.length - 1].id;
+      if (parts >= MAX_PARTS_PER_RUN) {
+        cursors[spec.table] = { afterId, parts: page, rows: written };
+        const { error: cursorError } = await db
+          .from("data_exports")
+          .update({ table_cursors: cursors })
+          .eq("id", row.id);
+        if (cursorError) throw new Error(`export cursor update failed: ${cursorError.message}`);
+        return { parts, completed: false };
+      }
     }
 
     // Recorded only once the parts are safely in the bucket: a table marked
@@ -298,7 +317,7 @@ async function buildOne(
   // failed would leave the row running and send this email on every run.
   const marked = await db
     .from("data_exports")
-    .update({ status: "ready", completed_at: new Date().toISOString() })
+    .update({ status: "ready", completed_at: new Date().toISOString(), table_cursors: {} })
     .eq("id", row.id);
   if (marked.error) {
     throw new Error(`export ready stamp failed: ${marked.error.message}`);

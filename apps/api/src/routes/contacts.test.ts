@@ -1580,8 +1580,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     //   believe. Writing "attested, today" beside an opt-out created in the
     //   same request is the manufactured consent this issue is about.
     const upserts = sb.find("POST", "/rest/v1/contacts");
-    expect(upserts).toHaveLength(1);
-    expect(upserts[0].body).toEqual([
+    expect(upserts.flatMap(({ body }) => body as unknown[])).toEqual([
       {
         company_id: COMPANY_ID,
         phone_e164: "+14165550100",
@@ -1600,11 +1599,6 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         deleted_at: null,
         created_by_user_id: auth.subject, // #191 attribution
         name: "New Person",
-        address: null,
-        lat: null,
-        lng: null,
-        geocoded_at: null,
-        geocode_status: "no_address",
       },
     ]);
     for (const upsert of upserts) {
@@ -4025,6 +4019,38 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     }
   });
 
+  it("exports 3,000 contacts across pages even when their timestamps match", async () => {
+    const sb = stubWithRole("member");
+    const contacts = Array.from({ length: 3_000 }, (_, index) => {
+      const number = 3_000 - index;
+      return {
+        id: `00000000-0000-4000-8000-${String(number).padStart(12, "0")}`,
+        name: `Contact ${number}`,
+        phone_e164: `+1416555${1_000 + number}`,
+        consent_source: null,
+        consent_at: null,
+        created_at: "2026-05-01T00:00:00+00:00",
+      };
+    });
+    sb.on("GET", "/rest/v1/contacts", ({ url }) => {
+      const cursor = url.searchParams.getAll("or")
+        .map((filter) => /id\.lt\.([\da-f-]+)/.exec(filter)?.[1])
+        .find(Boolean);
+      const limit = Math.min(Number(url.searchParams.get("limit")), 1_000);
+      return contacts.filter(({ id }) => cursor === undefined || id < cursor).slice(0, limit);
+    });
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), "/v1/contacts/export", {
+      companyId: COMPANY_ID,
+    });
+
+    expect(response.status).toBe(200);
+    const names = (await response.text()).split("\r\n").slice(1).map((line) => line.split(",")[0]);
+    expect(names).toEqual(contacts.map(({ name }) => name));
+  });
+
   it("neutralizes CSV/formula injection in every column including the phone (OWASP)", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [
@@ -5110,11 +5136,14 @@ describe("geocode cache reset on address writes (D25)", () => {
     expect(patch).toMatchObject({ address: null, geocode_status: "no_address" });
   });
 
-  it("re-queues geocoding on CSV import when the address column is written", async () => {
+  it("re-queues geocoding for a supplied address and keeps blank details", async () => {
     const sb = stubWithRole("admin");
     noStandingOptOuts(sb);
     // Pre-existing contact (already geocoded in reality) → this is an UPDATE.
-    sb.on("GET", "/rest/v1/contacts", () => [{ phone_e164: "+14165550100" }]);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      { phone_e164: "+14165550100" },
+      { phone_e164: "+14165550101" },
+    ]);
     sb.on("POST", "/rest/v1/contacts", (call) => {
       const rows = call.body as { phone_e164: string }[];
       return rows.map((row) => ({ id: CONTACT_ID, phone_e164: row.phone_e164 }));
@@ -5130,29 +5159,23 @@ describe("geocode cache reset on address writes (D25)", () => {
         method: "POST",
         companyId: COMPANY_ID,
         // One row with a (changed) address, one with an empty address cell.
-        rawBody: importForm(
-          "phone,address\n+14165550100,99 New St\n+14165550101,\n",
-        ),
+        rawBody: importForm("phone,address,notes\n+14165550100,99 New St,Gate code\n+14165550101,,\n"),
       },
     );
     expect(res.status).toBe(200);
-    const upsert = sb.find("POST", "/rest/v1/contacts")[0].body as Record<
-      string,
-      unknown
-    >[];
-    // Present address → 'pending' (re-geocode); empty cell → 'no_address'; both
-    // clear the cached lat/lng so the Map view never plots a stale coordinate.
+    const upsert = sb.find("POST", "/rest/v1/contacts")
+      .flatMap(({ body }) => body as Record<string, unknown>[]);
     expect(upsert[0]).toMatchObject({
       address: "99 New St",
+      notes: "Gate code",
       lat: null,
       lng: null,
       geocoded_at: null,
       geocode_status: "pending",
     });
-    expect(upsert[1]).toMatchObject({
-      address: null,
-      geocode_status: "no_address",
-    });
+    expect(upsert[1]).not.toHaveProperty("address");
+    expect(upsert[1]).not.toHaveProperty("geocode_status");
+    expect(upsert[1]).not.toHaveProperty("notes");
   });
 
   it("does NOT touch the geocode cache on CSV import with no address column", async () => {
