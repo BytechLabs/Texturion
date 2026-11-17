@@ -1,0 +1,167 @@
+[
+  {
+    "raw": "",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "(416) 555-0182",
+    "normalized": "+14165550182",
+    "serviceCode": null
+  },
+  {
+    "raw": "14165550182",
+    "normalized": "+14165550182",
+    "serviceCode": null
+  },
+  {
+    "raw": "+1 (416) 555-0182",
+    "normalized": "+14165550182",
+    "serviceCode": null
+  },
+  {
+    "raw": "416.555.0182",
+    "normalized": "+14165550182",
+    "serviceCode": null
+  },
+  {
+    "raw": "+44 7700 900123",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "011 44 7700 900123",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "+1212555012",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "416555018",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "416555018212",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "416X5550182",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "+18765550123",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "9005550123",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "9765550123",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "5005550123",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": "8005550123",
+    "normalized": "+18005550123",
+    "serviceCode": null
+  },
+  {
+    "raw": "8335550123",
+    "normalized": "+18335550123",
+    "serviceCode": null
+  },
+  {
+    "raw": "8445550123",
+    "normalized": "+18445550123",
+    "serviceCode": null
+  },
+  {
+    "raw": "8555550123",
+    "normalized": "+18555550123",
+    "serviceCode": null
+  },
+  {
+    "raw": "8665550123",
+    "normalized": "+18665550123",
+    "serviceCode": null
+  },
+  {
+    "raw": "8775550123",
+    "normalized": "+18775550123",
+    "serviceCode": null
+  },
+  {
+    "raw": "8885550123",
+    "normalized": "+18885550123",
+    "serviceCode": null
+  },
+  {
+    "raw": "211",
+    "normalized": null,
+    "serviceCode": "211"
+  },
+  {
+    "raw": "311",
+    "normalized": null,
+    "serviceCode": "311"
+  },
+  {
+    "raw": "411",
+    "normalized": null,
+    "serviceCode": "411"
+  },
+  {
+    "raw": "511",
+    "normalized": null,
+    "serviceCode": "511"
+  },
+  {
+    "raw": "611",
+    "normalized": null,
+    "serviceCode": "611"
+  },
+  {
+    "raw": "711",
+    "normalized": null,
+    "serviceCode": "711"
+  },
+  {
+    "raw": "811",
+    "normalized": null,
+    "serviceCode": "811"
+  },
+  {
+    "raw": "911",
+    "normalized": null,
+    "serviceCode": "911"
+  },
+  {
+    "raw": "+911",
+    "normalized": null,
+    "serviceCode": null
+  },
+  {
+    "raw": " 911 ",
+    "normalized": null,
+    "serviceCode": "911"
+  },
+  {
+    "raw": "9112",
+    "normalized": null,
+    "serviceCode": null
+  }
+]

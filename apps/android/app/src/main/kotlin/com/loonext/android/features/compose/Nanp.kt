@@ -1,5 +1,6 @@
 package com.loonext.android.features.compose
 
+import com.loonext.android.features.contacts.Nanp as ContactNanp
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -192,12 +193,15 @@ object Nanp {
 
     /**
      * The digits a user typed, normalized for NANP entry: strip everything
-     * non-numeric, drop one leading 1 (country code), cap at 10.
+     * non-numeric and drop the country code from +1 format.
      */
     fun nationalDigits(input: String): String {
-        val digits = input.filter { it.isDigit() }
-        val national = if (digits.startsWith("1")) digits.drop(1) else digits
-        return national.take(10)
+        val digits = input.filter { it in '0'..'9' }
+        return if (input.trim().startsWith("+1") || (digits.length == 11 && digits.startsWith("1"))) {
+            digits.drop(1)
+        } else {
+            digits
+        }
     }
 
     /** '(415) 555-0134' progressive as-you-type formatting of national digits. */
@@ -208,9 +212,7 @@ object Nanp {
         else -> "(${digits.take(3)}) ${digits.drop(3).take(3)}-${digits.drop(6)}"
     }
 
-    /** `+1XXXXXXXXXX` for a complete 10-digit national number, else null. */
-    fun toE164(input: String): String? {
-        val digits = nationalDigits(input)
-        return if (digits.length == 10) "+1$digits" else null
-    }
+    /** Normalize a complete destination with the same rule as contacts. */
+    fun toE164(input: String): String? =
+        ContactNanp.normalize(input)
 }

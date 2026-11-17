@@ -81,34 +81,45 @@ enum Nanp {
         lookupAreaCode(e164) != nil
     }
 
-    /// Normalize free-form phone input to +1 E.164, or nil when it can't be a
-    /// valid US/CA number. Accepts "(416) 555-0123", "416-555-0123",
-    /// "1 416 555 0123", "+14165550123" — anything whose digits are a
-    /// 10-digit NANP number (optionally prefixed with country code 1) whose
-    /// area code is in the table.
+    static func isReachableDestination(_ e164: String) -> Bool {
+        isUsCaDestination(e164)
+            || e164.range(of: #"^\+1(?:800|833|844|855|866|877|888)[2-9][0-9]{6}$"#, options: .regularExpression) != nil
+    }
+
+    static func emergencyOrServiceCode(_ raw: String) -> String? {
+        let code = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return code.range(of: #"^[2-9]11$"#, options: .regularExpression) == nil ? nil : code
+    }
+
+    /// A complete US/CA or toll-free number entered as national or +1 format.
     static func normalize(_ raw: String) -> String? {
-        let digits = raw.filter { $0.isASCII && $0.isNumber }
-        let national: String
-        if digits.count == 10 {
-            national = digits
-        } else if digits.count == 11 && digits.hasPrefix("1") {
-            national = String(digits.dropFirst())
+        let input = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard input.range(of: #"^\+?[0-9\s().-]+$"#, options: .regularExpression) != nil,
+              !input.hasPrefix("+") || input.hasPrefix("+1")
+        else { return nil }
+        let digits = input.filter { $0.isASCII && $0.isNumber }
+        let candidate: String
+        if digits.count == 11 && digits.hasPrefix("1") {
+            candidate = "+\(digits)"
+        } else if digits.count == 10 && !input.hasPrefix("+") {
+            candidate = "+1\(digits)"
         } else {
             return nil
         }
-        let candidate = "+1\(national)"
-        return isUsCaDestination(candidate) ? candidate : nil
+        return isReachableDestination(candidate) ? candidate : nil
     }
 
-    /// Live as-you-type NANP formatting for a phone field: progressive
-    /// "(416) 555-0123" from whatever the user typed. Only the first 10
-    /// national digits are kept (a leading 1 country code is dropped).
+    /// Format a partial number while preserving input that needs correction.
     static func formatAsYouType(_ raw: String) -> String {
-        var digits = raw.filter { $0.isASCII && $0.isNumber }
-        if digits.count == 11 && digits.hasPrefix("1") {
+        let input = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard input.range(of: #"^\+?[0-9\s().-]*$"#, options: .regularExpression) != nil,
+              !input.hasPrefix("+") || input.hasPrefix("+1")
+        else { return raw }
+        var digits = input.filter { $0.isASCII && $0.isNumber }
+        if input.hasPrefix("+1") || (digits.count == 11 && digits.hasPrefix("1")) {
             digits = String(digits.dropFirst())
         }
-        digits = String(digits.prefix(10))
+        if digits.count > 10 || (digits.isEmpty && input.hasPrefix("+")) { return raw }
         if digits.isEmpty { return "" }
         let characters = Array(digits)
         if characters.count <= 3 { return "(\(digits)" }

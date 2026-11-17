@@ -1,4 +1,4 @@
-import { CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT, CONTACT_IMPORT_IGNORE, contactImportAllColumnValues, contactImportColumnCount, defaultContactImportColumns, isUsCaDestination, joinContactName, mappingFromDeclarations, readContactFlag } from '@loonext/shared';
+import { CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT, CONTACT_IMPORT_IGNORE, contactImportAllColumnValues, contactImportColumnCount, defaultContactImportColumns, joinContactName, normalizeNanpInput, mappingFromDeclarations, readContactFlag } from '@loonext/shared';
 import type { ContactImportColumnAction, ContactImportColumnDeclaration } from '@loonext/shared';
 
 /**
@@ -46,29 +46,7 @@ export type ImportField = (typeof IMPORT_FIELDS)[number];
 /** Column index in the uploaded file for each mapped target field. */
 export type ImportMapping = Partial<Record<ImportField, number>>;
 
-/**
- * Mirror of the API's `normalizeNanpPhone` (apps/api/src/routes/core/phone.ts):
- * free-form North American input → strict `+1NXXNXXXXXX` validated against
- * the shared NANP table; null when it is not a real US/CA number.
- */
-export function normalizeNanpPhone(input: string): string | null {
-  const trimmed = input.trim();
-  if (trimmed === "") return null;
-  if (trimmed.startsWith("+") && !trimmed.startsWith("+1")) return null;
-
-  const digits = trimmed.replaceAll(/\D/g, "");
-  let national: string;
-  if (digits.length === 10) {
-    national = digits;
-  } else if (digits.length === 11 && digits.startsWith("1")) {
-    national = digits.slice(1);
-  } else {
-    return null;
-  }
-
-  const e164 = `+1${national}`;
-  return isUsCaDestination(e164) ? e164 : null;
-}
+export { normalizeNanpInput as normalizeNanpPhone } from "@loonext/shared";
 
 /**
  * One row of the uploaded file, and the LINE of that file it came from.
@@ -381,7 +359,7 @@ export function buildPreview(
       full: values.name,
     });
 
-    const phone = normalizeNanpPhone(values.phone);
+    const phone = normalizeNanpInput(values.phone.replace(/^'(?=\+1)/, ""));
     if (phone === null) {
       return {
         rowNumber: line,

@@ -10517,3 +10517,11 @@ settings. This applies when the workspace disables the customer reply or sending
 that reply is blocked. Subsequent emergency texts still use high-priority push
 and follow each member's delivery preferences. The inbound message must be newly
 created for the handler to claim or deliver an alert.
+
+## D165 - make the current emergency calling limitation visible (#811)
+
+Loonext currently places business calls through Telnyx and has no E911 path. The dialer identifies N11 codes before dialing. Mobile offers to open the device phone app, and web directs the caller to use a phone. The API rejects N11 codes with a distinct error. Calling onboarding and the Terms disclose the limitation in English and French.
+
+**Founder decision pending.** The FCC requires covered interconnected VoIP providers to route 911 calls and provide caller location. The CRTC requires covered local VoIP providers to route calls to the appropriate emergency service, including from nomadic lines. Loonext provides NANP numbers and both inbound and outbound PSTN calling, so the founder needs counsel to confirm which obligations Loonext and its carrier must fulfill. The UX above describes current behavior. Provisioning Telnyx E911 would require a verified location and a process to keep it current for each supported caller. [FCC 47 CFR § 9.11](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-9/subpart-D/section-9.11), [CRTC obligations for local VoIP providers](https://crtc.gc.ca/eng/phone/911/VoIP.htm).
+
+8XX toll-free destinations use the existing US and Canada outbound voice profile. Telnyx publishes free US toll-free SIP termination plus the $0.002/minute Voice API charge. That is below the local termination rate already covered by the voice-minute cost estimate. Direct texts require US carrier approval and have no destination clock. Automated sends, number provisioning and porting retain their geographic destination checks. [Telnyx SIP trunking rates](https://telnyx.com/pricing/elastic-sip), [Telnyx Voice API rates](https://telnyx.com/pricing/voice-api).

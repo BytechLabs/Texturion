@@ -5,6 +5,7 @@ import { XIcon } from "lucide-react"
 import { Dialog as SheetPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { keepOpenForCallBar } from "@/components/ui/call-bar-outside"
 
 /*
  * The sheet primitives without the app catalogue: the close label is a prop.
@@ -57,6 +58,8 @@ function SheetContent({
   side = "right",
   showCloseButton = true,
   closeLabel,
+  onPointerDownOutside,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
@@ -69,6 +72,8 @@ function SheetContent({
       <SheetOverlay />
       <SheetPrimitive.Content
         data-slot="sheet-content"
+        onPointerDownOutside={keepOpenForCallBar(onPointerDownOutside)}
+        onInteractOutside={keepOpenForCallBar(onInteractOutside)}
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
           side === "right" &&

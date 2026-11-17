@@ -109,9 +109,9 @@ final class ContactsNanpTests: XCTestCase {
         XCTAssertEqual(Nanp.normalize("4165550123"), "+14165550123")
     }
 
-    func testRejectsWhatTheDestinationCheckRejects() {
+    func testAcceptsTollFreeAndRejectsUnsupportedInputs() {
         XCTAssertNil(Nanp.normalize("876-555-0123")) // Jamaica
-        XCTAssertNil(Nanp.normalize("800 555 0123")) // toll-free
+        XCTAssertEqual(Nanp.normalize("800 555 0123"), "+18005550123")
         XCTAssertNil(Nanp.normalize("555-0123")) // 7 digits
         XCTAssertNil(Nanp.normalize("")) // nothing
         XCTAssertNil(Nanp.normalize("2 416 555 0123")) // 11 digits, not a 1 prefix
@@ -128,10 +128,11 @@ final class ContactsNanpTests: XCTestCase {
         XCTAssertEqual(Nanp.formatAsYouType("4165550123"), "(416) 555-0123")
     }
 
-    func testDropsALeadingCountryCodeAndNonDigitsCappingAtTenDigits() {
+    func testFormatsCountryCodesAndKeepsInvalidInputForCorrection() {
         XCTAssertEqual(Nanp.formatAsYouType("14165550123"), "(416) 555-0123")
         XCTAssertEqual(Nanp.formatAsYouType("+1 (416) 555-0123"), "(416) 555-0123")
-        XCTAssertEqual(Nanp.formatAsYouType("41655501239999"), "(416) 555-0123")
-        XCTAssertEqual(Nanp.formatAsYouType("abc"), "")
+        XCTAssertEqual(Nanp.formatAsYouType("41655501239999"), "41655501239999")
+        XCTAssertEqual(Nanp.formatAsYouType("+44 7700 900123"), "+44 7700 900123")
+        XCTAssertEqual(Nanp.formatAsYouType("abc"), "abc")
     }
 }

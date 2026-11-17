@@ -18,7 +18,7 @@
  * and the #106 deny list still applies inside the SQL: a restricted member
  * cannot see a hidden number's calls by asking for the contact directly.
  */
-import { CALL_END_REASONS, CALL_ROUTINGS, stateMachines } from '@loonext/shared';
+import { CALL_END_REASONS, CALL_ROUTINGS, emergencyOrServiceCode, stateMachines } from '@loonext/shared';
 import type { CallEndReason, CallRouting, MemberRole } from '@loonext/shared';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
@@ -811,12 +811,16 @@ async function authorizeOutboundCall(
       customer = rows[0].phone_e164;
       contactId = body.contact_id;
     } else {
-      const normalized = normalizeNanpPhone(body.to ?? "");
+      const to = body.to ?? "";
+      if (emergencyOrServiceCode(to)) {
+        return errorResponse(c, "unsupported_service_code", "Use your phone to dial this service code.");
+      }
+      const normalized = normalizeNanpPhone(to);
       if (!normalized) {
         return errorResponse(
           c,
           "validation_failed",
-          "Enter a valid US or Canada number.",
+          "Enter a valid US, Canadian or toll-free number.",
         );
       }
       customer = normalized;
@@ -832,16 +836,12 @@ async function authorizeOutboundCall(
     businessNumber = resolved.businessNumber;
   }
 
-  // US/CA only, on EVERY origin (defense in depth — the dialer already
-  // NANP-normalizes; a contact/thread could in theory hold a non-NANP number).
-  // normalizeNanpPhone consults the shared US/CA table (EXCLUDES Caribbean +1,
-  // the toll-pumping target) — a bare `+1[2-9]…` regex would let 876/etc.
-  // through. The webhook re-validates the real dialed number too (#136).
+  // Saved contacts and threads pass the same destination check as typed numbers.
   if (!normalizeNanpPhone(customer)) {
     return errorResponse(
       c,
       "validation_failed",
-      "Calling is available to US and Canada numbers only.",
+      "Calling is available to US, Canadian and toll-free numbers.",
     );
   }
 

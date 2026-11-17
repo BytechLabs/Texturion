@@ -28,6 +28,7 @@ export const ERROR_CODES = [
   "registration_pending",
   "recipient_opted_out",
   "validation_failed",
+  "unsupported_service_code",
   "not_found",
   "conflict",
   // Compose-only (SPEC §5, D4): a new outbound conversation lands in the
@@ -89,6 +90,7 @@ export const ERROR_CODE_STATUS = {
   registration_pending: 403,
   recipient_opted_out: 403,
   validation_failed: 422,
+  unsupported_service_code: 422,
   not_found: 404,
   conflict: 409,
   quiet_hours_confirmation_required: 409,

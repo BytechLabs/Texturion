@@ -28,6 +28,7 @@ import {
   appendIdentification,
   estimateSegments,
   formatNanpNumber,
+  isTollFreeDestination,
   shouldIdentify,
 } from "@loonext/shared";
 import { Hono } from "hono";
@@ -481,7 +482,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   }
 
   // §7 gate order: subscription → destination → registration.
-  const clearance = await runPreSendGates(env, companyId, destination);
+  const clearance = await runPreSendGates(env, companyId, destination, "manual");
 
   // #97: picture messages are ungated — every US-texting company can send them.
   // Each MMS meters as 3 segments (MMS_SEGMENTS, below) through gateOutboundSend,
@@ -493,10 +494,9 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   // confirmation. #292/D49: through the ONE resolver, so this path and every
   // automated one share an implementation rather than agreeing by accident —
   // and so a contact whose area code lies can be corrected in one place.
-  const clock = await resolveDestinationClock(db, {
-    companyId,
-    phoneE164: destination,
-  });
+  const clock = isTollFreeDestination(destination)
+    ? null
+    : await resolveDestinationClock(db, { companyId, phoneE164: destination });
   // #225 ask 5: an admin may switch the confirmation STEP off — for a 24-hour
   // emergency trade it fires on every 2am job, and a prompt that is always
   // dismissed teaches people to dismiss prompts. THIS IS THE ONLY PLACE THAT
@@ -505,7 +505,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   // to fire at 3am. Absent/undefined reads as ON, so a company row loaded
   // before the migration lands keeps the prompt.
   const confirmationRequired = company.quiet_hours_confirm_enabled !== false;
-  if (clock.quiet && confirmationRequired && body.quiet_hours_confirmed !== true) {
+  if (clock?.quiet && confirmationRequired && body.quiet_hours_confirmed !== true) {
     // Structural signal: dedicated code (409, same envelope) so the UI shows
     // the quiet-hours confirm dialog by CODE, not by sniffing the message.
     throw new ApiError(
@@ -634,7 +634,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
       payload: { consent_source: "attested" },
     },
   ];
-  if (clock.quiet) {
+  if (clock?.quiet) {
     events.push({
       company_id: companyId,
       conversation_id: conversation.id as string,

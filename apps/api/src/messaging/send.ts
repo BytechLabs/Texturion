@@ -9,7 +9,7 @@
  *   status='failed' + surfaced error on API failure.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { classifySendFailure,lookupAreaCode } from "@loonext/shared";
+import { classifySendFailure, isTollFreeDestination, lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
 import { qualifyReferralForSender } from "../referrals/referrals";
@@ -129,7 +129,7 @@ export async function runPreSendGates(
    * grace window, both re-checked HERE rather than trusted from the call site,
    * so a future path that passes the flag hopefully gets nothing.
    */
-  offRamp = false,
+  mode?: "manual" | "off_ramp",
 ): Promise<SendClearance> {
   // #283: the outbound kill switch, checked FIRST and at the single dispatch
   // choke point every send passes through. The most serious switch we have —
@@ -183,7 +183,7 @@ export async function runPreSendGates(
   // off-ramp exemption was granted. Asking twice would run offRampAllowed's
   // query twice on the departure path and, worse, let the two answers differ.
   const offRampGranted =
-    !gates.subscriptionActive && offRamp && (await offRampAllowed(env, companyId));
+    !gates.subscriptionActive && mode === "off_ramp" && (await offRampAllowed(env, companyId));
 
   if (!gates.subscriptionActive && !offRampGranted) {
     throw new ApiError(
@@ -220,21 +220,22 @@ export async function runPreSendGates(
     );
   }
 
-  const entry = lookupAreaCode(destinationE164);
-  if (!entry) {
+  const country = lookupAreaCode(destinationE164)?.country ??
+    (mode === "manual" && isTollFreeDestination(destinationE164) ? "US" : null);
+  if (country === null) {
     throw new ApiError(
       "validation_failed",
       "Destination must be a US or Canada number.",
     );
   }
 
-  if (entry.country === "US" && !gates.usApproved) {
+  if (country === "US" && !gates.usApproved) {
     throw new ApiError(
       "registration_pending",
       "US texting activates after carrier approval (typically 3–7 business days).",
     );
   }
-  if (entry.country === "CA" && !gates.caAllowed) {
+  if (country === "CA" && !gates.caAllowed) {
     throw new ApiError(
       "registration_pending",
       "Texting Canadian numbers is not enabled for this company yet.",

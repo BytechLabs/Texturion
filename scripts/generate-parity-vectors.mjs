@@ -80,7 +80,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { estimateSegments } from "../packages/shared/src/segments.ts";
-import { isUsCaDestination, lookupAreaCode } from "../packages/shared/src/nanp.ts";
+import { emergencyOrServiceCode, isUsCaDestination, lookupAreaCode, normalizeNanpInput } from "../packages/shared/src/nanp.ts";
 import { explainRejection } from "../packages/shared/src/rejection-guidance.ts";
 import { avatarInitials } from "../packages/shared/src/avatar-initials.ts";
 import { prepaidConversionCopy } from "../packages/shared/src/prepaid-conversion-copy.ts";
@@ -159,6 +159,29 @@ const SEGMENT_INPUTS = [
  * The NANP inputs. Real area codes across several timezones, plus every shape
  * of malformed input a client might handle differently.
  */
+const PHONE_INPUTS = [
+  "",
+  "(416) 555-0182",
+  "14165550182",
+  "+1 (416) 555-0182",
+  "416.555.0182",
+  "+44 7700 900123",
+  "011 44 7700 900123",
+  "+1212555012",
+  "416555018",
+  "416555018212",
+  "416X5550182",
+  "+18765550123",
+  "9005550123",
+  "9765550123",
+  "5005550123",
+  ...["800", "833", "844", "855", "866", "877", "888"].map((npa) => npa + "5550123"),
+  ...["211", "311", "411", "511", "611", "711", "811", "911"],
+  "+911",
+  " 911 ",
+  "9112",
+];
+
 const NANP_INPUTS = [
   "+14155550123", // 415 California
   "+12125550123", // 212 New York
@@ -182,6 +205,14 @@ function segmentVectors() {
     // The text itself, so a failure names the input rather than an index.
     text,
     ...estimateSegments(text),
+  }));
+}
+
+function phoneInputVectors() {
+  return PHONE_INPUTS.map((raw) => ({
+    raw,
+    normalized: normalizeNanpInput(raw),
+    serviceCode: emergencyOrServiceCode(raw),
   }));
 }
 
@@ -812,6 +843,7 @@ function timestampShapeVectors() {
 const FILES = {
   "segments.json": segmentVectors,
   "nanp.json": nanpVectors,
+  "phone-input.json": phoneInputVectors,
   "rejections.json": rejectionVectors,
   "avatar-initials.json": avatarInitialsVectors,
   "prepaid-conversion-copy.json": prepaidConversionCopyVectors,

@@ -349,6 +349,8 @@ enum ContactsTasksStrings {
             "contactsTasks.conversationsSection": "Conversations",
             "contactsTasks.textAction": "Text",
             "contactsTasks.call": "Call",
+            "contactsTasks.callWithPhone": "Call with your phone",
+            "contactsTasks.emergencyCallsUnavailable": "Loonext can't place emergency calls.",
             "contactsTasks.calling": "Calling…",
             "contactsTasks.callingAria": "Calling",
             "contactsTasks.optedOutBanner":
@@ -1123,6 +1125,8 @@ enum ContactsTasksStrings {
             "contactsTasks.conversationsSection": "Conversations",
             "contactsTasks.textAction": "Texter",
             "contactsTasks.call": "Appeler",
+            "contactsTasks.callWithPhone": "Appeler avec votre téléphone",
+            "contactsTasks.emergencyCallsUnavailable": "Loonext ne peut pas passer d’appels d’urgence.",
             "contactsTasks.calling": "Appel…",
             "contactsTasks.callingAria": "Appel en cours",
             "contactsTasks.optedOutBanner":

@@ -96,6 +96,7 @@ export const apiErrorsEn: ApiErrorVocabulary = {
   registration_pending: "Your texting registration is still being reviewed.",
   recipient_opted_out: "This person asked us to stop texting them.",
   validation_failed: "Something in that wasn't right. Check the details and try again.",
+  unsupported_service_code: "Use your phone to dial this service code.",
   not_found: "We couldn't find that.",
   conflict: "That can't be done as things stand. Refresh and take another look.",
   quiet_hours_confirmation_required:
@@ -137,6 +138,7 @@ export const apiErrorsFr: Translated<typeof apiErrorsEn> = {
   usage_cap_reached: "Vous avez atteint une limite de dépenses pour cette période.",
   registration_pending: "Votre inscription pour les textos est encore à l'étude.",
   recipient_opted_out: "Cette personne nous a demandé de ne plus lui écrire.",
+  unsupported_service_code: "Composez ce numéro sur votre téléphone.",
   validation_failed:
     "Quelque chose ne va pas dans cette demande. Vérifiez les détails et réessayez.",
   not_found: "Nous n'avons pas trouvé cela.",

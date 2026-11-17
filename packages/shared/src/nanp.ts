@@ -510,12 +510,14 @@ export const NANP_AREA_CODES: Readonly<Record<string, NanpEntry>> = {
   "989": { country: "US", geographic: true, region: "MI", timezone: "America/Detroit" },
 };
 
+const TOLL_FREE_AREA_CODES = new Set(["800", "833", "844", "855", "866", "877", "888"]);
+
 /**
- * Strict E.164 US/CA parse: exactly `+1NXXNXXXXXX` (N = 2–9). Returns the
+ * Strict E.164 NANP parse: exactly `+1NXXNXXXXXX` (N = 2–9). Returns the
  * 3-digit area code, or null for anything else — no trimming, no formatting
  * tolerance. Callers normalize before calling.
  */
-const E164_US_CA = /^\+1([2-9]\d{2})[2-9]\d{2}\d{4}$/;
+const E164_NANP = /^\+1([2-9]\d{2})[2-9]\d{2}\d{4}$/;
 
 /**
  * Look up the NANP entry for a strictly-parsed +1 E.164 number. Returns null
@@ -523,7 +525,7 @@ const E164_US_CA = /^\+1([2-9]\d{2})[2-9]\d{2}\d{4}$/;
  * (Caribbean NANP, NANP-wide service codes, unassigned codes).
  */
 export function lookupAreaCode(e164: string): NanpEntry | null {
-  const match = E164_US_CA.exec(e164);
+  const match = E164_NANP.exec(e164);
   if (!match) return null;
   return NANP_AREA_CODES[match[1]] ?? null;
 }
@@ -536,6 +538,39 @@ export function lookupAreaCode(e164: string): NanpEntry | null {
  */
 export function isUsCaDestination(e164: string): boolean {
   return lookupAreaCode(e164) !== null;
+}
+
+/** Toll-free NPAs span the NANP and carry no destination country or clock. */
+export function isTollFreeDestination(e164: string): boolean {
+  const areaCode = E164_NANP.exec(e164)?.[1];
+  return areaCode !== undefined && TOLL_FREE_AREA_CODES.has(areaCode);
+}
+
+/** Destinations a person can call, text or save as a contact. */
+export function isReachableDestination(e164: string): boolean {
+  return isUsCaDestination(e164) || isTollFreeDestination(e164);
+}
+
+/** Returns the N11 code that must be opened in the device dialer. */
+export function emergencyOrServiceCode(input: string): string | null {
+  const code = input.trim();
+  return /^[2-9]11$/.test(code) ? code : null;
+}
+
+/** Normalize a complete number entered by a person without losing digits. */
+export function normalizeNanpInput(
+  input: string,
+  destination: "reachable" | "us-ca" = "reachable",
+): string | null {
+  const raw = input.trim();
+  if (!/^\+?[\d\s().-]+$/.test(raw)) return null;
+  if (raw.startsWith("+") && !raw.startsWith("+1")) return null;
+  const digits = raw.replaceAll(/\D/g, "");
+  const international = digits.length === 11 && digits.startsWith("1");
+  if (!international && (raw.startsWith("+") || digits.length !== 10)) return null;
+  const e164 = international ? `+${digits}` : `+1${digits}`;
+  const accepts = destination === "reachable" ? isReachableDestination : isUsCaDestination;
+  return accepts(e164) ? e164 : null;
 }
 
 const hourFormatters = new Map<string, Intl.DateTimeFormat>();

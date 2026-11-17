@@ -1,5 +1,6 @@
 package com.loonext.android.features.compose
 
+import com.loonext.android.features.contacts.Nanp as ContactNanp
 import com.loonext.android.ui.common.PaperIconButton
 import com.loonext.android.ui.common.SectionLabel
 import com.loonext.android.ui.common.SelectOption
@@ -214,7 +215,7 @@ private fun NewConversationLoaded(
     // #183 part 3: a Connected-Apps "Text with Loonext" tap seeds the recipient
     // with the tapped number, formatted; the user can still edit it. Seeded once.
     var recipientInput by remember {
-        mutableStateOf(prefillRecipient?.let { Nanp.formatAsYouType(Nanp.nationalDigits(it)) } ?: "")
+        mutableStateOf(prefillRecipient.orEmpty())
     }
     var contactMatches by remember { mutableStateOf<List<Contact>>(emptyList()) }
     var fromNumberId by remember(numbers) {
@@ -259,7 +260,7 @@ private fun NewConversationLoaded(
     val rawE164 = Nanp.toE164(recipientInput)
     val recipientE164 = selectedContact?.phone_e164 ?: rawE164
     val localTime = recipientE164?.let { Nanp.destinationLocalTime(it) }
-    val validDestination = recipientE164 != null && Nanp.isUsCaDestination(recipientE164)
+    val validDestination = recipientE164 != null && ContactNanp.isReachableDestination(recipientE164)
 
     val canSend = !sending &&
         fromNumberId != null &&
@@ -423,21 +424,16 @@ private fun NewConversationLoaded(
                     } else {
                         RecipientField(
                             value = recipientInput,
-                            onValueChange = { value ->
-                                recipientInput =
-                                    if (value.any { it.isLetter() }) value
-                                    else Nanp.formatAsYouType(Nanp.nationalDigits(value))
-                            },
+                            onValueChange = { recipientInput = it },
                         )
                         val hint = when {
-                            rawDigits.length == 10 && rawE164 != null && !validDestination ->
+                            (rawDigits.length >= 10 || recipientInput.trimStart().startsWith("+")) && rawE164 == null ->
                                 t("thread.nanpOnly")
 
-                            rawDigits.length == 10 && rawE164 != null &&
-                                contactMatches.isEmpty() ->
+                            rawE164 != null && contactMatches.isEmpty() ->
                                 t("thread.noContactMatch")
 
-                            rawDigits.length == 10 && rawE164 != null ->
+                            rawE164 != null ->
                                 t("thread.willText", "number" to formatPhone(rawE164))
 
                             else -> null

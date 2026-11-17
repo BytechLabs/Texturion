@@ -1,5 +1,6 @@
 package com.loonext.android.features.calls
 
+import com.loonext.android.features.contacts.Nanp as ContactNanp
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallEffects
@@ -331,17 +332,8 @@ fun formatVoicemailLength(seconds: Int): String = formatTimer(seconds * 1000L)
  * with a leading 1, or an already-+1 string. null = not dialable yet (the
  * Call button stays disabled — an obviously-short number can't be dialed).
  */
-fun dialableE164(raw: String): String? {
-    val digits = raw.filter { it.isDigit() }
-    return when {
-        raw.trim().startsWith("+") && digits.length == 11 && digits.first() == '1' ->
-            "+$digits"
-
-        digits.length == 10 -> "+1$digits"
-        digits.length == 11 && digits.first() == '1' -> "+$digits"
-        else -> null
-    }
-}
+fun dialableE164(raw: String): String? =
+    ContactNanp.normalize(raw)
 
 // -------------------------------------------- #202 in-call controls honesty
 

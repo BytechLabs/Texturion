@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmLeaving } from "@/lib/softphone/leave-call";
+
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
@@ -83,6 +85,7 @@ export function MobileAccountSheetBody({
   const t = useT();
   const { membership, memberships, switchCompany, displayName, companyId } =
     useActiveCompany();
+  const confirmLeaving = useConfirmLeaving();
   const unread = useNotificationsUnreadCount();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
@@ -167,8 +170,15 @@ export function MobileAccountSheetBody({
                   type="button"
                   className={rowClass}
                   onClick={() => {
-                    switchCompany(m.company_id);
-                    onClose();
+                    if (m.company_id === companyId) {
+                      onClose();
+                      return;
+                    }
+                    const switchWorkspace = () => {
+                      switchCompany(m.company_id);
+                      onClose();
+                    };
+                    confirmLeaving(t("shell.switchWorkspace"), switchWorkspace);
                   }}
                 >
                   <span
@@ -287,7 +297,9 @@ export function MobileAccountSheetBody({
           <button
             type="button"
             className={cn(rowClass, "disabled:opacity-60")}
-            onClick={() => void signOut()}
+            onClick={() => {
+              confirmLeaving(t("shell.signOut"), () => void signOut());
+            }}
             disabled={signingOut}
           >
             <LogOut

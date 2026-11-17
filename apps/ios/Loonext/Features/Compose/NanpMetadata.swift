@@ -223,16 +223,18 @@ extension Nanp {
     }
 
     /// The digits a user typed, normalized for NANP entry: strip everything
-    /// non-numeric, drop one leading 1 (country code), cap at 10.
+    /// non-numeric and drop the country code from +1 format.
     static func nationalDigits(_ input: String) -> String {
         let digits = input.filter { $0.isASCII && $0.isNumber }
-        let national = digits.hasPrefix("1") ? String(digits.dropFirst()) : digits
-        return String(national.prefix(10))
+        if input.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("+1")
+            || (digits.count == 11 && digits.hasPrefix("1")) {
+            return String(digits.dropFirst())
+        }
+        return digits
     }
 
     /// `+1XXXXXXXXXX` for a complete 10-digit national number, else nil.
     static func toE164(_ input: String) -> String? {
-        let digits = nationalDigits(input)
-        return digits.count == 10 ? "+1\(digits)" : nil
+        normalize(input)
     }
 }

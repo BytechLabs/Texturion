@@ -261,6 +261,7 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
     role: c.get("role"),
     body: body.body,
     hasMedia: media.length > 0,
+    manual: true,
   });
   const { view, fromNumber, clearance } = prepared;
 
@@ -414,7 +415,9 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
   // Gates re-run: the world may have changed since the failed attempt. The
   // opt-out check used to be duplicated here; it now lives inside
   // runPreSendGates so every send path gets it, not just this one.
-  const clearance = await runPreSendGates(env, companyId, view.contact_phone_e164);
+  const clearance = await runPreSendGates(
+    env, companyId, view.contact_phone_e164, message.automated ? undefined : "manual",
+  );
 
   // Stored outbound media, loaded up front so its signed URLs can be re-minted
   // BEFORE the atomic claim (below). #97: a picture re-send is ungated — it

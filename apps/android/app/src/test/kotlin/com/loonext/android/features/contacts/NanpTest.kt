@@ -122,9 +122,9 @@ class NanpTest {
     }
 
     @Test
-    fun `rejects what the destination check rejects`() {
+    fun `accepts toll-free and rejects unsupported inputs`() {
         assertNull(Nanp.normalize("876-555-0123")) // Jamaica
-        assertNull(Nanp.normalize("800 555 0123")) // toll-free
+        assertEquals("+18005550123", Nanp.normalize("800 555 0123"))
         assertNull(Nanp.normalize("555-0123")) // 7 digits
         assertNull(Nanp.normalize("")) // nothing
         assertNull(Nanp.normalize("2 416 555 0123")) // 11 digits, not a 1 prefix
@@ -143,10 +143,11 @@ class NanpTest {
     }
 
     @Test
-    fun `drops a leading country code and non-digits, capping at ten digits`() {
+    fun `formats country codes and keeps invalid input for correction`() {
         assertEquals("(416) 555-0123", Nanp.formatAsYouType("14165550123"))
         assertEquals("(416) 555-0123", Nanp.formatAsYouType("+1 (416) 555-0123"))
-        assertEquals("(416) 555-0123", Nanp.formatAsYouType("41655501239999"))
-        assertEquals("", Nanp.formatAsYouType("abc"))
+        assertEquals("41655501239999", Nanp.formatAsYouType("41655501239999"))
+        assertEquals("+44 7700 900123", Nanp.formatAsYouType("+44 7700 900123"))
+        assertEquals("abc", Nanp.formatAsYouType("abc"))
     }
 }

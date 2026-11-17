@@ -2577,7 +2577,6 @@ describe("import name handling", () => {
 
   it("re-imports a guarded phone from our own export", async () => {
     // The export apostrophe-guards E.164 so a spreadsheet does not evaluate it.
-    // Normalization strips every non-digit, so the guard survives a round trip.
     const sb = stubWithRole("admin");
     sb.on("GET", "/rest/v1/contacts", () => []);
     sb.on("POST", "/rest/v1/contacts", (call) =>

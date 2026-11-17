@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 /**
  * #211 outbound parity: call bar gating. The transfer/consult affordance
  * lights on a SERVER-ADDRESSABLE signal (a successful GET /v1/calls/live/:session
@@ -9,10 +11,11 @@
  * feature; the requirement that it cannot act is unchanged.
  * Placement/dialing UX stays SDK-driven ("Calling…").
  */
-import { renderToStaticMarkup } from "react-dom/server";
+import { cleanup, fireEvent, render as mount, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CallInfo } from "@/lib/softphone/state";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 // Hoisted mock state the hooks read; each test seeds it before rendering.
 const state: {
@@ -44,6 +47,9 @@ vi.mock("@/lib/api/calls", () => ({
 vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({ data: { data: [] } }),
 }));
+vi.mock("@/lib/api/notifications", () => ({
+  useNotificationsUnreadCount: () => ({ data: { alert_pause: { push_paused: true } }, isPending: false }),
+}));
 vi.mock("@/lib/softphone/provider", () => ({
   useSoftphone: () => ({
     ready: true,
@@ -54,7 +60,11 @@ vi.mock("@/lib/softphone/provider", () => ({
     placeCall: vi.fn(),
     answer: vi.fn(),
     hangup: vi.fn(),
-    toggleHold: vi.fn(),
+    toggleHold: (id: string) => {
+      const call = state.calls.find((item) => item.id === id)!;
+      call.phase = call.phase === "active" ? "held" : "active";
+      state.activeId = call.phase === "active" ? id : null;
+    },
     toggleMute: vi.fn(),
     sendDtmf: vi.fn(),
     dismiss: vi.fn(),
@@ -77,7 +87,8 @@ function outboundCall(overrides: Partial<CallInfo> = {}): CallInfo {
 }
 
 function render(): string {
-  return renderToStaticMarkup(<CallBar />);
+  mount(<CallBar />);
+  return document.querySelector("[data-call-bar]")?.outerHTML ?? "";
 }
 
 /**
@@ -109,12 +120,55 @@ function isDisabled(buttonHtml: string): boolean {
 const transferButton = (html: string) =>
   buttonByLabel(html, "Transfer this call");
 const notesButton = (html: string) =>
-  buttonByLabel(html, "Finding this call&#x27;s conversation…");
+  buttonByLabel(html, "Finding this call's conversation…");
 
 afterEach(() => {
+  cleanup();
   state.calls = [];
   state.activeId = null;
   state.live = { isSuccess: false, data: undefined };
+});
+
+it("moves the focused hold button to Resume and back", () => {
+  state.calls = [outboundCall()];
+  state.activeId = "c1";
+  const view = mount(<CallBar />);
+  const hold = screen.getByRole("button", { name: "Put on hold" });
+  hold.focus();
+  fireEvent.click(hold);
+  view.rerender(<CallBar />);
+  const resume = screen.getByRole("button", { name: /Resume/ });
+  expect(document.activeElement).toBe(resume);
+  fireEvent.click(resume);
+  view.rerender(<CallBar />);
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Put on hold" }));
+});
+
+it("keeps Answer exposed when New task opens over an existing ring", () => {
+  state.calls = [outboundCall({ direction: "inbound", phase: "ringing" })];
+  const onOpenChange = vi.fn();
+  function tree(open: boolean) {
+    return <>
+      <CallBar />
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogTitle>New task</DialogTitle>
+          <DialogDescription>Enter the task details.</DialogDescription>
+          <input aria-label="Task name" defaultValue="Unsaved task" />
+        </DialogContent>
+      </Dialog>
+    </>;
+  }
+  const view = mount(tree(false));
+  view.rerender(tree(true));
+  const answer = screen.getByRole("button", { name: "Answer" });
+  expect(answer.closest("[data-call-bar]")?.parentElement?.parentElement).toBe(document.body);
+  expect(answer.closest("[aria-hidden='true']")).toBeNull();
+  expect(answer.getAttribute("aria-keyshortcuts")).toBe("Alt+Shift+A");
+  fireEvent.pointerDown(answer, { button: 0, pointerType: "mouse" });
+  fireEvent.click(answer);
+  expect(onOpenChange).not.toHaveBeenCalled();
+  expect(screen.getByRole("textbox", { name: "Task name" })).toHaveProperty("value", "Unsaved task");
 });
 
 describe("CallBar transfer gating (#211 C1)", () => {
@@ -181,7 +235,7 @@ describe("CallBar notes affordance (#516)", () => {
     state.activeId = "c1";
     state.live = { isSuccess: true, data: { conversation_id: null } };
     const html = render();
-    expect(html).toContain("Finding this call&#x27;s conversation…");
+    expect(html).toContain("Finding this call's conversation…");
     expect(isDisabled(notesButton(html))).toBe(true);
   });
 
