@@ -71,15 +71,15 @@ final class PushCoordinator: NSObject {
         }
     }
 
-    static func clearConversationNotifications(_ conversationId: String) async {
+    static func clearConversationNotifications(_ conversationId: String) {
         let tags = conversationNotificationTags(conversationId)
-        let center = UNUserNotificationCenter.current()
-        let delivered = await center.deliveredNotifications()
-        let matching = delivered.compactMap { notification -> String? in
-            let push = parsePush(pushData(fromUserInfo: notification.request.content.userInfo))
-            return tags.contains(push.tag) ? notification.request.identifier : nil
+        UNUserNotificationCenter.current().getDeliveredNotifications { delivered in
+            let matching = delivered.compactMap { notification -> String? in
+                let push = parsePush(pushData(fromUserInfo: notification.request.content.userInfo))
+                return tags.contains(push.tag) ? notification.request.identifier : nil
+            }
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: matching)
         }
-        center.removeDeliveredNotifications(withIdentifiers: matching)
     }
 }
 

@@ -155,6 +155,9 @@ begin
   if (select status::text from public.messages where id = msg_id) is distinct from 'queued' then
     raise exception 'EK-4 FAILED: acknowledgment must be inserted queued (before Telnyx)';
   end if;
+  if (select automation from public.messages where id = msg_id) is distinct from 'emergency_ack' then
+    raise exception 'EK-4 FAILED: acknowledgment must name the sending automation';
+  end if;
 
   select emergency_at, last_emergency_ack_at into em_at, ack_at
     from public.conversations where id = 'e4140000-0000-4000-8000-000000000005';

@@ -103,10 +103,10 @@ begin
 
   insert into public.messages
     (company_id, conversation_id, direction, body, status, segments,
-     sent_by_user_id, automated)
+     sent_by_user_id, automated, automation)
   values
     (p_company_id, p_conversation_id, 'outbound', p_body, 'queued',
-     p_segments_estimate, v_company.owner_user_id, true)
+     p_segments_estimate, v_company.owner_user_id, true, 'emergency_ack')
   returning * into v_message;
 
   update public.conversations

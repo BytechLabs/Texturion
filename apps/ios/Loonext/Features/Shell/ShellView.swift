@@ -256,7 +256,7 @@ struct ShellView: View {
         .onChange(of: path) { _, next in
             if case .thread(let id, _)? = next.last {
                 router.viewedConversationId = id
-                Task { await PushCoordinator.clearConversationNotifications(id) }
+                PushCoordinator.clearConversationNotifications(id)
             } else {
                 router.viewedConversationId = nil
             }
@@ -269,7 +269,7 @@ struct ShellView: View {
                    event.payload["user_id"]?.stringValue == hydratedMe.user_id,
                    event.payload["is_read"]?.boolValue == true,
                    let id = event.payload["conversation_id"]?.stringValue {
-                    await PushCoordinator.clearConversationNotifications(id)
+                    PushCoordinator.clearConversationNotifications(id)
                 }
             }
         }
