@@ -19,7 +19,7 @@ import {
 } from "../test/telnyx-doubles/provisioning";
 import { deactivateCampaign } from "../test/telnyx-doubles/registration";
 
-const env = completeEnv();
+const env = { ...completeEnv(), RESEND_FROM_CRITICAL: "critical@example.com" };
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 const CANCELED_AT = "2026-06-01T00:00:00.000Z";
 
@@ -79,16 +79,15 @@ function run(state: GraceState, now: Date): { harness: Harness; done: Promise<vo
   return { harness, done: runGraceJob(env, now) };
 }
 
-/**
- * `text` is included because #413 moved the escalation into the BODY. The old copy
- * escalated only the subject, so the subject was all a test needed to look at.
- */
-function sentEmails(
-  harness: Harness,
-): { subject: string; to: string[]; text: string }[] {
+function sentEmails(harness: Harness) {
   return harness
     .callsTo("POST", /api\.resend\.com/)
-    .map((call) => call.json() as { subject: string; to: string[]; text: string });
+    .map((call) => call.json() as {
+      from: string;
+      subject: string;
+      to: string[];
+      text: string;
+    });
 }
 
 beforeEach(() => {
@@ -134,6 +133,7 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     const emails = sentEmails(harness);
     expect(emails).toHaveLength(1);
     expect(emails[0].subject).toContain("canceled");
+    expect(emails[0].from).toBe(env.RESEND_FROM_CRITICAL);
     expect(emails[0].to).toEqual(["owner@example.com"]);
     // Ledger insert strictly precedes the email on the wire.
     const insertIndex = harness.calls.indexOf(inserts[0]);
@@ -264,6 +264,7 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     const emails = sentEmails(harness);
     expect(emails).toHaveLength(1);
     expect(emails[0].subject).toContain("has been released");
+    expect(emails[0].from).toBe(env.RESEND_FROM_CRITICAL);
 
     // #54: the released email is ledgered insert-first as threshold_day 30,
     // and the insert strictly precedes the email on the wire.

@@ -143,8 +143,8 @@ fun selectComposerBanner(
             else -> ComposerBanner.RegistrationPending
         }
     }
-    val cap = usage?.cap_segments
-    if (usage != null && cap != null && usage.used_segments >= cap) {
+    val capped = usage?.sending_capped ?: (usage?.cap_segments?.let { usage.used_segments >= it } == true)
+    if (capped) {
         return ComposerBanner.UsageCap
     }
     // #396 LAST, deliberately: every banner above says a message CANNOT go, and

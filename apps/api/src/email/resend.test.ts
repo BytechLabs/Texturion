@@ -414,14 +414,9 @@ describe("#252 which mail is critical", () => {
   const CRITICAL_SENDS: readonly { file: string; sends: number; why: string }[] = [
     {
       file: "billing/grace.ts",
-      // FOUR rungs, and the count is the assertion. Written first as "the
-      // file contains critical: true", which passed with one of the two sends
-      // declassified — the released notice could have quietly rejoined the
-      // routine stream.
-      sends: 2,
+      sends: 1,
       why:
-        "Every rung of the release ladder — day 1, 15, 27, and the released " +
-        "notice. Each is a deadline after which the business number is gone.",
+        "The warning and released notices share the same critical email sender.",
     },
     {
       file: "billing/cancellation-notice.ts",

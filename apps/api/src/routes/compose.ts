@@ -590,6 +590,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   let gated: Awaited<ReturnType<typeof gateOutboundSend>>;
   try {
     gated = await gateOutboundSend(db, {
+      env,
       companyId,
       conversationId: conversation.id as string,
       senderUserId: userId,

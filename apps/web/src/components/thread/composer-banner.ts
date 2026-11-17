@@ -98,7 +98,7 @@ export interface ComposerGateInput {
   /** #423: the campaign was approved and the carrier took it away. */
   usSuspended: boolean;
   /** GET /v1/usage — null while loading (cap banner needs real data). */
-  usage: Pick<Usage, "used_segments" | "cap_segments"> | null;
+  usage: Pick<Usage, "used_segments" | "cap_segments" | "sending_capped"> | null;
   /** #396: conversations.opt_out_hint_at — a plain-English opt-out was seen. */
   optOutHint: boolean;
   /**
@@ -154,8 +154,8 @@ export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
   }
   if (
     input.usage !== null &&
-    input.usage.cap_segments !== null &&
-    input.usage.used_segments >= input.usage.cap_segments
+    (input.usage.sending_capped ??
+      (input.usage.cap_segments !== null && input.usage.used_segments >= input.usage.cap_segments))
   ) {
     return { kind: "usage_cap" };
   }

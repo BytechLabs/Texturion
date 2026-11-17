@@ -307,7 +307,7 @@ marketing page when a broader pass is wanted.
   this now points at the constant instead.
 - **Overage cap**: default 3× included quota, owner-adjustable (raise/remove). At cap, sends
   return `usage_cap_reached`; owner gets a one-click raise. Email alerts at 80% and 100% of
-  included quota. (Resolves the "never hard-block" vs "cap" dispute: cap with owner control.)
+  included quota. Alerts at 90% and on reaching the spending cap cover texting and calling separately. (Resolves the "never hard-block" vs "cap" dispute: cap with owner control.)
 - **USD-only at launch** (CAD prices via `currency_options` is a fast-follow).
 - Stripe Tax enabled from day one (SaaS product tax code, automatic_tax on Checkout +
   subscription). GST/HST registration is an operational runbook item (CAD $30k threshold).

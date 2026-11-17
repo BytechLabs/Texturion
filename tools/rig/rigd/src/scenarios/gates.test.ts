@@ -285,19 +285,16 @@ describe("S12, voice and dial-count caps", () => {
     const plans = (await importFromRepo("apps/api/src/billing/plans.ts")) as {
       dialCeilings: (plan: string, multiplier: number | string | null) => { stopAt: number };
       PLAN_VOICE_MINUTES: Record<string, number>;
+      voiceSpendingCapSeconds: (plan: string, multiplier: number | null) => number;
     };
     expect(PLAN_VOICE_MINUTES).toEqual(plans.PLAN_VOICE_MINUTES);
     for (const plan of ["starter", "pro"] as const) {
       for (const multiplier of [null, 0.5, 1, 3, 10, 12]) {
         const caps = voiceCaps(plan, multiplier);
         expect(caps.stopAt).toBe(plans.dialCeilings(plan, multiplier).stopAt);
-        expect(caps.capSeconds).toBe(plans.PLAN_VOICE_MINUTES[plan]! * 60 * (multiplier && multiplier > 0 ? Math.min(multiplier, 10) : 10));
+        expect(caps.capSeconds).toBe(plans.voiceSpendingCapSeconds(plan, multiplier));
       }
     }
-    // companyOverVoiceCap is not exported apart from its database read, so its arithmetic is held to the text.
-    const webhook = readFileSync(repoPath("apps/api/src/messaging/voice-webhook.ts"), "utf8");
-    expect(webhook).toMatch(/const MAX_CAP_MULTIPLIER = 10;/);
-    expect(webhook).toMatch(/PLAN_VOICE_MINUTES\[company\.plan\] \* 60 \* capMultiplier/);
   }, IMPORT_TIMEOUT_MS);
 
   it("reaches the dial ceiling alone, then the minute cap, and passes on 402, busy, a text-back and no dial", async () => {

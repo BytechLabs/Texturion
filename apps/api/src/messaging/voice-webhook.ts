@@ -28,7 +28,7 @@ import { reportVoiceSeconds } from "../billing/meter";
 import { requiresUnauthorizedHangup } from "../calls/outbound-leg-gate";
 import { GREETING_CAPTURE_STATE } from "../calls/greeting-capture";
 import { handleGreetingCaptureEvent } from "../calls/greeting-capture-leg";
-import { dialCeilings, PLAN_VOICE_MINUTES } from '../billing/plans';
+import { dialCeilings, voiceSpendingCapSeconds } from '../billing/plans';
 import type { PlanId } from '../billing/plans';
 import { getDb } from "../db";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
@@ -86,14 +86,6 @@ export const OUTBOUND_PLACER_STATE = "op";
  *  attacker-controlled talk-time anchor can never bill an absurd amount. */
 const MAX_BILLABLE_SECONDS = 4 * 60 * 60;
 
-/**
- * D36: the un-defeatable ceiling a NULL/garbage overage_cap_multiplier
- * resolves to — mirrors the DB CHECK (0,10] and the owner PATCH's null→10
- * coercion (20260704110000_hard_overage_ceiling.sql), so the voice gate can
- * never read "no cap".
- */
-const MAX_CAP_MULTIPLIER = 10;
-
 interface CallPayload {
   call_control_id?: string;
   call_session_id?: string;
@@ -147,6 +139,7 @@ export async function companyOverVoiceCap(
   // pre-answer boundary and collectively overshoot. 0 (the default, used by the
   // inbound path) preserves the exact terminated-usage boundary.
   reserveSeconds = 0,
+  onCap?: (companyId: string) => void,
 ): Promise<boolean> {
   if (!company.plan || !company.current_period_start) return false;
   const { data, error } = await db.rpc("api_period_forward_seconds", {
@@ -157,19 +150,9 @@ export async function companyOverVoiceCap(
     throw new Error(`voice usage lookup failed: ${error.message}`);
   }
   const usedSeconds = Number(data) + reserveSeconds;
-  // #134/D42: calling is included on every plan — the grandfathered legacy
-  // pause line retired with the module; every workspace gets the plan
-  // allowance × cap multiplier.
-
-  // Postgres numeric arrives as a string; the column is NOT NULL with CHECK
-  // (0,10] since 20260704110000, but fail toward the hard 10× ceiling anyway.
-  const multiplier = Number(company.overage_cap_multiplier);
-  const capMultiplier =
-    Number.isFinite(multiplier) && multiplier > 0
-      ? Math.min(multiplier, MAX_CAP_MULTIPLIER)
-      : MAX_CAP_MULTIPLIER;
-  const capSeconds = PLAN_VOICE_MINUTES[company.plan] * 60 * capMultiplier;
-  return usedSeconds >= capSeconds;
+  const capped = usedSeconds >= voiceSpendingCapSeconds(company.plan, company.overage_cap_multiplier);
+  if (capped) onCap?.(companyId);
+  return capped;
 }
 
 /**

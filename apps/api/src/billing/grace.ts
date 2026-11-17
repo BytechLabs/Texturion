@@ -1,5 +1,7 @@
 import { CANCELLATION_GRACE_DAYS, numberReleaseAt, type Locale } from "@loonext/shared";
 
+import { sendLedgered } from "./send-ledgered";
+import { captureException } from "../observability/capture";
 import { getStripe } from "./stripe";
 import { billingRecipients } from "./recipients";
 import { NUMBER_NOTICE_COPY } from "../notifications/number-copy";
@@ -265,10 +267,38 @@ async function claimGraceNotice(
   return (data ?? []).length > 0;
 }
 
-/**
- * Insert the ledger row FIRST and only send when the insert actually landed
- * (see {@link claimGraceNotice}). Returns whether this call sent the email.
- */
+async function releaseGraceNotice(
+  db: Db,
+  company: CanceledCompany,
+  thresholdDay: GraceNoticeDay,
+): Promise<void> {
+  const { error } = await db
+    .from("grace_notices")
+    .delete()
+    .eq("company_id", company.id)
+    .eq("canceled_at", company.canceled_at)
+    .eq("threshold_day", thresholdDay);
+  if (error) throw new Error(`grace_notices release failed: ${error.message}`);
+}
+
+async function sendGraceEmail(
+  env: Env,
+  db: Db,
+  company: CanceledCompany,
+  { subject, text }: { subject: string; text: string },
+): Promise<boolean> {
+  const to = await billingRecipients(env, company.id, db);
+  if (to.length === 0) {
+    void captureException(env, "No billing contacts for grace notice", {
+      source: "cron",
+      company_id: company.id,
+    });
+    return false;
+  }
+  await sendEmail(env, { to, subject, text, html: renderEmailHtml(text), critical: true });
+  return true;
+}
+
 export async function recordAndSendGraceNotice(
   env: Env,
   company: CanceledCompany,
@@ -278,45 +308,16 @@ export async function recordAndSendGraceNotice(
   const daysLeft = graceDaysLeft(company.canceled_at, now);
   if (daysLeft === 0) return false;
   const db = getDb(env);
-  if (!(await claimGraceNotice(db, company, thresholdDay))) {
-    return false; // ledger says already sent
-  }
-
-  const to = await billingRecipients(env, company.id, db);
-  if (to.length === 0) return false;
-  const { subject, text } = warningCopy(company, thresholdDay, env, daysLeft);
-  // #252: the critical stream. Every rung of this ladder is a deadline
-  // after which the customer's business number is gone.
-  await sendEmail(env, {
-    to,
-    subject,
-    text,
-    html: renderEmailHtml(text),
-    critical: true,
+  return sendLedgered({
+    claim: () => claimGraceNotice(db, company, thresholdDay),
+    release: () => releaseGraceNotice(db, company, thresholdDay),
+    send: async () => {
+      await pushGraceWarning(env, db, company, thresholdDay, daysLeft);
+      return sendGraceEmail(env, db, company, warningCopy(company, thresholdDay, env, daysLeft));
+    },
   });
-  await pushGraceWarning(env, db, company, thresholdDay, daysLeft);
-  return true;
 }
 
-/**
- * #252: the release warning also goes to the phone.
- *
- * Losing a business number is the most expensive thing that can happen to a
- * workspace here, and until now the ONLY warning was an email — to an address
- * that may bounce, may be filtered, and whose deliverability this very issue
- * exists because we could not vouch for. "Belt and braces on the ones that
- * matter": a notice this consequential must not depend on one channel we do
- * not fully control.
- *
- * BEST-EFFORT, AND AFTER THE EMAIL. The ledger row is already claimed by the
- * time this runs, so a push failure must never make the caller think the
- * warning was not sent — it was, by the channel that has always carried it.
- * Throwing here would also re-run the whole notice on the next sweep, and the
- * claim would refuse it, so the email would not resend either.
- *
- * NO CONTENT TO WITHHOLD. This is our own sentence about the workspace's own
- * billing, not a customer's words, so #430 has nothing to hide here.
- */
 async function pushGraceWarning(
   env: Env,
   db: SupabaseClient,
@@ -324,11 +325,6 @@ async function pushGraceWarning(
   thresholdDay: GraceThresholdDay,
   daysLeft: number,
 ): Promise<void> {
-  // #228: composed per reader, unlike the email that has just gone — a push is
-  // delivered to a person whose language `deliverPush` has resolved, an email
-  // to an address that is nobody in particular. So the two channels stop
-  // sharing one STRING while still sharing one ENTRY: `graceTitle` is what the
-  // subject was built from a moment ago, asked again in the reader's language.
   await pushConsequentialNotice(env, db, {
     companyId: company.id,
     title: (locale: Locale) => graceTitle(locale, thresholdDay, daysLeft),
@@ -451,51 +447,28 @@ async function releaseExpiredCompany(
   if (numbersToRelease > 0) await releaseCompanyNumbers(env, company.id);
   if (campaignActive) await deactivateCampaign(env, company.id);
 
-  // #54: the released email runs off the ledger, NOT the state check above —
-  // a failure in either release call has already thrown (the claim never runs
-  // before the release work is durably done), and once the claim lands
-  // exactly one run sends. The common already-processed daily pass is a
-  // single no-op upsert.
-  if (!(await claimGraceNotice(db, company, GRACE_RELEASED_NOTICE_DAY))) {
-    return;
-  }
+  await sendLedgered({
+    claim: () => claimGraceNotice(db, company, GRACE_RELEASED_NOTICE_DAY),
+    release: () => releaseGraceNotice(db, company, GRACE_RELEASED_NOTICE_DAY),
+    send: async () => {
+      const { data, error } = await db
+        .from("phone_numbers")
+        .select("id")
+        .eq("company_id", company.id)
+        .limit(1);
+      if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
+      // A workspace that never acquired a number has no release to announce.
+      if ((data ?? []).length === 0) return true;
 
-  // A canceled tenant that never provisioned a number has nothing released —
-  // "your business phone number has been released" would be false. The ledger
-  // row above is still claimed, so this check runs once per cancellation.
-  const { data: everRows, error: everError } = await db
-    .from("phone_numbers")
-    .select("id")
-    .eq("company_id", company.id)
-    .limit(1);
-  if (everError) {
-    throw new Error(`phone_numbers lookup failed: ${everError.message}`);
-  }
-  if ((everRows ?? []).length === 0) return;
-
-  const to = await billingRecipients(env, company.id, db);
-  if (to.length === 0) return;
-  const { subject, text } = releasedCopy(company);
-  await sendEmail(env, {
-    to,
-    subject,
-    text,
-    html: renderEmailHtml(text),
-    critical: true,
-  });
-
-  // #252: the last of the consequential notices, and the only one that is
-  // already true when it arrives. Nobody should learn their business number is
-  // gone by noticing it stopped working — least of all through the one channel
-  // whose deliverability this issue exists because we could not vouch for.
-  await pushConsequentialNotice(env, db, {
-    companyId: company.id,
-    // #228: per reader, like the warnings above, and off the same entry the
-    // English subject was just built from.
-    title: (locale: Locale) => NUMBER_NOTICE_COPY[locale].numberReleasedTitle,
-    body: (locale: Locale) => NUMBER_NOTICE_COPY[locale].numberReleasedBody,
-    path: "/settings/billing",
-    collapseKey: `grace:${company.id}:released`,
+      await pushConsequentialNotice(env, db, {
+        companyId: company.id,
+        title: (locale) => NUMBER_NOTICE_COPY[locale].numberReleasedTitle,
+        body: (locale) => NUMBER_NOTICE_COPY[locale].numberReleasedBody,
+        path: "/settings/billing",
+        collapseKey: `grace:${company.id}:released`,
+      });
+      return sendGraceEmail(env, db, company, releasedCopy(company));
+    },
   });
 }
 

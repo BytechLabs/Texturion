@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { runUsageAlertsJob } from "./usage-alerts";
+import { recordSpendingCapRefusal, runUsageAlertsJob } from "./usage-alerts";
 import { endpoint, makeHarness } from '../test/billing-support';
 import type { Harness, StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
@@ -51,7 +51,7 @@ interface UsageState {
   egressBytes?: number;
   /** #448 api_period_forwarded_calls (default 0 → no dial alert). */
   dials?: number;
-  /** #448: the cap the dial ceilings scale with (default 1x). */
+  /** #448: the cap the dial ceilings scale with (default 3x). */
   capMultiplier?: number;
   /** #449 api_period_inbound_segments (default 0 → no inbound alert). */
   inboundSegments?: number;
@@ -67,7 +67,7 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
         name: "Acme Plumbing",
         plan: state.plan ?? "starter",
         current_period_start: PERIOD_START,
-        overage_cap_multiplier: state.capMultiplier ?? 1,
+        overage_cap_multiplier: state.capMultiplier ?? 3,
       },
     ]),
     // #304: the three period sums are now ONE window read.
@@ -119,6 +119,7 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       state.ledger.add(key);
       return [{ company_id: COMPANY_ID }];
     }),
+    endpoint("GET", /\/rest\/v1\/push_subscriptions/, () => []),
     endpoint("GET", /\/rest\/v1\/company_members/, () => [
       { user_id: "11111111-1111-4111-8111-111111111111" },
     ]),
@@ -202,6 +203,24 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     await done;
     expect(sentEmails(harness)).toHaveLength(1);
     expect(state.ledger).toEqual(new Set(["segments:80"]));
+  });
+
+  it("warns at 90% of the spending cap and alerts on the first refusal", async () => {
+    const state: UsageState = { used: 1350, ledger: new Set() };
+    const sweep = run(state);
+    await sweep.done;
+    expect(state.ledger.has("segments_cap:90")).toBe(true);
+    expect(state.ledger.has("segments_cap:100")).toBe(false);
+    expect(sentEmails(sweep.harness).map(({ subject }) => subject))
+      .toContain("Texting is near the spending cap");
+
+    const harness = makeHarness(usageEndpoints(state));
+    stubFetch(harness.route);
+    await recordSpendingCapRefusal(env, COMPANY_ID, "segments_cap");
+    await recordSpendingCapRefusal(env, COMPANY_ID, "segments_cap");
+
+    expect(state.ledger.has("segments_cap:100")).toBe(true);
+    expect(sentEmails(harness).map(({ subject }) => subject)).toEqual(["Texting paused"]);
   });
 
   it("total stored bytes below the 25 GB abuse tier: no alert, and no budget resolution remains (#121)", async () => {
@@ -330,6 +349,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     // plan at 1x is $30 of per-dial fees while the voice arm reports the
     // tenant as using 1,000 of 2,500 allowance minutes — comfortably inside.
     const state: UsageState = {
+      capMultiplier: 1,
       used: 0,
       ledger: new Set(),
       voiceSeconds: 1000 * 60,

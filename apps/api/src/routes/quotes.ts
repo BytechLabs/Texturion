@@ -545,6 +545,7 @@ quotesRoutes.post(
     let gated;
     try {
       gated = await gateOutboundSend(db, {
+      env,
       companyId,
       conversationId: row.conversation_id,
       senderUserId: c.get("userId"),

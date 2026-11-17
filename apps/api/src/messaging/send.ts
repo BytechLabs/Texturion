@@ -8,6 +8,7 @@
  *   row) → Telnyx POST /v2/messages → persist telnyx_message_id, or
  *   status='failed' + surfaced error on API failure.
  */
+import { recordSpendingCapRefusal } from "../billing/usage-alerts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { classifySendFailure, isTollFreeDestination, isUsCaDestination, lookupAreaCode } from "@loonext/shared";
 
@@ -361,6 +362,7 @@ export async function gateOutboundSend(
   db: SupabaseClient,
   args: {
     companyId: string;
+    env: Env;
     conversationId: string;
     senderUserId: string;
     body: string;
@@ -381,6 +383,9 @@ export async function gateOutboundSend(
   const result = data as GateResult | null;
   if (result && "error" in result && typeof result.error === "string") {
     const code = result.error as GateErrorCode;
+    if (code === "usage_cap_reached") {
+      await recordSpendingCapRefusal(args.env, args.companyId, "segments_cap");
+    }
     if (GATE_ERROR_CODES.has(code)) {
       throw new ApiError(code, GATE_ERROR_MESSAGES[code]);
     }
