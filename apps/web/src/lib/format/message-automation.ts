@@ -14,7 +14,7 @@ const AUTOMATION_KEYS: Record<MessageAutomation, MessageKey> = {
   reminder: "thread.automationReminder",
 };
 
-/** The automation's own name ("Away reply"), or null when the text does not say. */
+/** The automation's own name ("Away reply"), or null when the message does not say. */
 export function messageAutomationName(automation: unknown, t: Translate): string | null {
   return isMessageAutomation(automation) ? t(AUTOMATION_KEYS[automation]) : null;
 }
