@@ -9,7 +9,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "start": "node src/cli.ts daemon",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun check",
     "lint": "eslint .",
     "test": "vitest run"
   },

@@ -7,6 +7,7 @@ node_modules/
 .open-next/
 dist/
 coverage/
+.test-history/
 *.tsbuildinfo
 
 # Generated at build time by scripts/gen-font-preloads.mjs (hero-font preload URLs)

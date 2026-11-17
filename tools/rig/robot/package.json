@@ -10,7 +10,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "start": "node src/main.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun check",
     "lint": "eslint .",
     "test": "vitest run"
   },
